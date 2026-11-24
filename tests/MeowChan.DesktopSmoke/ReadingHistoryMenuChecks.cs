@@ -57,7 +57,7 @@ internal static class ReadingHistoryMenuChecks
         await window.ResumeReadingPlaceAsync(target);
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => reader.IsVisible && window.ArchivePage.CurrentThread?.Summary.Id == target.ThreadId);
-        // With the thread open the book stays and a click on it opens the list instead of jumping away.
+        // With the thread open the header reading actions stay available.
         Require(button.IsEffectivelyVisible, "The book hides while a thread is open.");
         Click(window.ArchivePage.FindControl<Button>("ArchiveCloseReader")!);
         Console.WriteLine("SMOKE reading history list: one command and icon, usable size, full history entry, entry opens its place.");

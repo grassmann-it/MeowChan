@@ -65,12 +65,21 @@ internal static class ReadingPositionChecks
         await CheckLateProjectionResumeAsync(window, captured!);
         await CheckSavedHeaderModesAsync(window);
         await CheckSavedHeaderGalleryAsync(window);
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1")
+        {
+            using MediaNativeInput input = new(window);
+            await FooterNavigationChecks.CheckCurrentOverflowPageAsync(window, input);
+            await CheckReadingButtonsAsync(window, input);
+        }
+        else
+        {
+            Button book = window.FindControl<Button>("ContinueReadingButton")!;
+            Require(book.Focus(), "Cannot focus the available top-bar reading action.");
+            Click(book);
+            await WaitForResumeAsync(window, "1022");
+        }
         await FooterNavigationChecks.WaitForResumeHitAsync(window);
         FooterNavigationChecks.RequireResumeAction(window, expectedVisible: true);
-        Require(window.FindControl<Button>("ContinueReadingButton")!.Focus(), "Cannot focus the available top-bar reading action.");
-        Click(window.FindControl<Button>("ContinueReadingButton")!);
-        await WaitForResumeAsync(window, "1022");
-        // QW-A: the book stays visible with a thread open (the history has an entry); a click there opens the history list.
         Require(window.FindControl<Button>("ContinueReadingButton")!.IsVisible
             && window.FindControl<Button>("ContinueReadingHistoryButton")!.IsVisible,
             "Continue reading hides while a thread is open.");
@@ -160,6 +169,35 @@ internal static class ReadingPositionChecks
         await ReadingPositionAnchorChecks.PrepareRestartAsync(window, profile);
         File.WriteAllText(Path.Combine(profile, "reading-restart-ready"), "second process must explicitly restore the recorded nonzero visible anchor");
         Console.WriteLine("SMOKE reading position: default off, passive preview, explicit local resume, reader movement, forget/refresh and missing-post fallback passed.");
+    }
+
+    private static async Task CheckReadingButtonsAsync(MainWindow window, MediaNativeInput input)
+    {
+        Button book = window.FindControl<Button>("ContinueReadingButton")!;
+        Button arrow = window.FindControl<Button>("ContinueReadingHistoryButton")!;
+        var history = window.ReadingHistoryList!;
+        Require(book.Focus(NavigationMethod.Tab), "Cannot focus the header book.");
+        await input.KeyAsync(MediaNativeInput.Tab);
+        await Program.WaitUntilAsync(() => arrow.IsFocused);
+        await input.KeyAsync(MediaNativeInput.Enter);
+        await Program.WaitUntilAsync(() => history.IsOpen && history.Panel.Bounds.Width > 0);
+        Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible, "The history arrow activated the book.");
+        await input.KeyAsync(MediaNativeInput.Escape);
+        await Program.WaitUntilAsync(() => !history.IsOpen && arrow.IsFocused);
+        Button monitor = window.FindControl<Button>("TransferSpeed")!;
+        Button previous = monitor.IsEffectivelyVisible ? monitor : window.FindControl<Button>("BrandAboutButton")!;
+        Require(previous.Focus(NavigationMethod.Tab), "Cannot focus the control before the header book.");
+        await input.KeyAsync(MediaNativeInput.Tab);
+        await Program.WaitUntilAsync(() => book.IsFocused);
+        await input.KeyAsync(MediaNativeInput.Enter);
+        await WaitForResumeAsync(window, "1022");
+        Require(!history.IsOpen, "The book opened history instead of resuming the saved post.");
+        await Program.WaitUntilAsync(() => book.IsEffectivelyEnabled);
+        Require(book.Focus(NavigationMethod.Tab), "Cannot focus the book from an open thread.");
+        await input.KeyAsync(MediaNativeInput.Enter);
+        await WaitForResumeAsync(window, "1022");
+        Require(!history.IsOpen, "The book opened history from inside an already open thread.");
+        Console.WriteLine("SMOKE reading header Tab/Enter resumes the saved post and opens history through separate controls.");
     }
 
     private static async Task CheckLateProjectionResumeAsync(MainWindow window, LocalReadingPosition place)

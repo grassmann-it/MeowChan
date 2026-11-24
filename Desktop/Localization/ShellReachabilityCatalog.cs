@@ -17,6 +17,7 @@ internal static class ShellReachabilityCatalog
         ("resume.tip.jump", "Click: continue at the last reading place. Right-click, the menu key or the arrow button: reading history.", "Klick: an der letzten Lesestelle weiterlesen. Rechtsklick, Menütaste oder Pfeilknopf: Leseverlauf."),
         ("resume.tip.history", "Click: show the reading history, because you are already reading a thread. Right-click, the menu key and the arrow button open the same list.", "Klick: den Leseverlauf zeigen, weil du schon einen Thread liest. Rechtsklick, Menütaste und Pfeilknopf öffnen dieselbe Liste."),
         ("resume.history.open", "Show reading history", "Leseverlauf zeigen"),
+        ("nav.more.currentPage", "More pages · Current page: {0}", "Weitere Seiten · Aktuell: {0}"),
         ("menu.group.read", "Reading", "Lesen"),
         ("menu.group.collection", "Collection", "Sammlung"),
         ("menu.group.app", "App", "App"),

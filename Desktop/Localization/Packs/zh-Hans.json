@@ -5120,6 +5120,7 @@
     "reader.thread.postBookmarks": "帖子书签…",
     "resume.tip.jump": "单击：从上次阅读位置继续。右键单击、菜单键或箭头按钮：阅读历史。",
     "resume.tip.history": "单击：显示阅读历史，因为你已经在阅读一个帖子串。右键单击、菜单键和箭头按钮会打开同一个列表。",
+    "nav.more.currentPage": "更多页面 · 当前页面：{0}",
     "resume.history.open": "显示阅读历史",
     "menu.group.read": "阅读",
     "menu.group.collection": "收藏",

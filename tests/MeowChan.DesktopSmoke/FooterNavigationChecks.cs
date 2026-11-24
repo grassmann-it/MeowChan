@@ -212,14 +212,30 @@ internal static class FooterNavigationChecks
             Require(action.IsEffectivelyVisible && action.IsEffectivelyEnabled && Fits(window, action),
                 "The available header reading action is disabled or clipped.");
             Button pause = window.FindControl<Button>("PauseButton")!;
-            // QW-A: the arrow that opens the reading history sits between the book and Pause.
             Button arrow = window.FindControl<Button>("ContinueReadingHistoryButton")!;
-            Require(action.Parent is StackPanel utilities && utilities.Children.IndexOf(arrow) == utilities.Children.IndexOf(action) + 1
-                && utilities.Children.IndexOf(pause) == utilities.Children.IndexOf(arrow) + 1,
-                "The header book action and its history arrow are not directly left of Pause.");
             Require(arrow.IsEffectivelyVisible && arrow.IsEffectivelyEnabled && Fits(window, arrow)
-                && !string.IsNullOrWhiteSpace(AutomationProperties.GetName(arrow)) && ToolTip.GetTip(arrow) is string,
+                && AutomationProperties.GetName(arrow) == Texts.T("resume.history.open") && ToolTip.GetTip(arrow) is string,
                 "The reading history arrow is hidden, disabled, clipped or lacks its accessible name and tooltip.");
+            Rect bookBounds = new(action.TranslatePoint(default, window)!.Value, action.Bounds.Size);
+            Rect arrowBounds = new(arrow.TranslatePoint(default, window)!.Value, arrow.Bounds.Size);
+            Require(Math.Abs(arrowBounds.Width - 32) <= 1 && Math.Abs(bookBounds.Right - arrowBounds.Left) <= 1
+                && arrowBounds.Right <= pause.TranslatePoint(default, window)!.Value.X,
+                "The book and the 32 DIP history button do not share an edge immediately before Pause.");
+            Require(window.InputHitTest(arrowBounds.Center) is Visual arrowHit && arrowHit.GetSelfAndVisualAncestors().Contains(arrow),
+                "The history arrow cannot receive a pointer hit.");
+            Control dragArea = window.FindControl<Control>("WorkspaceTaglineHost")!;
+            Rect dragBounds = new(dragArea.TranslatePoint(default, window)!.Value, dragArea.Bounds.Size);
+            Control titleBar = window.FindControl<Control>("WorkspaceTitleBar")!;
+            Require(dragBounds.Width >= 8 && window.InputHitTest(dragBounds.Center) is Visual dragHit
+                && dragHit.GetSelfAndVisualAncestors().Contains(titleBar)
+                && !dragHit.GetSelfAndVisualAncestors().Any(visual => visual is Button or Menu or MenuItem),
+                "The header leaves no free title bar drag area.");
+            foreach (Button caption in window.FindControl<StackPanel>("WindowCaptionButtons")!.Children.OfType<Button>().Where(button => button.IsEffectivelyVisible))
+            {
+                Rect captionBounds = new(caption.TranslatePoint(default, window)!.Value, caption.Bounds.Size);
+                Require(window.InputHitTest(captionBounds.Center) is Visual captionHit && captionHit.GetSelfAndVisualAncestors().Contains(caption),
+                    "The title bar obscures " + caption.Name + ".");
+            }
             foreach (Control control in headerControls) Require(Fits(window, control), "Header control is clipped: " + control.Name);
             for (int first = 0; first < headerControls.Length; first++)
                 for (int second = first + 1; second < headerControls.Length; second++)
@@ -268,6 +284,85 @@ internal static class FooterNavigationChecks
                 "Footer selection disagrees with the open " + window.SelectedPage + " page: " + name);
         bool selectedHidden = Destinations.Any(destination => destination.Page == window.SelectedPage && !Button(window, destination.Name).IsVisible);
         Require(tools.Classes.Contains("selected") == selectedHidden, "Tools selection disagrees with its hidden destinations after a route, resize or mode change.");
+        string commandId = "navigation." + window.SelectedPage.ToString().ToLowerInvariant();
+        if (selectedHidden)
+        {
+            string expected = Texts.T("nav.more.currentPage", MeowChan.Desktop.Commands.CommandCatalog.Label(commandId));
+            Require(AutomationProperties.GetName(tools) == expected && ToolTip.GetTip(tools) as string == expected,
+                "More does not name the current hidden page.");
+        }
+        else
+            Require(AutomationProperties.GetName(tools) == Texts.T("command.navigation.tools-menu"),
+                "More still names a previously hidden page.");
+        MenuItem[] checkedItems = ((MenuFlyout)tools.Flyout!).Items.OfType<MenuItem>().Where(item => item.IsChecked).ToArray();
+        Require(selectedHidden
+            ? checkedItems.Length == 1 && checkedItems[0].IsVisible && checkedItems[0].Tag as string == "nav." + commandId["navigation.".Length..]
+            : checkedItems.Length == 0, "More does not mark the current hidden page exactly once.");
+    }
+
+    internal static async Task CheckCurrentOverflowPageAsync(MainWindow window, MediaNativeInput input)
+    {
+        string mode = window.SessionHost.Config.WorkspaceMode;
+        double width = window.Width;
+        Button tools = Button(window, "Tools");
+        MenuFlyout menu = (MenuFlyout)tools.Flyout!;
+        var originalLayout = window.FooterLayout;
+        var reordered = originalLayout.Move("navigation.rules", -1);
+        try
+        {
+            await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            window.Width = window.MinWidth;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - window.MinWidth) <= 1);
+            await SettleAsync(window);
+            Require(tools.Focus(NavigationMethod.Tab), "More cannot receive keyboard focus.");
+            await input.KeyAsync(MediaNativeInput.Enter);
+            MenuItem rules = menu.Items.OfType<MenuItem>().Single(item => item.Tag as string == "nav.rules");
+            await Program.WaitUntilAsync(() => menu.IsOpen && rules.IsEffectivelyVisible && rules.Bounds.Width > 0);
+            await input.ClickAsync(rules);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && !menu.IsOpen);
+            RequireSelection(window, tools);
+            await SaveFooterOrderAsync(reordered);
+            await OpenMenuAsync(menu, tools);
+            await input.ClickAsync(rules);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && !menu.IsOpen);
+            RequireSelection(window, tools);
+            await OpenMenuAsync(menu, tools);
+            Require(rules.IsChecked && rules.ToggleType == MenuItemToggleType.Radio && rules.Bounds.Width > 0,
+                "The current Rules row is unmarked when More is opened again.");
+            menu.Hide();
+            await Program.WaitUntilAsync(() => !menu.IsOpen);
+            const double wide = 1380;
+            window.Width = wide;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - wide) <= 1);
+            await SettleAsync(window);
+            RequireSelection(window, tools);
+            await PresentationChecks.SwitchModeAsync(window, "Advanced");
+            window.Width = wide;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - wide) <= 1);
+            await SettleAsync(window);
+            Require(window.SelectedPage == MainWindow.WorkspacePage.Rules && Button(window, "Rules").IsVisible,
+                "Rules did not return to the wide Advanced footer.");
+            RequireSelection(window, tools);
+            Console.WriteLine("SMOKE More names and marks Rules until the page returns to the footer.");
+        }
+        finally
+        {
+            menu.Hide();
+            if (!window.FooterLayout.Equals(originalLayout)) await SaveFooterOrderAsync(originalLayout);
+            window.Width = width;
+            await PresentationChecks.SwitchModeAsync(window, mode);
+            await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Archive);
+        }
+
+        async Task SaveFooterOrderAsync(MeowChan.Desktop.Commands.FooterLayout layout)
+        {
+            await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Settings);
+            SettingsEditor settings = window.SettingsEditor;
+            settings.FooterEditor.Load(layout);
+            settings.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+            await Program.WaitUntilAsync(() => !settings.IsBusy && window.FooterLayout.Equals(layout));
+            await SettleAsync(window);
+        }
     }
 
     private static async Task OpenMenuAsync(MenuFlyout menu, Button tools)

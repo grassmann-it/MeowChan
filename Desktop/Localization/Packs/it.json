@@ -5214,6 +5214,7 @@
     "reader.thread.postBookmarks": "Segnalibri dei post…",
     "resume.tip.jump": "Clic: continua dall’ultima posizione di lettura. Clic destro, tasto menu o pulsante freccia: cronologia di lettura.",
     "resume.tip.history": "Clic: mostra la cronologia di lettura, perché stai già leggendo un thread. Clic destro, tasto menu e pulsante freccia aprono lo stesso elenco.",
+    "nav.more.currentPage": "Altre pagine · Pagina corrente: {0}",
     "resume.history.open": "Mostra la cronologia di lettura",
     "menu.group.read": "Lettura",
     "menu.group.collection": "Raccolta",

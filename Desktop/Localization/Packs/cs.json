@@ -5255,6 +5255,7 @@
     "reader.thread.postBookmarks": "Záložky příspěvků…",
     "resume.tip.jump": "Kliknutí: pokračovat na poslední pozici čtení. Pravé tlačítko, klávesa nabídky nebo tlačítko se šipkou: historie čtení.",
     "resume.tip.history": "Kliknutí: zobrazit historii čtení, protože už čtete vlákno. Pravé tlačítko, klávesa nabídky a tlačítko se šipkou otevřou stejný seznam.",
+    "nav.more.currentPage": "Další stránky · Aktuální stránka: {0}",
     "resume.history.open": "Zobrazit historii čtení",
     "menu.group.read": "Čtení",
     "menu.group.collection": "Sbírka",

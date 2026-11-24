@@ -49,7 +49,7 @@ public sealed class ShellReachabilityTests : IDisposable
     [Theory]
     [InlineData(false, false, "resume.tip.jump")]
     [InlineData(true, true, "resume.tip.history")]
-    public void ALeftClickJumpsOutsideAThreadAndOpensTheHistoryInsideOne(bool threadOpen, bool opensHistory, string tipKey)
+    public void TheShortcutAndAppMenuJumpOutsideAThreadAndOpenTheHistoryInsideOne(bool threadOpen, bool opensHistory, string tipKey)
     {
         Assert.Equal(opensHistory ? ReadingResumeRouting.ClickAction.OpenHistory : ReadingResumeRouting.ClickAction.JumpToLast, ReadingResumeRouting.Click(threadOpen));
         Assert.Equal(tipKey, ReadingResumeRouting.TipKey(threadOpen));
@@ -66,11 +66,10 @@ public sealed class ShellReachabilityTests : IDisposable
     }
 
     [Fact]
-    public void TheWindowRoutesButtonShortcutAndAppMenuThroughTheOneRuleAndTheArrowAndRightClickAlwaysOpenTheHistory()
+    public void TheWindowRoutesShortcutAndAppMenuThroughTheOneRuleAndTheArrowAndRightClickAlwaysOpenTheHistory()
     {
         string resume = Source("Desktop/Shell/MainWindow.Resume.cs");
         Assert.Contains("ReadingResumeRouting.Click(ReadingThreadOpen)", resume);
-        Assert.Matches(@"ContinueReadingButton\.Click \+= \(_, _\) => ActivateReadingResume\(", resume);
         Assert.Matches(@"_resumeReadingMenu\.Click \+= \(_, _\) => ActivateReadingResume\(", resume);
         Assert.Contains("() => ActivateReadingResume(keyboard: true)", resume); // the shortcut
         Assert.Contains("ContinueReadingHistoryButton.Click += (_, _) => ShowReadingHistoryList(", resume); // the arrow: always the list
@@ -90,6 +89,22 @@ public sealed class ShellReachabilityTests : IDisposable
     }
 
     // ---- #10: the size of the history list ----
+
+    [Fact]
+    public void EveryLanguageNamesThePageCurrentlyUnderMore()
+    {
+        const string key = "nav.more.currentPage";
+        const string english = "More pages · Current page: {0}";
+        foreach (var language in Texts.Languages)
+        {
+            Texts.SetLanguage(language.Code);
+            string label = CommandCatalog.Label("navigation.rules");
+            string name = Texts.T(key, label);
+            Assert.Contains(label, name);
+            Assert.DoesNotContain("{0}", name);
+            if (language.Code != "en") Assert.NotEqual(string.Format(english, label), name);
+        }
+    }
 
     [Fact]
     public void TheHistoryListIsAtLeast320DipWideAndNeverWiderThanItsMaximumOrTheWindow()

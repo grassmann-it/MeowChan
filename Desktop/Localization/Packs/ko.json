@@ -5120,6 +5120,7 @@
     "reader.thread.postBookmarks": "게시물 책갈피…",
     "resume.tip.jump": "클릭: 마지막 읽기 위치에서 이어 읽습니다. 마우스 오른쪽 버튼, 메뉴 키 또는 화살표 버튼: 읽기 기록.",
     "resume.tip.history": "클릭: 이미 스레드를 읽고 있으므로 읽기 기록을 표시합니다. 마우스 오른쪽 버튼, 메뉴 키, 화살표 버튼도 같은 목록을 엽니다.",
+    "nav.more.currentPage": "더 많은 페이지 · 현재 페이지: {0}",
     "resume.history.open": "읽기 기록 표시",
     "menu.group.read": "읽기",
     "menu.group.collection": "컬렉션",

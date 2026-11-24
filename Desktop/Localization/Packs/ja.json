@@ -5120,6 +5120,7 @@
     "reader.thread.postBookmarks": "投稿のブックマーク…",
     "resume.tip.jump": "クリック：最後の閲覧位置から続きを読みます。右クリック、メニューキー、矢印ボタン：閲覧履歴。",
     "resume.tip.history": "クリック：すでにスレッドを読んでいるため、閲覧履歴を表示します。右クリック、メニューキー、矢印ボタンでも同じ一覧が開きます。",
+    "nav.more.currentPage": "その他のページ · 現在のページ：{0}",
     "resume.history.open": "閲覧履歴を表示",
     "menu.group.read": "閲覧",
     "menu.group.collection": "コレクション",

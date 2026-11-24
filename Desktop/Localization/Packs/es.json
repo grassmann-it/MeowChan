@@ -5208,6 +5208,7 @@
     "reader.thread.postBookmarks": "Marcadores de publicaciones…",
     "resume.tip.jump": "Clic: continuar en la última posición de lectura. Clic derecho, tecla de menú o botón de flecha: historial de lectura.",
     "resume.tip.history": "Clic: mostrar el historial de lectura, porque ya está leyendo un hilo. El clic derecho, la tecla de menú y el botón de flecha abren la misma lista.",
+    "nav.more.currentPage": "Más páginas · Página actual: {0}",
     "resume.history.open": "Mostrar el historial de lectura",
     "menu.group.read": "Lectura",
     "menu.group.collection": "Colección",

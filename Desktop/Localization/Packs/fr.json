@@ -5208,6 +5208,7 @@
     "reader.thread.postBookmarks": "Signets de messages…",
     "resume.tip.jump": "Clic : reprendre à la dernière position de lecture. Clic droit, touche Menu ou bouton flèche : historique de lecture.",
     "resume.tip.history": "Clic : afficher l’historique de lecture, car vous lisez déjà un fil. Le clic droit, la touche Menu et le bouton flèche ouvrent la même liste.",
+    "nav.more.currentPage": "Autres pages · Page actuelle : {0}",
     "resume.history.open": "Afficher l’historique de lecture",
     "menu.group.read": "Lecture",
     "menu.group.collection": "Collection",

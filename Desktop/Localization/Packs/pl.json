@@ -5256,6 +5256,7 @@
     "reader.thread.postBookmarks": "Zakładki postów…",
     "resume.tip.jump": "Kliknięcie: kontynuuj od ostatniej pozycji czytania. Prawy przycisk, klawisz menu lub przycisk ze strzałką: historia czytania.",
     "resume.tip.history": "Kliknięcie: pokaż historię czytania, bo już czytasz wątek. Prawy przycisk, klawisz menu i przycisk ze strzałką otwierają tę samą listę.",
+    "nav.more.currentPage": "Więcej stron · Bieżąca strona: {0}",
     "resume.history.open": "Pokaż historię czytania",
     "menu.group.read": "Czytanie",
     "menu.group.collection": "Kolekcja",

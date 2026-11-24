@@ -5214,6 +5214,7 @@
     "reader.thread.postBookmarks": "Marcadores de postagens…",
     "resume.tip.jump": "Clique: continuar na última posição de leitura. Clique com o botão direito, tecla de menu ou botão de seta: histórico de leitura.",
     "resume.tip.history": "Clique: mostrar o histórico de leitura, porque você já está lendo um tópico. Clique com o botão direito, tecla de menu e botão de seta abrem a mesma lista.",
+    "nav.more.currentPage": "Mais páginas · Página atual: {0}",
     "resume.history.open": "Mostrar o histórico de leitura",
     "menu.group.read": "Leitura",
     "menu.group.collection": "Coleção",

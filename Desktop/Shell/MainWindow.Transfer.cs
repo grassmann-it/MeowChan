@@ -176,8 +176,8 @@ public partial class MainWindow
     internal const double HeaderMonitorMinimumWidth = 760;
     /// <summary>The room one optional header icon takes: the 30-dip icon and the 6-dip spacing of the utility row.</summary>
     internal const double HeaderIconRoom = 36;
-    /// <summary>The room of the arrow beside the book icon (its 20 dip button, 8 dip spacing less the 6 dip it is pulled toward the book).</summary>
-    internal const double HeaderArrowRoom = 22;
+    private const double ReadingHeaderDragRoom = 8;
+    private double ReadingControlsWidth => ContinueReadingButton.Width + ContinueReadingHistoryButton.Width;
 
     /// <summary>
     /// Whether the header display is shown at this window width. Each optional icon in the utility row ("Continue reading", shown
@@ -194,7 +194,8 @@ public partial class MainWindow
     /// </summary>
     private void ApplyHeaderMonitorVisibility()
     {
-        bool show = HeaderMonitorShown(_headerLayout.Hidden, Bounds.Width, ContinueReadingButton.IsVisible ? 1 + HeaderArrowRoom / HeaderIconRoom : 0)
+        double readingRoom = ContinueReadingGroup.IsVisible ? ReadingControlsWidth + WorkspaceHeaderTools.Spacing : 0;
+        bool show = HeaderMonitorShown(_headerLayout.Hidden, Bounds.Width, readingRoom / HeaderIconRoom)
             && HeaderMonitorFitsMeasured();
         if (TransferSpeed.IsVisible == show) return;
         TransferSpeed.IsVisible = show;
@@ -223,13 +224,15 @@ public partial class MainWindow
         foreach (Control child in WorkspaceHeaderTools.Children)
         {
             if (ReferenceEquals(child, TransferSpeed) || !child.IsVisible) continue;
-            // A button that has just become visible has not been measured yet: its fixed width (header icons) stands in.
-            tools += double.IsNaN(child.Width) ? child.DesiredSize.Width : child.Width + child.Margin.Left + child.Margin.Right;
+            // The reading buttons may have just become visible, before the group has a desired size.
+            tools += ReferenceEquals(child, ContinueReadingGroup) ? ReadingControlsWidth
+                : double.IsNaN(child.Width) ? child.DesiredSize.Width : child.Width + child.Margin.Left + child.Margin.Right;
             toolCount++;
         }
         double fixedParts = WorkspaceBrand.DesiredSize.Width + WorkspaceMenuBar.DesiredSize.Width + tools
             + WorkspaceHeaderTools.Spacing * Math.Max(0, toolCount - 1)
             + WorkspaceHeader.ColumnSpacing * Math.Max(0, WorkspaceHeader.ColumnDefinitions.Count - 1);
+        if (ContinueReadingGroup.IsVisible) fixedParts += ReadingHeaderDragRoom;
         double monitor = HeaderMonitorFit.Width(_headerLayout,
             HeaderWordWidth(TransferDownMark, TransferDownMarker), HeaderWordWidth(TransferUpMark, TransferUpMarker),
             HeaderWordWidth(TransferReadMark, TransferReadMarker), HeaderWordWidth(TransferWriteMark, TransferWriteMarker),

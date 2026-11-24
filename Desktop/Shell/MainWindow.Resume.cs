@@ -38,7 +38,7 @@ public partial class MainWindow
     private int _readingResumeStateRevision;
     private bool _readingResumePending;
 
-    /// <summary>True while a thread is open (the reader, or the gallery over it): a click on the button then opens the history list.</summary>
+    /// <summary>True while the reader or the gallery over it is open.</summary>
     private bool ReadingThreadOpen =>
         this.FindControl<ContentControl>("ReaderHost")?.IsEffectivelyVisible == true || GalleryOverlayVisible;
 
@@ -59,8 +59,7 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// What the button, its shortcut and the "Continue reading" entry of the app menu do (ReadingResumeRouting.Click): outside a thread
-    /// they jump to the last reading position, inside an open thread they open the history list.
+    /// The shortcut and app menu open the history inside a thread and resume the last place elsewhere.
     /// </summary>
     private void ActivateReadingResume(bool keyboard)
     {
@@ -119,7 +118,8 @@ public partial class MainWindow
         Button arrow = ContinueReadingHistoryButton;
         bool transferFocus = (button.IsKeyboardFocusWithin || arrow.IsKeyboardFocusWithin) && !shown;
         WorkViewGate.Apply(button, view, visible);
-        arrow.IsVisible = button.IsVisible; // the arrow belongs to the book
+        arrow.IsVisible = button.IsVisible;
+        ContinueReadingGroup.IsVisible = button.IsVisible;
         button.IsEnabled = arrow.IsEnabled = CanResumeReading;
         if (_resumeReadingMenu != null) _resumeReadingMenu.IsEnabled = CanResumeReading;
         if (_readingHistoryMenu != null)
@@ -127,7 +127,7 @@ public partial class MainWindow
             _readingHistoryMenu.IsVisible = _config.RememberReadingPosition;
             _readingHistoryMenu.IsEnabled = CanResumeReading && visible;
         }
-        RefreshReadingResumeLabels(); // the tooltip names what a click does now (a thread open or not)
+        RefreshReadingResumeLabels();
         if (transferFocus)
         {
             // Never leave focus on a disappearing top-bar action. Reader anchor work
@@ -165,11 +165,9 @@ public partial class MainWindow
         _resumeReadingMenu.Click += (_, _) => ActivateReadingResume(keyboard: false);
         // First entry of the menu, in front of Import files (MenuToolsAnchor).
         WorkspaceMenuItem.Items.Insert(MenuToolsAnchor + 1, _resumeReadingMenu);
-        // A click on the button: the last place outside a thread, the history list inside one. The keyboard (Enter, Space) is told apart from
-        // the pointer by where the pointer is, so the focus ring returns after the list closes only for the keyboard.
-        ContinueReadingButton.Click += (_, _) => ActivateReadingResume(keyboard: !ContinueReadingButton.IsPointerOver);
+        ContinueReadingButton.Click += (_, _) => _ = ResumeLastReadingAsync();
         // The header display makes room for the book icon and its arrow (HeaderMonitorShown).
-        ContinueReadingButton.PropertyChanged += (_, change) => { if (change.Property == IsVisibleProperty) ApplyHeaderMonitorVisibility(); };
+        ContinueReadingGroup.PropertyChanged += (_, change) => { if (change.Property == IsVisibleProperty) ApplyHeaderMonitorVisibility(); };
         InitializeReadingHistoryMenus();
         RefreshReadingResumeLabels();
     }
@@ -177,25 +175,32 @@ public partial class MainWindow
     private void RefreshReadingResumeLabels()
     {
         Button button = ContinueReadingButton;
-        // The tooltip names what a click does now: the last place outside a thread, the history list inside one (ReadingResumeRouting).
-        string ClickHint() => Texts.T(ReadingResumeRouting.TipKey(ReadingThreadOpen));
-        CommandBindings.Apply(button, "navigation.continue-reading", ClickHint, iconOnly: true);
-        string help = CommandBindings.Tooltip("navigation.continue-reading", ClickHint());
-        // The tooltip names the thread and the post the button continues at (the newest place of the history).
-        if (_readingHistorySnapshot.Count > 0 && _config.RememberReadingPosition && !ReadingThreadOpen)
-            help += "\n" + ReadingHistoryMenu.EntryTip(_readingHistorySnapshot[0].Position);
-        ToolTip.SetTip(button, help);
-        AutomationProperties.SetHelpText(button, help);
+        const string command = "navigation.continue-reading";
+        CommandBindings.Apply(button, command, iconOnly: true);
+        RefreshBookHint();
+        CommandBindings.ObservePresentation(button, RefreshBookHint);
         Button arrow = ContinueReadingHistoryButton;
         string arrowName = Texts.T("resume.history.open");
         AutomationProperties.SetName(arrow, arrowName);
-        string arrowHelp = arrowName + " · " + Texts.T("resume.history.menu");
         ToolTip.SetTip(arrow, arrowName);
-        AutomationProperties.SetHelpText(arrow, arrowHelp);
+        AutomationProperties.SetHelpText(arrow, arrowName);
         if (_resumeReadingMenu == null) return;
-        CommandBindings.Apply(_resumeReadingMenu, "navigation.continue-reading", ClickHint);
-        AutomationProperties.SetHelpText(_resumeReadingMenu, help);
+        string MenuHint() => Texts.T(ReadingResumeRouting.TipKey(ReadingThreadOpen));
+        CommandBindings.Apply(_resumeReadingMenu, command, MenuHint);
         if (_readingHistoryMenu != null) _readingHistoryMenu.Header = Texts.T("resume.history.menu");
+    }
+
+    private void RefreshBookHint()
+    {
+        const string command = "navigation.continue-reading";
+        string hint = Texts.T("resume.tip.jump");
+        string help = ReadingThreadOpen ? CommandCatalog.Label(command) + "\n" + hint : CommandBindings.Tooltip(command, hint);
+        // The tooltip names the thread and the post the button continues at (the newest place of the history).
+        if (_readingHistorySnapshot.Count > 0 && _config.RememberReadingPosition)
+            help += "\n" + ReadingHistoryMenu.EntryTip(_readingHistorySnapshot[0].Position);
+        ToolTip.SetTip(ContinueReadingButton, help);
+        AutomationProperties.SetHelpText(ContinueReadingButton, help);
+        AutomationProperties.SetName(ContinueReadingButton, CommandCatalog.Label(command));
     }
 
     private void InitializeReadingHistoryMenus()
