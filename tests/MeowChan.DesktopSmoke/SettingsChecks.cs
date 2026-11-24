@@ -563,7 +563,7 @@ internal static class SettingsChecks
     {
         Config config = Config.LoadConfig(profile);
         config.DownloadPath = Path.Combine(profile, "downloads");
-        SettingsEditor editor = new(config, async candidate => { await Task.Yield(); candidate.SaveConfig(); });
+        using SettingsEditor editor = new(config, async candidate => { await Task.Yield(); candidate.SaveConfig(); });
         Window host = new() { Width = 900, Height = 700, Content = editor };
         host.Show(owner);
         try
@@ -704,7 +704,7 @@ internal static class SettingsChecks
             Require(provider.PickerCalls == calls, "Pending folder picker was opened twice.");
             Require(window.PlatformImpl!.Closing!(WindowCloseReason.WindowClosing), "Pending folder picker allowed its parent dialog to close.");
             string selectedPath = Path.Combine(profile, "selected");
-            FixtureStorageFolder selected = new FixtureStorageFolder(new Uri(selectedPath));
+            using FixtureStorageFolder selected = new(new Uri(selectedPath));
             await Task.Run(() => pending.SetResult(new IStorageFolder[] { selected }));
             await WaitUntilAsync(() => !window.Editor.IsBusy);
             Require(window.Editor.DownloadPath == selectedPath && !window.Editor.HasError && selected.Disposed, "Local picker result was not applied and disposed.");
@@ -718,7 +718,7 @@ internal static class SettingsChecks
             var late = new TaskCompletionSource<IReadOnlyList<IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
             provider.Result = late.Task;
             Click(browse);
-            window.Editor.EndLifetime();
+            window.Editor.Dispose();
             var ignored = new FixtureStorageFolder(new Uri(Path.Combine(profile, "late ignored")));
             late.SetResult(new IStorageFolder[] { ignored });
             await WaitUntilAsync(() => !window.Editor.IsBusy);

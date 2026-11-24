@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
 using Avalonia.Platform.Storage;
@@ -421,29 +420,92 @@ public sealed class SettingsExportUiTests
     }
 
     [Fact]
-    public void EditorExportUsesConfirmedConfigNeverSavesDraftAndUsesLocalizedPathFreeBanner()
+    public void EditorExportsConfirmedSettingsWithoutSavingTheDraft() => BooruComponentDispatcher.Run(() =>
     {
-        string transfer = File.ReadAllText(Root("Desktop/Views/Settings/SettingsEditor.Transfer.cs"));
-        string editor = File.ReadAllText(Root("Desktop/Views/Settings/SettingsEditor.axaml.cs"));
-        Assert.Contains("CaptureSavedSnapshot(_config)", transfer);
-        Assert.Contains("SettingsTransfer.CreatePortableSnapshot(saved)", transfer);
-        Assert.True(transfer.IndexOf("CaptureSavedSnapshot(_config)", StringComparison.Ordinal) <
-            transfer.IndexOf("await SettingsExportUi.ExportSnapshotAsync", StringComparison.Ordinal));
-        Assert.DoesNotContain("saved.Clone()", transfer);
-        Assert.DoesNotContain("saved.LayoutProfiles", transfer);
-        Assert.Contains("TopLevel.GetTopLevel(this)?.StorageProvider", transfer);
-        Assert.Contains("SetErrorMessage(\"settings.transfer.exportFailed\");", transfer);
-        Assert.Contains("catch (OperationCanceledException)", transfer);
-        Assert.Contains("EndSettingsTransferLifetime();", editor);
-        Assert.Contains("_settingsExportCancellation?.Cancel();", editor);
-        foreach (string forbidden in new[] { "SaveConfig(", "_applySettings(", "ApplyLimitsDraft(", "TryGetLocalPath(", "File.Open", "File.Write", "exception.Message", "exception.ToString", "Console.", "Logger.", "Log." })
-            Assert.DoesNotContain(forbidden, transfer);
+        Config saved = new() { RecheckTimer = 75 };
+        int commits = 0;
+        using SettingsEditor editor = new(saved, _ => { commits++; return Task.CompletedTask; });
+        editor.RecheckTimer = 125;
+        string? status = editor.StatusMessage;
+        using MemoryFile file = new();
+        SaveProvider provider = new() { Result = Task.FromResult<IStorageFile?>(file) };
+
+        BooruComponentDispatcher.Wait(editor.ExportSavedSettingsAsync(provider).WaitAsync(Watchdog));
+
+        JsonObject json = JsonNode.Parse(file.Bytes.ToArray())!.AsObject();
+        Assert.Equal(75, json[nameof(Config.RecheckTimer)]!.GetValue<int>());
+        Assert.Equal(75, saved.RecheckTimer);
+        Assert.Equal(125m, editor.RecheckTimer);
+        Assert.Equal(status, editor.StatusMessage);
+        Assert.Equal(0, commits);
+        Assert.Equal(1, provider.Calls);
+        Assert.Equal(1, file.DisposeCalls);
+        Assert.False(editor.HasError);
+        Assert.False(editor.IsBusy);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EditorExportFailureShowsALocalizedPathFreeBanner(bool providerThrows) => BooruComponentDispatcher.Run(() =>
+    {
+        Config saved = new();
+        using SettingsEditor editor = new(saved);
+        string confirmedPath = saved.DownloadPath;
+        editor.DownloadPath = "uncommitted-path";
+        IStorageProvider? provider = providerThrows ? new SaveProvider
+        {
+            Result = Task.FromException<IStorageFile?>(new IOException("synthetic private path"))
+        } : null;
+
+        BooruComponentDispatcher.Wait(editor.ExportSavedSettingsAsync(provider).WaitAsync(Watchdog));
+
+        Assert.True(editor.HasError);
+        Assert.Equal(Texts.T("settings.transfer.exportFailed"), editor.ErrorMessage);
+        Assert.Null(editor.ErrorDetails);
+        Assert.Equal("uncommitted-path", editor.DownloadPath);
+        Assert.Equal(confirmedPath, saved.DownloadPath);
+        Assert.False(editor.IsBusy);
         Assert.All(SettingsTransferUiCatalog.Entries, entry =>
         {
             Assert.False(string.IsNullOrWhiteSpace(entry.English));
             Assert.False(string.IsNullOrWhiteSpace(entry.German));
         });
-    }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisposingTheEditorClosesALateFileOrDrainsAnOpenWrite(bool writeStarted) => BooruComponentDispatcher.Run(() =>
+    {
+        using SettingsEditor editor = new(new Config());
+        TaskCompletionSource releaseWrite = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using MemoryFile file = new() { GateOpen = releaseWrite };
+        TaskCompletionSource<IStorageFile?> choice = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        SaveProvider provider = new() { Result = choice.Task };
+        if (writeStarted) choice.SetResult(file);
+        Task export = editor.ExportSavedSettingsAsync(provider);
+        try
+        {
+            if (writeStarted) BooruComponentDispatcher.Wait(file.OpenStarted.Task.WaitAsync(Watchdog));
+            Assert.Equal(1, provider.Calls);
+            editor.Dispose();
+            Assert.False(export.IsCompleted);
+        }
+        finally
+        {
+            choice.TrySetResult(file);
+            releaseWrite.TrySetResult();
+            BooruComponentDispatcher.Wait(export.WaitAsync(Watchdog));
+        }
+
+        Assert.Equal(writeStarted ? 1 : 0, file.WriteCalls);
+        Assert.Equal(1, file.DisposeCalls);
+        if (writeStarted) Assert.NotNull(JsonNode.Parse(file.Bytes.ToArray()));
+        else Assert.Empty(file.Bytes.Operations);
+        Assert.False(editor.HasError);
+        Assert.False(editor.IsBusy);
+    });
 
     // .NET dictionary version catches transient Add/Clear/reinsert that equal final bytes miss.
     private static int DictionaryVersion<TKey, TValue>(Dictionary<TKey, TValue> dictionary) where TKey : notnull =>
@@ -558,7 +620,4 @@ public sealed class SettingsExportUiTests
             return ValueTask.CompletedTask;
         }
     }
-
-    private static string Root(string relative, [CallerFilePath] string path = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../..", relative));
 }

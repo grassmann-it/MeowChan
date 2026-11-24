@@ -74,6 +74,8 @@ internal sealed partial class BooruSearchModel : IDisposable
     private readonly TimeProvider _clock;
     private readonly RequestLifetime _lifetime = new();
     private readonly SemaphoreSlim _previewSlots = new(2);
+    private int _previewUsers;
+    private TaskCompletionSource? _previewDrain;
     private RequestLifetime? _request;
     // Prevents a double click from issuing two lifecycle mutations while the row is rebuilt.
     private readonly HashSet<string> _originalActions = new(StringComparer.Ordinal);
@@ -396,6 +398,12 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     private async Task LoadPreviewAsync(long id, BooruPostView post, CancellationToken token)
     {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _previewUsers++;
+        }
+
         bool entered = false;
         byte[]? bytes = null;
         try
@@ -410,6 +418,10 @@ internal sealed partial class BooruSearchModel : IDisposable
         finally
         {
             if (entered) _previewSlots.Release();
+            lock (_gate)
+            {
+                if (--_previewUsers == 0) _previewDrain?.SetResult();
+            }
         }
         UpdateRow(id, post.PostId, row => row with
         {
@@ -675,16 +687,29 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     public void Dispose()
     {
+        Task previewsDrained = Task.CompletedTask;
         lock (_gate)
         {
             if (_disposed) return;
             _disposed = true;
+            if (_previewUsers != 0)
+            {
+                _previewDrain = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                previewsDrained = _previewDrain.Task;
+            }
             ReplaceRequest(needsRequest: false);
         }
         _queue.LocalStatesChanged -= OnLocalStatesChanged;
-        Task retirement = _lifetime.RetireAsync();
+        Task retirement = Task.WhenAll(_lifetime.RetireAsync(), DisposePreviewSlotsAsync(previewsDrained));
         OpenActions.Start(() => retirement, "booru.search.retire");
         Changed = null;
+    }
+
+    private async Task DisposePreviewSlotsAsync(Task previewsDrained)
+    {
+        // Wait for pending WaitAsync calls and for the last acquired slot to be released.
+        await previewsDrained.ConfigureAwait(false);
+        _previewSlots.Dispose();
     }
 }
 

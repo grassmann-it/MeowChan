@@ -232,7 +232,7 @@ public sealed class ToolbarVisualIconAuditTests
             rules.EndLifetime();
             status.EndLifetime();
             diagnostics.EndLifetime();
-            settings.EndLifetime();
+            settings.Dispose();
         }
     });
 
