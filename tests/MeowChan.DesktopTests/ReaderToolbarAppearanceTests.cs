@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
@@ -29,12 +30,13 @@ public sealed class ReaderToolbarAppearanceTests
         {
             page.ArchiveSplitPreference = 840;
             window.Show();
-            var tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+            var tabs = ByAutomationId<TabControl>(page, "ArchiveContentTabs");
             tabs.IsVisible = true;
-            tabs.SelectedItem = page.FindControl<TabItem>("ArchiveMediaTab");
+            tabs.SelectedItem = ByAutomationId<TabItem>(page, "ArchiveMediaTab");
+            page.MediaTilesPreference = false;
 
-            var find = page.FindControl<ToggleButton>("ReaderFindOpen")!;
-            var tags = page.FindControl<ToggleButton>("ReaderTagsOpen")!;
+            var find = ByAutomationId<ToggleButton>(page, "ReaderFindOpen");
+            var tags = ByAutomationId<ToggleButton>(page, "ReaderTagsOpen");
             foreach (WorkView view in WorkViewSetting.All)
             {
                 page.ArchiveColumnModePreference = view.ToSetting();
@@ -51,11 +53,11 @@ public sealed class ReaderToolbarAppearanceTests
                 Assert.Equal(view == WorkView.Barebones, find.Classes.Contains(ActionToolBarPanel.ReducedPseudoClass));
                 Assert.Equal(view == WorkView.Barebones, tags.Classes.Contains(ActionToolBarPanel.ReducedPseudoClass));
                 if (view == WorkView.Barebones) continue;
-                AssertGap(page.FindControl<Button>("ArchiveOpenGallery")!, find, ActionToolBarPanel.ItemGap);
+                AssertGap(ByAutomationId<Button>(page, "ArchiveOpenGallery"), find, ActionToolBarPanel.ItemGap);
                 AssertGap(find, tags, ActionToolBarPanel.GroupGap);
-                AssertGap(tags, page.FindControl<Button>("ExportArchiveButton")!, ActionToolBarPanel.ItemGap);
-                AssertInlineToggle(find, page.FindControl<StackPanel>("ReaderFindBar")!);
-                AssertInlineToggle(tags, page.FindControl<StackPanel>("ReaderTagBar")!);
+                AssertGap(tags, ByAutomationId<Button>(page, "ExportArchiveButton"), ActionToolBarPanel.ItemGap);
+                AssertInlineToggle(find, ByAutomationId<StackPanel>(page, "ReaderFindBar"));
+                AssertInlineToggle(tags, ByAutomationId<StackPanel>(page, "ReaderTagBar"));
             }
         }
         finally
@@ -112,16 +114,19 @@ public sealed class ReaderToolbarAppearanceTests
 
     private static void AssertBarActions(ArchivePage page, string name, bool mayBeEmpty = false)
     {
-        var bar = page.FindControl<ActionToolBar>(name)!;
+        var bar = ByAutomationId<ActionToolBar>(page, name);
         Assert.True(bar.IsEffectivelyVisible, name);
         Button[] actions = bar.Items.OfType<Button>().Where(button => button.IsEffectivelyVisible
             && !button.Classes.Contains(ActionToolBarPanel.ReducedPseudoClass)
             && button is not ArchiveThreadFavoriteButton
-            && (button is not ToggleButton || button.Name is "ReaderFindOpen" or "ReaderTagsOpen")).ToArray();
-        if (!mayBeEmpty) Assert.NotEmpty(actions);
+            && (button is not ToggleButton || AutomationProperties.GetAutomationId(button) is "ReaderFindOpen" or "ReaderTagsOpen" or "ArchiveFavoritesFilter")).ToArray();
+        if (!mayBeEmpty) Assert.True(actions.Length > 0, $"No visible flat actions in {name} for {page.ReaderWorkView}.");
         foreach (Button action in actions)
             AssertFlatAction(action, ActionPadding);
     }
+
+    private static T ByAutomationId<T>(Visual root, string id) where T : Control =>
+        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
     private static void AssertFlatAction(Button action, Thickness padding)
     {
