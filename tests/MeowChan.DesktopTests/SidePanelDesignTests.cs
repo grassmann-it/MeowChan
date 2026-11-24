@@ -325,6 +325,34 @@ public sealed class SidePanelDesignTests
         finally { window.Close(); }
     });
 
+    [Fact]
+    public void NarrowHeaderKeepsPositionAndFileFactsOnOneLineInEveryLanguage() => Run(() =>
+    {
+        const string filename = "a-long-filename-that-needs-to-be-shortened-in-the-middle.jpg";
+        ReaderMediaSidebar panel = new();
+        panel.Describe("No. 22490087", filename, "1080×1920", true, new(2, 64, false), 2 * 1024 * 1024);
+        Window window = new() { Width = 240, Height = 640, Content = panel };
+        try
+        {
+            window.Show();
+            MediaCompactHeader header = Assert.IsType<MediaCompactHeader>(panel.HeaderRow);
+            foreach (string language in BuiltInLanguages.Concat(Texts.BundledPackCodes()))
+            {
+                Texts.SetLanguage(language);
+                Settle(window);
+                AssertCompactHeader(panel);
+                Assert.False(panel.PositionPill.IsVisible);
+                Assert.StartsWith("2 / 64 · ", header.Meta.Text);
+                Assert.Contains(".jpg", header.Meta.Text);
+                Assert.EndsWith(SizeText.Format(2 * 1024 * 1024) + " · 1080×1920", header.Meta.Text);
+                Assert.Contains(filename, ToolTip.GetTip(header.Meta)?.ToString());
+                Assert.Single(header.Meta.TextLayout.TextLines);
+                Assert.True(panel.Card.Bounds.Height >= 0.88 * panel.Bounds.Height);
+            }
+        }
+        finally { window.Close(); }
+    });
+
     internal static void AssertCompactHeader(ReaderMediaSidebar panel)
     {
         MediaCompactHeader header = Assert.IsType<MediaCompactHeader>(panel.HeaderRow);
