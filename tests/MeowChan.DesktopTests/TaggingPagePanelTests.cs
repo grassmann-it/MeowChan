@@ -57,7 +57,9 @@ public sealed class TaggingPagePanelTests
     [Fact]
     public void AnEntryWithoutAPostShowsItsFilenameAndPosition() => WithPage(false, async fixture =>
     {
-        fixture.ClickEntry(12);
+        fixture.ClickEntry(1);
+        fixture.Key(Key.End);
+        Assert.Equal(12, fixture.FocusedNumber());
         await fixture.ShowsAsync(12);
         Assert.DoesNotContain("No.", fixture.PanelText("ReaderMediaSidebarHeading"));
     });
@@ -81,17 +83,19 @@ public sealed class TaggingPagePanelTests
                 fixture.ClickEntry(1);
                 fixture.Key(grid ? Key.Right : Key.Down);
                 await firstDecoded.Task.WaitAsync(Deadline);
-                for (int index = 1; index < 10; index++)
-                    fixture.Key(grid ? Key.Right : Key.Down);
+                for (int index = 1; index < 9; index++)
+                    fixture.Key(!grid ? Key.Down : index % 2 == 0 ? Key.Right : Key.Left);
+                fixture.Key(Key.Down);
                 int final = fixture.FocusedNumber();
-                Assert.Equal(11, final);
+                if (grid) Assert.True(final > 2);
+                else Assert.Equal(11, final);
                 clock.Advance(119);
                 fixture.Pump();
                 Assert.Equal(2, decodes.Count);
                 clock.Advance(1);
                 await fixture.ShowsAsync(final);
                 await fixture.WaitAsync(() => fixture.Picture.Source != null, "latest image");
-                Assert.Equal(new[] { ("file-1.png", 0L), ("file-2.png", 0L), ("file-11.png", 120L) }, decodes);
+                Assert.Equal(new[] { ("file-1.png", 0L), ("file-2.png", 0L), ($"file-{final}.png", 120L) }, decodes);
                 object? shown = fixture.Picture.Source;
                 releaseFirst.TrySetResult();
                 Bitmap late = await firstBitmap.Task.WaitAsync(Deadline);
@@ -102,7 +106,7 @@ public sealed class TaggingPagePanelTests
                 await fixture.Session.SetTagQueueStatesAsync([KeyValuePair.Create(fixture.Items[final - 1].Key, TagQueueState.Skipped)]);
                 fixture.Find<ComboBox>(fixture.Window, "TaggingFilter").SelectedIndex = (int)TaggingQueueFilter.Open;
                 await fixture.Page.ActivateAsync();
-                await fixture.WaitAsync(() => !fixture.PanelText(MetaId).Contains("file-11.png", StringComparison.Ordinal)
+                await fixture.WaitAsync(() => !fixture.PanelText(MetaId).Contains($"file-{final}.png", StringComparison.Ordinal)
                     && !ReferenceEquals(fixture.Picture.Source, shown), "filtered medium released");
                 await fixture.Session.ClearTagQueueAsync();
                 await fixture.Page.ActivateAsync();
@@ -173,6 +177,13 @@ public sealed class TaggingPagePanelTests
         Assert.Equal(key, Assert.Single(fixture.Session.GetMediaRatings()).Key);
         await fixture.WaitAsync(() => fixture.Star().IsChecked == true, "the selected third star");
         Assert.Equal(4, fixture.FocusedNumber());
+        if (fixture.FindOrDefault<Control>(fixture.Panel, "ReaderMediaSidebarInfoBar") != null)
+        {
+            fixture.Click(fixture.Star());
+            await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == null, "clear the active star");
+            fixture.Click(fixture.Star());
+            await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == 3, "restore the third star");
+        }
 
         Button chip = fixture.FindOrDefault<Button>(fixture.Panel, "ReaderMediaSidebarTagsEmpty") ?? fixture.Find<Button>(fixture.Panel, EditId);
         fixture.Click(chip);
@@ -215,6 +226,30 @@ public sealed class TaggingPagePanelTests
         await fixture.ShowsAsync(fixture.FocusedNumber());
         Assert.NotEqual(4, fixture.FocusedNumber());
     });
+
+    [Fact]
+    public void TheEditorIsDisabledUntilTheSavedFileIsConfirmed()
+    {
+        TaskCompletionSource available = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        WithPage(false, async fixture =>
+        {
+            try
+            {
+                await fixture.ShowsAsync(1);
+                Button? editor = fixture.FindOrDefault<Button>(fixture.Panel, EditId);
+                Assert.False(editor is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true });
+                available.TrySetResult();
+                await fixture.WaitForEditorAsync();
+                fixture.Click(fixture.Find<Button>(fixture.Panel, EditId));
+                await fixture.WaitForPopoverAsync();
+            }
+            finally { available.TrySetResult(); }
+        }, openManifest: async (directory, token) =>
+        {
+            await available.Task.WaitAsync(token);
+            return await MediaAssetReader.OpenAsync(directory, token);
+        });
+    }
 
     [Fact]
     public void AnUnavailableFileLosesTheEditorAndTheNextValidFileCanBeEdited() => WithPage(false, async fixture =>
@@ -389,7 +424,8 @@ public sealed class TaggingPagePanelTests
         updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
 
     private static void WithPage(bool grid, Func<Fixture, Task> test, ManualClock? clock = null, int missing = 0, int video = 0, int wideImage = 0,
-        Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap, GalleryImageInfo)>>? decode = null) =>
+        Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap, GalleryImageInfo)>>? decode = null,
+        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -425,6 +461,7 @@ public sealed class TaggingPagePanelTests
                 {
                     PanelClock = clock ?? TimeProvider.System,
                     DecodePanelImageAsync = decode ?? GalleryImageCache.DecodeAsync,
+                    OpenPanelManifestAsync = openManifest ?? MediaAssetReader.OpenAsync,
                     ReadUserData = () => new(session.GetPublishedPrivateTagSnapshot().Snapshot, session.GetFavorites(), session.GetMediaRatings()),
                     TagServices = new(session.GetPublishedPrivateTagSnapshot, session.DefineAndSetMediaSubjectTagsAsync, session.SetMediaSubjectTagsAsync),
                     Stamp = new QuickTagStamp(["cursor tag"]),

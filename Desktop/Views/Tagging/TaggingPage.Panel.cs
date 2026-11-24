@@ -53,6 +53,7 @@ public sealed partial class TaggingPage
     internal TimeProvider PanelClock { get; init; } = TimeProvider.System;
     internal Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap Image, GalleryImageInfo Info)>> DecodePanelImageAsync
         { get; init; } = GalleryImageCache.DecodeAsync;
+    internal Func<string, CancellationToken, Task<MediaAssetSnapshot>> OpenPanelManifestAsync { get; init; } = MediaAssetReader.OpenAsync;
     internal Func<MediaPageLayout>? ReadPanelLayout { get; set; }
     internal Action<int>? SavePanelWidth { get; set; }
     internal Action<bool>? SavePanelEnabled { get; set; }
@@ -414,7 +415,7 @@ public sealed partial class TaggingPage
         {
             await request.RunAsync(async token =>
             {
-                MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(entry.Directory!, token);
+                MediaAssetSnapshot manifest = await OpenPanelManifestAsync(entry.Directory!, token);
                 MediaAssetReference? asset = MediaTileThumbnails.Matching(manifest, entry);
                 bool available = asset != null && File.Exists(asset.Path);
                 if (Current() && _panelFileAvailable != available && _panelRow is { } row)
