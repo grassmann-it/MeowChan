@@ -126,6 +126,7 @@ public sealed class ArchiveMediaTileView : UserControl
             Reset(); RefreshFavorite(); RefreshRating();
             ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
             _title.Text = row?.Name; _status.Text = row?.TileSummary;
+            ToolTip.SetTip(_status, row == null ? null : row.ExactSize + Environment.NewLine + row.VersionDetail);
             UpdateDescription();
             if (_visible && IsEffectivelyVisible) _ = LoadAsync();
         };
