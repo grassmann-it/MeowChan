@@ -152,7 +152,6 @@ public sealed class GalleryFilmstripContinuationTests
         Assert.Same(strip.TileControl(3), window.FocusManager!.GetFocusedElement());
         Assert.Equal(1, failures);
         Capture(window, "loaded");
-        window.Close();
     }
 
     private static Rect BoundsIn(Control control, Visual relativeTo) =>
