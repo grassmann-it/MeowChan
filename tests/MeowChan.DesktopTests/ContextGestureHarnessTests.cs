@@ -242,11 +242,12 @@ public sealed class ContextGestureHarnessTests
                 _surface = list;
             }
 
-            _target = new ContextMenuTarget(_surface);
             Host = new ContextMenuHost(_surface, Compose);
             _surface.AddHandler(InputElement.PointerPressedEvent, OnPress, RoutingStrategies.Tunnel, handledEventsToo: true);
             _surface.AddHandler(InputElement.PointerReleasedEvent, OnRelease, RoutingStrategies.Tunnel, handledEventsToo: true);
             _surface.AddHandler(InputElement.ContextRequestedEvent, OnContextRequest, RoutingStrategies.Tunnel, handledEventsToo: true);
+            // Tunnel handlers on the same control run in reverse registration order. Resolve the target before composing.
+            _target = new ContextMenuTarget(_surface);
             _window = new Window { Width = 480, Height = 320, Content = _surface };
             _window.Show();
             _window.Activate();
@@ -305,6 +306,7 @@ public sealed class ContextGestureHarnessTests
             if (!_openOnPress) return;
             Gate.MenuOpenedByPress();
             Host.Show(atPointer: true);
+            e.Handled = true;
         }
 
         private void OnRelease(object? sender, PointerReleasedEventArgs e)
