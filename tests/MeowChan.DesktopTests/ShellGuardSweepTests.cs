@@ -1,32 +1,68 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using MeowChan.Desktop.Localization;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Motion;
+using MeowChan.Desktop.Updates;
+using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopTests;
 
 // Lifecycle sweep S4 (16.11.2026): page-switch video pause, abandoned row frames, shell busy flags, stale plugin worker workspaces.
+[Collection("Localization")]
 public sealed class ShellGuardSweepTests
 {
     // ---- F6: the shell hides the Archive host, not the page ----
 
-    [Fact]
-    public void LeavingTheArchivePagePausesTheReaderVideos()
-    {
-        string navigation = Source("Desktop/Shell/MainWindow.Navigation.cs");
-        int hook = navigation.IndexOf("ArchivePageHost.PropertyChanged +=", StringComparison.Ordinal);
-        Assert.True(hook >= 0, "The Archive host needs the same visibility hook as the Media host.");
-        string line = navigation[hook..navigation.IndexOf('\n', hook)];
-        Assert.Contains("IsVisibleProperty", line);
-        Assert.Contains("e.NewValue is false", line);
-        Assert.Contains("_archivePage?.PauseInlineVideos()", line);
-        // Hooked before the page becomes the host's content, like the media page.
-        Assert.True(hook < navigation.IndexOf("ArchivePageHost.Content = _archivePage;", StringComparison.Ordinal));
-        // The method pauses the sidebar video too: its autoplay is stopped and every inline player pauses.
-        string video = Source("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
-        string pause = video[video.IndexOf("internal Task PauseInlineVideos()", StringComparison.Ordinal)..];
-        pause = pause[..pause.IndexOf("private void WatchInlineVideoWindow", StringComparison.Ordinal)];
-        Assert.Contains("_sidebarVideoAutoplay?.Stop();", pause);
-        Assert.Contains("_inlineVideo.PauseAllAsync()", pause);
-    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LeavingTheArchivePagePausesTheReaderVideos(bool playInSidebar) =>
+        WithShell(async (window, _, _) =>
+        {
+            Click(window.FindControl<Button>("ArchiveNavigationButton")!);
+            Assert.Equal(MainWindow.WorkspacePage.Archive, window.SelectedPage);
+            ArchivePage page = window.ArchivePage;
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with
+            {
+                Sidebar = true, SidebarAlways = true,
+                SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum,
+                Video = page.ReaderMedia.Video with { Enabled = true, SidebarAutoplay = true }
+            });
+            window.UpdateLayout();
+            if (!page.IsMediaSidebarShown && page.CanToggleThreadList) page.ToggleThreadList();
+            await BooruTestSupport.WaitAsync(() =>
+            {
+                window.UpdateLayout();
+                return page.IsMediaSidebarShown;
+            }, "the embedded reader sidebar");
+            ReaderInlineVideoSlot sidebar = Assert.IsType<ReaderInlineVideoSlot>(page.SidebarInlineVideo);
+            ReaderInlineVideoSlot post = new(new Grid(), activatorWhenIdle: false);
+            RecordingPlayer player = new();
+
+            // The player substitutes for the native backend. The real page schedules its one-shot autoplay.
+            sidebar.Offer(page.InlineVideo, "fixture", _ => Task.FromResult<MeowChan.Gallery.GalleryEntry?>(null), "clip.webm");
+            var owner = playInSidebar ? sidebar : post;
+            Method<ArchivePage>("ScheduleSidebarVideoAutoplay").Invoke(page, null);
+            DispatcherTimer timer = Assert.IsType<DispatcherTimer>(typeof(ArchivePage)
+                .GetField("_sidebarVideoAutoplay", PrivateInstance)!.GetValue(page));
+            Assert.True(timer.IsEnabled);
+            timer.Interval = TimeSpan.FromMinutes(1);
+            Assert.True(await page.InlineVideo.PlayAsync(owner, () => player));
+            Assert.True(player.IsPlaying);
+
+            Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+
+            Assert.Equal(MainWindow.WorkspacePage.Downloads, window.SelectedPage);
+            Assert.False(timer.IsEnabled);
+            Assert.Equal(1, player.Pauses);
+            Assert.False(player.IsPlaying);
+            Assert.Equal(1, page.InlineVideo.LiveCount);
+        });
 
     // ---- F7: an abandoned row frame asks for the next one ----
 
@@ -45,35 +81,108 @@ public sealed class ShellGuardSweepTests
         Assert.Equal(1, Occurrences(window, "_abandonedRowFramesInARow = 0;").Count());
     }
 
-    // ---- F8: the shell's busy flags are set right before the try that clears them ----
+    [Fact]
+    public void TheShellAllowsAnotherCommandAfterOpeningTheBoardArchiveFails() =>
+        WithShell(async (window, session, _) =>
+        {
+            Button add = window.FindControl<Button>("AddUrlButton")!;
+            BoardArchiveLocation archive = Assert.IsType<BoardArchiveLocation>(
+                session.FindBoardArchive(BoardArchiveHostTests.BoardUrl, fromBoard: true));
+            Task OpenArchive() => (Task)Method<MainWindow>("OpenBoardArchiveAsync").Invoke(window, [archive, add])!;
+
+            // A dialog cannot open against a hidden owner.
+            window.Hide();
+            await Assert.ThrowsAsync<InvalidOperationException>(OpenArchive);
+            window.Show();
+            await BooruTestSupport.WaitAsync(() => add.IsEffectivelyEnabled, "Downloads admission after the archive failed to open");
+
+            Task reopened = OpenArchive();
+            BoardArchiveWindow dialog = Assert.Single(window.OwnedWindows.OfType<BoardArchiveWindow>());
+            try
+            {
+                ListBox threads = dialog.GetVisualDescendants().OfType<ListBox>().Single(list => list.Name == "BoardArchiveThreads");
+                await BooruTestSupport.WaitAsync(() => threads.ItemCount == 2, "the archive to show both saved thread IDs");
+            }
+            finally { dialog.Close(); }
+            await reopened;
+            Assert.True(add.IsEffectivelyEnabled);
+        }, useBoardArchive: true);
 
     [Fact]
-    public void TheShellSetsItsBusyFlagsOnlyRightBeforeTheTryThatClearsThem()
-    {
-        int found = 0;
-        foreach (string file in Directory.GetFiles(System.IO.Path.Combine(Root(), "Desktop", "Shell"), "MainWindow*.cs"))
+    public void TheShellAllowsAnotherSettingsApplyAfterPersistenceFails() =>
+        WithShell(async (window, session, profile) =>
         {
-            string text = File.ReadAllText(file).Replace("\r\n", "\n");
-            foreach (string flag in new[] { "_importing = true;", "_applyingPreferences = true;" })
+            TextBox urlInput = window.FindControl<TextBox>("UrlInput")!;
+            Assert.True(urlInput.Focus());
+            string previousLanguage = session.Config.Language;
+            Assert.Equal("en", previousLanguage);
+            Config candidate = session.Config.Clone();
+            candidate.Language = "de";
+            Task Apply() => (Task)Method<MainWindow>("ApplySettingsAsync").Invoke(window, [candidate])!;
+
+            const string failure = "Settings storage unavailable";
+            session.Config.BeforeAdmittedSaveMutationForTests = _ => throw new IOException(failure);
+            try
             {
-                foreach (int index in Occurrences(text, flag))
-                {
-                    string after = text[(index + flag.Length)..];
-                    int nextTry = after.IndexOf("try", StringComparison.Ordinal);
-                    Assert.True(nextTry >= 0, System.IO.Path.GetFileName(file) + ": " + flag + " without a try");
-                    string between = after[..nextTry];
-                    Assert.DoesNotContain("(", between);
-                    Assert.DoesNotContain("UpdateInteractionState", between);
-                    // The first statement in the try refreshes the interaction state, so a throw still reaches the finally.
-                    string inside = after[nextTry..];
-                    Assert.True(inside.IndexOf("UpdateInteractionState();", StringComparison.Ordinal) is >= 0 and < 80,
-                        System.IO.Path.GetFileName(file) + ": " + flag + " must refresh the interaction state inside its try");
-                    Assert.Contains("finally", inside);
-                    found++;
-                }
+                Task applying = Apply();
+                Assert.False(urlInput.IsEffectivelyEnabled);
+                IOException error = await Assert.ThrowsAsync<IOException>(() => applying);
+                Assert.Equal(failure, error.Message);
+                Assert.Equal(previousLanguage, session.Config.Language);
+                Assert.Equal(previousLanguage, Config.LoadConfig(profile).Language);
             }
-        }
-        Assert.Equal(8, found);
+            finally { session.Config.BeforeAdmittedSaveMutationForTests = null; }
+
+            Assert.True(urlInput.IsEffectivelyEnabled);
+            Assert.True(urlInput.IsKeyboardFocused);
+
+            await Apply();
+            Assert.Equal(candidate.Language, session.Config.Language);
+            Assert.Equal(candidate.Language, Config.LoadConfig(profile).Language);
+            Assert.Equal(candidate.Language, Texts.Language);
+        });
+
+    private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+    private static MethodInfo Method<T>(string name) => typeof(T).GetMethod(name, PrivateInstance)!;
+    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    private static void WithShell(Func<MainWindow, DesktopSessionHost, string, Task> test, bool useBoardArchive = false) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            BooruComponentDispatcher.Wait(Exercise());
+
+            async Task Exercise()
+            {
+                using TempDirectory profile = new();
+                using BoardArchiveHostTests.ArchiveTransport transport = new() { EmptyLiveCatalog = true };
+                new Config
+                {
+                    DownloadPath = Path.Combine(profile.Path, "media"), FirstRunSetupVersion = 1,
+                    WorkspaceMode = "Advanced", Language = "en", DownloadsPaused = true
+                }.SaveConfig(profile.Path);
+                await using DesktopSessionHost session = useBoardArchive
+                    ? BoardArchiveHostTests.CreateHost(profile.Path, transport)
+                    : new(profile.Path, Array.Empty<IImageBoard>(),
+                        updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+                await using MainWindow window = new(session) { Width = 1440, Height = 800, Classes = { MotionPolicy.OffClass } };
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                await window.StartupTimingRestoreTask;
+                await BooruTestSupport.WaitAsync(() => window.FindControl<Button>("AddUrlButton")!.IsEffectivelyEnabled,
+                    "the restored Downloads workspace");
+                await test(window, session, profile.Path);
+            }
+        });
+
+    private sealed class RecordingPlayer : IReaderInlineVideoPlayer
+    {
+        public bool IsPlaying { get; private set; }
+        internal int Pauses { get; private set; }
+        public Task StartAsync() => PlayAsync();
+        public Task PlayAsync() { IsPlaying = true; return Task.CompletedTask; }
+        public Task PauseAsync() { Pauses++; IsPlaying = false; return Task.CompletedTask; }
+        public ValueTask DisposeAsync() { IsPlaying = false; return ValueTask.CompletedTask; }
     }
 
     // ---- F9: stale plugin worker workspaces ----
