@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using MeowChan.Desktop;
@@ -10,14 +11,15 @@ using MeowChan.Tags;
 
 namespace MeowChan;
 
-// The empty states of the tagging page (TG1, the tool row stays visible): the queue is empty (go to the media page, how tagging works),
-// everything is decided (remove the finished, reopen the skipped, go to the media page) and a state filter without a hit (show all).
 public sealed partial class TaggingPage
 {
     private TaggingEmptyKind _emptyKind;
+    private ContextMenuHost? _emptyMoreHost;
+    private TaggingQueueCounts _emptyScopeCounts;
 
     private Button? PrimaryEmptyAction => _emptyKind switch
     {
+        TaggingEmptyKind.AllDone when _emptyScopeCounts.Skipped > 0 => _emptyReviewSkipped,
         TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone => _emptyMedia,
         TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty => _emptyShowAll,
         _ => null
@@ -25,25 +27,27 @@ public sealed partial class TaggingPage
 
     internal TaggingEmptyKind EmptyKind => _emptyKind;
     internal Button EmptyMediaButton => _emptyMedia;
-    internal Button EmptyReopenButton => _emptyReopen;
-    internal Button EmptyClearDoneButton => _emptyClearDone;
+    internal Button EmptyReviewSkippedButton => _emptyReviewSkipped;
     internal Button EmptyShowAllButton => _emptyShowAll;
     internal Button EmptyHowButton => _emptyHow;
-    internal Button EmptyDeleteGroupButton => _emptyDeleteGroup;
+    internal Button EmptyMoreButton => _emptyMore;
     internal TextBlock EmptyText => _empty;
 
     private void InitializeEmptyStates()
     {
         CommandBindings.EnsureIconBeforeText(_emptyMedia, CommandCatalog.Get("navigation.media").Icon);
         CommandBindings.EnsureIconBeforeText(_emptyHow, "help-circle");
-        CommandBindings.EnsureIconBeforeText(_emptyDeleteGroup, CommandCatalog.Get("reader-groups.delete").Icon);
-        CommandBindings.EnsureIconBeforeText(_emptyClearDone, CommandCatalog.Get("tagging.clear-done").Icon);
-        CommandBindings.EnsureIconBeforeText(_emptyReopen, CommandCatalog.Get(TaggingCommands.MarkOpen).Icon);
+        CommandBindings.EnsureIconBeforeText(_emptyReviewSkipped, CommandCatalog.Get("tags.queue.skip").Icon);
+        CommandBindings.EnsureIconBeforeText(_emptyMore, "more-horizontal");
+        _emptyMoreHost = new ContextMenuHost(_emptyMore, ComposeEmptyMoreMenu, fallbackFocus: FocusOnOpen);
         _emptyMedia.Click += (_, _) => AddRequested?.Invoke();
         _emptyHow.Click += (_, _) => _help.Popover.ShowAt(_emptyHow);
-        _emptyDeleteGroup.Click += (_, _) => OpenActions.Start(DeleteGroupAsync, "tagging.empty.delete-group");
-        _emptyClearDone.Click += (_, _) => _ = ClearFinishedAsync();
-        _emptyReopen.Click += (_, _) => _ = ReopenSkippedAsync();
+        _emptyMore.Click += (_, _) => _emptyMoreHost.Show();
+        _emptyReviewSkipped.Click += (_, _) =>
+        {
+            Filter = TaggingQueueFilter.Skipped;
+            FocusContent();
+        };
         _emptyShowAll.Click += (_, _) =>
         {
             if (_emptyKind == TaggingEmptyKind.GroupEmpty)
@@ -62,34 +66,35 @@ public sealed partial class TaggingPage
 
     private void LocalizeEmptyStates()
     {
-        _emptyMedia.Content = Texts.T("tagging.page.empty.media");
         _emptyHow.Content = Texts.T("tagging.page.empty.how");
-        _emptyDeleteGroup.Content = Texts.T("tagging.page.empty.group.delete");
-        AutomationProperties.SetName(_emptyDeleteGroup, Texts.T("tagging.page.empty.group.delete"));
-        _emptyClearDone.Content = CommandCatalog.Label("tagging.clear-done");
-        _emptyReopen.Content = Texts.T("tagging.page.empty.reopen");
-        _emptyShowAll.Content = Texts.T("tagging.page.empty.showAll");
+        _emptyMore.Content = Texts.T("workview.more");
+        AutomationProperties.SetName(_emptyMore, Texts.T("workview.moreOptions"));
     }
 
     private void RenderEmptyState(TagQueueSnapshot queue)
     {
+        _emptyScopeCounts = TaggingQueueView.Counts(queue, _selectedGroupId, _ungroupedSelected, Scope);
         _emptyKind = _queueWork.Loaded && _queueWork.ErrorText == null
-            ? TaggingEmptyStates.Of(queue, Filter, _rows.Count, _selectedGroupId, _ungroupedSelected) : TaggingEmptyKind.None;
-        TaggingQueueCounts selectedCounts = TaggingQueueView.Counts(queue, _selectedGroupId, _ungroupedSelected, Scope);
+            ? TaggingEmptyStates.Of(queue, Filter, _rows.Count, _selectedGroupId, _ungroupedSelected, _emptyScopeCounts)
+            : TaggingEmptyKind.None;
+        bool decided = _emptyKind == TaggingEmptyKind.AllDone;
+        bool reviewSkipped = decided && _emptyScopeCounts.Skipped > 0;
         string? selectedGroupName = _selectedGroupId == null ? null : queue.Group(_selectedGroupId)?.Name;
         _empty.Text = _emptyKind switch
         {
             TaggingEmptyKind.QueueEmpty => Texts.T("tagging.page.empty.queue"),
-            TaggingEmptyKind.AllDone => Texts.T("tagging.page.empty.allDone", selectedCounts.Count.ToString("N0", Texts.Culture)),
+            TaggingEmptyKind.AllDone => Texts.T("tagging.page.empty.allDone", _emptyScopeCounts.Count.ToString("N0", Texts.Culture)),
             TaggingEmptyKind.GroupEmpty => Texts.T("tagging.page.empty.group", selectedGroupName ?? Texts.T("tagging.page.group.ungrouped")),
             TaggingEmptyKind.FilterNoHits => Texts.T(Filter == TaggingQueueFilter.Untagged ? "tagging.page.filterEmpty.untagged" : "tagging.page.filterEmpty"),
             _ => null
         };
-        _emptyMedia.IsVisible = _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone or TaggingEmptyKind.GroupEmpty;
+        _emptyMedia.Content = Texts.T(decided ? "tagging.page.empty.add" : "tagging.page.empty.media");
+        _emptyMedia.IsVisible = _emptyKind == TaggingEmptyKind.QueueEmpty || decided && !reviewSkipped;
         _emptyHow.IsVisible = _emptyKind == TaggingEmptyKind.QueueEmpty;
-        _emptyDeleteGroup.IsVisible = _emptyKind == TaggingEmptyKind.GroupEmpty && _selectedGroupId != null;
-        _emptyClearDone.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Done > 0;
-        _emptyReopen.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Skipped > 0;
+        _emptyReviewSkipped.Content = reviewSkipped
+            ? Texts.T("tagging.page.empty.reviewSkipped", _emptyScopeCounts.Skipped.ToString("N0", Texts.Culture)) : null;
+        _emptyReviewSkipped.IsVisible = reviewSkipped;
+        _emptyMore.IsVisible = decided;
         _emptyShowAll.Content = _emptyKind == TaggingEmptyKind.GroupEmpty ? Texts.T("tagging.page.empty.group.assign") : Texts.T("tagging.page.empty.showAll");
         string showAllIcon = _emptyKind == TaggingEmptyKind.GroupEmpty ? "arrow-left" : CommandCatalog.Get("media.filter.reset-all").Icon;
         if (IconButtons.KeyOf(_emptyShowAll) != showAllIcon)
@@ -99,24 +104,42 @@ public sealed partial class TaggingPage
         _start.Classes.Set("primary", _emptyKind == TaggingEmptyKind.None);
         _emptyMedia.Classes.Set("primary", PrimaryEmptyAction == _emptyMedia);
         _emptyShowAll.Classes.Set("primary", PrimaryEmptyAction == _emptyShowAll);
-        bool canChange = CanChange;
-        _emptyDeleteGroup.IsEnabled = canChange && _selectedGroupId != null;
-        string deleteTip = Texts.T("tagging.page.empty.group.delete");
-        if (!_emptyDeleteGroup.IsEnabled) deleteTip += " · " + Texts.T("tagging.menu.reason.notReady");
-        ToolTip.SetTip(_emptyDeleteGroup, deleteTip);
-        ToolTip.SetShowOnDisabled(_emptyDeleteGroup, true);
-        AutomationProperties.SetHelpText(_emptyDeleteGroup, deleteTip);
-        _emptyClearDone.IsEnabled = canChange;
-        _emptyReopen.IsEnabled = canChange;
+        _emptyReviewSkipped.Classes.Set("primary", PrimaryEmptyAction == _emptyReviewSkipped);
         _emptyMedia.IsEnabled = AddRequested != null;
         _emptyActions.IsVisible = _emptyKind != TaggingEmptyKind.None;
     }
 
-    /// <summary>Marks every skipped entry as open again (the "all done" state's way back to work).</summary>
-    internal System.Threading.Tasks.Task ReopenSkippedAsync()
+    internal ContextMenuModel? EmptyMoreMenuModel() => ComposeEmptyMoreMenu()?.ToModel();
+
+    private ContextMenuBuilder? ComposeEmptyMoreMenu()
     {
-        TagQueueKey[] keys = _queueWork.Queue.Items.Where(item => TaggingQueueView.InGroup(item, _selectedGroupId, _ungroupedSelected)
-            && (Scope == null || Scope(item)) && item.State == TagQueueState.Skipped).Select(item => item.Key).ToArray();
-        return keys.Length == 0 ? System.Threading.Tasks.Task.CompletedTask : AfterAsync(_queueWork.SetStatesAsync(keys, TagQueueState.Open));
+        if (_emptyKind != TaggingEmptyKind.AllDone) return null;
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("workview.moreOptions"));
+        if (_emptyScopeCounts.Skipped > 0)
+        {
+            menu.Item("tagging.empty.add", Texts.T("tagging.page.empty.add"), () => AddRequested?.Invoke(),
+                AddRequested != null, icon: CommandCatalog.Get("navigation.media").Icon);
+            menu.Item("tagging.empty.reopen", Texts.T("tagging.page.empty.reopen"),
+                () => OpenActions.Start(ReopenSkippedAsync, "tagging.empty.reopen"), CanChange,
+                icon: CommandCatalog.Get(TaggingCommands.MarkOpen).Icon);
+        }
+        if (_emptyScopeCounts.Done > 0)
+            menu.Item("tagging.clear-done", CommandCatalog.Label("tagging.clear-done"),
+                () => OpenActions.Start(ClearFinishedInScopeAsync, "tagging.clear-done"), CanChange,
+                icon: CommandCatalog.Get("tagging.clear-done").Icon);
+        return menu;
     }
+
+    private TagQueueKey[] KeysInEmptyScope(TagQueueState state) =>
+        _queueWork.Queue.Items.Where(item => item.State == state
+            && TaggingQueueView.InGroup(item, _selectedGroupId, _ungroupedSelected)
+            && (Scope == null || Scope(item))).Select(item => item.Key).ToArray();
+
+    private Task ClearFinishedInScopeAsync()
+    {
+        return _selectedGroupId == null && !_ungroupedSelected && Scope == null
+            ? ClearFinishedAsync() : AfterAsync(_queueWork.RemoveAsync(KeysInEmptyScope(TagQueueState.Done)));
+    }
+
+    internal Task ReopenSkippedAsync() => AfterAsync(_queueWork.SetStatesAsync(KeysInEmptyScope(TagQueueState.Skipped), TagQueueState.Open));
 }

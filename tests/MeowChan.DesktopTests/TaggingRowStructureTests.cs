@@ -145,18 +145,19 @@ public sealed class TaggingRowStructureTests
     });
 
     [Theory]
-    [InlineData(false, false, 44)]
-    [InlineData(false, true, 44)]
-    [InlineData(true, false, 32)]
-    [InlineData(true, true, 32)]
-    public void RealSemiItemCompleteOuterHeightIncludesPaddingAndSelectionBorder(bool compact, bool selected, double expected) => WithPage(page =>
+    [InlineData(false, false, false, 44)]
+    [InlineData(false, true, true, 56)]
+    [InlineData(true, false, true, 32)]
+    [InlineData(true, true, false, 32)]
+    public void RealSemiItemCompleteOuterHeightIncludesPaddingAndSelectionBorder(bool compact, bool showPreview, bool selected, double expected) => WithPage(page =>
     {
         Application app = Application.Current!;
         app.Styles.Insert(0, new SemiTheme());
         app.Styles.Insert(1, new UrsaSemiTheme());
+        page.RestorePreviewColumn(showPreview);
         page.List.ItemsSource = null;
         page.List.Classes.Set("compact", compact);
-        TaggingQueueRowView row = new(compact: compact);
+        TaggingQueueRowView row = new(compact: compact, showPreview: showPreview);
         // Real row and thumbnail geometry; isolate from native text shaping, which this non-window fixture does not initialize.
         foreach (TextBlock text in ((ILogical)row).GetLogicalDescendants().OfType<TextBlock>()) text.IsVisible = false;
         ListBoxItem item = new() { Content = row, IsSelected = selected };
@@ -186,7 +187,7 @@ public sealed class TaggingRowStructureTests
             Assert.Equal(item.Padding, presenter.Padding);
             Assert.Equal(item.BorderThickness, presenter.BorderThickness);
             Assert.Equal(expected, presenter.Bounds.Height);
-            Console.WriteLine($"Tagging outer height compact={compact} selected={selected}: {item.Bounds.Height} dip; presenter={presenter.Bounds.Height}; content={row.Bounds.Height}");
+            Assert.Equal(expected, row.Bounds.Height);
         }
         finally { root.Child = null; }
     });
