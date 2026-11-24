@@ -25,6 +25,12 @@ internal static class BooruComponentDispatcher
         owner.Run();
     }
 
+    internal static void Run(Func<Task> test, TimeSpan? timeout = null) => Run(() =>
+    {
+        AvaloniaSynchronizationContext.InstallIfNeeded();
+        Wait(test());
+    }, timeout: timeout);
+
     internal static CancellationToken Cancellation => Current.Cancellation;
 
     internal static Delegate[] LanguageSubscribers() =>
@@ -140,6 +146,7 @@ internal static class BooruComponentDispatcher
             // Rendering and transitions must resolve services owned by this dispatcher.
             AvaloniaLocator.Current = AvaloniaLocator.CurrentMutable = new AvaloniaLocator();
             AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
             SkiaPlatform.Initialize(); // Compiled bitmap icons, without native windows.
             BooruReviewTestPlatform.BindTextShaper();
             owner.Invoke(() =>
