@@ -188,18 +188,20 @@ public partial class MainWindow
         _gallery.SetMediaTags(loaded.Snapshot.TagsOf(target).Select(tag => tag.Name.Display).ToArray());
     }
 
-    private async Task EditGalleryMediaTagsAsync(GalleryEntry entry, Control? returnTo = null)
+    private async Task EditGalleryMediaTagsAsync(GalleryEntry entry, Control? returnTo = null,
+        Func<bool>? current = null, CancellationToken sidebarToken = default)
     {
-        if (_isClosing || _galleryTagDialogOpen) return;
+        if (_isClosing || _galleryTagDialogOpen || sidebarToken.IsCancellationRequested || current?.Invoke() == false) return;
         MediaTagSubject? target = MediaTagSubjects.Of(entry, out _);
         if (target == null) { RefreshGalleryMediaTags(); return; }
         Control? origin = returnTo ?? FocusManager?.GetFocusedElement() as Control;
         _galleryTagDialogOpen = true;
         try
         {
-            MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
-                _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            MediaTagDialog dialog = new(session, entry.Asset.OriginalFileName ?? System.IO.Path.GetFileName(entry.Asset.Path), _session.ReadBooruCatalog);
+            MediaTagSession session = NewPopoverTagSession(target, current ?? (static () => true), sidebarToken);
+            using MediaTagDialog dialog = new(session, entry.Asset.OriginalFileName ?? System.IO.Path.GetFileName(entry.Asset.Path), _session.ReadBooruCatalog);
+            using CancellationTokenRegistration registration = sidebarToken.Register(
+                () => Avalonia.Threading.Dispatcher.UIThread.Post(dialog.CloseForLifetime));
             GalleryMediaTagWindow = dialog;
             await dialog.ShowDialog(this);
         }

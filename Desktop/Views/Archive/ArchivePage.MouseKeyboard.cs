@@ -152,7 +152,8 @@ public partial class ArchivePage
 
     private object? SidebarMiddleClickTarget(object? source, ReaderMediaSidebar sidebar)
     {
-        if (source is not Visual visual || !visual.GetSelfAndVisualAncestors().Contains(sidebar.FrameArea)) return null;
+        if (sidebar.IsOverlaySource(source) || source is not Visual visual
+            || !visual.GetSelfAndVisualAncestors().Contains(sidebar.FrameArea)) return null;
         if (ArchiveMediaTab.IsSelected) return ActionableSavedMediaSidebarRow;
         return sidebar.FrameArea;
     }

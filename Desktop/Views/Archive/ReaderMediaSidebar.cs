@@ -12,6 +12,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -522,6 +523,9 @@ internal sealed partial class ReaderMediaSidebar : Border
         Child = layout;
         InitializeInfo();
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
+        foreach (Control control in new Control[] { _editTags, InfoToggle })
+            AutomationProperties.SetAutomationId(control, control.Name);
+        AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
         DetachedFromVisualTree += (_, _) =>
@@ -657,6 +661,17 @@ internal sealed partial class ReaderMediaSidebar : Border
         using CancellationTokenSource request = new();
         Action cancel = request.Cancel;
         _cancelTagEditor = cancel;
+        Control? anchor = null;
+        Visual[] anchorPath = [];
+        void OnAnchorVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
+        {
+            if (change.Property == IsVisibleProperty && ReferenceEquals(_cancelTagEditor, cancel)
+                && anchor is { IsEffectivelyVisible: false }) InvalidateTagEditor();
+        }
+        void OnAnchorDetached(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            if (ReferenceEquals(_cancelTagEditor, cancel)) InvalidateTagEditor();
+        }
         try
         {
             if (revealDetails && !_details.IsVisible)
@@ -665,13 +680,16 @@ internal sealed partial class ReaderMediaSidebar : Border
                 UpdateInfoLayout();
                 if (_details.IsVisible) TopLevel.GetTopLevel(this)?.UpdateLayout();
             }
-            Control anchor = _details.IsVisible && _editTags.IsEffectivelyVisible ? _editTags : InfoToggle;
+            anchor = _details.IsVisible && _editTags.IsEffectivelyVisible ? _editTags : InfoToggle;
             if (revealDetails && ReferenceEquals(anchor, _editTags))
             {
                 _editTags.BringIntoView();
                 TopLevel.GetTopLevel(this)?.UpdateLayout();
             }
             if (request.IsCancellationRequested) return;
+            anchorPath = anchor.GetSelfAndVisualAncestors().ToArray();
+            foreach (Visual visual in anchorPath) visual.PropertyChanged += OnAnchorVisibilityChanged;
+            anchor.DetachedFromVisualTree += OnAnchorDetached;
             await openTags(anchor, request.Token);
             // Blocked editors can be opened synchronously by the host.
             if (ReferenceEquals(_cancelTagEditor, cancel) && QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor))
@@ -679,6 +697,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         }
         finally
         {
+            if (anchor != null) anchor.DetachedFromVisualTree -= OnAnchorDetached;
+            foreach (Visual visual in anchorPath) visual.PropertyChanged -= OnAnchorVisibilityChanged;
             if (ReferenceEquals(_cancelTagEditor, cancel))
             {
                 _cancelTagEditor = null;

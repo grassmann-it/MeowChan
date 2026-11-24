@@ -1,4 +1,5 @@
 using System;
+using Avalonia.Automation;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -121,11 +122,12 @@ internal sealed partial class ReaderMediaSidebar
     internal bool IsInfoMenuSource(object? source) =>
         source is Visual visual && (ReferenceEquals(visual, InfoToggle) || InfoToggle.IsVisualAncestorOf(visual));
 
-    private bool IsOverlaySource(object? source) =>
+    internal bool IsOverlaySource(object? source) =>
         source is Visual visual && (ReferenceEquals(visual, _overlay) || _overlay.IsVisualAncestorOf(visual));
 
     private void InitializeInfo()
     {
+        AutomationProperties.SetAutomationId(_overlay, _overlay.Name);
         _details.Content = _sections;
         _details.AddHandler(GotFocusEvent, (_, e) => { if (e.Source is Control control) control.BringIntoView(); });
         InfoToggle.Click += (_, _) => ToggleDetails();
