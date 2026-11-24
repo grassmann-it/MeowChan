@@ -162,11 +162,10 @@ public partial class MainWindow
                 finally { executing = false; EndArchiveDeletionRun(); tagRetry.IsEnabled = cancel.IsEnabled = true; }
             }
             tagRetry.Click += async (_, _) => await RetryTagsAsync();
-            CommandRouter ratingRouter = new(dialog);
-            ratingRouter.Register(new("media.rating.cleanup-retry", dialog, () => dialog.IsVisible,
+            using CommandRouter ratingRouter = new(dialog);
+            ratingRouter.RegisterOwned(new("media.rating.cleanup-retry", dialog, () => dialog.IsVisible,
                 () => !executing && ratingRetryIds?.Count > 0, () => _ = RetryRatingsAsync(), Priority: 300));
             dialog.KeyDown += (_, e) => ratingRouter.Route(e);
-            dialog.Closed += (_, _) => ratingRouter.Dispose();
             delete.Click += async (_, _) =>
             {
                 if (executing) return;
