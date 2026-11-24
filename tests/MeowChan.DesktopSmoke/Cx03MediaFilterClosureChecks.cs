@@ -80,7 +80,7 @@ internal static partial class MediaPageChecks
                 Require(page.CurrentFilter().Source == sourceId && page.CurrentFilter().Board == boardId && page.ActiveFilterCount > 0,
                     "A disappearing identity must remain an active filter.");
                 Require(page.ShownEntries.Count == 0 && page.Tiles.Count == 0 && page.SelectedTiles.Count == 0
-                    && C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 0, 1)
+                    && C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaFilterSummary(0, 1)
                     && C<TextBlock>(page, "MediaEmpty").IsVisible, "Missing identities must produce a truthful empty presentation and prune selection.");
                 Require(!exportSelected.IsEnabled && !exportAll.IsEnabled && !page.ExportAllAsking,
                     "No selection or export-all target, including a pending confirmation, may survive the refresh.");
@@ -197,11 +197,11 @@ internal static partial class MediaPageChecks
             await seed.AudioScanTask.WaitAsync(Deadline);
             var snapshot = seed.Snapshot!;
             Require(snapshot.Complete && snapshot.Entries.Count == 3, "Audio replacement fixture must have three videos.");
-            page = new(host.OpenArchiveReaderAsync, async (directory, _) =>
+            page = new(host.OpenArchiveReaderAsync, async (directory, cancellationToken) =>
             {
                 entered.TrySetResult();
                 await release.Task;
-                return await MediaAssetReader.OpenAsync(directory);
+                return await MediaAssetReader.OpenAsync(directory, cancellationToken);
             });
             MethodInfo start = typeof(MediaPage).GetMethod("StartAudioProbe", BindingFlags.Instance | BindingFlags.NonPublic)!;
             start.Invoke(page, [snapshot]);
