@@ -20,7 +20,7 @@ internal sealed record TrayStatsHost(
 /// Network and disk statistics in the tray, text only: the tooltip (rates while downloads run, today's total otherwise) and three
 /// enabled lines in the tray menu. The presenter owns no timer. It holds the hub claim of <see cref="TrayStatsClaim"/>
 /// (window hidden and tooltip on), refreshes the tooltip on each hub sample while the claim is held and otherwise only when the
-/// window's own tray refresh asks (throttled to one reading per second). Menu lines also follow download state and language changes.
+/// window's own tray refresh asks (throttled to one reading per second). Visible menu lines follow the same readings.
 /// </summary>
 internal sealed class TrayStatsPresenter : IDisposable
 {
@@ -38,8 +38,7 @@ internal sealed class TrayStatsPresenter : IDisposable
     private readonly NativeMenuItemBase[] _group;
     private readonly int _groupIndex;
     private bool _menuVisible;
-    private (bool Paused, int Active, string Language)? _menuState;
-    private string _key = string.Empty;
+    private (bool Paused, int Active, bool Shown, bool ClaimHeld, string Language, bool Menu, bool Tooltip)? _state;
     private long _stamp;
     private bool _disposed;
 
@@ -72,58 +71,42 @@ internal sealed class TrayStatsPresenter : IDisposable
     internal bool ClaimHeld => _claim.Held;
 
     /// <summary>The tray's own refresh: claim, menu visibility and tooltip. Cheap when nothing changed for less than a second.</summary>
-    internal void Refresh(bool force = false) => Update(force, fillMenu: false, refreshMenuState: true);
+    internal void Refresh(bool force = false) => Update(force);
 
     // The menu is opening: current numbers into the menu lines and the tooltip.
     private void OnNeedsUpdate(object? sender, EventArgs e)
     {
         if (_disposed || _host.Closing()) return;
-        Update(force: true, fillMenu: true);
+        Update(force: true);
     }
 
     // The hub samples on a pool thread; the coalesced update arrives here on the UI thread.
     private void OnSampled()
     {
         if (_disposed || _host.Closing()) return;
-        Update(force: true, fillMenu: false);
+        Update(force: true);
     }
 
     private void OnClick(object? sender, EventArgs e) => _host.OpenStatistics();
 
-    private void Update(bool force, bool fillMenu, bool refreshMenuState = false)
+    private void Update(bool force)
     {
         if (_disposed) return;
         bool shown = _host.WindowShown();
         bool tooltipOn = _host.TooltipEnabled();
         bool menuOn = _host.MenuEnabled();
         _claim.Update(TrayStatsClaim.Wanted(_host.Closing(), shown, tooltipOn));
-        if (_menuVisible != menuOn)
-        {
-            SetMenuVisibility(menuOn);
-            force = fillMenu = true;
-        }
+        if (_menuVisible != menuOn) SetMenuVisibility(menuOn);
         (bool paused, int active) = _host.Downloads();
+        var key = (paused, active, shown, _claim.Held, Texts.Language, menuOn, tooltipOn);
+        long now = _time.GetTimestamp();
+        if (!force && key == _state && _time.GetElapsedTime(_stamp, now) < MinimumInterval) return;
+        _state = key;
+        _stamp = now;
         // The Linux exporter does not raise the menu update event when the host opens the menu.
-        fillMenu |= _menuState == null || (refreshMenuState && _menuState != (paused, active, Texts.Language));
-        string tip;
-        if (tooltipOn)
-        {
-            string key = string.Join('|', paused, active, shown, _claim.Held, Texts.Language, menuOn);
-            long now = _time.GetTimestamp();
-            if (!force && !fillMenu && key == _key && _time.GetElapsedTime(_stamp, now) < MinimumInterval) return;
-            _key = key;
-            _stamp = now;
-            TrayStatsInput state = StateOf(paused, active);
-            tip = TrayStatsModel.Tooltip(state);
-            if (menuOn && fillMenu) ApplyLines(state);
-        }
-        else
-        {
-            _key = string.Empty;
-            tip = TrayMenuModel.Tooltip(paused, active);
-            if (menuOn && fillMenu) ApplyLines(StateOf(paused, active));
-        }
-        _host.SetTooltip(tip);
+        TrayStatsInput state = tooltipOn || menuOn ? StateOf(paused, active) : default;
+        if (menuOn) ApplyLines(state);
+        _host.SetTooltip(tooltipOn ? TrayStatsModel.Tooltip(state) : TrayMenuModel.Tooltip(paused, active));
     }
 
     private void SetMenuVisibility(bool visible)
@@ -145,7 +128,6 @@ internal sealed class TrayStatsPresenter : IDisposable
 
     private void ApplyLines(in TrayStatsInput state)
     {
-        _menuState = (state.Paused, state.Active, Texts.Language);
         (string net, string disk, string detail) = TrayStatsModel.MenuLines(state);
         if (!Equals(_ratesItem.Header, net)) _ratesItem.Header = net;
         if (!Equals(_diskItem.Header, disk)) _diskItem.Header = disk;

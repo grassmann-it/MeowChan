@@ -1,4 +1,5 @@
 using MeowChan.Desktop;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using MeowChan.Desktop.Localization;
 
@@ -31,14 +32,18 @@ public sealed class InlineTextCatalogTests : IDisposable
     [InlineData("ru")]
     public void BundledPacksTranslateEveryKeyAndKeepFormatContracts(string language)
     {
-        foreach (var entry in InlineTextCatalog.Entries)
+        using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(Texts.BundledPackResourcePrefix + language + ".json")!;
+        using JsonDocument pack = JsonDocument.Parse(stream);
+        JsonElement strings = pack.RootElement.GetProperty("strings");
+        string[] shared = IdenticalLocalizationStringsAuditTests.AllowedMediaFacts(language);
+        Texts.SetLanguage(language);
+        foreach ((string key, string english, _) in InlineTextCatalog.Entries)
         {
-            Texts.SetLanguage("en");
-            string english = Texts.T(entry.Key);
-            Texts.SetLanguage(language);
-            string translated = Texts.T(entry.Key);
-            Assert.NotEqual(english, translated);
-            // Placeholders (including numeric formats) must survive translation.
+            Assert.True(strings.TryGetProperty(key, out JsonElement value), language + " lacks " + key);
+            string translated = value.GetString()!;
+            Assert.False(string.IsNullOrWhiteSpace(translated), key);
+            Assert.Equal(translated, Texts.T(key));
+            Assert.True(translated != english || shared.Contains(key, StringComparer.Ordinal), language + " uses English for " + key);
             Assert.Equal(Placeholders(english), Placeholders(translated));
         }
     }

@@ -28,6 +28,10 @@ public partial class PluginsPage
             PluginNextAction.FixProblem => Texts.T("plugins.step.next.fix"),
             PluginNextAction.RestartToRegister => Texts.T("plugins.step.next.restart"),
             PluginNextAction.Enable => Texts.T("plugins.step.next.enable", CommandCatalog.Label("plugins.enable")),
+            // The running build can still be selected again, but an already scheduled alternative is the next start's build.
+            PluginNextAction.SelectBuild or PluginNextAction.SavedChangesApplyAtRestart
+                when presentation.IsActiveCandidate && presentation.PendingKind == PluginPendingKind.Build =>
+                Texts.T("plugins.step.next.restartSaved"),
             PluginNextAction.SelectBuild => Texts.T("plugins.step.next.select", CommandCatalog.Label("plugins.select-candidate")),
             PluginNextAction.RestartToUse => Texts.T("plugins.step.next.restartSaved"),
             PluginNextAction.ApproveSdkTransition => Texts.T("plugins.step.next.sdk", Texts.T("plugins.sdkTransition.action")),

@@ -94,12 +94,16 @@
                                 </Grid>
                             </Grid>
                         </Button>
-                        <Button x:Name="ContinueReadingButton" Classes="subtle header-icon" IsVisible="False" />
-                        <!-- QW-A (review 15.11.2026, item 10): the arrow beside the book opens the reading history list (the same list as right-click
-                             and the menu key), so it does not hide behind a right click. It follows the book button's visibility (code). -->
-                        <Button x:Name="ContinueReadingHistoryButton" Classes="subtle header-icon" IsVisible="False" Width="20" Padding="0">
-                            <Path x:Name="ContinueReadingHistoryIcon" Classes="header-icon" Data="M 4,6 L 8,10 L 12,6" />
-                        </Button>
+                        <StackPanel x:Name="ContinueReadingGroup" Orientation="Horizontal" IsVisible="False">
+                            <Button x:Name="ContinueReadingButton" Classes="subtle header-icon" IsVisible="False"
+                                    Width="{StaticResource Workspace.Size.Control}" Height="{StaticResource Workspace.Size.Control}"
+                                    CornerRadius="5,0,0,5" BorderBrush="{DynamicResource Workspace.ControlBorder}" BorderThickness="1,1,0,1" />
+                            <Button x:Name="ContinueReadingHistoryButton" Classes="subtle header-icon" IsVisible="False"
+                                    Width="{StaticResource Workspace.Size.Control}" Height="{StaticResource Workspace.Size.Control}" Padding="0"
+                                    CornerRadius="0,5,5,0" BorderBrush="{DynamicResource Workspace.ControlBorder}">
+                                <Path x:Name="ContinueReadingHistoryIcon" Classes="header-icon" Data="M 4,6 L 8,10 L 12,6" />
+                            </Button>
+                        </StackPanel>
                         <Button x:Name="PauseButton" Classes="subtle header-icon" Click="OnPauseClick">
                             <Path x:Name="PauseIcon" Classes="header-icon" Data="M 5,3 L 5,13 M 11,3 L 11,13" />
                         </Button>
@@ -374,12 +378,13 @@
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </controls:RowFocusDataGrid>
-                                    <!-- The text never takes input; only the next-step button below it does. -->
                                     <controls:WorkspaceEmptyState x:Name="ThreadsEmptyPanel">
                                         <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized workspace-empty-text"
                                                    IsHitTestVisible="False" />
                                         <Button x:Name="ThreadsEmptyImportButton" Classes="primary" HorizontalAlignment="Center"
                                                 Click="OnEmptyStateImportClick" />
+                                        <Button x:Name="ThreadsEmptySearchButton" Classes="primary" HorizontalAlignment="Center"
+                                                IsVisible="False" Click="OnDownloadSearchEmptyAction" />
                                     </controls:WorkspaceEmptyState>
                                 </Grid>
                                 <Grid x:Name="BoardsResultPanel" Grid.Row="2" IsVisible="False">
@@ -419,12 +424,13 @@
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </controls:RowFocusDataGrid>
-                                    <!-- Same next step as the Threads state: the URL on the clipboard is imported (a board URL discovers its threads). -->
                                     <controls:WorkspaceEmptyState x:Name="BoardsEmptyPanel">
                                         <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized workspace-empty-text"
                                                    IsHitTestVisible="False" />
                                         <Button x:Name="BoardsEmptyImportButton" Classes="primary" HorizontalAlignment="Center"
                                                 Click="OnEmptyStateImportClick" />
+                                        <Button x:Name="BoardsEmptySearchButton" Classes="primary" HorizontalAlignment="Center"
+                                                IsVisible="False" Click="OnDownloadSearchEmptyAction" />
                                     </controls:WorkspaceEmptyState>
                                 </Grid>
                         <!-- The inline search row keeps its close at the right edge (HeaderBar end slot, Tom's item 35 of 14.11.): no back gap, no separator; only pages and overlays put their way back at the left. DL-07: it is a labelled "Close" with the collapse chevron, not a second ×: the field's own clear button is the only cross in the row. -->
@@ -538,7 +544,7 @@
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="TaggingPageHost" IsVisible="False" />
         </Grid>
-        <Border x:Name="WorkspaceStatusBar" Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="16,0">
+        <Border x:Name="WorkspaceStatusBar" Grid.Row="2" Background="Transparent" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="16,0">
             <!-- Narrow-window sweep (16.11.2026): one row that never runs past the window. The state stays at the left and takes the room left
                  over (FillFirst), the update notice, the limit warning and the counters stand at the right; when the row is too wide the
                  widest of them shortens first and ends in an ellipsis with its full text as tooltip (ShrinkRowPanel). A grid with Auto columns
@@ -554,9 +560,11 @@
                                Foreground="{DynamicResource Workspace.Warning}" AutomationProperties.LiveSetting="Polite" />
                 </Button>
                 <TextBlock x:Name="WorkspaceCounts" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBlock x:Name="FooterNetworkRate" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="False" />
+                <TextBlock x:Name="FooterDiskRate" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="False" />
             </controls:ShrinkRowPanel>
         </Border>
-        <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,4">
+        <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,4" Focusable="True">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
             <StackPanel x:Name="WorkspaceNavigationButtons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}">
                 <Button x:Name="DownloadsNavigationButton" Classes="nav selected" Click="OnDownloadsNavigationClick">

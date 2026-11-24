@@ -42,6 +42,8 @@ public partial class MainWindow : IAsyncDisposable
         _trayStats?.Dispose();
         _headerIoMenu?.Dispose();
         _headerThemeMenu?.Dispose();
+        _footerNavigationMenu?.Dispose();
+        _footerStatusMenu?.Dispose();
         _ioUpdate?.Dispose();
         _ioClaim?.Dispose();
         _mediaFocusChromeTexts?.Dispose();
@@ -51,6 +53,7 @@ public partial class MainWindow : IAsyncDisposable
         _readingHistoryFlyout?.Dispose();
         _booruPage?.Dispose();
         _taggingPage?.Dispose();
+        _statisticsPage?.Dispose();
         _manualImportDialog?.Dispose();
         _manualImportDialog = null;
         foreach (IDisposable registration in _profileCommandRegistrations) registration.Dispose();

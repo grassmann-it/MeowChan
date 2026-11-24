@@ -17,6 +17,85 @@ public sealed class StartupErrorWindowTests
     private const string Message = " Fehler beim Start 🚧\r\n日本語 · Żółć\n\n  Letzte Zeile  ";
 
     [Fact]
+    public void AConstructedWindowJoinsLanguageChangesOnlyWhenItOpens() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Delegate[] before = BooruComponentDispatcher.LanguageSubscribers();
+        StartupErrorWindow window = new(Message);
+        string initialTitle = window.Title!;
+        try
+        {
+            Assert.Equal(before, BooruComponentDispatcher.LanguageSubscribers());
+            Texts.SetLanguage("de");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(initialTitle, window.Title);
+
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.Equal(Texts.T("startup.title"), window.Title);
+            Assert.Equal(Texts.T("action.exit"), Find<Button>(window, "StartupErrorExit").Content);
+
+            Texts.SetLanguage("en");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(initialTitle, window.Title);
+            Assert.Equal(Texts.T("startup.title"), Find<TextBlock>(window, "WindowCaptionTitle").Text);
+            Assert.Equal(Texts.T("action.exit"), Find<Button>(window, "StartupErrorExit").Content);
+
+            window.Close();
+            Assert.Equal(before, BooruComponentDispatcher.LanguageSubscribers());
+        }
+        finally
+        {
+            if (window.IsVisible) window.Close();
+        }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AFailedShowReleasesLanguageSubscribersWithoutClosing(bool failInOpened)
+        => BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Delegate[] before = BooruComponentDispatcher.LanguageSubscribers();
+            Window window = new StartupErrorWindow(Message);
+            bool closed = false;
+            window.Closed += (_, _) => closed = true;
+            var failure = new InvalidOperationException("Injected failure after layout.");
+            if (failInOpened)
+                window.Opened += (_, _) => FailAfterLayout();
+            else
+                window.LayoutUpdated += FailAfterFirstLayout;
+            try
+            {
+                Assert.Same(failure, Assert.Throws<InvalidOperationException>(window.Show));
+                Assert.False(closed);
+                Assert.Equal(before, BooruComponentDispatcher.LanguageSubscribers());
+            }
+            finally
+            {
+                if (window.IsVisible) window.Close();
+            }
+
+            void FailAfterFirstLayout(object? sender, EventArgs args)
+            {
+                window.LayoutUpdated -= FailAfterFirstLayout;
+                FailAfterLayout();
+            }
+
+            void FailAfterLayout()
+            {
+                Assert.True(window.IsArrangeValid);
+                var caption = Assert.Single(window.GetVisualDescendants().OfType<WindowChromeBar>());
+                Delegate[] handlers = BooruComponentDispatcher.LanguageSubscribers();
+                Assert.Contains(handlers, handler => ReferenceEquals(handler.Target, caption));
+                Assert.Equal(failInOpened, handlers.Any(handler => ReferenceEquals(handler.Target, window)));
+                throw failure;
+            }
+        });
+
+    [Fact]
     public void KeyboardCopiesTheWholeDisplayedMessageAndCanExit() => WithWindow(null, window =>
     {
         var detail = Find<SelectableTextBlock>(window, "StartupErrorMessage");
@@ -32,10 +111,7 @@ public sealed class StartupErrorWindowTests
         Assert.Same(copy, window.FocusManager!.GetFocusedElement());
         Press(window, Key.Enter, PhysicalKey.Enter);
 
-        Task<string?> read = window.Clipboard!.TryGetTextAsync();
-        Dispatcher.UIThread.RunJobs();
-        Assert.True(read.IsCompletedSuccessfully);
-        Assert.Equal(Message, read.GetAwaiter().GetResult());
+        Assert.Equal(Message, BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync()));
         Assert.Equal("Message text copied.", status.Text);
         Assert.True(status.IsVisible);
         Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(status));
@@ -107,7 +183,7 @@ public sealed class StartupErrorWindowTests
     }
 
     private static void WithWindow(Func<IClipboard?>? getClipboard, Action<StartupErrorWindow> run) =>
-        OwnedUiDispatcher.Run(() =>
+        BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
             string previousLanguage = Texts.Language;

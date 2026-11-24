@@ -950,8 +950,8 @@ public sealed class HelpDocumentationTests
     public void ContinueReadingHelpMatchesRoutingHistoryFallbackAndReaderStatusSemantics()
     {
         string help = Plain(Read(Help));
-        Assert.Contains("it remains visible while the reader or gallery is open", help, StringComparison.Ordinal);
-        Assert.Contains("Inside the reader or gallery, left-click opens the history list", help, StringComparison.Ordinal);
+        Assert.Contains("The book opens the newest saved place", help, StringComparison.Ordinal);
+        Assert.Contains("The arrow opens the history list", help, StringComparison.Ordinal);
         Assert.Contains($"default {Config.ReadingHistoryLimitDefault}, {Config.ReadingHistoryLimitMinimum}–{Config.ReadingHistoryLimitMaximum}", help, StringComparison.Ordinal);
         Assert.Contains($"default {Config.ReadingHistoryMenuEntriesDefault}, {Config.ReadingHistoryMenuEntriesMinimum}–{Config.ReadingHistoryMenuEntriesMaximum}", help, StringComparison.Ordinal);
         Assert.Contains("the next captured post is used when one exists, otherwise the last captured post", help, StringComparison.Ordinal);
@@ -1106,8 +1106,6 @@ public sealed class HelpDocumentationTests
         // Header-off is not a global measurement switch; the page still has its independent visible claim.
         Assert.Equal(IoStatsVisibility.None, IoStatsDisplay.Claim(windowShown: true, graphVisible: false, pageVisible: false));
         Assert.Equal(IoStatsVisibility.Window, IoStatsDisplay.Claim(windowShown: true, graphVisible: false, pageVisible: true));
-        Assert.Contains("IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, StatisticsSegmentShown)",
-            Read("Desktop/Shell/MainWindow.Transfer.cs"), StringComparison.Ordinal);
         Assert.DoesNotContain("upload is not measured", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("writes only", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
