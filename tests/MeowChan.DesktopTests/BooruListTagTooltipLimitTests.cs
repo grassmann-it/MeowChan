@@ -5,6 +5,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
+using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
