@@ -8,6 +8,16 @@ namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
+    internal static void EnsureBoardTitleHistoryIndex(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
+    {
+        using var command = Command(connection, transaction, """
+            CREATE INDEX IF NOT EXISTS archive_board_title_history
+            ON archive_threads(source, board, first_seen_at DESC, thread) WHERE title<>''
+            """);
+        token.ThrowIfCancellationRequested();
+        command.ExecuteNonQuery();
+    }
+
     internal static ArchiveIdentityPage<string> ReadSourceIdentities(SqliteConnection connection, SqliteTransaction transaction, int limit, CancellationToken token)
     {
         if (limit < 1 || limit > 256) throw new ArgumentOutOfRangeException(nameof(limit));
