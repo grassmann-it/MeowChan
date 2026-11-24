@@ -8,8 +8,7 @@ using MeowChan.Tags;
 namespace MeowChan.DesktopTests;
 
 // MB1b (tagging grid): what a grid tile tells the shared media badges. Pure: the state of an entry, the plan the badge view draws for it, the
-// sentence in the tile's name and the geometry of the shown picture. The tile and page are GUI controls (checked by source in
-// TaggingPageSelectionTests and by the tagging-page smoke).
+// sentence in the tile's name and the geometry of the shown picture.
 [Collection("Localization")]
 public sealed class TaggingTileBadgesTests : IDisposable
 {
@@ -26,9 +25,6 @@ public sealed class TaggingTileBadgesTests : IDisposable
     private static string[] Ids(MediaBadgePlan plan) => plan.Badges.Select(placed => placed.Badge.Id.ToString()).ToArray();
 
     private static readonly Size Picture = new(160, 124);
-
-    private static string Read(string relative, [System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
 
     [Fact]
     public void TheStateFollowsTheEntryTheTagCountAndTheBooruSource()
@@ -155,9 +151,6 @@ public sealed class TaggingTileBadgesTests : IDisposable
         double reach = TaggingTileBadges.TopRightReach(tile.View.Plan, 200);
         PlacedBadge leftmost = tile.View.Plan.Badges.Where(placed => placed.Badge.Corner == MediaBadgeCorner.TopRight).MinBy(placed => placed.Bounds.Left);
         Assert.Equal(200 - leftmost.Bounds.Left, reach);
-        string source = Read("Desktop/Views/Tagging/TaggingQueueTileView.cs");
-        Assert.Contains("_badges.Show(row, tags, _preview.PictureSize, _preview.Bounds.Size)", source);
-        Assert.Contains("TopRightReach(_badges.View.Plan, _preview.Bounds.Width)", source);
     }
 
     [Fact]

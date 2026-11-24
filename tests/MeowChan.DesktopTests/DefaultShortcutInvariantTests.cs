@@ -18,7 +18,8 @@ public sealed class DefaultShortcutInvariantTests
         "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.filmstrip-toggle",
         "media.details", "media.rating.edit", "viewer.shortcut-help",
         // The media page's focus mode: Shift+F (the F alone is the favourite); a typed capital in a text field is left to the field.
-        "media.focus-mode", "media.sidebar.info",
+        // Sidebar scheme, 25.11. 19:55: Shift+I for facts and Shift+A for auto-hide.
+        "media.focus-mode", "media.sidebar.info", "media.sidebar.autohide",
         // Gallery video (key scheme of revision 13): M mute, S frame snapshot, [ ] speed, A the A–B loop, Shift+. the next frame, "," and "."
         // seek by the step setting, L repeats the video, D the slideshow. Revision 14: X slower and C faster next to [ and ] (AltGr on DE/FR).
         "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step",
@@ -39,7 +40,7 @@ public sealed class DefaultShortcutInvariantTests
         "gallery.mode-toggle",
         // Revision 13: Shift+H hides the tools, Shift+O switches the controls overlay (Shift+P shows the post, Shift+L the filmstrip).
         "gallery.tools-toggle", "gallery.overlay-toggle",
-        // Revision 13 with GL3's layout rows registered: Shift+I shows or hides the info line, Shift+N the hint row.
+        // Revision 13 with GL3's layout rows registered: Shift+Z (originally Shift+I) shows or hides the info line, Shift+N the hint row.
         "gallery.layout.info", "gallery.layout.hints",
         // Revision 19 (decision #125): D and S mark the selected tagging entries done or skipped (the tagging page's queue list only), H hides the
         // selected post in the reader (its post list; a text field keeps the letter, CommandBindings.Matches).
