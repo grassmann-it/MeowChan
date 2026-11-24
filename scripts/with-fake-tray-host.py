@@ -52,7 +52,8 @@ class Host(dbus.service.Object):
         menu_path = proxy.Get('org.kde.StatusNotifierItem', 'Menu', dbus_interface='org.freedesktop.DBus.Properties')
         menu = dbus.Interface(bus.get_object(proxy.bus_name, menu_path, introspect=False), 'com.canonical.dbusmenu')
         menu.AboutToShow(dbus.Int32(0))
-        _, layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(1), dbus.Array([], signature='s'))
+        properties = dbus.Array(['type', 'label', 'visible'], signature='s')
+        _, layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(1), properties)
         entries = [(item_id, '' if props.get('type') == 'separator' else str(props['label']))
                    for item_id, props, _ in layout[2] if props.get('visible', True)]
         return menu, entries

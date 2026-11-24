@@ -20,7 +20,7 @@ internal sealed record TrayStatsHost(
 /// Network and disk statistics in the tray, text only: the tooltip (rates while downloads run, today's total otherwise) and three
 /// enabled lines in the tray menu. The presenter owns no timer. It holds the hub claim of <see cref="TrayStatsClaim"/>
 /// (window hidden and tooltip on), refreshes the tooltip on each hub sample while the claim is held and otherwise only when the
-/// window's own tray refresh asks (throttled to one reading per second). Menu lines are refreshed on opening or a download state change.
+/// window's own tray refresh asks (throttled to one reading per second). Menu lines also follow download state and language changes.
 /// </summary>
 internal sealed class TrayStatsPresenter : IDisposable
 {
@@ -38,7 +38,7 @@ internal sealed class TrayStatsPresenter : IDisposable
     private readonly NativeMenuItemBase[] _group;
     private readonly int _groupIndex;
     private bool _menuVisible;
-    private (bool Paused, int Active)? _menuDownloads;
+    private (bool Paused, int Active, string Language)? _menuState;
     private string _key = string.Empty;
     private long _stamp;
     private bool _disposed;
@@ -104,7 +104,7 @@ internal sealed class TrayStatsPresenter : IDisposable
         }
         (bool paused, int active) = _host.Downloads();
         // The Linux exporter does not raise the menu update event when the host opens the menu.
-        fillMenu |= _menuDownloads == null || (refreshMenuState && _menuDownloads != (paused, active));
+        fillMenu |= _menuState == null || (refreshMenuState && _menuState != (paused, active, Texts.Language));
         string tip;
         if (tooltipOn)
         {
@@ -145,7 +145,7 @@ internal sealed class TrayStatsPresenter : IDisposable
 
     private void ApplyLines(in TrayStatsInput state)
     {
-        _menuDownloads = (state.Paused, state.Active);
+        _menuState = (state.Paused, state.Active, Texts.Language);
         (string net, string disk, string detail) = TrayStatsModel.MenuLines(state);
         if (!Equals(_ratesItem.Header, net)) _ratesItem.Header = net;
         if (!Equals(_diskItem.Header, disk)) _diskItem.Header = disk;

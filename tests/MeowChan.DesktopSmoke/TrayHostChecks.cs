@@ -95,9 +95,9 @@ internal static class TrayHostChecks
         candidate.ShortcutBindings = candidate.ShortcutBindings.Set("session.pause", [ShortcutGesture.Parse("Primary+Shift+F10")]);
         await window.SessionHost.ApplySettingsAsync(candidate);
         await Program.WaitUntilAsync(() => CommandBindings.Gesture("session.pause")?.Key == Avalonia.Input.Key.F10);
-        string shortcut = $" · {Texts.T("key.ctrl")}+{Texts.T("key.shift")}+F10";
-        string pause = Texts.T("action.pause") + shortcut;
-        string resume = Texts.T("action.resume") + shortcut;
+        string PauseLabel(string action) => $"{Texts.T(action)} · {Texts.T("key.ctrl")}+{Texts.T("key.shift")}+F10";
+        string pause = PauseLabel("action.pause");
+        string resume = PauseLabel("action.resume");
         string idle = Texts.T("stats.tray.menuIdle");
         string paused = Texts.T("stats.tray.menuPaused");
         await Program.WaitUntilAsync(() => icon.Menu!.Items.OfType<NativeMenuItem>().Any(item => item.Header == pause));
@@ -110,6 +110,13 @@ internal static class TrayHostChecks
             && icon.ToolTipText == "MeowChan · " + Texts.T("tray.tooltipPaused")
             && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
         await AssertMenuGroupsAsync(resume, paused);
+        string language = Texts.Language;
+        try
+        {
+            Texts.SetLanguage(language == "de" ? "en" : "de");
+            await AssertMenuGroupsAsync(PauseLabel("action.resume"), Texts.T("stats.tray.menuPaused"));
+        }
+        finally { Texts.SetLanguage(language); }
 
         await ClickMenuEntryAsync(paused);
         await AssertRestoredAsync(window, "statistics value click");
@@ -125,7 +132,8 @@ internal static class TrayHostChecks
             && icon.ToolTipText == "MeowChan · Image Downloader" && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
         await AssertMenuGroupsAsync(pause, state: null);
 
-        window.ShowStatus(StatusSegment.Diagnostics);
+        if (!window.ShowStatus(StatusSegment.Diagnostics) || !window.DiagnosticsSegmentShown)
+            throw new InvalidOperationException("Could not switch to Diagnostics before testing the tray's Status entry.");
         await ClickMenuEntryAsync(CommandLabel("navigation.status"));
         await Program.WaitUntilAsync(() => window.StatisticsSegmentShown);
         await window.SessionHost.ApplySettingsAsync(original);

@@ -231,7 +231,7 @@ public sealed class TrayStatsPresenterTests : IDisposable
             item => Assert.IsType<NativeMenuItemSeparator>(item),
             item => Assert.Equal("Pause", Assert.IsType<NativeMenuItem>(item).Header));
         Assert.True(h.Presenter.RatesItem.IsEnabled && h.Presenter.DiskItem.IsEnabled && h.Presenter.DetailItem.IsEnabled);
-        Assert.All(h.Menu.Items, item => Assert.True(item.IsVisible));
+        Assert.All(h.Menu.Items.OfType<NativeMenuItem>(), item => Assert.True(item.IsVisible));
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public sealed class TrayStatsPresenterTests : IDisposable
     }
 
     [Fact]
-    public void DownloadStateChangesRefreshTheLinesWithoutAnOpenEvent()
+    public void DownloadStateAndLanguageChangesRefreshTheLinesWithoutAnOpenEvent()
     {
         using Harness h = new(tooltipOn: false);
         h.Presenter.Refresh();
@@ -280,6 +280,9 @@ public sealed class TrayStatsPresenterTests : IDisposable
         h.Paused = true;
         h.Presenter.Refresh();
         Assert.Equal("Paused", h.Presenter.RatesItem.Header);
+        Texts.SetLanguage("de");
+        h.Presenter.Refresh();
+        Assert.Equal("Pausiert", h.Presenter.RatesItem.Header);
     }
 
     [Fact]
