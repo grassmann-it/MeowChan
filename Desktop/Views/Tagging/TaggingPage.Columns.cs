@@ -30,6 +30,7 @@ public sealed partial class TaggingPage
     {
         WorkViewElement.SetId(_columnsButton, "tagging.columns");
         _columnsButton.IsChecked = _showPreviewColumn;
+        _list.Classes.Set("with-preview", _showPreviewColumn);
         _columnsButton.Click += (_, _) => SetPreviewColumnVisible(_columnsButton.IsChecked == true);
         _columnMenuHost = new ContextMenuHost(_columnHeader, ComposeColumnMenu, fallbackFocus: () => FocusContent());
     }
@@ -51,6 +52,7 @@ public sealed partial class TaggingPage
         _columnsButton.IsChecked = visible; // the toggle and the header menu's check always show the same state
         if (_showPreviewColumn == visible) return;
         _showPreviewColumn = visible;
+        _list.Classes.Set("with-preview", visible);
         LocalizeColumns();
         _list.ItemTemplate = RowTemplate();
         Render();
