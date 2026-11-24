@@ -491,14 +491,27 @@
                                         <Expander.Header><TextBlock Tag="detail.source" Classes="localized" /></Expander.Header>
                                         <StackPanel Spacing="{StaticResource Workspace.Space.12}">
                                             <StackPanel Spacing="{StaticResource Workspace.Space.4}">
-                                                <TextBlock Tag="detail.url" Classes="localized workspace-meta" />
-                                                <SelectableTextBlock x:Name="InspectorUrl" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                                    <TextBlock Tag="detail.url" Classes="localized workspace-meta" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Button x:Name="InspectorCopyUrlButton" Grid.Column="1" Tag="action.copyUrl" Classes="localized subtle"
+                                                            Click="OnInspectorCopyUrlClick" />
+                                                </Grid>
+                                                <TextBlock x:Name="InspectorCopyUrlStatus" Classes="localized workspace-meta"
+                                                           IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                                                <SelectableTextBlock x:Name="InspectorUrl" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                                     MaxLines="2" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
                                             <StackPanel Spacing="{StaticResource Workspace.Space.4}">
-                                                <TextBlock Tag="detail.directory" Classes="localized workspace-meta" />
-                                                <SelectableTextBlock x:Name="InspectorDirectory" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                                    <TextBlock Tag="detail.directory" Classes="localized workspace-meta" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Button x:Name="InspectorCopyDirectoryButton" Grid.Column="1" Tag="detail.copyDirectory" Classes="localized subtle"
+                                                            Click="OnInspectorCopyDirectoryClick" />
+                                                </Grid>
+                                                <TextBlock x:Name="InspectorCopyDirectoryStatus" Classes="localized workspace-meta"
+                                                           IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                                                <SelectableTextBlock x:Name="InspectorDirectory" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                                     MaxLines="2" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
-                                            <Button x:Name="InspectorCopyUrlButton" Tag="action.copyUrl" Classes="localized subtle" Content="Copy URL" />
                                         </StackPanel>
                                     </Expander>
 

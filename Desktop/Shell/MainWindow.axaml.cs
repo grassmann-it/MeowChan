@@ -1279,8 +1279,6 @@ public partial class MainWindow : Window
             candidate.Theme = MeowChan.Desktop.Theming.ThemePreference.Toggled(_config.Theme, ActualThemeVariant == ThemeVariant.Dark);
             await SaveAppearanceAsync(candidate);
         };
-        InspectorCopyUrlButton.Click += async (sender, e) =>
-            await CopyUrlsAsync(GetInspectorUrl() is string url ? new[] { url } : Array.Empty<string>());
     }
 
     private async Task SaveAppearanceAsync(Config candidate)
