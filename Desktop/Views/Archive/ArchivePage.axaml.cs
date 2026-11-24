@@ -589,7 +589,7 @@ public partial class ArchivePage : UserControl
         ReaderPostProjection? projection = _thread != null ? ResolveProjection(out _) : null;
         ArchiveReaderStatus.Text = status + ReaderViewStatus(projection);
         CancelInlineReplies();
-        _replyAutoExpand.SwitchThread(_thread?.Summary.Id);
+        _replyAutoExpand.SwitchThread(threadId);
         _postInteraction = new();
         CancelPreviewWork();
         if (_thread != null)

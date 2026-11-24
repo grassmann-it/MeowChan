@@ -225,6 +225,9 @@ internal static class ReaderViewChecks
         await page.FocusPostAsync(ThreadId);
         Require(list.SelectedItem is ArchivePostRow { SpoilersRevealed: true, RepliesExpanded: false, RepliesLoaded: true } rebuilt
             && !ReferenceEquals(first, rebuilt), "Returning to an evicted post lost its spoiler or reply state.");
+        await page.LoadThreadAsync(fixture.Id, resetPage: false);
+        await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: ThreadId, BacklinkCount: 1 });
+        Require(list.SelectedItem is ArchivePostRow { RepliesExpanded: false }, "Refreshing the same thread reopened replies the reader had closed.");
         page.ReaderExpandRepliesPreference = false;
 
         const string anchor = "5500", selection = "5504";
