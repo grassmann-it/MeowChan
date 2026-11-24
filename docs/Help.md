@@ -2657,8 +2657,9 @@ the context menu, or press **Shift+Delete**. Review the thread count, local file
 count, size and paths before choosing **Delete archive entries and files**.
 Cancel leaves everything unchanged.
 This removes captured posts, indexed search data, manifest-owned originals and
-versions, favorites and cached video posters. Watched boards keep these threads
-excluded; you can explicitly enable them again through board exclusions.
+versions, media favorites and cached video posters. Thread favorite marks stay
+in the profile. Watched boards keep these threads excluded; you can explicitly
+enable them again through board exclusions.
 
 In 1.0, reader-group memberships and post bookmarks with your notes remain;
 deleted posts become locally unavailable through them. Remove unwanted entries
