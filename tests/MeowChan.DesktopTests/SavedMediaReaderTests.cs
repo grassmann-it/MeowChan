@@ -112,7 +112,7 @@ public sealed class SavedMediaReaderTests
         tiles.SelectedItem = a;
         tabs.SelectedIndex = 1;
         WaitUntil(() => sidebar.HeaderLine.Contains(a.Version, StringComparison.Ordinal));
-        Button edit = SidebarEditButton(sidebar);
+        Button edit = ShowSidebarEditButton(sidebar, window);
         tiles.SelectedItem = b;
         Assert.Contains(a.Version, sidebar.HeaderLine);
         edit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -120,7 +120,7 @@ public sealed class SavedMediaReaderTests
         Assert.Null(QuickTagPopover.Current);
 
         WaitUntil(() => sidebar.HeaderLine.Contains(b.Version, StringComparison.Ordinal));
-        edit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        ShowSidebarEditButton(sidebar, window).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         QuickTagPopover shown = Assert.IsType<QuickTagPopover>(QuickTagPopover.Current);
         try
         {
@@ -230,7 +230,7 @@ public sealed class SavedMediaReaderTests
                 tiles.SelectedItem = row;
                 WaitUntil(() => sidebar.Load.ShownSource == size);
                 Layout(window);
-                Assert.True(SidebarEditButton(sidebar).Focus());
+                Assert.True(sidebar.Close.Focus());
             }
 
             void MiddleClick()
@@ -244,8 +244,17 @@ public sealed class SavedMediaReaderTests
         }, openFolder: folders.Add);
     }
 
-    private static Button SidebarEditButton(ReaderMediaSidebar sidebar) =>
-        sidebar.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ReaderMediaSidebarEditTags");
+    private static Button ShowSidebarEditButton(ReaderMediaSidebar sidebar, Window window)
+    {
+        Layout(window);
+        if (sidebar.InfoToggle.IsChecked != true)
+        {
+            sidebar.InfoToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Layout(window);
+        }
+        return Assert.Single(sidebar.GetVisualDescendants().OfType<Button>(),
+            button => button.Name == "ReaderMediaSidebarEditTags" && button.IsEffectivelyVisible);
+    }
 
     [Theory]
     [InlineData(false)]
