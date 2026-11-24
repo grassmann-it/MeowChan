@@ -458,6 +458,8 @@ internal sealed partial class GalleryVideoPlayer
     private void BuildPlayerMenu()
     {
         _playerMenuButton.Content = WorkspaceIcons.Create(WorkspaceIcons.More);
+        _playerMenuSpeed.Icon = CommandBindings.Icon("video.speed-choose");
+        _playerMenuAudio.Icon = CommandBindings.Icon("video.audio-track");
         _playerMenuSaveFrame = CommandBindings.CreateMenuItem("video.snapshot", () => SaveFrameRequested?.Invoke(), () => CanSaveFrame);
         _playerMenuRotate = CommandBindings.CreateMenuItem("gallery.rotate", () => RotateRequested?.Invoke(), () => CanRotate);
         _playerMenuRepeat = CommandBindings.CreateMenuItem("video.loop", ToggleLoop, () => _loop.IsEnabled,
