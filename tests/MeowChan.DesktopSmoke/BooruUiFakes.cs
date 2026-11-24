@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using MeowChan.Desktop.Booru;
+using MeowChan.PluginHost.Http;
 using MeowChan.PluginSdk;
 using SkiaSharp;
 
@@ -25,7 +26,7 @@ internal static class BooruUiFixtures
 
     internal static BooruPostView Post(string id, BooruOriginalAccess original = BooruOriginalAccess.Available,
         BooruRating rating = BooruRating.General, string[]? tags = null, bool preview = true, int score = 12,
-        bool deleted = false, bool banned = false, string? rawRating = null)
+        bool deleted = false, bool banned = false, string? rawRating = null, bool sample = false)
     {
         List<BooruMediaVariant> media = new();
         if (preview) media.Add(new BooruMediaVariant(BooruMediaRole.Preview, new Uri($"https://cdn.donmai.us/180x180/{id}.jpg"), "jpg", null, 180, 180));
@@ -33,6 +34,7 @@ internal static class BooruUiFixtures
             media.Add(new BooruMediaVariant(BooruMediaRole.Original,
                 original == BooruOriginalAccess.Available ? new Uri($"https://cdn.donmai.us/original/{id}.png") : null,
                 "png", 1_234_567, 1920, 1080));
+        if (sample) media.Add(new BooruMediaVariant(BooruMediaRole.Sample, new Uri($"https://cdn.donmai.us/sample/{id}.jpg")));
         string[] names = tags ?? new[] { "cat", "blue_eyes", "sky" };
         BooruTag[] tagList = names.Select((name, index) => new BooruTag(name, index switch
         {
@@ -135,10 +137,11 @@ internal sealed class FakeBooruQueuePort : IBooruQueuePort
     internal void RaiseLocalStatesChanged() => LocalStatesChanged?.Invoke();
 }
 
-internal sealed class FakeBooruPreviewPort : IBooruPreviewPort
+internal sealed class FakeBooruPreviewPort : IBooruPreviewPort, IBooruSamplePort
 {
     private int _requests;
     internal Func<BooruPostView, byte[]?>? OnPreview { get; set; }
+    internal Func<BooruPostView, CancellationToken, Task<byte[]?>>? OnSample { get; set; }
     internal int Requests => Volatile.Read(ref _requests);
 
     public Task<byte[]?> LoadPreviewAsync(BooruPostView post, CancellationToken cancellationToken)
@@ -147,6 +150,10 @@ internal sealed class FakeBooruPreviewPort : IBooruPreviewPort
         int seed = int.TryParse(post.PostId, out int parsed) ? parsed : 0;
         return Task.FromResult(OnPreview is null ? BooruUiFixtures.Png(seed) : OnPreview(post));
     }
+
+    public async Task<BooruSampleResult> LoadSampleAsync(BooruPostView post, int maximumBytes, long cacheBytes,
+        TimeSpan responseTimeout, CancellationToken cancellationToken) =>
+        OnSample is null ? default : new(await OnSample(post, cancellationToken));
 }
 
 /// <summary>
