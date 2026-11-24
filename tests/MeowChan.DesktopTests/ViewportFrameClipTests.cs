@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
@@ -86,7 +87,7 @@ public sealed class ViewportFrameClipTests
     private static void CheckBooru(BooruResultView mode, bool ratingTip = false)
     {
         BooruUiHarness ports = new();
-        BooruPostView[] posts = Enumerable.Range(1, ItemCount)
+        BooruPostView[] posts = Enumerable.Range(1, BooruPagerLimits.Default.PostsPerPage)
             .Select(i => BooruUiFixtures.Post(i.ToString(), rating: BooruRating.Explicit, preview: false)).ToArray();
         ports.Search.OnSearch = (query, page, _) =>
             Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true, posts)));
@@ -96,6 +97,7 @@ public sealed class ViewportFrameClipTests
         InWindow(view, window =>
         {
             BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(model.Search, "cat"));
+            Assert.Equal(BooruSearchStatus.Results, model.Search.View.Status);
             BooruComponentDispatcher.WaitUntil(() => Descendants<Control>(view)
                 .Any(control => mode == BooruResultView.Gallery ? control == view.Gallery.Stage && view.Gallery.CurrentPostId is not null : control.Name == "BooruResult:1"),
                 "the Booru results to be rendered");
@@ -146,7 +148,15 @@ public sealed class ViewportFrameClipTests
                     SavedMediaKind.Image, MediaLibraryPresence.Missing, Unassigned: true, Historical: false);
                 return new MediaLibraryTileRow(new MediaLibraryTile(entry, [entry]), i - 1);
             }).ToArray();
-            InWindow(page, window => CheckList(window, page.Grid));
+            InWindow(page, window =>
+            {
+                Control selection = Find<Control>(page, "MediaSelectionRow");
+                Control status = (Control)Find<TextBlock>(page, "MediaStatus").Parent!;
+                // Hold the header layout steady for the before-and-after pixel comparison.
+                using var selectionVisibility = selection.SetValue(Visual.IsVisibleProperty, false, BindingPriority.Animation);
+                using var statusVisibility = status.SetValue(Visual.IsVisibleProperty, status.IsVisible, BindingPriority.Animation);
+                CheckList(window, page.Grid);
+            });
         }
         finally { page.EndLifetime(); }
     }
@@ -179,9 +189,8 @@ public sealed class ViewportFrameClipTests
                 .Select(i => new ArchiveThreadRow(Summary(ThreadId with { Thread = i.ToString() }, directory))).ToArray();
             ListBox cards = page.FindControl<ListBox>("ArchiveThreads")!;
             DataGrid grid = page.FindControl<DataGrid>("ArchiveThreadTable")!;
+            page.ArchiveLayoutPreference = table ? "Table" : "List";
             cards.ItemsSource = grid.ItemsSource = rows;
-            cards.IsVisible = !table;
-            grid.IsVisible = table;
             InWindow(page, window =>
             {
                 if (table) CheckTable(window, grid);
@@ -193,18 +202,26 @@ public sealed class ViewportFrameClipTests
 
     private static void CheckTagging(string directory, bool grid)
     {
+        new Config { DownloadPath = Path.Combine(directory, "media"), AutomaticUpdateChecks = false, SaveUrlsOnExit = false }
+            .SaveConfig(directory);
         DesktopSessionHost host = new(directory, []);
         try
         {
+            BooruComponentDispatcher.Wait(host.StartAsync());
+            TagQueueItem[] items = Enumerable.Range(1, ItemCount).Select(i =>
+                new TagQueueItem(ThreadId, directory, i.ToString(), new string('a', 64), i, i.ToString(), "original",
+                    i.ToString(), null, null, null, false, null, i + ".png", SavedMediaKind.Image, TagQueueState.Open,
+                    DateTimeOffset.UnixEpoch)).ToArray();
+            BooruComponentDispatcher.Wait(host.EnqueueTagQueueAsync(items));
             using TaggingPage page = new(host);
             if (grid) page.RestoreViewMode(TaggingViewMode.Grid);
-            ListBox list = page.ShownList;
-            list.ItemsSource = Enumerable.Range(1, ItemCount).Select(i =>
-                new TaggingQueueRow(new TagQueueItem(ThreadId, directory, i.ToString(), new string('a', 64), 1,
-                    i.ToString(), "original", null, null, null, null, false, null, i + ".png",
-                    SavedMediaKind.Image, TagQueueState.Open, DateTimeOffset.UnixEpoch), i - 1, Next: false)).ToArray();
-            Find<Control>(page, "TaggingEmptyState").IsVisible = false;
-            InWindow(page, window => CheckList(window, list));
+            InWindow(page, window =>
+            {
+                BooruComponentDispatcher.Wait(page.ActivateAsync());
+                Assert.Equal(ItemCount, page.ShownList.Items.Count);
+                using var selectionVisibility = page.SelectionBar.SetValue(Visual.IsVisibleProperty, false, BindingPriority.Animation);
+                CheckList(window, page.ShownList);
+            });
         }
         finally { BooruComponentDispatcher.Wait(host.DisposeAsync().AsTask()); }
     }
