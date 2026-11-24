@@ -1039,7 +1039,7 @@ public partial class ArchivePage
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None || CommandBindings.Matches(e, "reader.close")) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
         if (TryPageByShortcut(e)) return;
-        if (SidebarToggleGroup.IsSegmentArrow(e) || ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
+        if (ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
         // The reader guard deliberately permits its post list and tab content.
         // A generic native-input check would also reject Home/End/Page remaps
         // from ordinary tab content because TabControl is a SelectingItemsControl.
@@ -1074,8 +1074,7 @@ public partial class ArchivePage
     private bool SuppressReaderActionArrows(KeyEventArgs e)
     {
         if (e.KeyModifiers is not (KeyModifiers.None or KeyModifiers.Shift)
-            || e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down) || e.Source is not Visual source
-            || SidebarToggleGroup.IsSegmentArrow(e)) return false;
+            || e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down) || e.Source is not Visual source) return false;
         var path = source.GetSelfAndVisualAncestors();
         if (!path.Contains(ReaderNavigation)
             && !(path.Any(visual => visual is Button)

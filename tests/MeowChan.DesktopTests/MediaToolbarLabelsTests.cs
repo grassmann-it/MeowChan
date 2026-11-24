@@ -3,7 +3,9 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Media;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Theming;
@@ -92,11 +94,20 @@ public sealed class MediaToolbarLabelsTests
         lifetime.Window.Content = group;
         lifetime.Show();
 
+        Assert.Equal(4, second.Bounds.Left - first.Bounds.Right);
+        Assert.All(new[] { first, second }, button =>
+        {
+            Assert.True(button.CornerRadius.TopLeft > 0);
+            Assert.Equal(button.CornerRadius.TopLeft, button.CornerRadius.TopRight);
+        });
         Assert.True(first.Focus(NavigationMethod.Tab));
         Press(first, Key.Space);
         Assert.True(first.IsChecked);
         Assert.False(second.IsChecked);
         Press(first, Key.Right);
+        Assert.True(first.IsFocused);
+        lifetime.Window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+        lifetime.Window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.None);
         Assert.Same(second, lifetime.Window.FocusManager!.GetFocusedElement());
         Assert.Contains(":focus-visible", second.Classes);
         Assert.NotNull(second.FocusAdorner);
@@ -107,6 +118,9 @@ public sealed class MediaToolbarLabelsTests
         Assert.Equal("Media sidebar: " + state, AutomationProperties.GetName(second));
         Assert.EndsWith(state, Assert.IsType<string>(ToolTip.GetTip(second)));
         Press(second, Key.Left);
+        Assert.True(second.IsFocused);
+        lifetime.Window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.Shift);
+        lifetime.Window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.Shift);
         Assert.True(first.IsFocused);
         Press(first, Key.Enter);
         Assert.False(first.IsChecked);
