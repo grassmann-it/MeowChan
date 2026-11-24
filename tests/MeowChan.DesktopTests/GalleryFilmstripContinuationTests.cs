@@ -8,6 +8,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -47,6 +48,7 @@ public sealed class GalleryFilmstripContinuationTests
         await using DesktopSessionHost session = new(profile, [],
             updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
         await using MainWindow window = new(session) { Width = 1200, Height = 800 };
+        window.SetRenderScaling(1.5);
         window.Show();
         window.PlatformImpl!.Activated?.Invoke();
         await window.StartupTimingRestoreTask;
@@ -74,8 +76,17 @@ public sealed class GalleryFilmstripContinuationTests
         Assert.Equal(3, AutomationProperties.GetSizeOfSet(third));
         Assert.StartsWith("3 of 3", AutomationProperties.GetName(third));
         Assert.Equal("Load more media", AutomationProperties.GetName(load));
+        Assert.Equal("Load more media", ToolTip.GetTip(load));
         Assert.Equal(WorkspaceIcons.ArrowDown, WorkspaceIcons.KeyOf(load.Content));
-        Assert.True(load.Bounds.Width > 0 && load.Bounds.Height > 0);
+        Assert.Equal(1.5, window.RenderScaling);
+        Rect tileBounds = BoundsIn(third, strip);
+        Rect loadBounds = BoundsIn(load, strip);
+        Assert.True(loadBounds.Width > 0 && loadBounds.Height > 0);
+        Assert.InRange(loadBounds.Left - tileBounds.Right - Config.GalleryFilmstripTileGapDefault, -1, 1);
+        Assert.InRange(loadBounds.Top - tileBounds.Top, -1, 1);
+        Assert.InRange(loadBounds.Width - tileBounds.Width, -1, 1);
+        Assert.InRange(loadBounds.Height - tileBounds.Height, -1, 1);
+        Capture(window, "ready");
 
         // An invalid identity exercises a failure from the real ArchiveReader. Put the original
         // identity back at the same slot to verify that the failed attempt did not consume it.
@@ -89,15 +100,20 @@ public sealed class GalleryFilmstripContinuationTests
         window.MouseUp(center, MouseButton.Left);
 
         Assert.Equal("Loading…", AutomationProperties.GetName(load));
+        Assert.Equal("Loading…", ToolTip.GetTip(load));
+        Assert.Equal(WorkspaceIcons.Refresh, WorkspaceIcons.KeyOf(load.Content));
         Assert.Equal("Loading…", status.Text);
         Assert.Equal("3 / 3", position.Text);
-        load.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseUp(center, MouseButton.Left);
+        Capture(window, "loading");
         await UntilAsync(() => failures > 0 && AutomationProperties.GetName(load) == "Load more media");
         Assert.Equal(1, failures);
         Assert.Equal("3 / 3", position.Text);
         Assert.Equal(2, strip.CurrentIndex);
         Assert.Same(picture, image.Source);
         Assert.Equal("Could not load more media. Try again.", status.Text);
+        Capture(window, "retry");
 
         retryable[1] = second;
         Assert.True(load.Focus(NavigationMethod.Tab));
@@ -113,7 +129,22 @@ public sealed class GalleryFilmstripContinuationTests
         Assert.Equal(second, strip.EntryAt(3)!.Key.Thread);
         Assert.Same(strip.TileControl(3), window.FocusManager!.GetFocusedElement());
         Assert.Equal(1, failures);
+        Capture(window, "loaded");
         window.Close();
+    }
+
+    private static Rect BoundsIn(Control control, Visual relativeTo) =>
+        new(control.TranslatePoint(default, relativeTo)!.Value, control.Bounds.Size);
+
+    private static void Capture(Window window, string state)
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_FILMSTRIP");
+        if (string.IsNullOrEmpty(directory)) return;
+        window.UpdateLayout();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        using WriteableBitmap frame = window.CaptureRenderedFrame()
+            ?? throw new InvalidOperationException("The headless gallery did not render.");
+        frame.Save(Path.Combine(directory, state + ".png"), PngBitmapEncoderOptions.Default);
     }
 
     private static async Task SeedAsync(ArchiveCatalog archive, ResourceId id, string root, string title, int count)
