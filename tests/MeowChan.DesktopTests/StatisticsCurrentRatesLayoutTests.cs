@@ -45,19 +45,19 @@ public sealed class StatisticsCurrentRatesLayoutTests
 
                 page.Apply(new IoStatsSnapshot { RetentionDays = 30 });
                 CheckValues("—", "—", "—", "—", "—");
-                page.Apply(new IoStatsSnapshot { RetentionDays = 30, Series = sampled });
+                page.Apply(new IoStatsSnapshot { RetentionDays = 30, Series = sampled, HasFreshSample = true });
                 CheckValues("0 B/s", "0 B/s", "0 B/s", "0 B/s", RequestText(0));
 
                 page.Apply(new IoStatsSnapshot
                 {
-                    RetentionDays = 30, Series = sampled,
+                    RetentionDays = 30, Series = sampled, HasFreshSample = true,
                     Rate = new(NetDown: double.MaxValue, NetUp: 2048, DiskRead: 3 * 1024 * 1024, DiskWrite: 4, Requests: 1234)
                 });
                 CheckValues(">999 YiB/s", "2 KiB/s", "3 MiB/s", "4 B/s", RequestText(1234));
 
                 page.Apply(new IoStatsSnapshot
                 {
-                    RetentionDays = 30, Series = sampled,
+                    RetentionDays = 30, Series = sampled, HasFreshSample = true,
                     Rate = new(NetDown: 5, NetUp: 1536, DiskRead: 7, DiskWrite: double.MaxValue, Requests: 8.5)
                 });
                 CheckValues("5 B/s", 1.5.ToString(Texts.Culture) + " KiB/s", "7 B/s", ">999 YiB/s", RequestText(8.5));
@@ -100,6 +100,46 @@ public sealed class StatisticsCurrentRatesLayoutTests
         {
             window.Close();
             page.EndLifetime();
+        }
+    });
+
+    [Fact]
+    public void CurrentRatesFollowTheHubThroughCadenceChangesDelayedTicksAndMeasuredIdle() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        IoManualClock clock = new(DateTimeOffset.UnixEpoch);
+        IoFakeSource source = new();
+        using IoStatsHub hub = new(source, clock, new IoStatsOptions { Persist = false, SampleIntervalMs = 1000 });
+        using IoStatsSubscription claim = hub.Subscribe(IoStatsVisibility.Window);
+        StatisticsPage page = new();
+        page.Attach(hub, null);
+        try
+        {
+            Assert.Equal(0, ShowRate(false, "—").Series.Count);
+            source.Add("4chan", net: 1024);
+            clock.Advance(TimeSpan.FromSeconds(1));
+            Assert.Equal(1, ShowRate(true, "1 KiB/s").Series.Count);
+
+            hub.Configure(hub.Options with { SampleIntervalMs = 2000 });
+            Assert.Equal(0, ShowRate(false, "—").Series.Count);
+            source.Add("4chan", net: 4096);
+            clock.Advance(TimeSpan.FromSeconds(2));
+            Assert.Equal(1, ShowRate(true, "2 KiB/s").Series.Count);
+
+            clock.AdvanceWithoutCallbacks(TimeSpan.FromSeconds(7));
+            Assert.Equal(1, ShowRate(false, "—").Series.Count);
+            clock.Advance(TimeSpan.Zero);
+            Assert.Equal(2, ShowRate(true, "0 B/s").Series.Count);
+        }
+        finally { page.EndLifetime(); }
+
+        IoStatsSnapshot ShowRate(bool fresh, string displayed)
+        {
+            IoStatsSnapshot snapshot = hub.Snapshot();
+            Assert.Equal(fresh, snapshot.HasFreshSample);
+            page.Apply(snapshot);
+            Assert.Equal(displayed, page.FindControl<TextBlock>("NetValue")!.Text);
+            return snapshot;
         }
     });
 }

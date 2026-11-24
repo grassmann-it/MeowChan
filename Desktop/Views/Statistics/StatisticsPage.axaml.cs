@@ -25,6 +25,8 @@ namespace MeowChan;
 public partial class StatisticsPage : UserControl
 {
     private readonly ObservableCollection<StatisticsRow> _rows = [];
+    private readonly Action _removeKeyContext;
+    private readonly DispatcherTimer _statusHide = new() { Interval = TimeSpan.FromSeconds(5) };
     private IoStatsHub? _hub;
     private Func<string, string?>? _sourceName;
     private IoStatsSnapshot? _last;
@@ -32,16 +34,14 @@ public partial class StatisticsPage : UserControl
     private bool _resetting;
     private string? _resetStatusKey;
     private bool _ended;
-    private IDisposable? _statusHide;
     private bool _restoreResetFocus;
     private long _resetFocusGeneration;
     private readonly Thickness _pageMargin;
 
     public StatisticsPage()
     {
-        // Every key of the Status page's statistics segment runs in the "statistics" context (S3 P2-4): a default that a saved binding took away only
-        // elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "statistics");
+        // Keep defaults active here when a saved binding only displaces them in another context.
+        _removeKeyContext = KeyContextHost.InstallWithCleanup(this, _ => "statistics");
         InitializeComponent();
         _pageMargin = StatisticsContent.Margin;
         StatisticsGrid.ItemsSource = _rows;
@@ -55,6 +55,11 @@ public partial class StatisticsPage : UserControl
         ApplyCurrentRates(null);
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
+        _statusHide.Tick += (_, _) =>
+        {
+            _statusHide.Stop();
+            ResetStatusPanel.IsVisible = false;
+        };
     }
 
     /// <summary>Hosted in the Status page, which already has the page title, hint and status line: the page then shows no title
@@ -79,9 +84,11 @@ public partial class StatisticsPage : UserControl
 
     internal void EndLifetime()
     {
+        if (_ended) return;
         _ended = true;
+        _removeKeyContext();
         DisposeRowMenus();
-        _statusHide?.Dispose();
+        _statusHide.Stop();
         ResetConfirmation.Hide();
         Texts.Changed -= OnLanguageChanged;
     }
@@ -180,8 +187,7 @@ public partial class StatisticsPage : UserControl
         _last = snapshot;
         if (retentionChanged) SetRetainedHeader(snapshot.RetentionDays);
 
-        // A sample of idle traffic is zero. Before sampling, the hub has an empty series and default rates.
-        ApplyCurrentRates(snapshot.Series.Count == 0 && snapshot.Rate == IoRates.Zero ? null : snapshot.Rate);
+        ApplyCurrentRates(snapshot.HasFreshSample ? snapshot.Rate : null);
 
         int interval = _hub?.Options.SampleIntervalMs ?? Config.StatsSampleIntervalMsDefault;
         int seconds = IoStatsDisplay.HistorySeconds(snapshot.Series.Capacity, interval);
@@ -293,7 +299,7 @@ public partial class StatisticsPage : UserControl
     {
         CloseConfirmation(focusReset: false);
         ResetStatusPanel.IsVisible = false;
-        _statusHide?.Dispose();
+        _statusHide.Stop();
     }
 
     internal void FocusContent()
@@ -309,7 +315,7 @@ public partial class StatisticsPage : UserControl
     {
         if (_ended || _hub == null || _resetting) return;
         ResetStatusPanel.IsVisible = false;
-        _statusHide?.Dispose();
+        _statusHide.Stop();
         _restoreResetFocus = true;
         ++_resetFocusGeneration;
         // Where Reset sits under More, the popup cannot anchor the question: it closes with this very click, and a question
@@ -380,8 +386,8 @@ public partial class StatisticsPage : UserControl
             _resetStatusKey = cleared ? "stats.reset.done" : "stats.reset.failed";
             StatisticsStatus.Text = Texts.T(_resetStatusKey);
             ResetStatusPanel.IsVisible = true;
-            _statusHide?.Dispose();
-            _statusHide = DispatcherTimer.RunOnce(() => ResetStatusPanel.IsVisible = false, TimeSpan.FromSeconds(5));
+            _statusHide.Stop();
+            _statusHide.Start();
         }
         finally
         {
