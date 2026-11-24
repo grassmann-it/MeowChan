@@ -28,15 +28,20 @@ internal static class MediaSlotGeometry
     /// <summary>
     /// The frame of a reader preview. The picture fills the width it is given up to <paramref name="maxWidth"/>, as high as its aspect
     /// asks, at most <paramref name="maxHeight"/> (scaled down with the width below <paramref name="maxWidth"/>; then it gets narrower: a portrait picture is a narrow frame, not a wide box with the
-    /// picture in a corner). Without an aspect the frame is <see cref="ReservedAspect"/> wide-screen at that width.
+    /// picture in a corner). A finite <paramref name="absoluteHeightLimit"/> limits the resulting height independently of the column.
+    /// Without an aspect the frame uses <see cref="ReservedAspect"/>.
     /// </summary>
-    internal static Size Fit(double? aspect, double availableWidth, double maxWidth, double maxHeight)
+    internal static Size Fit(double? aspect, double availableWidth, double maxWidth, double maxHeight,
+        double absoluteHeightLimit = double.PositiveInfinity)
     {
         double width = double.IsFinite(availableWidth) ? Math.Clamp(availableWidth, 1, maxWidth) : maxWidth;
         if (aspect is not > 0 || !double.IsFinite(aspect.Value))
-            return new Size(width, width / ReservedAspect);
+        {
+            if (double.IsPositiveInfinity(absoluteHeightLimit)) return new Size(width, width / ReservedAspect);
+            aspect = ReservedAspect;
+        }
         // A narrow owner (the thread list gives 76 dip) scales the height cap with its width: a tall picture stays a thumbnail there.
-        maxHeight *= Math.Min(1, width / maxWidth);
+        maxHeight = Math.Min(maxHeight * Math.Min(1, width / maxWidth), absoluteHeightLimit);
         double height = width / aspect.Value;
         if (height > maxHeight) { height = maxHeight; width = height * aspect.Value; }
         // A very thin strip stays a usable frame; the picture is then centred in it.
@@ -103,6 +108,8 @@ internal sealed class MediaFramePanel : Panel
     internal double MaximumWidthOverride { get; set; } = double.NaN;
     /// <summary>Optional override of the height cap, for previews drawn wider than the reader default (textless or enlarged ones keep the cap's proportion).</summary>
     internal double MaximumHeightOverride { get; set; } = double.NaN;
+    /// <summary>When set, this height scales with the column width and <see cref="MaximumHeightOverride"/> is a separate, absolute cap.</summary>
+    internal double HeightLimitAtMaximumWidth { get; set; } = double.NaN;
     internal static double MaximumWidth(bool large) => large ? 360 : 240;
     internal static double MaximumHeight(bool large) => large ? 280 : 180;
 
@@ -115,7 +122,9 @@ internal sealed class MediaFramePanel : Panel
             ? MaximumWidthOverride
             : MaximumWidth(Large);
         double maximumHeight = double.IsFinite(MaximumHeightOverride) && MaximumHeightOverride > 0 ? MaximumHeightOverride : MaximumHeight(Large);
-        Size frame = MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, maximumHeight);
+        Size frame = double.IsFinite(HeightLimitAtMaximumWidth)
+            ? MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, HeightLimitAtMaximumWidth, maximumHeight)
+            : MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, maximumHeight);
         Size picture = MediaSlotGeometry.Letterbox(frame, Aspect).Size;
         foreach (Control child in Children)
         {

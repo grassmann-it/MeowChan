@@ -195,6 +195,7 @@ public sealed class ArchiveAttachmentView : UserControl
     // Without either the legacy limits stay exactly as they were (no height override).
     private void ApplyFrameLimits(ArchiveAttachmentRow? row, bool large)
     {
+        _slot.HeightLimitAtMaximumWidth = double.NaN;
         if (_expanded && row != null)
         {
             // "Open in the post": the picture takes the post column's width (the frame never exceeds what the owner gives), as high as the
@@ -211,7 +212,10 @@ public sealed class ArchiveAttachmentView : UserControl
         double cap = row?.ThumbnailMaxHeight > 0 || factor > 1 ? height * factor : double.NaN;
         // An enlarged picture is shown whole: its height is capped by what the visible reader leaves under the post header (ReaderMediaFit).
         if (factor > 1 && VisibleFrameHeight() is var visible && double.IsFinite(visible))
+        {
+            _slot.HeightLimitAtMaximumWidth = height * factor;
             cap = ReaderMediaFit.HeightCap(height, factor, visible, MediaSlotGeometry.Fit(_slot.Aspect, double.PositiveInfinity, width, height).Height);
+        }
         _slot.MaximumHeightOverride = cap;
         _edge.IsVisible = factor > 1 && row != null;
     }
