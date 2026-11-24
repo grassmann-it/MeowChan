@@ -8,7 +8,9 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Interfaces;
+using Semi.Avalonia.DataGrid;
 
 namespace MeowChan.DesktopTests;
 
@@ -27,11 +29,14 @@ public sealed class ArchiveTableSplitterTests
         archive.Run(page =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
+            page.ArchiveColumnModePreference = WorkViewSetting.AdvancedName;
             page.ArchiveLayoutPreference = "Table";
             page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(new Config
             {
                 ReaderMediaSidebar = true,
-                ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways
+                ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways,
+                ReaderMediaSidebarWidth = 560
             }));
             Window window = new() { Content = page, Width = 1920, Height = 850 };
             try
@@ -43,6 +48,7 @@ public sealed class ArchiveTableSplitterTests
                 Control list = page.FindControl<Control>("ArchiveListPane")!;
                 GridSplitter splitter = page.FindControl<GridSplitter>("ArchiveSplitter")!;
                 SelectThread(first);
+                Assert.False(page.IsMediaSidebarShown);
 
                 double initialWidth = list.Bounds.Width;
                 Point start = splitter.TranslatePoint(new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window)!.Value;
