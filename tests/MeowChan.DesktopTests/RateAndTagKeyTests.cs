@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform;
@@ -67,17 +68,24 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
     private static KeyEventArgs Key(Key key, KeyModifiers modifiers = KeyModifiers.None, object? source = null) =>
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers, Source = source };
 
-    [Theory]
-    [InlineData("Desktop/Views/Media/MediaPage.cs")]
-    [InlineData("Desktop/Views/Media/MediaPage.PanelKeys.cs")]
-    [InlineData("Desktop/Views/Archive/ArchivePage.MediaCommands.cs")]
-    [InlineData("Desktop/Views/Archive/ArchivePage.Ratings.cs")]
-    public void GeneralRateAndTagEntryDoesNotRequestStarFocus(string path)
+    [Fact]
+    public void GeneralRateAndTagEntryDoesNotRequestStarFocus() => RateAndTagWindowFixture.RunMediaPage(async (window, page) =>
     {
-        string source = Source(path);
-        Assert.DoesNotContain("initialFocus: QuickTagInitialFocus.Rating", source);
-        Assert.Contains("initialFocus: QuickTagInitialFocus.TagInput", source);
-    }
+        page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
+        await BooruTestSupport.WaitAsync(() =>
+        {
+            window.UpdateLayout();
+            return page.IsPanelShown && page.PanelRow?.Entry.PostId == "43" && page.Panel?.Open.IsEffectivelyEnabled == true;
+        }, "the picture in the Media panel");
+        ReaderMediaSidebar panel = Assert.IsType<ReaderMediaSidebar>(page.Panel);
+        Assert.True(panel.Open.Focus());
+
+        QuickTagPopover popover = await RateAndTagWindowFixture.OpenEditorAsync(window);
+        Assert.Same(popover, window.MediaPageTagPopover);
+        window.KeyTextInput("sample");
+        Assert.Equal("sample", popover.Surface!.Input.Text);
+        Assert.True(popover.IsOpen);
+    });
 
     [Theory]
     [InlineData(Avalonia.Input.Key.D0)]
@@ -449,23 +457,24 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
     }
 
     [Fact]
-    public void EveryHostReleasesItsOpenFlagWithThePopoverNotWithItsContinuation()
-    {
-        string shell = Source("Desktop/Shell/MainWindow.QuickTags.cs");
-        Assert.Equal(2, Count(shell, "popover.WhenClosed(Release);"));
-        Assert.Contains("_mediaTagDialogOpen = false;", shell);
-        Assert.Contains("_galleryTagDialogOpen = false;", shell);
-        // The media page's popover gives the keyboard back at once (↑/↓ and R right after Esc), with the page's grid as the fallback.
-        Assert.Contains("PopoverOptions(context, hostCurrent, restoreFocus: true, \"MediaTagPopover\")", shell);
-        Assert.Contains("FocusFallback = request.FocusFallback", shell);
-        Assert.Contains("popover.WhenClosed(Release);", Source("Desktop/Views/Media/MediaPage.Selection.cs"));
-        Assert.Contains("popover.WhenClosed(Release);", Source("Desktop/Views/Archive/ArchivePage.MediaSelection.cs"));
-        Assert.Contains("popover.WhenClosed(Release);", Source("Desktop/Views/Tagging/TaggingPage.Tagging.cs"));
-        // The focus hand-back runs at once and again before the next key (Loaded), not at Background after it.
-        string popover = Source("Desktop/Controls/QuickTagPopover.cs");
-        Assert.Contains("Dispatcher.UIThread.Post(() => RestoreFocusNow(), DispatcherPriority.Loaded);", popover);
-        Assert.DoesNotContain("}, DispatcherPriority.Background);\n    }\n\n    // ---- keys", popover);
-    }
+    public void TheMediaHostReleasesItsOpenFlagWhenEscapeClosesThePopover() =>
+        RateAndTagWindowFixture.RunMediaPage(async (window, page) =>
+        {
+            Control tile = Assert.IsAssignableFrom<Control>(page.Grid.ContainerFromIndex(0));
+            Assert.True(tile.Focus());
+            QuickTagPopover first = await RateAndTagWindowFixture.OpenEditorAsync(window);
+            Assert.Same(first, window.MediaPageTagPopover);
+            first.Surface!.Input.Dismiss();
+
+            RateAndTagWindowFixture.Escape(window);
+            Assert.Equal(QuickTagPopoverCloseReason.Closed, first.Reason);
+            Assert.Null(window.MediaPageTagPopover);
+            Assert.True(page.Grid.IsKeyboardFocusWithin);
+            // OpenEditorAsync sends R before its first await, in the same dispatcher turn as Escape.
+            QuickTagPopover second = await RateAndTagWindowFixture.OpenEditorAsync(window);
+            Assert.NotSame(first, second);
+            Assert.Same(second, window.MediaPageTagPopover);
+        });
 
     // ---- R with a text selection --------------------------------------------------------------------------------------------
 
@@ -509,13 +518,6 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
 
     internal static string Source(string relative, [CallerFilePath] string sourcePath = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative))).Replace("\r\n", "\n");
-
-    private static int Count(string text, string part)
-    {
-        int count = 0;
-        for (int at = text.IndexOf(part, StringComparison.Ordinal); at >= 0; at = text.IndexOf(part, at + part.Length, StringComparison.Ordinal)) count++;
-        return count;
-    }
 }
 
 // R on the Media page, raised on the real source element (the tile's container, the grid, another control of the page), over the page fixture of the tile
@@ -567,14 +569,14 @@ public sealed class RateAndTagMediaPageKeyTests
     {
         List<Opened> opened = RecordPopovers(fixture);
         fixture.Grid.Selection.SelectRange(0, 1);
-        MediaLibraryTileRow panelRow = Assert.IsType<MediaLibraryTileRow>(fixture.Container(2).DataContext);
-        Control anchor = new Border();
-        Task result = (Task)typeof(MediaPage).GetMethod("RunMediaCommandOnPanelAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(fixture.Page, [command, panelRow, anchor])!;
-        Assert.True(result.IsCompletedSuccessfully);
+        Control origin = fixture.ShowPanelOn(2);
+        KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture(command));
+        fixture.Press(origin, gesture.Key, gesture.KeyModifiers);
+
+        Assert.True(fixture.LastHandled);
         Opened open = Assert.Single(opened);
         Assert.Same(fixture.Entries[2], open.Entry);
-        Assert.Same(anchor, open.Anchor);
+        Assert.Equal("ReaderMediaSidebarEditTags", open.Anchor.Name);
         Assert.Equal(QuickTagInitialFocus.TagInput, open.Request.InitialFocus);
         Assert.Equal(new[] { 0, 1 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
     });
@@ -682,27 +684,84 @@ public sealed class RateAndTagSurfaceTests : IDisposable
     // ---- the reader -------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheReadersRIsNoLongerConsumedInSilenceWithoutAFocusedMedium()
+    public void TheReadersRWaitsForTheSelectedMediumAndExplainsAnEmptyPost() => BooruComponentDispatcher.Run(() =>
     {
-        string commands = Source("Desktop/Views/Archive/ArchivePage.RatingCommands.cs");
-        int at = commands.IndexOf("_ratingCommands.Register(new(\"media.rating.edit\"", StringComparison.Ordinal);
-        Assert.True(at >= 0);
-        string registration = commands[at..commands.IndexOf("Priority: 100", at, StringComparison.Ordinal)];
-        // Before: CanExecute asked for a focused medium, and the router consumes a matched key whose action cannot run.
-        Assert.DoesNotContain("FocusedMediaForRateAndTag() != null", registration);
-        Assert.Contains("RateAndTagByKeyAsync", registration);
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using var media = BooruComponentDispatcher.Wait(ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false));
+        ArchivedThreadView view = RateAndTagWindowFixture.View(media);
+        TaskCompletionSource<MediaAssetSnapshot> inventory = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using TempDirectory profile = new();
+        BooruComponentDispatcher.Wait(RateAndTagWindowFixture.SeedAsync(profile.Path, view));
+        ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token),
+            (_, _) => Task.CompletedTask, _ => { }, (_, token) => inventory.Task.WaitAsync(token)) { IsAvailable = true };
+        page.ApplyReaderMediaPreferences(ReaderMediaPreferences.Default with { Sidebar = false });
+        Window window = new() { Width = 1200, Height = 800, Content = page };
+        using TempDirectory tags = new();
+        using ProfileLease lease = ProfileLease.Acquire(tags.Path);
+        PrivateTagStore store = new(tags.Path, lease);
+        List<GalleryEntry> targets = [];
+        page.TagPopoverAsync = (entry, anchor, _, current, request) =>
+        {
+            targets.Add(entry);
+            var target = Assert.IsType<MediaTagSubject.Bound>(MediaTagSubjects.Of(entry));
+            QuickTagSession session = new(QuickTagTarget.For(new MediaTagSession(target,
+                () => new(PrivateTagLoadState.Ready, store.ReadSnapshot(), null),
+                (_, _, _) => throw new InvalidOperationException("Unexpected tag write."),
+                (_, _, _, _) => throw new InvalidOperationException("Unexpected tag write."))));
+            return QuickTagPopover.Open(anchor, session, entry.Asset.OriginalFileName!, new QuickTagPopoverOptions
+            {
+                IsCurrent = current, RestoreFocus = true, FocusFallback = request.FocusFallback,
+                Decision = new() { View = () => new(1, GalleryDecisionCoverage.None, null, false, true),
+                    SetRating = _ => Task.CompletedTask, InitialFocus = request.InitialFocus }
+            }).Result;
+        };
 
-        string media = Source("Desktop/Views/Archive/ArchivePage.MediaCommands.cs");
-        int body = media.IndexOf("internal async Task RateAndTagByKeyAsync()", StringComparison.Ordinal);
-        string key = media[body..media.IndexOf("private void SelectPostOfFocusedText()", body, StringComparison.Ordinal)];
-        Assert.Contains("await _mediaReady.Task;", key);            // a quote jump or a turned page: the key waits for the media scan
-        Assert.Contains("SelectedPostRateAndTagMedium()", key);     // the focus on a toolbar or paging button: the selected post's medium
-        Assert.Contains("Message(RateAndTagRefusal());", key);      // no medium: the reason, never silence
-        Assert.Contains("SelectPostOfFocusedText();", key);         // a text selection in a post that is not the selected one
-        Assert.Contains("new RateAndTagRequest(initialFocus, subject.TagsBlocked, FocusAfterRateAndTag)", media);
-        // After the close without its origin, the keyboard goes to the selected post card (or the posts list), where ↑/↓ and R work.
-        Assert.Contains("posts.SelectedItem is { } item && posts.ContainerFromItem(item) is Control card && card.Focus()", media);
-    }
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            BooruComponentDispatcher.Wait(page.LoadThreadAsync(view.Summary.Id, preparedThread: view));
+            window.UpdateLayout();
+            ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+            Assert.Equal(2, posts.ItemCount);
+            posts.SelectedIndex = 0;
+            Assert.True(posts.Focus());
+            RateAndTagWindowFixture.PressR(window);
+            Assert.False(page.MediaLoadTask.IsCompleted);
+            Assert.Empty(targets);
+            Assert.Null(QuickTagPopover.Current);
+
+            inventory.SetResult(media.Snapshot);
+            BooruComponentDispatcher.Wait(page.MediaLoadTask);
+            BooruComponentDispatcher.WaitUntil(() => QuickTagPopover.Current is { IsOpen: true, Surface.Input.IsKeyboardFocusWithin: true },
+                "the reader's tag editor after the inventory arrives");
+            GalleryEntry target = Assert.Single(targets);
+            Assert.Equal(media.Asset.AssetId, target.Asset.AssetId);
+            Assert.Equal("43", target.Post?.PostId);
+
+            QuickTagPopover editor = QuickTagPopover.Current!;
+            editor.Surface!.Input.Dismiss();
+            RateAndTagWindowFixture.Escape(window);
+            Assert.Equal(QuickTagPopoverCloseReason.Closed, editor.Reason);
+            Assert.Null(QuickTagPopover.Current);
+            Assert.True(posts.IsKeyboardFocusWithin);
+            Assert.Equal("43", (posts.SelectedItem as ArchivePostRow)?.Id);
+
+            posts.SelectedIndex = 1;
+            Assert.True(posts.Focus());
+            RateAndTagWindowFixture.PressR(window);
+            Assert.Equal(MediaMenuReasons.Unavailable, page.FindControl<TextBlock>("ArchiveMessage")!.Text);
+            Assert.Single(targets);
+            Assert.Null(QuickTagPopover.Current);
+        }
+        finally
+        {
+            QuickTagPopover.Current?.Close();
+            page.EndLifetime();
+            window.Close();
+            BooruComponentDispatcher.Wait(page.MediaLoadTask);
+        }
+    });
 
     [Fact]
     public void ReaderAndSidebarRouteRatingInTheTunnelBeforeSelectingControlsCanTypeAhead()
