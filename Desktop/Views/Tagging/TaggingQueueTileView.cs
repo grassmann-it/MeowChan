@@ -5,7 +5,6 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Controls;
-using MeowChan.Desktop.Localization;
 using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
@@ -29,8 +28,9 @@ internal sealed class TaggingQueueTileView : Border
     private readonly TaggingTileBadges _badges = new();
     private readonly Border _selected = WorkspaceChips.CreateSelectionCheck("TaggingTileSelected");
     private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
-    // The number is a caption, not a badge (MB1b): "#3", bold with a following mark where "continue" starts.
+    // The number is a caption (MB1b): "#3", bold and marked where "continue" starts.
     private readonly TextBlock _number = new() { MaxLines = 1, Margin = new Thickness(0, 0, 4, 0), Classes = { "tnum" } };
+    private readonly TaggingQueueNextMarker _next = new();
     private readonly TextBlock _group = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "muted" } };
     /// <summary>The space the selection check keeps from the slot's right edge when no badge sits in that corner (dip).</summary>
     internal const double CheckInset = 4, CheckGap = 4;
@@ -59,7 +59,7 @@ internal sealed class TaggingQueueTileView : Border
         cell.Children.Add(picture);
         Grid caption = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         Grid.SetColumn(_name, 1);
-        caption.Children.Add(_number);
+        caption.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { _next, _number } });
         caption.Children.Add(_name);
         Grid.SetRow(caption, 1);
         cell.Children.Add(caption);
@@ -94,9 +94,9 @@ internal sealed class TaggingQueueTileView : Border
         _badges.Show(row, tags, _preview.PictureSize, _preview.Bounds.Size);
         PlaceCheck();
         _name.Text = row?.Name;
-        _number.Text = row == null ? null : "#" + row.NumberText + (row.Next ? " \u203A" : null);
+        _number.Text = row == null ? null : "#" + row.NumberText;
         _number.FontWeight = row?.Next == true ? FontWeight.Bold : FontWeight.Normal;
-        ToolTip.SetTip(_number, row?.Next == true ? Texts.T("tagging.page.next") : null);
+        _next.Show(row?.Next == true);
         _group.Text = row?.GroupText;
         // The row's sentence plus the badges' sentence (kept by the badges until the state or the language changes).
         string? name = row == null ? null : _badges.Description.Length == 0 ? row.AccessibleName : row.AccessibleName + ", " + _badges.Description;

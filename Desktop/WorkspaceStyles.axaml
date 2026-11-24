@@ -1006,13 +1006,16 @@
     </Style>
 
     <!-- Tagging table heights are COMPLETE container heights, including the invariant selection edge.
-         Zero vertical padding/border leaves 44/32 for the row content; the 3-px edge never changes the inset. -->
+         The normal preview uses the two-line height so its 48-DIP image fits. The compact image fits within 32 DIP. -->
     <Style Selector="ListBox.tagging-table > ListBoxItem">
         <Setter Property="Height" Value="{x:Static desktop:WorkspaceMetrics.NormalRowHeight}" />
         <Setter Property="MinHeight" Value="0" /><Setter Property="Margin" Value="0" />
         <Setter Property="Padding" Value="9,0,12,0" /><Setter Property="BorderThickness" Value="3,0,0,0" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ListBox.tagging-table.with-preview:not(.compact) > ListBoxItem">
+        <Setter Property="Height" Value="{x:Static desktop:WorkspaceMetrics.TwoLineRowHeight}" />
     </Style>
     <Style Selector="ListBox.tagging-table.compact > ListBoxItem">
         <Setter Property="Height" Value="{x:Static desktop:WorkspaceMetrics.CompactRowHeight}" />
