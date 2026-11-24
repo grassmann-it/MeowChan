@@ -588,7 +588,8 @@ internal static partial class BooruWorkbenchChecks
         SourceDescription source = new(BooruUiFixtures.Source, "Danbooru", new Uri("https://danbooru.donmai.us/"),
             SourceCapabilities.PostSearch | SourceCapabilities.Previews, [],
             [new("cdn.donmai.us", HttpHostPurpose.PreviewMedia)], new("1", []));
-        using HttpClient transport = new(new BooruSidebarMediaTransport(images));
+        using BooruSidebarMediaTransport handler = new(images);
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruPreviewHttp media = new(transport, source);
         BooruUiHarness harness = new(new BooruHostPreviewPort(media, source.SourceId));
         harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
