@@ -72,6 +72,7 @@ public partial class SettingsEditor
     private void LoadLimitsDraft(Config config)
     {
         LoadLimitNumbersDraft(config);
+        LoadBoardSuggestionDraft(config);
         ShrinkWindowForBarebones = config.ShrinkWindowForBarebones;
     }
 
@@ -103,6 +104,7 @@ public partial class SettingsEditor
         candidate.BoardAdmissionSizeMiB = GetInteger(BoardAdmissionSizeMiB, BoardAdmissionSizeMiBLabel, Config.BoardAdmissionSizeMiBMinimum, Config.BoardAdmissionSizeMiBMaximum);
         candidate.SlashTagSuggestionCount = GetInteger(SlashTagSuggestionCount, SlashTagSuggestionCountLabel, Config.SlashTagSuggestionCountMinimum, Config.SlashTagSuggestionCountMaximum);
         candidate.VideoScrubCacheLimitMiB = GetInteger(VideoScrubCacheLimitMiB, VideoScrubCacheLimitMiBLabel, Config.VideoScrubCacheLimitMiBMinimum, Config.VideoScrubCacheLimitMiBMaximum);
+        ApplyBoardSuggestionDraft(candidate);
         candidate.ShrinkWindowForBarebones = ShrinkWindowForBarebones;
     }
 
@@ -128,16 +130,24 @@ public partial class SettingsEditor
         nameof(VideoScrubCacheLimitMiBHelp),
     ];
 
-    private void NotifyLimitsHelpChanged() => Raise(LimitsHelpProperties);
-    private void RaiseLimitsTextsChanged() => Raise(new[]
+    private void NotifyLimitsHelpChanged()
     {
-        nameof(ArchiveTagFilterTagsPerListLabel), nameof(ArchiveTagFilterTagsPerListHint),
-        nameof(UrlTextExportLimitMiBLabel), nameof(UrlTextExportLimitMiBHint),
-        nameof(ExportHistorySizeMiBLabel), nameof(ExportHistorySizeMiBHint),
-        nameof(ExportHistoryEntryLimitLabel), nameof(ExportHistoryEntryLimitHint),
-        nameof(BoardAdmissionSizeMiBLabel), nameof(BoardAdmissionSizeMiBHint),
-        nameof(SlashTagSuggestionCountLabel), nameof(SlashTagSuggestionCountHint),
-        nameof(VideoScrubCacheLimitMiBLabel), nameof(VideoScrubCacheLimitMiBHint),
-        nameof(ShrinkWindowForBarebonesLabel), nameof(ShrinkWindowForBarebonesHint)
-    }.Concat(LimitsHelpProperties));
+        Raise(LimitsHelpProperties);
+        UpdateBoardSuggestionHelp();
+    }
+    private void RaiseLimitsTextsChanged()
+    {
+        UpdateBoardSuggestionTexts();
+        Raise(new[]
+        {
+            nameof(ArchiveTagFilterTagsPerListLabel), nameof(ArchiveTagFilterTagsPerListHint),
+            nameof(UrlTextExportLimitMiBLabel), nameof(UrlTextExportLimitMiBHint),
+            nameof(ExportHistorySizeMiBLabel), nameof(ExportHistorySizeMiBHint),
+            nameof(ExportHistoryEntryLimitLabel), nameof(ExportHistoryEntryLimitHint),
+            nameof(BoardAdmissionSizeMiBLabel), nameof(BoardAdmissionSizeMiBHint),
+            nameof(SlashTagSuggestionCountLabel), nameof(SlashTagSuggestionCountHint),
+            nameof(VideoScrubCacheLimitMiBLabel), nameof(VideoScrubCacheLimitMiBHint),
+            nameof(ShrinkWindowForBarebonesLabel), nameof(ShrinkWindowForBarebonesHint)
+        }.Concat(LimitsHelpProperties));
+    }
 }
