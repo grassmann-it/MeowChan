@@ -56,6 +56,7 @@ public partial class MainWindow
     {
         (string Text, string Tooltip)? warning = StoreLimitUsage.Present(_storeUsage);
         WorkspaceStoreWarningButton.IsVisible = warning != null;
+        UpdateFooterStatusStrip();
         WorkspaceStoreWarning.IsVisible = warning != null;
         WorkspaceStoreWarning.Text = warning?.Text;
         Avalonia.Controls.ToolTip.SetTip(WorkspaceStoreWarningButton, warning?.Tooltip);

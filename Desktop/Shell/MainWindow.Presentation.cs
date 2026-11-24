@@ -49,6 +49,7 @@ public partial class MainWindow
         PropertyChanged += OnWindowChromePropertyChanged;
         KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
+        InitializeFooterDisplays();
         InitializeDownloadsHeader();
         InitializeWorkViews();
         SetupInspectorLocalActions();
@@ -69,6 +70,7 @@ public partial class MainWindow
         CloseLargeReader(restoreOrigin: false);
         if (!_workspaceInitialized) return;
         _workspaceInitialized = false;
+        DisposeFooterDisplays();
         StopSpeedSampling();
         DisposeWorkspacePages();
         _workspaceRefresh?.Dispose();
@@ -163,6 +165,7 @@ public partial class MainWindow
                 _archivePage.SlashTagSuggestionCountPreference = _config.SlashTagSuggestionCount;
             }
             if (_mediaPage != null) _mediaPage.ArchiveTagFilterTagsPerListPreference = _config.ArchiveTagFilterTagsPerList;
+            ApplyFooterDisplayPreferences();
             UpdateMediaFocusChrome(); // the "hide the app header" setting applies to a focus mode that is already on
             if (_gallery?.TagPanelController is { } tagPanel
                 && tagPanel.Suggestions.Options.SlashSuggestionCount != _config.SlashTagSuggestionCount)
@@ -418,6 +421,7 @@ public partial class MainWindow
 
     private void RefreshWorkspaceStatusText()
     {
+        ApplyFooterDisplayPreferences(); // a retried view-preference write also publishes a confirmed configuration
         string stateKey = _isClosing ? "shell.stopping" : _session.Projection.IsPauseTransitioning ? "shell.pausing" : _importing ? "shell.importing" : _session.Projection.View.State switch
         {
             DesktopSessionState.Ready => _session.Projection.IsPaused ? "shell.paused" : "shell.ready",

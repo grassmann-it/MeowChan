@@ -24,6 +24,7 @@ internal sealed class ContextMenuHost : IDisposable
     private readonly Control _origin;
     private readonly Func<ContextMenuBuilder?> _compose;
     private readonly Func<Control>? _resolveOrigin;
+    private readonly Func<object?, bool>? _acceptSource;
     private Control? _openOn;
     private readonly Action? _fallbackFocus;
     private ContextMenu? _menu;
@@ -35,9 +36,12 @@ internal sealed class ContextMenuHost : IDisposable
     /// <param name="fallbackFocus">Where focus goes when neither the previous focus nor the origin can take it any more.</param>
     /// <param name="resolveOrigin">Optional: the control the menu opens on for this opening (a sibling when <paramref name="origin"/> is not on the screen,
     /// for example a button that moved under "More"); the handlers stay on <paramref name="origin"/>.</param>
-    internal ContextMenuHost(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null, Func<Control>? resolveOrigin = null)
+    /// <param name="acceptSource">Optional: whether this source belongs to the surface rather than to a child with its own actions.</param>
+    internal ContextMenuHost(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null, Func<Control>? resolveOrigin = null,
+        Func<object?, bool>? acceptSource = null)
     {
         _resolveOrigin = resolveOrigin;
+        _acceptSource = acceptSource;
         _origin = origin ?? throw new ArgumentNullException(nameof(origin));
         _compose = compose ?? throw new ArgumentNullException(nameof(compose));
         _fallbackFocus = fallbackFocus;
@@ -56,7 +60,7 @@ internal sealed class ContextMenuHost : IDisposable
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_disposed || !MediaMenuPresenter.IsContextKey(e)) return;
+        if (_disposed || !MediaMenuPresenter.IsContextKey(e) || _acceptSource?.Invoke(e.Source) == false) return;
         // In the tunnel phase an interactive part of a row (a nested button or text field) keeps the key.
         if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         _lastKeyOpen = DateTime.UtcNow;
@@ -66,7 +70,7 @@ internal sealed class ContextMenuHost : IDisposable
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (_disposed || e.Handled) return;
+        if (_disposed || e.Handled || _acceptSource?.Invoke(e.Source) == false) return;
         bool positioned = e.TryGetPosition(_origin, out _);
         e.Handled = true;
         if (!positioned && DateTime.UtcNow - _lastKeyOpen < PairedRequestWindow) return;

@@ -285,7 +285,7 @@ public partial class MainWindow
     {
         if (_ioClaim == null || _ioStats == null) return;
         // The Status page claims only while its statistics segment is shown; the diagnostics segment needs no samples.
-        IoStatsVisibility want = IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, StatisticsSegmentShown);
+        IoStatsVisibility want = IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible || FooterRatesShown, StatisticsSegmentShown);
         if (_ioClaim.Visibility == want) return;
         _ioClaim.Visibility = want;
         if (want == IoStatsVisibility.None) _statusPage?.ClearRates(); // no fresh rates for the status line without a claim
@@ -303,6 +303,7 @@ public partial class MainWindow
         IoStatsHub? hub = _ioStats;
         if (_isClosing || hub == null || (!force && _ioClaim?.Visibility is null or IoStatsVisibility.None)) return;
         IoStatsSnapshot snapshot = hub.Snapshot();
+        ApplyFooterRates(snapshot.Rate);
         // Two graph surfaces, each with its own history and scale: network down (solid) and up (dashed), disk read (solid) and write (dashed).
         if (_headerLayout.NetGraph) TransferSpeedGraph.SetSeries(snapshot.Series);
         if (_headerLayout.DiskGraph) TransferDiskGraph.SetSeries(snapshot.Series);
@@ -344,6 +345,7 @@ public partial class MainWindow
         TransferReadMark.Text = Texts.T("stats.header.read");
         TransferNetworkTitle.Text = IoStatsDisplay.NetworkTitle();
         TransferDiskTitle.Text = IoStatsDisplay.DiskTitle();
+        AutomationProperties.SetName(WorkspaceNavigation, Texts.T(FooterDisplaysKey));
         ApplyIoSnapshot(force: true);
         ApplyHeaderMonitorVisibility(); // the words of another language may no longer fit beside the header icons
     }

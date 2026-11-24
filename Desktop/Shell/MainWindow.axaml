@@ -525,7 +525,7 @@
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="TaggingPageHost" IsVisible="False" />
         </Grid>
-        <Border x:Name="WorkspaceStatusBar" Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="16,0">
+        <Border x:Name="WorkspaceStatusBar" Grid.Row="2" Background="Transparent" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="16,0">
             <!-- Narrow-window sweep (16.11.2026): one row that never runs past the window. The state stays at the left and takes the room left
                  over (FillFirst), the update notice, the limit warning and the counters stand at the right; when the row is too wide the
                  widest of them shortens first and ends in an ellipsis with its full text as tooltip (ShrinkRowPanel). A grid with Auto columns
@@ -541,9 +541,11 @@
                                Foreground="{DynamicResource Workspace.Warning}" AutomationProperties.LiveSetting="Polite" />
                 </Button>
                 <TextBlock x:Name="WorkspaceCounts" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBlock x:Name="FooterNetworkRate" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="False" />
+                <TextBlock x:Name="FooterDiskRate" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="False" />
             </controls:ShrinkRowPanel>
         </Border>
-        <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,4">
+        <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,4" Focusable="True">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
             <StackPanel x:Name="WorkspaceNavigationButtons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}">
                 <Button x:Name="DownloadsNavigationButton" Classes="nav selected" Click="OnDownloadsNavigationClick">

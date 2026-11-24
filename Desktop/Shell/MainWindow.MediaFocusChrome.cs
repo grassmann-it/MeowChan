@@ -118,14 +118,14 @@ public partial class MainWindow
         bool moveFooterFocus = hideFooter && (WorkspaceStatusBar.IsKeyboardFocusWithin || WorkspaceNavigation.IsKeyboardFocusWithin);
         if (hideFooter && WorkspaceNavigation.IsVisible)
         {
-            bool popupOpen = WorkspaceModeComboBox.IsDropDownOpen || ToolsNavigationButton.Flyout?.IsOpen == true;
+            bool popupOpen = CloseFooterDisplayMenus() || WorkspaceModeComboBox.IsDropDownOpen || ToolsNavigationButton.Flyout?.IsOpen == true;
             WorkspaceModeComboBox.IsDropDownOpen = false;
             ToolsNavigationButton.Flyout?.Hide();
             // Closing the footer popup can return focus to its anchor or clear it.
             moveFooterFocus |= WorkspaceNavigation.IsKeyboardFocusWithin || popupOpen && FocusManager?.GetFocusedElement() == null;
         }
-        WorkspaceStatusBar.IsVisible = WorkspaceNavigation.IsVisible = !hideFooter;
-        WorkspaceRoot.RowDefinitions[2].Height = new GridLength(hideFooter ? 0 : StatusStripHeight);
+        WorkspaceNavigation.IsVisible = !hideFooter;
+        UpdateFooterStatusStrip();
         WorkspaceRoot.RowDefinitions[3].Height = new GridLength(hideFooter ? 0 : NavigationHeight);
         ApplyTitleBarPresentation();
         if (moveFooterFocus) FocusWorkspaceContent();
