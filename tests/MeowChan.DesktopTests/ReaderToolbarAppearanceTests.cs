@@ -28,8 +28,6 @@ public sealed class ReaderToolbarAppearanceTests
         try
         {
             page.ArchiveSplitPreference = 840;
-            // The search field caches its vector geometry across test dispatchers. The toolbar can lay out without the field.
-            page.FindControl<Grid>("ArchiveSearchRow")!.IsVisible = false;
             window.Show();
             var tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             tabs.IsVisible = true;
