@@ -25,6 +25,7 @@ internal sealed record BooruBulkView(BooruBulkPhase Phase, string? Query = null,
     int AlreadyQueued = 0, int AlreadySaved = 0, int NoOriginal = 0, int Failed = 0, BooruBulkEnd End = BooruBulkEnd.None)
 {
     internal int? TabId { get; init; }
+    internal long ResultId { get; init; }
     internal BooruPagerLimits PagerLimits { get; init; } = BooruPagerLimits.Default;
     internal bool IsRunning => Phase == BooruBulkPhase.Running;
 }
@@ -50,7 +51,7 @@ internal sealed partial class BooruSearchModel
         }
     }
 
-    private bool CanDownloadAllLocked() => !_disposed && _activeSearchTabId.HasValue && !_bulk.IsRunning && _view.ExecutedQuery is not null && !_view.IsPostResult
+    private bool CanDownloadAllLocked() => !_disposed && !_bulk.IsRunning && _view.ExecutedQuery is not null && !_view.IsPostResult
         && _view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && PauseEnd(_view) is null;
 
     /// <summary>Stops the running collection; what was queued before stays queued.</summary>
@@ -73,6 +74,7 @@ internal sealed partial class BooruSearchModel
             _bulk = state = new BooruBulkView(BooruBulkPhase.Running, _view.ExecutedQuery)
             {
                 TabId = _activeSearchTabId,
+                ResultId = _view.ResultId,
                 PagerLimits = _view.PagerLimits
             };
         }

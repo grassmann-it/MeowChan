@@ -1,4 +1,8 @@
 using System.Text.Json;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using MeowChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
@@ -16,6 +20,39 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
     public BooruSearchTabsAndBulkTests() => _model = new BooruSearchModel(_h.Search, _h.Queue, _h.Previews, _h.Clock);
 
     public void Dispose() => _model.Dispose();
+
+    [Fact]
+    public void BulkStatusFollowsTheTabAndResultsThatStartedIt() => BooruComponentDispatcher.Run(() =>
+    {
+        BooruUiHarness harness = new();
+        harness.Serve(pages: 1, perPage: 1);
+        using BooruWorkbenchView view = new(harness.Services);
+        BooruSearchModel search = view.Model.Search;
+        BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(search, "cat"));
+        BooruComponentDispatcher.Wait(search.DownloadAllAsync());
+        Dispatcher.UIThread.RunJobs();
+
+        int original = Assert.Single(view.SearchTabs.Ids);
+        Assert.True(Status().IsVisible);
+        Assert.True(view.SearchTabs.Add(copyCurrent: true) > 0);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(Status().IsVisible);
+        Assert.True(view.SearchTabs.Select(original));
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(Status().IsVisible);
+        BooruComponentDispatcher.Wait(search.SubmitAsync());
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(Status().IsVisible);
+
+        Border Status()
+        {
+            TabControl strip = Assert.IsType<TabControl>(view.Body);
+            TabItem selected = Assert.IsType<TabItem>(strip.SelectedItem);
+            Control content = Assert.IsAssignableFrom<Control>(selected.Content);
+            return Assert.Single(content.GetLogicalDescendants().OfType<Border>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.BulkStatusName);
+        }
+    });
 
     [Theory]
     [InlineData(1, 2)]

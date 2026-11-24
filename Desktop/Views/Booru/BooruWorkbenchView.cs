@@ -154,6 +154,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _ownsModel = ownsModel;
         Name = "BooruWorkbenchView";
+        AutomationProperties.SetAutomationId(_input, InputName);
+        AutomationProperties.SetAutomationId(_submit, SubmitName);
+        AutomationProperties.SetAutomationId(_cancel, CancelName);
+        AutomationProperties.SetAutomationId(_retry, RetryName);
+        AutomationProperties.SetAutomationId(_more, "BooruMore");
         InstallTagDraftStyles();
         // Every key of the workbench, on the Danbooru page and in its window, runs in the "booru" context (S3 P2-4): a default that a saved binding took
         // away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
@@ -629,8 +634,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             _resultWorkViewButtons.Clear();
             _resultActions.Clear();
             DisposeResultTagMenus();
-        foreach (SearchTabControl tab in _searchItems.Values) tab.Dispose();
-        _model.Search.EnsureSearchTab = null;
             RebuildResults(view, preserveFocus: _renderedResultRevision == view.ResultRevision);
             _renderedResultRevision = view.ResultRevision;
             PruneBitmaps(view.Rows);

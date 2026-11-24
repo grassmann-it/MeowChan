@@ -38,6 +38,7 @@ internal sealed record BooruSearchView(
     bool NeedsLoad = false)
 {
     internal BooruResultRevision ResultRevision { get; init; }
+    internal long ResultId { get; init; }
     internal BooruPagerLimits PagerLimits { get; init; } = BooruPagerLimits.Default;
     internal bool IsPostResult => ExecutedPostId is not null;
     internal bool IsBusy => Status == BooruSearchStatus.Searching;
@@ -349,7 +350,7 @@ internal sealed partial class BooruSearchModel : IDisposable
             {
                 Status = status, ExecutedQuery = query, ExecutedPostId = postId, Page = page,
                 Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null,
-                Restored = false, NeedsLoad = false, PagerLimits = limits ?? BooruPagerLimits.Default
+                Restored = false, NeedsLoad = false, PagerLimits = limits ?? BooruPagerLimits.Default, ResultId = _requestId
             };
             return (_requestId, request.Acquire());
         }

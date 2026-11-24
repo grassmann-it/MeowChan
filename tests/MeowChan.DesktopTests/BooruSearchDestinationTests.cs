@@ -110,7 +110,7 @@ public sealed class BooruSearchDestinationTests
     });
 
     private static Button FindWatchersButton(BooruPage page) => page.View.Header.GetVisualDescendants().OfType<Button>()
-        .Single(button => button.Name == BooruWorkbenchView.OpenWatchersName);
+        .Single(button => AutomationProperties.GetAutomationId(button) == BooruWorkbenchView.OpenWatchersName);
 
     [Fact]
     public void TheRetiredPreferenceCanStillBeReadFromAnOldProfile()
@@ -238,13 +238,13 @@ public sealed class BooruSearchDestinationTests
             Click(watchersButton);
             Settle(window);
             TabItem watchers = Assert.IsType<TabItem>(strip.SelectedItem);
-            Assert.Equal(BooruWorkbenchView.WatchersTabName, watchers.Name);
+            Assert.Equal(BooruWorkbenchView.WatchersTabName, AutomationProperties.GetAutomationId(watchers));
             Assert.False(view.TryShowQueryInNewTab("dog"));
             Assert.Same(watchers, strip.SelectedItem);
-            TextBlock notice = view.Header.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == BooruWorkbenchView.TabLimitNoticeName);
+            TextBlock notice = FindVisual<TextBlock>(view.Header, BooruWorkbenchView.TabLimitNoticeName);
             Assert.Equal(Texts.T("booru.tabs.limit", 2), notice.Text);
 
-            Click(Assert.Single(watchers.GetVisualDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.CloseWatchersName));
+            Click(FindVisual<Button>(watchers, BooruWorkbenchView.CloseWatchersName));
             Settle(window);
             Assert.DoesNotContain(watchers, strip.Items);
             Assert.Same(Tab(strip, active), strip.SelectedItem);
@@ -309,8 +309,8 @@ public sealed class BooruSearchDestinationTests
             Assert.InRange(Center(plus).X, 0, window.ClientSize.Width);
 
             // One crossed gesture, then a complete middle click on the same search header.
-            Point target = Center(((Panel)lastItem.Header!).Children[0]);
-            Point separate = Center(((Panel)watchers.Header!).Children[0]);
+            Point target = Center(lastItem);
+            Point separate = Center(watchers);
             window.MouseDown(target, MouseButton.Middle);
             window.MouseUp(separate, MouseButton.Middle);
             Assert.Equal(33, view.SearchTabs.Ids.Count);
@@ -326,7 +326,7 @@ public sealed class BooruSearchDestinationTests
             view.CloseWatchers();
             Settle(window);
             TabItem firstItem = Tab(tabs, first);
-            Button close = Assert.Single(((Panel)firstItem.Header!).Children.OfType<Button>());
+            Button close = FindVisual<Button>(firstItem, BooruWorkbenchView.CloseSearchTabName);
             Point closePoint = Center(close);
             window.MouseDown(closePoint, MouseButton.Left);
             window.MouseUp(closePoint, MouseButton.Left);
@@ -343,8 +343,8 @@ public sealed class BooruSearchDestinationTests
 
     private static TabItem Tab(TabControl strip, int id) => Assert.Single(strip.Items.OfType<TabItem>(), tab => Equals(tab.Tag, id));
 
-    private static T FindVisual<T>(Control root, string name) where T : Control =>
-        root.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
+    private static T FindVisual<T>(Control root, string automationId) where T : Control =>
+        root.GetVisualDescendants().OfType<T>().Single(control => AutomationProperties.GetAutomationId(control) == automationId);
 
     private static void OpenTabMenu(TabItem tab) =>
         tab.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Apps });
@@ -409,9 +409,12 @@ public sealed class BooruSearchDestinationTests
         Assert.Equal("⌘↩", CommandCatalog.ShortcutTooltipDisplay(alternate, true, "booru", rebound));
     }
 
-    private static T SearchControl<T>(BooruWorkbenchView view, string name) where T : Control =>
-        ((Control)((TabItem)((TabControl)view.Body).SelectedItem!).Content!).GetVisualDescendants().OfType<T>()
-            .Single(control => control.Name == name);
+    private static T SearchControl<T>(BooruWorkbenchView view, string automationId) where T : Control
+    {
+        TabControl strip = FindVisual<TabControl>(view, BooruWorkbenchView.TabsName);
+        TabItem selected = Assert.IsType<TabItem>(strip.SelectedItem);
+        return FindVisual<T>(Assert.IsAssignableFrom<Control>(selected.Content), automationId);
+    }
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 

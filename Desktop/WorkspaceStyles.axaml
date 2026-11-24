@@ -1619,7 +1619,8 @@
         <Setter Property="Template">
             <ControlTemplate>
                 <Grid RowDefinitions="Auto,*">
-                    <ScrollViewer Name="BooruTabStrip" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ScrollViewer Name="BooruTabStrip" AutomationProperties.AutomationId="BooruTabStrip"
+                                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                         <Grid>
                             <Border Background="{DynamicResource Workspace.Background}" BorderBrush="{DynamicResource Workspace.Border}"
                                     BorderThickness="0,0,0,1" />

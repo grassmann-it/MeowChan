@@ -30,6 +30,8 @@ internal sealed partial class BooruWorkbenchView
     internal static readonly string OpenWatchersName = "BooruOpenWatchers";
     internal static readonly string WatchersTabName = "BooruWatchersTab";
     internal static readonly string CloseWatchersName = "BooruCloseWatchers";
+    internal static readonly string CloseSearchTabName = "BooruCloseSearchTab";
+    internal static readonly string TabDraftMarkerName = "BooruTabPendingDraft";
     internal static readonly string TabLimitNoticeName = "BooruTabLimitNotice";
 
     private sealed record TabHeader(TextBlock Title, Button Close, ContentControl Draft);
@@ -82,6 +84,12 @@ internal sealed partial class BooruWorkbenchView
     {
         _searchTabs = new BooruSearchTabs(_model.Search,
             () => SearchTabsLimit?.Invoke() ?? _listProfile?.BooruSearchTabs ?? Config.BooruSearchTabsDefault);
+        AutomationProperties.SetAutomationId(_tabs, TabsName);
+        AutomationProperties.SetAutomationId(_newTabButton, NewSearchTabName);
+        AutomationProperties.SetAutomationId(_openWatchers, OpenWatchersName);
+        AutomationProperties.SetAutomationId(_watchersTab, WatchersTabName);
+        AutomationProperties.SetAutomationId(_tabLimitText, TabLimitNoticeName);
+        AutomationProperties.SetAutomationId(_bulkHost, BulkStatusName);
         _searchContent = content;
         _addTab.Header = _newTabButton;
         CommandBindings.EnsureIconBeforeText(_newTabButton, "plus");
@@ -104,6 +112,8 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_closed || !MiddleClickTracker.IsRelease(e)) return;
         TabItem? tab = ClosableTabAt(e.Source);
+        // The release can still be routed to the pressed header through pointer capture.
+        if (tab is null || !new Rect(tab.Bounds.Size).Contains(e.GetPosition(tab))) tab = null;
         if (!_tabMiddleClick.Released(tab)) return;
         e.Handled = true;
         if (tab?.Tag is int id) CloseSearchTab(id);
@@ -393,13 +403,16 @@ internal sealed partial class BooruWorkbenchView
     {
         item.Classes.Add("booru-tab");
         TextBlock title = new() { MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        closeName ??= CloseSearchTabName;
         Button close = new() { Name = closeName, Classes = { "ghost", "booru-tab-close" } };
+        AutomationProperties.SetAutomationId(close, closeName);
         close.AttachedToVisualTree += (_, _) => { if (close.Content is not Control) close.Content = CommandBindings.NamedIcon("x", 12); };
         close.Click += (_, e) => { e.Handled = true; closeTab(); };
         ContentControl draft = new()
         {
-            Name = "BooruTabPendingDraft", VerticalAlignment = VerticalAlignment.Center, IsVisible = false
+            Name = TabDraftMarkerName, VerticalAlignment = VerticalAlignment.Center, IsVisible = false
         };
+        AutomationProperties.SetAutomationId(draft, TabDraftMarkerName);
         AutomationProperties.SetAccessibilityView(draft, AccessibilityView.Raw);
         draft.AttachedToVisualTree += (_, _) => draft.Content ??= CommandBindings.NamedIcon("edit-2", 12);
         StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { title, draft, close } };
@@ -491,8 +504,7 @@ internal sealed partial class BooruWorkbenchView
         AutomationProperties.SetHelpText(_downloadAll, bulkHint);
 
         // The counts belong to one search: they are shown only beside the results of that same search.
-        bool showBulk = belongsToTab && (running || bulk.Phase == BooruBulkPhase.Finished
-            && string.Equals(bulk.Query, view.ExecutedQuery, StringComparison.Ordinal));
+        bool showBulk = belongsToTab && bulk.Phase != BooruBulkPhase.Idle && bulk.ResultId == view.ResultId;
         _bulkHost.IsVisible = showBulk;
         if (!showBulk) return;
         if (running)
