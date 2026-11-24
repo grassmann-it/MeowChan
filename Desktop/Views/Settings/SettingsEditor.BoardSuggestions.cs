@@ -14,7 +14,7 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private sealed record BoardSuggestionSetting(string Name, string LabelKey, int Default, int Min, int Max,
-        Func<Config, int> Read, Action<Config, int> Write);
+        Func<Config, int> Read, Action<Config, int> Write, string UnitKey = "settings.unitCount");
     private sealed record BoardSuggestionField(BoardSuggestionSetting Setting, SettingsNumberInput Input,
         TextBlock Label, TextBlock Hint, TextBlock Error);
 
@@ -29,6 +29,9 @@ public partial class SettingsEditor
         new(nameof(Config.BoardSuggestionScanThreads), "settings.boardSuggestions.scan", Config.BoardSuggestionScanThreadsDefault,
             Config.BoardSuggestionScanThreadsMinimum, Config.BoardSuggestionScanThreadsMaximum,
             config => config.BoardSuggestionScanThreads, (config, value) => config.BoardSuggestionScanThreads = value),
+        new(nameof(Config.BoardWatcherIntervalMinutes), "settings.boardWatcher.interval", Config.BoardWatcherIntervalMinutesDefault,
+            Config.BoardWatcherIntervalMinutesMinimum, Config.BoardWatcherIntervalMinutesMaximum,
+            config => config.BoardWatcherIntervalMinutes, (config, value) => config.BoardWatcherIntervalMinutes = value, "settings.unitMinutes"),
     ];
 
     private readonly List<BoardSuggestionField> _boardSuggestionFields = new();
@@ -75,7 +78,7 @@ public partial class SettingsEditor
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> BoardSuggestionNumericFields()
     {
         foreach (var field in _boardSuggestionFields)
-            yield return (field.Input, field.Input.Value, field.Label.Text!, Texts.T("settings.unitCount"), field.Setting.Min, field.Setting.Max, true);
+            yield return (field.Input, field.Input.Value, field.Label.Text!, Texts.T(field.Setting.UnitKey), field.Setting.Min, field.Setting.Max, true);
     }
 
     private IEnumerable<DefaultSetting> BoardSuggestionDefaults() => _boardSuggestionFields.Select(field =>

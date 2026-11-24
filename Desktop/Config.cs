@@ -237,6 +237,10 @@ namespace MeowChan
         internal const int BoardAdmissionSizeMiBDefault = Admission.BoardAdmissionStore.DefaultSizeMiB;
         internal const int BoardAdmissionSizeMiBMinimum = Admission.BoardAdmissionStore.MinimumSizeMiB;
         internal const int BoardAdmissionSizeMiBMaximum = Admission.BoardAdmissionStore.MaximumSizeMiB;
+        public int BoardWatcherIntervalMinutes { get; set; } = BoardWatcherIntervalMinutesDefault;
+        internal const int BoardWatcherIntervalMinutesDefault = 5;
+        internal const int BoardWatcherIntervalMinutesMinimum = Admission.BoardAdmissionPolicy.MinimumWatcherIntervalMinutes;
+        internal const int BoardWatcherIntervalMinutesMaximum = Admission.BoardAdmissionPolicy.MaximumWatcherIntervalMinutes;
         public int BoardSuggestionMinThreads { get; set; } = BoardSuggestionMinThreadsDefault;
         internal const int BoardSuggestionMinThreadsDefault = 3;
         internal const int BoardSuggestionMinThreadsMinimum = 2;
@@ -1113,6 +1117,7 @@ namespace MeowChan
             ExportHistorySizeMiB = Math.Clamp(ExportHistorySizeMiB, ExportHistorySizeMiBMinimum, ExportHistorySizeMiBMaximum);
             ExportHistoryEntryLimit = Math.Clamp(ExportHistoryEntryLimit, ExportHistoryEntryLimitMinimum, ExportHistoryEntryLimitMaximum);
             BoardAdmissionSizeMiB = Math.Clamp(BoardAdmissionSizeMiB, BoardAdmissionSizeMiBMinimum, BoardAdmissionSizeMiBMaximum);
+            BoardWatcherIntervalMinutes = Math.Clamp(BoardWatcherIntervalMinutes, BoardWatcherIntervalMinutesMinimum, BoardWatcherIntervalMinutesMaximum);
             BoardSuggestionMinThreads = Math.Clamp(BoardSuggestionMinThreads, BoardSuggestionMinThreadsMinimum, BoardSuggestionMinThreadsMaximum);
             BoardSuggestionLimit = Math.Clamp(BoardSuggestionLimit, BoardSuggestionLimitMinimum, BoardSuggestionLimitMaximum);
             BoardSuggestionScanThreads = Math.Clamp(BoardSuggestionScanThreads, BoardSuggestionScanThreadsMinimum, BoardSuggestionScanThreadsMaximum);
@@ -1747,6 +1752,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ExportHistoryEntryLimit), "ExportHistoryEntryLimit is outside its supported range (" + ExportHistoryEntryLimitMinimum + " to " + ExportHistoryEntryLimitMaximum + ").");
             if (BoardAdmissionSizeMiB is < BoardAdmissionSizeMiBMinimum or > BoardAdmissionSizeMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BoardAdmissionSizeMiB), "BoardAdmissionSizeMiB is outside its supported range (" + BoardAdmissionSizeMiBMinimum + " to " + BoardAdmissionSizeMiBMaximum + ").");
+            if (BoardWatcherIntervalMinutes is < BoardWatcherIntervalMinutesMinimum or > BoardWatcherIntervalMinutesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardWatcherIntervalMinutes));
             if (BoardSuggestionMinThreads is < BoardSuggestionMinThreadsMinimum or > BoardSuggestionMinThreadsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BoardSuggestionMinThreads));
             if (BoardSuggestionLimit is < BoardSuggestionLimitMinimum or > BoardSuggestionLimitMaximum)
@@ -2058,6 +2065,7 @@ namespace MeowChan
                 ExportHistorySizeMiB = ExportHistorySizeMiB,
                 ExportHistoryEntryLimit = ExportHistoryEntryLimit,
                 BoardAdmissionSizeMiB = BoardAdmissionSizeMiB,
+                BoardWatcherIntervalMinutes = BoardWatcherIntervalMinutes,
                 BoardSuggestionMinThreads = BoardSuggestionMinThreads,
                 BoardSuggestionLimit = BoardSuggestionLimit,
                 BoardSuggestionScanThreads = BoardSuggestionScanThreads,
@@ -2359,6 +2367,7 @@ namespace MeowChan
             ExportHistorySizeMiB = source.ExportHistorySizeMiB;
             ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
             BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
+            BoardWatcherIntervalMinutes = source.BoardWatcherIntervalMinutes;
             BoardSuggestionMinThreads = source.BoardSuggestionMinThreads;
             BoardSuggestionLimit = source.BoardSuggestionLimit;
             BoardSuggestionScanThreads = source.BoardSuggestionScanThreads;
@@ -2610,6 +2619,7 @@ namespace MeowChan
             ExportHistorySizeMiB = source.ExportHistorySizeMiB;
             ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
             BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
+            BoardWatcherIntervalMinutes = source.BoardWatcherIntervalMinutes;
             BoardSuggestionMinThreads = source.BoardSuggestionMinThreads;
             BoardSuggestionLimit = source.BoardSuggestionLimit;
             BoardSuggestionScanThreads = source.BoardSuggestionScanThreads;
