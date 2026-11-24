@@ -22,8 +22,10 @@ public sealed class HeaderTaglineLayoutTests
 {
     private static readonly double[] WindowWidths = [760, 900, 1100, 1400, 1800];
 
-    [Fact]
-    public void TheVisibleTaglineKeepsItsMenuOpenForBothKeysAndRestoresFocus() => BooruComponentDispatcher.Run(() =>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheVisibleTaglineKeepsItsMenuOpenForBothKeysAndRestoresFocus(bool reattach) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -39,6 +41,19 @@ public sealed class HeaderTaglineLayoutTests
             await window.StartupTimingRestoreTask;
             BooruReviewTestPlatform.Resize(window, 1800);
             TextBlock subtitle = window.FindControl<TextBlock>("WorkspaceSubtitle")!;
+            if (reattach)
+            {
+                ContextGestures.MenuKey(subtitle);
+                ContextMenu oldMenu = Assert.IsType<ContextMenu>(subtitle.ContextMenu);
+                Assert.True(oldMenu.IsOpen);
+                Panel host = window.FindControl<Panel>("WorkspaceTaglineHost")!;
+                host.Children.Remove(subtitle);
+                ContextGestures.Settle(window);
+                Assert.False(oldMenu.IsOpen);
+                Assert.Null(subtitle.ContextMenu);
+                host.Children.Add(subtitle);
+                ContextGestures.Settle(window);
+            }
             Assert.True(subtitle.Focus(NavigationMethod.Tab));
             foreach (Action<Control> open in new Action<Control>[] { ContextGestures.MenuKey, ContextGestures.ShiftF10 })
             {
