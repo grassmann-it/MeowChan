@@ -53,14 +53,14 @@ public sealed class SavedMediaReaderTests
         Assert.True(page.IsMediaSidebarShown);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(17, 11));
-        window.KeyPressQwerty(grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown, RawInputModifiers.None);
+        PressArrow(window, grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown);
+        Assert.Equal(1, grid ? tiles.SelectedIndex : table.SelectedIndex);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[1].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(19, 13));
-        Assert.Equal(1, grid ? tiles.SelectedIndex : table.SelectedIndex);
-        window.KeyPressQwerty(grid ? PhysicalKey.ArrowLeft : PhysicalKey.ArrowUp, RawInputModifiers.None);
+        PressArrow(window, grid ? PhysicalKey.ArrowLeft : PhysicalKey.ArrowUp);
+        Assert.Equal(0, grid ? tiles.SelectedIndex : table.SelectedIndex);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(17, 11));
-        Assert.Equal(0, grid ? tiles.SelectedIndex : table.SelectedIndex);
 
         if (!grid)
         {
@@ -214,13 +214,13 @@ public sealed class SavedMediaReaderTests
             Assert.True(((Control)page.Grid.ContainerFromIndex(0)!).Focus(NavigationMethod.Tab));
             WaitUntil(() => ReferenceEquals(rows[0], page.PanelRow));
 
-            window.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
-            WaitUntil(() => ReferenceEquals(rows[1], page.PanelRow));
+            PressArrow(window, PhysicalKey.ArrowRight);
             Assert.Equal(1, page.Grid.SelectedIndex);
+            WaitUntil(() => ReferenceEquals(rows[1], page.PanelRow));
 
-            window.KeyPressQwerty(PhysicalKey.ArrowLeft, RawInputModifiers.None);
-            WaitUntil(() => ReferenceEquals(rows[0], page.PanelRow));
+            PressArrow(window, PhysicalKey.ArrowLeft);
             Assert.Equal(0, page.Grid.SelectedIndex);
+            WaitUntil(() => ReferenceEquals(rows[0], page.PanelRow));
         }
         finally
         {
@@ -301,14 +301,23 @@ public sealed class SavedMediaReaderTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    private static void PressArrow(Window window, PhysicalKey key)
+    {
+        window.KeyPressQwerty(key, RawInputModifiers.None);
+        window.KeyReleaseQwerty(key, RawInputModifiers.None);
+        Layout(window);
+    }
+
     private static void WaitUntil(Func<bool> condition)
     {
-        long started = Environment.TickCount64;
-        while (!condition() && Environment.TickCount64 - started < 5000)
-        {
-            Dispatcher.UIThread.RunJobs();
-            System.Threading.Thread.Sleep(1);
-        }
+        if (condition()) return;
+        // Both real panels throttle selection updates through dispatcher timers.
+        using CancellationTokenSource finished = new(TimeSpan.FromSeconds(5));
+        DispatcherTimer poll = new() { Interval = TimeSpan.FromMilliseconds(10) };
+        poll.Tick += (_, _) => { if (condition()) finished.Cancel(); };
+        poll.Start();
+        try { Dispatcher.UIThread.MainLoop(finished.Token); }
+        finally { poll.Stop(); }
         Assert.True(condition());
     }
 }
