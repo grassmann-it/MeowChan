@@ -54,7 +54,7 @@ public partial class ArchivePage
         }
         ArchiveMediaGrid.CurrentCellChanged += (_, _) =>
         {
-            if (!_mediaTiles) NoteMediaLead(ArchiveMediaGrid.CurrentItem as ArchiveAssetRow);
+            if (!_mediaTiles) NoteMediaLead(ArchiveMediaGrid.CurrentRowItem as ArchiveAssetRow);
         };
         AutomationProperties.SetLiveSetting(ArchiveMediaSelectionStatus, AutomationLiveSetting.Polite);
     }
@@ -93,7 +93,7 @@ public partial class ArchivePage
             {
                 ArchiveMediaGrid.ScrollIntoView(lead, ArchiveMediaGrid.CurrentColumn);
                 // The grid owns keyboard focus and keeps its current cell independently of SelectedItem.
-                if (ReferenceEquals(ArchiveMediaGrid.CurrentItem, lead) && ArchiveMediaGrid.IsKeyboardFocusWithin
+                if (ReferenceEquals(ArchiveMediaGrid.CurrentRowItem, lead) && ArchiveMediaGrid.IsKeyboardFocusWithin
                     && TopLevel.GetTopLevel(list)?.FocusManager?.GetFocusedElement() is Control focused) return focused;
                 DataGridRow? row = ArchiveMediaGrid.GetVisualDescendants().OfType<DataGridRow>()
                     .FirstOrDefault(item => ReferenceEquals(item.DataContext, lead));
