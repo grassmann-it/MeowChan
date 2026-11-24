@@ -30,7 +30,7 @@ public partial class ArchivePage
     private int _previewPrefetchGeneration;
     private readonly ReaderPreviewPrefetchQueue<(ArchiveAttachmentRow Row, int Post)> _previewPrefetchQueue = new();
 
-    /// <summary>Posts before and after the visible ones whose previews are decoded ahead ("Preload previews"); 0 turns it off.</summary>
+    /// <summary>Posts and reply counts to prepare on either side of the viewport, including media previews in the embedded reader.</summary>
     internal int ReaderPreviewPrefetchPosts
     {
         get => _readerPreviewPrefetchPosts;
