@@ -104,7 +104,7 @@ public sealed class ArchiveAttachmentMatchingTests
         finally { Texts.SetLanguage(previous); }
     }
 
-    private sealed record Fixture(string Directory, MediaAssetSnapshot Snapshot, MediaAssetReference Asset,
+    internal sealed record Fixture(string Directory, MediaAssetSnapshot Snapshot, MediaAssetReference Asset,
         CapturedAttachment Attachment, MediaAttachmentBinding? Binding) : IDisposable
     {
         internal static async Task<Fixture> CreateAsync(bool bound = true, bool mismatch = true, bool extended = false)
