@@ -161,17 +161,4 @@ public sealed class MenuAttachmentAndSpeedRefreshTests
         Assert.False(MainWindow.IsDownloadColumnHeaderSource(null));
     }
 
-    [Fact]
-    public void TheDownloadsPressOnAHeaderLeavesTheSelectionAloneAndStillSwallowsTheReleaseRequest()
-    {
-        string body = Body(Source("Desktop/Shell/MainWindow.Selection.cs"), "private void SelectDownloadContextRow(", "private readonly HashSet<Control> _downloadPointerContextHandled");
-        int flag = body.IndexOf("_downloadPointerContextHandled.Add(grid);", StringComparison.Ordinal);
-        int header = body.IndexOf("if (IsDownloadColumnHeaderSource(e.Source))", StringComparison.Ordinal);
-        int clear = body.IndexOf("grid.SelectedItems.Clear();", StringComparison.Ordinal);
-        Assert.True(flag >= 0 && header > flag, "the release ContextRequested of the header press stays swallowed");
-        Assert.True(clear > header, "the header branch returns before the empty-area branch clears the selection");
-        string branch = body[header..clear];
-        Assert.Contains("return;", branch);
-        Assert.DoesNotContain("e.Handled = true", branch); // the header's own handler (registered next) answers the press
-    }
 }

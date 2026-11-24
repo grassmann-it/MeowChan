@@ -223,6 +223,13 @@ public sealed class SelectionContextGestureTests
             if (macControlClick) ContextGestures.ControlClick(grid, empty); else ContextGestures.RightClick(grid, empty);
             Assert.Equal(new[] { first.WatchId, second.WatchId }, grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId));
             Assert.False(grid.ContextMenu?.IsOpen == true);
+
+            DataGridColumnHeader header = grid.GetVisualDescendants().OfType<DataGridColumnHeader>()
+                .First(item => item.IsEffectivelyVisible && item.Bounds.Width > 4);
+            ContextGestures.RightClick(header);
+            Assert.Equal(2, grid.SelectedItems.Count);
+            Assert.True(header.ContextMenu?.IsOpen);
+            Assert.False(grid.ContextMenu?.IsOpen == true);
         }
         finally
         {
