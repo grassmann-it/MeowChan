@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -49,23 +50,11 @@ public sealed class ReaderMediaPanelDecisionTests
             Click(decision.StarButtons[4]);
             Assert.Equal(5, rating);
             Assert.Equal(5, decision.View.Rating);
-            bool narrow = width < 320;
-            var edit = sidebar.GetVisualDescendants().OfType<Button>().Single(control =>
-                control.Name == (narrow ? "ReaderMediaSidebarMore" : "ReaderMediaSidebarEditTags"));
-            MenuItem OverflowAction(int index)
-            {
-                MenuFlyout menu = Assert.IsType<MenuFlyout>(edit.Flyout);
-                menu.ShowAt(edit);
-                window.UpdateLayout();
-                var items = menu.ItemsSource!.Cast<MenuItem>().ToArray();
-                Assert.Equal(2, items.Length);
-                Assert.NotNull(items[index].InputGesture);
-                menu.Hide();
-                return items[index];
-            }
-            Assert.Equal(!narrow, decision.ClearButton.IsEffectivelyVisible);
-            if (narrow) OverflowAction(0).Command!.Execute(null);
-            else Click(decision.ClearButton);
+            // W112-72 §3: “Kein Entfernen-Knopf, kein ⋯: Klick auf den aktiven Stern löscht”.
+            Button edit = sidebar.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ReaderMediaSidebarEditTags");
+            Assert.False(decision.ClearButton.IsEffectivelyVisible);
+            Assert.Null(edit.Flyout);
+            Click(decision.StarButtons[4]);
             Assert.Null(rating);
             Assert.False(decision.FavoriteButton.IsEffectivelyVisible);
             Click(sidebar.FavoriteButton);
@@ -76,18 +65,8 @@ public sealed class ReaderMediaPanelDecisionTests
             Assert.Empty(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
             Assert.True(edit.IsEffectivelyVisible);
             Assert.Equal(decision.TranslatePoint(default, sidebar)!.Value.Y, edit.TranslatePoint(default, sidebar)!.Value.Y, 0.5);
-            if (narrow) OverflowAction(1).Command!.Execute(null);
-            else Click(edit);
+            Click(edit);
             Assert.Same(edit, editorAnchor);
-            if (narrow)
-            {
-                MenuItem stale = OverflowAction(1);
-                editorAnchor = null;
-                sidebar.Describe("No. 43", "other.png", "", true, mediumKey: "other");
-                Assert.False(stale.Command!.CanExecute(null));
-                stale.Command.Execute(null);
-                Assert.Null(editorAnchor);
-            }
             Assert.IsType<PanelCloseButton>(sidebar.Close);
             Assert.Equal(1, sidebar.Close.Opacity);
             Assert.Equal(32, sidebar.Close.Bounds.Width, 0.5);
@@ -99,7 +78,7 @@ public sealed class ReaderMediaPanelDecisionTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void OverflowCommandsRetireWhenTheDisplayedOccurrenceChanges(bool differentPost) => BooruComponentDispatcher.Run(() =>
+    public void TagEditorRetiresWhenTheDisplayedOccurrenceChanges(bool differentPost) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using RenderTargetBitmap picture = new(new PixelSize(64, 64));
@@ -110,6 +89,11 @@ public sealed class ReaderMediaPanelDecisionTests
 
         MediaPage page = new(_ => throw new InvalidOperationException());
         page.ConfigurePanelInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always" });
+        // The page derives panel visibility from the presented tiles. Use the same rows for its grid and layout.
+        MediaLibraryTile[] tiles = [new(first, [first]), new(second, [second])];
+        const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(MediaPage).GetField("_tiles", fields)!.SetValue(page, tiles);
+        typeof(MediaPage).GetField("_shown", fields)!.SetValue(page, new[] { first, second });
         page.ApplyLayout(page.PageLayout with { Panel = true, PanelWidth = 280 }, save: false);
         Window window = new() { Width = 1440, Height = 800, Content = page };
         try
@@ -120,30 +104,36 @@ public sealed class ReaderMediaPanelDecisionTests
             page.Grid.ItemsSource = rows;
             page.Grid.SelectedIndex = 0;
             ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.Panel);
+            BooruComponentDispatcher.WaitUntil(() => ReferenceEquals(page.PanelRow?.Entry, first), "first occurrence");
             BooruComponentDispatcher.Wait(page.PanelTask);
             sidebar.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, key, picture.PixelSize);
+            // W112-72 §3: “Kein Entfernen-Knopf, kein ⋯”. Exercise the live editor's revision guard.
             List<MediaLibraryEntry> edited = [];
-            page.TagPopoverAsync = (entry, _, _, _, _) => { edited.Add(entry); return Task.CompletedTask; };
+            TaskCompletionSource close = new();
+            Func<bool>? current = null;
+            page.TagPopoverAsync = (entry, _, _, isCurrent, _) =>
+            {
+                current = isCurrent;
+                edited.Add(entry);
+                return edited.Count == 1 ? close.Task : Task.CompletedTask;
+            };
             window.UpdateLayout();
-            var more = sidebar.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ReaderMediaSidebarMore");
-            Assert.True(more.IsEffectivelyVisible);
-            var menu = Assert.IsType<MenuFlyout>(more.Flyout);
-            menu.ShowAt(more);
-            var stale = menu.ItemsSource!.Cast<MenuItem>().Last().Command!;
-            Assert.True(menu.IsOpen && stale.CanExecute(null));
-
+            var edit = sidebar.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ReaderMediaSidebarEditTags");
+            Assert.True(edit.IsEffectivelyVisible);
+            Assert.Null(edit.Flyout);
+            Task editor = sidebar.EditTagsAsync();
+            Assert.Same(first, Assert.Single(edited));
+            Assert.True(current!());
             page.Grid.SelectedIndex = 1;
-            Assert.False(menu.IsOpen);
+            Assert.False(current());
+            close.SetResult();
+            BooruComponentDispatcher.Wait(editor);
             BooruComponentDispatcher.WaitUntil(() => ReferenceEquals(page.PanelRow?.Entry, second), "second occurrence");
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
             Assert.Same(picture, sidebar.Shown);
-            Assert.False(stale.CanExecute(null));
-            stale.Execute(null);
-            Assert.Empty(edited);
-            menu.ShowAt(more);
-            menu.ItemsSource!.Cast<MenuItem>().Last().Command!.Execute(null);
-            Assert.Same(second, Assert.Single(edited));
+            BooruComponentDispatcher.Wait(sidebar.EditTagsAsync());
+            Assert.Collection(edited, entry => Assert.Same(first, entry), entry => Assert.Same(second, entry));
         }
         finally { window.Close(); page.EndLifetime(); }
     });

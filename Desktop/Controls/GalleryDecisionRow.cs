@@ -64,6 +64,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         {
             int number = index + 1;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
+            if (sidebar) star.Focusable = false;
             star.Click += (_, _) => OnStar(number);
             TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
             _bar.Children.Add(star);
@@ -219,9 +220,9 @@ internal sealed class GalleryDecisionRow : StackPanel
             ToggleButton star = _stars[index];
             star.IsEnabled = view.Available;
             star.IsChecked = view.Available && !view.RatingMixed && rating == index + 1;
-            star.IsTabStop = index == stopIndex;
+            star.IsTabStop = !_sidebar && index == stopIndex;
         }
-        if (!_sidebar) _clear.IsTabStop = false;
+        _clear.IsTabStop = false;
         _clear.IsEnabled = view.Available && (view.Rating.HasValue || view.RatingMixed);
         Paint();
         string caption = GalleryDecisionText.Caption(view);
@@ -326,7 +327,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     private void OnStar(int number)
     {
         Show(_view, _favoriteAvailable);
-        RatingRequested?.Invoke(number);
+        RatingRequested?.Invoke(!_view.RatingMixed && _view.Rating == number ? null : number);
         GiveFocusBack();
     }
 

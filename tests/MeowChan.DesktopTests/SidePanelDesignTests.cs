@@ -29,7 +29,7 @@ public sealed class SidePanelDesignTests
 {
     private static readonly bool[] Segments = [false, true];
     private static readonly string[] BuiltInLanguages = ["en", "de"];
-    private static readonly int[] InfoBarWidths = [240, 320, 480, 700];
+    private static readonly int[] InfoBarWidths = [240, 280, 320, 480, 700];
     private static readonly int[] Widths = [240, 280, 320, 360, 480];
 
     private static void Run(Action test) => BooruComponentDispatcher.Run(() =>
@@ -342,8 +342,9 @@ public sealed class SidePanelDesignTests
             window.Show();
             var bar = Assert.Single(panel.GetVisualDescendants().OfType<MediaInfoBar>());
             T Find<T>(string name) where T : Control => bar.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
-            Button facts = Find<Button>("ReaderMediaSidebarFactSummary"), edit = Find<Button>("ReaderMediaSidebarEditTags");
-            Button more = Find<Button>("ReaderMediaSidebarMore");
+            // W112-72 §3–4: “Leistenhöhe mit Padding 40”, “Tag-Zeile ... 68”, Fakten an der Dateizeile.
+            Button facts = panel.HeaderRow.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ReaderMediaSidebarFactSummary");
+            Button edit = Find<Button>("ReaderMediaSidebarEditTags");
             foreach (string language in BuiltInLanguages.Concat(Texts.BundledPackCodes()))
             {
                 Texts.SetLanguage(language);
@@ -359,15 +360,18 @@ public sealed class SidePanelDesignTests
                         Assert.False(panel.DecisionRow.FavoriteButton.IsEffectivelyVisible);
                         Near(In(panel.Card, panel).Bottom + 8, In(bar, panel).Top);
                         double height = In(bar, panel).Bottom - In(panel.Card, panel).Bottom;
-                        Near((width == 700 ? 40 : 68) + (tagged ? 28 : 0), height);
+                        Near(8 + 40 + (tagged && width < 700 ? 28 : 0), height);
                         Assert.InRange(height, 0, 337 * 0.34);
-                        Button last = width == 240 ? more : edit;
+                        Button last = edit;
                         var tag = Find<Button>(tagged ? "ReaderMediaSidebarTagsToggle" : "ReaderMediaSidebarTagsEmpty");
                         Assert.True(last.IsEffectivelyVisible);
-                        Assert.Equal(width != 240, panel.DecisionRow.ClearButton.IsEffectivelyVisible);
-                        Near(0, In(panel.DecisionRow.StarButtons[0], bar).Left);
-                        Near(bar.Bounds.Width, In(last, bar).Right);
-                        Near(In(last, bar).Center.Y, In(tag, bar).Center.Y);
+                        Assert.False(panel.DecisionRow.ClearButton.IsEffectivelyVisible);
+                        double inset = bar.Bounds.Width < 260 ? 4 : 8;
+                        Near(inset, In(panel.DecisionRow.StarButtons[0], bar).Left);
+                        Near(bar.Bounds.Width - inset, In(last, bar).Right);
+                        Assert.Equal(!tagged || width < 700, tag.IsEffectivelyVisible);
+                        if (tag.IsEffectivelyVisible) Near(In(last, bar).Center.Y, In(tag, bar).Center.Y);
+                        else Near(In(last, bar).Center.Y, In(Find<Panel>("ReaderMediaSidebarTags"), bar).Center.Y);
                         Near(In(last, bar).Center.Y, In(panel.DecisionRow.StarButtons[0], bar).Center.Y);
                         Assert.Equal(width >= 480, edit.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible));
                         Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(tag)));
@@ -401,19 +405,23 @@ public sealed class SidePanelDesignTests
             Assert.Same(extra, editorAnchor);
             double expandedHeight = bar.Bounds.Height;
             ToggleButton toggle = Find<ToggleButton>("ReaderMediaSidebarTagsToggle");
-            toggle.Focus(NavigationMethod.Tab);
-            window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
-            window.KeyReleaseQwerty(PhysicalKey.Space, RawInputModifiers.None);
+            // Tom, 17:55: “Buttons ... sind nicht fokussierbar”. Use the pointer as in the application.
+            Assert.False(toggle.Focus(NavigationMethod.Tab));
+            Point togglePoint = In(toggle, window).Center;
+            window.MouseMove(togglePoint);
+            window.MouseDown(togglePoint, MouseButton.Left);
+            window.MouseUp(togglePoint, MouseButton.Left);
             Settle(window);
             Assert.False(chips.IsEffectivelyVisible);
             Near(expandedHeight - 28, bar.Bounds.Height);
 
             Rect card = In(panel.Card, panel), image = In(panel.Picture, panel);
-            facts.Focus(NavigationMethod.Tab);
-            foreach (PhysicalKey key in new[] { PhysicalKey.Enter, PhysicalKey.Space })
+            Assert.False(facts.Focus(NavigationMethod.Tab));
             {
-                window.KeyPressQwerty(key, RawInputModifiers.None);
-                window.KeyReleaseQwerty(key, RawInputModifiers.None);
+                Point point = In(facts, window).Center;
+                window.MouseMove(point);
+                window.MouseDown(point, MouseButton.Left);
+                window.MouseUp(point, MouseButton.Left);
                 Settle(window);
                 Flyout flyout = Assert.IsType<Flyout>(facts.Flyout);
                 Assert.True(flyout.IsOpen);
@@ -426,7 +434,7 @@ public sealed class SidePanelDesignTests
                 window.KeyReleaseQwerty(PhysicalKey.Escape, RawInputModifiers.None);
                 Settle(window);
                 Assert.False(flyout.IsOpen);
-                Assert.True(facts.IsFocused);
+                Assert.False(facts.IsFocused);
             }
             panel.SetTags([], "read only");
             var empty = Find<Button>("ReaderMediaSidebarTagsEmpty");

@@ -441,7 +441,7 @@ internal sealed partial class ReaderMediaSidebar : Border
 
         _info.Children.Add(_facts);
         _info.Children.Add(_provenanceNote);
-        _infoBar = new MediaInfoBar(_decision, _editTags, _info, OpenTagEditor);
+        _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor);
         _details.Child = _infoBar;
         _overlayActions = MediaInfoBar.CreateActionGrid(_overlayRating, _tagCount, _expand);
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
@@ -471,6 +471,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         DetachedFromVisualTree += (_, _) => _decisionPresses.Clear();
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, Close) { Name = "ReaderMediaSidebarHeaderRow" };
+        _header.SetFactsContent(_info);
         _card.Margin = new Thickness(0, 8, 0, 0);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
@@ -685,7 +686,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         _mediumRevision++;
         _decisionFailure = null;
-        _infoBar.CloseFlyouts();
+        _header.CloseFacts();
         InvalidateTagEditor();
     }
 
@@ -730,7 +731,6 @@ internal sealed partial class ReaderMediaSidebar : Border
         _provenanceNote.Text = string.Join(Environment.NewLine, new[] { _provenance, _historical ? Texts.T("gallery.viewer8") : null }
             .Where(text => !string.IsNullOrEmpty(text)));
         _provenanceNote.IsVisible = _provenanceNote.Text.Length > 0;
-        _infoBar.SetFacts(_location, _author, _posted, _provenanceNote.IsVisible || _facts.Children.Count > 0);
     }
 
     internal void SetSourceFacts(string location, string? author, string? posted, long? savedBytes, long? sourceBytes,

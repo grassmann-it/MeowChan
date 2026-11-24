@@ -388,7 +388,9 @@ public sealed class MediaFirstSidebarTests
             var overlayActions = overlay.GetVisualDescendants().OfType<Button>()
                 .Where(button => !button.GetVisualAncestors().Contains(ratingBar)).ToArray();
             Assert.Equal(2, overlayActions.Length);
-            foreach (Control next in new Control[] { panel.InfoToggle, panel.Open, panel.Frame, ratingBar.FocusStar,
+            // 25.11., 17:55: Sidebar buttons do not receive keyboard focus.
+            Assert.False(ratingBar.FocusStar.Focusable);
+            foreach (Control next in new Control[] { panel.InfoToggle, panel.Open, panel.Frame,
                 overlayActions[0], overlayActions[1], panel.Close })
             {
                 window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
@@ -403,7 +405,7 @@ public sealed class MediaFirstSidebarTests
             Settle();
             Assert.True(details.IsVisible);
             Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
-            Assert.True(panel.DecisionRow.FocusRating());
+            Assert.False(panel.DecisionRow.FocusRating());
             // Use the sidebar's key route with input from the focused control, as the two hosts do.
             window.KeyDown += RouteInfo;
             try
