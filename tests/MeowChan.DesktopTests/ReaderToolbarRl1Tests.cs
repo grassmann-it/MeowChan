@@ -208,7 +208,6 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
         Assert.Equal([(SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.ReaderMediaSidebar),
             (SettingsFieldId.MediaSidebarInfo, SettingsFieldId.ReaderMediaSidebar),
             (SettingsFieldId.MediaSidebarInfoMinimumFree, SettingsFieldId.ReaderMediaSidebar),
-            (SettingsFieldId.MediaSidebarInfoMaximumShare, SettingsFieldId.ReaderMediaSidebar),
             (SettingsFieldId.ReaderMediaSidebarSide, SettingsFieldId.ReaderMediaSidebar),
             (SettingsFieldId.ReaderTextlessMediaWidth, SettingsFieldId.ReaderTextlessLargeImages),
             (SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderFocusedMediaEnlarge)],

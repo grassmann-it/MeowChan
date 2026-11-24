@@ -1546,6 +1546,15 @@
     <Style Selector="ToggleButton.rating-star:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
+    <Style Selector="Border.media-sidebar-close.floating">
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" />
+    </Style>
+    <Style Selector="Border.media-sidebar-overlay TextBlock.workspace-panel-title">
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.media-sidebar-overlay TextBlock.workspace-meta">
+        <Setter Property="Foreground" Value="#CCFFFFFF" />
+    </Style>
     <Style Selector="Border.media-sidebar-overlay Button /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Foreground" Value="White" />
         <Setter Property="Background" Value="Transparent" />
@@ -2604,7 +2613,7 @@
         </Setter>
     </Style>
     <!-- The reader navigation bar fades in and out with the pointer's idle state (Fade 120 ms); under reduced motion it switches at once. -->
-    <Style Selector=":is(TopLevel):not(.motion-off) WrapPanel.reader-cross">
+    <Style Selector=":is(TopLevel):not(.motion-off) WrapPanel.reader-cross, :is(TopLevel):not(.motion-off) Border.media-sidebar-overlay">
         <Setter Property="Transitions"><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.12" /></Transitions></Setter>
     </Style>
     <!-- A filter chip appears with a short fade (the tag bar's own chips are rebuilt often and tile chips are recycled: no fade there). -->

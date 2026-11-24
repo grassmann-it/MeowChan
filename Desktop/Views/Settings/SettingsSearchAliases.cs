@@ -52,7 +52,6 @@ internal static class SettingsSearchAliases
         ["ReaderMediaSidebar"] = "sidebar side panel column media large full height focused post leiste seitenleiste medien groß volle höhe markiert",
         ["MediaSidebarInfo"] = "media sidebar info details overlay auto free height share medienleiste details höhe anteil",
         ["MediaSidebarInfoMinimumFree"] = "media sidebar info details overlay auto free height share medienleiste details höhe anteil",
-        ["MediaSidebarInfoMaximumShare"] = "media sidebar info details overlay auto free height share medienleiste details höhe anteil",
         ["ReaderMediaSidebarScope"] = "sidebar archive view large reader always where scope leiste seitenleiste archivansicht großer reader immer wo",
         ["ReaderMediaSidebarSide"] = "sidebar side left right position leiste seitenleiste links rechts seite",
         ["ReaderMediaSidebarWidth"] = "sidebar width splitter divider column leiste seitenleiste breite trennlinie",
