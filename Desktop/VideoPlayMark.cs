@@ -42,7 +42,6 @@ internal static class VideoPlayMark
     /// <summary>The dark disc (about 80 percent of 0D1016) and the ring around it (70 percent white).</summary>
     internal static readonly Color DiscColor = Color.FromArgb(205, 13, 16, 22), RingColor = Color.FromArgb(180, 255, 255, 255);
     internal static readonly IBrush DiscBrush = new ImmutableSolidColorBrush(DiscColor);
-    internal static readonly IBrush RingBrush = new ImmutableSolidColorBrush(RingColor);
     /// <summary>The glyph and text on the disc.</summary>
     internal static readonly IBrush GlyphBrush = Brushes.White;
 

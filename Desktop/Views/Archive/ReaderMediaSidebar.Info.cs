@@ -205,9 +205,14 @@ internal sealed partial class ReaderMediaSidebar
         _details.IsVisible = _wasDocked;
         _details.MaxHeight = _wasDocked ? layout.DetailsLimit : double.PositiveInfinity;
         bool auto = _wasDocked && double.IsFinite(layout.CardHeight);
-        _card.Height = auto ? layout.CardHeight : double.NaN;
-        _card.VerticalAlignment = auto ? VerticalAlignment.Top : VerticalAlignment.Stretch;
-        if (Child is Grid grid) grid.RowDefinitions[1].Height = auto ? GridLength.Auto : GridLength.Star;
+        if (Child is Grid grid)
+        {
+            double scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
+            // Let the card fill its pixel-aligned row so its bottom and the detail gap share one edge.
+            grid.RowDefinitions[1].Height = auto
+                ? new GridLength(Math.Ceiling((layout.CardHeight + _card.Margin.Top) * scale) / scale)
+                : GridLength.Star;
+        }
         InfoToggle.IsChecked = _wasDocked;
         string tip = CommandBindings.Tooltip("media.sidebar.info");
         ToolTip.SetTip(InfoToggle, layout.TooShort ? tip + " · " + Texts.T("settings.reader.mediaSidebarInfo.shortHeight") : tip);

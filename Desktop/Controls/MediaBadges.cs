@@ -549,7 +549,7 @@ internal static class MediaBadgeIconBitmaps
 /// </summary>
 internal sealed partial class MediaBadgeView : Control
 {
-    private static readonly Pen Ring = new(VideoPlayMark.RingBrush, 1);
+    private static readonly Avalonia.Media.Immutable.ImmutablePen Ring = new(VideoPlayMark.RingColor.ToUInt32(), 1);
     private static Geometry? s_triangle, s_untagged;
     // The strokes of the "no tags" mark: its width follows the unit (12 to 20, even), so there are at most five; kept instead of one pen per tile and frame.
     private static readonly Dictionary<double, Pen> UntaggedPens = new();
