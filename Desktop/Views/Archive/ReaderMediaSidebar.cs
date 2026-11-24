@@ -249,7 +249,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private readonly MediaPanelSections _sections = new() { Name = "ReaderMediaSidebarSections" };
     private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 8 };
     private readonly MediaFactGrid _facts = new("ReaderMediaSidebarFacts");
-    private readonly PanelActionStack _actions = new("ReaderMediaSidebarActions");
+    private readonly PanelActionStack _actions = new("ReaderMediaSidebarActions") { KeepPairOnOneLine = true };
     private string? _location, _author, _posted, _provenance;
     private long? _savedBytes, _sourceBytes;
     private MediaProviderSizeHint? _sourceHint;

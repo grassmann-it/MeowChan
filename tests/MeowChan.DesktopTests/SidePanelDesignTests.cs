@@ -182,13 +182,17 @@ public sealed class SidePanelDesignTests
             Assert.True(button.Left >= left - 0.5 && button.Right <= right + 0.5);
             Near(actions[i].DesiredSize.Width, button.Width);
             Near(32, button.Height);
-            if (width >= 240 && actions[i].GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Classes.Contains("panel-action-label")) is { } label)
-                Assert.DoesNotContain(label.TextLayout.TextLines, line => line.HasCollapsed);
+            if (actions[i].GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Classes.Contains("panel-action-label")) is { } label)
+            {
+                if (frame is not ReaderMediaSidebar || width >= 280)
+                    Assert.DoesNotContain(label.TextLayout.TextLines, line => line.HasCollapsed);
+                else Assert.StartsWith(label.Text!, ToolTip.GetTip(actions[i])?.ToString());
+            }
             if (i == 0) Near(left, button.Left);
             else
             {
                 Rect previous = In(actions[i - 1], frame);
-                if (i == 1 && (width >= 320 || frame is ReaderMediaSidebar && width >= 280))
+                if (i == 1 && (width >= 320 || frame is ReaderMediaSidebar))
                     Near(previous.Top, button.Top);
                 if (i == 1 && frame is not ReaderMediaSidebar && width == 240)
                     Near(previous.Bottom + 8, button.Top);

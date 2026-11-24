@@ -31,6 +31,8 @@ internal class MinLineWrapPanel : Panel
     /// <summary>The least height of a line, in dip (a line with a taller item is as high as that item).</summary>
     public double MinLineHeight { get => GetValue(MinLineHeightProperty); set => SetValue(MinLineHeightProperty, value); }
 
+    internal bool KeepPairOnOneLine { get; init; }
+
     /// <summary>One line of the row: the first and the last item (indexes into the visible items), its width and its height.</summary>
     internal readonly record struct Line(int First, int Last, double Width, double Height);
 
@@ -82,6 +84,18 @@ internal class MinLineWrapPanel : Panel
         Size item = new(availableSize.Width, double.PositiveInfinity);
         foreach (Control child in Children) child.Measure(item);
         CollectShown();
+        double pairWidth = availableSize.Width - ItemSpacing;
+        if (KeepPairOnOneLine && _shown.Count == 2 && _sizes[0].Width + _sizes[1].Width > pairWidth
+            && _shown[0].MinWidth + _shown[1].MinWidth <= pairWidth)
+        {
+            // Give back space a shorter action does not need. Both labels can trim inside their buttons.
+            double firstWidth = Math.Clamp(Math.Max(pairWidth / 2, pairWidth - _sizes[1].Width),
+                _shown[0].MinWidth, Math.Min(_sizes[0].Width, pairWidth - _shown[1].MinWidth));
+            _shown[0].Measure(item.WithWidth(firstWidth));
+            _shown[1].Measure(item.WithWidth(pairWidth - firstWidth));
+            _sizes[0] = _shown[0].DesiredSize;
+            _sizes[1] = _shown[1].DesiredSize;
+        }
         List<Line> lines = Lines(_sizes, availableSize.Width, ItemSpacing, MinLineHeight);
         double width = 0, height = 0;
         for (int i = 0; i < lines.Count; i++)
