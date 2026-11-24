@@ -67,7 +67,7 @@ internal sealed partial class GalleryViewer
         _taggingActions.Children.AddRange([_taggingBack, _taggingSkip, _taggingFavorite, _taggingStamp, _taggingDone]);
         _taggingBack.Click += (_, _) => _ = TaggingBackAsync();
         _taggingSkip.Click += (_, _) => DecideFromTaggingStrip(TagQueueState.Skipped);
-        _taggingFavorite.Click += (_, _) => _ = ApplyTaggingActionAsync(FavoriteAndNext);
+        _taggingFavorite.Click += (_, _) => OpenActions.Start(() => ApplyTaggingActionAsync(FavoriteAndNext), "gallery.tagging.favorite");
         _taggingDone.Click += (_, _) => DecideFromTaggingStrip(TagQueueState.Done);
         _taggingStamp.Click += (_, _) => _ = StampFromTaggingStripAsync();
         ToolTip.SetShowOnDisabled(_taggingBack, true);
