@@ -41,6 +41,24 @@ class PruneTests(unittest.TestCase):
             state["main"]()
         self.assertEqual(2, error.exception.code)
 
+    def test_replacing_a_source_hash_cannot_keep_a_diagnostic(self):
+        state = runpy.run_path(str(SCRIPT))["main"].__globals__
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            baseline = root / "baseline.tsv"
+            diagnostic = "\tCA2000\t4\t8\t4\t22\t" + "c" * 64
+            source = "Captured\tDesktop/Page.cs\t"
+            baseline.write_text(source + "a" * 64 + diagnostic + "\n")
+            (root / "Captured.sarif").write_text('{"runs": [{"results": []}]}')
+            before = baseline.read_bytes()
+            with patch.dict(state, {"BASELINE": baseline, "entries": lambda _: {source + "b" * 64 + diagnostic}}), \
+                    patch.object(sys, "argv", [str(SCRIPT), directory]), \
+                    contextlib.redirect_stderr(io.StringIO()) as stderr, self.assertRaises(SystemExit) as error:
+                state["main"]()
+            self.assertEqual(2, error.exception.code)
+            self.assertIn("1 unbaselined/changed diagnostics", stderr.getvalue())
+            self.assertEqual(before, baseline.read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()
