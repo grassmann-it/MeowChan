@@ -76,22 +76,25 @@ public partial class ArchivePage
 
     private Control VisibleMediaList => _mediaTiles ? ArchiveMediaTiles : ArchiveMediaGrid;
 
-    private bool FocusSelectedMedia()
+    private bool FocusSelectedMedia() => SelectedMediaFocusTarget()?.Focus() == true || VisibleMediaList.Focus();
+
+    private Control? SelectedMediaFocusTarget()
     {
         Control list = VisibleMediaList;
-        if (!list.IsEffectivelyVisible) return false;
+        if (!list.IsEffectivelyVisible) return null;
         if (SelectedMediaRow() is { } lead)
         {
             if (_mediaTiles)
             {
                 ArchiveMediaTiles.ScrollIntoView(lead);
-                if (ArchiveMediaTiles.ContainerFromItem(lead) is Control tile && tile.Focus()) return true;
+                if (ArchiveMediaTiles.ContainerFromItem(lead) is Control tile) return tile;
             }
             else
             {
                 ArchiveMediaGrid.ScrollIntoView(lead, ArchiveMediaGrid.CurrentColumn);
                 // The grid owns keyboard focus and keeps its current cell independently of SelectedItem.
-                if (ReferenceEquals(ArchiveMediaGrid.CurrentItem, lead) && ArchiveMediaGrid.IsKeyboardFocusWithin) return true;
+                if (ReferenceEquals(ArchiveMediaGrid.CurrentItem, lead) && ArchiveMediaGrid.IsKeyboardFocusWithin
+                    && TopLevel.GetTopLevel(list)?.FocusManager?.GetFocusedElement() is Control focused) return focused;
                 DataGridRow? row = ArchiveMediaGrid.GetVisualDescendants().OfType<DataGridRow>()
                     .FirstOrDefault(item => ReferenceEquals(item.DataContext, lead));
                 DataGridCell? cell = row?.GetVisualDescendants().OfType<DataGridCell>().FirstOrDefault(item => item.IsEffectivelyVisible);
@@ -99,11 +102,11 @@ public partial class ArchivePage
                 {
                     cell.Focusable = true;
                     cell.IsTabStop = false;
-                    if (cell.Focus()) return true;
+                    return cell;
                 }
             }
         }
-        return list.Focus();
+        return list;
     }
 
     private int SelectedMediaCount => (_mediaTiles ? ArchiveMediaTiles.SelectedItems : ArchiveMediaGrid.SelectedItems)?.Count ?? 0;

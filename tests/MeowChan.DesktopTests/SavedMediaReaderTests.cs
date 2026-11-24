@@ -153,6 +153,27 @@ public sealed class SavedMediaReaderTests
     });
 
     [Fact]
+    public void FooterPreviewReturnsKeyboardFocusToTheRevisionItOpened() => RunWithShell(async (page, window, _, _) =>
+    {
+        page.ArchiveColumnModePreference = WorkViewSetting.AdvancedName;
+        page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
+        Layout(window);
+        ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
+        ArchiveAssetRow row = ShownRows(page, true).Single(item => !item.Asset.IsCurrent);
+        Click(window, Assert.IsAssignableFrom<Control>(tiles.ContainerFromItem(row)));
+        Click(window, VisibleById<Button>(window, "PreviewArchiveMediaButton"));
+        await BooruTestSupport.WaitAsync(() => window.GetVisualDescendants().OfType<GalleryViewer>()
+            .Any(viewer => viewer.IsEffectivelyVisible && viewer.CurrentEntry?.Asset.AssetId == row.Asset.AssetId), "the selected revision in the gallery");
+        PressKey(window, PhysicalKey.Escape);
+        await BooruTestSupport.WaitAsync(() =>
+        {
+            Layout(window);
+            return tiles.ContainerFromItem(tiles.SelectedItem!) is Control lead && lead.IsFocused;
+        }, "keyboard focus on the saved media tile after closing the gallery");
+        Assert.Equal(row.Asset.AssetId, Assert.IsType<ArchiveAssetRow>(tiles.SelectedItem).Asset.AssetId);
+    });
+
+    [Fact]
     public void TagEditorRejectsThePendingRevisionAndWritesOnlyAfterItIsShown() => RunWithShell(async (page, window, host, subjects) =>
     {
         long now = 0;
