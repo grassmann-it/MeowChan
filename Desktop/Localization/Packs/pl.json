@@ -458,6 +458,7 @@
     "settings.load.grantsDisabled": "Wyjątki dla mediów źródłowych z kopii zostały wyłączone; potwierdź je ponownie w sekcji Źródła.",
     "notification.session": "Sesja",
     "startup.title": "Nie udało się uruchomić MeowChan",
+    "startup.messageCopied": "Skopiowano tekst komunikatu.",
     "startup.video.systemUnavailable": "MeowChan wymaga VLC 3 (wersja 3.0.20 lub nowsza) wraz z wtyczkami WebM, VP8/VP9 oraz wyjścia audio/wideo. Zainstaluj środowisko VLC i jego wtyczki kodeków za pomocą menedżera pakietów dystrybucji, a następnie uruchom MeowChan ponownie. Możesz też pobrać pakiet MeowChan z dołączonym VLC. MeowChan zostanie teraz zamknięty.",
     "startup.video.systemUnsupported": "Zainstalowane środowisko VLC nie jest obsługiwane. MeowChan wymaga VLC 3 w wersji 3.0.20 lub nowszej; VLC 4 nie jest obsługiwane. Zainstaluj odpowiednie środowisko VLC i wtyczki albo użyj pakietu MeowChan z dołączonym VLC. MeowChan zostanie teraz zamknięty.",
     "startup.video.bundleDamaged": "Dołączone środowisko VLC jest niekompletne lub nie dało się go załadować. Pobierz ponownie ten pakiet MeowChan i rozpakuj całe archiwum do nowego folderu. W przypadku AppImage zastąp cały plik AppImage. Systemowa instalacja VLC nie naprawi tego pakietu. MeowChan zostanie teraz zamknięty.",

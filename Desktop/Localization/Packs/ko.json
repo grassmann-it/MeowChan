@@ -658,6 +658,7 @@
     "settings.load.grantsDisabled": "사본에 있던 소스 미디어 예외는 꺼졌습니다. “소스”에서 다시 확인하세요.",
     "notification.session": "세션",
     "startup.title": "MeowChan을 시작할 수 없습니다",
+    "startup.messageCopied": "메시지 텍스트를 복사했습니다.",
     "startup.video.systemUnavailable": "MeowChan에는 WebM, VP8/VP9, 오디오/비디오 출력 플러그인을 포함한 VLC 3(버전 3.0.20 이상)이 필요합니다. 배포판의 패키지 관리자로 VLC 런타임과 코덱 플러그인을 설치한 뒤 MeowChan을 다시 시작하세요. 또는 VLC가 포함된 MeowChan 패키지를 다운로드하세요. MeowChan을 지금 종료합니다.",
     "startup.video.systemUnsupported": "설치된 VLC 런타임은 지원되지 않습니다. MeowChan에는 VLC 3 버전 3.0.20 이상이 필요하며 VLC 4는 지원되지 않습니다. 알맞은 VLC 런타임과 플러그인을 설치하거나 VLC가 포함된 MeowChan 패키지를 사용하세요. MeowChan을 지금 종료합니다.",
     "startup.video.bundleDamaged": "포함된 VLC 런타임이 불완전하거나 로드할 수 없습니다. 이 MeowChan 패키지를 다시 다운로드하여 아카이브 전체를 새 폴더에 풀어 주세요. AppImage라면 AppImage 파일 전체를 교체하세요. 시스템에 설치된 VLC로는 이 번들을 복구할 수 없습니다. MeowChan을 지금 종료합니다.",
