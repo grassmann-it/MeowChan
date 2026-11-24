@@ -66,14 +66,14 @@ internal static partial class PluginManagementChecks
                 .Replace("Fixture rejects count nine", "Fixture rejects effective default two", StringComparison.Ordinal)
             : FixtureSource;
         await File.WriteAllTextAsync(source, fixtureSource);
-        PluginCompilationService compiler = new(new(Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory, Path.Combine(root, "cache")));
+        await using PluginCompilationService compiler = new(new(Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory, Path.Combine(root, "cache")));
         PluginInstallationInventory inventory = new();
         PluginProfileStore profile = new(root);
         PluginWorkerLaunch launch = new(Path.Combine(workerDirectory, "MeowChan.PluginWorker" + executableSuffix), Array.Empty<string>(), Path.Combine(root, "workers"));
         Directory.CreateDirectory(launch.WorkingDirectory);
         await using PluginWorkerManager runtime = new(new() { OperationTimeout = TimeSpan.FromSeconds(5) });
-        FixtureTransport transportHandler = new();
-        using HttpClient transport = new(transportHandler);
+        using FixtureTransport transportHandler = new();
+        using HttpClient transport = new(transportHandler, disposeHandler: false);
         PluginBuildResult original = await compiler.BuildAsync(source);
         Require(original.Succeeded, "Real fixture compilation failed: " + string.Join("; ", original.Diagnostics.Select(item => item.Message)));
         PluginDescription description = await runtime.DescribeAsync(launch, original.Artifact!);
@@ -95,6 +95,11 @@ internal static partial class PluginManagementChecks
             await page.ActivateAsync();
             await NativeFeatureCheckpoint.HoldAsync("plugin-overview", page, null,
                 page.FindControl<ComboBox>("PluginCategory")!, page.FindControl<Button>("PluginsRefresh")!);
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_DRAFT_FOOTER_ONLY") == "1")
+            {
+                await CheckFixedDraftFooterAsync(window, page, profile, candidateId);
+                return;
+            }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_FORM_EFFECTIVE_DEFAULT_REVIEW") == "1")
             {
                 page.Select(candidateId);
@@ -202,7 +207,7 @@ internal static partial class PluginManagementChecks
                 Require(ReferenceEquals(card, list.SelectedItem) && card.IsFocused, "Status refresh replaced the selection container or stole focus.");
                 bool filtered = page.Selected?.IsFilter != true;
                 MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.ImageFilters);
-                Require((!filtered || list.SelectedItem == null) && !page.FindControl<ScrollViewer>("PluginDetailsPane")!.IsVisible,
+                Require((!filtered || list.SelectedItem == null) && !page.FindControl<ScrollViewer>("PluginDetailsPane")!.IsEffectivelyVisible,
                     "Filtering a source selected a replacement or kept stale details visible.");
                 MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.AllPlugins);
                 Require(ReferenceEquals(card, list.SelectedItem) && page.FindControl<Grid>("PluginListPane")!.IsVisible,
@@ -340,7 +345,7 @@ internal static partial class PluginManagementChecks
         Require(field.IsFocused && ReferenceEquals(topLevel?.FocusManager?.GetFocusedElement(), field),
             "Responsive fixture did not focus the actual detail editor.");
         await ResizeAsync(760, narrow: true);
-        Require(field.IsFocused && field.IsEffectivelyVisible && page.FindControl<ScrollViewer>("PluginDetailsPane")!.IsVisible,
+        Require(field.IsFocused && field.IsEffectivelyVisible && page.FindControl<ScrollViewer>("PluginDetailsPane")!.IsEffectivelyVisible,
             "Shrinking hid the focused wide detail field.");
         await page.RefreshAsync(); await page.RefreshAsync();
         Require(page.CurrentDraft!.Plugin.Text("label") == "resize retained draft" && field.IsFocused,
@@ -394,7 +399,8 @@ internal static partial class PluginManagementChecks
                     && draftStatus.Text == Texts.T("plugins.draft"), "Draft capture does not represent a saveable unsaved edit.");
                 await RevealAsync(window, field);
                 Program.CaptureWindow(window, "smoke-plugins-draft-field-barebones-" + language + ".png");
-                await RevealRangeAsync(window, draftStatus, save);
+                Require(FullyVisibleWithin(draftStatus, page) && FullyVisibleWithin(save, page),
+                    "The fixed draft status and Save action must remain visible while editing a field.");
                 Program.CaptureWindow(window, "smoke-plugins-draft-actions-barebones-" + language + ".png");
             }
             page.FindControl<Button>("PluginSave")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
