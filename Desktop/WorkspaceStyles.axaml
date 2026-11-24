@@ -1892,6 +1892,11 @@
     <Style Selector="controls|HeaderBar:compact > Button.header-back TextBlock">
         <Setter Property="IsVisible" Value="False" />
     </Style>
+    <Style Selector=":is(Button).popup-open /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
     <Style Selector="Button.icon-square">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />

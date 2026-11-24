@@ -39,10 +39,12 @@ public sealed partial class TaggingPage
         CommandBindings.EnsureIconBeforeText(_emptyHow, "help-circle");
         CommandBindings.EnsureIconBeforeText(_emptyReviewSkipped, CommandCatalog.Get("tags.queue.skip").Icon);
         CommandBindings.EnsureIconBeforeText(_emptyMore, "more-horizontal");
-        _emptyMoreHost = new ContextMenuHost(_emptyMore, ComposeEmptyMoreMenu, fallbackFocus: FocusOnOpen);
+        PopupToggle.Prepare(_emptyMore);
+        PopupToggle.BindFlyout(_help, _help.Popover);
+        PopupToggle.BindFlyout(_emptyHow, _help.Popover);
+        _emptyMoreHost = new ContextMenuHost(_emptyMore, ComposeEmptyMoreMenu, fallbackFocus: FocusOnOpen, toggle: true);
         _emptyMedia.Click += (_, _) => AddRequested?.Invoke();
-        _emptyHow.Click += (_, _) => _help.Popover.ShowAt(_emptyHow);
-        _emptyMore.Click += (_, _) => _emptyMoreHost.Show();
+        _emptyMore.Click += (_, _) => _emptyMoreHost.Activate();
         _emptyReviewSkipped.Click += (_, _) =>
         {
             Filter = TaggingQueueFilter.Skipped;

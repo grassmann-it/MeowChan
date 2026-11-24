@@ -25,6 +25,7 @@ internal sealed class ContextMenuHost : IDisposable
     private readonly Func<ContextMenuBuilder?> _compose;
     private readonly Func<Control>? _resolveOrigin;
     private readonly Func<object?, bool>? _acceptSource;
+    private readonly bool _toggle;
     private Control? _openOn;
     private readonly Action? _fallbackFocus;
     private ContextMenu? _menu;
@@ -37,9 +38,11 @@ internal sealed class ContextMenuHost : IDisposable
     /// <param name="resolveOrigin">Optional: the control the menu opens on for this opening (a sibling when <paramref name="origin"/> is not on the screen,
     /// for example a button that moved under "More"); the handlers stay on <paramref name="origin"/>.</param>
     /// <param name="acceptSource">Optional: whether this source belongs to the surface rather than to a child with its own actions.</param>
+    /// <param name="toggle">Whether explicit activations toggle a button menu on the same anchor.</param>
     internal ContextMenuHost(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null, Func<Control>? resolveOrigin = null,
-        Func<object?, bool>? acceptSource = null)
+        Func<object?, bool>? acceptSource = null, bool toggle = false)
     {
+        _toggle = toggle;
         _resolveOrigin = resolveOrigin;
         _acceptSource = acceptSource;
         _origin = origin ?? throw new ArgumentNullException(nameof(origin));
@@ -65,7 +68,7 @@ internal sealed class ContextMenuHost : IDisposable
         if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         _lastKeyOpen = DateTime.UtcNow;
         e.Handled = true;
-        Show(atPointer: false);
+        Activate(atPointer: false);
         if (OpenMenu is not { } menu) return;
 
         // The popup receives focus on open. Avalonia would otherwise close it on the release of its own menu key.
@@ -86,7 +89,14 @@ internal sealed class ContextMenuHost : IDisposable
         bool positioned = e.TryGetPosition(_origin, out _);
         e.Handled = true;
         if (!positioned && DateTime.UtcNow - _lastKeyOpen < PairedRequestWindow) return;
-        Show(atPointer: positioned);
+        Activate(atPointer: positioned);
+    }
+
+    internal void Activate(bool atPointer = false)
+    {
+        Control origin = _resolveOrigin?.Invoke() ?? _origin;
+        if (_toggle && ReferenceEquals(_openOn, origin) && OpenMenu != null) { Close(); return; }
+        Show(atPointer);
     }
 
     /// <summary>Opens the menu on the origin: at the pointer, or under the control for the keyboard.</summary>
@@ -111,6 +121,17 @@ internal sealed class ContextMenuHost : IDisposable
             }
             RestoreFocus(menu, previousFocus as Control, origin);
         };
+        if (_toggle)
+        {
+            if (origin is Button button) PopupToggle.Track(button, menu);
+            menu.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+            {
+                if (e.Handled || !MediaMenuPresenter.IsContextKey(e)) return;
+                _lastKeyOpen = DateTime.UtcNow;
+                e.Handled = true;
+                Close();
+            }, RoutingStrategies.Tunnel);
+        }
         menu.Open(origin);
     }
 
@@ -135,7 +156,8 @@ internal sealed class ContextMenuHost : IDisposable
             if (_disposed || _menu != null || menu.IsOpen) return;
             TopLevel? top = TopLevel.GetTopLevel(origin);
             if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible)) return;
-            static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
+            bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible
+                && control.IsEffectivelyEnabled && (!_toggle || control.Focusable);
             // Focus held by something else that can take it (the page an entry opened) stays; focus left in the closed menu returns.
             object? focused = top?.FocusManager?.GetFocusedElement();
             if (focused is Control current && Usable(current) && !current.GetSelfAndVisualAncestors().OfType<ContextMenu>().Any()) return;
