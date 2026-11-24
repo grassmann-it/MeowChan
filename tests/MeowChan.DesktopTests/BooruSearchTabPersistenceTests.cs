@@ -11,6 +11,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
+using Xunit.Abstractions;
 
 namespace MeowChan.DesktopTests;
 
