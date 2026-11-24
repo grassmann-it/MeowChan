@@ -7,9 +7,9 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// 16.11.: the reader's Media tab chooses Tiles or Table with the Archive results bar's joined pair (ToggleButton.segment: icon before text,
+// 16.11.: the reader's Media tab chooses Grid or Table with the Archive results bar's joined pair (ToggleButton.segment: icon before text,
 // the one that is on highlighted), not with one button that names the other view. The saved choice is unchanged (Config.ArchiveMediaTiles:
-// true = Tiles). The pair never holds anything of its own: _mediaTiles is the truth and SyncMediaLayoutSwitch writes it to both buttons,
+// true = Grid). The pair never holds anything of its own: _mediaTiles is the truth and SyncMediaLayoutSwitch writes it to both buttons,
 // whoever changed it (a click, Space or Enter on a focused button, the command, or the preference being loaded).
 public partial class ArchivePage
 {
@@ -19,7 +19,7 @@ public partial class ArchivePage
     {
         LocalizeMediaLayoutSwitch();
         SyncMediaLayoutSwitch();
-        // The command "Choose media view" (archive.media-view) keeps its meaning of one switch: a key a user bound to it flips Tiles and Table,
+        // The command "Choose media view" (archive.media-view) keeps its meaning of one switch: a key a user bound to it flips Grid and Table,
         // as it did with the single button. With two buttons carrying the same command the generic visible-action route could not pick one.
         Control pane = ArchiveReaderPane;
         pane.AttachedToVisualTree += (_, _) =>
@@ -40,11 +40,11 @@ public partial class ArchivePage
 
     private void LocalizeMediaLayoutSwitch()
     {
-        ArchiveMediaLayoutTiles.Content = Texts.T("gallery.tiles");
+        ArchiveMediaLayoutTiles.Content = Texts.T("tagging.page.view.grid");
         ArchiveMediaLayoutTable.Content = Texts.T("gallery.table");
     }
 
-    /// <summary>The view the reader's Media tab shows: tiles or the table (the saved choice, loaded or changed here).</summary>
+    /// <summary>The view the reader's Media tab shows: grid or table (the saved choice, loaded or changed here).</summary>
     internal bool MediaShowsTiles => _mediaTiles;
 
     // Writes _mediaTiles to everything that shows it: the list that is visible, Columns (the table's), and the pair's highlight.
@@ -81,6 +81,7 @@ public partial class ArchivePage
         _mediaTiles = tiles;
         SyncMediaLayoutSwitch();
         RestoreMediaPosition(position);
+        FollowSavedMediaSelection();
         try { if (SaveMediaTiles != null) await SaveMediaTiles(_mediaTiles); }
         catch (Exception exception)
         {
