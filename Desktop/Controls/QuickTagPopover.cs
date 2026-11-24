@@ -249,6 +249,7 @@ internal sealed class QuickTagPopover
                 NavigationEnabled = false
             };
             surface = createdSurface;
+            surface.UseWrappingActions();
             creationProbe?.Invoke();
             if (options.Suggestions is { } source)
             {

@@ -17,8 +17,8 @@ public sealed class ReaderSidebarAlignmentTests
     public void FullHeightSidebarKeepsTheStableHeaderAndPostsColumnIsolation() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
-        Assert.Equal(32, ReaderMediaSidebar.HeaderLineHeight);
-        Assert.Equal(16, ReaderMediaSidebar.HeaderTopInset);
+        Assert.Equal(48, ReaderMediaSidebar.HeaderLineHeight);
+        Assert.Equal(8, ReaderMediaSidebar.HeaderTopInset);
         ArchivePage page = Page();
         Window window = new() { Width = 1440, Height = 720, Content = page };
         void LayoutAt(double height)
@@ -45,7 +45,7 @@ public sealed class ReaderSidebarAlignmentTests
                 page.ApplyReaderMediaPreferences(preferences with { SidebarRight = right });
                 LayoutAt(720);
                 ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
-                Assert.IsType<MediaSidebarHeader>(sidebar.HeaderRow);
+                Assert.IsType<MediaCompactHeader>(sidebar.HeaderRow);
                 GridSplitter splitter = Assert.Single(pane.Children.OfType<GridSplitter>());
                 Assert.True(page.IsMediaSidebarShown);
                 Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
@@ -69,15 +69,12 @@ public sealed class ReaderSidebarAlignmentTests
                 ScrollViewer details = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "ReaderMediaSidebarDetails");
                 double occupied = frameHeight + details.Bounds.Height;
                 Assert.Equal(emptyHeight, headerHeight);
-                MediaFactGrid facts = Assert.Single(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
-                SelectableTextBlock metadata = Assert.Single(facts.Children.OfType<SelectableTextBlock>(),
-                    text => text.Name == "ReaderMediaSidebarFile");
-                Assert.Equal(file, ToolTip.GetTip(metadata));
-                Assert.True(metadata.TranslatePoint(default, sidebar)!.Value.Y
-                    >= sidebar.Card.TranslatePoint(new Point(0, sidebar.Card.Bounds.Height), sidebar)!.Value.Y);
-                Assert.True(sidebar.Open.TranslatePoint(default, sidebar)!.Value.Y
-                    > metadata.TranslatePoint(default, sidebar)!.Value.Y);
-
+                Assert.False(details.IsVisible);
+                TextBlock meta = ((MediaCompactHeader)sidebar.HeaderRow).Meta;
+                Assert.Equal(file + " · 100 MiB", ToolTip.GetTip(meta));
+                Assert.Contains("…", meta.Text);
+                Assert.EndsWith(".png · 100 MiB", meta.Text);
+                Assert.True(meta.TranslatePoint(default, sidebar)!.Value.Y < sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y);
                 LayoutAt(900);
                 Assert.Equal(headerHeight, sidebar.HeaderRow.Bounds.Height);
                 Assert.True(sidebar.Frame.Bounds.Height > frameHeight);

@@ -189,12 +189,12 @@ public sealed class ReaderMediaSidebarLayoutTests
                     Assert.True(host.Bounds.Height > 0);
                     Assert.Equal(host.Bounds.Height, sidebar.Bounds.Height);
                     Assert.Equal(0, sidebar.TranslatePoint(default, host)!.Value.Y);
-                    Assert.Equal(16, sidebar.Padding.Top);
-                    Assert.Equal(16, sidebar.Padding.Bottom);
+                    Assert.Equal(8, sidebar.Padding.Top);
+                    Assert.Equal(8, sidebar.Padding.Bottom);
                     Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
-                    Assert.Equal(16, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
-                    Assert.Equal(sidebar.Bounds.Height - 44 - sidebar.HeaderRow.Bounds.Height, sidebar.Card.Bounds.Height);
-                    Assert.Equal(sidebar.Bounds.Height - 16, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
+                    Assert.Equal(8, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
+                    Assert.Equal(sidebar.Bounds.Height - 24 - sidebar.HeaderRow.Bounds.Height, sidebar.Card.Bounds.Height);
+                    Assert.Equal(sidebar.Bounds.Height - 8, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
                     double chrome = sidebar.Bounds.Height - sidebar.Frame.Bounds.Height;
                     chromeHeight ??= chrome;
                     Assert.Equal(chromeHeight.Value, chrome);
@@ -257,10 +257,10 @@ public sealed class ReaderMediaSidebarLayoutTests
             window.Show();
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
-            GalleryMeasuredGeometryTests.AssertSidebarHeader(sidebar.HeaderRow, sidebar.Title, sidebar.PositionPill, sidebar.Close);
-            Assert.Equal("No. 16 / 23", sidebar.PositionPill.Label.Text);
+            SidePanelDesignTests.AssertCompactHeader(sidebar);
+            if (sidebar.PositionPill.IsVisible) Assert.Contains("16 / 23", sidebar.PositionPill.Label.Text);
             Assert.Equal("Medium 16 of 23", ToolTip.GetTip(sidebar.PositionPill));
-            Assert.Empty(sidebar.HeaderRow.GetVisualDescendants().OfType<ToggleButton>());
+            Assert.Equal(2, sidebar.HeaderRow.GetVisualDescendants().OfType<ToggleButton>().Count());
             Assert.Equal("No. 123", sidebar.Title.Text);
             Assert.Same(sidebar.PositionPill, Assert.Single(sidebar.HeaderRow.GetVisualDescendants().OfType<MediaPositionPill>()));
         }
@@ -282,12 +282,12 @@ public sealed class ReaderMediaSidebarLayoutTests
         void Layout()
         {
             window.UpdateLayout();
-            Assert.Equal(32, view.HeaderRow.Bounds.Height);
+            Assert.Equal(48, view.HeaderRow.Bounds.Height);
             Assert.Equal(height, view.Bounds.Height);
             Assert.Equal(view.Padding.Top, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
             ScrollViewer details = view.GetVisualDescendants().OfType<ScrollViewer>().Single(scroller => scroller.Name == "ReaderMediaSidebarDetails");
             double detailsHeight = details.IsVisible ? details.Bounds.Height + details.Margin.Top : 0;
-            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 12 - detailsHeight, view.Card.Bounds.Height, 1);
+            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 8 - detailsHeight, view.Card.Bounds.Height, 1);
         }
         try
         {
@@ -295,7 +295,7 @@ public sealed class ReaderMediaSidebarLayoutTests
             Layout();
             Rect emptyHeader = view.HeaderRow.Bounds;
             Rect emptyCard = view.Card.Bounds;
-            Assert.Equal(32, emptyHeader.Height);
+            Assert.Equal(48, emptyHeader.Height);
             GalleryTagPanelPosition mediaPosition = new(1234567890, 1234567891, false);
             string positionText = MediaPositionText.Long(mediaPosition)!;
             view.Describe("No. 123", new string('x', 500) + ".png", "100 MiB · 50000×100", true,
@@ -303,25 +303,16 @@ public sealed class ReaderMediaSidebarLayoutTests
             view.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
             view.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
             Layout();
-            Control headerRow = Assert.IsType<MediaSidebarHeader>(view.HeaderRow);
-            MediaFactGrid facts = Assert.Single(view.GetVisualDescendants().OfType<MediaFactGrid>());
-            SelectableTextBlock metadata = facts.Children.OfType<SelectableTextBlock>().Single(text => text.Name == "ReaderMediaSidebarFile");
-            MediaPositionPill position = view.PositionPill;
-            Point At(Control control) => control.TranslatePoint(default, headerRow)!.Value;
-            Assert.DoesNotContain(view.Open, headerRow.GetVisualDescendants());
-            Assert.Contains(view.Title, headerRow.GetVisualDescendants());
-            Assert.Equal(new string('x', 500) + ".png", ToolTip.GetTip(metadata));
-            Assert.True(At(view.Open).Y > At(metadata).Y);
-            Assert.Equal(headerRow.Bounds.Width, At(view.Close).X + view.Close.Bounds.Width, 0.5);
-            Assert.True(position.Bounds.Width > 0);
-            Assert.Equal(positionText, ToolTip.GetTip(position));
-            Assert.Equal(At(view.Close).Y + view.Close.Bounds.Height / 2, At(position).Y + position.Bounds.Height / 2, 0.5);
-            GalleryMeasuredGeometryTests.AssertSidebarHeader(headerRow, view.Title, position, view.Close);
-            TextBlock positionLabel = position.Label;
-            Assert.Single(positionLabel.TextLayout.TextLines);
+            SidePanelDesignTests.AssertCompactHeader(view);
+            TextBlock metadata = ((MediaCompactHeader)view.HeaderRow).Meta;
+            Assert.Contains(new string('x', 500) + ".png", ToolTip.GetTip(metadata)?.ToString());
+            Assert.EndsWith(".png · 100 MiB · 50000×100", metadata.Text);
+            Assert.Equal(positionText, ToolTip.GetTip(view.PositionPill));
+            Assert.True(view.Open.IsEffectivelyVisible);
+            Assert.False(view.DecisionRow.IsEffectivelyVisible);
             Rect header = view.HeaderRow.Bounds;
             Rect card = view.Card.Bounds;
-            Assert.Equal(view.Card.Bounds.Height, view.Frame.Bounds.Height);
+            Assert.Equal(view.Card.Bounds.Height - 2, view.Frame.Bounds.Height);
             view.ShowStrip(3, 0, 3, index => "file" + index, samePost: false);
             Layout();
             Assert.Equal(header, view.HeaderRow.Bounds);

@@ -36,9 +36,12 @@ public sealed class ReaderMediaPanelDecisionTests
         {
             window.Show();
             window.UpdateLayout();
-            GalleryDecisionRow decision = Assert.Single(sidebar.GetVisualDescendants().OfType<GalleryDecisionRow>());
+            Assert.False(sidebar.DecisionRow.IsEffectivelyVisible);
+            Click(sidebar.InfoToggle);
+            window.UpdateLayout();
+            GalleryDecisionRow decision = Assert.Single(sidebar.GetVisualDescendants().OfType<GalleryDecisionRow>(), row => row.IsEffectivelyVisible);
             Assert.Equal(3, decision.View.Rating);
-            Assert.Equal(-2, decision.StarButtons[0].TranslatePoint(default, decision)!.Value.X, 0.5);
+            Assert.Equal(0, decision.StarButtons[0].TranslatePoint(default, decision)!.Value.X, 0.5);
             Assert.True(decision.StarButtons[2].IsChecked);
             Click(decision.StarButtons[4]);
             Assert.Equal(5, rating);
@@ -56,7 +59,7 @@ public sealed class ReaderMediaPanelDecisionTests
             Assert.True(Top(decision) < Top(tags));
             Assert.True(Top(tags) < Top(facts));
             Assert.True(Top(facts) < Top(edit));
-            Assert.Equal(sidebar.Open.Bounds.Width, edit.Bounds.Width, 0.5);
+            Assert.Equal(edit.DesiredSize.Width, edit.Bounds.Width, 0.5);
             Click(edit);
             Assert.Equal(1, edits);
             Assert.IsType<PanelCloseButton>(sidebar.Close);

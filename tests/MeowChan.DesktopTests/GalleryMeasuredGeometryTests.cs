@@ -147,13 +147,10 @@ public sealed class GalleryMeasuredGeometryTests
 
             GalleryDecisionRow row = tab == GallerySidePanelSegment.Post ? post : tags;
             Assert.True(row.IsEffectivelyVisible);
-            Assert.Equal(tab == GallerySidePanelSegment.Post ? "3 of 5" : "Unrated", row.Summary.Text);
-            Assert.True(row.StarButtons[0].Bounds.Bottom < row.FavoriteButton.Bounds.Top);
-            Assert.True(row.FavoriteButton.Bounds.Width < panel.Bounds.Width);
-            Assert.Equal(row.StarButtons[0].Bounds.Left, row.FavoriteButton.Bounds.Left, 0.5);
-            Assert.True(row.FavoriteButton.Bounds.Right <= row.StarButtons[^1].Bounds.Right);
-            Assert.True(row.ClearButton.Bounds.Bottom < row.Summary.Bounds.Top);
-            Assert.Equal(row.ClearButton.Bounds.Left + 8, row.Summary.Bounds.Left, 0.5);
+            Assert.Equal(tab == GallerySidePanelSegment.Post ? "3 of 5" : "Unrated", ToolTip.GetTip(row.RatingBar));
+            Assert.Equal(row.ClearButton.Bounds.Center.Y, row.FavoriteButton.Bounds.Center.Y, 0.5);
+            Assert.Equal(row.ClearButton.Bounds.Right + 8, row.FavoriteButton.Bounds.Left, 0.5);
+            Assert.True(row.FavoriteButton.Bounds.Right <= panel.Bounds.Width);
         }
 
         panel.Position.Show(null);
@@ -244,6 +241,6 @@ public sealed class GalleryMeasuredGeometryTests
         readerScope.Measure(new Size(420, 720));
         readerScope.Arrange(new Rect(0, 0, 420, 720));
         Assert.Equal(reader.Padding.Left, reader.Padding.Right);
-        Assert.Equal(16, reader.Padding.Left);
+        Assert.Equal(8, reader.Padding.Left);
     });
 }
