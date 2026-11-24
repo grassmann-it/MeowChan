@@ -288,6 +288,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     internal void Release()
     {
+        if (_target is null) return;
         _sample.Reset(offered: false);
         SampleLoad = Task.CompletedTask;
         _facts.Hide();
