@@ -47,6 +47,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.group.rename", "Rename", "Umbenennen"),
         ("tagging.page.group.delete", "Delete group", "Gruppe löschen"),
         ("tagging.page.group.delete.ask", "Delete group “{0}”? Its entries stay in the queue without a group.", "Gruppe „{0}“ löschen? Die Einträge bleiben ohne Gruppe in der Warteschlange."),
+        ("tagging.page.group.delete.stamp", "This also deletes the group's stamp.", "Der Stempel der Gruppe wird ebenfalls gelöscht."),
         ("tagging.page.group.assign", "Assign to group", "Zu Gruppe"),
         ("tagging.page.group.remove", "Remove from group", "Aus Gruppe nehmen"),
         ("tagging.page.group.created", "Group created: {0}.", "Gruppe erstellt: {0}."),

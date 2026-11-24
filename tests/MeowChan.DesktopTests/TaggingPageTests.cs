@@ -417,6 +417,61 @@ public sealed class TaggingPageTests : IDisposable
     });
 
     [Fact]
+    public void DeletingAGroupConfirmsStampLossAndOnlyUngroupsItsOwnEntries() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            using TempDirectory temp = new();
+            await using DesktopSessionHost host = await StartAsync(temp.Path);
+            TagQueueItem first = Item(1), second = Item(2);
+            await host.EnqueueTagQueueAsync([first, second]);
+            TagQueueGroup target = Assert.Single((await host.CreateTagQueueGroupAsync("Review", [first.Key])).Groups);
+            TagQueueGroup kept = (await host.CreateTagQueueGroupAsync("Keep", [second.Key])).Groups.Single(group => group.Id != target.Id);
+            await host.SetTagQueueGroupStampAsync(target.Id, ["reviewed"]);
+            await host.SetTagQueueGroupStampAsync(kept.Id, ["saved"]);
+
+            TaggingPage page = new(host);
+            Window window = new() { Content = page, Width = 760, Height = 640 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                await page.ActivateAsync();
+                ComboBox groups = Find<ComboBox>(page, "tagging.group");
+                groups.SelectedItem = page.GroupChoices.Single(choice => choice.Id == target.Id);
+                page.GroupManageMenuModel()!.Entries.Single(entry => entry.Id == "tagging.group.delete").Invoke!();
+                Window? Prompt() => window.OwnedWindows.SingleOrDefault(owned =>
+                    AutomationProperties.GetAutomationId(owned) == "tagging.group.delete");
+                await BooruTestSupport.WaitAsync(() => Prompt()?.IsVisible == true, "the group deletion prompt");
+                Window dialog = Prompt()!;
+                string? question = Find<TextBlock>(dialog, "tagging.group.delete.message").Text;
+                Assert.Contains("Its entries stay in the queue without a group.", question);
+                Assert.Contains("This also deletes the group's stamp.", question);
+                Assert.Equal(new[] { "reviewed" }, host.GetTagQueue()!.Group(target.Id)!.Stamp);
+                Find<Button>(dialog, "tagging.group.delete.accept").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => page.Queue.Groups.Count == 1, "the selected group is deleted");
+
+                TagQueueSnapshot saved = (await host.LoadTagQueueAsync());
+                Assert.Equal(kept.Id, Assert.Single(saved.Groups).Id);
+                Assert.Equal(new[] { "saved" }, saved.Groups[0].Stamp);
+                Assert.Null(saved.Items.Single(item => item.Key == first.Key).GroupId);
+                Assert.Equal(kept.Id, saved.Items.Single(item => item.Key == second.Key).GroupId);
+            }
+            finally
+            {
+                page.End();
+                window.Close();
+            }
+        }
+
+        static T Find<T>(Control root, string id) where T : Control => root.GetVisualDescendants().OfType<T>()
+            .Single(control => AutomationProperties.GetAutomationId(control) == id);
+    });
+
+    [Fact]
     public void ConfirmingAClearAfterTheFileBecomesUnreadableRequiresASeparateReset() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();

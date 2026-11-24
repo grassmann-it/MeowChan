@@ -59,6 +59,7 @@ internal static class TagBarCatalog
         ("tags.manage.rename", "Rename", "Umbenennen"),
         ("tags.manage.delete", "Delete tag…", "Tag löschen…"),
         ("tags.manage.confirm", "Delete the tag “{0}”? It will be removed from threads ({1}) and media ({2}). This cannot be undone.", "Tag „{0}“ löschen? Er wird von Threads ({1}) und Medien ({2}) entfernt. Das lässt sich nicht rückgängig machen."),
+        ("tags.manage.confirmAliases", "This also deletes the tag's aliases.", "Die Aliasnamen des Tags werden ebenfalls gelöscht."),
         ("tags.manage.confirmDelete", "Delete tag", "Tag löschen"),
         ("tags.manage.keep", "Keep tag", "Tag behalten"),
         // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.

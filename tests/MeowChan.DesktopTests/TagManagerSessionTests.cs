@@ -1,7 +1,10 @@
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Persistence;
 using MeowChan.Storage;
@@ -163,6 +166,8 @@ public sealed class TagManagerSessionTests
         store.SetThread(cat, Thread("1"), true);
         store.SetThread(dog, Thread("1"), true);
         store.SetMedia(cat, Media("1"), true);
+        store.AddAlias(cat, "kitten");
+        store.AddAlias(dog, "puppy");
         TagManagerDialog dialog = new(Session(store));
         try
         {
@@ -177,6 +182,7 @@ public sealed class TagManagerSessionTests
                 Assert.False(dialog.ConfirmPanel.IsVisible);
                 Assert.Equal(2, store.ReadSnapshot().TagsOf(Thread("1")).Count);
                 Assert.Single(store.ReadSnapshot().MediaAssignments);
+                Assert.Equal(2, store.ReadSnapshot().Aliases.Count);
             }
             Ask();
             Press(Key.Tab, PhysicalKey.Tab);
@@ -185,6 +191,9 @@ public sealed class TagManagerSessionTests
             BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => dialog.Session.Rows.Count == 1, "only one tag remains"));
             Assert.Equal(dog, Assert.Single(store.ReadSnapshot().TagsOf(Thread("1"))).Id);
             Assert.Empty(store.ReadSnapshot().MediaAssignments);
+            PrivateTagAlias alias = Assert.Single(store.ReadSnapshot().Aliases);
+            Assert.Equal(dog, alias.Tag);
+            Assert.Equal("puppy", alias.Name.Display);
 
             void Ask()
             {
@@ -195,7 +204,10 @@ public sealed class TagManagerSessionTests
                 Assert.InRange(-endOfKeep.X, 7, 9);
                 Assert.Contains("danger", dialog.ConfirmDeleteButton.Classes);
                 Assert.Equal("Delete tag", dialog.ConfirmDeleteButton.Content);
-                Assert.Contains("“cat”", dialog.ConfirmText.Text);
+                TextBlock message = dialog.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(control => AutomationProperties.GetAutomationId(control) == "tags.manage.delete.message");
+                Assert.Contains("“cat”", message.Text);
+                Assert.Contains("This also deletes the tag's aliases.", message.Text);
             }
 
             void Press(Key key, PhysicalKey physical)
