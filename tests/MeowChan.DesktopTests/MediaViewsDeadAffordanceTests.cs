@@ -506,7 +506,6 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         // The press no longer drops the flag on a Background tick (that came before Avalonia's release-time ContextRequested); the release does.
         Assert.DoesNotContain("Dispatcher.UIThread.Post", pressBody);
         Assert.Contains("_panelPointerContext.BeginPress(); // each press starts its own gesture", pressBody);
-        Assert.Contains("_panelPointerContext.MenuOpenedByPress();", pressBody);
         string releaseBody = panel[released..requested];
         Assert.Contains("_panelPointerContext.Released(e.InitialPressMouseButton)", releaseBody);
         Assert.Contains("panel.AddHandler(PointerReleasedEvent, OnPanelPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);", panel);

@@ -78,9 +78,11 @@ public sealed class SelectionContextGestureTests
     });
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TaggingEmptySpaceKeepsTheSelectionWithoutOpeningItsMenu(bool macControlClick) => BooruComponentDispatcher.Run(() =>
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void TaggingEmptySpaceKeepsTheSelectionWithoutOpeningItsMenu(bool macControlClick, bool useGrid) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -94,6 +96,7 @@ public sealed class SelectionContextGestureTests
             await session.EnqueueTagQueueAsync([Item(1), Item(2), Item(3)]);
             using TaggingPage page = new(session);
             await page.ActivateAsync();
+            if (useGrid) page.SetViewMode(TaggingViewMode.Grid, save: false);
             ListBox list = page.ShownList;
             Window window = new() { Width = 1000, Height = 680, Content = page };
             ContextClick.MacOSForTests = macControlClick;
@@ -114,12 +117,90 @@ public sealed class SelectionContextGestureTests
 
                 if (macControlClick) ContextGestures.ControlClick(rows[1]); else ContextGestures.RightClick(rows[1]);
                 ContextMenu menu = Assert.IsType<ContextMenu>(page.OpenListMenu);
+                Assert.True(menu.IsOpen);
                 Assert.Equal(3, list.Selection.Count);
                 Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == "media.copy-file-name").Activate();
                 Assert.Equal(string.Join(Environment.NewLine, new[] { "file-1.png", "file-2.png", "file-3.png" }),
                     BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync()));
             }
             finally { ContextClick.MacOSForTests = null; window.Close(); }
+        }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MediaRightPressAndReleaseKeepOneMenuForTheShownMedium(bool usePanel) => RateAndTagWindowFixture.RunMediaPage(async (window, page) =>
+    {
+        ListBoxItem tile = Assert.IsType<ListBoxItem>(page.Grid.ContainerFromIndex(0));
+        MediaLibraryTileRow row = Assert.IsType<MediaLibraryTileRow>(tile.DataContext);
+        Control target = tile;
+        if (usePanel)
+        {
+            page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
+            await BooruTestSupport.WaitAsync(() => ReferenceEquals(page.PanelRow, row), "the panel to show the selected medium");
+            target = Assert.IsType<ReaderMediaSidebar>(page.Panel).Title;
+        }
+
+        ContextGestures.Press(target, MouseButton.Right);
+        ContextMenu menu = Assert.IsType<ContextMenu>(page.MediaMenu);
+        MediaMenuSession session = Assert.IsType<MediaMenuSession>(page.MediaMenuSession);
+        Assert.True(menu.IsOpen);
+        Assert.Equal(MediaMenuTarget.Of(row.Entry), session.Target);
+        Assert.Contains(MenuProbe.Entries(menu), entry => entry.Id == "media.open-external");
+
+        ContextGestures.Release(target, MouseButton.Right);
+        Assert.Same(menu, page.MediaMenu);
+        Assert.Same(session, page.MediaMenuSession);
+        Assert.True(menu.IsOpen);
+        menu.Close();
+        ContextGestures.Settle(window);
+    });
+
+    [Fact]
+    public void ReaderTagChipOpensItsOwnMenuAndRemovesOnlyThatTag() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        static async Task ExerciseAsync()
+        {
+            using TempDirectory profile = new();
+            using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
+            ArchivedThreadView thread = RateAndTagWindowFixture.View(media);
+            new Config { DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1 }.SaveConfig(profile.Path);
+            await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
+            await using DesktopSessionHost host = new(profile.Path, []);
+            await host.StartAsync();
+            TagId keep = (await host.DefinePrivateTagAsync("keep")).Tag;
+            TagId remove = (await host.DefinePrivateTagAsync("remove")).Tag;
+            await host.SetThreadTagAsync(keep, thread.Summary.Id, true);
+            await host.SetThreadTagAsync(remove, thread.Summary.Id, true);
+
+            ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
+            page.AttachPrivateTags(host);
+            Window window = new() { Width = 1500, Height = 860, Content = page };
+            try
+            {
+                window.Show();
+                await page.ActivateAsync();
+                await page.OpenThreadTagsAsync(thread.Summary.Id);
+                WrapPanel chips = Assert.IsType<WrapPanel>(page.FindControl<WrapPanel>("ReaderTagChips"));
+                Button chip = Assert.Single(chips.Children.OfType<Button>(),
+                    button => Equals(ToolTip.GetTip(button), MeowChan.Desktop.Localization.Texts.T("tags.remove", "remove")));
+                ContextGestures.RightClick(chip);
+                ContextMenu menu = Assert.IsType<ContextMenu>(chip.ContextMenu);
+                Assert.True(menu.IsOpen);
+                IReadOnlyList<MenuProbe.Entry> entries = MenuProbe.Entries(menu);
+                Assert.Equal(new[] { "reader.tag.filter", "reader.tag.copy-name", "reader.tag.manage", "reader.tag.remove" },
+                    entries.Select(entry => entry.Id));
+                Assert.True(entries[^1].Section > entries[^2].Section);
+                entries[^1].Activate();
+                await page.PrivateTagTask;
+                PrivateTagStoreSnapshot tags = Assert.IsType<PrivateTagStoreSnapshot>(host.GetPublishedPrivateTagSnapshot().Snapshot);
+                Assert.Equal(keep, Assert.Single(tags.TagsOf(thread.Summary.Id)).Id);
+            }
+            finally { page.EndLifetime(); window.Close(); }
         }
     });
 

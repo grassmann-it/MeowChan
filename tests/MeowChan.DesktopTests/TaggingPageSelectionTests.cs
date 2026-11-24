@@ -39,7 +39,6 @@ public sealed class TaggingPageSelectionTests : IDisposable
         // The grid is the media page's panel over multi-select, with its own menu host, the same key handler and the same continue action.
         Assert.Contains("SelectionMode = SelectionMode.Multiple", grid);
         Assert.Contains("new MediaTilePanel", grid);
-        Assert.Contains("_gridMenuHost = new ContextMenuHost(_grid, ComposeRowMenu", grid);
         Assert.Contains("_grid.AddHandler(KeyDownEvent, OnListKeyDown", grid);
         Assert.Contains("_grid.DoubleTapped", grid);
         Assert.Contains("_grid.SelectionChanged += OnSelectionChanged;", grid);

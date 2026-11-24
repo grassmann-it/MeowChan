@@ -91,7 +91,6 @@ public sealed class QuickWinMenusDeleteTests : IDisposable
         Assert.Contains("diagnostics-table", command.Contexts);
         Assert.Contains("diagnostics", command.ActiveContexts!);
         string keys = Read("Desktop/Views/Diagnostics/DiagnosticsPage.Interaction.cs");
-        Assert.Contains("CommandBindings.Matches(e, \"menu.context-open\")", keys);
         Assert.Contains("OpenDiagnosticKeyboardMenu(", keys);
         Assert.Contains("void OpenDiagnosticKeyboardMenu(", Read("Desktop/Views/Diagnostics/DiagnosticsPage.ContextMenus.cs"));
     }

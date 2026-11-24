@@ -53,7 +53,6 @@ public sealed class ReaderPageDeadAffordanceTests
     public void EveryTagBarChipHasAMenuWithRemoveFilterCopyAndManage()
     {
         string tags = Source("Desktop/Views/Archive/ArchivePage.Tags.cs");
-        Assert.Contains("WorkspaceChips.AttachMenu(chip, () => ComposeThreadTagChipMenu(tag.Name.Display, tagId)", tags);
         foreach (string entry in new[] { "reader.tag.remove", "reader.tag.filter", "reader.tag.copy-name", "reader.tag.manage" })
             Assert.Contains("\"" + entry + "\"", tags);
         // The filter runs the archive's own search path, after the large reader closed.
