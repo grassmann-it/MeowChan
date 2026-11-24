@@ -1068,8 +1068,12 @@ public partial class ArchivePage
 
     private bool SuppressReaderActionArrows(KeyEventArgs e)
     {
-        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down) || e.Source is not Visual source) return false;
-        if (!source.GetSelfAndVisualAncestors().Contains(ReaderNavigation)) return false;
+        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down) || e.Source is not Visual source
+            || SidebarToggleGroup.IsSegmentArrow(e)) return false;
+        var path = source.GetSelfAndVisualAncestors();
+        if (!path.Contains(ReaderNavigation)
+            && !(e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift && path.Any(visual => visual is Button)
+                && (path.Contains(ReaderToolbar) || path.Contains(ArchiveMediaFooter)))) return false;
         e.Handled = true;
         return true;
     }

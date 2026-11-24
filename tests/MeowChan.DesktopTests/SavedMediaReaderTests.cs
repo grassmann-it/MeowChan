@@ -926,7 +926,7 @@ public sealed class SavedMediaReaderTests
         PressKey(window, next, RawInputModifiers.Shift);
         Assert.Equal(rows, page.SelectedMediaRows());
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[3].Name, StringComparison.Ordinal)
-            && sidebar.Load.ShownSource == new PixelSize(19, 13));
+            && sidebar.Load.ShownSource == new PixelSize(19, 13) && !sidebar.Load.Awaiting && !sidebar.IsDimmed);
         Assert.Equal("42", page.CurrentReaderPostId);
         Assert.Equal(1, page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex);
 
