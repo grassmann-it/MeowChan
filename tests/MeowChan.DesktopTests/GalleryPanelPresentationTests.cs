@@ -20,10 +20,14 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class GalleryPanelPresentationTests
 {
+    private static readonly string[] BuiltInLanguages = ["en", "de"];
+    private static readonly int[] PanelWidths = [280, 320];
+    private static readonly bool[] Modes = [false, true];
+
     public static IEnumerable<object[]> ActionCases() =>
-        from language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes())
-        from width in new[] { 280, 320 }
-        from queue in new[] { false, true }
+        from language in BuiltInLanguages.Concat(Texts.BundledPackCodes())
+        from width in PanelWidths
+        from queue in Modes
         select new object[] { language, width, queue };
 
     [Theory, MemberData(nameof(ActionCases))]
@@ -36,7 +40,7 @@ public sealed class GalleryPanelPresentationTests
             if (queue) viewer.StartTaggingMode(walk, owner);
             List<GalleryEntry> opened = [];
             viewer.ReadPostRequested += opened.Add;
-            foreach (bool tags in new[] { false, true })
+            foreach (bool tags in Modes)
             {
                 if (tags) viewer.ShowTagPanel(owner);
                 else viewer.SidePanel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
