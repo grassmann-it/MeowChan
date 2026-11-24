@@ -35,7 +35,11 @@ public partial class ArchivePage
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
         // Escape inside the media sidebar only leaves it (R8): the focus goes back to the selected post, before any reader-wide dismissal. Whether the
         // sidebar is on is a stored layout choice that the × button, the View menu and Primary+Shift+M change; Escape never switches it off (RD-01).
-        if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source)) { FocusSelectedPostOrList(); return true; }
+        if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source))
+        {
+            if (_mediaSidebar?.InvalidateTagEditor() != true) FocusSelectedPostOrList();
+            return true;
+        }
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
         if (IsReaderDialogOpen)
         {

@@ -831,6 +831,7 @@ public partial class MainWindow
                 return;
             }
             if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
+                (_selectedPage == WorkspacePage.Media && _mediaPage?.TryDismissPanelTagEditor(e) == true) ||
                 (_archivePage?.TryDismissOverlay(e.Source) ?? false))
             { e.Handled = true; return; }
             if (_archivePage?.IsReaderDialogOpen == true) return;

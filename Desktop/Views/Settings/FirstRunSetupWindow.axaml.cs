@@ -99,13 +99,18 @@ internal partial class FirstRunSetupWindow : Window
     private FirstRunSetupRawDraft SynchronizeDraft()
     {
         if (_initializing || _closed) return _draft.Current;
+        long folderRevision = _draft.FolderRevision;
         if (_draft.Synchronize(ReadRawDraft()))
         {
-            _checkWait?.Cancel();
-            _checkStatus = null;
-            SetupPathError.IsVisible = SetupLimitsError.IsVisible = SetupError.IsVisible = false;
+            if (folderRevision != _draft.FolderRevision || (_accepting && _checkWait != null))
+            {
+                _checkWait?.Cancel();
+                _checkStatus = null;
+                SetupPathError.IsVisible = false;
+                RefreshFolderStatus();
+            }
+            SetupLimitsError.IsVisible = SetupError.IsVisible = false;
             RefreshPreview();
-            SetupStatus.Text = Texts.T("destination.NotChecked");
         }
         return _draft.Current;
     }
@@ -117,7 +122,7 @@ internal partial class FirstRunSetupWindow : Window
 
     private void RefreshPreview()
     {
-        DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(SetupFolderInput.Text, _baseline.DownloadPathBaseDirectory);
+        DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(_draft.Current.Folder, _baseline.DownloadPathBaseDirectory);
         SetupNormalizedPath.Text = syntax.NormalizedPath == null ? Texts.T("destination.noPreview")
             : Texts.T("destination.normalized", syntax.NormalizedPath);
         RefreshParallelLimitPreview();
@@ -156,11 +161,8 @@ internal partial class FirstRunSetupWindow : Window
         SetupReserveHint.Text = Texts.T("setup.reserve", _baseline.MinimumFreeSpaceGiB);
         SetupScopeHint.Text = Texts.T("destination.scope");
         SetupProbePolicy.Text = Texts.T("destination.policy");
-        SetupStatus.Text = _result.Outcome == FirstRunSetupOutcome.Completed
-            ? Texts.T("setup.savedWithWarning", _result.Message)
-            : _committing ? Texts.T("setup.saving")
-            : _checkWait != null ? Texts.T("setup.checking")
-            : Texts.T("destination." + (_checkStatus?.ToString() ?? "NotChecked"));
+        RefreshCommitStatus();
+        RefreshFolderStatus();
         if (SetupLimitsError.IsVisible) SetupLimitsError.Text = Texts.T("setup.positiveLimits");
         if (SetupPathError.IsVisible && _pathErrorKey != null) SetupPathError.Text = Texts.T(_pathErrorKey);
         if (SetupError.IsVisible && _errorKey != null) SetupError.Text = Texts.T(_errorKey);
@@ -171,6 +173,14 @@ internal partial class FirstRunSetupWindow : Window
         AutomationProperties.SetHelpText(SetupBandwidthInput, Texts.T("setup.positiveLimits"));
         RefreshCleanupWarning();
     }
+
+    private void RefreshFolderStatus() => SetupFolderStatus.Text = _checkWait is { IsCancellationRequested: false }
+        ? Texts.T("setup.checking")
+        : Texts.T("destination." + (_checkStatus?.ToString() ?? "NotChecked"));
+
+    private void RefreshCommitStatus() => SetupStatus.Text = _result.Outcome == FirstRunSetupOutcome.Completed
+        ? Texts.T("setup.savedWithWarning", _result.Message)
+        : _committing ? Texts.T("setup.saving") : string.Empty;
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
     {
@@ -186,7 +196,8 @@ internal partial class FirstRunSetupWindow : Window
     {
         _busy = busy;
         if (_closed) return;
-        SetupFields.IsEnabled = SetupAcceptButton.IsEnabled = !busy;
+        SetupFields.IsEnabled = !busy || checking;
+        SetupBrowseButton.IsEnabled = SetupCheckButton.IsEnabled = SetupAcceptButton.IsEnabled = !busy;
         SetupLaterButton.IsEnabled = !_committing;
         SetupCancelCheckButton.IsVisible = checking;
     }
@@ -197,8 +208,7 @@ internal partial class FirstRunSetupWindow : Window
         DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(raw.Folder, _baseline.DownloadPathBaseDirectory);
         if (syntax.NormalizedPath == null)
         {
-            ShowPathError("settings.pathInvalid");
-            Reveal(SetupFolderInput);
+            ReportInvalidFolder();
             return false;
         }
         if (!FirstRunSetupCoordinator.TryParseLimits(raw.Bandwidth, raw.Parallel,
@@ -213,6 +223,12 @@ internal partial class FirstRunSetupWindow : Window
         }
         values = new(syntax.NormalizedPath, rate, parallel);
         return true;
+    }
+
+    private void ReportInvalidFolder()
+    {
+        ShowPathError("settings.pathInvalid");
+        Reveal(SetupFolderInput);
     }
 
     private void Reveal(Control input)
@@ -255,23 +271,28 @@ internal partial class FirstRunSetupWindow : Window
         finally { SetWorking(false); }
     }
 
-    private async Task<bool> CheckAsync(FirstRunSetupValues values, long revision)
+    private async Task<bool> CheckAsync(string path)
     {
-        SynchronizeDraft();
-        if (_closed || revision != _revision) return false;
+        long folderRevision = _draft.FolderRevision;
+        long revision = _revision;
+        bool fromCheckButton = SetupCheckButton.IsFocused;
         using var wait = new CancellationTokenSource();
         _checkWait = wait;
+        _checkStatus = null;
+        SetupPathError.IsVisible = false;
         SetWorking(true, checking: true);
-        SetupStatus.Text = Texts.T("setup.checking");
+        RefreshFolderStatus();
+        if (fromCheckButton) SetupCancelCheckButton.Focus(NavigationMethod.Tab);
+        SetupCancelCheckButton.BringIntoView();
         try
         {
-            DownloadDestinationResult result = await _validator.CheckAsync(values.DownloadPath, _baseline.DownloadPathBaseDirectory,
+            DownloadDestinationResult result = await _validator.CheckAsync(path, _baseline.DownloadPathBaseDirectory,
                 checked((long)_baseline.MinimumFreeSpaceGiB * (1L << 30)), TimeSpan.FromSeconds(5), wait.Token);
             if (_closed) return false;
             SynchronizeDraft();
-            if (revision != _revision) return false;
+            if (folderRevision != _draft.FolderRevision || (_accepting && revision != _revision)) return false;
+            if (wait.IsCancellationRequested) result = new(DownloadDestinationStatus.Cancelled, path);
             _checkStatus = result.Status;
-            SetupStatus.Text = Texts.T("destination." + result.Status);
             if (!result.CanApply)
             {
                 ShowPathError("destination." + result.Status);
@@ -279,7 +300,17 @@ internal partial class FirstRunSetupWindow : Window
             }
             return result.CanApply;
         }
-        finally { _checkWait = null; SetWorking(_accepting); }
+        finally
+        {
+            _checkWait = null;
+            bool restoreFocus = !_closed && SetupCancelCheckButton.IsFocused;
+            SetWorking(_accepting);
+            if (!_closed)
+            {
+                RefreshFolderStatus();
+                if (restoreFocus && !_accepting) SetupCheckButton.Focus(NavigationMethod.Tab);
+            }
+        }
     }
 
     private async void OnCheckClick(object? sender, RoutedEventArgs e)
@@ -288,8 +319,9 @@ internal partial class FirstRunSetupWindow : Window
         _hasAction = true;
         FirstRunSetupRawDraft raw = SynchronizeDraft();
         ClearActionErrors();
-        if (!TryReadDraft(raw, out FirstRunSetupValues? values)) return;
-        await CheckAsync(values!, _revision);
+        DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(raw.Folder, _baseline.DownloadPathBaseDirectory);
+        if (syntax.NormalizedPath is { } path) await CheckAsync(path);
+        else ReportInvalidFolder();
     }
 
     private async void OnAcceptClick(object? sender, RoutedEventArgs e)
@@ -303,12 +335,12 @@ internal partial class FirstRunSetupWindow : Window
         long revision = _revision;
         try
         {
-            if (!await CheckAsync(values!, revision) || _closed) return;
+            if (!await CheckAsync(values!.DownloadPath) || _closed) return;
             SynchronizeDraft();
             if (revision != _revision) return;
             _committing = true;
             SetWorking(true);
-            SetupStatus.Text = Texts.T("setup.saving");
+            RefreshCommitStatus();
             _commitTask = _accept(values!);
             FirstRunSetupCommitResult completion = await _commitTask;
             if (!completion.Persisted)
@@ -326,14 +358,19 @@ internal partial class FirstRunSetupWindow : Window
                 SetupAcceptButton.IsVisible = false;
                 SetupFields.IsVisible = false;
                 SetupLaterButton.Content = Texts.T("setup.close");
-                SetupStatus.Text = Texts.T("setup.savedWithWarning", completion.ActivationWarning);
             }
         }
         catch (Exception) { if (!_closed) ShowError("setup.saveUnconfirmed"); }
-        finally { _accepting = false; _committing = false; SetWorking(false); }
+        finally
+        {
+            _accepting = false;
+            _committing = false;
+            SetWorking(false);
+            if (!_closed) RefreshCommitStatus();
+        }
     }
 
-    private void ClearActionErrors() => SetupError.IsVisible = SetupPathError.IsVisible = SetupLimitsError.IsVisible = false;
+    private void ClearActionErrors() => SetupError.IsVisible = SetupLimitsError.IsVisible = false;
     private void ShowPathError(string key)
     {
         _pathErrorKey = key;
@@ -372,10 +409,12 @@ internal sealed class FirstRunSetupDraftState(FirstRunSetupRawDraft initial)
 {
     internal FirstRunSetupRawDraft Current { get; private set; } = initial;
     internal long Revision { get; private set; }
+    internal long FolderRevision { get; private set; }
 
     internal bool Synchronize(FirstRunSetupRawDraft current)
     {
         if (Current == current) return false;
+        if (Current.Folder != current.Folder) FolderRevision++;
         Current = current;
         Revision++;
         return true;
