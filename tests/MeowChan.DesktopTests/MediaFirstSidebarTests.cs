@@ -38,6 +38,20 @@ public sealed class MediaFirstSidebarTests
     }
 
     [Fact]
+    public void EquivalentInfoOverridesCoexistAndTheNewDefaultYieldsToAnOlderReaderBinding()
+    {
+        ShortcutGesture info = new("I", ["Shift"]);
+        var explicitInfo = new ShortcutBindingsSection().Set("media.sidebar.info", [info]).Set("gallery.layout.info", [info]);
+        Assert.DoesNotContain(EffectiveShortcutBindings.Build(explicitInfo).Issues, issue => issue.BlocksSave);
+        var readerOverride = new ShortcutBindingsSection().Set("reader.sidebar.toggle", [info]);
+        var bindings = EffectiveShortcutBindings.Build(readerOverride);
+        KeyEventArgs shiftI = new() { Key = Key.I, KeyModifiers = KeyModifiers.Shift };
+        Assert.True(bindings.Matches(shiftI, "reader.sidebar.toggle", "reader"));
+        Assert.False(bindings.Matches(shiftI, "media.sidebar.info", "reader"));
+        Assert.True(bindings.Matches(shiftI, "media.sidebar.info", "media"));
+    }
+
+    [Fact]
     public void DefaultModeAndLimitsNormalizeAtTheProfileBoundary()
     {
         Config config = new();
@@ -68,6 +82,159 @@ public sealed class MediaFirstSidebarTests
         }
     }
 
+    [Fact]
+    public void ReorderingTheShownMediumKeepsItsSourceAndAutoHysteresis() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using RenderTargetBitmap picture = new(new PixelSize(600, 600));
+        ReaderMediaSidebar panel = new();
+        void Describe(int position, string key) => panel.Describe("No. 7", "same.png", "", true, new(position, 9, false), mediumKey: key);
+        Describe(1, "asset-a");
+        panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, "asset-a", picture.PixelSize);
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Auto" });
+        Window window = new() { Width = 320, Height = 548, Content = panel };
+        try
+        {
+            window.Show();
+            Settle(window);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
+            // For a square picture in this panel, window height minus width and 56 DIP is the free height.
+            window.PlatformImpl!.Resize(new Size(320, 526), WindowResizeReason.User);
+            Settle(window);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
+            Describe(6, "asset-a");
+            Settle(window);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
+            Assert.Same(picture, panel.Shown);
+            Describe(7, "asset-b");
+            Settle(window);
+            Assert.False(panel.DecisionRow.IsEffectivelyVisible);
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleasingADecisionAfterTheTargetChangesDoesNotWriteEitherMedium(bool favorite) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ReaderMediaSidebar panel = new();
+        int?[] ratings = [2, 4];
+        bool[] favorites = [false, true];
+        void Select(int index)
+        {
+            panel.Describe("No. 7", "same.png", "", true, mediumKey: index.ToString());
+            panel.ConfigureRating(() => true, () => ratings[index], value => { ratings[index] = value; return Task.CompletedTask; });
+            panel.ConfigureFavorite(() => true, () => favorites[index], () => { favorites[index] = !favorites[index]; return Task.CompletedTask; });
+        }
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always" });
+        Select(0);
+        Window window = new() { Width = 320, Height = 820, Content = panel };
+        try
+        {
+            window.Show();
+            Settle(window);
+            Button target = favorite ? panel.FavoriteButton : panel.DecisionRow.StarButtons[2];
+            Point point = Center(target, window);
+            window.MouseMove(point);
+            window.MouseDown(point, MouseButton.Left);
+            Assert.True(target.IsPressed);
+            Select(1);
+            Settle(window);
+            window.MouseUp(point, MouseButton.Left);
+            Settle(window);
+            Assert.False(target.IsPressed);
+            Assert.Equal(new int?[] { 2, 4 }, ratings);
+            Assert.Equal(new[] { false, true }, favorites);
+
+            Click(window, Center(target, window));
+            Assert.Equal(favorite ? new int?[] { 2, 4 } : [2, 3], ratings);
+            Assert.Equal(favorite ? new[] { false, false } : [false, true], favorites);
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void At240DipTheOverlayControlsAndTheFreeVideoPosterHaveTheirOwnHitTargets() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using RenderTargetBitmap poster = new(new PixelSize(400, 300));
+        int tagOpens = 0, playRequests = 0;
+        int? rating = 2;
+        ReaderMediaSidebar panel = new()
+        {
+            BorderThickness = new Thickness(1, 0),
+            OpenTagsAsync = (_, _) => { tagOpens++; return Task.CompletedTask; }
+        };
+        panel.Describe("No. 7", "same.mp4", "", true);
+        panel.ConfigureRating(() => true, () => rating, value => { rating = value; return Task.CompletedTask; });
+        panel.SetTags(["cat", "dog"], null);
+        panel.ShowPicture(poster, _ => { }, true, double.PositiveInfinity, double.PositiveInfinity);
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Overlay" });
+        // Both hosts add the idle activator after creating the sidebar.
+        ReaderInlineVideoSlot slot = new(panel.FrameArea, activatorWhenIdle: true);
+        panel.VideoRow.Children.Add(slot.Below);
+        ReaderInlineVideoController video = new();
+        BooruComponentDispatcher.Wait(video.ConfigureAsync(ReaderInlineVideoOptions.Default with { Enabled = true }));
+        slot.Offer(video, "video", _ => { playRequests++; return Task.FromResult<GalleryEntry?>(null); }, "same.mp4");
+        Window window = new() { Width = 240, Height = 800, Content = panel };
+        try
+        {
+            window.Show();
+            window.Activate();
+            Settle(window);
+            Point freePoster = panel.Picture.TranslatePoint(new Point(40, 35), window)!.Value;
+            window.MouseMove(freePoster);
+            Settle(window);
+            var overlay = panel.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "ReaderMediaSidebarOverlay");
+            Assert.True(overlay.IsEffectivelyVisible);
+            Assert.True(slot.Activator.IsEffectivelyVisible);
+            var ratingRow = overlay.GetVisualDescendants().OfType<GalleryDecisionRow>().Single();
+            var actions = overlay.GetVisualDescendants().OfType<Button>()
+                .Where(button => !button.GetVisualAncestors().Contains(ratingRow)).ToArray();
+            Assert.Equal(2, actions.Length);
+            foreach (Button button in ratingRow.StarButtons.Cast<Button>().Append(ratingRow.ClearButton).Concat(actions))
+            {
+                Point topLeft = button.TranslatePoint(default, overlay)!.Value;
+                Assert.InRange(topLeft.X, 0, overlay.Bounds.Width - button.Bounds.Width + 0.01);
+                Assert.InRange(button.Bounds.Width, 24, 48);
+            }
+            for (int index = 0; index < ratingRow.StarButtons.Count; index++)
+            {
+                Click(window, Center(ratingRow.StarButtons[index], window));
+                Assert.Equal(index + 1, rating);
+            }
+            Click(window, Center(ratingRow.ClearButton, window));
+            Assert.Null(rating);
+            Click(window, Center(actions[0], window));
+            Assert.Equal(1, tagOpens);
+            Click(window, Center(actions[1], window));
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
+            Assert.Equal(0, playRequests);
+            Click(window, freePoster);
+            Assert.Equal(1, playRequests);
+        }
+        finally { window.Close(); }
+    });
+
+    private static Point Center(Control control, Window window) =>
+        control.TranslatePoint(new Rect(control.Bounds.Size).Center, window)!.Value;
+
+    private static void Click(Window window, Point point)
+    {
+        window.MouseMove(point);
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left);
+        Settle(window);
+    }
+
+    private static void Settle(Window window)
+    {
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+    }
+
     [Theory]
     [InlineData(320, false)]
     [InlineData(320, true)]
@@ -92,7 +259,7 @@ public sealed class MediaFirstSidebarTests
         ReaderMediaSidebar panel = new() { BorderThickness = new Thickness(1, 0), DecisionKeyContext = portrait ? "reader" : "media",
             OpenTagsAsync = (anchor, _) => { tagAnchor = anchor; return Task.CompletedTask; } };
         int? rating = 3;
-        panel.Describe("No. 22490087", "evening.jpg", $"{pixels.Width}×{pixels.Height}", true, new(2, 64, false), 2300000);
+        panel.Describe("No. 22490087", "evening.jpg", $"{pixels.Width}×{pixels.Height}", true, new(2, 64, false), 2300000, "image");
         panel.ConfigureRating(() => true, () => rating, value => { rating = value; return Task.CompletedTask; });
         panel.ConfigureFavorite(() => true, () => false, () => Task.CompletedTask);
         panel.SetTags(["space", "landscape"], null);
@@ -128,6 +295,7 @@ public sealed class MediaFirstSidebarTests
                 Settle();
             }
             SidePanelDesignTests.AssertCompactHeader(panel);
+            Assert.True(panel.PositionPill.IsVisible);
             Rect full = In(panel.Card), image = In(panel.Picture);
             Assert.True(full.Height >= 0.92 * panel.Bounds.Height);
             Assert.False(details.IsVisible);
@@ -177,6 +345,26 @@ public sealed class MediaFirstSidebarTests
                 Settle();
                 Assert.Same(next, window.FocusManager!.GetFocusedElement());
             }
+
+            Assert.True(overlayActions[1].Focus(NavigationMethod.Tab));
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Settle();
+            Assert.True(details.IsVisible);
+            Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
+            Assert.True(panel.DecisionRow.FocusRating());
+            // Use the sidebar's key route with input from the focused control, as the two hosts do.
+            window.KeyDown += RouteInfo;
+            try
+            {
+                window.KeyPressQwerty(PhysicalKey.I, RawInputModifiers.Shift);
+                window.KeyReleaseQwerty(PhysicalKey.I, RawInputModifiers.Shift);
+                Settle();
+                Assert.False(details.IsVisible);
+                Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
+            }
+            finally { window.KeyDown -= RouteInfo; }
+            void RouteInfo(object? sender, KeyEventArgs e) => panel.RouteInfoKey(e);
 
             panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Auto" });
             Settle();

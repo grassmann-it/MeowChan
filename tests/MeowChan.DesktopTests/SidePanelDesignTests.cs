@@ -384,7 +384,8 @@ public sealed class SidePanelDesignTests
         Near(header.Bounds.Width, In(panel.Close, header).Right);
         if (panel.PositionPill.IsVisible)
         {
-            Near(In(panel.Title, header).Right + 8, In(panel.PositionPill, header).Left);
+            double center = (In(panel.Title, header).Right + In(panel.FavoriteButton, header).Left) / 2;
+            Near(center, In(panel.PositionPill, header).Center.X);
             Near(panel.PositionPill.Label.DesiredSize.Width + 18, panel.PositionPill.Bounds.Width);
         }
         else if (panel.PositionPill.HasPosition)

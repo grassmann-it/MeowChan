@@ -120,6 +120,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal bool FavoriteVisible { get => _favorite.IsVisible; set => _favorite.IsVisible = value; }
     internal IReadOnlyList<ToggleButton> StarButtons => _stars;
     internal Button ClearButton => _clear;
+    internal double ClearGap { set => _group.ColumnDefinitions[1].Width = new GridLength(value); }
     internal Control RatingBar => _bar;
     internal GalleryDecisionView View => _view;
     internal Control RatingGroup => _group;

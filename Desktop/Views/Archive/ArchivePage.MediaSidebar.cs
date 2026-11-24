@@ -480,6 +480,7 @@ public partial class ArchivePage
         _sidebarShownDetail = string.Empty;
         _savedMediaSidebarRow = null;
         _savedSidebarTags = null;
+        _mediaSidebar?.ResetInfoOverride();
         _mediaSidebar?.ShowEmpty();
     }
 
@@ -825,7 +826,7 @@ public partial class ArchivePage
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
         GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
         SetDisplayedSidebarMedium(_thread, post, row);
-        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, position);
+        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, position, mediumKey: mediumKey);
         if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);
         RefreshMediaSidebarDecisions();

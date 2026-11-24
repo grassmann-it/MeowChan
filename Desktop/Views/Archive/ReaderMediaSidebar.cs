@@ -297,6 +297,9 @@ internal sealed partial class ReaderMediaSidebar : Border
     private string? _tagsBlocked;
     private string? _decisionFailure;
     private bool _writingDecision;
+    private string? _mediumKey;
+    private int _mediumRevision;
+    private readonly Dictionary<IPointer, int> _decisionPresses = new();
     // R11: the thumbnail strip of a post with several files: a single tab stop, ← → move, the counter beside it.
     private readonly ListBox _strip = new()
     {
@@ -425,14 +428,14 @@ internal sealed partial class ReaderMediaSidebar : Border
         _frame.Children.Add(_status);
         _frame.PointerReleased += (_, e) =>
         {
-            if (e.InitialPressMouseButton != MouseButton.Left || _bitmap == null && !_status.IsVisible) return;
+            if (e.InitialPressMouseButton != MouseButton.Left || IsOverlaySource(e.Source) || _bitmap == null && !_status.IsVisible) return;
             e.Handled = true;
             PictureActivated?.Invoke(this, EventArgs.Empty);
         };
 
         _frame.DoubleTapped += (_, e) =>
         {
-            if (_bitmap == null && !_status.IsVisible) return;
+            if (IsOverlaySource(e.Source) || _bitmap == null && !_status.IsVisible) return;
             e.Handled = true;
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
@@ -448,6 +451,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         _decision.FavoriteRequested += _ => OpenActions.Start(() => WriteDecisionAsync(_toggleFavorite, _favoriteAvailable), "favorites.toggle");
         foreach (GalleryDecisionRow row in new[] { _decision, _overlayRating })
         {
+            foreach (Button button in row.StarButtons.Cast<Button>().Append(row.ClearButton).Append(row.FavoriteButton))
+                TrackDecisionPress(button);
             row.RatingRequested += value =>
             {
                 if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
@@ -457,6 +462,15 @@ internal sealed partial class ReaderMediaSidebar : Border
                 if (!e.Handled && row.RouteStarKey(e)) e.Handled = true;
             }, RoutingStrategies.Tunnel);
         }
+        TrackDecisionPress(_headerFavorite);
+        AddHandler(PointerReleasedEvent, (_, e) =>
+        {
+            if (e.InitialPressMouseButton != MouseButton.Left || !_decisionPresses.Remove(e.Pointer, out int revision)
+                || revision == _mediumRevision) return;
+            e.Handled = true;
+            e.Pointer.Capture(null);
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        DetachedFromVisualTree += (_, _) => _decisionPresses.Clear();
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _card.Margin = new Thickness(0, 8, 0, 0);
@@ -578,15 +592,21 @@ internal sealed partial class ReaderMediaSidebar : Border
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen,
+        GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null, string? mediumKey = null)
     {
-        if (_postLine != postLine || _fileName != fileLine || _threadPosition?.Number != threadPosition?.Number)
+        bool newMedium = _mediumKey != mediumKey;
+        if (newMedium)
+        {
+            _mediumKey = mediumKey;
+            _mediumRevision++;
+            _wasDocked = false;
+        }
+        if (newMedium || _postLine != postLine || _fileName != fileLine)
         {
             _decisionFailure = null;
             _tags = null;
             _tagsBlocked = null;
-            _sourcePixels = null;
-            _wasDocked = false;
         }
         _postLine = postLine; _fileName = fileLine; _detail = detailLine;
         _savedBytes = savedBytes;
@@ -612,6 +632,16 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         _threadPosition = position;
         _positionPill.Show(position);
+    }
+
+    private void TrackDecisionPress(Button button)
+    {
+        button.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(button).Properties.IsLeftButtonPressed)
+                _decisionPresses[e.Pointer] = _mediumRevision;
+        }, RoutingStrategies.Tunnel);
+        button.PointerCaptureLost += (_, e) => _decisionPresses.Remove(e.Pointer);
     }
 
     internal async Task EditTagsAsync()
@@ -733,9 +763,9 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void RefreshTags()
     {
+        RefreshOverlayTagCount();
         if (_fileName.Length == 0) { _sections.Tags = null; return; }
         int count = _tags?.Count ?? 0;
-        _tagCount.Content = "# " + count;
         _tagCount.IsEnabled = OpenTagsAsync != null;
         StackPanel tags = new() { Name = "ReaderMediaSidebarTags", Spacing = 4 };
         tags.Children.Add(new TextBlock { Classes = { "workspace-meta" }, FontWeight = FontWeight.SemiBold,
@@ -778,14 +808,14 @@ internal sealed partial class ReaderMediaSidebar : Border
     private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available)
     {
         if (_writingDecision || write == null || available?.Invoke() != true) return;
+        int revision = _mediumRevision;
         string name = _fileName;
-        GalleryTagPanelPosition? position = _threadPosition;
         _writingDecision = true;
         _decisionFailure = null;
         try { await write(); }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            if (_fileName == name && _threadPosition == position) _decisionFailure = error.Message;
+            if (_mediumRevision == revision && _fileName == name) _decisionFailure = error.Message;
         }
         finally
         {
@@ -820,7 +850,6 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         if (mediumKey != Load.ShownKey) _wasDocked = false;
         ReleasePicture();
-        _sourcePixels = source;
         _bitmap = bitmap;
         _release = release;
         _image.Source = bitmap;
@@ -872,7 +901,6 @@ internal sealed partial class ReaderMediaSidebar : Border
         _status.Text = text;
         _status.IsVisible = text.Length > 0;
         _badgesOn = false;
-        _sourcePixels = null;
         UpdateInfoLayout();
         UpdateFrameCursor();
     }

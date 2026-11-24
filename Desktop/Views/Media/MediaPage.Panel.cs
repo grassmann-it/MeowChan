@@ -133,7 +133,7 @@ public sealed partial class MediaPage
         // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
         ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true)
         {
-            OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
+            ShortcutContext = "media", OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
         };
         _panelVideoController.NavigationKeys = TryNavigateGridFromPanel;
         panel.VideoRow.Children.Add(slot.Below);
@@ -218,6 +218,7 @@ public sealed partial class MediaPage
         _panelRow = _panelWanted = null;
         _panelDimensions = string.Empty;
         OfferPanelVideo(null);
+        _panel?.ResetInfoOverride();
         _panel?.ShowEmpty();
         _ = ReleasePanelVideos();
     }
@@ -388,7 +389,7 @@ public sealed partial class MediaPage
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
             : row.IsProviderMedium ? Texts.T("reader.postNumber", entry.BooruPostId!) : string.Empty;
         panel.Describe(postLine, row.Name, _panelDimensions, OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
-            threadPosition: PanelPositionOf(row), savedBytes: entry.Length);
+            threadPosition: PanelPositionOf(row), savedBytes: entry.Length, mediumKey: PanelVideoKey(entry));
         // Each write freezes the panel row even when the grid refreshes its selection.
         panel.ConfigureFavorite(PanelFavoriteAvailable, () => row.State?.Favorite == MediaLibraryFlag.Yes,
             () => ToggleTileFavoriteAsync(entry));
@@ -468,7 +469,8 @@ public sealed partial class MediaPage
 
     // ---- the video -------------------------------------------------------------------------------------------------------------------
 
-    private static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Directory, entry.AssetId, entry.Sha256 ?? string.Empty, entry.Length);
+    private static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Thread, entry.Directory, entry.AssetId,
+        entry.MediaId, entry.Variant, entry.Sha256, entry.Length);
 
     /// <summary>The panel shows this tile (or none): a saved video offers inline playback in the panel; any other medium gives a player back.</summary>
     private void OfferPanelVideo(MediaLibraryTileRow? row)

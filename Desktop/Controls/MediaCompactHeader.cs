@@ -13,6 +13,7 @@ internal sealed class MediaCompactHeader : Grid
 {
     private readonly TextBlock _title;
     private readonly MediaPositionPill _pill;
+    private readonly double _actionsWidth;
     private string _file = "", _detail = "";
     internal TextBlock Meta { get; } = new()
     {
@@ -24,23 +25,24 @@ internal sealed class MediaCompactHeader : Grid
         _title = title;
         _pill = pill;
         RowDefinitions = new RowDefinitions("32,16");
-        ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto");
+        const int actionSpacing = 4;
+        _actionsWidth = buttons.Length * WorkspaceMetrics.InputHeight + Math.Max(0, buttons.Length - 1) * actionSpacing;
+        ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto");
         Children.Add(title);
-        pill.HorizontalAlignment = HorizontalAlignment.Left;
-        pill.Margin = new Thickness(8, 0, 0, 0);
+        pill.HorizontalAlignment = HorizontalAlignment.Center;
         SetColumn(pill, 1);
         Children.Add(pill);
-        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = actionSpacing };
         foreach (Button button in buttons)
         {
             button.Width = button.Height = WorkspaceMetrics.InputHeight;
             button.Classes.Add(WorkspaceIcons.SquareClass);
             actions.Children.Add(button);
         }
-        SetColumn(actions, 3);
+        SetColumn(actions, 2);
         Children.Add(actions);
         SetRow(Meta, 1);
-        SetColumnSpan(Meta, 4);
+        SetColumnSpan(Meta, 3);
         Children.Add(Meta);
     }
 
@@ -53,13 +55,11 @@ internal sealed class MediaCompactHeader : Grid
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        double room = Math.Max(0, availableSize.Width - 140);
+        double room = Math.Max(0, availableSize.Width - _actionsWidth);
         double title = Math.Max(64, MeasureText(_title, _title.Text));
         double bare = MeasureText(_pill.Label, _pill.Bare) + 18;
         _pill.IsVisible = _pill.HasPosition && title + 16 + bare <= room;
         _title.MaxWidth = Math.Max(64, _pill.IsVisible ? title : room);
-        ColumnDefinitions[1].MaxWidth = _pill.IsVisible ? Math.Max(0, room - title - 8) : 0;
-        _pill.MaxWidth = Math.Max(0, ColumnDefinitions[1].MaxWidth - 8);
         string prefix = _pill.HasPosition && !_pill.IsVisible ? _pill.Bare! : "";
         string Line(string file) => ReaderMediaSidebarRules.HeaderText(prefix, file, _detail);
         string full = Line(_file);

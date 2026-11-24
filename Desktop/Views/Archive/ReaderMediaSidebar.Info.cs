@@ -4,7 +4,6 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
@@ -22,6 +21,7 @@ internal static partial class ReaderMediaSidebarRules
     internal const double MinimumPictureHeight = 240;
     internal const double DockHysteresis = 24;
     internal const double OverlayHeight = 40;
+    internal const double OverlayStandardWidth = 260;
 
     // Inner panel size excludes padding and the host's border. The picture has a one-DIP edge.
     internal static SidebarInfoLayout InfoLayout(ReaderMediaPreferences preferences, bool? detailsOverride, Size inner,
@@ -66,11 +66,12 @@ internal sealed partial class ReaderMediaSidebar
         Classes = { WorkspaceChips.Chip, WorkspaceChips.Compact }
     };
     private readonly Button _expand = new() { Width = WorkspaceMetrics.InputHeight, Height = WorkspaceMetrics.InputHeight };
+    private readonly Grid _overlayActions = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,4,Auto") };
     private readonly DispatcherTimer _hideOverlay = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private ReaderMediaPreferences _infoPreferences = ReaderMediaPreferences.Default;
     private bool? _detailsOverride;
     private bool _wasDocked, _engaged;
-    private PixelSize? _sourcePixels;
+    private bool _narrowOverlay;
     internal Action<string>? SaveInfoMode { get; set; }
 
     internal void ConfigureInfo(ReaderMediaPreferences preferences)
@@ -92,6 +93,13 @@ internal sealed partial class ReaderMediaSidebar
             Texts.T(_details.IsVisible ? "workview.column.on" : "settings.reader.mediaSidebarInfo.off"));
     }
 
+    internal void ResetInfoOverride()
+    {
+        _detailsOverride = null;
+        _wasDocked = false;
+        UpdateInfoLayout();
+    }
+
     internal bool RouteInfoKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key) ||
@@ -105,6 +113,9 @@ internal sealed partial class ReaderMediaSidebar
     internal bool IsInfoMenuSource(object? source) =>
         source is Visual visual && (ReferenceEquals(visual, InfoToggle) || InfoToggle.IsVisualAncestorOf(visual));
 
+    private bool IsOverlaySource(object? source) =>
+        source is Visual visual && (ReferenceEquals(visual, _overlay) || _overlay.IsVisualAncestorOf(visual));
+
     private void InitializeInfo()
     {
         _details.Content = _sections;
@@ -113,13 +124,12 @@ internal sealed partial class ReaderMediaSidebar
         _expand.Click += (_, _) => ToggleDetails();
         _detailOpen.Click += (_, _) => GalleryRequested?.Invoke(this, EventArgs.Empty);
         _tagCount.Click += (_, _) => OpenActions.Start(EditTagsAsync, "media.tags.edit");
-        Grid content = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,4,Auto") };
-        content.Children.Add(_overlayRating);
-        Grid.SetColumn(_tagCount, 2); content.Children.Add(_tagCount);
-        Grid.SetColumn(_expand, 4); content.Children.Add(_expand);
-        _overlay.Child = new ThemeVariantScope { RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark, Child = content };
+        _overlayActions.Children.Add(_overlayRating);
+        Grid.SetColumn(_tagCount, 2); _overlayActions.Children.Add(_tagCount);
+        Grid.SetColumn(_expand, 4); _overlayActions.Children.Add(_expand);
+        _overlay.Child = new ThemeVariantScope { RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark, Child = _overlayActions };
         // Canvas keeps the transient controls out of the picture's desired size.
-        Canvas layer = new() { Children = { _overlay }, ClipToBounds = true };
+        Canvas layer = new() { Children = { _overlay }, ClipToBounds = true, ZIndex = 1 };
         _frame.Children.Add(layer);
         _frame.SizeChanged += (_, _) => PositionOverlay();
         _card.PointerEntered += (_, _) => UpdateEngagement();
@@ -129,8 +139,7 @@ internal sealed partial class ReaderMediaSidebar
             if (change.Property == IsKeyboardFocusWithinProperty) UpdateEngagement();
             if (change.Property == IsVisibleProperty && !IsVisible)
             {
-                _detailsOverride = null;
-                _wasDocked = _engaged = false;
+                _engaged = false;
                 _hideOverlay.Stop();
                 UpdateInfoLayout();
             }
@@ -141,14 +150,6 @@ internal sealed partial class ReaderMediaSidebar
         _videoRow.SizeChanged += (_, _) => UpdateInfoLayout();
         _sections.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) UpdateInfoLayout(); };
         _frame.Focusable = true;
-        _frame.KeyDown += (_, e) =>
-        {
-            if (ReferenceEquals(e.Source, _frame) && e.Key == Key.Enter && Open.IsEnabled)
-            {
-                GalleryRequested?.Invoke(this, EventArgs.Empty);
-                e.Handled = true;
-            }
-        };
     }
 
     private void LocalizeInfo()
@@ -156,8 +157,7 @@ internal sealed partial class ReaderMediaSidebar
         CommandBindings.Apply(InfoToggle, "media.sidebar.info", iconOnly: true);
         CommandBindings.Apply(Open, "gallery.open", iconOnly: true);
         WorkspaceIcons.MakeSquare(_expand, WorkspaceIcons.ChevronUp, CommandCatalog.Label("media.sidebar.info"));
-        ToolTip.SetTip(_tagCount, CommandCatalog.Label("media.tags.edit"));
-        AutomationProperties.SetName(_tagCount, CommandCatalog.Label("media.tags.edit"));
+        RefreshOverlayTagCount();
         ContextMenu menu = new();
         foreach (string mode in new[] { "Auto", "Overlay", "Always", "Off" })
         {
@@ -192,16 +192,43 @@ internal sealed partial class ReaderMediaSidebar
     private void PositionOverlay()
     {
         _overlay.Width = _frame.Bounds.Width;
+        bool narrow = _overlay.Width < ReaderMediaSidebarRules.OverlayStandardWidth;
+        // At 240 DIP the frame can be 220 DIP wide. Keep all seven rating/tag targets and the chevron in one row.
+        if (narrow != _narrowOverlay)
+        {
+            _narrowOverlay = narrow;
+            _overlay.Padding = new Thickness(narrow ? 4 : 8, 4);
+            _overlayRating.ClearGap = narrow ? 0 : 8;
+            _tagCount.MinWidth = narrow ? 28 : 48;
+            _tagCount.Width = narrow ? 28 : double.NaN;
+            _tagCount.Padding = new Thickness(narrow ? 0 : 8, 0);
+            _overlayActions.ColumnDefinitions[3].Width = new GridLength(narrow ? 0 : 4);
+            RefreshOverlayTagCount();
+        }
         Canvas.SetTop(_overlay, Math.Max(0, _image.Bounds.Bottom - _overlay.Height));
+    }
+
+    private void RefreshOverlayTagCount()
+    {
+        int count = _tags?.Count ?? 0;
+        _tagCount.Content = _narrowOverlay ? count.ToString(Texts.Culture) : "# " + count.ToString(Texts.Culture);
+        string label = count == 0 ? CommandCatalog.Label("media.tags.edit") : Texts.T("tags.media.buttonCount", count);
+        ToolTip.SetTip(_tagCount, label);
+        AutomationProperties.SetName(_tagCount, label);
     }
 
     private void UpdateInfoLayout()
     {
         Size inner = Bounds.Size.Deflate(Padding + BorderThickness);
         double rows = (_stripRow.IsVisible ? _stripRow.DesiredSize.Height : 0) + (_videoRow.IsVisible ? _videoRow.DesiredSize.Height : 0);
-        var layout = ReaderMediaSidebarRules.InfoLayout(_infoPreferences, _detailsOverride, inner, _sourcePixels, rows,
+        PixelSize? source = _mediumKey == Load.ShownKey ? Load.ShownSource : null;
+        var layout = ReaderMediaSidebarRules.InfoLayout(_infoPreferences, _detailsOverride, inner, source, rows,
             _wasDocked, _image.MaxHeight, Bounds.Height);
         _wasDocked = layout.Docked && _sections.IsVisible;
+        bool showOverlay = !_wasDocked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
+            _infoPreferences.MediaSidebarInfo is "Auto" or "Overlay";
+        if ((!_wasDocked && _details.IsKeyboardFocusWithin) || (!showOverlay && _overlay.IsKeyboardFocusWithin))
+            InfoToggle.Focus(NavigationMethod.Tab);
         _details.IsVisible = _wasDocked;
         _details.MaxHeight = _wasDocked ? layout.DetailsLimit : double.PositiveInfinity;
         bool auto = _wasDocked && double.IsFinite(layout.CardHeight);
@@ -216,8 +243,7 @@ internal sealed partial class ReaderMediaSidebar
         InfoToggle.IsChecked = _wasDocked;
         string tip = CommandBindings.Tooltip("media.sidebar.info");
         ToolTip.SetTip(InfoToggle, layout.TooShort ? tip + " · " + Texts.T("settings.reader.mediaSidebarInfo.shortHeight") : tip);
-        _overlay.IsVisible = !_wasDocked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
-            _infoPreferences.MediaSidebarInfo is "Auto" or "Overlay";
+        _overlay.IsVisible = showOverlay;
         PositionOverlay();
         UpdateBadges();
     }

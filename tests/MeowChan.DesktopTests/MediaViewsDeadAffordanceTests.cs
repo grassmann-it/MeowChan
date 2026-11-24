@@ -204,35 +204,61 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         int writes = 0;
         sidebar.ConfigureFavorite(() => true, () => favorite, () => { writes++; favorite = !favorite; return Task.CompletedTask; });
         sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
-        Assert.True(sidebar.FavoriteButton.IsEnabled);
-        Assert.False(sidebar.FavoriteButton.IsChecked);
-        sidebar.FavoriteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var header = sidebar.FavoriteButton;
+        var detail = sidebar.DecisionRow.FavoriteButton;
+        Assert.NotSame(header, detail);
+        Assert.True(header.IsEnabled);
+        Assert.False(header.IsChecked);
+        Assert.True(detail.IsVisible);
+        detail.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal((1, true), (writes, favorite));
-        Assert.True(sidebar.FavoriteButton.IsChecked);
+        Assert.True(header.IsChecked);
+        Assert.True(detail.IsChecked);
         Assert.False(sidebar.Badges.State.Favorite);
-        sidebar.FavoriteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        header.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal((2, false), (writes, favorite));
-        Assert.False(sidebar.FavoriteButton.IsChecked);
+        Assert.False(header.IsChecked);
+        Assert.False(detail.IsChecked);
         Assert.False(sidebar.Badges.State.Favorite);
-        // A medium without a star (nothing configured) shows no rating block star and still no badge.
         sidebar.ConfigureFavorite(null, null, null);
-        Assert.False(sidebar.FavoriteButton.IsVisible);
+        Assert.True(header.IsVisible);
+        Assert.False(header.IsEnabled);
+        Assert.False(detail.IsVisible);
         Assert.False(sidebar.Badges.State.Favorite);
+        sidebar.ReleasePicture();
     });
 
-    [Fact]
-    public void OnlyTheSidebarDropsTheFavouriteBadgeTheOtherSurfacesKeepTheirs()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OnlyTheSidebarDropsTheFavouriteBadgeTheOtherSurfacesKeepTheirs(bool docked) => BooruComponentDispatcher.Run(() =>
     {
-        // The state each other surface builds still resolves a favourite badge under its options (the gallery filmstrip, the Media page and the
-        // tagging tiles, the archive's saved-media tiles and the Media tab); the sidebar change is its own view's state, not the shared options.
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         MediaBadgeState favourite = new(Favorite: true);
         foreach (MediaBadgeOptions options in new[] { MediaBadgeOptions.Filmstrip, MediaBadgeOptions.MediaPage, MediaBadgeOptions.TaggingGrid, MediaBadgeOptions.ArchiveTile, MediaBadgeOptions.Archive })
             Assert.Contains(MediaBadgeModel.Resolve(favourite, options), badge => badge.Id == MediaBadgeId.Favorite);
-        // The sidebar's own state is never built with the flag.
-        string sidebar = Source("Desktop/Views/Archive/ReaderMediaSidebar.cs");
-        Assert.DoesNotContain("Favorite: favorite", sidebar);
-        Assert.Contains("_badges.Apply(new MediaBadgeState(Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);", sidebar);
-    }
+
+        ReaderMediaSidebar sidebar = new();
+        sidebar.Describe("No. 7", "cat.png", "", true);
+        sidebar.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
+        sidebar.ConfigureRating(() => true, () => 3, _ => Task.CompletedTask);
+        sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = docked ? "Always" : "Off" });
+        Window window = new() { Width = 320, Height = 820, Content = sidebar };
+        try
+        {
+            window.Show();
+            using RenderTargetBitmap preview = new(new PixelSize(400, 300));
+            sidebar.ShowPicture(preview, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.Equal(docked, sidebar.DecisionRow.IsEffectivelyVisible);
+            Assert.Equal(true, sidebar.FavoriteButton.IsChecked);
+            Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+            Assert.Equal(!docked, sidebar.Badges.Plan.Badges.Any(placed => placed.Badge.Id == MediaBadgeId.Rating));
+            sidebar.ReleasePicture();
+        }
+        finally { window.Close(); }
+    });
 
     [Theory]
     [InlineData(false)]
