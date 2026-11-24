@@ -694,6 +694,7 @@
     "store.backupBlocked.unreadable": "No se pudo leer {0} (puede que otro programa lo esté usando o que se deniegue el acceso), así que no se guardó nada y no se cambió ningún archivo. Libere el archivo o mueva {0} fuera de la carpeta del perfil y guarde de nuevo.",
     "notification.session": "Sesión",
     "startup.title": "MeowChan no pudo iniciarse",
+    "startup.messageCopied": "Se ha copiado el texto del mensaje.",
     "startup.video.systemUnavailable": "MeowChan requiere VLC 3 (versión 3.0.20 o posterior), incluidos WebM, VP8/VP9 y los complementos de salida de audio y vídeo. Instale el entorno de ejecución de VLC y sus complementos de códecs con el gestor de paquetes de su distribución y reinicie MeowChan. También puede descargar el paquete de MeowChan con VLC incluido. MeowChan se cerrará ahora.",
     "startup.video.systemUnsupported": "El entorno de ejecución de VLC instalado no es compatible. MeowChan requiere VLC 3, versión 3.0.20 o posterior; VLC 4 no es compatible. Instale el entorno de ejecución y los complementos adecuados, o use el paquete de MeowChan con VLC incluido. MeowChan se cerrará ahora.",
     "startup.video.bundleDamaged": "El entorno de ejecución de VLC incluido está incompleto o no se pudo cargar. Descargue de nuevo este paquete de MeowChan y extraiga todo el archivo comprimido en una carpeta nueva. Para AppImage, sustituya el archivo AppImage completo. Una instalación de VLC del sistema no reparará este paquete. MeowChan se cerrará ahora.",

@@ -457,6 +457,7 @@
     "settings.load.grantsDisabled": "Le eccezioni per i media di origine della copia sono state disattivate; confermale di nuovo in Fonti.",
     "notification.session": "Sessione",
     "startup.title": "Impossibile avviare MeowChan",
+    "startup.messageCopied": "Il testo del messaggio è stato copiato.",
     "startup.video.systemUnavailable": "MeowChan richiede VLC 3 (versione 3.0.20 o successiva), inclusi i plugin WebM, VP8/VP9 e di output audio/video. Installa il runtime VLC e i relativi plugin codec con il gestore di pacchetti della tua distribuzione, poi riavvia MeowChan. In alternativa, scarica il pacchetto MeowChan con VLC incluso. MeowChan ora si chiuderà.",
     "startup.video.systemUnsupported": "Il runtime VLC installato non è supportato. MeowChan richiede VLC 3, versione 3.0.20 o successiva; VLC 4 non è supportato. Installa il runtime VLC e i plugin adatti, oppure usa il pacchetto MeowChan con VLC incluso. MeowChan ora si chiuderà.",
     "startup.video.bundleDamaged": "Il runtime VLC incluso è incompleto o non è stato possibile caricarlo. Scarica di nuovo questo pacchetto MeowChan ed estrai l’intero archivio in una nuova cartella. Per l’AppImage, sostituisci l’intero file AppImage. Un’installazione di VLC di sistema non ripara questo pacchetto. MeowChan ora si chiuderà.",

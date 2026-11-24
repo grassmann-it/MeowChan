@@ -661,6 +661,7 @@
     "settings.load.grantsDisabled": "コピー内のソースメディアの例外はオフになりました。「ソース」でもう一度確認してください。",
     "notification.session": "セッション",
     "startup.title": "MeowChanを起動できませんでした",
+    "startup.messageCopied": "メッセージのテキストをコピーしました。",
     "startup.video.systemUnavailable": "MeowChanにはVLC 3（バージョン3.0.20以降）と、WebM、VP8/VP9、音声／映像出力のプラグインが必要です。ディストリビューションのパッケージマネージャーでVLCランタイムとコーデックプラグインをインストールしてからMeowChanを再起動してください。または、VLC同梱版のMeowChanパッケージをダウンロードしてください。MeowChanを終了します。",
     "startup.video.systemUnsupported": "インストールされているVLCランタイムには対応していません。MeowChanにはVLC 3のバージョン3.0.20以降が必要で、VLC 4には対応していません。適切なVLCランタイムとプラグインをインストールするか、VLC同梱版のMeowChanパッケージを使ってください。MeowChanを終了します。",
     "startup.video.bundleDamaged": "同梱のVLCランタイムが不完全か、読み込めませんでした。このMeowChanパッケージを再度ダウンロードし、アーカイブ全体を新しいフォルダーに展開してください。AppImageの場合はAppImageファイル全体を置き換えてください。システムのVLCをインストールしてもこの同梱版は修復されません。MeowChanを終了します。",
