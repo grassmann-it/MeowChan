@@ -288,9 +288,90 @@ public sealed class SavedMediaReaderTests
         Assert.True(table.IsKeyboardFocusWithin);
     }
 
+    [Fact]
+    public void ArrowsAfterATileFavoriteClickMoveTheSelectionAndTheSidebar() => Run((page, window) =>
+    {
+        ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
+        ArchiveAssetRow[] rows = ShownRows(page, true);
+        Control first = (Control)tiles.ContainerFromIndex(0)!;
+        Click(window, first);
+        Assert.Equal(0, tiles.SelectedIndex);
+        ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+        WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
+            && sidebar.Load.ShownSource == new PixelSize(17, 11));
+
+        ArchiveFavoriteButton star = first.GetVisualDescendants().OfType<ArchiveFavoriteButton>().Single();
+        bool? before = star.IsChecked;
+        Click(window, star);
+        Assert.NotEqual(before, star.IsChecked);
+        PressArrow(window, PhysicalKey.ArrowRight);
+        Assert.Equal(1, tiles.SelectedIndex);
+        WaitUntil(() => sidebar.HeaderLine.Contains(rows[1].Version, StringComparison.Ordinal)
+            && sidebar.Load.ShownSource == new PixelSize(19, 13));
+    });
+
+    [Fact]
+    public void ArrowsPressedBeforeTheLoadFinishesEndOnTheLatestRevision() => Run((page, window) =>
+    {
+        ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
+        ArchiveAssetRow[] rows = ShownRows(page, true);
+        Click(window, (Control)tiles.ContainerFromIndex(0)!);
+        ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+        PixelSize first = new(17, 11), latest = new(19, 13);
+        WaitUntil(() => !sidebar.Load.Awaiting && sidebar.Load.ShownSource == first);
+
+        window.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
+        window.KeyReleaseQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
+        Assert.Equal(1, tiles.SelectedIndex);
+        Assert.Equal<PixelSize?>(first, sidebar.Load.ShownSource);
+        AssertHeaderMatchesUndimmedImage();
+        PressArrow(window, PhysicalKey.ArrowLeft);
+        Assert.Equal(0, tiles.SelectedIndex);
+        AssertHeaderMatchesUndimmedImage();
+        PressArrow(window, PhysicalKey.ArrowRight);
+        Assert.Equal(1, tiles.SelectedIndex);
+        WaitUntil(() =>
+        {
+            AssertHeaderMatchesUndimmedImage();
+            return !sidebar.Load.Awaiting && sidebar.Load.ShownSource == latest;
+        });
+        Assert.Contains(rows[1].Version, sidebar.HeaderLine, StringComparison.Ordinal);
+
+        void AssertHeaderMatchesUndimmedImage()
+        {
+            if (sidebar.IsDimmed || sidebar.Load.ShownSource is not { } shown) return;
+            Assert.Contains(rows[shown == first ? 0 : 1].Version, sidebar.HeaderLine, StringComparison.Ordinal);
+        }
+    });
+
+    [Fact]
+    public void ArrowsAfterClickingASavedMediaFooterButtonKeepTheReaderOnItsPost() => Run((page, window) =>
+    {
+        page.ManageMediaRatingsAsync = () => Task.CompletedTask;
+        Button manage = page.FindControl<Button>("ArchiveManageRatingsButton")!;
+        Click(window, manage);
+        Assert.True(manage.IsFocused);
+        string? before = page.CurrentReaderPostId;
+        Assert.Equal("42", before);
+
+        PressArrow(window, PhysicalKey.ArrowDown);
+        BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
+        Assert.Equal(before, page.CurrentReaderPostId);
+        Assert.Equal(1, page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex);
+    });
+
     private static ArchiveAssetRow[] ShownRows(ArchivePage page, bool grid) =>
         (grid ? page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource : page.FindControl<DataGrid>("ArchiveMediaGrid")!.ItemsSource)!
         .Cast<ArchiveAssetRow>().ToArray();
+
+    private static void Click(Window window, Control control)
+    {
+        Point position = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+        window.MouseMove(position);
+        window.MouseDown(position, MouseButton.Left);
+        window.MouseUp(position, MouseButton.Left);
+        Layout(window);
+    }
 
     private static void Run(Action<ArchivePage, Window> test) => BooruComponentDispatcher.Run(() =>
     {
@@ -316,12 +397,19 @@ public sealed class SavedMediaReaderTests
         ArchiveThreadSummary summary = new(ThreadId, "https://offline.invalid/g/thread/42", "Fixture", temp.Path,
             ThreadSourceState.Active, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 1, 1);
         ArchivedThreadView thread = new(summary, [new CapturedPost("42", 42, PostFieldPresence.All,
-            Attachments: [new CapturedAttachment(0, "image", OriginalFileName: filename)])], [temp.Path]);
+            Attachments: [new CapturedAttachment(0, "image", OriginalFileName: filename)]),
+            new CapturedPost("43", 43, PostFieldPresence.All)], [temp.Path]);
+        HashSet<string> favorites = [current.AssetId];
         ArchivePage page = new(_ => throw new InvalidOperationException("The prepared thread should be used"),
             (_, _) => Task.CompletedTask, _ => { }, (_, _) => Task.FromResult(manifest))
         {
             IsAvailable = true,
-            IsArchiveFavorite = entry => entry.Asset.IsCurrent
+            IsArchiveFavorite = entry => favorites.Contains(entry.Asset.AssetId),
+            ToggleArchiveFavoriteAsync = entry =>
+            {
+                if (!favorites.Add(entry.Asset.AssetId)) favorites.Remove(entry.Asset.AssetId);
+                return Task.CompletedTask;
+            }
         };
         Window window = new() { Width = 1440, Height = 840 };
         try
