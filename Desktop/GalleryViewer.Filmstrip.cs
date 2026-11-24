@@ -48,6 +48,8 @@ internal sealed partial class GalleryViewer
     private bool _filmstripHeadsDock;
     private long _lastFilmstripActivity = Stopwatch.GetTimestamp();
 
+    internal event Action? LoadMoreRequested;
+
     internal GalleryFilmstrip Filmstrip => _filmstrip;
     /// <summary>Whether the filmstrip is on the screen now (tests and smokes).</summary>
     internal bool IsFilmstripVisible => _filmstrip.IsVisible;
@@ -76,8 +78,12 @@ internal sealed partial class GalleryViewer
         _filmstrip.TileActivated += OnFilmstripTileActivated;
         _filmstrip.LoadMoreRequested += () =>
         {
-            if (_terminalRetirement || _viewerInteractionStopped || !_interactionAvailable || _filmstrip.CurrentIndex < 0) return;
-            Move(_filmstrip.Count - _filmstrip.CurrentIndex);
+            if (_terminalRetirement || _viewerInteractionStopped || !_interactionAvailable
+                || _filmstrip.CurrentIndex < 0 || !_next.IsEnabled) return;
+            CancelFilmstripContextRequest();
+            _browseQueue.Clear();
+            _navigationPending = true;
+            LoadMoreRequested?.Invoke();
         };
         _filmstrip.TileContextRequested += OnFilmstripTileContextRequested;
         _filmstrip.ExitRequested += () => { FocusGallerySurface(); _keyboardInteraction = false; };

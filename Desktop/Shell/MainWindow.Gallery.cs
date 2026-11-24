@@ -241,6 +241,8 @@ public partial class MainWindow
         // Open actions nobody awaits (interaction audit): a failure is logged and shown, never an unobserved task (OpenActions).
         _gallery.ReadPostsRequested += () => OpenActions.Start(ReadEmptyGalleryPostsAsync, "gallery.readPosts");
         _gallery.MoveRequested += delta => OpenActions.Start(() => MoveGalleryAsync(delta), "gallery.move");
+        _gallery.LoadMoreRequested += () => OpenActions.Start(
+            () => ResolveNextGalleryEntryAsync(_galleryRequest, _galleryEntries.Count), "gallery.loadMore");
         _gallery.ReadPostRequested += entry => OpenActions.Start(() => ReadGalleryPostAsync(entry), "gallery.readPost");
         _gallery.QuoteRequested += quote => OpenActions.Start(() => ReadGalleryQuoteAsync(quote), "gallery.readQuote");
         _gallery.AssociationRequested += entry =>
@@ -323,12 +325,17 @@ public partial class MainWindow
                 {
                     List<MediaAssetSnapshot> manifests = new();
                     List<string> errors = new();
+                    Exception? manifestFailure = null;
                     foreach (string directory in thread.MediaDirectories)
                     {
                         token.ThrowIfCancellationRequested();
                         try { manifests.Add(await MediaAssetReader.OpenAsync(directory, token)); }
                         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-                        catch (Exception exception) { errors.Add(directory + ": " + exception.Message); }
+                        catch (Exception exception)
+                        {
+                            manifestFailure ??= exception;
+                            errors.Add(directory + ": " + exception.Message);
+                        }
                     }
                     GalleryThreadResult built = GallerySelection.Build(thread, manifests, allVersions, includeOtherMedia: true);
                     List<GalleryEntry> verified = new();
@@ -348,6 +355,9 @@ public partial class MainWindow
                         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                         catch (Exception exception) { errors.Add(entry.Asset.Path + ": " + exception.Message); }
                     }
+                    // Keep this thread as the retry target when a manifest failed and nothing usable was found.
+                    if (continuing && verified.Count == 0 && manifestFailure != null)
+                        throw new IOException("Could not read a media manifest for " + id, manifestFailure);
                     return (new GalleryThreadResult(verified.AsReadOnly(), new List<string>(built.Warnings.Concat(errors))),
                         singleThread ? ThreadGalleryPositions.Create(thread.MediaPositions, verified) : null);
                 }, token);
