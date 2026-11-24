@@ -69,7 +69,7 @@ internal sealed partial class DesktopSessionHost
             if (_archiveReads.TryGetValue(key, out ArchiveReadLane? existing))
             {
                 lane = existing;
-                lane.Pending?.SetCanceled();
+                lane.Pending?.SetCanceled(CancellationToken.None);
                 lane.Pending = turn;
             }
             else

@@ -229,7 +229,7 @@ internal static class ArchivePostOrder
         ResourceId id = thread.Summary.Id;
         if (ThreadNumberIdentifiesOpeningPost(id.Source))
             return id.Thread is { } number && thread.FindPostIndex(number) >= 0 ? number : null;
-        return thread.Posts.FirstOrDefault()?.PostId;
+        return thread.PostCount == 0 ? null : thread.Posts[0].PostId;
     }
 
     internal static CapturedPost[] Sort(ResourceId id, IEnumerable<CapturedPost> posts, bool? decimalPostOrder = null)
@@ -237,7 +237,7 @@ internal static class ArchivePostOrder
         CapturedPost[] items = posts.ToArray();
         // This is a source contract, not an assumption that every provider's numeric IDs
         // are chronological. Opaque/custom providers retain control through Ordinal.
-        bool useDecimal = (decimalPostOrder ?? (id.Source is "4chan" or "8kun"))
+        bool useDecimal = (decimalPostOrder ?? ThreadNumberIdentifiesOpeningPost(id.Source))
             && items.All(post => post.PostId.Length > 0 && post.PostId.All(character => character is >= '0' and <= '9'));
         return Order(items, post => post.PostId, post => post.Ordinal, useDecimal).ToArray();
     }
