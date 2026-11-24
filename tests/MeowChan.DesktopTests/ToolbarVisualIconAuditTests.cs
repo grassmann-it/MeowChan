@@ -181,7 +181,7 @@ public sealed class ToolbarVisualIconAuditTests
     public void MediaPluginsRulesStatusAndSettingsRenderIconsInTheirActionRows() => Run(() =>
     {
         MediaPage media = new(_ => throw new InvalidOperationException("The toolbar does not need a media library."));
-        PluginsPage plugins = new();
+        using PluginsPage plugins = new();
         RulesPage rules = new() { IsAvailable = true };
         SettingsEditor settings = new() { IsAvailable = true };
         StatusPage status = new();
