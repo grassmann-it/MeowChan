@@ -225,7 +225,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
         int column = index % Columns;
         double left = column * ItemWidth;
         double width = ItemWidth;
-        if (FillColumns && UseLayoutRounding)
+        if (FillColumns && UseLayoutRounding && VisualRoot is not null)
         {
             // Round shared edges before Avalonia rounds each container's origin and size.
             double scale = LayoutHelper.GetLayoutScale(this);

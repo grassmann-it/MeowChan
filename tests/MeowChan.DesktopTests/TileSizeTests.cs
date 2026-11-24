@@ -258,6 +258,7 @@ public sealed class TileSizeTests : IDisposable
         {
             BorderThickness = new Thickness(0),
             Padding = new Thickness(0),
+            UseLayoutRounding = true,
             ItemsSource = new[] { "first", "second", "third", "fourth", "fifth" },
             ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { FillColumns = true })
         };
@@ -272,6 +273,7 @@ public sealed class TileSizeTests : IDisposable
             window.UpdateLayout();
             Assert.Equal(scale, window.RenderScaling);
             MediaTilePanel panel = Assert.IsType<MediaTilePanel>(list.ItemsPanelRoot);
+            Assert.True(panel.UseLayoutRounding);
             Assert.Equal(3, panel.Columns);
             Assert.Equal(widthInPixels, panel.Bounds.Width * scale, precision: 6);
             Control[] tiles = Enumerable.Range(0, 5)
@@ -281,7 +283,9 @@ public sealed class TileSizeTests : IDisposable
             Assert.Equal(widthInPixels, bounds[2].Right * scale, precision: 6);
             for (int column = 0; column < 2; column++)
             {
-                Assert.Equal(bounds[column].Right * scale, bounds[column + 1].Left * scale, precision: 6);
+                double edgeInPixels = bounds[column].Right * scale;
+                Assert.Equal(Math.Round(edgeInPixels), edgeInPixels, precision: 6);
+                Assert.Equal(edgeInPixels, bounds[column + 1].Left * scale, precision: 6);
                 Assert.Equal(bounds[column].Left * scale, bounds[column + 3].Left * scale, precision: 6);
                 Assert.Equal(bounds[column].Right * scale, bounds[column + 3].Right * scale, precision: 6);
             }
