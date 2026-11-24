@@ -17,7 +17,7 @@ public static class ShortcutService
     /// <summary>The section <see cref="Current"/> was built from (a copy): a clean Settings draft reloads it after a publish.</summary>
     public static ShortcutBindingsSection CurrentSection { get; private set; } = new();
     public static long Revision { get; private set; }
-    internal static int ObserverCount => Refreshers.Count;
+    internal static int ObserverCount { get { lock (Refreshers) return Refreshers.Count; } }
     public static bool IsCapturing => _captureDepth > 0;
     public static event Action? Changed;
     public static IDisposable BeginCapture() { ++_captureDepth; return new CaptureLease(); }
@@ -50,19 +50,32 @@ public static class ShortcutService
     /// </summary>
     internal static IReadOnlyList<Exception> RefreshAll(List<WeakReference<Action>> refreshers)
     {
-        var callbacks = refreshers.Select(w => w.TryGetTarget(out var callback) ? callback : null).Where(x => x != null).ToArray();
-        refreshers.Clear();
+        Action?[] callbacks;
+        lock (refreshers)
+        {
+            callbacks = refreshers.Select(w => w.TryGetTarget(out var callback) ? callback : null).Where(x => x != null).ToArray();
+            refreshers.Clear();
+        }
         List<Exception>? failures = null;
         foreach (var refresh in callbacks)
-        {
-            try { refresh!(); }
-            catch (Exception error) when (error is not OutOfMemoryException)
-            {
-                (failures ??= new()).Add(error);
-                if (!refreshers.Any(w => w.TryGetTarget(out var known) && ReferenceEquals(known, refresh))) refreshers.Add(new(refresh!));
-            }
-        }
+            if (TryRefresh(refreshers, refresh!) is { } error) (failures ??= new()).Add(error);
         return failures ?? (IReadOnlyList<Exception>)Array.Empty<Exception>();
+    }
+
+    internal static void RefreshObserver(Action refresh)
+    {
+        if (TryRefresh(Refreshers, refresh) is { } error) Report([error]);
+    }
+
+    private static Exception? TryRefresh(List<WeakReference<Action>> refreshers, Action refresh)
+    {
+        try { refresh(); return null; }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            lock (refreshers)
+                if (!refreshers.Any(w => w.TryGetTarget(out var known) && ReferenceEquals(known, refresh))) refreshers.Add(new(refresh));
+            return error;
+        }
     }
 
     // Logged and shown like any recovered UI failure; in smokes and tests (no recovery installed) the first one propagates.
@@ -87,14 +100,16 @@ public static class ShortcutService
     /// </summary>
     internal static bool Observe(List<WeakReference<Action>> refreshers, Action refresh, ref int untilPrune)
     {
-        bool pruned = false;
-        if (--untilPrune <= 0)
+        lock (refreshers)
         {
-            refreshers.RemoveAll(w => !w.TryGetTarget(out _));
-            untilPrune = Math.Max(MinimumObserversBetweenPrunes, refreshers.Count);
-            pruned = true;
+            bool pruned = --untilPrune <= 0;
+            if (pruned)
+            {
+                refreshers.RemoveAll(w => !w.TryGetTarget(out _));
+                untilPrune = Math.Max(MinimumObserversBetweenPrunes, refreshers.Count);
+            }
+            refreshers.Add(new(refresh));
+            return pruned;
         }
-        refreshers.Add(new(refresh));
-        return pruned;
     }
 }
