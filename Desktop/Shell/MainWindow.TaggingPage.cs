@@ -97,6 +97,10 @@ public partial class MainWindow
         _taggingPage.RestorePanelEnabled(_session.Config.TaggingPagePanel);
         _taggingPage.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
         _taggingPage.ApplyWorkView(_workViews.Current);
+        TaggingPageHost.PropertyChanged += (_, change) =>
+        {
+            if (change.Property == Avalonia.Visual.IsVisibleProperty && change.NewValue is false) _taggingPage.StopPanel();
+        };
         TaggingPageHost.Content = _taggingPage;
         RegisterTaggingPanelCommands(_taggingPage);
     }

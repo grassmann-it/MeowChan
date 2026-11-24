@@ -85,10 +85,6 @@ public sealed partial class TaggingPage
         _panelHandle.DragCompleted += (_, _) => CommitPanelWidth();
         _panelHandle.KeyUp += (_, _) => CommitPanelWidth();
         DetachedFromVisualTree += (_, _) => StopPanel();
-        IsEffectivelyVisibleChanged += (_, _) =>
-        {
-            if (!IsEffectivelyVisible) StopPanel();
-        };
         foreach (ListBox list in new[] { _list, _grid })
         {
             list.GotFocus += (_, _) => QueuePanelFollow();
@@ -276,7 +272,7 @@ public sealed partial class TaggingPage
         return timer;
     }
 
-    private void StopPanel()
+    internal void StopPanel()
     {
         CancelPanelLoad();
         _panelFollowTimer?.Stop();
