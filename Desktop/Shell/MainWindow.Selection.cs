@@ -251,7 +251,11 @@ public partial class MainWindow
         if (grid.ContextMenu is not ContextMenu menu || grid.SelectedItems.Count == 0) return;
         // ContextMenu.Open(control) bypasses Opening in Avalonia 12.
         BuildDownloadMenu(grid, menu);
-        if (menu.ItemCount > 0) menu.Open(grid);
+        if (menu.ItemCount > 0)
+        {
+            menu.Placement = PlacementMode.Pointer;
+            menu.Open(grid);
+        }
     }
 
     private readonly HashSet<Control> _downloadPointerContextHandled = new();
@@ -292,10 +296,21 @@ public partial class MainWindow
         if (contextKey)
         {
             e.Handled = true;
+            object? target = ItemActivation.ContainerAt(e.Source, grid)?.DataContext;
+            if (target is ThreadRow or BoardRow)
+            {
+                if (!grid.SelectedItems.Contains(target)) grid.SelectedItem = target;
+                if (target is ThreadRow thread) _threadLeadId = thread.WatchId;
+                else if (target is BoardRow board) _boardLeadId = board.WatchId;
+            }
             if (grid.ContextMenu is ContextMenu menu && grid.SelectedItems.Count > 0)
             {
                 BuildDownloadMenu(grid, menu);
-                if (menu.ItemCount > 0) menu.Open(grid);
+                if (menu.ItemCount > 0)
+                {
+                    menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+                    menu.Open(grid);
+                }
                 ContextClick.ConsumeOpeningKeyRelease(menu, e.Key);
             }
             return;

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -73,8 +74,11 @@ public sealed class SelectionContextGestureTests
                 Assert.Equal(2, list.Selection.Count);
 
                 if (macControlClick) ContextGestures.ControlClick(rows[1]); else ContextGestures.RightClick(rows[1]);
-                Assert.NotNull(page.OpenListMenu);
+                ContextMenu menu = Assert.IsType<ContextMenu>(page.OpenListMenu);
                 Assert.Equal(2, list.Selection.Count);
+                Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == "media.copy-file-name").Activate();
+                Assert.Equal(string.Join(Environment.NewLine, new[] { "file-1.png", "file-2.png" }),
+                    BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync()));
             }
             finally { ContextClick.MacOSForTests = null; window.Close(); }
         }

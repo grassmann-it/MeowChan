@@ -286,7 +286,22 @@ public partial class ArchivePage
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
             || _ended || !_available || _largeReader || ArchiveExportDialog.IsVisible) return;
         if (ContextClick.IsKey(e))
-        { e.Handled = true; OpenArchiveKeyboardMenu(list, e.Key); return; }
+        {
+            if (ItemActivation.ItemAt<ArchiveThreadRow>(e.Source, list) is { } row)
+            {
+                _archiveLeadId = row.Summary.Id;
+                if (!_archiveSelectionIds.Contains(row.Summary.Id))
+                {
+                    _archiveSelectionIds.Clear();
+                    _archiveSelectionIds.Add(row.Summary.Id);
+                    SynchronizeArchiveSelection(ArchiveVisibleRows);
+                }
+                RefreshArchiveSelectionContext();
+            }
+            e.Handled = true;
+            OpenArchiveKeyboardMenu(list, e.Key);
+            return;
+        }
         if (MatchesArchiveCommand(e, "input.focus-search"))
         { e.Handled = true; FocusArchiveTextSearch(); return; }
         // The list owns these navigation gestures. The generic command guard

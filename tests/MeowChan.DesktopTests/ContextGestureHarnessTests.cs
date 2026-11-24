@@ -218,7 +218,9 @@ public sealed class ContextGestureHarnessTests
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         if (useGrid) Application.Current!.Styles.Add(new DataGridSemiTheme());
         using Fixture fixture = new(useGrid, openOnPress);
-        test(fixture);
+        ShortcutBindingsSection previous = ShortcutService.CurrentSection;
+        try { test(fixture); }
+        finally { ShortcutService.Publish(previous); }
     });
 
     private sealed record Row(string Name);
