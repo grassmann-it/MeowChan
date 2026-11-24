@@ -243,7 +243,7 @@ internal static class ReaderViewChecks
             && list.SelectedItem is ArchivePostRow { BacklinkCount: 1 },
             () => $"Tail {last} visible: {Visible(list, last)}, selection {Selected(fixture)}, count {(list.SelectedItem as ArchivePostRow)?.BacklinkCount}.");
         Require(list.SelectedIndex == count - 1 && ReferenceEquals(source, list.ItemsSource) && source.BuiltCount <= 200
-            && source.IndexOf(first) == 0,
+            && ReferenceEquals(source[0], first),
             $"Tail jump selected index {list.SelectedIndex} and built {source.BuiltCount} rows.");
         Console.WriteLine($"SMOKE tail {last}: {source.BuiltCount} rows built.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-10000-last.png");

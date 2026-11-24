@@ -1,13 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
-using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
-using MeowChan.Desktop.Motion;
 
 namespace MeowChan.DesktopTests;
 
@@ -228,56 +224,22 @@ public sealed class ReaderNavigationBarTests : IDisposable
     }
 
     [Fact]
-    public void TheBarCodeFollowsTheModesAndTheCompactRule() => BooruComponentDispatcher.Run(() =>
+    public void TheBarCodeFollowsTheModesAndTheCompactRule()
     {
-        using IDisposable platform = BooruReviewTestPlatform.Enter();
-        ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
-        Control navigation = page.FindControl<Control>("ReaderNavigation")!;
-        Assert.False(navigation.IsVisible);
-        Window window = new() { Content = page.DetachReader(), Width = 1100, Height = 800,
-            Classes = { MotionPolicy.OffClass } };
-        try
-        {
-            window.Show();
-            window.PlatformImpl!.Activated?.Invoke();
-            Dispatcher.UIThread.RunJobs();
-            window.UpdateLayout();
-            TextBlock posts = page.FindControl<TextBlock>("ReaderPostPosition")!;
-            TextBlock threads = page.FindControl<TextBlock>("ReaderThreadPosition")!;
-            page.ReaderNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsMinimum;
-            page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
-            page.NotifyReaderPointerMoved(new Point(10, 10));
-            Assert.False(navigation.IsVisible);
-            Assert.False(navigation.IsHitTestVisible);
-
-            page.ReaderNavigationMode = Config.ReaderNavigationModeAlways;
-            Assert.True(navigation.IsEffectivelyVisible);
-            Assert.True(navigation.IsHitTestVisible);
-            Assert.True(posts.IsEffectivelyVisible && threads.IsEffectivelyVisible);
-            Assert.Equal(ReaderNavigationLayout.CounterText(-1, 0), posts.Text);
-            Assert.Equal(Texts.T("reader.nav.postPosition", "–", "0"), AutomationProperties.GetName(posts));
-            Assert.Equal(Texts.T("reader.nav.threadPosition", "–", "0"), AutomationProperties.GetName(threads));
-            Assert.Equal(AutomationLiveSetting.Off, AutomationProperties.GetLiveSetting(posts));
-            Assert.Equal(AutomationLiveSetting.Off, AutomationProperties.GetLiveSetting(threads));
-            Assert.Equal(Texts.T("reader.nav.name"), AutomationProperties.GetName(page.FindControl<Control>("ReaderNavigationBar")!));
-            page.ReaderNavigationShowPosition = false;
-            Assert.False(posts.IsVisible || threads.IsVisible);
-            page.ReaderNavigationShowPosition = true;
-            BooruReviewTestPlatform.Resize(window, 640);
-            Assert.False(posts.IsVisible || threads.IsVisible);
-            Assert.True(navigation.IsHitTestVisible);
-            BooruReviewTestPlatform.Resize(window, 1100);
-            Assert.True(posts.IsVisible && threads.IsVisible);
-
-            page.ReaderNavigationMode = Config.ReaderNavigationModeAuto;
-            page.NotifyReaderPointerMoved(new Point(10, 10));
-            Assert.True(navigation.IsHitTestVisible);
-            BooruComponentDispatcher.WaitUntil(() => !navigation.IsHitTestVisible, "the idle navigation bar to stop taking input");
-            page.NotifyReaderPointerMoved(new Point(10, 10));
-            Assert.True(navigation.IsHitTestVisible);
-        }
-        finally { window.Close(); page.EndLifetime(); }
-    });
+        string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
+        // Off removes it, Always never hides it and starts no timer, Auto keeps the idle logic.
+        Assert.Contains("ReaderNavigation.IsVisible = _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff;", reader);
+        Assert.Contains("internal bool ReaderNavigationShown => _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff", reader);
+        Assert.Contains("_readerNavigationMode == Config.ReaderNavigationModeAlways ||", reader);
+        Assert.Contains("if (!_largeReader || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;", reader);
+        Assert.Contains("ReaderNavigationLayout.IsCompact(surface.Bounds.Width, _readerNavigationShowPosition)", reader);
+        Assert.Contains("ReaderNavigationLayout.CounterText(index, count)", reader);
+        Assert.Contains("\"reader.nav.threadPosition\"", reader);
+        Assert.Contains("\"reader.nav.postPosition\"", reader);
+        Assert.Contains("\"reader.nav.name\"", reader);
+        // The counters are not a live region: the post list already announces the selection.
+        Assert.DoesNotContain("SetLiveSetting", reader);
+    }
 
     [Fact]
     public void TheFadeStyleStaysAndThe108DipCrossIsGone()

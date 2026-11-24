@@ -45,6 +45,8 @@ internal class FilterTermPicker : Button
 {
     protected override Type StyleKeyOverride => typeof(Button);
 
+    private static readonly Lazy<Geometry> Plus = new(() => Geometry.Parse("M 8,3 L 8,13 M 3,8 L 13,8"));
+
     // Fixed layout measures of the popover (dip), not user limits and therefore not settings: the list scrolls beyond
     // 220 so the popover stays small however many entries exist, a name is trimmed at 320, and the popover keeps 280-360 wide
     // so the search box and the include/exclude row stay readable.
@@ -353,7 +355,7 @@ internal class FilterTermPicker : Button
         base.OnAttachedToVisualTree(e);
         if (_geometryApplied) return;
         _geometryApplied = true;
-        _plus.Data = Geometry.Parse("M 8,3 L 8,13 M 3,8 L 13,8");
+        _plus.Data = Plus.Value;
     }
 
     /// <summary>
