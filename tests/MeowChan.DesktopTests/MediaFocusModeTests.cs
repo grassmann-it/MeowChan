@@ -201,8 +201,6 @@ public sealed class MediaFocusModeTests : IDisposable
         // The counter is the page's status line behind a label, refreshed with it (presentation and progress ticks).
         Assert.Contains("MediaFocusMode.Line(_status.Text)", focus);
         Assert.Contains("RefreshFocusRow();", Source("Desktop/Views/Media/MediaPage.cs"));
-        // The toolbar button uses the Maximize icon prepared in M1 and the catalog command's label and shortcut.
-        Assert.Contains("WorkspaceIcons.MakeSquare(_focus, WorkspaceIcons.Maximize, Texts.T(\"command.media.focus-mode\"), CommandBindings.Tooltip(MediaFocusMode.CommandId));", focus);
     }
 
     [Fact]

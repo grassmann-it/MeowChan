@@ -22,7 +22,7 @@ namespace MeowChan;
 // level (MediaFocusMode.Escape). The mode is a working state: it is not saved. Starting and ending it is announced through a polite live region.
 public sealed partial class MediaPage
 {
-    private readonly Button _focus = new() { Name = "MediaFocus" };
+    private readonly Button _focus = new() { Name = "MediaFocus", Classes = { WorkspaceIcons.SquareClass, "subtle" } };
     private readonly Grid _focusRow = new() { Name = "MediaFocusRow", Height = MediaFocusMode.FocusRowHeight, IsVisible = false, ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*") };
     private readonly TextBlock _focusText = new() { Name = "MediaFocusText", VerticalAlignment = VerticalAlignment.Center, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis };
     private readonly TextBlock _focusSeparator = new() { Name = "MediaFocusSeparator", Text = "·", VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
@@ -182,7 +182,7 @@ public sealed partial class MediaPage
 
     private void LocalizeFocus()
     {
-        WorkspaceIcons.MakeSquare(_focus, WorkspaceIcons.Maximize, Texts.T("command.media.focus-mode"), CommandBindings.Tooltip(MediaFocusMode.CommandId));
+        CommandBindings.Apply(_focus, MediaFocusMode.CommandId, iconOnly: true);
         _focusExitLabel.Text = Texts.T("media.focus.exit");
         string exit = Texts.T("media.focus.exit.tip");
         ToolTip.SetTip(_focusExit, exit);

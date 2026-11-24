@@ -372,7 +372,7 @@ internal sealed partial class BooruWorkbenchView
         item.Classes.Add("booru-tab");
         TextBlock title = new() { MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         Button close = new() { Name = closeName, Classes = { "ghost", "booru-tab-close" } };
-        close.AttachedToVisualTree += (_, _) => { if (close.Content is not Control) close.Content = CommandBindings.NamedIcon("x", 12); };
+        close.AttachedToVisualTree += (_, _) => { if (close.Content is not Control) close.Content = CommandBindings.NamedIcon("x", 10); };
         close.Click += (_, e) => { e.Handled = true; closeTab(); };
         StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { title, close } };
         item.Header = header;

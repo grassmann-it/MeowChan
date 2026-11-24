@@ -1625,9 +1625,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         Button button = new() { Name = name, Classes = { "command-icon" }, Width = 32, Height = 32, MinWidth = 32,
             Padding = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
             HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
-        Border icon = (Border)CommandBindings.Icon("gallery.close", 14); // the "x" glyph
-        icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
-        button.Content = icon;
+        button.Content = CommandBindings.ButtonIcon("gallery.close", 16);
         button.Click += (_, _) => close();
         return button;
     }

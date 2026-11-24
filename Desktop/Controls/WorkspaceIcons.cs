@@ -37,10 +37,6 @@ internal static class WorkspaceIcons
     internal const string ChevronDown = "chevron-down";
     internal const string ArrowDown = "arrow-down";
     internal const string ArrowUp = "arrow-up";
-    // The tools of the media toolbar (M1): update (circular arrow), shuffle (two crossing arrows), enlarge the working area (diagonal arrows).
-    internal const string Refresh = "refresh";
-    internal const string Shuffle = "shuffle";
-    internal const string Maximize = "maximize";
     // The plain question mark of the help button: no ring, the button is a flat square (a circled mark was dropped in the UX review).
     internal const string Help = "help";
     // MP4: the Booru mode of the media page (a list of tags in a column beside a grid).
@@ -77,12 +73,6 @@ internal static class WorkspaceIcons
         [ChevronDown] = new("M3.5,6 L8,10.5 L12.5,6", HeavyClass),
         [ArrowDown] = new("M8,3 L8,13 M3,8 L8,13 L13,8"),
         [ArrowUp] = new("M8,13 L8,3 M3,8 L8,3 L13,8"),
-        // Three quarters of a circle open at the right with an arrow head at its upper end.
-        [Refresh] = new("M13.5,8 A5.5,5.5 0 1 1 11.9,4.1 M11.9,1.5 L11.9,4.1 L9.3,4.1"),
-        // Two paths that cross (the lower one is broken at the crossing), each ending in an arrow head on the right.
-        [Shuffle] = new("M2,4.5 L4.5,4.5 C7,4.5 8,11.5 10.5,11.5 L13.5,11.5 M11.5,9.5 L13.5,11.5 L11.5,13.5 M2,11.5 L4.5,11.5 C5.4,11.5 6.1,11.1 6.7,10.4 M9.3,5.6 C9.9,4.9 10.5,4.5 11.5,4.5 L13.5,4.5 M11.5,2.5 L13.5,4.5 L11.5,6.5"),
-        // Two corner arrows pointing apart along the diagonal.
-        [Maximize] = new("M9.5,2.5 L13.5,2.5 L13.5,6.5 M13.5,2.5 L8.8,7.2 M6.5,13.5 L2.5,13.5 L2.5,9.5 M2.5,13.5 L7.2,8.8"),
         // A question mark without a circle (the arc, the curl down to the stem, the dot). Curl circle and dot share the axis x = 8 (the
         // middle of the 16 dip grid; it was 7.92); the glyph sits a quarter dip below the geometric middle, because the open curl carries
         // its weight at the top and a geometrically centred "?" looks high in the round button. The dot is a 0.3 dip stroke, a little
@@ -151,9 +141,6 @@ internal static class WorkspaceIcons
 
     internal static string? FeatherKeyOf(object? content) => KeyOf(content) switch
     {
-        Refresh => "refresh-cw",
-        Shuffle => "shuffle",
-        Maximize => "maximize-2",
         TagList => "panel-left",
         _ => null
     };

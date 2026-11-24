@@ -111,23 +111,16 @@ public sealed class GlyphIconTests
     }
 
     [Fact]
-    public void TheMediaToolbarIconsExistAndASquareButtonKeepsItsIconWhenRenamed()
+    public void ASquareButtonKeepsItsIconWhenRenamed()
     {
-        foreach (string key in new[] { WorkspaceIcons.Refresh, WorkspaceIcons.Shuffle, WorkspaceIcons.Maximize })
-        {
-            Assert.Contains(key, WorkspaceIcons.Keys);
-            // Drawn on the 16 dip grid: no coordinate outside 0..16.
-            foreach (Match number in Regex.Matches(WorkspaceIcons.DataOf(key), "-?[0-9]+(?:\\.[0-9]+)?"))
-                Assert.InRange(double.Parse(number.Value, CultureInfo.InvariantCulture), 0, 16);
-        }
         Button button = new();
-        WorkspaceIcons.MakeSquare(button, WorkspaceIcons.Refresh, "Refresh");
+        WorkspaceIcons.MakeSquare(button, WorkspaceIcons.Help, "Help");
         object? icon = button.Content;
         // A language change calls it again: the name follows, the icon stays the same object.
-        WorkspaceIcons.MakeSquare(button, WorkspaceIcons.Refresh, "Aktualisieren");
+        WorkspaceIcons.MakeSquare(button, WorkspaceIcons.Help, "Hilfe");
         Assert.Same(icon, button.Content);
-        Assert.Equal("Aktualisieren", AutomationProperties.GetName(button));
-        Assert.Equal("Aktualisieren", ToolTip.GetTip(button));
+        Assert.Equal("Hilfe", AutomationProperties.GetName(button));
+        Assert.Equal("Hilfe", ToolTip.GetTip(button));
         Assert.Single(button.Classes, WorkspaceIcons.SquareClass);
     }
 
