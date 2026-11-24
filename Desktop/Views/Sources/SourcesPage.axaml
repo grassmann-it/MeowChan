@@ -35,7 +35,10 @@
                     <StackPanel x:Name="SourceMediaIntegrityPanel" wv:WorkViewElement.Id="sources.detail.media-integrity" Spacing="{StaticResource Workspace.Space.8}" IsVisible="False">
                         <TextBlock x:Name="SourceMediaIntegrityExplanation" TextWrapping="Wrap" />
                         <CheckBox x:Name="SourceAllowProviderMismatch" Click="OnSourceMediaPermissionClick">
-                            <TextBlock x:Name="SourceAllowProviderMismatchLabel" TextWrapping="Wrap" />
+                            <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
+                                <TextBlock x:Name="SourceAllowProviderMismatchLabel" TextWrapping="Wrap" />
+                                <TextBlock x:Name="SourceMediaIntegrityTiming" Classes="workspace-help" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </WrapPanel>
                         </CheckBox>
                         <TextBlock x:Name="SourceMediaIntegrityScope" Classes="workspace-help" TextWrapping="Wrap" />
                         <TextBlock x:Name="SourceMediaIntegrityStatus" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />

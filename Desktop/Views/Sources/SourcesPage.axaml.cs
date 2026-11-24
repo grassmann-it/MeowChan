@@ -41,6 +41,7 @@ public partial class SourcesPage : UserControl
     private bool _ended;
     private bool _showDetails;
     private bool _narrow;
+    private readonly double _wideColumnSpacing;
     internal Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? GetSourceMediaIntegrityPolicies { get; set; }
     internal Func<string, string, bool, long, Task>? SetSourceMediaIntegrityPermission { get; set; }
     /// <summary>A family site's own switch (owner, source → on/off, null without one) and its setter.</summary>
@@ -65,6 +66,7 @@ public partial class SourcesPage : UserControl
         // default that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
         MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "sources");
         InitializeComponent(); InitializeContextMenus(); InitializeMergedSources(); InstallWatchEnter();
+        _wideColumnSpacing = this.FindControl<Grid>("SourcesSplit")!.ColumnSpacing;
         AddHandler(GotFocusEvent, (_, _) =>
         {
             if (!_applyingSourceFocus) ++_focusRequest;
@@ -316,10 +318,16 @@ public partial class SourcesPage : UserControl
         retryHint.Text = Texts.T("sources.providerMismatchRetryHint");
         if (policy == null) return;
         this.FindControl<TextBlock>("SourceMediaIntegrityExplanation")!.Text = Texts.T("sources.providerMismatchExplanation");
-        this.FindControl<TextBlock>("SourceAllowProviderMismatchLabel")!.Text = Texts.T("sources.allowProviderMismatch");
+        string label = Texts.T("sources.allowProviderMismatch");
+        this.FindControl<TextBlock>("SourceAllowProviderMismatchLabel")!.Text = label;
         CheckBox permission = this.FindControl<CheckBox>("SourceAllowProviderMismatch")!;
+        AutomationProperties.SetName(permission, label);
         permission.IsChecked = policy.IsGranted;
         permission.IsEnabled = _available && !IsBusy && SetSourceMediaIntegrityPermission != null && (policy.IsActive || policy.IsGranted);
+        TextBlock timing = this.FindControl<TextBlock>("SourceMediaIntegrityTiming")!;
+        timing.Text = Texts.T("sources.providerMismatchImmediate");
+        timing.IsVisible = policy.IsActive;
+        AutomationProperties.SetHelpText(permission, policy.IsActive ? timing.Text : null);
         this.FindControl<TextBlock>("SourceMediaIntegrityScope")!.Text = Texts.T("sources.providerMismatchScope", row.Name);
         this.FindControl<TextBlock>("SourceMediaIntegrityStatus")!.Text = Texts.T(!policy.IsActive
             ? "sources.providerMismatchInactive" : policy.IsGranted ? "sources.providerMismatchAllowed" : "sources.providerMismatchStrict");
@@ -498,7 +506,7 @@ public partial class SourcesPage : UserControl
         bool detailsHadFocus = ContainsFocus(details);
         bool backHadFocus = ContainsFocus(this.FindControl<Button>("SourceBackButton")!);
         // The detail grid needs 520 DIP after list, gutters and panel padding.
-        bool narrow = Bounds.Width - 40 - 280 - 14 - 32 < 520;
+        bool narrow = Bounds.Width - 40 - 280 - _wideColumnSpacing - 32 < 520;
         if (_narrow == narrow) return;
         // A focus request queued by the preceding wide layout must not win over the
         // control that owns focus at this breakpoint transition.
@@ -507,7 +515,7 @@ public partial class SourcesPage : UserControl
         Grid split = this.FindControl<Grid>("SourcesSplit")!;
         // Preserve the track collection while SizeChanged runs inside layout.
         split.ColumnDefinitions[0].Width = new GridLength(narrow ? 0 : 280);
-        split.ColumnSpacing = narrow ? 0 : 16;
+        split.ColumnSpacing = narrow ? 0 : _wideColumnSpacing;
         Grid.SetColumn(list, narrow ? 1 : 0);
         RenderDetails();
         // RenderDetails schedules the same handoff for ordinary visibility changes;
