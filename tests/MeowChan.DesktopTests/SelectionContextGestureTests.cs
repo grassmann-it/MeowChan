@@ -210,7 +210,7 @@ public sealed class SelectionContextGestureTests
         ListBoxItem tile = Assert.IsType<ListBoxItem>(page.Grid.ContainerFromIndex(0));
         MediaLibraryTileRow row = Assert.IsType<MediaLibraryTileRow>(tile.DataContext);
         MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(row.Entry.Directory!);
-        MediaAssetReference asset = Assert.Single(manifest.Assets, candidate => candidate.AssetId == row.Entry.AssetId);
+        MediaAssetReference asset = Assert.Single(manifest.GetPage(), candidate => candidate.AssetId == row.Entry.AssetId);
         List<string> opened = [];
         window.OpenFileForTests = path => { opened.Add(path); return Task.CompletedTask; };
 
