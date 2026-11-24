@@ -203,6 +203,8 @@ public sealed class BooruLocalizationTests : IDisposable
         Func<string?, string> original = BooruText.CodeText;
         try
         {
+            // MainWindow installs a localized formatter. Start with an explicit raw-code formatter.
+            BooruText.CodeText = code => code ?? "error";
             BooruSearchView view = new("danbooru", "Danbooru", BooruInputMode.Tags, "cat", new BooruParsedInput(BooruInputKind.Tags, "cat"),
                 BooruSearchStatus.Failed, "cat", null, 1, false, ImmutableArray<BooruResultRowView>.Empty, null, "http-timeout", null);
             Assert.Contains("(http-timeout)", BooruText.SearchStatus(view, false));
