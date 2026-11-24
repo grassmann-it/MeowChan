@@ -24,12 +24,7 @@ internal static class KeyContextHost
 {
     /// <param name="closeNow">Registers the closing handler at once instead of on attach (a test's detached tree).</param>
     /// <returns>Removes the handlers and ends every scope still open.</returns>
-    internal static IDisposable Install(Control root, Func<KeyEventArgs, string> context, bool closeNow = false) => Start(root, context, closeNow);
-
-    /// <summary>Returns the teardown callback for a control with its own lifetime.</summary>
-    internal static Action InstallWithCleanup(Control root, Func<KeyEventArgs, string> context) => Start(root, context, closeNow: false).Dispose;
-
-    private static Installation Start(Control root, Func<KeyEventArgs, string> context, bool closeNow)
+    internal static IDisposable Install(Control root, Func<KeyEventArgs, string> context, bool closeNow = false)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(context);

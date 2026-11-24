@@ -1,7 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
 
@@ -140,6 +143,33 @@ public sealed class StatisticsCurrentRatesLayoutTests
             page.Apply(snapshot);
             Assert.Equal(displayed, page.FindControl<TextBlock>("NetValue")!.Text);
             return snapshot;
+        }
+    });
+
+    [Fact]
+    public void StatisticsRoutesKeysInItsContextUntilThePageEnds() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        StatisticsPage page = new();
+        Window window = new() { Content = page };
+        try
+        {
+            window.Show();
+            KeyEventArgs activeKey = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F2 };
+            page.ResetButton.RaiseEvent(activeKey);
+            Assert.Equal("statistics", KeyContextHost.ContextOf(activeKey));
+            Assert.Contains("statistics", EffectiveShortcutBindings.ExecutionContexts("menu.context-open"));
+            Assert.Null(KeyContextHost.Current);
+
+            page.EndLifetime();
+            KeyEventArgs retiredKey = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F2 };
+            page.ResetButton.RaiseEvent(retiredKey);
+            Assert.Null(KeyContextHost.ContextOf(retiredKey));
+        }
+        finally
+        {
+            page.EndLifetime();
+            window.Close();
         }
     });
 }

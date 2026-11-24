@@ -25,7 +25,7 @@ namespace MeowChan;
 public partial class StatisticsPage : UserControl
 {
     private readonly ObservableCollection<StatisticsRow> _rows = [];
-    private readonly Action _removeKeyContext;
+    private readonly IDisposable _pageKeyContext;
     private readonly DispatcherTimer _statusHide = new() { Interval = TimeSpan.FromSeconds(5) };
     private IoStatsHub? _hub;
     private Func<string, string?>? _sourceName;
@@ -41,7 +41,7 @@ public partial class StatisticsPage : UserControl
     public StatisticsPage()
     {
         // Keep defaults active here when a saved binding only displaces them in another context.
-        _removeKeyContext = KeyContextHost.InstallWithCleanup(this, _ => "statistics");
+        _pageKeyContext = KeyContextHost.Install(this, _ => "statistics");
         InitializeComponent();
         _pageMargin = StatisticsContent.Margin;
         StatisticsGrid.ItemsSource = _rows;
@@ -86,7 +86,7 @@ public partial class StatisticsPage : UserControl
     {
         if (_ended) return;
         _ended = true;
-        _removeKeyContext();
+        _pageKeyContext.Dispose();
         DisposeRowMenus();
         _statusHide.Stop();
         ResetConfirmation.Hide();
