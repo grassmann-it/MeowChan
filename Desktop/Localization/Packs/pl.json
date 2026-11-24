@@ -4847,6 +4847,8 @@
     "settings.tagging.cards.hint": "Co robi każda karta, od lewej (klawisze od 1 do 5). Wybranie decyzji, którą ma już inna karta, zamienia te dwie karty miejscami. Obowiązuje od następnego przejścia.",
     "settings.tagging.cardSlot": "Karta {0}",
     "settings.footer.title": "Dolny pasek",
+    "settings.footer.displays": "Wskaźniki na dolnym pasku",
+    "settings.footer.statusLines": "Wiersze stanu",
     "settings.footer.help": "Wybierz, które strony mają własny przycisk na dolnym pasku i w jakiej kolejności. Ukryta strona pozostaje dostępna przez Więcej, menu ⋯ i swój skrót klawiszowy. Ctrl/Cmd+1 do 9 otwierają strony według przycisków dolnego paska, które pokazuje Twój widok roboczy, licząc od lewej; dalej idą strony pod Więcej. Widok roboczy może nadal przenosić kolejne strony pod Więcej.",
     "settings.footer.booruHint": "Booru jest domyślnie widoczne. Kompaktowy widok roboczy lub wąskie okno może przenieść tę stronę do menu Więcej. Aby ukryć stronę w nawigacji, wyłącz poniżej opcję „Pokaż akcje Booru”.",
     "settings.footer.booruActions": "Pokaż akcje Booru",

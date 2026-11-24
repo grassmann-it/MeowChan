@@ -4808,6 +4808,8 @@
     "settings.tagging.cards.hint": "O que cada cartão faz, da esquerda para a direita (teclas 1 a 5). Escolher uma decisão que outro cartão já tem troca os dois cartões de lugar. Vale a partir do próximo percurso.",
     "settings.tagging.cardSlot": "Cartão {0}",
     "settings.footer.title": "Barra inferior",
+    "settings.footer.displays": "Indicadores da barra inferior",
+    "settings.footer.statusLines": "Linhas de status",
     "settings.footer.help": "Escolha quais páginas têm um botão próprio na barra inferior e em que ordem. Uma página oculta continua acessível por Mais, pelo menu ⋯ e pelo seu atalho de teclado. Ctrl/Cmd+1 a 9 contam os botões visíveis da barra inferior da esquerda para a direita. Uma visualização de trabalho ainda pode agrupar mais páginas em Mais.",
     "settings.footer.booruHint": "O Booru é exibido por padrão. Uma visualização de trabalho compacta ou uma janela estreita pode mover a página para Mais. Para ocultá-la da navegação, desative “Mostrar ações do Booru” abaixo.",
     "settings.footer.booruActions": "Mostrar ações do Booru",

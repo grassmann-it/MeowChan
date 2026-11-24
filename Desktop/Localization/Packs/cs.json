@@ -4846,6 +4846,8 @@
     "settings.tagging.cards.hint": "Co která karta dělá, zleva doprava (klávesy 1 až 5). Zvolíte-li rozhodnutí, které už má jiná karta, obě karty si vymění místa. Platí od dalšího průchodu.",
     "settings.tagging.cardSlot": "Karta {0}",
     "settings.footer.title": "Spodní lišta",
+    "settings.footer.displays": "Údaje v dolní liště",
+    "settings.footer.statusLines": "Stavové řádky",
     "settings.footer.help": "Vyberte, které stránky mají na spodní liště vlastní tlačítko a v jakém pořadí. Skrytá stránka zůstává dostupná přes Více, nabídku ⋯ a svou klávesovou zkratku. Ctrl/Cmd+1 až 9 otevírají stránky podle tlačítek spodní lišty, která vaše pracovní zobrazení ukazuje, počítáno zleva; dál následují stránky pod Více. Pracovní zobrazení může další stránky stále přesunout pod Více.",
     "settings.footer.booruHint": "Booru se zobrazuje ve výchozím nastavení. Kompaktní pracovní zobrazení nebo úzké okno může stránku přesunout do nabídky Více. Chcete-li stránku skrýt z navigace, vypněte níže možnost „Zobrazit akce Booru“.",
     "settings.footer.booruActions": "Zobrazit akce Booru",

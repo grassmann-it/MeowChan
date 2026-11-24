@@ -4717,6 +4717,8 @@
     "settings.tagging.cards.hint": "각 카드가 하는 일을 왼쪽부터 정합니다(1~5번 키). 다른 카드가 이미 가진 결정을 고르면 두 카드의 위치가 서로 바뀝니다. 다음 둘러보기부터 적용됩니다.",
     "settings.tagging.cardSlot": "카드 {0}",
     "settings.footer.title": "하단 막대",
+    "settings.footer.displays": "하단 표시 항목",
+    "settings.footer.statusLines": "상태 줄",
     "settings.footer.help": "하단 막대에 전용 버튼을 둘 페이지와 그 순서를 고릅니다. 숨긴 페이지도 “더 보기”, ⋯ 메뉴, 키보드 단축키로 열 수 있습니다. Ctrl/Cmd+1~9는 보이는 하단 막대 버튼을 왼쪽부터 셉니다. 작업 보기에 따라 더 많은 페이지가 “더 보기”로 묶일 수 있습니다.",
     "settings.footer.booruHint": "Booru는 기본적으로 표시됩니다. 간소한 작업 보기나 좁은 창에서는 페이지가 더 보기로 이동할 수 있습니다. 탐색에서 숨기려면 아래의 “Booru 작업 표시”를 끄세요.",
     "settings.footer.booruActions": "Booru 작업 표시",

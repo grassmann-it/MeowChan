@@ -545,6 +545,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         frozen.SettingsBaselineReadingFontSize = settings.SettingsBaselineReadingFontSize;
         frozen.SettingsBaselineWorkspaceMode = settings.SettingsBaselineWorkspaceMode;
         frozen.SettingsBaselineVideoVolume = settings.SettingsBaselineVideoVolume;
+        frozen.SettingsBaselineFooterDisplays = settings.SettingsBaselineFooterDisplays;
         frozen.SettingsBaselineGalleryPlayback = settings.SettingsBaselineGalleryPlayback;
         frozen.SettingsBaselineGalleryFilmstrip = settings.SettingsBaselineGalleryFilmstrip;
         frozen.SettingsBaselineMediaTagListWidth = settings.SettingsBaselineMediaTagListWidth;

@@ -4717,6 +4717,8 @@
     "settings.tagging.cards.hint": "各カードの動作を左から順に指定します（キー 1～5）。ほかのカードが使っている判断を選ぶと、2 枚のカードが入れ替わります。次の巡回から有効です。",
     "settings.tagging.cardSlot": "カード {0}",
     "settings.footer.title": "フッター",
+    "settings.footer.displays": "フッターの表示項目",
+    "settings.footer.statusLines": "ステータス行",
     "settings.footer.help": "フッターに専用のボタンを置くページと、その並び順を選びます。非表示にしたページも、「その他」、⋯ メニュー、キーボードショートカットから開けます。Ctrl/Cmd+1～9 は、表示されているフッターのボタンを左から数えます。作業ビューによっては、さらに多くのページが「その他」にまとめられることがあります。",
     "settings.footer.booruHint": "Booru は既定で表示されます。コンパクトな作業ビューや幅の狭いウィンドウでは「その他」に移動することがあります。ナビゲーションから隠すには、下の「Booru の操作を表示」をオフにします。",
     "settings.footer.booruActions": "Booruの操作を表示",

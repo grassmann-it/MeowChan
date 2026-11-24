@@ -4802,6 +4802,8 @@
     "settings.tagging.cards.hint": "Ce que fait chaque carte, de gauche à droite (touches 1 à 5). Choisir une décision qu’une autre carte a déjà échange les deux cartes. S’applique dès le prochain parcours.",
     "settings.tagging.cardSlot": "Carte {0}",
     "settings.footer.title": "Barre inférieure",
+    "settings.footer.displays": "Indicateurs de la barre inférieure",
+    "settings.footer.statusLines": "Lignes d’état",
     "settings.footer.help": "Choisissez quelles pages ont un bouton propre dans la barre inférieure et dans quel ordre. Une page masquée reste accessible par Plus, le menu ⋯ et son raccourci clavier. Ctrl/Cmd+1 à 9 comptent les boutons visibles de la barre inférieure de gauche à droite. Une vue de travail peut encore regrouper d’autres pages sous Plus.",
     "settings.footer.booruHint": "Booru est affiché par défaut. Une vue de travail compacte ou une fenêtre étroite peut déplacer la page dans Plus. Pour la masquer dans la navigation, désactivez « Afficher les actions Booru » ci-dessous.",
     "settings.footer.booruActions": "Afficher les actions Booru",

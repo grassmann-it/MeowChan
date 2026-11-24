@@ -4808,6 +4808,8 @@
     "settings.tagging.cards.hint": "Che cosa fa ogni scheda, da sinistra (tasti da 1 a 5). Se scegli una decisione che ha già un’altra scheda, le due schede si scambiano. Vale dal prossimo giro.",
     "settings.tagging.cardSlot": "Scheda {0}",
     "settings.footer.title": "Barra inferiore",
+    "settings.footer.displays": "Indicatori della barra inferiore",
+    "settings.footer.statusLines": "Righe di stato",
     "settings.footer.help": "Scegli quali pagine hanno un pulsante proprio nella barra inferiore e in quale ordine. Una pagina nascosta resta raggiungibile da Altro, dal menu ⋯ e dalla sua scorciatoia da tastiera. Ctrl/Cmd+1 a 9 contano i pulsanti visibili della barra inferiore da sinistra. Una vista di lavoro può comunque spostare altre pagine sotto Altro.",
     "settings.footer.booruHint": "Booru è visibile per impostazione predefinita. Una vista di lavoro compatta o una finestra stretta può spostare la pagina in Altro. Per nasconderla dalla navigazione, disattiva «Mostra azioni Booru» qui sotto.",
     "settings.footer.booruActions": "Mostra azioni Booru",
