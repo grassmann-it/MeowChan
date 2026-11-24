@@ -302,7 +302,7 @@ public sealed class GalleryRatingPanelTests : IDisposable
     }
 
     [Fact]
-    public void TheInfoLineRatingAndTheTileRatingCaptionAreKeyboardReachableControlsThatOpenRateAndTag()
+    public void TheGalleryInfoLineHasAKeyboardStopAndTheTileRatingCaptionNamesItsShortcut()
     {
         // Dead-affordance audit 15.11.: the passive "Rating: n" texts open the same surface as R. The info line's segment is a link button around the text
         // (review 16.11.): native Enter and Space, the focus adorner and the Button role, none of which a focused TextBlock had.
@@ -327,12 +327,14 @@ public sealed class GalleryRatingPanelTests : IDisposable
         button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         Assert.Equal(1, opened);
 
-        string tile = Source("Desktop", "ArchiveMediaTileView.cs");
-        Assert.Contains("caption.Focusable = true;", tile);
-        Assert.Contains("caption.IsTabStop = true;", tile);
-        Assert.Contains("AutomationControlType.Button", tile);
-        Assert.Contains("Key.Enter or Avalonia.Input.Key.Space", tile);
-        Assert.Contains("RateAndTagRequestedEvent", Source("Desktop", "Views", "Archive", "ArchivePage.MediaCommands.cs"));
+        ArchiveMediaTileView tile = new();
+        tile.RefreshRating();
+        TextBlock caption = tile.RatingCaption;
+        Assert.False(caption.Focusable);
+        Assert.False(caption.IsTabStop);
+        Assert.Equal(AutomationControlType.Button, AutomationProperties.GetControlTypeOverride(caption));
+        Assert.False(caption.Focus());
+        Assert.StartsWith(CommandCatalog.Label("media.rating.edit"), Assert.IsType<string>(ToolTip.GetTip(caption)));
     }
 
     [Fact]

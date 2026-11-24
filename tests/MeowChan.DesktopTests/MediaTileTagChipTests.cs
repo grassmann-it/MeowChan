@@ -2,7 +2,6 @@ using MeowChan.Desktop.Controls;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using MeowChan.Desktop;
@@ -45,7 +44,7 @@ public sealed class MediaTileTagChipTests : IDisposable
     private static TextBlock More(Control view) => view.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaTileMoreTags");
 
     [Fact]
-    public void ChipsNameTheirTagFilterOnClickOrEnterAndSummarizeTheRest()
+    public void MediaTileChipsNameTheirTagFilterForThePointerAndContextMenu()
     {
         MediaLibraryEntry entry = Entry("1", 'a');
         PrivateTagDefinition cat = Tag(1, "cat"), dog = Tag(2, "dog"), owl = Tag(3, "owl");
@@ -56,11 +55,12 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.Equal(new[] { "cat", "dog" }, visible.Select(Label));
         Assert.All(visible, chip =>
         {
-            // C1: a filled compact own-tag chip; reachable and named for keyboard and screen reader users.
+            // C1: a filled compact own-tag chip with a descriptive accessible name.
             Assert.Equal(new[] { "chip", "chip-own", "chip-compact" }, chip.Classes.Where(name => name.StartsWith("chip", StringComparison.Ordinal)));
             Assert.DoesNotContain("link", chip.Classes);
             Assert.False(MediaLibraryTileView.ChipThreadMark(chip).IsVisible);
-            Assert.True(chip.Focusable && chip.IsTabStop);
+            Assert.False(chip.Focusable);
+            Assert.False(chip.IsTabStop);
             string hint = Texts.T("media.tile.tagHint", Label(chip));
             Assert.Equal(hint, ToolTip.GetTip(chip));
             Assert.Equal(hint, AutomationProperties.GetName(chip));
@@ -72,7 +72,7 @@ public sealed class MediaTileTagChipTests : IDisposable
         RoutedEventArgs click = new(Button.ClickEvent);
         visible[1].RaiseEvent(click);
         Assert.True(click.Handled); // The tile itself is not activated by the chip.
-        visible[0].RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        WorkspaceChips.MenuModelOf(visible[0])!.Entries.Single(item => item.CommandId == TagPickerMenu.Include).Invoke!();
         Assert.Equal(new[] { dog.Id.Value, cat.Id.Value }, filtered);
         // The tile line no longer counts tags; the chips show them.
         Assert.DoesNotContain("tags", ((MediaLibraryTileRow)view.DataContext!).DetailWithState);
@@ -155,8 +155,9 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.Contains(Texts.T("media.badge.gif"), name);
         Assert.Contains(Texts.T("media.badge.untagged"), name);
         Assert.Equal(view.BadgeDescription, AutomationProperties.GetHelpText(view));
-        // The star: a named, focusable toggle; clicking runs the page's favourite action for the shown occurrence, not the tile.
-        Assert.True(star.IsVisible && star.Focusable);
+        Assert.True(star.IsVisible);
+        Assert.False(star.Focusable);
+        Assert.False(star.IsTabStop);
         Assert.False(star.IsChecked);
         Assert.Contains("tile-favorite", star.Classes);
         Assert.Contains(MediaTileView.QuietFavoriteClass, star.Classes); // the badge shows the state at rest

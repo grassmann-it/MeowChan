@@ -241,7 +241,7 @@ public sealed class MediaFirstSidebarTests
     [InlineData(320, true)]
     [InlineData(480, false)]
     [InlineData(480, true)]
-    public void MediaKeepsItsTopAndAutoUsesOnlySpareHeight(int width, bool portrait) => BooruComponentDispatcher.Run(() =>
+    public void ReaderMediaKeepsItsTopAndAutoUsesOnlySpareHeight(int width, bool portrait) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.Initialize();
@@ -333,12 +333,15 @@ public sealed class MediaFirstSidebarTests
                 Assert.True(ContrastRules.Contrast(ColorOf("Workspace.Favorite"), surface) >= 3);
                 Assert.True(ContrastRules.Contrast(ColorOf("Workspace.Accent"), surface) >= 3);
             }
-            Assert.True(panel.FavoriteButton.Focus(NavigationMethod.Tab));
+            Assert.False(panel.FavoriteButton.Focus(NavigationMethod.Tab));
+            Assert.False(panel.FavoriteButton.IsTabStop);
+            Assert.True(panel.InfoToggle.Focus(NavigationMethod.Tab));
+            Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
             var ratingBar = overlay.GetVisualDescendants().OfType<GalleryDecisionRow>().Single();
             var overlayActions = overlay.GetVisualDescendants().OfType<Button>()
                 .Where(button => !button.GetVisualAncestors().Contains(ratingBar)).ToArray();
             Assert.Equal(2, overlayActions.Length);
-            foreach (Control next in new Control[] { panel.InfoToggle, panel.Open, panel.Frame, ratingBar.FocusStar,
+            foreach (Control next in new Control[] { panel.Open, panel.Frame, ratingBar.FocusStar,
                 overlayActions[0], overlayActions[1], panel.Close })
             {
                 window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
