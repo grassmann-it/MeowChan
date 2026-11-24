@@ -281,7 +281,10 @@ public sealed class BooruMediaSidebarTests
         Focus(Hit(view, "101"));
         PressPointer(window, Find<Button>(Sidebar(view), "BooruPanelTag:blue_eyes"));
         Assert.Contains("blue_eyes", model.Search.View.Input.Split(' '));
-        PressPointer(window, Find<Button>(Sidebar(view), "BooruPanelTag:sky"), RawInputModifiers.Alt);
+        Button artist = Find<Button>(Sidebar(view), "BooruPanelTag:sky");
+        artist.BringIntoView();
+        Settle(window);
+        PressPointer(window, artist, RawInputModifiers.Alt);
         Assert.Contains("-sky", model.Search.View.Input.Split(' '));
         Assert.True(Hit(view, "101").IsFocused);
         Assert.Equal(1, harness.Search.Requests);
@@ -409,6 +412,9 @@ public sealed class BooruMediaSidebarTests
     private static void PressPointer(Window window, Control control, RawInputModifiers modifiers = RawInputModifiers.None)
     {
         Point point = control.TranslatePoint(new Rect(control.Bounds.Size).Center, window)!.Value;
+        Visual? hit = window.InputHitTest(point) as Visual;
+        Assert.True(hit is not null && hit.GetSelfAndVisualAncestors().Contains(control),
+            $"Pointer at {point} hit {hit} instead of {control.Name}.");
         window.MouseDown(point, MouseButton.Left, modifiers);
         window.MouseUp(point, MouseButton.Left, modifiers);
         Settle(window);
