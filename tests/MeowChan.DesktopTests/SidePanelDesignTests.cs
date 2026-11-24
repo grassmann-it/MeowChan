@@ -362,11 +362,13 @@ public sealed class SidePanelDesignTests
                         double height = In(bar, panel).Bottom - In(panel.Card, panel).Bottom;
                         Near(8 + 40 + (tagged && width < 700 ? 28 : 0), height);
                         Assert.InRange(height, 0, 337 * 0.34);
-                        // Tom 19:55: the expansion chevron belongs inside the lower bar.
-                        Button last = Find<Button>("ReaderMediaSidebarExpand");
-                        Near(In(edit, bar).Right + 4, In(last, bar).Left);
+                        // Fable §8–10: only offer expansion for tags or facts missing from the compact grid.
+                        Button chevron = Find<Button>("ReaderMediaSidebarExpand");
+                        bool expandable = tagged || facts.Bounds.Width < 384;
+                        Assert.Equal(expandable, chevron.IsEffectivelyVisible);
+                        if (expandable) Near(In(edit, bar).Right + 4, In(chevron, bar).Left);
+                        Button last = expandable ? chevron : edit;
                         var tag = Find<Button>(tagged ? "ReaderMediaSidebarTagsToggle" : "ReaderMediaSidebarTagsEmpty");
-                        Assert.True(last.IsEffectivelyVisible);
                         Assert.False(panel.DecisionRow.ClearButton.IsEffectivelyVisible);
                         double inset = bar.Bounds.Width < 260 ? 4 : 8;
                         Near(inset, In(panel.DecisionRow.StarButtons[0], bar).Left);
