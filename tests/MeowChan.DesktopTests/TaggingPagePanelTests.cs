@@ -46,7 +46,7 @@ public sealed class TaggingPagePanelTests
     {
         await fixture.ShowsAsync(1);
         fixture.ClickEntry(1);
-        fixture.Key(Key.Down);
+        fixture.Key(PhysicalKey.ArrowDown);
         int next = fixture.FocusedNumber();
         Assert.True(next > 1);
         await fixture.ShowsAsync(next);
@@ -65,7 +65,7 @@ public sealed class TaggingPagePanelTests
     public void AnEntryWithoutAPostShowsItsFilenameAndPosition() => WithPage(false, async fixture =>
     {
         fixture.ClickEntry(1);
-        fixture.Key(Key.End);
+        fixture.Key(PhysicalKey.End);
         Assert.Equal(12, fixture.FocusedNumber());
         await fixture.ShowsAsync(12);
         Assert.DoesNotContain("No.", fixture.PanelText("ReaderMediaSidebarHeading"));
@@ -88,11 +88,11 @@ public sealed class TaggingPagePanelTests
                 await fixture.ShowsAsync(1);
                 await fixture.WaitAsync(() => fixture.Picture.Source != null, "initial image");
                 fixture.ClickEntry(1);
-                fixture.Key(grid ? Key.Right : Key.Down);
+                fixture.Key(grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown);
                 await firstDecoded.Task.WaitAsync(Deadline);
                 for (int index = 1; index < 9; index++)
-                    fixture.Key(!grid ? Key.Down : index % 2 == 0 ? Key.Right : Key.Left);
-                fixture.Key(Key.Down);
+                    fixture.Key(!grid ? PhysicalKey.ArrowDown : index % 2 == 0 ? PhysicalKey.ArrowRight : PhysicalKey.ArrowLeft);
+                fixture.Key(PhysicalKey.ArrowDown);
                 int final = fixture.FocusedNumber();
                 if (grid) Assert.True(final > 2);
                 else Assert.Equal(11, final);
@@ -140,17 +140,17 @@ public sealed class TaggingPagePanelTests
     public void ATagEditorCloseResumesThePendingCursorAfterItsTick() => WithPage(false, async fixture =>
     {
         fixture.ClickEntry(1);
-        fixture.Key(Key.Down);
+        fixture.Key(PhysicalKey.ArrowDown);
         await fixture.ShowsAsync(2);
         await fixture.WaitForEditorAsync();
-        fixture.Key(Key.Down);
+        fixture.Key(PhysicalKey.ArrowDown);
         Assert.Equal(3, fixture.FocusedNumber());
         fixture.Click(fixture.Find<Button>(fixture.Panel, EditId));
         Control popup = await fixture.WaitForPopoverAsync();
         fixture.Clock!.Advance(120);
         fixture.Pump();
         Assert.Contains("file-2.png", fixture.PanelText(MetaId));
-        fixture.Key(Key.Escape, root: TopLevel.GetTopLevel(popup));
+        fixture.Key(PhysicalKey.Escape, root: TopLevel.GetTopLevel(popup));
         await fixture.ShowsAsync(3);
         Assert.Empty(fixture.Session.GetPublishedPrivateTagSnapshot().Snapshot!.Tags);
     }, clock: new ManualClock());
@@ -165,12 +165,12 @@ public sealed class TaggingPagePanelTests
         fixture.ClickEntry(2, RawInputModifiers.Control);
         fixture.ClickEntry(3, RawInputModifiers.Control);
         Assert.Equal(3, fixture.List.SelectedItems!.Count);
-        fixture.Key(grid ? Key.Right : Key.Down, RawInputModifiers.Control);
+        fixture.Key(grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown, RawInputModifiers.Control);
         Assert.Equal(4, fixture.FocusedNumber());
         await fixture.ShowsAsync(4);
         await fixture.WaitForEditorAsync();
-        fixture.Key(Key.F);
-        fixture.Key(Key.D3);
+        fixture.Key(PhysicalKey.F);
+        fixture.Key(PhysicalKey.Digit3);
         Assert.Empty(fixture.Session.GetMediaRatings());
         Assert.Empty(fixture.Session.GetFavorites());
         Assert.True(fixture.Find<TextBlock>(fixture.Window, "TaggingStatus").IsEffectivelyVisible);
@@ -200,7 +200,7 @@ public sealed class TaggingPagePanelTests
         Assert.True(stamp.IsEffectivelyEnabled);
         fixture.Click(stamp);
         await fixture.WaitAsync(() => fixture.StoredTags(4).Contains("cursor tag"), "stamped cursor tag");
-        fixture.Key(Key.Escape, root: TopLevel.GetTopLevel(popup));
+        fixture.Key(PhysicalKey.Escape, root: TopLevel.GetTopLevel(popup));
         await fixture.WaitAsync(() => fixture.FindOrDefault<Control>(fixture.Window, "TaggingTagPopoverFrame") == null, "closed popover");
 
         for (int number = 1; number <= 4; number++)
@@ -216,23 +216,23 @@ public sealed class TaggingPagePanelTests
         Assert.Equal("3", fixture.Find<TextBlock>(fixture.Entry(4), "TaggingQueueRowRating").Text);
 
         fixture.ClickEntry(4);
-        fixture.Key(Key.F);
+        fixture.Key(PhysicalKey.F);
         await fixture.WaitAsync(() => fixture.Session.GetFavorites().Any(entry => entry.Key == key), "favorite from F");
         await fixture.WaitAsync(() => fixture.Find<ToggleButton>(fixture.Panel, FavoriteId).IsChecked == true, "sidebar favorite");
-        fixture.Key(Key.D0, RawInputModifiers.Shift);
+        fixture.Key(PhysicalKey.Digit0, RawInputModifiers.Shift);
         await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == null, "clear rating by Shift+0");
-        fixture.Key(Key.D3);
+        fixture.Key(PhysicalKey.Digit3);
         await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == 3, "rating by 3");
-        fixture.Key(Key.D0);
+        fixture.Key(PhysicalKey.Digit0);
         await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == null, "clear rating by 0");
-        fixture.Key(Key.D3, RawInputModifiers.Shift);
+        fixture.Key(PhysicalKey.Digit3, RawInputModifiers.Shift);
         await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == 3, "rating by Shift+3");
         fixture.Page.SetViewMode(TaggingViewMode.Grid, save: false);
         await fixture.ShowsAsync(4);
         MediaBadgeView badges = fixture.Find<MediaBadgeView>(fixture.Entry(4), "TaggingTileBadges");
         await fixture.WaitAsync(() => badges.IsEffectivelyVisible && badges.Plan.Badges.Any(b => b.Badge.Id == MediaBadgeId.Favorite)
             && badges.Plan.Badges.Any(b => b.Badge.Id == MediaBadgeId.Rating && b.Badge.Label == "3"), "visible grid badges");
-        fixture.Key(Key.Left);
+        fixture.Key(PhysicalKey.ArrowLeft);
         await fixture.ShowsAsync(fixture.FocusedNumber());
         Assert.NotEqual(4, fixture.FocusedNumber());
     });
@@ -267,7 +267,7 @@ public sealed class TaggingPagePanelTests
         await fixture.WaitForEditorAsync();
         fixture.Click(fixture.Find<Button>(fixture.Panel, EditId));
         Control popup = await fixture.WaitForPopoverAsync();
-        fixture.Key(Key.Escape, root: TopLevel.GetTopLevel(popup));
+        fixture.Key(PhysicalKey.Escape, root: TopLevel.GetTopLevel(popup));
         fixture.ClickEntry(2);
         await fixture.ShowsAsync(2);
         Assert.False(fixture.FindOrDefault<Button>(fixture.Panel, EditId)?.IsEffectivelyEnabled == true
@@ -278,7 +278,7 @@ public sealed class TaggingPagePanelTests
         fixture.Click(fixture.Find<Button>(fixture.Panel, EditId));
         popup = await fixture.WaitForPopoverAsync();
         Assert.Contains("file-3.png", fixture.Find<TextBlock>(popup, "TaggingTagPopoverTitle").Text);
-        fixture.Key(Key.Escape, root: TopLevel.GetTopLevel(popup));
+        fixture.Key(PhysicalKey.Escape, root: TopLevel.GetTopLevel(popup));
     }, missing: 2);
 
     [Theory]
@@ -307,7 +307,7 @@ public sealed class TaggingPagePanelTests
 
         fixture.ClickEntry(1);
         fixture.ClickEntry(2, RawInputModifiers.Control);
-        fixture.Key(Key.Down, RawInputModifiers.Control);
+        fixture.Key(PhysicalKey.ArrowDown, RawInputModifiers.Control);
         await fixture.ShowsAsync(3);
         if (width == 1000) BooruReviewTestPlatform.Resize(fixture.Window, 1400);
         await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap, "the starting decode before dragging");
@@ -442,9 +442,9 @@ public sealed class TaggingPagePanelTests
         ShortcutService.Publish(ShortcutService.CurrentSection.Set(rating, [ShortcutGesture.Parse("Shift+7")]));
         fixture.ClickEntry(1);
         await fixture.ShowsAsync(1);
-        fixture.Key(Key.D3, RawInputModifiers.Shift);
+        fixture.Key(PhysicalKey.Digit3, RawInputModifiers.Shift);
         Assert.Empty(fixture.Session.GetMediaRatings());
-        fixture.Key(Key.D7, RawInputModifiers.Shift);
+        fixture.Key(PhysicalKey.Digit7, RawInputModifiers.Shift);
         await fixture.WaitAsync(() => fixture.Session.GetMediaRating(AssetKey(fixture.Items[0])) == 3, "remapped rating gesture");
         Assert.True(fixture.Star().IsChecked);
     });
@@ -502,10 +502,11 @@ public sealed class TaggingPagePanelTests
                 await ArchiveCleanupFixtures.AssetsAsync(directory, assets);
                 await ArchiveCleanupFixtures.RegisterAsync(profile.Path, downloads, ThreadId);
                 MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
+                IReadOnlyList<MediaAssetReference> savedAssets = manifest.GetPage();
                 TagQueueItem[] items = names.Select((name, index) =>
                 {
                     int number = index + 1;
-                    MediaAssetReference asset = manifest.Assets.Single(candidate => candidate.RequestedFileName == name);
+                    MediaAssetReference asset = savedAssets.Single(candidate => candidate.RequestedFileName == name);
                     return new TagQueueItem(ThreadId, directory, asset.AssetId, asset.Sha256!, asset.Length,
                         asset.MediaIdentifier, asset.Variant, number == 12 ? null : number.ToString(), null, null, null,
                         false, name, name, number == video ? SavedMediaKind.Video : SavedMediaKind.Image,
@@ -601,7 +602,7 @@ public sealed class TaggingPagePanelTests
             Pump();
         }
 
-        internal void Key(Key key, RawInputModifiers modifiers = RawInputModifiers.None, TopLevel? root = null)
+        internal void Key(PhysicalKey key, RawInputModifiers modifiers = RawInputModifiers.None, TopLevel? root = null)
         {
             (root ?? Window).KeyPressQwerty(key, modifiers);
             (root ?? Window).KeyReleaseQwerty(key, modifiers);
