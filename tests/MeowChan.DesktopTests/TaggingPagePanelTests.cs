@@ -383,6 +383,10 @@ public sealed class TaggingPagePanelTests
             Assert.False(copied.TaggingPagePanel);
             JsonObject exported = SettingsTransfer.Export(session.Config);
             Assert.False(exported[nameof(Config.TaggingPagePanel)]!.GetValue<bool>());
+            string transferred = Path.Combine(temp.Path, "transferred");
+            Directory.CreateDirectory(transferred);
+            File.WriteAllText(Path.Combine(transferred, "settings.json"), exported.ToJsonString());
+            Assert.False(Config.LoadConfig(transferred).TaggingPagePanel);
             await session.ApplySettingsAsync(draft);
             Assert.False(session.Config.TaggingPagePanel);
         }
@@ -390,6 +394,50 @@ public sealed class TaggingPagePanelTests
         await reopened.StartAsync();
         Assert.False(reopened.Config.TaggingPagePanel);
     }
+
+    [Fact]
+    public void SettingsResetPreservesTheDirectSidebarChoice() => WithPage(false, async fixture =>
+    {
+        fixture.Click(fixture.Find<ToggleButton>(fixture.Window, ToggleId));
+        await fixture.WaitAsync(() => !fixture.Session.Config.TaggingPagePanel, "confirmed panel preference");
+
+        TaskCompletionSource saved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        SettingsEditor editor = new(fixture.Session.Config, async draft =>
+        {
+            await fixture.Session.ApplySettingsAsync(draft);
+            saved.TrySetResult();
+        });
+        Window settings = new() { Width = 1400, Height = 900, Content = editor };
+        settings.Show();
+        try
+        {
+            editor.ResetDraft(SettingsEditor.SettingsResetScope.All);
+            settings.UpdateLayout();
+            fixture.Click(fixture.Find<Button>(settings, "SaveSettingsButton"));
+            await saved.Task.WaitAsync(Deadline);
+            Assert.False(fixture.Session.Config.TaggingPagePanel);
+            Assert.False(fixture.Find<ToggleButton>(fixture.Window, ToggleId).IsChecked);
+        }
+        finally
+        {
+            editor.EndLifetime();
+            settings.Close();
+        }
+    });
+
+    [Fact]
+    public void RemappedShiftDigitRatesTheFocusedEntryThroughTheList() => WithPage(false, async fixture =>
+    {
+        const string rating = "media.rating.set-3";
+        ShortcutService.Publish(ShortcutService.CurrentSection.Set(rating, [ShortcutGesture.Parse("Shift+7")]));
+        fixture.ClickEntry(1);
+        await fixture.ShowsAsync(1);
+        fixture.Key(Key.D3, RawInputModifiers.Shift);
+        Assert.Empty(fixture.Session.GetMediaRatings());
+        fixture.Key(Key.D7, RawInputModifiers.Shift);
+        await fixture.WaitAsync(() => fixture.Session.GetMediaRating(AssetKey(fixture.Items[0])) == 3, "remapped rating gesture");
+        Assert.True(fixture.Star().IsChecked);
+    });
 
     [Theory]
     [InlineData(false)]
