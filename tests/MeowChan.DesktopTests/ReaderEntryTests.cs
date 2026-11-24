@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -100,17 +101,25 @@ public sealed class ReaderEntryTests
     }
 
     [Fact]
-    public void TheReaderOpensDoNotPublishAReadingPositionByThemselves()
+    public async Task TheReaderOpensDoNotPublishAReadingPositionByThemselves()
     {
-        string gallery = Source("Desktop/Views/Archive/ArchivePage.Gallery.cs");
-        string readPosts = gallery[gallery.IndexOf("private async void OnReadPostsClick", StringComparison.Ordinal)..];
-        readPosts = readPosts[..readPosts.IndexOf("private void OnVersionScopeChanged", StringComparison.Ordinal)];
-        Assert.DoesNotContain("ReaderPositionChanged", readPosts);
-        Assert.Contains("OpenReaderOnThreadAsync(selectedThread,", readPosts);
-        string load = Source("Desktop/Views/Archive/ArchivePage.axaml.cs");
-        Assert.Contains("focusIntent: focusIntent, passiveOpen: true)", load);
-        string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
-        Assert.Contains("ReaderPositionChanged(deliberate: !interactionRevision.HasValue && !passiveOpen)", reader);
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAsync(archive, "1000");
+        archive.Run(page =>
+        {
+            List<LocalReadingPosition> written = [];
+            page.ConsciousReadingPositionChanged += written.Add;
+            ReaderArchiveTestFixture.Load(page, view);
+            Assert.Empty(written);
+
+            Control? largeReader = null;
+            page.OpenReaderRequested = _ => largeReader = page.DetachReader();
+            page.FindControl<Button>("ArchiveReadPosts")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            BooruComponentDispatcher.WaitUntil(() => largeReader != null && !page.IsBusy && page.CurrentThread?.Summary.Id == view.Summary.Id
+                && page.CurrentReaderPostId == "p000", "the same thread to open in the large reader");
+            BooruComponentDispatcher.Wait(page.MediaLoadTask);
+            Assert.Empty(written);
+        });
     }
 
     // ---- AR-03: the reader toolbar without a thread ----
@@ -167,19 +176,33 @@ public sealed class ReaderEntryTests
 
     // ---- O2-01: focus after the large reader closed ----
 
-    [Fact]
-    public void AReaderOriginThatIsGoneOrCannotTakeFocusResolvesToTheFallbackOrNothing()
-    {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AReaderOriginThatIsGoneOrCannotTakeFocusResolvesToTheFallbackOrNothing(bool removeOrigin) =>
         BooruComponentDispatcher.Run(() =>
         {
-            Assert.Null(ReaderOriginFocus.Resolve(null));
-            // Without a window nothing is attached to a visual tree: no control is a target (a detached row is never focused).
-            Assert.Null(ReaderOriginFocus.Resolve(new ListBoxItem(), new DataGrid()));
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Button origin = new();
+            ListBox fallback = new() { ItemsSource = new[] { "first", "selected" }, SelectedIndex = 1 };
+            StackPanel panel = new() { Children = { origin, fallback } };
+            Window window = new() { Content = panel, Width = 640, Height = 480 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                window.UpdateLayout();
+                Assert.True(origin.Focus());
+                if (removeOrigin) panel.Children.Remove(origin);
+                else origin.IsEnabled = false;
+
+                Assert.Null(ReaderOriginFocus.Resolve(origin));
+                Control selected = Assert.IsAssignableFrom<Control>(fallback.ContainerFromIndex(1));
+                Assert.True(ReaderOriginFocus.Resolve(origin, fallback)?.Focus());
+                Assert.Same(selected, window.FocusManager?.GetFocusedElement());
+            }
+            finally { window.Close(); }
         });
-        string reader = Source("Desktop/Shell/MainWindow.Reader.cs");
-        Assert.Contains("RestoreReaderOriginFocus(_readerOriginFocus, _readerOriginPage)", reader);
-        Assert.DoesNotContain("_readerOriginFocus?.Focus()", reader);
-    }
 
     // ---- RD-03 / RD-04 / RD-05: the media sidebar's empty texts and the focused-enlarge setting ----
 
