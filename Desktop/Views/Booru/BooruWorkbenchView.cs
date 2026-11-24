@@ -296,14 +296,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildHeader()
     {
-        StackPanel details = new() { Spacing = 4, VerticalAlignment = VerticalAlignment.Bottom, Children = { _title } };
+        StackPanel details = new() { Classes = { "workspace-page-header" }, VerticalAlignment = VerticalAlignment.Top, Children = { _title } };
         _searchHelp.Source = () => BuildSearchHelp(_model.Search.View);
         CommandBindings.EnsureIconBeforeText(_openWatchers, "eye");
         _openWatchers.Click += (_, _) => ShowWatchers();
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Top, Children = { _openWatchers, _more } };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Top, Children = { _more, _searchHelp } };
         PageHeader.SetRole(actions, PageHeaderRole.Actions);
-        PageHeader.SetRole(_searchHelp, PageHeaderRole.Help);
-        PageHeader heading = new() { Spacing = 8, Children = { details, actions, _searchHelp } };
+        PageHeader.SetRole(_openWatchers, PageHeaderRole.Help);
+        PageHeader heading = new() { Children = { details, actions, _openWatchers } };
         _tabLimitHost.Child = _tabLimitText;
         AutomationProperties.SetLiveSetting(_tabLimitText, AutomationLiveSetting.Polite);
         return new StackPanel { Spacing = 4, Children = { heading, _tabLimitHost } };
