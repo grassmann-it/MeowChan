@@ -1,110 +1,217 @@
-using System.Runtime.CompilerServices;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
-using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
 
-// TG1 (second step): the work-view rows of the view switch and the selection bar, the wiring the page must keep (the ids it sets, Esc,
-// the saved view) and the badge helper's place. The page itself is a GUI control, so its source is the contract here, as for the other
-// page tests; the rules the bar shows (which command applies) are TaggingPageMenuTests'.
 [Collection("Localization")]
-public sealed class TaggingPageSelectionTests : IDisposable
+public sealed class TaggingPageSelectionTests
 {
-    public TaggingPageSelectionTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
-    public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
-
-    private static string Read(string relative, [CallerFilePath] string sourcePath = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
-
     [Fact]
-    public void TheViewSwitchAndSelectionActionsStayOnTheSurface()
+    public void TheViewSwitchAndSelectionActionsStayOnTheSurface() => WithPage((page, _) =>
     {
-        string workView = Read("Desktop/Views/Tagging/TaggingPage.WorkView.cs");
-        foreach (string id in new[] { "tagging.view-toggle", "tagging.selection-bar", "tagging.selection.status", "tagging.selection.tag",
-            "tagging.selection.done", "tagging.selection.more", "tagging.selection.clear" })
+        Control[] controls = [page.SelectionBar, page.SelectionText, page.SelectionTagButton, page.SelectionDoneButton,
+            page.SelectionMoreButton, page.SelectionClearButton];
+        foreach (WorkView view in WorkViewSetting.All)
         {
-            Assert.Contains($"\"{id}\"", workView);
-            foreach (WorkView view in WorkViewSetting.All)
-                Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(id, view));
+            page.ApplyWorkView(view);
+            Assert.True(page.ViewToggle.IsEffectivelyVisible);
+            Assert.False(page.SelectionBar.IsEffectivelyVisible);
+
+            page.ShownList.SelectedIndex = 0;
+            Assert.All(controls, control => Assert.True(control.IsEffectivelyVisible, control.Name));
+            Assert.Equal(Texts.T("media.selection.count", "1"), page.SelectionText.Text);
+            page.SelectionClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(0, page.SelectedCount);
         }
-    }
+    });
 
     [Fact]
-    public void BothViewsShareTheSelectionTheMenuTheKeysAndTheDoubleClick()
+    public void BothViewsShareTheSelectionTheMenuTheKeysAndTheDoubleClick() => WithPage((page, window) =>
     {
-        string grid = Read("Desktop/Views/Tagging/TaggingPage.Grid.cs");
-        string commands = Read("Desktop/Views/Tagging/TaggingPage.Commands.cs");
-        // The grid is the media page's panel over multi-select, with its own menu host, the same key handler and the same continue action.
-        Assert.Contains("SelectionMode = SelectionMode.Multiple", grid);
-        Assert.Contains("new MediaTilePanel", grid);
-        Assert.Contains("_grid.AddHandler(KeyDownEvent, OnListKeyDown", grid);
-        Assert.Contains("_grid.DoubleTapped", grid);
-        Assert.Contains("_grid.SelectionChanged += OnSelectionChanged;", grid);
-        Assert.Contains("_list.SelectionChanged += OnSelectionChanged;", commands);
-        // Esc clears the selection first; only the shown list is bound.
-        Assert.Contains("e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && SelectedCount > 0", commands);
-        Assert.Contains("hidden.ItemsSource = null;", Read("Desktop/Views/Tagging/TaggingPage.cs"));
-    }
-
-    [Fact]
-    public void RenderClearsNativeSelectionsBeforeRehydratingCarriedKeys()
-    {
-        string page = Read("Desktop/Views/Tagging/TaggingPage.cs");
-        int clearHidden = page.IndexOf("hidden.SelectedItems?.Clear();", StringComparison.Ordinal);
-        int clearActive = page.IndexOf("ActiveList.SelectedItems?.Clear();", StringComparison.Ordinal);
-        int bindHidden = page.IndexOf("hidden.ItemsSource = null;", StringComparison.Ordinal);
-        int bindActive = page.IndexOf("ActiveList.ItemsSource = _rows;", StringComparison.Ordinal);
-        int restoreSelection = page.IndexOf("ActiveList.SelectedItems?.Add", StringComparison.Ordinal);
-        Assert.True(clearHidden >= 0 && clearActive >= 0, "Render must clear both native selection collections.");
-        Assert.True(clearHidden < bindHidden && clearActive < bindActive && bindActive < restoreSelection,
-            "Render must clear stale selections before binding and rehydrating the carried selection.");
-        Assert.Contains("stale row beside it", page, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TheViewChoiceIsSavedPerProfileAndRestoredWhenThePageIsBuilt()
-    {
-        string shell = Read("Desktop/Shell/MainWindow.TaggingPage.cs");
-        Assert.Contains("config.TaggingPageView = mode.ToString()", shell);
-        Assert.Contains("RestoreViewMode(TaggingViewModes.Parse(_session.Config.TaggingPageView))", shell);
-        Assert.Contains("SaveViewMode?.Invoke(mode)", Read("Desktop/Views/Tagging/TaggingPage.Grid.cs"));
-        // Restoring never saves back.
-        Assert.Contains("RestoreViewMode(TaggingViewMode mode) => SetViewMode(mode, save: false)", Read("Desktop/Views/Tagging/TaggingPage.Grid.cs"));
-    }
-
-    [Fact]
-    public void TheTileBadgesLiveInOneSeparateClassTheTileOnlyPlaces()
-    {
-        string badges = Read("Desktop/Views/Tagging/TaggingTileBadges.cs");
-        string tile = Read("Desktop/Views/Tagging/TaggingQueueTileView.cs");
-        Assert.Contains("internal sealed class TaggingTileBadges", badges);
-        // MB1b: the one drawn thing is the shared badge view with the tagging grid's options; nothing of the old corner marks is left.
-        Assert.Contains("new() { Name = \"TaggingTileBadges\", Options = MediaBadgeOptions.TaggingGrid }", badges);
-        foreach (string gone in new[] { "CornerMark", "CornerBadge", "CheckMark", "SkipMark", "NextMark", "VideoMark", "TagMark", "Overlay" })
+        TagQueueKey? continuedAt = null;
+        page.StartTagging = walk => { continuedAt = walk.Start; return Task.CompletedTask; };
+        string[]? menuItems = null;
+        foreach (TaggingViewMode view in new[] { TaggingViewMode.List, TaggingViewMode.Grid })
         {
-            Assert.DoesNotContain(gone, badges);
-            Assert.DoesNotContain(gone, tile);
+            page.RestoreViewMode(view);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            ListBox list = page.ShownList;
+            list.Selection.Select(0);
+            list.Selection.Select(1);
+            Assert.Equal(2, page.SelectedCount);
+            Assert.Equal(Texts.T("media.selection.count", "2"), page.SelectionText.Text);
+
+            ListBoxItem first = Assert.IsType<ListBoxItem>(list.ContainerFromIndex(0));
+            first.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F10, KeyModifiers = KeyModifiers.Shift });
+            Assert.True(page.OpenListMenu?.IsOpen);
+            string[] items = page.ListMenuModel()!.Entries.Select(entry => entry.Id).ToArray();
+            Assert.Contains(TaggingCommands.ContinueHere, items);
+            menuItems ??= items;
+            Assert.Equal(menuItems, items);
+            page.OpenListMenu!.Close();
+            Dispatcher.UIThread.RunJobs();
+
+            KeyEventArgs escape = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+            first.RaiseEvent(escape);
+            Assert.True(escape.Handled);
+            Assert.Empty(list.SelectedItems!);
+            Assert.False(page.SelectionBar.IsEffectivelyVisible);
+
+            list.SelectedIndex = 0;
+            continuedAt = null;
+            first.RaiseEvent(new TappedEventArgs(InputElement.DoubleTappedEvent,
+                new PointerEventArgs(InputElement.PointerReleasedEvent, first,
+                    new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), first, default, 0,
+                    PointerPointProperties.None, KeyModifiers.None)));
+            BooruComponentDispatcher.WaitUntil(() => continuedAt.HasValue, "the selected entry is passed to the gallery after the cursor write");
+            Assert.Equal(page.Rows[0].Key, continuedAt);
+            page.ClearSelection();
         }
-        // The tile lays the view over its slot and hands it the row, the shown picture's size and the slot's size; the badges add no focus stop.
-        Assert.Contains("_badges.View", tile);
-        Assert.Contains("_badges.Show(row, tags, _preview.PictureSize, _preview.Bounds.Size)", tile);
-        Assert.Contains("_badges.Place(_preview.PictureSize, _preview.Bounds.Size)", tile);
-        Assert.DoesNotContain("Focusable = true", badges);
-        Assert.DoesNotContain("TaggingTileBadges", Read("Desktop/Views/Tagging/TaggingPage.cs"));
-    }
+    });
 
     [Fact]
-    public void TheNewTextsExistInEveryLanguage()
+    public void SwitchingViewsAndFilteringKeepsOnlyTheCurrentSelectedRows() => WithPage((page, _) =>
     {
-        foreach (string language in new[] { "en", "de" })
+        page.List.Selection.Select(0);
+        page.List.Selection.Select(2);
+        TagQueueKey first = page.Rows[0].Key;
+        TagQueueKey finished = page.Rows[2].Key;
+        page.RestoreViewMode(TaggingViewMode.Grid);
+        CheckSelection(first, finished);
+        page.Filter = TaggingQueueFilter.Open;
+        CheckSelection(first);
+        page.Filter = TaggingQueueFilter.All;
+        page.RestoreViewMode(TaggingViewMode.List);
+        CheckSelection(first);
+
+        void CheckSelection(params TagQueueKey[] expected)
+        {
+            ListBox hidden = ReferenceEquals(page.ShownList, page.List) ? page.TileGrid : page.List;
+            Assert.Null(hidden.ItemsSource);
+            Assert.Empty(hidden.SelectedItems!);
+            TaggingQueueRow[] selected = page.ShownList.SelectedItems!.Cast<TaggingQueueRow>().ToArray();
+            Assert.Equal(expected, selected.Select(row => row.Key));
+            Assert.All(selected, row => Assert.Same(page.Rows.Single(current => current.Key == row.Key), row));
+        }
+    });
+
+    [Fact]
+    public void TheViewChoiceIsSavedPerProfileAndRestoredWhenThePageIsBuilt() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        new Config { AutomaticUpdateChecks = false, SaveUrlsOnExit = false, FirstRunSetupVersion = 1,
+            DownloadPath = Path.Combine(profile.Path, "media"), TaggingPageView = "Grid", WorkspaceMode = "Advanced" }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            await using DesktopSessionHost host = new(profile.Path, []);
+            await host.StartAsync();
+            await using MainWindow window = new(host);
+            window.Show();
+            Button footer = window.FindControl<Button>("TaggingNavigationButton")!;
+            await BooruTestSupport.WaitAsync(() => footer.IsEffectivelyEnabled, "Tagging navigation is enabled");
+            Assert.True(window.ShowTaggingPage());
+            TaggingPage page = Assert.IsType<TaggingPage>(window.TaggingPage);
+            Assert.Equal(1, page.ViewToggle.SelectedIndex);
+            Assert.Same(page.TileGrid, page.ShownList);
+            Assert.Equal("Grid", Config.LoadConfig(profile.Path).TaggingPageView);
+
+            page.ViewToggle.First.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Same(page.List, page.ShownList);
+            await BooruTestSupport.WaitAsync(() => host.Config.TaggingPageView == "List", "the list preference is saved");
+            Assert.Equal("List", Config.LoadConfig(profile.Path).TaggingPageView);
+        }
+    });
+
+    [Fact]
+    public void TileBadgesCoverThePreviewWithoutBlockingFocusOrTheSelectionCheck() => WithPage((page, window) =>
+    {
+        page.RestoreViewMode(TaggingViewMode.Grid);
+        page.ShownList.SelectedIndex = 2;
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        ListBoxItem item = Assert.IsType<ListBoxItem>(page.ShownList.ContainerFromIndex(2));
+        TaggingQueueTileView tile = Assert.Single(item.GetVisualDescendants().OfType<TaggingQueueTileView>());
+        MediaBadgeView badges = Assert.Single(tile.GetVisualDescendants().OfType<MediaBadgeView>());
+
+        Assert.True(item.Focus(NavigationMethod.Tab));
+        Assert.False(badges.Focusable);
+        Assert.False(badges.IsHitTestVisible);
+        Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(badges));
+        Assert.Equal(BoundsIn(tile.Preview, tile), BoundsIn(badges, tile));
+        PlacedBadge mark = Assert.Single(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Tagging);
+        Assert.Equal("check", mark.Badge.Icon);
+        Assert.True(tile.SelectedMark.IsEffectivelyVisible);
+        Assert.False(BoundsIn(tile.SelectedMark, badges).Intersects(mark.Bounds));
+        Assert.EndsWith(Texts.T("media.badge.tagging.done"), AutomationProperties.GetName(tile));
+        Assert.Equal(AutomationProperties.GetName(tile), AutomationProperties.GetName(item));
+    });
+
+    [Fact]
+    public void TheNewTextsExistInEveryLanguage() => BooruComponentDispatcher.Run(() =>
+    {
+        foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
         {
             Texts.SetLanguage(language);
             foreach (string key in new[] { "tagging.page.view", "tagging.page.view.list", "tagging.page.view.list.hint", "tagging.page.view.grid",
                 "tagging.page.view.grid.hint", "tagging.page.selection.name", "tagging.page.selection.state", "tagging.page.selection.state.hint",
                 "tagging.page.selection.remove" })
-                Assert.NotEqual(key, Texts.T(key));
+                Assert.False(string.IsNullOrWhiteSpace(Texts.Own(key)), language + " · " + key);
         }
-    }
+    });
+
+    private static Rect BoundsIn(Control control, Control ancestor) =>
+        new(control.TranslatePoint(default, ancestor)!.Value, control.Bounds.Size);
+
+    private static void WithPage(Action<TaggingPage, Window> check) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        new Config { AutomaticUpdateChecks = false, SaveUrlsOnExit = false,
+            DownloadPath = Path.Combine(profile.Path, "media") }.SaveConfig(profile.Path);
+        DesktopSessionHost host = new(profile.Path, []);
+        TaggingPage? page = null;
+        Window window = new() { Width = 1100, Height = 640 };
+        try
+        {
+            BooruComponentDispatcher.Wait(host.StartAsync());
+            TagQueueItem[] items = Enumerable.Range(1, 3).Select(index => TaggingLayoutRhythmTests.Item() with
+            {
+                AssetId = "asset-" + index, MediaId = "media-" + index
+            }).ToArray();
+            BooruComponentDispatcher.Wait(host.EnqueueTagQueueAsync(items));
+            BooruComponentDispatcher.Wait(host.SetTagQueueStatesAsync([KeyValuePair.Create(items[2].Key, TagQueueState.Done)]));
+            page = new TaggingPage(host);
+            window.Content = page;
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            BooruComponentDispatcher.Wait(page.ActivateAsync());
+            page.Filter = TaggingQueueFilter.All;
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.Equal(3, page.Rows.Count);
+            check(page, window);
+        }
+        finally
+        {
+            window.Close();
+            page?.End();
+            BooruComponentDispatcher.Wait(host.DisposeAsync().AsTask());
+        }
+    });
 }
