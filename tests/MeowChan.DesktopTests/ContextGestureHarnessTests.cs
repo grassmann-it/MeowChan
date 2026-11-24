@@ -2,10 +2,12 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -26,6 +28,7 @@ public sealed class ContextGestureHarnessTests
         Assert.Same(fixture.Second, fixture.Selected);
         Assert.Same(fixture.Second, Assert.Single(fixture.Compositions));
         Assert.Equal(1, fixture.PositionedRequests);
+        CaptureMenu(fixture, useGrid);
         AssertMenuAndActivate(fixture, fixture.Second);
     });
 
@@ -157,6 +160,18 @@ public sealed class ContextGestureHarnessTests
 
         entries[0].Activate();
         Assert.Equal((entries[0].Id, target), Assert.Single(fixture.MenuActions));
+    }
+
+    private static void CaptureMenu(Fixture fixture, bool useGrid)
+    {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_CONTEXT_GESTURES") is not { Length: > 0 } directory) return;
+        ContextMenu menu = Assert.IsType<ContextMenu>(fixture.Host.OpenMenu);
+        TopLevel root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(menu));
+        ContextGestures.Settle(root);
+        using WriteableBitmap frame = Assert.IsType<WriteableBitmap>(root.CaptureRenderedFrame());
+        Directory.CreateDirectory(directory);
+        string surface = useGrid ? "datagrid" : "listbox";
+        frame.Save(Path.Combine(directory, $"context-gestures-{surface}.png"), PngBitmapEncoderOptions.Default);
     }
 
     private static void Run(bool useGrid, Action<Fixture> test, bool openOnPress = false) => BooruComponentDispatcher.Run(() =>
