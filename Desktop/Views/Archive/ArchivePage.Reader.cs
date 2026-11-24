@@ -1011,7 +1011,8 @@ public partial class ArchivePage
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None || CommandBindings.Matches(e, "reader.close")) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
         if (TryPageByShortcut(e)) return;
-        if (SidebarToggleGroup.IsSegmentArrow(e) || ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
+        if (SidebarToggleGroup.IsSegmentArrow(e) || TryRouteReaderButtonNavigation(e)
+            || ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
         // The reader guard deliberately permits its post list and tab content.
         // A generic native-input check would also reject Home/End/Page remaps
         // from ordinary tab content because TabControl is a SelectingItemsControl.
@@ -1034,11 +1035,24 @@ public partial class ArchivePage
     internal bool TryNavigateReaderByKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || !_largeReader || _busy || _ended || IsReaderDialogOpen) return false;
+        if (TryRouteReaderButtonNavigation(e)) return e.Handled;
         int post = ShortcutService.Current.Matches(e, "reader.previous-post") ? -1 : ShortcutService.Current.Matches(e, "reader.next-post") ? 1 : 0;
         int thread = ShortcutService.Current.Matches(e, "reader.previous-thread") ? -1 : ShortcutService.Current.Matches(e, "reader.next-thread") ? 1 : 0;
         if (post == 0 && thread == 0) return false;
         e.Handled = true;
         ReaderNavigationTask = NavigateReaderAsync(post, thread);
+        return true;
+    }
+
+    private bool TryRouteReaderButtonNavigation(KeyEventArgs e)
+    {
+        if (!ReaderVideoKeys.IsNavigationKey(e.Key) || KeyBelongsToNativeEditor(e) || SidebarToggleGroup.IsSegmentArrow(e)
+            || e.Source is not Visual source || !source.GetSelfAndVisualAncestors().Any(node => node is Button)) return false;
+        if (e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
+        {
+            e.Handled = true;
+            MoveMediaSelectionByKey(e);
+        }
         return true;
     }
 

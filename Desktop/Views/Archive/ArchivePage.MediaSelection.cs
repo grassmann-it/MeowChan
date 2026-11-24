@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
@@ -51,6 +52,11 @@ public partial class ArchivePage
             list.AddHandler(InputElement.PointerPressedEvent, (_, e) => NoteMediaLead(e.Source), RoutingStrategies.Tunnel, handledEventsToo: true);
             list.AddHandler(InputElement.KeyDownEvent, OnMediaSelectionKey, RoutingStrategies.Tunnel);
         }
+        ArchiveReaderPane.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!_largeReader && !e.Handled && !IsReaderDialogOpen && !ShortcutService.IsCapturing)
+                TryRouteReaderButtonNavigation(e);
+        }, RoutingStrategies.Tunnel);
         AutomationProperties.SetLiveSetting(ArchiveMediaSelectionStatus, AutomationLiveSetting.Polite);
     }
 
@@ -65,6 +71,22 @@ public partial class ArchivePage
     }
 
     private Control VisibleMediaList => _mediaTiles ? ArchiveMediaTiles : ArchiveMediaGrid;
+
+    private void MoveMediaSelectionByKey(KeyEventArgs e)
+    {
+        if (_ended || !_available || !ArchiveMediaTab.IsSelected || !FocusAfterRateAndTag()) return;
+        if (TopLevel.GetTopLevel(VisibleMediaList)?.FocusManager?.GetFocusedElement() is not Control target) return;
+        // The list owns its selection and range rules. Dispatch from the newly focused item.
+        target.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = KeyDownEvent,
+            Source = target,
+            Key = e.Key,
+            KeyModifiers = e.KeyModifiers,
+            PhysicalKey = e.PhysicalKey,
+            KeyDeviceType = e.KeyDeviceType
+        });
+    }
 
     private int SelectedMediaCount => (_mediaTiles ? ArchiveMediaTiles.SelectedItems : ArchiveMediaGrid.SelectedItems)?.Count ?? 0;
 
