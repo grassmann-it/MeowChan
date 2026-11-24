@@ -74,7 +74,7 @@ public sealed partial class MediaPage
     internal void ConfigureScrubPreviewCache(VideoScrubPreviewCache? cache) => _panelVideoController.ScrubCache = cache;
 
     private ReaderMediaPreferences _panelPreferences = ReaderMediaPreferences.Default;
-    internal Action<string>? SavePanelInfoMode { get; set; }
+    internal Action<Action<Config>>? SavePanelSetting { get; set; }
 
     internal void ConfigurePanelInfo(ReaderMediaPreferences preferences)
     {
@@ -100,6 +100,13 @@ public sealed partial class MediaPage
 
     // ---- the view -------------------------------------------------------------------------------------------------------------
 
+    internal string? RunSidebarCommand(string id)
+    {
+        bool shown = _panelShown;
+        if (!shown && id == "media.sidebar.info" && !_layout.Panel) TogglePanelByShortcut();
+        return EnsurePanel().RunBarCommand(id, shown) ?? (_panelShown ? null : PanelHint());
+    }
+
     private ReaderMediaSidebar EnsurePanel()
     {
         if (_panel is { } existing) return existing;
@@ -112,10 +119,10 @@ public sealed partial class MediaPage
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
         // The full-height panel owns the header and card, with a horizontal inset from both edges.
         panel.ConfigureInfo(_panelPreferences);
-        panel.SaveInfoMode = mode =>
+        panel.SaveSidebarSetting = update =>
         {
-            _panelPreferences = _panelPreferences with { MediaSidebarInfo = mode };
-            SavePanelInfoMode?.Invoke(mode);
+            _panelPreferences = panel.CopyBarSettingsTo(_panelPreferences);
+            SavePanelSetting?.Invoke(update);
         };
         panel.Localize();
         panel.ShowEmpty();
@@ -283,7 +290,7 @@ public sealed partial class MediaPage
     private void RequestPanel(MediaLibraryTileRow? row)
     {
         if (!ReferenceEquals(_panelWanted, row)) CancelPanelLoad();
-        if (!SamePanelTagTarget(_panelWanted?.Entry, row?.Entry)) _panel?.InvalidateTagEditor();
+        if (!SamePanelTagTarget(_panelWanted?.Entry, row?.Entry)) _panel?.InvalidateDecisionTarget();
         _panelWanted = row;
         long now = _panelClock.ElapsedMilliseconds;
         if (_panelThrottle.Request(now)) { RefreshPanel(); return; }
@@ -380,7 +387,7 @@ public sealed partial class MediaPage
     {
         bool changed = !SamePanelTagTarget(_panelRow?.Entry, row?.Entry);
         _panelRow = row;
-        if (changed) _panel?.InvalidateTagEditor();
+        if (changed) _panel?.InvalidateDecisionTarget();
     }
 
     private void DescribePanel(ReaderMediaSidebar panel, MediaLibraryTileRow row)
@@ -391,8 +398,9 @@ public sealed partial class MediaPage
         panel.Describe(postLine, row.Name, _panelDimensions, OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
             threadPosition: PanelPositionOf(row), savedBytes: entry.Length, mediumKey: PanelVideoKey(entry));
         // Each write freezes the panel row even when the grid refreshes its selection.
-        panel.ConfigureFavorite(PanelFavoriteAvailable, () => row.State?.Favorite == MediaLibraryFlag.Yes,
-            () => ToggleTileFavoriteAsync(entry));
+        panel.ConfigureFavorite(() => ReferenceEquals(_panelRow, row) && PanelFavoriteAvailable(),
+            () => PendingFavorite?.Invoke(entry) ?? row.State?.Favorite == MediaLibraryFlag.Yes,
+            () => ExecuteMediaActionAsync("favorites.toggle", entry, () => ReferenceEquals(_panelRow, row)));
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && _panelShown && ReferenceEquals(_panelRow, row);
         panel.ConfigureRating(() => Current() && !_selectionBusy && ExecuteMediaMenuActionAsync != null && row.State?.RatingKnown == true,
             () => _panelRow?.State?.UserRating, value => ExecuteMediaActionAsync(value is int rating ? "media.rating.set-" + rating : "media.rating.clear", entry, Current));
@@ -401,7 +409,7 @@ public sealed partial class MediaPage
     }
 
     private bool PanelFavoriteAvailable() => !_lifetime.IsCancellationRequested && ExecuteMediaMenuActionAsync != null
-        && _panelRow is { Entry.Presence: MediaLibraryPresence.Present, Tile.IsGroup: false, State.Favorite: not MediaLibraryFlag.Unknown };
+        && _panelRow is { Entry.Presence: MediaLibraryPresence.Present, State.Favorite: not MediaLibraryFlag.Unknown };
 
     // The frame's size in physical pixels; before the first layout an estimate from the configured width and the window height.
     private (double Width, double Height) PanelTarget(ReaderMediaSidebar panel)
@@ -469,7 +477,7 @@ public sealed partial class MediaPage
 
     // ---- the video -------------------------------------------------------------------------------------------------------------------
 
-    private static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Thread, entry.Directory, entry.AssetId,
+    internal static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Thread, entry.Directory, entry.AssetId,
         entry.MediaId, entry.Variant, entry.Sha256, entry.Length);
 
     /// <summary>The panel shows this tile (or none): a saved video offers inline playback in the panel; any other medium gives a player back.</summary>

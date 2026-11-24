@@ -191,11 +191,13 @@ public partial class ArchivePage
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
-        sidebar.SaveInfoMode = mode =>
+        sidebar.SaveSidebarSetting = update =>
         {
-            ApplyReaderMediaPreferences(ReaderMedia with { MediaSidebarInfo = mode });
+            var next = sidebar.CopyBarSettingsTo(ReaderMedia);
+            bool factsChanged = next.MediaSidebarInfo != ReaderMedia.MediaSidebarInfo || next.MediaSidebarFacts != ReaderMedia.MediaSidebarFacts;
+            ApplyReaderMediaPreferences(next);
             if (SaveReaderMediaSwitches is { } save)
-                OpenActions.Start(() => save(config => config.MediaSidebarInfo = mode, [SettingsFieldId.MediaSidebarInfo]), "media.sidebar.info");
+                OpenActions.Start(() => save(update, factsChanged ? [SettingsFieldId.MediaSidebarInfo] : []), "media.sidebar.info");
         };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
@@ -537,6 +539,16 @@ public partial class ArchivePage
         return ReaderMediaMultiRules.DiscoveryHint(media with { Sidebar = on }, largeReader: true, width, CommandCatalog.ShortcutDisplay("reader.sidebar.toggle"));
     }
 
+    internal string? RunSidebarCommand(string id)
+    {
+        bool shown = _mediaSidebarShown;
+        if (!shown && id == "media.sidebar.info" && !ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader))
+            ToggleMediaSidebar();
+        ReaderMediaSidebar sidebar = EnsureMediaSidebar();
+        if (!shown) sidebar.ConfigureInfo(ReaderMedia);
+        return sidebar.RunBarCommand(id, shown) ?? (_mediaSidebarShown ? null : MediaSidebarHint());
+    }
+
     internal bool CanToggleMediaSidebar => !_ended && !IsFilenameSearchOpen && !IsReaderDialogOpen;
 
     /// <summary>
@@ -661,7 +673,7 @@ public partial class ArchivePage
         if (!_mediaSidebarShown || _ended) return;
         if (selectionChanged)
         {
-            _mediaSidebar?.InvalidateTagEditor();
+            _mediaSidebar?.InvalidateDecisionTarget();
             // Throttle starting the next decode, not retiring the previous selection. Otherwise an old completion can still publish
             // a picture/error (or a strip thumbnail) in the interval before the follow timer runs.
             CancelMediaSidebarLoad();
@@ -880,7 +892,7 @@ public partial class ArchivePage
             ? (thread, post, attachment) : null;
         if (_displayedSidebarMedium == next) return;
         _displayedSidebarMedium = next;
-        _mediaSidebar?.InvalidateTagEditor();
+        _mediaSidebar?.InvalidateDecisionTarget();
     }
 
     // The identity of a medium in the sidebar: the thread, the post and the attachment (as the inline video's slot keys it), stable across rebuilt rows.
