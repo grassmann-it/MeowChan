@@ -66,10 +66,9 @@ internal sealed partial class BooruWorkbenchView
             AddResultItem(menu, result, link, link.Action == ResultAction.Open ? MenuOpenPost : MenuCopyLink);
         var sourceTags = selected.SelectMany(hit => hit.Post.Tags).DistinctBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase).ToArray();
         string tags = string.Join(" ", sourceTags.Select(tag => tag.Name));
-        if (tags.Length > 0)
-            menu.Item("booru.menu.copy-tags", Texts.T("booru.menu.copyTags"),
-                () => OpenActions.Start(() => MenuClipboard.CopyAsync(this, tags), "booru.menu.copy-tags"),
-                availableWhen: result.IsCurrent, icon: "copy");
+        menu.Item("booru.menu.copy-tags", Texts.T("booru.menu.copyTags"),
+            () => OpenActions.Start(() => MenuClipboard.CopyAsync(this, tags), "booru.menu.copy-tags"),
+            availableWhen: () => sourceTags.Length > 0 && result.IsCurrent(), reason: Texts.T("booru.media.tags.none"), icon: "copy");
         menu.Item(MenuWatchTags, Texts.T("booru.wizard.title"),
             () => OpenActions.Start(() => OpenWatcherWizardAsync(sourceTags, result.IsCurrent), MenuWatchTags),
             availableWhen: () => sourceTags.Length > 0 && result.IsCurrent(), icon: "eye");

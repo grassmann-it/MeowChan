@@ -34,6 +34,7 @@ internal sealed partial class BooruWorkbenchView
         foreach (var category in tags.GroupBy(tag => tag.Category)
             .OrderBy(group => group.Key == BooruTagCategory.Artist ? 0 : group.Key == BooruTagCategory.Character ? 1 : 2))
         {
+            choices.Children.Add(new TextBlock { Text = BooruText.TagCategory(category.Key), Classes = { "workspace-meta" } });
             WrapPanel chips = new() { ItemSpacing = 8, LineSpacing = 4 };
             foreach (BooruTag tag in category)
             {

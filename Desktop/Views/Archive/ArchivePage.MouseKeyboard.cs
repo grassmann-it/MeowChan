@@ -23,7 +23,7 @@ public partial class ArchivePage
     private readonly MiddleClickTracker _threadMiddleClick = new();
     private readonly MiddleClickTracker _mediaMiddleClick = new();
     private readonly MiddleClickTracker _mediaTableMiddleClick = new();
-    private readonly MiddleClickTracker _postMediumMiddleClick = new();
+    private (ResourceId Thread, string Post, ArchiveAttachmentRow Attachment)? _postMediumMiddleTarget;
     private (ArchiveAssetRow? Saved, (ArchivedThreadView Thread, ArchivePostRow Post, ArchiveAttachmentRow Attachment)? Inline)? _sidebarMiddleTarget;
 
     private void AttachMouseKeyboardQuickWins()
@@ -115,18 +115,25 @@ public partial class ArchivePage
 
     private void OnPostMediumMiddlePressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Control pane || !MiddleClickTracker.IsPress(e, pane)) { _postMediumMiddleClick.Cancel(); return; }
-        _postMediumMiddleClick.Pressed(PostThumbnailAt(e.Source));
+        _postMediumMiddleTarget = sender is Control pane && MiddleClickTracker.IsPress(e, pane) ? PostMediumAt(e.Source) : null;
     }
 
     private void OnPostMediumMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (sender is not Control pane || e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-        ArchiveAttachmentView? view = PostThumbnailAt(MiddleClickTracker.HitAt(e, pane));
-        if (!_postMediumMiddleClick.Released(view) || view?.DataContext is not ArchiveAttachmentRow attachment) return;
+        var pressed = _postMediumMiddleTarget;
+        _postMediumMiddleTarget = null;
+        if (pressed is not { } target || pressed != PostMediumAt(MiddleClickTracker.HitAt(e, pane))) return;
         e.Handled = true;
-        string? postId = view.GetSelfAndVisualAncestors().Select(node => node.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
-        OpenMediaByMiddleClick(null, attachment, postId);
+        OpenMediaByMiddleClick(null, target.Attachment, target.Post);
+    }
+
+    private (ResourceId Thread, string Post, ArchiveAttachmentRow Attachment)? PostMediumAt(object? source)
+    {
+        if (_selectedThread is not { } thread || PostThumbnailAt(source) is not { DataContext: ArchiveAttachmentRow attachment } view)
+            return null;
+        string? post = view.GetSelfAndVisualAncestors().Select(node => node.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
+        return post == null ? null : (thread, post, attachment);
     }
 
     // The picture of the media sidebar (its frame, a video's play surface included; not the header or the video row), in either host.
