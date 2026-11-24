@@ -914,9 +914,9 @@ Apple notation.
 ### Enter and Escape in dialogs and search fields
 
 In an ordinary search field, Escape first clears the text. A second Escape in the
-empty field leaves it. In the Downloads search bar and the Reader Find bar,
-Escape closes the bar and keeps the query. Enter triggers the field's action,
-such as search, find next or add.
+empty field leaves it or closes the search. In the Downloads search bar, Escape
+closes the bar and keeps the query. Enter triggers the field's action, such as
+search, find next or add.
 
 In the dialogs described below, Enter invokes the available primary action and
 Escape cancels or leaves the current edit. Multiline editors keep their own keys. In the first-run setup window, Enter inside an input accepts and
@@ -938,10 +938,11 @@ reader's header (**Back to thread list**, **Back to gallery**, **Back to media**
 **Zurück zu Medien**, **Reader schließen**). Inline rows keep their × close action
 at the far right, after the row's own actions, in the details panel (**Hide
 details**, German **Details ausblenden**) and Archive preview (**Close preview**,
-**Vorschau schließen**). The **Search** button in Downloads and the **Find** and
-**Tags** buttons in the Reader toggle their bars. The same shortcut or **Esc**
-closes the open bar. Downloads keeps the query and result count on screen after
-the bar closes. Use **Clear** to remove the filter.
+**Vorschau schließen**). The **Search** button or **Ctrl/⌘+F** toggles the Downloads
+search bar. Closing it with the button, shortcut or **Esc** keeps the query and
+result count on screen. Use **Clear** to remove the filter. In the Reader toolbar,
+**Find** and **Tags** show a small × while their bar is open. Click the button
+again or press **Esc** to close the bar.
 The gallery keeps **Back to {target}** at the far left with the favorite star
 directly to its right. Tooltips and screen-reader names keep the full action and
 target, including in narrow rows. Esc closes as before.

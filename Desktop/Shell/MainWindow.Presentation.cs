@@ -45,7 +45,6 @@ public partial class MainWindow
         ShellActionErrorBanner.PropertyChanged += OnShellFeedbackVisibilityChanged;
         ApplyWindowChrome();
         PropertyChanged += OnWindowChromePropertyChanged;
-        KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
         InitializeFooterDisplays();
         InitializeDownloadsHeader();
@@ -79,7 +78,6 @@ public partial class MainWindow
         WorkspaceBody.SizeChanged -= OnWorkspaceBodySizeChanged;
         ShellActionErrorBanner.PropertyChanged -= OnShellFeedbackVisibilityChanged;
         PropertyChanged -= OnWindowChromePropertyChanged;
-        KeyDown -= OnWorkspaceKeyDown;
         DisposeShellPresentation();
         DisposeWindowPreferences();
     }
@@ -123,16 +121,6 @@ public partial class MainWindow
         // the selected item. Keep that item reachable after a resize or an expanded
         // admission report instead of leaving selection below the clipped viewport.
         KeepSelectedDownloadVisible();
-    }
-
-    private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Handled || IsNativeShortcutSource(e.Source) || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
-        if (_selectedPage != WorkspacePage.Downloads || e.Key != Key.Escape || !WorkspaceInspector.IsVisible) return;
-        OnDetailsToggleClick(sender, e);
-        WorkspaceControl<DataGrid>(DownloadsTabs.SelectedIndex == 1
-            ? "BoardsDataGrid" : "ThreadsDataGrid").Focus();
-        e.Handled = true;
     }
 
     private void OnWorkspaceLanguageChanged(object? sender, EventArgs e)
@@ -677,7 +665,12 @@ public partial class MainWindow
         if (_refreshingDownloadSearch) return;
         RefreshWorkspace();
     }
-    private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
+    private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_workspaceInitialized && ReferenceEquals(e.Source, DownloadsTabs))
+            DownloadsColumnsButton.ContextMenu?.Close();
+        RefreshWorkspace();
+    }
     private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e) => GoToDownloads();
 
     // The footer button and the empty states of Archive and Media share this destination.

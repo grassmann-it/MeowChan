@@ -98,11 +98,11 @@
                             <Button x:Name="ContinueReadingButton" Classes="subtle header-icon" IsVisible="False"
                                     Width="{StaticResource Workspace.Size.Control}" Height="{StaticResource Workspace.Size.Control}"
                                     CornerRadius="5,0,0,5" BorderBrush="{DynamicResource Workspace.ControlBorder}" BorderThickness="1,1,0,1" />
-                            <Button x:Name="ContinueReadingHistoryButton" Classes="subtle header-icon" IsVisible="False"
+                            <ToggleButton x:Name="ContinueReadingHistoryButton" Classes="subtle header-icon surface-toggle" IsVisible="False" Focusable="False"
                                     Width="{StaticResource Workspace.Size.Control}" Height="{StaticResource Workspace.Size.Control}" Padding="0"
                                     CornerRadius="0,5,5,0" BorderBrush="{DynamicResource Workspace.ControlBorder}">
                                 <Path x:Name="ContinueReadingHistoryIcon" Classes="header-icon" Data="M 4,6 L 8,10 L 12,6" />
-                            </Button>
+                            </ToggleButton>
                         </StackPanel>
                         <Button x:Name="PauseButton" Classes="subtle header-icon" Click="OnPauseClick">
                             <Path x:Name="PauseIcon" Classes="header-icon" Data="M 5,3 L 5,13 M 11,3 L 11,13" />
@@ -125,7 +125,7 @@
                             <!-- Group 2: the application. The update check inserts itself in front of About. -->
                             <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
                             <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
-                            <MenuItem x:Name="ShortcutHelpMenuItem" Header="Keyboard shortcuts" />
+                            <MenuItem x:Name="ShortcutHelpMenuItem" Header="Keyboard shortcuts" ToggleType="CheckBox" />
                             <MenuItem x:Name="AboutMenuItem" Tag="nav.about" Classes="localized" Header="About" />
                             <Separator />
                             <MenuItem x:Name="ExitMenuItem" Tag="action.exit" Classes="localized" Header="Exit" />
@@ -271,7 +271,7 @@
                                     </desktop:ActionToolBar.Styles>
                                     <ToggleButton x:Name="DownloadSearchButton" Focusable="False" wv:WorkViewElement.Id="downloads.toolbar.search" Classes="localized toolbar-toggle surface-toggle" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                                     <Button x:Name="CopyAllUrlsButton" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
-                                    <Button x:Name="DownloadsColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="downloads.toolbar.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                    <ToggleButton x:Name="DownloadsColumnsButton" Focusable="False" Classes="toolbar-toggle surface-toggle" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="downloads.toolbar.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
                                     <ToggleButton x:Name="DetailsToggleButton" Focusable="False" Classes="toolbar-toggle surface-toggle" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="downloads.toolbar.details" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                                 </desktop:ActionToolBar>
                             </Grid>
@@ -448,7 +448,7 @@
                     <Grid RowDefinitions="Auto,*">
                         <controls:HeaderBar Margin="16,8,8,8">
                             <TextBlock Tag="detail.title" Classes="localized section-title" Text="Details" VerticalAlignment="Center" />
-                            <Button x:Name="InspectorCloseButton" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" Click="OnDetailsToggleClick" />
+                            <Button x:Name="InspectorCloseButton" Focusable="False" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" Click="OnDetailsToggleClick" />
                         </controls:HeaderBar>
                         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="16,2,16,16" Spacing="{StaticResource Workspace.Space.12}">

@@ -112,17 +112,7 @@ public sealed class MenuAttachmentAndSpeedRefreshTests
         Assert.Null(button.ContextMenu);
     });
 
-    // ---- F3: the Downloads "Columns" button and the scope chip (source contract) --------------------------------------------
-
-    [Fact]
-    public void TheDownloadsColumnsMenuDetachesItselfOnCloseSoItIsNotReopenedForAnotherTab()
-    {
-        string body = Body(Source("Desktop/Shell/MainWindow.Columns.cs"), "private void OnDownloadsColumnsClick(", "// A right-click on a column header");
-        int attach = body.IndexOf("button.ContextMenu = menu;", StringComparison.Ordinal);
-        int detach = body.IndexOf("menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };", StringComparison.Ordinal);
-        int open = body.IndexOf("menu.Open(button);", StringComparison.Ordinal);
-        Assert.True(attach >= 0 && detach > attach && open > detach, "attach, then detach on Closed, then open");
-    }
+    // F3: DownloadHeaderToggleTests exercises detachment and rebuilding through the real columns menu.
 
     [Fact]
     public void TheScopeChipsMenuDetachesItselfOnCloseSoNoStaleScopeOrCarryStateIsKept()
