@@ -224,24 +224,6 @@ public sealed class ReaderNavigationBarTests : IDisposable
     }
 
     [Fact]
-    public void TheBarCodeFollowsTheModesAndTheCompactRule()
-    {
-        string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
-        // Off removes it, Always never hides it and starts no timer, Auto keeps the idle logic.
-        Assert.Contains("ReaderNavigation.IsVisible = _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff;", reader);
-        Assert.Contains("internal bool ReaderNavigationShown => _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff", reader);
-        Assert.Contains("_readerNavigationMode == Config.ReaderNavigationModeAlways ||", reader);
-        Assert.Contains("if (!_largeReader || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;", reader);
-        Assert.Contains("ReaderNavigationLayout.IsCompact(surface.Bounds.Width, _readerNavigationShowPosition)", reader);
-        Assert.Contains("ReaderNavigationLayout.CounterText(index, count)", reader);
-        Assert.Contains("\"reader.nav.threadPosition\"", reader);
-        Assert.Contains("\"reader.nav.postPosition\"", reader);
-        Assert.Contains("\"reader.nav.name\"", reader);
-        // The counters are not a live region: the post list already announces the selection.
-        Assert.DoesNotContain("SetLiveSetting", reader);
-    }
-
-    [Fact]
     public void TheFadeStyleStaysAndThe108DipCrossIsGone()
     {
         string styles = Source("Desktop/WorkspaceStyles.axaml");

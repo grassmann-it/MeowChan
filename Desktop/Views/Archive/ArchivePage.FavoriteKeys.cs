@@ -62,6 +62,8 @@ public partial class ArchivePage
             return rows.Select(row => AssetEntry(threadId, row)).ToArray();
         }
         // The media sidebar: the medium it shows (a thumbnail of its strip: that file).
+        if (ArchiveMediaTab.IsSelected && IsMediaSidebarSource(source))
+            return ActionableSavedMediaSidebarRow is { } saved ? new[] { AssetEntry(threadId, saved) } : Array.Empty<GalleryEntry>();
         if (SidebarStripContext(ancestors) is { } thumbnail)
             return AttachmentEntry(threadId, thumbnail.PostId, thumbnail.Attachment) is { } stripped ? new[] { stripped } : Array.Empty<GalleryEntry>();
         if (SidebarMediaContext(ancestors) is { } shown)

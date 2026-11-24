@@ -661,6 +661,7 @@ public partial class ArchivePage
         if (!_mediaSidebarShown || _ended) return;
         if (selectionChanged)
         {
+            if (ArchiveMediaTab.IsSelected) SetDisplayedSidebarMedium(null);
             _mediaSidebar?.InvalidateTagEditor();
             // Throttle starting the next decode, not retiring the previous selection. Otherwise an old completion can still publish
             // a picture/error (or a strip thumbnail) in the interval before the follow timer runs.

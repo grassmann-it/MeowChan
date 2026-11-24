@@ -16,11 +16,15 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Storage;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
+using MeowChan.Favorites;
+using MeowChan.Persistence;
+using MeowChan.Tags;
 using Semi.Avalonia.DataGrid;
 
 namespace MeowChan.DesktopTests;
@@ -30,6 +34,227 @@ public sealed class SavedMediaReaderTests
 {
     private static readonly ResourceId ThreadId = new("fixture", "g", "42");
     private static readonly string[] FooterActions = ["ArchiveEditRatingButton", "PreviewArchiveMediaButton", "ArchiveManageRatingsButton"];
+
+    [Fact]
+    public void NavigationModesFollowTheReaderTabAndAutoRevealsThenHides() => Run((page, window) =>
+    {
+        TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        Control bar = page.FindControl<Control>("ReaderNavigation")!;
+        page.ReaderNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsMinimum;
+        foreach (string mode in new[] { Config.ReaderNavigationModeOff, Config.ReaderNavigationModeAlways, Config.ReaderNavigationModeAuto })
+        {
+            page.ReaderNavigationMode = mode;
+            tabs.SelectedIndex = 0;
+            Layout(window);
+            page.NotifyReaderPointerMoved(default);
+            if (mode == Config.ReaderNavigationModeOff) Assert.False(bar.IsEffectivelyVisible);
+            else
+            {
+                Assert.True(bar.IsEffectivelyVisible);
+                WaitUntil(() => bar.IsHitTestVisible && bar.Opacity == 1);
+                if (mode == Config.ReaderNavigationModeAuto)
+                {
+                    WaitUntil(() => !bar.IsHitTestVisible && bar.Opacity == 0);
+                    page.NotifyReaderPointerMoved(default);
+                    WaitUntil(() => bar.IsHitTestVisible && bar.Opacity == 1);
+                }
+                else
+                {
+                    long expiry = Environment.TickCount64 + page.ReaderNavigationIdleDelayMs;
+                    WaitUntil(() => Environment.TickCount64 > expiry);
+                    Assert.True(bar.IsHitTestVisible);
+                    Assert.Equal(1, bar.Opacity);
+                }
+            }
+            tabs.SelectedIndex = 1;
+            Layout(window);
+            page.NotifyReaderPointerMoved(default);
+            Assert.False(bar.IsEffectivelyVisible);
+            Assert.False(bar.IsHitTestVisible);
+        }
+    });
+
+    [Fact]
+    public void TagEditorRejectsThePendingRevisionAndWritesOnlyAfterItIsShown() => Run((page, window) =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        PrivateTagStore store = new(profile.Path, lease);
+        List<string> opened = [];
+        page.TagPopoverAsync = async (entry, anchor, _, current, request) =>
+        {
+            opened.Add(entry.Asset.AssetId);
+            MediaTagSubject subject = Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry));
+            MediaTagSession media = new(subject, () => new(PrivateTagLoadState.Ready, store.ReadSnapshot(), null),
+                (name, target, token) =>
+                {
+                    if (!current()) throw new OperationCanceledException();
+                    request.SidebarToken.ThrowIfCancellationRequested();
+                    return Task.FromResult(store.DefineAndSetMediaSubjects(name, [target], null, token));
+                },
+                (tag, target, assigned, token) => Task.FromResult(store.SetMediaSubjects(tag, [target], assigned, null, token)));
+            using QuickTagSession session = new(QuickTagTarget.For(media));
+            QuickTagPopover popover = QuickTagPopover.Open(anchor, session, entry.Asset.OriginalFileName!, new() { IsCurrent = current });
+            await popover.Result;
+        };
+
+        page.MediaTilesPreference = true;
+        TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
+        ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+        tabs.SelectedIndex = 0;
+        posts.SelectedIndex = 0;
+        WaitUntil(() => sidebar.HeaderLine.Contains("post.png", StringComparison.Ordinal));
+        ArchiveAssetRow[] rows = ShownRows(page, grid: true);
+        ArchiveAssetRow a = rows.Single(row => Path.GetFileName(row.Asset.Path) == "a.png");
+        ArchiveAssetRow b = rows.Single(row => Path.GetFileName(row.Asset.Path) == "b.png");
+        tiles.SelectedItem = a;
+        tabs.SelectedIndex = 1;
+        WaitUntil(() => sidebar.HeaderLine.Contains(a.Version, StringComparison.Ordinal));
+        Button edit = ShowSidebarEditButton(sidebar, window);
+        tiles.SelectedItem = b;
+        Assert.Contains(a.Version, sidebar.HeaderLine);
+        edit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Empty(opened);
+        Assert.Null(QuickTagPopover.Current);
+
+        WaitUntil(() => sidebar.HeaderLine.Contains(b.Version, StringComparison.Ordinal));
+        ShowSidebarEditButton(sidebar, window).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        QuickTagPopover shown = Assert.IsType<QuickTagPopover>(QuickTagPopover.Current);
+        try
+        {
+            Assert.Equal(b.Asset.AssetId, Assert.Single(opened));
+            QuickTagSession editor = shown.Surface!.Session;
+            BooruComponentDispatcher.Wait(editor.AddAsync("chosen-revision"));
+            GalleryEntry[] entries = GallerySelection.Build(page.CurrentThread!, [b.Manifest], allSavedVersions: true).Entries.ToArray();
+            PrivateTagStoreSnapshot persisted = store.ReadSnapshot();
+            foreach (GalleryEntry entry in entries)
+            {
+                MediaTagSubject subject = Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry));
+                Assert.Equal(entry.Asset.AssetId == b.Asset.AssetId ? ["chosen-revision"] : Array.Empty<string>(),
+                    persisted.TagsOf(subject).Select(tag => tag.Name.Display));
+            }
+            page.SetObscuredByGallery(true);
+            BooruComponentDispatcher.Wait(editor.AddAsync("covered"));
+            Assert.DoesNotContain(store.ReadSnapshot().Tags, tag => tag.Name.Display == "covered");
+        }
+        finally { shown.Close(); }
+    }, includePostAsset: true);
+
+    [Fact]
+    public void HideShortcutOnlyChangesTheStoreInThePostsTab() => Run((page, window) =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        (PostFilterSession filters, PostFilterStore store) = PostFilterDialogModelTests.Open(lease, profile.Path);
+        BooruComponentDispatcher.Wait(filters.LoadAsync());
+        page.PostFilters = filters;
+        page.MediaTilesPreference = true;
+        TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
+        tabs.SelectedIndex = 0;
+        posts.SelectedIndex = 0;
+        ArchivePostRow selected = Assert.IsType<ArchivePostRow>(posts.SelectedItem);
+        tabs.SelectedIndex = 1;
+        ArchiveAssetRow saved = ShownRows(page, grid: true).Single(row => row.Asset.IsCurrent);
+        tiles.SelectedItem = saved;
+        Layout(window);
+        Assert.Same(selected, posts.SelectedItem);
+        ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+        WaitUntil(() => sidebar.HeaderLine.Contains(saved.Version, StringComparison.Ordinal) && sidebar.Close.IsEffectivelyVisible);
+        Assert.True(sidebar.Close.Focus());
+        Assert.True(sidebar.Close.IsFocused);
+        long before = store.Load().Revision;
+        PressKey(window, PhysicalKey.H);
+        BooruComponentDispatcher.Wait(page.PostFilterTask);
+        Assert.Equal(before, store.Load().Revision);
+        Assert.False(filters.IsHidden(ThreadId, selected.Id));
+
+        tabs.SelectedIndex = 0;
+        posts.ScrollIntoView(selected);
+        Layout(window);
+        Assert.Same(selected, posts.SelectedItem);
+        ListBoxItem card = Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromItem(selected));
+        Assert.True(card.Focus(NavigationMethod.Tab));
+        Assert.True(card.IsFocused);
+        PressKey(window, PhysicalKey.H);
+        BooruComponentDispatcher.Wait(page.PostFilterTask);
+        Assert.True(filters.IsHidden(ThreadId, selected.Id));
+        Assert.True(store.Load().Revision > before);
+    });
+
+    [Fact]
+    public void FavoriteKeysAndMiddleClickFollowTheShownSavedRevision()
+    {
+        List<string> folders = [];
+        Run((page, window) =>
+        {
+            page.MediaTilesPreference = true;
+            Layout(window);
+            ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
+            ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+            ArchiveAssetRow first = ShownRows(page, grid: true).Single(row => row.Asset.IsCurrent);
+            ArchiveAssetRow second = ShownRows(page, grid: true).Single(row => !row.Asset.IsCurrent);
+            FavoriteAssetKey firstKey = FavoriteAssetKey.From(ThreadId, first.Asset);
+            FavoriteAssetKey secondKey = FavoriteAssetKey.From(ThreadId, second.Asset);
+            HashSet<FavoriteAssetKey> favorites = [secondKey];
+            List<(FavoriteAssetKey, bool)> writes = [];
+            page.IsArchiveFavorite = entry => favorites.Contains(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
+            page.ToggleArchiveFavoriteAsync = _ => throw new InvalidOperationException("Expected an explicit favorite write.");
+            page.SetArchiveFavoriteAsync = (entry, value) =>
+            {
+                FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
+                writes.Add((key, value));
+                if (value) favorites.Add(key);
+                else favorites.Remove(key);
+                return Task.CompletedTask;
+            };
+
+            Select(first, new PixelSize(17, 11));
+            PressKey(window, PhysicalKey.M);
+            BooruComponentDispatcher.Wait(page.FavoriteKeyTask);
+            MiddleClick();
+            Select(second, new PixelSize(19, 13));
+            PressKey(window, PhysicalKey.U);
+            BooruComponentDispatcher.Wait(page.FavoriteKeyTask);
+            MiddleClick();
+
+            Assert.Equal(new[] { (firstKey, true), (secondKey, false) }, writes);
+            Assert.Equal(firstKey, Assert.Single(favorites));
+            Assert.Equal(new[] { Path.GetDirectoryName(first.Asset.Path), Path.GetDirectoryName(second.Asset.Path) }, folders);
+
+            void Select(ArchiveAssetRow row, PixelSize size)
+            {
+                tiles.SelectedItem = row;
+                WaitUntil(() => sidebar.Load.ShownSource == size);
+                Layout(window);
+                Assert.True(sidebar.Close.Focus());
+            }
+
+            void MiddleClick()
+            {
+                Control frame = sidebar.FrameArea;
+                Point p = frame.TranslatePoint(new Point(frame.Bounds.Width / 2, frame.Bounds.Height / 2), window)!.Value;
+                window.MouseDown(p, MouseButton.Middle, RawInputModifiers.None);
+                window.MouseUp(p, MouseButton.Middle, RawInputModifiers.None);
+                Layout(window);
+            }
+        }, openFolder: folders.Add);
+    }
+
+    private static Button ShowSidebarEditButton(ReaderMediaSidebar sidebar, Window window)
+    {
+        Layout(window);
+        if (sidebar.InfoToggle.IsChecked != true)
+        {
+            sidebar.InfoToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Layout(window);
+        }
+        return Assert.Single(sidebar.GetVisualDescendants().OfType<Button>(),
+            button => button.Name == "ReaderMediaSidebarEditTags" && button.IsEffectivelyVisible);
+    }
 
     [Theory]
     [InlineData(false)]
@@ -54,11 +279,11 @@ public sealed class SavedMediaReaderTests
         Assert.True(page.IsMediaSidebarShown);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(17, 11));
-        PressArrow(window, grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown);
+        PressKey(window, grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown);
         Assert.Equal(1, grid ? tiles.SelectedIndex : table.SelectedIndex);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[1].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(19, 13));
-        PressArrow(window, grid ? PhysicalKey.ArrowLeft : PhysicalKey.ArrowUp);
+        PressKey(window, grid ? PhysicalKey.ArrowLeft : PhysicalKey.ArrowUp);
         Assert.Equal(0, grid ? tiles.SelectedIndex : table.SelectedIndex);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(17, 11));
@@ -215,11 +440,11 @@ public sealed class SavedMediaReaderTests
             Assert.True(((Control)page.Grid.ContainerFromIndex(0)!).Focus(NavigationMethod.Tab));
             WaitUntil(() => ReferenceEquals(rows[0], page.PanelRow));
 
-            PressArrow(window, PhysicalKey.ArrowRight);
+            PressKey(window, PhysicalKey.ArrowRight);
             Assert.Equal(1, page.Grid.SelectedIndex);
             WaitUntil(() => ReferenceEquals(rows[1], page.PanelRow));
 
-            PressArrow(window, PhysicalKey.ArrowLeft);
+            PressKey(window, PhysicalKey.ArrowLeft);
             Assert.Equal(0, page.Grid.SelectedIndex);
             WaitUntil(() => ReferenceEquals(rows[0], page.PanelRow));
         }
@@ -306,7 +531,7 @@ public sealed class SavedMediaReaderTests
         Assert.NotEqual(before, star.IsChecked);
         Assert.False(star.IsFocused);
         Assert.True(first.IsFocused);
-        PressArrow(window, PhysicalKey.ArrowRight);
+        PressKey(window, PhysicalKey.ArrowRight);
         Assert.Equal(1, tiles.SelectedIndex);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[1].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(19, 13));
@@ -325,13 +550,13 @@ public sealed class SavedMediaReaderTests
         bool headerMatchedAtFullOpacity = true;
         WaitUntil(() => !sidebar.Load.Awaiting && sidebar.Load.ShownSource == first);
 
-        PressArrow(window, PhysicalKey.ArrowRight);
+        PressKey(window, PhysicalKey.ArrowRight);
         Assert.Equal(1, tiles.SelectedIndex);
         SampleSidebar();
-        PressArrow(window, PhysicalKey.ArrowLeft);
+        PressKey(window, PhysicalKey.ArrowLeft);
         Assert.Equal(0, tiles.SelectedIndex);
         SampleSidebar();
-        PressArrow(window, PhysicalKey.ArrowRight);
+        PressKey(window, PhysicalKey.ArrowRight);
         Assert.Equal(1, tiles.SelectedIndex);
         SampleSidebar();
         WaitUntil(() =>
@@ -368,14 +593,14 @@ public sealed class SavedMediaReaderTests
         Assert.Equal("42", before);
         Task navigation = page.ReaderNavigationTask;
 
-        PressArrow(window, PhysicalKey.ArrowDown);
+        PressKey(window, PhysicalKey.ArrowDown);
         BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
         Assert.Same(navigation, page.ReaderNavigationTask);
         Assert.Equal(before, page.CurrentReaderPostId);
         Assert.Equal(1, page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex);
 
         Click(window, manage);
-        PressArrow(window, PhysicalKey.ArrowRight);
+        PressKey(window, PhysicalKey.ArrowRight);
         Assert.Equal(1, tiles.SelectedIndex);
         Assert.Same(navigation, page.ReaderNavigationTask);
         Assert.Equal(before, page.CurrentReaderPostId);
@@ -396,35 +621,40 @@ public sealed class SavedMediaReaderTests
         Layout(window);
     }
 
-    private static void Run(Action<ArchivePage, Window> test) => BooruComponentDispatcher.Run(() =>
+    private static void Run(Action<ArchivePage, Window> test, bool includePostAsset = false, Action<string>? openFolder = null) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
         using TempDirectory temp = new();
         string filename = "same.png";
-        MediaAssetReference current = WriteRevision("a", true,
-            "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAE0lEQVR4nGNgmMlAMhrVM6oHiADlWm/EglqV/gAAAABJRU5ErkJggg==");
-        MediaAssetReference earlier = WriteRevision("b", false,
-            "iVBORw0KGgoAAAANSUhEUgAAABMAAAANCAIAAADE7sJwAAAAFklEQVR4nGMwdgklDzGM6hzVOQR1AgDPR8TVSHrz+wAAAABJRU5ErkJggg==");
+        const string currentImage = "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAE0lEQVR4nGNgmMlAMhrVM6oHiADlWm/EglqV/gAAAABJRU5ErkJggg==";
+        MediaAssetReference current = WriteRevision('a', true, currentImage, filename);
+        MediaAssetReference earlier = WriteRevision('b', false,
+            "iVBORw0KGgoAAAANSUhEUgAAABMAAAANCAIAAADE7sJwAAAAFklEQVR4nGMwdgklDzGM6hzVOQR1AgDPR8TVSHrz+wAAAABJRU5ErkJggg==", filename);
 
-        MediaAssetReference WriteRevision(string id, bool isCurrent, string png)
+        MediaAssetReference WriteRevision(char id, bool isCurrent, string png, string name)
         {
             byte[] bytes = Convert.FromBase64String(png);
             Array.Resize(ref bytes, 4096);
-            string path = Path.Combine(temp.Path, id + ".png");
+            string folder = Path.Combine(temp.Path, id.ToString());
+            Directory.CreateDirectory(folder);
+            string path = Path.Combine(folder, id + ".png");
             File.WriteAllBytes(path, bytes);
-            return new(id, "image", "original", id + ".png", path, bytes.Length,
-                Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), "https://offline.invalid/" + id, filename, isCurrent);
+            return new(new string(id, 64), "image", "original", name, path, bytes.Length,
+                Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), "https://offline.invalid/" + id, name, isCurrent);
         }
-        MediaAssetSnapshot manifest = new(temp.Path, MediaManifestStatus.Available, 1, "fixture", [current, earlier]);
+        string postName = includePostAsset ? "post.png" : filename;
+        MediaAssetReference[] assets = includePostAsset ? [current, earlier, WriteRevision('c', true, currentImage, postName)] : [current, earlier];
+        MediaAssetSnapshot manifest = new(temp.Path, MediaManifestStatus.Available, 1, "fixture", assets);
         ArchiveThreadSummary summary = new(ThreadId, "https://offline.invalid/g/thread/42", "Fixture", temp.Path,
             ThreadSourceState.Active, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 2, 1);
         ArchivedThreadView thread = new(summary, [new CapturedPost("42", 42, PostFieldPresence.All,
-            Attachments: [new CapturedAttachment(0, "image", OriginalFileName: filename)]),
+            Attachments: [new CapturedAttachment(0, "image", Url: includePostAsset ? "https://offline.invalid/c" : null,
+                OriginalFileName: postName)]),
             new CapturedPost("43", 43, PostFieldPresence.All)], [temp.Path]);
         HashSet<string> favorites = [current.AssetId];
         ArchivePage page = new(_ => throw new InvalidOperationException("The prepared thread should be used"),
-            (_, _) => Task.CompletedTask, _ => { }, (_, _) => Task.FromResult(manifest))
+            (_, _) => Task.CompletedTask, openFolder ?? (_ => { }), (_, _) => Task.FromResult(manifest))
         {
             IsAvailable = true,
             IsArchiveFavorite = entry => favorites.Contains(entry.Asset.AssetId),
@@ -441,6 +671,7 @@ public sealed class SavedMediaReaderTests
             BooruComponentDispatcher.Wait(page.MediaLoadTask);
             window.Content = page.DetachReader();
             window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
             Layout(window);
             page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
             Layout(window);
@@ -460,7 +691,7 @@ public sealed class SavedMediaReaderTests
         Dispatcher.UIThread.RunJobs();
     }
 
-    private static void PressArrow(Window window, PhysicalKey key)
+    private static void PressKey(Window window, PhysicalKey key)
     {
         window.KeyPressQwerty(key, RawInputModifiers.None);
         window.KeyReleaseQwerty(key, RawInputModifiers.None);
