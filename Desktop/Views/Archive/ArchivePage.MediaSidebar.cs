@@ -586,10 +586,11 @@ public partial class ArchivePage
     private void OnMediaSidebarStepKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || _ended || _busy || _obscuredByGallery || IsReaderDialogOpen
-            || ArchiveMediaTab.IsSelected || !_mediaSidebarShown || sender is not Control owner || e.Source is not Visual source
+            || !_mediaSidebarShown || sender is not Control owner || e.Source is not Visual source
             || !source.GetSelfAndVisualAncestors().Contains(owner)
             || !CommandRouter.IsRoutingContextActive(owner, source)) return;
         if (CanToggleMediaSidebar && _mediaSidebar?.RouteInfoKey(e) == true) return;
+        if (ArchiveMediaTab.IsSelected) return;
         int direction = ReaderSidebarStepKeys.Direction(e, ArchivePosts, _mediaSidebar?.Strip,
             id => ShortcutService.Current.Matches(e, id));
         if (direction == 0) return;
