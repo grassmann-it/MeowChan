@@ -237,7 +237,6 @@ internal sealed class TaggingWalk : IDisposable
         _pending[item.Key] = state;
         long stamp = GalleryDecisionSession.NextStamp();
         int? next = NextOpen(index);
-        Changed?.Invoke();
         return new TaggingDecisionResult(TaggingDecisionOutcome.Decided, index, next, WriteAsync(index, item, state, stamp));
     }
 
@@ -328,7 +327,13 @@ internal sealed class TaggingWalk : IDisposable
     }
 
     private void Begin() { Interlocked.Increment(ref _running); Changed?.Invoke(); }
-    private void End() { Interlocked.Decrement(ref _running); if (!_disposed) Changed?.Invoke(); }
+
+    private void End()
+    {
+        int remaining = Interlocked.Decrement(ref _running);
+        if (!_disposed) Changed?.Invoke();
+        else if (remaining == 0) _gate.Dispose();
+    }
 
     /// <summary>
     /// Ends the walk for its viewer. Writes already made still finish (a decision is never lost because the gallery closed right after
@@ -339,6 +344,7 @@ internal sealed class TaggingWalk : IDisposable
         if (_disposed) return;
         _disposed = true;
         Changed = null;
+        if (!Busy) _gate.Dispose();
     }
 }
 

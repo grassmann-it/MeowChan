@@ -38,6 +38,7 @@ internal sealed partial class GalleryViewer
     private readonly Button _taggingStamp = new() { Name = "GalleryTaggingStamp", MinHeight = 32 };
     private readonly Button _taggingDone = new() { Name = "GalleryTaggingDone", MinHeight = 32, Classes = { "primary" } };
     private static readonly TaggingCardAction FavoriteAndNext = TaggingCardActions.Find("favorite")!;
+    private static readonly TaggingCardAction StampAndNext = TaggingCardActions.Find("stamp")!;
     private TaggingWalk? _tagging;
     private IGalleryTagPanelOwner? _taggingOwner;
     private TaggingUndo? _taggingUndo;
@@ -65,10 +66,10 @@ internal sealed partial class GalleryViewer
         _taggingStatus[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _taggingActions.Children.AddRange([_taggingBack, _taggingSkip, _taggingFavorite, _taggingStamp, _taggingDone]);
         _taggingBack.Click += (_, _) => _ = TaggingBackAsync();
-        _taggingSkip.Click += (_, _) => TaggingDecide(TagQueueState.Skipped);
+        _taggingSkip.Click += (_, _) => DecideFromTaggingStrip(TagQueueState.Skipped);
         _taggingFavorite.Click += (_, _) => _ = ApplyTaggingActionAsync(FavoriteAndNext);
-        _taggingDone.Click += (_, _) => TaggingDecide(TagQueueState.Done);
-        _taggingStamp.Click += (_, _) => _ = TaggingStampAsync();
+        _taggingDone.Click += (_, _) => DecideFromTaggingStrip(TagQueueState.Done);
+        _taggingStamp.Click += (_, _) => _ = StampFromTaggingStripAsync();
         ToolTip.SetShowOnDisabled(_taggingBack, true);
         // The status line speaks (politely, once); the progress is read on demand, it would repeat every decision.
         AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Polite);
@@ -197,11 +198,6 @@ internal sealed partial class GalleryViewer
     {
         if (_tagging is not { } walk) return;
         _taggingProgress.Text = TaggingModeText.Progress(walk);
-        int index = _entry == null ? -1 : walk.IndexOf(_entry.EntryKey);
-        bool decidable = index >= 0 && walk.StateOf(index) != null;
-        _taggingDone.IsEnabled = decidable;
-        _taggingSkip.IsEnabled = decidable;
-        _taggingStamp.IsEnabled = decidable;
         RefreshTaggingBack();
     }
 
@@ -219,6 +215,15 @@ internal sealed partial class GalleryViewer
         TaggingBackAction.Saving => false,
         _ => true
     });
+
+    private bool TaggingActionsAvailable =>
+        !_cardBusy && !_taggingBackRunning && !_navigationPending && !_terminalRetirement;
+
+    private bool CanDecideTagging(TaggingWalk walk) =>
+        TaggingActionsAvailable && _entry is { } entry && walk.StateOf(walk.IndexOf(entry.EntryKey)) != null;
+
+    private bool CanApplyTaggingDecision(TaggingBackAction back) => back != TaggingBackAction.Saving
+        && (_tagController == null ? _taggingOwner is IGalleryDecisionOwner : _tagController.DecisionView()?.Available == true);
 
     private void OnTaggingBackStateChanged()
     {
@@ -238,9 +243,11 @@ internal sealed partial class GalleryViewer
         AutomationProperties.SetAcceleratorKey(_taggingBack, key ?? string.Empty);
         ToolTip.SetTip(_taggingBack, tip);
         _taggingBack.IsEnabled = CanTaggingBack(action);
-        _taggingFavorite.IsEnabled = _taggingDone.IsEnabled && action != TaggingBackAction.Saving && !_navigationPending
-            && _tagController?.DecisionView()?.Available == true;
-        RefreshCards();
+        bool decidable = CanDecideTagging(walk);
+        _taggingDone.IsEnabled = _taggingSkip.IsEnabled = decidable;
+        _taggingStamp.IsEnabled = decidable && action != TaggingBackAction.Saving;
+        _taggingFavorite.IsEnabled = decidable && CanApplyTaggingDecision(action);
+        RefreshCards(action);
     }
 
     private void OnTaggingChanged() => RefreshTaggingStrip();
@@ -273,16 +280,16 @@ internal sealed partial class GalleryViewer
         QuickTagSurface? surface = _tagSurface;
         bool inField = surface?.Input.IsKeyboardFocusWithin == true;
         bool listOpen = inField && surface!.Input.IsDropDownOpen;
-        if (surface != null && ShortcutService.Current.Matches(e, QuickTagCommands.StampApply)) return Handled(e, () => _ = TaggingStampAsync());
+        if (surface != null && ShortcutService.Current.Matches(e, QuickTagCommands.StampApply)) return Handled(e, () => _ = StampFromTaggingStripAsync());
         if (!listOpen && ShortcutService.Current.Matches(e, QuickTagCommands.CommitNext)) return Handled(e, () => _ = TaggingCommitAsync());
         if (surface?.IsKeyboardFocusWithin == true)
         {
             if (inField && !listOpen && string.IsNullOrEmpty(surface.Input.Text) && ShortcutService.Current.Matches(e, "tags.queue.done-next"))
-                return Handled(e, () => TaggingDecide(TagQueueState.Done));
+                return Handled(e, () => DecideFromTaggingStrip(TagQueueState.Done));
             return false;
         }
-        if (CommandBindings.Matches(e, "tags.queue.done-next")) return Handled(e, () => TaggingDecide(TagQueueState.Done));
-        if (CommandBindings.Matches(e, "tags.queue.skip")) return Handled(e, () => TaggingDecide(TagQueueState.Skipped));
+        if (CommandBindings.Matches(e, "tags.queue.done-next")) return Handled(e, () => DecideFromTaggingStrip(TagQueueState.Done));
+        if (CommandBindings.Matches(e, "tags.queue.skip")) return Handled(e, () => DecideFromTaggingStrip(TagQueueState.Skipped));
         if (CommandBindings.Matches(e, "tags.queue.back")) return Handled(e, () => _ = TaggingBackAsync());
         if (CommandBindings.Matches(e, "tags.queue.play-pause")) return Handled(e, ToggleTaggingPlayback);
         return RouteCardKey(e); // K and the card keys (PT4)
@@ -301,6 +308,13 @@ internal sealed partial class GalleryViewer
         if (_gif?.Evidence.FrameCount > 1) _ = ToggleGifPlaybackAsync();
         else if (_entry?.Kind == MeowChan.Gallery.SavedMediaKind.Video && _video != null) _ = _video.TogglePlaybackAsync();
     }
+
+    private void DecideFromTaggingStrip(TagQueueState state)
+    {
+        if (TaggingActionsAvailable) TaggingDecide(state);
+    }
+
+    private Task StampFromTaggingStripAsync() => ApplyTaggingActionAsync(StampAndNext);
 
     /// <summary>
     /// Finishes or skips the shown medium and goes to the next open one at once; the write follows in order and a refusal is said in the
@@ -419,13 +433,14 @@ internal sealed partial class GalleryViewer
     // Ctrl+Enter in the mode: the typed tag is taken over (when there is one) and the medium is finished; a refused tag keeps the medium open.
     private async Task TaggingCommitAsync()
     {
+        if (_tagging is not { } walk || !TaggingActionsAvailable) return;
         try
         {
             if (_tagSurface is { } surface && !string.IsNullOrWhiteSpace(surface.Input.Text))
             {
                 if (!await surface.CommitTypedAsync() || !ReferenceEquals(surface, _tagSurface)) return;
             }
-            TaggingDecide(TagQueueState.Done);
+            if (ReferenceEquals(walk, _tagging)) TaggingDecide(TagQueueState.Done);
         }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.tagging")) { /* Logged and shown. */ }
     }

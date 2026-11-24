@@ -1,6 +1,7 @@
 using System.Reflection;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Archive;
@@ -125,6 +126,35 @@ public sealed class TaggingDecisionLogTests : IDisposable
         // After a restart the queue resumes at the next open entry.
         await using DesktopSessionHost again = await StartAsync(temp.Path);
         Assert.Equal(1, (await again.LoadTagQueueAsync()).ResumeIndex());
+    }
+
+    [Fact]
+    public async Task ClosingTheWalkStillDrainsBothAdmittedWrites()
+    {
+        using TempDirectory temp = new();
+        PausedHostWriter writer = null!;
+        (DesktopSessionHost host, TaggingWalk walk) = await WalkAsync(temp.Path, 2,
+            wrapWriter: real => writer = new PausedHostWriter(real));
+        await using (host)
+        using (walk)
+        {
+            Task<TaggingWriteResult> first = walk.Decide(0, TagQueueState.Done).Write;
+            Task<TaggingWriteResult> second = walk.Decide(1, TagQueueState.Skipped).Write;
+            try
+            {
+                Assert.True(walk.Busy);
+                walk.Dispose();
+                Assert.Null(await walk.UndoAsync());
+            }
+            finally
+            {
+                writer.Release();
+                await Task.WhenAll(first, second);
+            }
+            Assert.Equal(TaggingWriteKind.Saved, (await first).Kind);
+            Assert.Equal(TaggingWriteKind.Saved, (await second).Kind);
+            Assert.Equal(new[] { TagQueueState.Done, TagQueueState.Skipped }, host.GetTagQueue()!.Items.Select(item => item.State));
+        }
     }
 
     [Fact]
@@ -387,10 +417,20 @@ public sealed class TaggingDecisionLogTests : IDisposable
                 Assert.NotNull(Assert.IsType<Border>(Assert.IsType<Grid>(cardContent.Children[0]).Children[0]).OpacityMask);
                 Assert.Equal("F9", Assert.IsType<TextBlock>(Assert.IsType<Border>(cardContent.Children[1]).Child).Text);
                 Assert.False(Assert.IsType<Border>(Assert.IsType<StackPanel>(viewer.TaggingCardButtons[0].Content).Children[1]).IsVisible);
-                await viewer.ApplyCardAsync(viewer.TaggingCards[1]);
-                Assert.Equal(TagQueueState.Open, host.GetTagQueue()!.Items[0].State);
+                window.Activate();
+                viewer.Focus();
+                KeyEventArgs backKey = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F9, Source = viewer };
+                viewer.RaiseEvent(backKey);
+                Assert.True(backKey.Handled);
+                await BooruTestSupport.WaitAsync(() => !walk.Busy && host.GetTagQueue()!.Items[0].State == TagQueueState.Open,
+                    "the remapped card key undoes the skip");
 
                 viewer.SetCardMode(false, persist: false);
+                Assert.Equal(TaggingWriteKind.Saved, (await walk.Decide(0, TagQueueState.Done).Write).Kind);
+                Check("tagging.back.undoDone");
+                ClickBack();
+                await BooruTestSupport.WaitAsync(() => !walk.Busy && host.GetTagQueue()!.Items[0].State == TagQueueState.Open,
+                    "the back button undoes the done decision");
                 viewer.SetPosition("2 / 3", true, true);
                 Check("command.gallery.previous");
                 List<int> moves = [];

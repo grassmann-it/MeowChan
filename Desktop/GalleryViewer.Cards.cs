@@ -15,7 +15,7 @@ using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
 
-// The card mode (PT4, PLAN-POWER-TAGGEN §1.5): K inside the tagging mode swaps the decision strip's four buttons for up to five big cards,
+// The card mode (PT4, PLAN-POWER-TAGGEN-2026-11-14 §1.5): K inside the tagging mode swaps the decision strip's buttons for up to five big cards,
 // each with its own key (1 to 5). A card is one decision the walk already knows: Back, Skip or Done (the strip's own), the stamp (PT5),
 // or a favorite / a rating (PT6) that is written first and then finishes the medium. Everything goes through the tagging mode's walk,
 // its status line and the panel's decision log (TaggingUndo), so Backspace, Ctrl+Z and the Back card take cards back like any other
@@ -132,27 +132,30 @@ internal sealed partial class GalleryViewer
     {
         if (_tagging == null) return;
         PresentCards();
-        RefreshCards();
+        RefreshTaggingBack();
     }
 
-    private void RefreshCards()
+    private void RefreshCards(TaggingBackAction back)
     {
-        if (!_cardsOn || _tagging is not { } walk) return;
-        bool decidable = _taggingDone.IsEnabled;
+        if (!_cardsOn) return;
         for (int i = 0; i < _cardButtons.Count && i < _cards.Count; i++)
         {
             Button button = _cardButtons[i];
             if (_cards[i].Kind == TaggingCardKind.Back)
             {
-                TaggingBackAction action = NextTaggingBackAction(walk);
-                string label = TaggingModeText.Back(action);
+                string label = TaggingModeText.Back(back);
                 string name = TaggingCardsText.Name(label, i + 1);
-                button.IsEnabled = CanTaggingBack(action);
+                button.IsEnabled = _taggingBack.IsEnabled;
                 AutomationProperties.SetName(button, name);
                 AutomationProperties.SetHelpText(button, label);
                 ToolTip.SetTip(button, name);
             }
-            else button.IsEnabled = !_cardBusy && decidable;
+            else button.IsEnabled = _cards[i].Kind switch
+            {
+                TaggingCardKind.Stamp => _taggingStamp.IsEnabled,
+                TaggingCardKind.Favorite or TaggingCardKind.Rate => _taggingFavorite.IsEnabled,
+                _ => _taggingDone.IsEnabled
+            };
         }
     }
 
@@ -175,7 +178,7 @@ internal sealed partial class GalleryViewer
     {
         _cardsRow.IsVisible = _cardsOn;
         ShowStripButtons(!_cardsOn);
-        RefreshCards();
+        RefreshTaggingBack();
     }
 
     /// <summary>
@@ -213,12 +216,16 @@ internal sealed partial class GalleryViewer
     private async Task ApplyTaggingActionAsync(TaggingCardAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        if (_tagging is not { } walk || _cardBusy || _taggingBackRunning || _navigationPending || _terminalRetirement || _entry is not { } entry) return;
+        if (_tagging is not { } walk) return;
         if (action.Kind == TaggingCardKind.Back)
         {
             await TaggingBackAsync();
             return;
         }
+        if (!CanDecideTagging(walk) || _entry is not { } entry) return;
+        TaggingBackAction back = NextTaggingBackAction(walk);
+        if (action.Kind == TaggingCardKind.Stamp && back == TaggingBackAction.Saving
+            || (action.Kind is TaggingCardKind.Favorite or TaggingCardKind.Rate) && !CanApplyTaggingDecision(back)) return;
         _cardBusy = true;
         RefreshTaggingBack();
         try
@@ -234,8 +241,11 @@ internal sealed partial class GalleryViewer
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.tagging.cards")) { /* Logged and shown. */ }
         finally
         {
-            _cardBusy = false;
-            RefreshTaggingBack();
+            if (ReferenceEquals(walk, _tagging))
+            {
+                _cardBusy = false;
+                RefreshTaggingBack();
+            }
         }
     }
 
