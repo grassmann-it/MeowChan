@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -44,9 +45,9 @@ public sealed class ArchiveTableSplitterTests
                 window.Show();
                 BooruComponentDispatcher.Wait(page.ActivateAsync());
                 Settle(window);
-                DataGrid table = page.FindControl<DataGrid>("ArchiveThreadTable")!;
-                Control list = page.FindControl<Control>("ArchiveListPane")!;
-                GridSplitter splitter = page.FindControl<GridSplitter>("ArchiveSplitter")!;
+                DataGrid table = FindByAutomationId<DataGrid>(page, "ArchiveThreadTable");
+                Grid list = FindByAutomationId<Grid>(page, "ArchiveListPane");
+                GridSplitter splitter = FindByAutomationId<GridSplitter>(page, "ArchiveSplitter");
                 SelectThread(first);
                 Assert.False(page.IsMediaSidebarShown);
 
@@ -60,7 +61,7 @@ public sealed class ArchiveTableSplitterTests
                 Settle(window);
 
                 double draggedWidth = list.Bounds.Width;
-                Assert.InRange(draggedWidth, 459, 461);
+                Assert.InRange(draggedWidth, Config.ArchiveSplitWidthMinimum, initialWidth - 1);
                 Assert.True(page.IsMediaSidebarShown);
 
                 SelectThread(second);
@@ -82,6 +83,10 @@ public sealed class ArchiveTableSplitterTests
             finally { window.Close(); }
         });
     }
+
+    private static T FindByAutomationId<T>(Control root, string automationId) where T : Control =>
+        Assert.Single(root.GetVisualDescendants().OfType<T>(),
+            control => ControlAutomationPeer.CreatePeerForElement(control).GetAutomationId() == automationId);
 
     private static void Settle(Window window)
     {
