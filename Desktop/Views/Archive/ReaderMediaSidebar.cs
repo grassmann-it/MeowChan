@@ -531,9 +531,9 @@ internal sealed partial class ReaderMediaSidebar : Border
         RefreshFacts();
         LocalizeInfo();
         CommandBindings.Apply(_detailOpen, "gallery.open");
-        PanelActionStack.Present(_detailOpen, CommandCatalog.Get("gallery.open").Icon);
+        PanelActionStack.Present(_detailOpen, CommandCatalog.Get("gallery.open").Icon, compactLabel: true);
         CommandBindings.Apply(_editTags, "media.tags.edit");
-        PanelActionStack.Present(_editTags, CommandCatalog.Get("media.tags.edit").Icon);
+        PanelActionStack.Present(_editTags, CommandCatalog.Get("media.tags.edit").Icon, compactLabel: true);
         RefreshTags();
         RefreshDecisions();
         _positionPill.Show(_threadPosition);

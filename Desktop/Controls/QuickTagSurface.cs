@@ -511,8 +511,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         if (_sidebarSections == null || _sidebarActions == null) return;
         _sidebarSections.Info = info;
-        _sidebarActions.Content = actions.Children.Count > 0 ? actions : null;
-        _sidebarActions.IsVisible = _sidebarActions.Content != null;
+        // Keep the thread and editor commands together when the current post's actions are rebuilt.
+        if (_advanced.Parent is Panel previous) previous.Children.Remove(_advanced);
+        actions.Children.Add(_advanced);
+        _sidebarActions.Content = actions;
+        _sidebarActions.IsVisible = true;
     }
 
     /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>

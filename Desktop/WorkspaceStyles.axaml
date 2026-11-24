@@ -1466,6 +1466,9 @@
     <Style Selector="Button.panel-action">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
+    <Style Selector="TextBlock.panel-action-label.compact-action-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" />
+    </Style>
     <Style Selector="TextBlock.panel-action-label">
         <Setter Property="FontWeight" Value="Normal" />
     </Style>

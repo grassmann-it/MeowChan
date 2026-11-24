@@ -26,7 +26,7 @@ internal sealed class PanelActionStack : MinLineWrapPanel
         button.Height = WorkspaceMetrics.InputHeight;
     }
 
-    internal static void Present(Button button, string icon)
+    internal static void Present(Button button, string icon, bool compactLabel = false)
     {
         SizeButton(button);
         button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
@@ -36,6 +36,7 @@ internal sealed class PanelActionStack : MinLineWrapPanel
                 Text = content?.ToString(), Classes = { "panel-action-label" }, TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxLines = 1, VerticalAlignment = VerticalAlignment.Center
             };
+            text.Classes.Set("compact-action-label", compactLabel);
             Grid.SetColumn(text, 1);
             Border mark = (Border)CommandBindings.IconFromKey(icon, 16);
             mark.Bind(Border.BackgroundProperty, text.GetObservable(TextBlock.ForegroundProperty));
