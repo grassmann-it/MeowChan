@@ -109,6 +109,7 @@ public sealed class SelectionContextGestureTests
                 list.Selection.Select(2);
                 list.Selection.Select(0);
                 list.Selection.Select(1);
+                ContextGestures.Settle(window);
 
                 Point empty = new(24, list.Bounds.Height - 12);
                 if (macControlClick) ContextGestures.ControlClick(list, empty); else ContextGestures.RightClick(list, empty);
@@ -237,7 +238,8 @@ public sealed class SelectionContextGestureTests
         await BooruTestSupport.WaitAsync(() => !ready.IsOpen, "the attempted original to close its menu");
         ContextMenu missing = OpenMenu();
         await BooruTestSupport.WaitAsync(() => !Original(missing).IsEnabled
-            && Avalonia.Automation.AutomationProperties.GetHelpText(Original(missing)) == MediaMenuReasons.NotSaved,
+            && (Avalonia.Automation.AutomationProperties.GetHelpText(Original(missing)) ?? string.Empty)
+                .Contains(MediaMenuReasons.NotSaved, StringComparison.Ordinal),
             "the missing-file explanation");
         Assert.Equal(asset.Path, Assert.Single(opened));
     });
@@ -252,8 +254,8 @@ public sealed class SelectionContextGestureTests
         using var media = BooruComponentDispatcher.Wait(ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false));
         ArchivedThreadView first = RateAndTagWindowFixture.View(media);
         ArchivedThreadView second = new(first.Summary with { Id = new ResourceId("4chan", "g", "142"),
-            Url = "https://offline.invalid/thread/142", Title = "Second thread", MediaDirectory = Path.Combine(profile.Path, "second-media") },
-            first.GetPosts(), [], decimalPostOrder: true);
+            Url = "https://offline.invalid/thread/142", Title = "Second thread", MediaDirectory = Path.Combine(profile.Path, "second-media"),
+            PostCount = 1 }, [new CapturedPost("142", 0, PostFieldPresence.Html, Html: "Second thread")], [], decimalPostOrder: true);
         BooruComponentDispatcher.Wait(RateAndTagWindowFixture.SeedAsync(profile.Path, first));
         BooruComponentDispatcher.Wait(RateAndTagWindowFixture.SeedAsync(profile.Path, second));
         ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
@@ -293,6 +295,8 @@ public sealed class SelectionContextGestureTests
             DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
             window.UrlList.Add(first);
             window.UrlList.Add(second);
+            window.VisibleThreads.Add(first);
+            window.VisibleThreads.Add(second);
             await BooruTestSupport.WaitAsync(() =>
             {
                 window.UpdateLayout();
@@ -300,6 +304,7 @@ public sealed class SelectionContextGestureTests
             }, "the two Downloads watches");
             grid.SelectedItems.Add(first);
             grid.SelectedItems.Add(second);
+            ContextGestures.Settle(window);
             Point empty = new(24, grid.Bounds.Height - 12);
             if (macControlClick) ContextGestures.ControlClick(grid, empty); else ContextGestures.RightClick(grid, empty);
             Assert.Equal(new[] { first.WatchId, second.WatchId }, grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId));
@@ -314,6 +319,8 @@ public sealed class SelectionContextGestureTests
         }
         finally
         {
+            window.VisibleThreads.Remove(first);
+            window.VisibleThreads.Remove(second);
             window.UrlList.Remove(first);
             window.UrlList.Remove(second);
             ContextClick.MacOSForTests = null;
@@ -358,7 +365,9 @@ public sealed class SelectionContextGestureTests
                 ContextGestures.Release(rows[changeSelection ? 0 : 1], MouseButton.Right);
                 Assert.Same(opened, page.OpenListMenu);
                 if (changeSelection) list.SelectedIndex = 1;
-                Assert.Single(MenuProbe.Entries(opened), entry => entry.Id == TaggingCommands.Remove).Activate();
+                MenuProbe.Entry remove = Assert.Single(MenuProbe.Entries(opened), entry => entry.Id == TaggingCommands.Remove);
+                Assert.True(remove.Enabled, remove.DisabledReason);
+                ContextGestures.KeyStroke(remove.Item, Key.Enter, PhysicalKey.Enter);
                 await BooruTestSupport.WaitAsync(() => page.Queue.Count == 1, "the menu removal to commit");
                 Assert.True(page.Queue.Contains(second.Key));
                 Assert.False(page.Queue.Contains(first.Key));
