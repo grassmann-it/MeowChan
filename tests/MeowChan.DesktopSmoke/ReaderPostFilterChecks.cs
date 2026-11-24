@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -143,16 +144,10 @@ internal static partial class ReaderPostFilterChecks
             await page.PostFilterTask;
             await SettleAsync();
             Require(filters.IsHidden(id, "706"), "Hide post did not store the post.");
-            Require(Row("706") is { IsStub: true } hidden && hidden.StubText.Contains(Texts.T("postFilter.reason.single")), "The hand-hidden post is no placeholder.");
+            Require(Row("706") is { IsStub: true, BacklinkCount: null, HasReplyToggle: false } hidden
+                && hidden.StubText.Contains(Texts.T("postFilter.reason.single")), "The hand-hidden post is no placeholder or shows a reply count.");
             Require(Row("707") is { IsStub: true } && Row("708") is { IsStub: true }, "Its replies were not hidden transitively.");
             await CaptureThemesAsync(window, "hidden");
-
-            // A reply card of a hidden reply shows "hidden" instead of its text (the archive counts it).
-            ArchivePostRow parent = Row("706")!;
-            await Program.WaitUntilAsync(() => parent.BacklinkCount != null || parent.HasRepliesError, () => "reply count of 706 missing");
-            await page.SetRepliesExpandedAsync(parent, true);
-            await Program.WaitUntilAsync(() => parent.Replies.Count > 0 || parent.HasRepliesError, () => "reply cards of 706 missing");
-            Require(parent.Replies.Any(card => card.ReplyExcerpt == Texts.T("postFilter.hiddenReply")), "A hidden reply card still quotes the post.");
 
             // "Show post again".
             menu = page.BuildPostMenu(Row("706")!, list);
@@ -160,6 +155,21 @@ internal static partial class ReaderPostFilterChecks
             Require(await page.UnhidePostAsync(id, "706"), "Show post again failed.");
             await SettleAsync();
             Require(Row("706") is { IsStub: false } && Row("707") is { IsStub: false }, "The post is still hidden.");
+
+            // A visible parent still counts its hidden child, but opening the replies conceals the child's text.
+            Require(await page.HidePostAsync(id, "707", replies: false), "The child could not be hidden on its own.");
+            await SettleAsync();
+            await page.FocusPostAsync("706");
+            ArchivePostRow parent = Row("706")!;
+            await Program.WaitUntilAsync(() => parent.BacklinkCount == 1 && parent.HasReplyToggle);
+            Control card = (Control)list.ContainerFromItem(parent)!;
+            Button counter = card.GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("reader-reply-toggle"));
+            counter.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            await Program.WaitUntilAsync(() => parent.RepliesLoaded);
+            Require(parent.Replies is [{ Quote.Origin.PostId: "707" } reply] && reply.ReplyExcerpt == Texts.T("postFilter.hiddenReply"),
+                "A hidden reply card still quotes the post or has the wrong origin.");
+            Require(await page.UnhidePostAsync(id, "707"), "The hidden child could not be restored.");
+            await SettleAsync();
 
             // The dialog lists the rules and closes again.
             Require(await page.HidePostAsync(id, "709", replies: false) && filters.IsHidden(id, "709"), "709 was not hidden.");

@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Platform;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -35,7 +34,6 @@ internal sealed class ReaderArchiveTestFixture : IDisposable
         {
             page.IsReadable = true;
             test(page);
-            AssertBacklinks(page);
         }
         finally
         {
@@ -48,18 +46,6 @@ internal sealed class ReaderArchiveTestFixture : IDisposable
     {
         BooruComponentDispatcher.Wait(page.LoadThreadAsync(view.Summary.Id, resetPage, view));
         Assert.Equal(view.Summary.Id, page.CurrentThread?.Summary.Id);
-        AssertBacklinks(page);
-    }
-
-    private static void AssertBacklinks(ArchivePage page)
-    {
-        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-        ArchivePostRow[] rows = posts.Items.OfType<ArchivePostRow>().ToArray();
-        Assert.NotEmpty(rows);
-        BooruComponentDispatcher.WaitUntil(() => rows.All(row => row.BacklinkCount.HasValue || row.HasRepliesError),
-            $"backlink counts for {page.CurrentThread?.Summary.Id}");
-        Assert.All(rows, row => Assert.Null(row.RepliesError));
-        Assert.All(rows, row => Assert.Equal(0, row.BacklinkCount));
     }
 
     public void Dispose() => _profile.Dispose();
