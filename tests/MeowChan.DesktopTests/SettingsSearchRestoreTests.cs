@@ -26,7 +26,7 @@ public sealed class SettingsSearchRestoreTests
         var box = (SearchBox)editor.FindControl<ContentControl>("SettingsSearchHost")!.Content!;
         box.Debounce = TimeSpan.Zero; // No wall-clock timer in this fixture.
         try { test(editor); }
-        finally { box.FlushQuery(); editor.EndLifetime(); }
+        finally { box.FlushQuery(); editor.Dispose(); }
     });
 
     [Theory]
@@ -95,7 +95,7 @@ public sealed class SettingsSearchRestoreTests
             var advanced = editor.FindControl<Expander>("SettingsWorkerBudgetsHeading")!;
             Assert.NotNull(editor.ProbeSearchJump("production workers"));
             Assert.True(advanced.IsExpanded);
-            editor.EndLifetime();
+            editor.Dispose();
             Assert.False(advanced.IsExpanded);
         });
     }

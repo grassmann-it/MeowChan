@@ -20,7 +20,7 @@ using MeowChan.Desktop.Updates;
 
 namespace MeowChan
 {
-    public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost
+    public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost, IDisposable
     {
         /// <summary>The limits of the tag panel's suggestion box, read by the XAML so it never repeats the numbers (the Config constants are internal).</summary>
         public static decimal QuickTagPanelSuggestionLimitMinimum => Config.QuickTagPanelSuggestionLimitMinimum;
@@ -742,18 +742,28 @@ namespace MeowChan
             }, DispatcherPriority.Loaded);
         }
 
-        public void EndLifetime()
+        public void EndLifetime() => Dispose();
+
+        public void Dispose()
         {
-            if (_isClosed) return;
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || _isClosed) return;
             _isClosed = true;
+            _destinationWait?.Cancel();
+            _destinationWait?.Dispose();
+            _destinationWait = null;
+            EndSettingsTransferLifetime();
             EndSearchVisit();
             _conditionalReveal.Release(keepEdited: false);
             _rowMenu?.Dispose();
-            _destinationWait?.Cancel();
             DownloadDestinationValidator.Shared.CleanupFailed -= OnDestinationCleanupFailed;
             _sectionNavigation?.Dispose();
             EndResetLifetime();
-            EndSettingsTransferLifetime();
             EndWorkViewOverviewLifetime();
             Texts.Changed -= OnLanguageChanged;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
