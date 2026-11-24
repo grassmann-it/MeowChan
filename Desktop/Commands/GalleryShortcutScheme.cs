@@ -8,7 +8,7 @@ namespace MeowChan.Desktop.Commands;
 /// <summary>
 /// The key scheme of the gallery (Tom's decision of 14.11.2026, defaults revision 13). One rule keeps the keys guessable:
 /// <list type="bullet">
-/// <item><b>Shift + letter</b> shows or hides a panel or block: <c>Shift+H</c> tools, <c>Shift+I</c> info line, <c>Shift+K</c> cards of the tagging mode, <c>Shift+N</c> hint row,
+/// <item><b>Shift + letter</b> shows or hides a panel or block: <c>Shift+H</c> tools, <c>Shift+Z</c> info line, <c>Shift+K</c> cards of the tagging mode, <c>Shift+N</c> hint row,
 /// <c>Shift+L</c> filmstrip, <c>Shift+O</c> controls overlay, <c>Shift+P</c> post panel, <c>Shift+T</c> view / tag mode.</item>
 /// <item><b>Plain letters</b> act on what plays: <c>L</c> repeat and <c>A</c> the A–B loop. The older plain letters of the gallery (<c>F</c> toggles a favourite, <c>I</c> details, <c>Q</c> queue, <c>R</c> rating,
 /// <c>T</c> show in thread) stay.</item>
@@ -36,7 +36,8 @@ public static class GalleryShortcutScheme
     {
         "gallery.filmstrip-toggle", "gallery.context-toggle", "gallery.mode-toggle", "gallery.tools-toggle",
         "gallery.overlay-toggle", "gallery.overlay-autohide-toggle", "gallery.post-overlay-toggle",
-        "gallery.layout.tools", "gallery.layout.info", "gallery.layout.hints", "tags.queue.cards"
+        "gallery.layout.tools", "gallery.layout.info", "gallery.layout.hints", "tags.queue.cards",
+        "media.sidebar.info", "media.sidebar.autohide"
     });
 
     /// <summary>The plain-letter defaults that act on the shown medium's playback.</summary>
@@ -65,7 +66,7 @@ public static class GalleryShortcutScheme
     public static IReadOnlyDictionary<string, string> LayoutDefaults { get; } = new ReadOnlyDictionary<string, string>(
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["gallery.layout.info"] = "Shift+I",
+            ["gallery.layout.info"] = "Shift+Z",
             ["gallery.layout.hints"] = "Shift+N"
         });
 

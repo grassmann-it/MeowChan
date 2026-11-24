@@ -553,18 +553,6 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <TextBlock x:Name="MediaSidebarInfoMaximumShareFieldLabel" Text="{Binding MediaSidebarInfoMaximumShareLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding MediaSidebarInfoMaximumShareHint}" Classes="workspace-help" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <desktop:SettingsNumberInput x:Name="MediaSidebarInfoMaximumShareInput" Value="{Binding MediaSidebarInfoMaximumShare, Mode=TwoWay}" Minimum="{Binding MediaSidebarInfoMaximumShareMinimum}" Maximum="{Binding MediaSidebarInfoMaximumShareMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoMaximumShareFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoMaximumShareLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoMaximumShareHelp}" />
-                                        <TextBlock x:Name="MediaSidebarInfoMaximumShareInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                            <Border Classes="settings-divider">
-                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <TextBlock x:Name="ReaderMediaSidebarMinimumWidthFieldLabel" Text="{Binding ReaderMediaSidebarMinimumWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderMediaSidebarMinimumWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
