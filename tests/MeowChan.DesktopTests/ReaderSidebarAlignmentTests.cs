@@ -13,8 +13,10 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class ReaderSidebarAlignmentTests
 {
-    [Fact]
-    public void FullHeightSidebarKeepsTheStableHeaderAndPostsColumnIsolation() => BooruComponentDispatcher.Run(() =>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FullHeightSidebarKeepsTheStableHeaderAndPostsColumnIsolation(bool right) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Assert.Equal(48, ReaderMediaSidebar.HeaderLineHeight);
@@ -40,47 +42,44 @@ public sealed class ReaderSidebarAlignmentTests
                 ReaderMediaSidebarWidth = Config.ReaderMediaSidebarWidthMinimum,
                 ReaderMediaSidebarMinimumWidth = Config.ReaderMediaSidebarMinimumWidthMinimum
             });
-            foreach (bool right in new[] { false, true })
-            {
-                page.ApplyReaderMediaPreferences(preferences with { SidebarRight = right });
-                LayoutAt(720);
-                ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
-                Assert.IsType<MediaCompactHeader>(sidebar.HeaderRow);
-                GridSplitter splitter = Assert.Single(pane.Children.OfType<GridSplitter>());
-                Assert.True(page.IsMediaSidebarShown);
-                Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
-                Assert.Equal(right ? 0 : 2, Grid.GetColumn(posts));
-                Assert.Equal(Grid.GetColumn(posts), Grid.GetColumn(postsHeader));
-                Assert.Equal(1, Grid.GetColumnSpan(postsHeader));
-                Assert.Equal(1, Grid.GetColumn(splitter));
-                sidebar.ShowEmpty();
-                LayoutAt(720);
-                Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
-                Assert.False(sidebar.PositionPill.IsVisible);
-                Assert.Empty(sidebar.Title.Text!);
-                double emptyHeight = sidebar.HeaderRow.Bounds.Height;
-                Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, emptyHeight);
+            page.ApplyReaderMediaPreferences(preferences with { SidebarRight = right });
+            LayoutAt(720);
+            ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+            Assert.IsType<MediaCompactHeader>(sidebar.HeaderRow);
+            GridSplitter splitter = Assert.Single(pane.Children.OfType<GridSplitter>());
+            Assert.True(page.IsMediaSidebarShown);
+            Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
+            Assert.Equal(right ? 0 : 2, Grid.GetColumn(posts));
+            Assert.Equal(Grid.GetColumn(posts), Grid.GetColumn(postsHeader));
+            Assert.Equal(1, Grid.GetColumnSpan(postsHeader));
+            Assert.Equal(1, Grid.GetColumn(splitter));
+            BooruComponentDispatcher.WaitUntil(
+                () => AutomationProperties.GetName(sidebar) == Texts.T("reader.sidebar.regionEmpty"),
+                "the empty sidebar announcement");
+            Assert.False(sidebar.PositionPill.IsVisible);
+            Assert.Empty(sidebar.Title.Text!);
+            double emptyHeight = sidebar.HeaderRow.Bounds.Height;
+            Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, emptyHeight);
 
-                string file = new string('W', 250) + ".png";
-                sidebar.Describe("No. 123", file, "100 MiB", true);
-                LayoutAt(720);
-                double headerHeight = sidebar.HeaderRow.Bounds.Height;
-                double frameHeight = sidebar.Frame.Bounds.Height;
-                ScrollViewer details = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "ReaderMediaSidebarDetails");
-                double occupied = frameHeight + details.Bounds.Height;
-                Assert.Equal(emptyHeight, headerHeight);
-                Assert.False(details.IsVisible);
-                TextBlock meta = ((MediaCompactHeader)sidebar.HeaderRow).Meta;
-                Assert.Equal(file + " · 100 MiB", ToolTip.GetTip(meta));
-                Assert.Contains("…", meta.Text);
-                Assert.EndsWith(".png · 100 MiB", meta.Text);
-                Assert.True(meta.TranslatePoint(default, sidebar)!.Value.Y < sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y);
-                LayoutAt(900);
-                Assert.Equal(headerHeight, sidebar.HeaderRow.Bounds.Height);
-                Assert.True(sidebar.Frame.Bounds.Height > frameHeight);
-                Assert.Equal(180, sidebar.Frame.Bounds.Height + details.Bounds.Height - occupied, 0.5);
-                Assert.Equal(pane.Bounds.Height, sidebar.Bounds.Height);
-            }
+            string file = new string('W', 250) + ".png";
+            sidebar.Describe("No. 123", file, "100 MiB", true);
+            LayoutAt(720);
+            double headerHeight = sidebar.HeaderRow.Bounds.Height;
+            double frameHeight = sidebar.Frame.Bounds.Height;
+            ScrollViewer details = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "ReaderMediaSidebarDetails");
+            double occupied = frameHeight + details.Bounds.Height;
+            Assert.Equal(emptyHeight, headerHeight);
+            Assert.False(details.IsVisible);
+            TextBlock meta = ((MediaCompactHeader)sidebar.HeaderRow).Meta;
+            Assert.Equal(file + " · 100 MiB", ToolTip.GetTip(meta));
+            Assert.Contains("…", meta.Text);
+            Assert.EndsWith(".png · 100 MiB", meta.Text);
+            Assert.True(meta.TranslatePoint(default, sidebar)!.Value.Y < sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y);
+            LayoutAt(900);
+            Assert.Equal(headerHeight, sidebar.HeaderRow.Bounds.Height);
+            Assert.True(sidebar.Frame.Bounds.Height > frameHeight);
+            Assert.Equal(180, sidebar.Frame.Bounds.Height + details.Bounds.Height - occupied, 0.5);
+            Assert.Equal(pane.Bounds.Height, sidebar.Bounds.Height);
         }
         finally { window.Close(); page.EndLifetime(); }
     });
