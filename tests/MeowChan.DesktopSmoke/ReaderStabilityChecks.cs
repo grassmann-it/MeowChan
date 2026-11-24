@@ -237,7 +237,7 @@ internal static class ReaderStabilityChecks
             // Loaded continuations must complete before the first assertion.
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Loaded);
             Visible(posts, expected, key + " loaded");
-            await Program.WaitUntilAsync(() => posts.ItemsSource!.Cast<ArchivePostRow>().All(row => row.BacklinkCount.HasValue));
+            await Program.WaitUntilAsync(() => VisibleRows(posts).All(row => row.BacklinkCount.HasValue));
             await Flush(window);
             Visible(posts, expected, key + " settled");
         }
@@ -249,7 +249,7 @@ internal static class ReaderStabilityChecks
         await page.FocusPostAsync("1048");
         await Resize(1915);
         await page.FocusPostAsync("1050");
-        await Program.WaitUntilAsync(() => posts.ItemsSource!.Cast<ArchivePostRow>().All(row => row.BacklinkCount.HasValue));
+        await Program.WaitUntilAsync(() => VisibleRows(posts).All(row => row.BacklinkCount.HasValue));
         await Flush(window);
         Func<CancellationToken, Task>? previous = page.BeforeInlineReplyCountsPublicationAsync;
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -261,18 +261,18 @@ internal static class ReaderStabilityChecks
         };
         try
         {
-            // A refresh starts one count read for the whole list. Navigation uses that list while counts are held.
+            // Navigation uses the refreshed list while the viewport's counts are held.
             await page.LoadThreadAsync(Thread, resetPage: false).WaitAsync(TimeSpan.FromSeconds(10));
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             await page.FocusPostAsync("1049").WaitAsync(TimeSpan.FromSeconds(10));
             await Flush(window);
-            Require(posts.ItemsSource!.Cast<ArchivePostRow>().All(row => !row.BacklinkCount.HasValue),
+            Require(VisibleRows(posts).All(row => !row.BacklinkCount.HasValue),
                 "Delayed-count fixture did not hold count publication for the thread.");
             Require((posts.SelectedItem as ArchivePostRow)?.Id == "1049", "Delayed counts changed the selected target.");
             Visible(posts, "1049", "reply counts held");
             Console.WriteLine("SMOKE delayed reply counts: initial target visible; releasing counts.");
             release.TrySetResult();
-            await Program.WaitUntilAsync(() => posts.ItemsSource!.Cast<ArchivePostRow>().All(row => row.BacklinkCount.HasValue));
+            await Program.WaitUntilAsync(() => VisibleRows(posts).All(row => row.BacklinkCount.HasValue));
             await Flush(window);
             Require((posts.SelectedItem as ArchivePostRow)?.Id == "1049", "Count publication changed the selected target.");
             Visible(posts, "1049", "reply counts settled");
@@ -294,13 +294,16 @@ internal static class ReaderStabilityChecks
 
     private static void Visible(ListBox posts, string expected, string phase)
     {
-        ArchivePostRow row = posts.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == expected);
-        Control? target = posts.ContainerFromItem(row);
+        Control? target = posts.GetRealizedContainers().FirstOrDefault(card => card.DataContext is ArchivePostRow row && row.Id == expected);
         ScrollContentPresenter viewport = posts.GetVisualDescendants().OfType<ScrollContentPresenter>().First();
         Point? point = target?.TranslatePoint(default, viewport);
         Require(target != null && point is Point p && p.Y >= -1 && p.Y < viewport.Bounds.Height && p.Y + target.Bounds.Height > 0,
             $"Mixed reader target {expected} is invisible ({phase}); target={point}, height={target?.Bounds.Height}, viewport={viewport.Bounds.Height}.");
     }
+
+    private static IEnumerable<ArchivePostRow> VisibleRows(ListBox posts) => posts.GetRealizedContainers()
+        .Where(card => card.TranslatePoint(default, posts) is { } top && top.Y < posts.Bounds.Height && top.Y + card.Bounds.Height > 0)
+        .Select(card => card.DataContext).OfType<ArchivePostRow>();
 
     private static async Task Flush(Window window)
     {

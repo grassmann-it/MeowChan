@@ -77,6 +77,34 @@ public sealed class ReaderPostProjectionTests
     }
 
     [Fact]
+    public void IndexedRowsMaterializeOnlyRequestedPositionsAndReleaseEvictedRows()
+    {
+        ReaderPostProjection projection = Build(View(10_000),
+            [new Rules(index => index % 2 == 0 ? Hidden() : default)]);
+        ReaderPostRows rows = new(projection, entry =>
+            new ArchivePostRow(entry.Post.PostId, string.Empty, entry.Post.Html ?? string.Empty, []) { ThreadIndex = entry.ThreadIndex });
+        System.Collections.IList source = rows;
+        Assert.Equal(5_000, source.Count);
+        Assert.Equal(0, rows.BuiltCount);
+        ArchivePostRow first = rows[0];
+        ArchivePostRow last = rows[^1];
+        Assert.Equal("10099", last.Id);
+        Assert.Same(last, source[4_999]);
+        Assert.Equal(4_999, source.IndexOf(last));
+        Assert.Equal(2, rows.BuiltCount);
+
+        rows.Trim((index, _) => index == 4_999, row => Assert.Same(first, row));
+        Assert.Same(last, Assert.Single(rows.Materialized));
+        Assert.Equal(-1, source.IndexOf(first));
+        Assert.NotSame(first, rows[0]);
+        Assert.Equal(3, rows.BuiltCount);
+
+        ReaderPostRows replacement = new(projection, _ => throw new InvalidOperationException());
+        Assert.Equal(-1, replacement.IndexOf(last));
+        Assert.Empty(replacement.Materialized);
+    }
+
+    [Fact]
     public void EveryShownPositionRoundTripsIncludingConversationAndHiddenPosts()
     {
         ReaderPostProjection projection = Build(View(1500),

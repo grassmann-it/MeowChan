@@ -8,8 +8,7 @@ using MeowChan.Interfaces;
 namespace MeowChan.DesktopTests;
 
 // "Expand replies automatically" (Config.ReaderExpandReplies, default off). The rule works on the post rows, so it is exercised without a
-// window (ReplyAutoExpandPolicy); the page only calls it from ContainerPrepared, from the reply-count publication and from the shell's
-// preference hand-over, which the source contracts below pin. Layout under a real list stays with the reader smoke.
+// window (ReplyAutoExpandPolicy). The reader smoke exercises the page against a real list and catalog.
 [Collection("Localization")]
 public sealed class ReaderExpandRepliesTests : IDisposable
 {
@@ -288,29 +287,6 @@ public sealed class ReaderExpandRepliesTests : IDisposable
         Assert.True(policy.Realise(rows[0]));                                   // a card that appears later still opens when it is realised
     }
 
-    // ---- the page ----
-
-    [Fact]
-    public void ThePageAppliesTheRuleWhenACardIsPreparedBeforeItsFirstMeasureAndWhenCountsArriveAndKeepsTheCollapseMemory()
-    {
-        string cards = Source("Desktop/Views/Archive/ArchivePage.PostCards.cs");
-        int decorate = cards.IndexOf("DecorateReaderPost(e.Container", StringComparison.Ordinal);
-        int apply = cards.IndexOf("ApplyAutomaticReplies(post);", StringComparison.Ordinal);
-        Assert.True(decorate >= 0 && apply > decorate, "ContainerPrepared runs the rule");
-        string replies = Source("Desktop/Views/Archive/ArchivePage.Replies.cs");
-        int counts = replies.IndexOf("row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));", StringComparison.Ordinal);
-        int publish = replies.IndexOf("ApplyAutomaticRepliesToRealised(rows);", StringComparison.Ordinal);
-        int restore = replies.IndexOf("if (restoreLayout != null) await restoreLayout();", StringComparison.Ordinal);
-        Assert.True(counts >= 0 && publish > counts && restore > publish, "the counts' layout correction covers the automatic expansion");
-        string auto = Source("Desktop/Views/Archive/ArchivePage.ReplyAutoExpand.cs");
-        Assert.Contains("_replyAutoExpand.Enable(rows, HasLiveCard)", auto);                       // the switch loads for the cards that exist now only
-        Assert.Contains("row.RepliesRealised && HasLiveCard(row)", auto);                           // so does the count publication
-        Assert.Contains("ArchivePosts.ContainerFromItem(row) != null", auto);
-        Assert.Contains("RememberReplyChoice(row, open);", replies);              // the header counter is the reader's own choice
-        Assert.Contains("row.Replies.Count != loadedBefore", replies);            // a late page never lands on restored replies
-        string state = Source("Desktop/Views/Archive/ArchivePage.Navigation.cs");
-        Assert.Contains("row.RepliesAutoExpanded = state.Expanded && state.AutoExpanded;", state);
-    }
 }
 
 internal static class ReplyAutoExpandPolicyTestExtensions

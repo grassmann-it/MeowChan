@@ -81,6 +81,7 @@ internal static class ReaderUxChecks
     {
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_CONTINUOUS_ONLY") == "1")
         {
+            await ReaderViewChecks.CheckLongThreadAsync(window);
             await ReaderViewChecks.CheckContinuousAsync(window);
             return;
         }

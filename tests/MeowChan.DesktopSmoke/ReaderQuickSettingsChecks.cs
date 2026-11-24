@@ -44,7 +44,7 @@ internal static class ReaderQuickSettingsChecks
             page.IsAvailable = true;
             await page.LoadThreadAsync(id);
             ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
-            await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemsSource is ArchivePostRow[] { Length: > 0 });
+            await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemCount > 0);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             await CheckAsync(page, window);
         }
