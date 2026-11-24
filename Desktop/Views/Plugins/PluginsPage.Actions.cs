@@ -21,8 +21,14 @@ using Ursa.Controls;
 
 namespace MeowChan;
 
-public partial class PluginsPage
+public partial class PluginsPage : IDisposable
 {
+    public void Dispose()
+    {
+        EndLifetime();
+        GC.SuppressFinalize(this);
+    }
+
     internal static readonly string[] PluginActionCommandIds =
     {
         "plugins.enable", "plugins.disable", "plugins.details", "plugins.show-settings", "plugins.watches",
@@ -45,8 +51,9 @@ public partial class PluginsPage
         list.AddHandler(ContextRequestedEvent, OnPluginActionContextRequested, RoutingStrategies.Tunnel);
         // Both menu buttons are the "⋯" overflow of the shell header: the catalog's more-horizontal icon, the label
         // "Actions" as tooltip and (with the plugin's name) as accessible name. The menus and their commands are unchanged.
-        foreach (string name in new[] { "PluginMoreActions" })
-            CommandBindings.Apply(C<Button>(name), "plugins.actions", iconOnly: true);
+        Button more = C<Button>("PluginMoreActions");
+        PopupToggle.Prepare(more);
+        CommandBindings.Apply(more, "plugins.actions", iconOnly: true);
     }
 
     private PluginCatalogEntry? PluginActionEntry(PluginActionTarget target) =>
@@ -265,7 +272,7 @@ public partial class PluginsPage
         // Pointer requests were resolved against a real row in PointerPressed, never the old selection.
         if (e.TryGetPosition(list, out _)) return;
         if (_selectedKey is { } key && _cards.TryGetValue(CardKey(key), out var row) && list.Items.Contains(row))
-            OpenPluginActionMenu(key, row);
+            OpenPluginActionMenu(key, row, openerCommand: "menu.context-open");
     }
 
     private bool TryHandlePluginActionKeyDown(KeyEventArgs e)
@@ -275,7 +282,7 @@ public partial class PluginsPage
         {
             e.Handled = true;
             if (_selectedKey is { } key && C<SelectionList>("PluginCards").SelectedItem != null)
-                OpenPluginActionMenu(key, PluginActionOrigin(key));
+                OpenPluginActionMenu(key, PluginActionOrigin(key), openerCommand: "menu.context-open");
             return true;
         }
         // Menu remains native. A removed/rebound Shift+F10 must not invoke its old native accelerator.
@@ -283,10 +290,11 @@ public partial class PluginsPage
         return false;
     }
 
-    internal void OpenPluginActionMenu(string key, Control origin, bool details = false, Point? anchor = null)
+    internal void OpenPluginActionMenu(string key, Control origin, bool details = false, Point? anchor = null, string openerCommand = "plugins.actions")
     {
         if (_ended || IsDiscardConfirmationOpen || !IsEffectivelyVisible || _catalog == null
             || _catalog.Entries.FirstOrDefault(entry => entry.Key == key) is not { } entry || !Included(entry)) return;
+        if (anchor == null && TryClosePluginMenu(origin, key, openerCommand)) return;
         ClosePluginActionMenu();
         // Inspecting another row while busy must not call SelectCore, which cancels the operation.
         if (!_busy && _selectedKey != key) SelectCore(key, openDetails: false);
@@ -327,7 +335,7 @@ public partial class PluginsPage
                 watches.Items.Add(CreatePluginSourceMenuItem(action, origin, source.Name + " · " + source.SourceId));
             }
         }
-        OpenPreparedPluginMenu(menu, target, origin, anchor);
+        OpenPreparedPluginMenu(menu, target, origin, openerCommand, anchor);
 
         void Add(string id)
         {
@@ -365,6 +373,7 @@ public partial class PluginsPage
 
     private void OpenPluginSourcesMenu(PluginActionTarget target, Control origin)
     {
+        if (TryClosePluginMenu(origin, target.Key, "plugins.watches")) return;
         ClosePluginActionMenu();
         ContextMenuBuilder builder = new ContextMenuBuilder();
         int index = 0;
@@ -379,7 +388,7 @@ public partial class PluginsPage
         }
         ContextMenu menu = builder.Build()!;
         foreach (MenuItem item in menu.Items.OfType<MenuItem>()) item.Icon = CommandBindings.Icon("plugins.watches");
-        OpenPreparedPluginMenu(menu, target, origin);
+        OpenPreparedPluginMenu(menu, target, origin, "plugins.watches");
     }
 
     private static Control PluginMenuInformation(string text)
@@ -403,9 +412,19 @@ public partial class PluginsPage
         return [new Separator(), info];
     }
 
-    private void OpenPreparedPluginMenu(ContextMenu menu, PluginActionTarget target, Control origin, Point? anchor = null)
+    private string? _pluginMenuCommand;
+
+    private bool TryClosePluginMenu(Control origin, string key, string command)
     {
-        PluginActionMenu = menu; _pluginMenuTarget = target; _pluginMenuLanguage = Texts.Language;
+        if (PluginActionMenu is not { IsOpen: true } menu || !ReferenceEquals(menu.PlacementTarget, origin)
+            || _pluginMenuTarget?.Key != key || (_pluginMenuCommand == "plugins.watches") != (command == "plugins.watches")) return false;
+        ClosePluginActionMenu(restoreFocus: true);
+        return true;
+    }
+
+    private void OpenPreparedPluginMenu(ContextMenu menu, PluginActionTarget target, Control origin, string command, Point? anchor = null)
+    {
+        PluginActionMenu = menu; _pluginMenuTarget = target; _pluginMenuCommand = command; _pluginMenuLanguage = Texts.Language;
         _pluginMenuReturnFocus = true; _pluginMenuWasBusy = _busy;
         string? returnKey = _selectedKey;
         Control returnOrigin = _busy && returnKey != target.Key
@@ -432,20 +451,26 @@ public partial class PluginsPage
         }
         WrapLabels();
         ShortcutService.Changed += WrapLabels;
-        menu.KeyDown += (_, args) =>
+        menu.AddHandler(KeyDownEvent, (_, args) =>
         {
-            if (args.Key != Key.Escape) return;
-            args.Handled = true; ClosePluginActionMenu(restoreFocus: true);
-        };
+            if (args.Handled || ShortcutService.IsCapturing) return;
+            using var context = EffectiveShortcutBindings.EnterKeyContext("plugins");
+            if (CommandBindings.Matches(args, command))
+            {
+                args.Handled = true;
+                ClosePluginActionMenu(restoreFocus: true);
+            }
+        }, RoutingStrategies.Tunnel);
         menu.Closed += (_, _) =>
         {
             ShortcutService.Changed -= WrapLabels;
             if (!ReferenceEquals(PluginActionMenu, menu)) return;
             bool restore = _pluginMenuReturnFocus;
-            PluginActionMenu = null; _pluginMenuTarget = null; _pluginMenuLanguage = null;
+            PluginActionMenu = null; _pluginMenuTarget = null; _pluginMenuLanguage = null; _pluginMenuCommand = null;
             if (restore) RestorePluginMenuFocus(returnKey, returnOrigin);
         };
         // Explicit Open bypasses Opening in Avalonia 12: all items and targets are ready now.
+        if (origin is Button button) PopupToggle.Track(button, menu);
         menu.Open(origin);
     }
 
@@ -463,7 +488,7 @@ public partial class PluginsPage
         Dispatcher.UIThread.Post(() =>
         {
             if (_ended || !IsEffectivelyVisible || IsDiscardConfirmationOpen) return;
-            if (_selectedKey == key && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled)
+            if (_selectedKey == key && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled && origin.Focusable)
             { origin.Focus(); return; }
             if (_selectedKey == key && key != null && _cards.TryGetValue(CardKey(key), out var row) && row.IsEffectivelyVisible)
             { row.BringIntoView(); row.Focus(); return; }

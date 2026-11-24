@@ -12,13 +12,14 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
 public partial class SettingsEditor
 {
-    private MenuFlyout? _settingsMore;
+    private ContextMenu? _settingsMore;
     private CancellationTokenSource? _settingsExportCancellation;
     internal Task SettingsExportTask { get; private set; } = Task.CompletedTask;
     public string SettingsMoreLabel => Texts.T("settings.transfer.more");
@@ -26,24 +27,25 @@ public partial class SettingsEditor
     private void OnSettingsMoreClick(object? sender, RoutedEventArgs e)
     {
         if (_isClosed || !IsEditable || sender is not Button origin) return;
-        _settingsMore?.Hide();
+        if (PopupToggle.Close(origin)) return;
         // The two entries of the head's More button: the export (a download) and the rare, destructive "Reset all", set apart by a separator.
         var export = new MenuItem { Header = Texts.T("settings.transfer.export"), Icon = CommandBindings.NamedIcon("download") };
         AutomationProperties.SetName(export, Texts.T("settings.transfer.export"));
         export.Click += (_, _) =>
         {
-            _settingsMore?.Hide();
+            _settingsMore?.Close();
             SettingsExportTask = ExportSavedSettingsAsync();
         };
         var resetAll = new MenuItem { Header = ResetAllLabel, Icon = CommandBindings.NamedIcon("rotate-ccw") };
         AutomationProperties.SetName(resetAll, ResetAllLabel);
         resetAll.Click += (_, _) =>
         {
-            _settingsMore?.Hide();
+            _settingsMore?.Close();
             OpenResetConfirmation(origin, SettingsResetScope.All);
         };
-        _settingsMore = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight, Items = { export, new Separator(), resetAll } };
-        _settingsMore.ShowAt(origin);
+        _settingsMore = new ContextMenu { Placement = PlacementMode.BottomEdgeAlignedRight, Items = { export, new Separator(), resetAll } };
+        PopupToggle.Track(origin, _settingsMore);
+        _settingsMore.Open(origin);
     }
 
     internal async Task ExportSavedSettingsAsync(IStorageProvider? storageProvider = null)
@@ -83,13 +85,13 @@ public partial class SettingsEditor
     {
         Raise(new[] { nameof(SettingsMoreLabel) });
         // Avoid a stale-language menu while keeping an already open system picker untouched.
-        _settingsMore?.Hide();
+        _settingsMore?.Close();
         _settingsMore = null;
     }
 
     private void EndSettingsTransferLifetime()
     {
-        _settingsMore?.Hide();
+        _settingsMore?.Close();
         _settingsMore = null;
         _settingsExportCancellation?.Cancel();
         _settingsExportCancellation?.Dispose();
@@ -139,6 +141,7 @@ internal static class SettingsExportUi
                 await stream.WriteAsync(bytes, CancellationToken.None).ConfigureAwait(false);
                 await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
             }
+        // Ensure the delegate takes ownership of (and disposes) the file even if cancellation arrives before it starts.
         }, CancellationToken.None).ConfigureAwait(false);
     }
 }

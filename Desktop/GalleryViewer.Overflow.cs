@@ -104,7 +104,7 @@ internal sealed partial class GalleryViewer
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
-        _overflowButton.Flyout = _overflowFlyout;
+        PopupToggle.BindFlyout(_overflowButton, _overflowFlyout);
         KeyboardNavigation.SetTabNavigation(_overflowPanel, KeyboardNavigationMode.Cycle);
         _overflowPanel.AddHandler(KeyDownEvent, OnOverflowKeyDown, RoutingStrategies.Tunnel);
         _overflowPanel.AddHandler(Button.ClickEvent, OnOverflowItemClick);
@@ -129,9 +129,7 @@ internal sealed partial class GalleryViewer
             RevealOverlayControls();
             if (!_overflowHadFocus || _terminalRetirement || !_overflowButton.IsEffectivelyVisible) return;
             _overflowHadFocus = false;
-            // A keyboard user returns to "More"; a menu opened with the pointer hands the keys to the picture (never to the button, whose Space would reopen it).
-            if (_keyboardInteraction) _overflowButton.Focus(NavigationMethod.Tab);
-            else ReclaimGallerySurface();
+            ReclaimGallerySurface();
         };
         _overflowPanel.GotFocus += (_, _) => _overflowHadFocus = true;
         ApplyOverflowButtonText();
@@ -266,7 +264,7 @@ internal sealed partial class GalleryViewer
         }
         PresentSlideshowIcon(); // GL3: play/pause icon for the new place (bar: icon + text, menu: the row's lead icon)
         if (hadFocus && _slideshowToggle.IsEffectivelyVisible) _slideshowToggle.Focus(NavigationMethod.Tab);
-        else if (hadFocus && _overflowButton.IsEffectivelyVisible) _overflowButton.Focus(NavigationMethod.Tab);
+        else if (hadFocus) ReclaimGallerySurface();
     }
 
     private IEnumerable<Control> OverflowFocusables() => MenuFocusables(_overflowPanel);
@@ -277,7 +275,11 @@ internal sealed partial class GalleryViewer
 
     // Arrow keys move through the rows (also past the choice boxes, which would otherwise keep Up/Down for their own
     // selection and trap the keyboard); Enter, Space or F4 still open a choice box. Escape closes the menu.
-    private void OnOverflowKeyDown(object? sender, KeyEventArgs e) => OnMenuKeyDown(e, _overflowPanel, _overflowFlyout);
+    private void OnOverflowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!e.Handled && _layoutSection.IsVisible && TryToggleLayoutFromMenu(e, _overflowFlyout)) return;
+        OnMenuKeyDown(e, _overflowPanel, _overflowFlyout);
+    }
 
     // The same keys serve the slideshow flyout (G2), which borrows rows of this menu.
     private static void OnMenuKeyDown(KeyEventArgs e, Panel root, FlyoutBase flyout)

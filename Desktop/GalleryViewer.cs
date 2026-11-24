@@ -274,6 +274,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         if (IsFavoriteConfirmOpen) { CloseFavoriteConfirm(); return true; }
         if (_helpOpen) { SetHelp(false); return true; }
+        if (TryDismissThreadTagSection()) return true;
         if (_contextOpen) { SetContextOpen(false); return true; }
         return false;
     }

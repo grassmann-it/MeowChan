@@ -18,7 +18,11 @@ public static class WorkViewMoreSurface
 {
     /// <summary>One entry under More: a catalog command id for label, icon and shortcut text, or none for a plain label; then
     /// <paramref name="Icon"/> is the catalog icon the moved button shows, so the entry looks like the button it stands for.</summary>
-    public sealed record Entry(int Order, string? CommandId, Func<string> Label, Action Run, Func<bool> CanRun, string? Icon = null);
+    public sealed record Entry(int Order, string? CommandId, Func<string> Label, Action Run, Func<bool> CanRun, string? Icon = null)
+    {
+        internal string? Id { get; init; }
+        internal bool? Checked { get; init; }
+    }
 
     /// <summary>Entries for the buttons the policy puts under More in <paramref name="view"/> (state-hidden buttons are skipped).</summary>
     public static IEnumerable<Entry> ForButtons(IEnumerable<Button> buttons, WorkView view) => buttons
@@ -50,6 +54,12 @@ public static class WorkViewMoreSurface
         Apply(more, Texts.Count("workview.moreCount", count));
     }
 
+    internal static void ConfigureToggle(Button more, int count)
+    {
+        if (more.Focusable) PopupToggle.Prepare(more);
+        Configure(more, count);
+    }
+
     /// <summary>The menu for <paramref name="entries"/> in policy order (a disabled entry stays listed, greyed out).</summary>
     public static ContextMenu CreateMenu(IEnumerable<Entry> entries) => CreateMenu(entries, null);
 
@@ -57,6 +67,8 @@ public static class WorkViewMoreSurface
     {
         ContextMenuBuilder builder = new ContextMenuBuilder();
         Entry[] ordered = entries.OrderBy(entry => entry.Order).ToArray();
+        static string Id(Entry entry, int index) => entry.Id ?? "workview.more." + index;
+
         for (int index = 0; index < ordered.Length; index++)
         {
             Entry entry = ordered[index];
@@ -64,14 +76,19 @@ public static class WorkViewMoreSurface
             string label = entry.Label();
             if (entry.CommandId != null)
                 builder.Command(entry.CommandId, entry.Run, CanRun(), label: label, availableWhen: CanRun);
+            else if (entry.Checked is { } isChecked)
+                builder.Check(Id(entry, index), label, isChecked, entry.Run, CanRun(), icon: entry.Icon);
             else
-                builder.Item("workview.more." + index, label, entry.Run, CanRun(), availableWhen: CanRun, icon: entry.Icon);
+                builder.Item(Id(entry, index), label, entry.Run, CanRun(), availableWhen: CanRun, icon: entry.Icon);
         }
         ContextMenu menu = builder.Build()!;
         foreach (int index in Enumerable.Range(0, ordered.Length))
         {
-            if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, ordered[index].CommandId ?? "workview.more." + index)) is { } item)
+            if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, ordered[index].CommandId ?? Id(ordered[index], index))) is { } item)
+            {
                 AutomationProperties.SetName(item, ordered[index].Label());
+                AutomationProperties.SetAutomationId(item, item.Tag as string);
+            }
         }
         return menu;
     }
@@ -79,9 +96,12 @@ public static class WorkViewMoreSurface
     /// <summary>Opens the menu under <paramref name="more"/>; nothing opens when no entry is left.</summary>
     public static void Open(Button more, IEnumerable<Entry> entries)
     {
+        if (PopupToggle.Close(more)) return;
         Entry[] current = entries.ToArray();
         if (current.Length == 0) return;
-        CreateMenu(current, more).Open(more);
+        ContextMenu menu = CreateMenu(current, more);
+        PopupToggle.Track(more, menu);
+        menu.Open(more);
     }
 
     private static string LabelOf(Button button) =>

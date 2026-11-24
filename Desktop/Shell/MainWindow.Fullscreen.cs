@@ -834,6 +834,9 @@ public partial class MainWindow
                 if (!DownloadSearchIsComposing() && !DismissShellMenu()) CloseDownloadSearch();
                 return;
             }
+            if (DiagnosticsSegmentShown && !_largeReaderOpen && (_gallery == null || _gallerySuspended)
+                && _diagnosticsPage?.TryDismissDiagnosticFilters() == true)
+            { e.Handled = true; return; }
             // A search field with text takes its first Escape to clear itself (SearchBox); nothing around it reacts to that key.
             if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
@@ -861,6 +864,9 @@ public partial class MainWindow
                 else CloseDownloadSearch();
                 return;
             }
+            if (_selectedPage == WorkspacePage.Settings && _gallery == null && !_largeReaderOpen
+                && _settingsEditor?.TryDismissSectionNavigation() == true)
+            { e.Handled = true; return; }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }
             if (_largeReaderOpen) { e.Handled = true; CloseLargeReader(); return; }

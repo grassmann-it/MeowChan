@@ -29,7 +29,7 @@ public partial class SourcesPage
     {
         Button[] moved = MovableActions();
         foreach (Button button in moved) WorkViewGate.Apply(button, _workView, button != SourcePluginButton || Selected?.Plugin != null);
-        WorkViewMoreSurface.Configure(SourcesMoreButton, WorkViewMoreSurface.ForButtons(moved, _workView).Count());
+        WorkViewMoreSurface.ConfigureToggle(SourcesMoreButton, WorkViewMoreSurface.ForButtons(moved, _workView).Count());
     }
 
     private Button[] MovableActions() => [SourceRulesButton, SourceDiagnosticsButton, SourcePluginButton];

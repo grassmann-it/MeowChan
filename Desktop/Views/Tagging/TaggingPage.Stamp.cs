@@ -83,7 +83,8 @@ public sealed partial class TaggingPage
             Children = { CommandBindings.NamedIcon("tag"), _stampSummary, _stampPreview, CommandBindings.NamedIcon("chevron-down", 12) } };
         AutomationProperties.SetAccessibilityView(trigger, AccessibilityView.Raw);
         _stampButton.Content = trigger;
-        _stampButton.Flyout = _stampFlyout;
+        PopupToggle.BindFlyout(_stampButton, _stampFlyout);
+        PopupToggle.BindFlyout(_stampHelp, _stampHelp.Popover);
         CommandBindings.EnsureIconBeforeText(_stampAdd, "plus");
 
         Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8,
