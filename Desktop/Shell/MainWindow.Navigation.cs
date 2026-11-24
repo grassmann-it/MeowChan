@@ -828,7 +828,7 @@ public partial class MainWindow
         DisposeUpdates();
         DisposeMacMenu();
         _pluginsPage?.EndLifetime();
-        _statisticsPage?.EndLifetime();
+        _statisticsPage?.Dispose();
         _diagnosticsPage?.EndLifetime();
         DisposeStatusPage();
         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
