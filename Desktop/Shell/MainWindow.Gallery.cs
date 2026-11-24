@@ -509,7 +509,8 @@ public partial class MainWindow
             : Texts.T("thread.media.total", position.Count);
         _gallery.SetPosition(label,
             ready && _galleryIndex > 0,
-            ready && (_galleryIndex + 1 < _galleryEntries.Count || moreThreads), position);
+            ready && (_galleryIndex + 1 < _galleryEntries.Count || moreThreads), position,
+            mediaAhead: _galleryEntries.Count - _galleryIndex - 1);
     }
 
     private GalleryTagPanelPosition? GalleryListPosition() =>
