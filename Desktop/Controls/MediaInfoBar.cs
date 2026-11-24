@@ -256,7 +256,7 @@ internal sealed class MediaInfoBar : Grid
         return panel;
     }
 
-    private static Control Chevron()
+    private static Avalonia.Controls.Shapes.Path Chevron()
     {
         var icon = WorkspaceIcons.Create(WorkspaceIcons.ChevronDown);
         icon.Width = icon.Height = 12;

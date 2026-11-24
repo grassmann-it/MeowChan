@@ -29,6 +29,7 @@ public sealed class SidePanelDesignTests
 {
     private static readonly bool[] Segments = [false, true];
     private static readonly string[] BuiltInLanguages = ["en", "de"];
+    private static readonly int[] InfoBarWidths = [240, 320, 480, 700];
     private static readonly int[] Widths = [240, 280, 320, 360, 480];
 
     private static void Run(Action test) => BooruComponentDispatcher.Run(() =>
@@ -338,10 +339,10 @@ public sealed class SidePanelDesignTests
             foreach (string language in BuiltInLanguages.Concat(Texts.BundledPackCodes()))
             {
                 Texts.SetLanguage(language);
-                foreach (int width in new[] { 240, 320, 480, 700 })
+                foreach (int width in InfoBarWidths)
                 {
                     panel.Width = width;
-                    foreach (bool tagged in new[] { false, true })
+                    foreach (bool tagged in Segments)
                     {
                         panel.SetTags(tagged ? ["sky", "autumn", "clouds", "evening", "stargazing", "blue hour", "landscape"] : [], null);
                         Settle(window);

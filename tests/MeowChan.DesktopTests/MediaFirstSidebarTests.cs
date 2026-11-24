@@ -17,6 +17,7 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Theming;
+using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
 
