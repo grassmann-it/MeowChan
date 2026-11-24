@@ -155,7 +155,6 @@ internal static class TrayHostChecks
         string[] entries = await connection.CallMethodAsync(CreateRequest(connection, "MenuEntries"), static (message, _) =>
         {
             var reader = message.GetBodyReader();
-            reader.ReadSignature("as");
             return reader.ReadArrayOfString();
         }).WaitAsync(TimeSpan.FromSeconds(5));
         if (!entries.SequenceEqual(expected))
