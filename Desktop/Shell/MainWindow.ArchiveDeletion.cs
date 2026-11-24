@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Input;
@@ -77,12 +78,14 @@ public partial class MainWindow
             // Modals plan MD3: the form step; the title stands in the title bar only, the destructive action is the primary one.
             Window dialog = DialogWindow.Create(title, DialogSize.M, modal: true);
             dialog.Name = "ArchivePermanentDeleteDialog";
+            AutomationProperties.SetAutomationId(dialog, "archive.delete.dialog");
             _archiveDeletionDialog = dialog;
             TextBlock summary = new()
             {
                 TextWrapping = TextWrapping.Wrap,
                 Text = CountPhrases.ArchiveDeletionSummary(plan.Catalog.Threads.Count, plan.Files.OwnedFileCount, plan.Files.OwnedBytes)
             };
+            AutomationProperties.SetAutomationId(summary, "archive.delete.summary");
             List<string> details = plan.Catalog.Threads.Select(thread =>
                 thread.Summary.Id.Source + " /" + thread.Summary.Id.Board + "/ " + thread.Summary.Id.Thread + " · " + thread.Summary.Title).ToList();
             details.Add("");
@@ -102,12 +105,15 @@ public partial class MainWindow
                 Name = "ArchivePermanentDeleteDetails", Text = string.Join(Environment.NewLine, details),
                 IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap
             };
+            AutomationProperties.SetAutomationId(detail, "archive.delete.details");
             TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
             Avalonia.Automation.AutomationProperties.SetLiveSetting(status, Avalonia.Automation.AutomationLiveSetting.Polite);
             // Blockers and failures stay local and above the body; progress and results remain in the footer.
             TextBlock failure = new() { TextWrapping = TextWrapping.Wrap };
             Button cancel = new() { Name = "ArchivePermanentDeleteCancel", Content = Texts.T("action.cancel") };
             Button delete = new() { Name = "ArchivePermanentDeleteConfirm", Content = title, Classes = { "danger" } };
+            AutomationProperties.SetAutomationId(cancel, "archive.delete.cancel");
+            AutomationProperties.SetAutomationId(delete, "archive.delete.confirm");
             delete.IsEnabled = plan.Catalog.Threads.Count > 0 && !plan.Files.HasBlockers && plan.Catalog.SharedMediaDirectories.Count == 0;
             if (!delete.IsEnabled)
                 failure.Text = Texts.T("archive.delete.blocked");
