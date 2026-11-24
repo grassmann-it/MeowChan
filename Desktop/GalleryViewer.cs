@@ -1549,7 +1549,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private GalleryPostParts BuildPostParts(GalleryEntry entry, Func<Panel, string, string, Action, Button> command)
     {
         StackPanel info = new() { Name = "GalleryPostInfo", Spacing = 8 };
-        PanelActionStack actions = new("GalleryPostActions");
+        PanelActionStack actions = new("GalleryPostActions") { KeepPairOnOneLine = true };
         IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
         if (associations.Count > 1)
         {

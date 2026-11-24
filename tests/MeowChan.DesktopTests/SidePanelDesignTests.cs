@@ -184,7 +184,7 @@ public sealed class SidePanelDesignTests
             Near(32, button.Height);
             if (actions[i].GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Classes.Contains("panel-action-label")) is { } label)
             {
-                if (frame is not ReaderMediaSidebar || width >= 280)
+                if (width >= 280)
                     Assert.DoesNotContain(label.TextLayout.TextLines, line => line.HasCollapsed);
                 else Assert.StartsWith(label.Text!, ToolTip.GetTip(actions[i])?.ToString());
             }
@@ -192,10 +192,9 @@ public sealed class SidePanelDesignTests
             else
             {
                 Rect previous = In(actions[i - 1], frame);
-                if (i == 1 && (width >= 320 || frame is ReaderMediaSidebar))
+                if (i == 1 && actions[i].Parent == actions[i - 1].Parent
+                    && actions[i].Parent is PanelActionStack { KeepPairOnOneLine: true })
                     Near(previous.Top, button.Top);
-                if (i == 1 && frame is not ReaderMediaSidebar && width == 240)
-                    Near(previous.Bottom + 8, button.Top);
                 if (button.Top == previous.Top) Near(previous.Right + 8, button.Left);
                 else { Near(left, button.Left); Near(previous.Bottom + 8, button.Top); }
             }
