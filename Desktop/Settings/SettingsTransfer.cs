@@ -280,6 +280,7 @@ public static class SettingsTransfer
             BooruPageView = source.BooruPageView,
             BooruTileSize = source.BooruTileSize,
             TaggingPreviewColumn = source.TaggingPreviewColumn,
+            TaggingPagePanel = source.TaggingPagePanel,
             TaggingStampBlock = source.TaggingStampBlock,
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited,
             PluginEditorExecutable = source.PluginEditorExecutable,
