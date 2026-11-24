@@ -108,21 +108,33 @@ public sealed class SidePanelDesignTests
         rendered.Save(png, PngBitmapEncoderOptions.Default);
         png.Position = 0;
         using SKBitmap pixels = SKBitmap.Decode(png);
-        Rect caption = In(row.RatingBar, frame);
-        int left = (int)caption.Left, top = (int)caption.Top;
-        SKColor surface = pixels.GetPixel(left, top);
-        bool hasInk = false;
-        for (int y = top; y < caption.Bottom; y++)
+        Rect bar = In(row.RatingBar, frame);
+        SKColor surface = pixels.GetPixel((int)bar.Left - 2, (int)bar.Top);
+        static bool Between(byte sample, byte background, byte foreground) =>
+            sample >= Math.Min(background, foreground) - 1 && sample <= Math.Max(background, foreground) + 1;
+
+        for (int i = 0; i < row.StarButtons.Count; i++)
         {
-            for (int x = left; x < caption.Right; x++)
+            Rect cell = In(row.StarButtons[i], frame);
+            string token = i < row.View.Rating.GetValueOrDefault() ? "Workspace.Favorite" : "Workspace.Muted";
+            Color color = Assert.IsAssignableFrom<ISolidColorBrush>(frame.FindResource(frame.ActualThemeVariant, token)).Color;
+            SKColor ink = new(color.R, color.G, color.B, color.A);
+            bool hasSurface = false, hasInk = false;
+            for (int y = (int)cell.Top; y < cell.Bottom; y++)
             {
-                SKColor sample = pixels.GetPixel(x, y);
-                Assert.True(sample.Red + 1 >= surface.Red && sample.Green + 1 >= surface.Green && sample.Blue + 1 >= surface.Blue,
-                    $"Rating pixel ({x}, {y}) is {sample} over {surface}.");
-                hasInk |= sample.Red > surface.Red + 20;
+                for (int x = (int)cell.Left; x < cell.Right; x++)
+                {
+                    SKColor pixel = pixels.GetPixel(x, y);
+                    // Antialiasing blends each channel toward the glyph; gold lowers the blue channel.
+                    Assert.True(Between(pixel.Red, surface.Red, ink.Red) && Between(pixel.Green, surface.Green, ink.Green)
+                        && Between(pixel.Blue, surface.Blue, ink.Blue) && Between(pixel.Alpha, surface.Alpha, ink.Alpha),
+                        $"Star {i + 1} pixel ({x}, {y}) is {pixel} over {surface} with ink {ink}.");
+                    hasSurface |= pixel == surface;
+                    hasInk |= pixel == ink;
+                }
             }
+            Assert.True(hasSurface && hasInk, $"Star {i + 1} must show both the panel and its {token} glyph.");
         }
-        Assert.True(hasInk);
     }
 
     private static void Sections(MediaPanelSections sections, Control frame, double left, double right, int width)
