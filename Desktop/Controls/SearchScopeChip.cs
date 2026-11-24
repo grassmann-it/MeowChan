@@ -30,7 +30,10 @@ public enum SearchScope
 }
 
 /// <summary>A "search elsewhere" entry of the scope chip menu, e.g. "Search “lamp” in Media".</summary>
-public sealed record SearchCarryAction(string Name, string Label, bool IsEnabled, Action Execute, string? Reason = null);
+public sealed record SearchCarryAction(string Name, string Label, bool IsEnabled, Action Execute, string? Reason = null)
+{
+    internal string? IconKey { get; init; }
+}
 
 /// <summary>
 /// The scope chip in front of a <see cref="SearchBox"/>: shows the current scope ("Text ▾") and opens a menu with
@@ -168,7 +171,7 @@ public sealed class SearchScopeChip : Button
         for (int index = 0; index < carry.Length; index++)
         {
             SearchCarryAction frozen = carry[index];
-            builder.Item("search.carry." + index, frozen.Label, frozen.Execute, frozen.IsEnabled, frozen.Reason);
+            builder.Item("search.carry." + index, frozen.Label, frozen.Execute, frozen.IsEnabled, frozen.Reason, icon: frozen.IconKey);
         }
         ContextMenu menu = builder.Build()!;
         menu.Placement = PlacementMode.BottomEdgeAlignedLeft;

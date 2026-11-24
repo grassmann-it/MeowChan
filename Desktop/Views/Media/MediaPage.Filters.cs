@@ -712,7 +712,8 @@ public sealed partial class MediaPage
         string? reason = draft.Length == 0 ? Texts.T("search.carry.empty") : null;
         yield return new SearchCarryAction("MediaSearchInArchive",
             draft.Length == 0 ? Texts.T("search.carry.toArchivePlain") : Texts.T("search.carry.toArchive", draft), reason == null,
-            () => { if (!_lifetime.IsCancellationRequested) SearchInArchiveRequested?.Invoke(draft); }, reason);
+            () => { if (!_lifetime.IsCancellationRequested) SearchInArchiveRequested?.Invoke(draft); }, reason)
+        { IconKey = CommandCatalog.Get("navigation.archive").Icon };
     }
 
     /// <summary>A query carried from Archive or the reader: an empty name field takes it at once, a different one gets an offer.</summary>

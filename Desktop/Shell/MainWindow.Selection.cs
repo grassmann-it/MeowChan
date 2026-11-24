@@ -37,10 +37,29 @@ public partial class MainWindow
         _threadRows.TryGetValue(row.WatchId, out ThreadRow? current) && ReferenceEquals(row, current)
         && (_appliedThreadSearchReconciliation?.Includes(row) ?? false);
 
-    private void AddUserPriorityMenus(ContextMenuBuilder menu, bool ready)
+    private void AddUserPriorityMenus(ContextMenuBuilder menu, bool ready) =>
+        AddUserPriorityMenus(menu, SelectedThreads(), ready,
+            () => !RowCommandBusy && !_selectionCommandRunning && _restoreCompleted && UserPriorityAvailable(),
+            IsCurrentUserPriorityRow, (rows, high) => ApplyFrozenUserPriority(rows, high));
+
+    internal static bool IsUserPriorityTarget(ThreadRow row, bool high, Func<ThreadRow, bool> isCurrent)
+        => isCurrent(row) && row.IsHighPriority != high;
+
+    // The same menu composition is available without a native window or bitmap backend.
+    internal static MenuItem[] CreateUserPriorityMenuItems(IEnumerable<ThreadRow> selection, bool ready,
+        Func<bool> canExecute, Func<ThreadRow, bool> isCurrent, Action<ThreadRow[], bool> apply)
     {
-        ThreadRow[] frozen = SelectedThreads().Where(IsCurrentUserPriorityRow).DistinctBy(row => row.WatchId).ToArray();
-        bool CanExecute() => ready && !RowCommandBusy && !_selectionCommandRunning && _restoreCompleted && UserPriorityAvailable();
+        var menu = new ContextMenuBuilder();
+        AddUserPriorityMenus(menu, selection, ready, canExecute, isCurrent, apply);
+        return ContextMenuBuilder.BuildItems(menu.ToModel()).OfType<MenuItem>().ToArray();
+    }
+
+    private static void AddUserPriorityMenus(ContextMenuBuilder menu, IEnumerable<ThreadRow> selection, bool ready,
+        Func<bool> canExecute, Func<ThreadRow, bool> isCurrent, Action<ThreadRow[], bool> apply)
+    {
+        ThreadRow[] frozen = selection.Where(isCurrent).DistinctBy(row => row.WatchId).ToArray();
+        bool available = ready && canExecute();
+        bool CanExecute() => available && canExecute();
         foreach (bool high in new[] { true, false })
         {
             ThreadRow[] affected = frozen.Where(row => row.IsHighPriority != high).ToArray();
@@ -49,43 +68,12 @@ public partial class MainWindow
             string label = Texts.T(key, affected.Length);
             menu.Item(key, label, () =>
             {
-                if (!UserPriorityAvailable()) return;
-                ThreadRow[] targets = affected.Where(row => IsUserPriorityTarget(row, high, IsCurrentUserPriorityRow)).ToArray();
-                if (targets.Length > 0) ApplyFrozenUserPriority(targets, high);
-            }, available: CanExecute(), availableWhen: CanExecute);
-        }
-    }
-
-    internal static bool IsUserPriorityTarget(ThreadRow row, bool high, Func<ThreadRow, bool> isCurrent)
-        => isCurrent(row) && row.IsHighPriority != high;
-
-    // The real menu factory is also usable without a native window/bitmap backend.
-    // Only item-owned click handlers are installed: no row/language event subscriptions.
-    internal static MenuItem[] CreateUserPriorityMenuItems(IEnumerable<ThreadRow> selection, bool ready,
-        Func<bool> canExecute, Func<ThreadRow, bool> isCurrent, Action<ThreadRow[], bool> apply)
-    {
-        ThreadRow[] frozen = selection.Where(isCurrent).DistinctBy(row => row.WatchId).ToArray();
-        var items = new List<MenuItem>();
-        bool available = ready && canExecute();
-        foreach (bool high in new[] { true, false })
-        {
-            ThreadRow[] affected = frozen.Where(row => row.IsHighPriority != high).ToArray();
-            if (affected.Length == 0) continue;
-            string key = high ? "priority.menuHigh" : "priority.menuNormal";
-            string label = Texts.T(key, affected.Length);
-            var item = new MenuItem { Header = label, Tag = key, IsEnabled = available };
-            Avalonia.Automation.AutomationProperties.SetName(item, label);
-            item.Click += (_, _) =>
-            {
-                if (!item.IsEnabled || !canExecute()) return;
                 // Never expand to a later selection, a newly eligible row, or a
                 // replacement watch. State may have changed while the menu was open.
                 ThreadRow[] targets = affected.Where(row => IsUserPriorityTarget(row, high, isCurrent)).ToArray();
                 if (targets.Length > 0) apply(targets, high);
-            };
-            items.Add(item);
+            }, availableWhen: CanExecute, icon: high ? "trending-up" : "trending-down");
         }
-        return items.ToArray();
     }
 
     private long? _threadLeadId;

@@ -17,6 +17,8 @@ same release with the same renderer and size; `rotate-cw` (rotate 90°) likewise
 `tag` (the tagging page in the footer) likewise.
 `shuffle` (another header tagline) is unchanged from the same pinned release,
 with a 48 × 48 mask rendered using `rsvg-convert` 2.62.4 / Cairo 1.18.6.
+`trending-up`/`trending-down` (download priority) and `maximize-2` (fit one
+column) are unchanged from the same pinned release and rendered like `shuffle`.
 `chevrons-up` and `chevrons-down` (move to the start or the end of the tagging queue) are two stacked chevrons in the same stroke
 style, written as SVG and rendered with the same renderer and size; Feather's own chevrons-up/down use the same two polylines.
 `chevron-down` and `chevron-up` (the open/closed state arrow of the tagging selection state) are the single-polyline mirrors of `chevron-left`,
