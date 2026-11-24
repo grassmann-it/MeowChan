@@ -78,8 +78,9 @@ internal sealed class ContextMenuHost : IDisposable
         // In the tunnel phase an interactive part of a row (a nested button or text field) keeps the key.
         if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         e.Handled = true;
+        if (OpenMenu != null) return;
         Show(atPointer: false);
-        ContextClick.ConsumeOpeningKeyRelease(OpenMenu, e.Key, _origin);
+        ContextClick.ConsumeOpeningKeyRelease(OpenMenu, e.Key, TopLevel.GetTopLevel(_origin) ?? _origin);
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)

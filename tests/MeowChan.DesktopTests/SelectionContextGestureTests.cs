@@ -2,12 +2,15 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.MediaActions;
+using MeowChan.Downloader;
 using MeowChan.Gallery;
+using MeowChan.Interfaces;
 using MeowChan.Storage;
 using MeowChan.Tags;
 
@@ -193,6 +196,47 @@ public sealed class SelectionContextGestureTests
             Assert.False(list.ContextMenu?.IsOpen == true);
         }
         finally { ContextClick.MacOSForTests = null; page.EndLifetime(); window.Close(); }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DownloadsEmptySpaceKeepsTheSelectedWatches(bool macControlClick) => RateAndTagWindowFixture.RunMediaPage(async (window, _) =>
+    {
+        ContextClick.MacOSForTests = macControlClick;
+        using ThreadRow first = Download(1), second = Download(2);
+        try
+        {
+            window.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(MainWindow.WorkspacePage.Downloads, window.SelectedPage);
+            DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
+            window.UrlList.Add(first);
+            window.UrlList.Add(second);
+            await BooruTestSupport.WaitAsync(() =>
+            {
+                window.UpdateLayout();
+                return grid.GetVisualDescendants().OfType<DataGridRow>().Count(row => row.DataContext is ThreadRow) == 2;
+            }, "the two Downloads watches");
+            grid.SelectedItems.Add(first);
+            grid.SelectedItems.Add(second);
+            Point empty = new(24, grid.Bounds.Height - 12);
+            if (macControlClick) ContextGestures.ControlClick(grid, empty); else ContextGestures.RightClick(grid, empty);
+            Assert.Equal(new[] { first.WatchId, second.WatchId }, grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId));
+            Assert.False(grid.ContextMenu?.IsOpen == true);
+        }
+        finally
+        {
+            window.UrlList.Remove(first);
+            window.UrlList.Remove(second);
+            ContextClick.MacOSForTests = null;
+        }
+
+        static ThreadRow Download(long id) => new(new DesktopThreadEntry(id,
+            new ThreadSnapshot(new ResourceId("fixture", "g", id.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                "https://fixture.invalid/g/thread/" + id, "Downloads context fixture", "/never/read",
+                ThreadActivity.Pending, ThreadSourceState.Active, null, 0, 0,
+                new Dictionary<string, FailureInfo>(), null, new DownloadCounts(0, 0)),
+            "Fixture", "Technology"));
     });
 
     [Theory]
