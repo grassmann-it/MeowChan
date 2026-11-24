@@ -8,7 +8,6 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
-using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Serilog;
@@ -33,7 +32,7 @@ public partial class MainWindow
     // The "New every N minutes" mode: one timer of the window, started only in that mode, stopped when the mode changes and at shutdown.
     private DispatcherTimer? _taglineRotationTimer;
     private int _appliedTaglineMinutes;
-    private MenuItem? _taglineAnotherItem, _taglineHideItem, _taglineSettingsItem;
+    private MenuItem? _taglineAnotherItem, _taglineHideItem;
 
     /// <summary>The form of the tagline currently shown (None while it is hidden or switched off); read by the smokes.</summary>
     internal HeaderTaglineStage TaglineStage { get; private set; } = HeaderTaglineStage.None;
@@ -48,8 +47,8 @@ public partial class MainWindow
         WorkspaceTaglineHost.SizeChanged += OnTaglineHostSizeChanged;
         WorkspaceSubtitle.PropertyChanged += OnTaglineTypographyChanged;
         ScalingChanged += OnTaglineScalingChanged;
-        BuildTaglineMenu();
         ChooseHeaderTagline(atStart: true);
+        BuildTaglineMenu();
         UpdateHeaderTagline();
         RefreshTaglineRotation();
     }
@@ -157,6 +156,7 @@ public partial class MainWindow
         _appliedTaglineFixedId = _config.HeaderTaglineFixedId;
         // Off costs nothing: no pool, no measurement.
         _taglinePool = mode == TaglinePicker.ModeOff ? [] : TaglineCatalog.Available();
+        if (_taglineAnotherItem != null) _taglineAnotherItem.IsEnabled = _taglinePool.Count > 1;
         TaglinePick pick = TaglinePicker.Pick(mode, _config.HeaderTaglineFixedId, _taglinePool, DateOnly.FromDateTime(DateTime.Now),
             ApplicationVersion, TaglineCatalog.ParseVersion(_config.LastTaglineVersion), atStart, Random.Shared);
         _tagline = pick.Entry;
@@ -213,25 +213,26 @@ public partial class MainWindow
     {
         ContextMenuBuilder builder = new ContextMenuBuilder();
         builder.Item("tagline.another", Texts.T("shell.tagline.menuAnother"),
-            () => OnTaglineAnotherClick(null, new RoutedEventArgs()), available: _taglinePool.Count > 1);
-        builder.Item("tagline.hide", Texts.T("shell.tagline.menuHide"), () => OnTaglineHideClick(null, new RoutedEventArgs()));
-        builder.Section().Item("tagline.settings", CommandCatalog.Label("navigation.settings"),
-            () => NavigateWorkspace(WorkspacePage.Settings));
+            () => OnTaglineAnotherClick(null, new RoutedEventArgs()), availableWhen: () => _taglinePool.Count > 1, icon: "shuffle");
+        builder.Item("tagline.hide", Texts.T("shell.tagline.menuHide"),
+            () => OnTaglineHideClick(null, new RoutedEventArgs()), icon: "eye-off");
+        builder.Section().Command("navigation.settings", () => NavigateWorkspace(WorkspacePage.Settings),
+            entryId: "tagline.settings", showShortcut: false);
         ContextMenu menu = builder.Build()!;
         _taglineAnotherItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.another"));
         _taglineHideItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.hide"));
-        _taglineSettingsItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.settings"));
         WorkspaceSubtitle.ContextMenu = menu;
         LocalizeTaglineMenu();
     }
 
     private void LocalizeTaglineMenu()
     {
-        if (_taglineAnotherItem == null || _taglineHideItem == null || _taglineSettingsItem == null) return;
+        if (_taglineAnotherItem == null || _taglineHideItem == null) return;
         _taglineAnotherItem.Header = Texts.T("shell.tagline.menuAnother");
+        AutomationProperties.SetName(_taglineAnotherItem, (string)_taglineAnotherItem.Header);
         _taglineAnotherItem.IsEnabled = _taglinePool.Count > 1;
         _taglineHideItem.Header = Texts.T("shell.tagline.menuHide");
-        _taglineSettingsItem.Header = CommandCatalog.Label("navigation.settings");
+        AutomationProperties.SetName(_taglineHideItem, (string)_taglineHideItem.Header);
     }
 
     // Only for this session: the setting and the stored quip stay as they are.

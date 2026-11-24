@@ -115,15 +115,18 @@ public static class CommandBindings
         bool showShortcut = true) =>
         Apply(item, id, unavailableReason, label, showShortcut, null);
 
+    internal static void ApplyStateful(MenuItem item, string id, Func<string> state, Func<string> label) =>
+        Apply(item, id, null, label, true, null, state);
+
     private static void Apply(MenuItem item, string id, Func<string?>? unavailableReason, Func<string>? label,
-        bool showShortcut, string? keyContext)
+        bool showShortcut, string? keyContext, Func<string>? state = null)
     {
         Track(item, id);
-        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut, keyContext));
+        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut, keyContext, state));
         var definition = CommandCatalog.Get(id);
         string visibleLabel = label?.Invoke() ?? CommandCatalog.Label(id);
         item.Header = visibleLabel;
-        item.Icon = Icon(id);
+        item.Icon = Icon(id, state: state?.Invoke());
         EffectiveShortcutBindings bindings = ShortcutService.Current;
         item.InputGesture = showShortcut
             ? bindings.For(definition.Id).FirstOrDefault(gesture => keyContext == null || ShortcutHelp.ActsHere(id, gesture, keyContext, bindings))?.Resolve(bindings.Platform)
