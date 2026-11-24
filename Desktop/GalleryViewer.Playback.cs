@@ -154,7 +154,7 @@ internal sealed partial class GalleryViewer
         _slideshowHome.Children.Add(_videoRepeats);
         _slideshowHome.Children.Add(_reducedMotionNote);
         AddOverflowItem(_pauseOnFocusLossToggle, "gallery.slideshow-pause-on-focus-loss", check: true, keepOpen: true,
-            label: () => GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss"), host: _slideshowHome);
+            label: () => GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss"), host: _slideshowHome, iconKey: "pause-circle");
         _pauseOnFocusLossToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { PauseOnFocusLoss = !_playbackPreferences.PauseOnFocusLoss });
         void Number(AccessibleNumberInput input, Func<int, GalleryPlaybackPreferences> change) => input.ValueChanged += (_, e) =>
         {
@@ -225,7 +225,18 @@ internal sealed partial class GalleryViewer
                 break;
             case "gallery.overlay-toggle":
             case "gallery.overlay-autohide-toggle": // Compatibility alias, not a second visible setting.
-                ChangePlaybackPreferences(_playbackPreferences.WithControlsOverlay(!_playbackPreferences.OverlayControls)); break;
+                // Switching overlay placement moves the toolbar that anchors More. Close while the anchor is still
+                // attached, then return keyboard focus after the new placement has been laid out.
+                bool returnToMore = _overflowFlyout.IsOpen && _overflowHadFocus && _keyboardInteraction;
+                if (returnToMore) _overflowFlyout.Hide();
+                ChangePlaybackPreferences(_playbackPreferences.WithControlsOverlay(!_playbackPreferences.OverlayControls));
+                if (returnToMore)
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!_terminalRetirement && _keyboardInteraction && !_overflowFlyout.IsOpen && _overflowButton.IsEffectivelyVisible)
+                            _overflowButton.Focus(NavigationMethod.Tab);
+                    }, DispatcherPriority.Loaded);
+                break;
             case "gallery.post-overlay-toggle": ChangePlaybackPreferences(_playbackPreferences with { OverlayPostContext = !_playbackPreferences.OverlayPostContext }); break;
         }
         RefreshPlaybackControls();
