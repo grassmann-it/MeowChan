@@ -153,7 +153,13 @@ internal static class BooruComponentDispatcher
                 // Fixture disposal has ended the page lifetime. Drain only work posted to this
                 // fresh scope; it cannot contain callbacks inherited from another test.
                 try { owner.RunJobs(); }
-                finally { owner.InvokeShutdown(); }
+                finally
+                {
+                    // Avalonia's tray shutdown handler queries the application after the window fixture has disposed its scope.
+                    if (Application.Current == null)
+                        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(new Application());
+                    owner.InvokeShutdown();
+                }
             }
             finally
             {

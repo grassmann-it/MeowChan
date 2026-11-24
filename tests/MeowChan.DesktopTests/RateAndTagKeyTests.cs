@@ -724,8 +724,7 @@ public sealed class RateAndTagSurfaceTests : IDisposable
             window.UpdateLayout();
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             Assert.Equal(2, posts.ItemCount);
-            posts.SelectedIndex = 0;
-            Assert.True(posts.Focus());
+            FocusPost(0);
             RateAndTagWindowFixture.PressR(window);
             Assert.False(page.MediaLoadTask.IsCompleted);
             Assert.Empty(targets);
@@ -747,12 +746,22 @@ public sealed class RateAndTagSurfaceTests : IDisposable
             Assert.True(posts.IsKeyboardFocusWithin);
             Assert.Equal("43", (posts.SelectedItem as ArchivePostRow)?.Id);
 
-            posts.SelectedIndex = 1;
-            Assert.True(posts.Focus());
+            FocusPost(1);
             RateAndTagWindowFixture.PressR(window);
             Assert.Equal(MediaMenuReasons.Unavailable, page.FindControl<TextBlock>("ArchiveMessage")!.Text);
             Assert.Single(targets);
             Assert.Null(QuickTagPopover.Current);
+
+            void FocusPost(int index)
+            {
+                posts.SelectedIndex = index;
+                posts.ScrollIntoView(index);
+                BooruComponentDispatcher.WaitUntil(() =>
+                {
+                    window.UpdateLayout();
+                    return posts.ContainerFromIndex(index) is Control card && (card.IsFocused || card.Focus());
+                }, $"keyboard focus on reader post {index + 1}");
+            }
         }
         finally
         {

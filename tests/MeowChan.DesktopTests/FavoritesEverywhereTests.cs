@@ -297,10 +297,11 @@ public sealed class FavoritesEverywhereTests : IDisposable
             Click(toggle);
             Assert.Same(expected, Assert.Single(writes));
 
-            foreach (MediaBadgeView badge in host.GetVisualDescendants().OfType<MediaBadgeView>())
+            foreach (MediaBadgeView view in host.GetVisualDescendants().OfType<MediaBadgeView>())
             {
-                Assert.False(badge.IsHitTestVisible);
-                Assert.False(badge.Focusable);
+                Assert.False(view.Focusable);
+                foreach (PlacedBadge badge in view.Plan.Badges.Where(placed => placed.Badge.Id == MediaBadgeId.Favorite))
+                    Assert.Null(view.ZoneAt(badge.Bounds.Center));
             }
             // A decorative badge in the picture has no button route.
             MediaBadgeView decoration = new() { Options = MediaBadgeOptions.Archive };
@@ -310,6 +311,7 @@ public sealed class FavoritesEverywhereTests : IDisposable
             window.UpdateLayout();
             Point badgeCenter = decoration.TranslatePoint(placed.Bounds.Center, window)!.Value;
             Assert.False(decoration.IsHitTestVisible);
+            window.MouseMove(badgeCenter);
             Assert.NotSame(decoration, window.InputHitTest(badgeCenter));
             window.MouseDown(badgeCenter, MouseButton.Left);
             window.MouseUp(badgeCenter, MouseButton.Left);

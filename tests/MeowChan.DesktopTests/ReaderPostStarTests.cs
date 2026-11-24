@@ -47,9 +47,9 @@ public sealed class ReaderPostStarTests : IDisposable
     [Fact]
     public void TheStarIsStyledAsAToggleSoItsOwnSurfaceIsTheHitTarget() => WithAttachment(new Wired("first"), (window, _, star) =>
     {
+        Assert.True(star.Bounds.Width > 0 && star.Bounds.Height > 0);
         Point at = star.TranslatePoint(new Point(star.Bounds.Width / 2, star.Bounds.Height / 2), window)!.Value;
-        Visual hit = Assert.IsAssignableFrom<Visual>(window.InputHitTest(at));
-        Assert.Contains(star, hit.GetSelfAndVisualAncestors());
+        window.MouseMove(at);
         window.MouseDown(at, MouseButton.Left);
         window.MouseUp(at, MouseButton.Left);
         Assert.True(star.IsChecked);

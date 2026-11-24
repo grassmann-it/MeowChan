@@ -159,7 +159,7 @@ public sealed class ShellGuardSweepTests
                 new Config
                 {
                     DownloadPath = Path.Combine(profile.Path, "media"), FirstRunSetupVersion = 1,
-                    WorkspaceMode = "Advanced", Language = "en", DownloadsPaused = true
+                    WorkspaceMode = "Advanced", Language = "en", DownloadsPaused = !useBoardArchive
                 }.SaveConfig(profile.Path);
                 await using DesktopSessionHost session = useBoardArchive
                     ? BoardArchiveHostTests.CreateHost(profile.Path, transport)
