@@ -218,18 +218,19 @@ public sealed class BooruHitKeyboardTests
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
         {
-            List<Border> cards = await SearchAsync(harness, model, view);
-            Panel actions = cards[0].GetLogicalDescendants().OfType<Panel>().Single(panel => panel.Name == "BooruResultActions:101");
+            await SearchAsync(harness, model, view);
+            Panel actions = FindById<Panel>(view, "BooruResultActions:101");
             foreach (string name in new[] { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
-                Assert.Contains(actions.Children.OfType<Button>(), button => button.Name == name);
+                Assert.Contains(actions.GetLogicalDescendants().OfType<Button>(), button => AutomationProperties.GetAutomationId(button) == name);
 
             Texts.SetLanguage("de");
             try
             {
                 await Task.Delay(30);
                 Assert.Equal(3, Cards(view).Count);
-                Panel rebuilt = Cards(view)[0].GetLogicalDescendants().OfType<Panel>().Single(panel => panel.Name == "BooruResultActions:101");
-                Assert.Contains(rebuilt.Children.OfType<Button>(), button => button.Name == BooruWorkbenchView.OpenPostPrefix + "101");
+                Panel rebuilt = FindById<Panel>(view, "BooruResultActions:101");
+                Assert.Contains(rebuilt.GetLogicalDescendants().OfType<Button>(),
+                    button => AutomationProperties.GetAutomationId(button) == BooruWorkbenchView.OpenPostPrefix + "101");
             }
             finally { Texts.SetLanguage("en"); }
         }
@@ -323,7 +324,7 @@ public sealed class BooruHitKeyboardTests
             {
                 window.Show();
                 window.UpdateLayout();
-                Button chip = Button(Cards(view)[0], BooruWorkbenchView.ResultTagPrefix + "101:cat");
+                Button chip = FindById<Button>(view, BooruWorkbenchView.ResultTagPrefix + "101:cat");
                 KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
                 Raise(chip, apps);
                 Assert.True(apps.Handled);
@@ -426,46 +427,9 @@ public sealed class BooruHitKeyboardTests
         new PointerEventArgs(InputElement.PointerReleasedEvent, source, SyntheticMouse, null, default, 0,
             PointerPointProperties.None, KeyModifiers.None)) { Source = source };
 
-    // One actual Avalonia dispatcher owns creation, awaited continuations and assertions (as in BooruLinkLifetimeTests).
-    private static void OnDispatcher(Func<Task> test)
-    {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
-        object? previousDispatcher = primary.GetValue(null);
-        SynchronizationContext? previousContext = SynchronizationContext.Current;
-        string language = Texts.Language;
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
-        try
-        {
-            primary.SetValue(null, owner);
-            SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
-            Texts.Initialize();
-            Texts.SetLanguage("en");
-            Task pending = test();
-            DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-            while (!pending.IsCompleted)
-            {
-                owner.RunJobs();
-                if (DateTime.UtcNow >= deadline) throw new TimeoutException("Booru hit test dispatcher did not finish.");
-                if (!pending.IsCompleted) Thread.Sleep(1);
-            }
-            pending.GetAwaiter().GetResult();
-        }
-        finally
-        {
-            Texts.SetLanguage(language);
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-            primary.SetValue(null, previousDispatcher);
-        }
-    }
+    private static T FindById<T>(Control root, string id) where T : Control =>
+        Assert.Single(root.GetLogicalDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
-    private sealed class ActionContext(Dispatcher owner) : SynchronizationContext
-    {
-        public override void Post(SendOrPostCallback callback, object? state) => owner.Post(() =>
-        {
-            SynchronizationContext? previous = Current;
-            SetSynchronizationContext(this);
-            try { callback(state); }
-            finally { SetSynchronizationContext(previous); }
-        });
-    }
+    private static void OnDispatcher(Func<Task> test) =>
+        BooruComponentDispatcher.Run(test, timeout: TimeSpan.FromSeconds(10));
 }
