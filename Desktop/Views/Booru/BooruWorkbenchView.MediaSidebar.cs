@@ -25,7 +25,7 @@ internal sealed partial class BooruWorkbenchView
     private readonly List<ContextMenuHost> _sidebarTagMenus = new();
     private readonly List<(Button Button, ChipOutline Outline, BooruTag Tag, string Category)> _sidebarTags = new();
     private ContextMenuHost? _sidebarViewMenu;
-    private (BooruResultRevision Revision, BooruResultRowView Row, string Language, bool Saved)? _sidebarContent;
+    private (BooruResultRevision Revision, BooruResultRowView Row, string Language, bool Saved, int MaximumPixels)? _sidebarContent;
     private (BooruResultTarget Target, string Language)? _sidebarTagContent;
     private (BooruInputMode Mode, string Input)? _sidebarTagDraft;
     private bool _mediaSidebarOpen;
@@ -120,11 +120,12 @@ internal sealed partial class BooruWorkbenchView
         BooruResultTarget target = BooruResultTarget.From(view, row);
         ResultActions result = new(this, target);
         _mediaSidebar.PresentPosition(index, view.Rows.Length, _selectedResults.Contains(result.PostId));
-        var content = (view.ResultRevision, row, Texts.Language, result.IsAvailable(ResultAction.ShowInMedia, row));
+        int maximumPixels = ReadGallerySampleSettings().MaximumPixels;
+        var content = (view.ResultRevision, row, Texts.Language, result.IsAvailable(ResultAction.ShowInMedia, row), maximumPixels);
         if (_sidebarContent != content)
         {
             _sidebarContent = content;
-            _mediaSidebar.Present(target, row);
+            _mediaSidebar.Present(target, row, maximumPixels);
             BuildSidebarActions(row, result);
         }
         if (_sidebarTagContent != (target, Texts.Language))
@@ -139,7 +140,7 @@ internal sealed partial class BooruWorkbenchView
                 () => SidebarResultIsCurrent(result), () =>
                 {
                     if (SidebarResultIsCurrent(result) && result.CurrentRow() is { } current)
-                        _mediaSidebar.Present(target, current);
+                        _mediaSidebar.Present(target, current, ReadGallerySampleSettings().MaximumPixels);
                 });
     }
 

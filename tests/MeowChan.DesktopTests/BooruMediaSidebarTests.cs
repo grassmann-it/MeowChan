@@ -14,6 +14,7 @@ using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
+using SkiaSharp;
 
 namespace MeowChan.DesktopTests;
 
@@ -53,6 +54,31 @@ public sealed class BooruMediaSidebarTests
         using MemoryStream encoded = new();
         bitmap.Save(encoded);
         Assert.True(encoded.Length > 0);
+    });
+
+    [Theory]
+    [InlineData(1001, 1000, 0, 0)]
+    [InlineData(1000, 1000, 512, 512)]
+    [InlineData(1, 2048, 1, 512)]
+    [InlineData(2048, 1, 512, 1)]
+    public void FallbackPreviewRespectsTheProfilePixelLimitAndBothDisplayEdges(
+        int width, int height, int expectedWidth, int expectedHeight) => InWindow((harness, model, view, window) =>
+    {
+        Config profile = new() { BooruGalleryMaximumPixels = 1_000_000 };
+        view.GalleryMaximumPixels = () => profile.BooruGalleryMaximumPixels;
+        harness.Serve(pages: 1, perPage: 1);
+        byte[] bytes = Png(width, height);
+        harness.Previews.OnPreview = _ => bytes;
+        Search(model, view);
+        Settle(window);
+
+        Image image = Find<Image>(Sidebar(view), "BooruMediaPreview");
+        if (expectedWidth == 0)
+            Assert.Null(image.Source);
+        else
+            Assert.Equal(new PixelSize(expectedWidth, expectedHeight), Assert.IsAssignableFrom<Bitmap>(image.Source).PixelSize);
+        Assert.False(Hit(view, "101").IsFocused);
+        Assert.Empty(harness.Previews.SampleRequests);
     });
 
     [Fact]
@@ -309,6 +335,15 @@ public sealed class BooruMediaSidebarTests
     private static void Focus(Control control) => Assert.True(control.Focus(NavigationMethod.Directional));
 
     private static Border Hit(BooruWorkbenchView view, string id) => Find<Border>(view, "BooruResult:" + id);
+
+    private static byte[] Png(int width, int height)
+    {
+        using SKBitmap bitmap = new(width, height);
+        bitmap.Erase(SKColors.CornflowerBlue);
+        using SKImage image = SKImage.FromBitmap(bitmap);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
 
     private static T Find<T>(Control root, string name) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => control.Name == name);

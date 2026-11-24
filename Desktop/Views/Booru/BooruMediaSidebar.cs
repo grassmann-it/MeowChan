@@ -45,6 +45,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     private readonly List<(Button Button, TextBlock Label)> _actionLabels = new();
     private BooruResultTarget? _target;
     private byte[]? _previewBytes;
+    private int _previewMaximumPixels;
     private IDisposable? _bitmap;
     private BooruGalleryPicture _picture;
     private double _aspect = 1;
@@ -90,7 +91,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     internal void PresentPosition(int index, int count, bool marked) =>
         _position.Show(new GalleryTagPanelPosition(index + 1, count, false), marked);
 
-    internal void Present(BooruResultTarget target, BooruResultRowView row)
+    internal void Present(BooruResultTarget target, BooruResultRowView row, int maximumPixels)
     {
         if (_target != target)
         {
@@ -99,11 +100,13 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
             _sample.Reset(row.Post.SampleUrl is not null);
             Tags.Offset = default;
         }
-        if (_picture != BooruGalleryPicture.Sample && !ReferenceEquals(_previewBytes, row.PreviewBytes))
+        if (_picture != BooruGalleryPicture.Sample
+            && (!ReferenceEquals(_previewBytes, row.PreviewBytes) || _previewMaximumPixels != maximumPixels))
         {
             _previewBytes = row.PreviewBytes;
+            _previewMaximumPixels = maximumPixels;
             Bitmap? preview = row.Preview == BooruPreviewState.Ready && _previewBytes is { Length: > 0 } bytes
-                ? DecodePreview(bytes) : null;
+                ? DecodePreview(bytes, maximumPixels) : null;
             ReplacePicture(preview, preview is null ? BooruGalleryPicture.None : BooruGalleryPicture.Preview);
         }
 
@@ -179,7 +182,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
             }, changed);
     }
 
-    private static Bitmap? DecodePreview(byte[] bytes)
+    private static Bitmap? DecodePreview(byte[] bytes, int maximumPixels)
     {
         try
         {
@@ -187,11 +190,12 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
             using SKManagedStream managed = new(stream, disposeManagedStream: false);
             using SKCodec? codec = SKCodec.Create(managed);
             if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0
-                || (long)codec.Info.Width * codec.Info.Height > Config.BooruGalleryMaximumPixelsDefault) return null;
-            var display = ImageOrientation.DisplaySize(codec);
+                || (long)codec.Info.Width * codec.Info.Height > maximumPixels) return null;
+            PixelSize display = ImageOrientation.DisplaySize(codec);
             double scale = Math.Min(1, (double)PreviewEdge / Math.Max(display.Width, display.Height));
-            stream.Position = 0;
-            return ImageOrientation.DecodeToWidth(stream, Math.Max(1, (int)Math.Floor(display.Width * scale)));
+            PixelSize scaled = new(Math.Max(1, (int)Math.Floor(display.Width * scale)),
+                Math.Max(1, (int)Math.Floor(display.Height * scale)));
+            return ImageOrientation.DecodeScaled(codec, scaled);
         }
         catch (Exception error) when (error is not OutOfMemoryException) { return null; }
     }
