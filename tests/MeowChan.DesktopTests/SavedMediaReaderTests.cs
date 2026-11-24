@@ -942,7 +942,7 @@ public sealed class SavedMediaReaderTests
         Assert.Equal(1, clicks);
         Assert.True(list.IsKeyboardFocusWithin);
         if (tilesShown) Assert.True(((Control)tiles.ContainerFromItem(rows[2])!).IsFocused);
-        else Assert.Same(rows[2], grid.CurrentItem);
+        else Assert.Same(rows[2], Assert.IsType<RowFocusDataGrid>(grid).CurrentRowItem);
 
         PressKey(window, next, RawInputModifiers.Shift);
         Assert.Equal(rows, page.SelectedMediaRows());
