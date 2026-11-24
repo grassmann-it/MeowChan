@@ -135,40 +135,35 @@ public sealed class BoardArchiveWindowTests
         });
 
     [Fact]
-    public void ADialogThatFailsToOpenStartsReadingAndRefreshesItsLanguageOnTheNextShow()
+    public void TheOwnerReleasesTheCaptionWhenOpeningFailsAfterLayout()
         => BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
             Window owner = new();
             var board = new BoardArchiveLocation("g", new Uri("https://archive.test/g/archive"));
-            int reads = 0;
-            BoardArchiveWindow dialog = new([board], (_, _) =>
-            {
-                reads++;
-                return Task.FromResult<IReadOnlyList<BoardArchiveThread>?>([]);
-            }, (_, _) => throw new InvalidOperationException("Unexpected detail read"),
+            BoardArchiveWindow dialog = new([board], (_, _) => throw new InvalidOperationException("Unexpected board read"),
+                (_, _) => throw new InvalidOperationException("Unexpected detail read"),
                 _ => throw new InvalidOperationException("Unexpected watch"), _ => { });
-            string initialTitle = dialog.Title!;
+            dialog.Width += 8;
+            var failure = new InvalidOperationException("Injected failure after layout.");
+            bool closed = false;
+            dialog.Closed += (_, _) => closed = true;
+            owner.Show();
+            Delegate[] before = BooruComponentDispatcher.LanguageSubscribers();
+            dialog.Resized += (_, args) =>
+            {
+                Assert.Equal(WindowResizeReason.Layout, args.Reason);
+                Assert.True(dialog.IsArrangeValid);
+                var caption = Assert.Single(dialog.GetVisualDescendants().OfType<WindowChromeBar>());
+                Assert.Contains(BooruComponentDispatcher.LanguageSubscribers(), handler => ReferenceEquals(handler.Target, caption));
+                throw failure;
+            };
             try
             {
-                Assert.Throws<InvalidOperationException>(() => { _ = dialog.ShowDialog(owner); });
-                Texts.SetLanguage("de");
-                Dispatcher.UIThread.RunJobs();
-                Assert.Equal(initialTitle, dialog.Title);
-                Assert.Equal(0, reads);
-
-                owner.Show();
-                Task shown = dialog.ShowDialog(owner);
-                Layout(dialog);
-                Assert.Equal(Texts.T("boardArchive.title"), dialog.Title);
-                Assert.Equal(Texts.T("boardArchive.empty"), Control<TextBlock>(dialog, "BoardArchiveStatus").Text);
-                Assert.Equal(1, reads);
-
-                dialog.Close();
-                BooruComponentDispatcher.Wait(shown);
-                Texts.SetLanguage("en");
-                Dispatcher.UIThread.RunJobs();
-                Assert.NotEqual(Texts.T("boardArchive.title"), dialog.Title);
+                Assert.Same(failure, Assert.Throws<InvalidOperationException>(() =>
+                    BooruComponentDispatcher.Wait(dialog.ShowOwnedAsync(owner))));
+                Assert.False(closed);
+                Assert.Equal(before, BooruComponentDispatcher.LanguageSubscribers());
             }
             finally
             {

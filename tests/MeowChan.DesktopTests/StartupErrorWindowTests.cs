@@ -20,10 +20,12 @@ public sealed class StartupErrorWindowTests
     public void AConstructedWindowJoinsLanguageChangesOnlyWhenItOpens() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Delegate[] before = BooruComponentDispatcher.LanguageSubscribers();
         StartupErrorWindow window = new(Message);
         string initialTitle = window.Title!;
         try
         {
+            Assert.Equal(before, BooruComponentDispatcher.LanguageSubscribers());
             Texts.SetLanguage("de");
             Dispatcher.UIThread.RunJobs();
             Assert.Equal(initialTitle, window.Title);
@@ -34,16 +36,63 @@ public sealed class StartupErrorWindowTests
             Assert.Equal(Texts.T("startup.title"), window.Title);
             Assert.Equal(Texts.T("action.exit"), Find<Button>(window, "StartupErrorExit").Content);
 
-            window.Close();
             Texts.SetLanguage("en");
             Dispatcher.UIThread.RunJobs();
-            Assert.NotEqual(Texts.T("startup.title"), window.Title);
+            Assert.Equal(initialTitle, window.Title);
+            Assert.Equal(Texts.T("startup.title"), Find<TextBlock>(window, "WindowCaptionTitle").Text);
+            Assert.Equal(Texts.T("action.exit"), Find<Button>(window, "StartupErrorExit").Content);
+
+            window.Close();
+            Assert.Equal(before, BooruComponentDispatcher.LanguageSubscribers());
         }
         finally
         {
             if (window.IsVisible) window.Close();
         }
     });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AFailedShowReleasesLanguageSubscribersWithoutClosing(bool failInOpened)
+        => BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Delegate[] before = BooruComponentDispatcher.LanguageSubscribers();
+            Window window = new StartupErrorWindow(Message);
+            window.Width += 8;
+            bool closed = false;
+            window.Closed += (_, _) => closed = true;
+            var failure = new InvalidOperationException("Injected failure after layout.");
+            if (failInOpened)
+                window.Opened += (_, _) => FailAfterLayout();
+            else
+                window.Resized += (_, args) =>
+                {
+                    Assert.Equal(WindowResizeReason.Layout, args.Reason);
+                    FailAfterLayout();
+                };
+            try
+            {
+                Assert.Same(failure, Assert.Throws<InvalidOperationException>(window.Show));
+                Assert.False(closed);
+                Assert.Equal(before, BooruComponentDispatcher.LanguageSubscribers());
+            }
+            finally
+            {
+                if (window.IsVisible) window.Close();
+            }
+
+            void FailAfterLayout()
+            {
+                Assert.True(window.IsArrangeValid);
+                var caption = Assert.Single(window.GetVisualDescendants().OfType<WindowChromeBar>());
+                Delegate[] handlers = BooruComponentDispatcher.LanguageSubscribers();
+                Assert.Contains(handlers, handler => ReferenceEquals(handler.Target, caption));
+                Assert.Equal(failInOpened, handlers.Any(handler => ReferenceEquals(handler.Target, window)));
+                throw failure;
+            }
+        });
 
     [Fact]
     public void KeyboardCopiesTheWholeDisplayedMessageAndCanExit() => WithWindow(null, window =>

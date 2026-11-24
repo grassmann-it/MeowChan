@@ -16,6 +16,7 @@ namespace MeowChan.Desktop;
 /// <summary>Keeps profile and initialization failures visible even when MainWindow cannot be created.</summary>
 public sealed class StartupErrorWindow : Window
 {
+    private readonly WindowChromeBar _caption;
     private readonly Border _errorPanel;
     private readonly SelectableTextBlock _detail;
     private readonly Button _copyButton;
@@ -61,18 +62,33 @@ public sealed class StartupErrorWindow : Window
         _copyStatus = new TextBlock { Name = "StartupErrorCopyStatus", TextWrapping = TextWrapping.Wrap, IsVisible = false };
         AutomationProperties.SetLiveSetting(_copyStatus, AutomationLiveSetting.Polite);
         // No owner: keeps minimize so the error stays reachable from the taskbar. The title stands in the title bar only.
-        DialogWindow.Frame(this, DialogFrame.Build(header: null, _errorPanel,
+        _caption = DialogWindow.Frame(this, DialogFrame.Build(header: null, _errorPanel,
             DialogFooter.Build(_exitButton, [_copyButton], _copyStatus)), modal: false);
         DialogEscape.Attach(this);
 
         // Texts has built-in English before Initialize, including for profile startup failures.
         ApplyTexts();
         Opened += OnOpened;
-        Closed += (_, _) =>
+        Closed += (_, _) => EndLifetime();
+    }
+
+    public override void Show()
+    {
+        try { base.Show(); }
+        catch
         {
-            _closed = true;
-            Texts.Changed -= OnTextsChanged;
-        };
+            EndLifetime();
+            throw;
+        }
+    }
+
+    private void EndLifetime()
+    {
+        if (_closed) return;
+        _closed = true;
+        Opened -= OnOpened;
+        Texts.Changed -= OnTextsChanged;
+        _caption.Detach();
     }
 
     private void OnOpened(object? sender, EventArgs e)

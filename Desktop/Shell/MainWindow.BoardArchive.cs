@@ -18,8 +18,7 @@ public partial class MainWindow
             .Prepend(initial).DistinctBy(board => board.Uri).ToArray();
         var window = new BoardArchiveWindow(boards, _session.ReadBoardArchiveAsync, _session.ReadBoardArchiveThreadAsync,
             thread => _session.AddAsync(thread.Url), thread => OpenTarget(thread.Url));
-        try { await window.ShowDialog(this); }
-        finally { window.EndLifetime(); }
+        await window.ShowOwnedAsync(this);
     }
 
     private async Task OpenBoardArchiveAsync(BoardArchiveLocation archive, Control origin)
