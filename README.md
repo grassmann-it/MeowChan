@@ -166,13 +166,16 @@ Desktop builds target Windows, macOS and Linux. Self-contained archives include 
 
 ## Downloading
 
+Moving from GChan? Follow the [GChan migration guide](docs/Help.md#moving-from-gchan)
+to bring over watch URLs and use your saved files. [Deutsche Anleitung](docs/user-guide/gchan-umstieg.md).
+
 Enter one or more thread or board URLs and select **Add**, or press **Enter** in the URL field. Separate URLs with commas or newlines; **Shift+Enter** inserts a newline. A board watch discovers its threads automatically. Each entry receives a result, and invalid or failed entries do not prevent later entries from being processed. If any entry fails, the complete input list remains available for correction. Successful input is cleared only if it has not been edited during the import.
 
 Selecting **Add** with an empty field reads the clipboard once. Explicit input uses only the entered text. **Ctrl+L** (**Cmd+L** on macOS) returns to Downloads and focuses the retained URL field. **Ctrl+V/Cmd+V** in Downloads outside native controls imports the clipboard; inside text fields it pastes normally. The tray also offers clipboard import. These manual actions remain user-triggered and do not require clipboard-monitor opt-in.
 
 Separately, **Scan clipboard for URLs** is an optional setting under Settings → Behavior and is off by default. After it is enabled and saved, MeowChan passively checks while open and ready, including when hidden or in the tray; the suggestion itself is shown only when the main window can display it. Texts longer than 65,536 UTF-16 code units (64 Ki characters, not bytes) are not evaluated; for shorter texts, only the first 32 HTTP(S) URL candidates are visited, including invalid or unsupported candidates. A passive banner offers the frozen URL list without starting downloads. Click **Add URLs (Enter)** to submit it through the normal Add flow, or focus that button and press **Enter**; Enter elsewhere does not accept the suggestion. Optional performance diagnostics may retain classified URL targets in their bounded in-memory run, even before confirmation; there is no blanket no-logging guarantee. See the [clipboard and download limits guide (German)](docs/user-guide/clipboard-and-download-limits.md) for polling, visibility and privacy boundaries, and [download scheduling](docs/Help.md#download-scheduling) for the effective transfer-slot limit `min(desired parallelism, safety cap)`, not a hard byte/RAM budget.
 
-Use **Copy URL** for a single row or **Copy all URLs** for every watched thread and board, regardless of the selected tab. The copied list contains one URL per line and can be imported again.
+Use **Copy URL** for a single row or **Copy session URLs (n)** for every watched thread and board, including entries hidden by the filter. The copied list contains one URL per line and can be imported again.
 
 Double-click a thread row to open the Reader. Shift+Enter or the context menu opens its gallery. Board rows open details; a double-click on a saved-media row or tile in Archive or on a tile of the Media page opens the gallery at that item. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
 

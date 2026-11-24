@@ -14,6 +14,8 @@ For the separate collection-workflow and transfer preview, see
 [Deutsch](user-guide/collection-workflow-preview.md). Inspecting a transfer package
 is not the same as [importing your own files](#importing-your-own-files).
 
+[Moving from GChan](#moving-from-gchan) · [Deutsche Anleitung](user-guide/gchan-umstieg.md)
+
 The supplied payload contains **24 plugins**: **19 source-plugin entries**
 (including two blocked placeholders) and **5 image filters**. It includes
 **21 editable example/filter source files**; official plugins are prebuilt,
@@ -243,6 +245,63 @@ appended. This action itself adds nothing.
 The interface calls ongoing observation **watch** (German: **beobachten**).
 **Show details** (**Details anzeigen**) opens details in Downloads, Archive and
 Plugins; it is not a command to start watching or downloading.
+
+### Moving from GChan
+
+[Deutsch](user-guide/gchan-umstieg.md)
+
+In GChan, choose **Copy all thread URLs**. The clipboard contains a
+comma-separated list in this format:
+
+```text
+https://boards.4chan.org/g/thread/123,https://boards.4chan.org/g/thread/456
+```
+
+1. Open **Downloads** in MeowChan, paste your own copied URLs into the URL field
+   and select **Add**. The addresses above illustrate the format.
+
+2. Check the [result for each URL](#add-results-and-rejected-urls). **Added** means
+   a new watch was created. **Already watched** means it was already in MeowChan.
+   If the summary shows **rejected** entries, expand the report to see why. For
+   example, an address with no supported source shows **Unsupported URL**.
+   **Put rejected back into the field** lets you correct those entries and retry.
+   If one URL is new, one is already watched and one is unsupported, the summary
+   reads **1 added · 1 already watched · 1 rejected**.
+
+3. Copy any board URLs separately. Paste a board address such as
+   `https://boards.4chan.org/g/` and choose **Add**. For a new board, the
+   [board preview](#board-admission-and-exclusions) opens by default. Review which
+   threads are checked, then choose **Apply all boards and watch** when ready.
+
+MeowChan’s **Copy session URLs (n)** includes watched threads and boards, even
+those hidden by a filter, with one URL per line. To copy only threads, focus the
+**Threads** list, check or clear its filter, and use **Ctrl+A** then **Ctrl+C**
+(**⌘A** then **⌘C** on macOS). The selection is scoped to the active tab and
+filter. Adding a watch by URL starts from the source as it is now. GChan’s
+download progress, already downloaded IDs and saved posts stay in GChan.
+
+#### Bring over saved files
+
+For example, suppose your old `GChan Downloads` folder contains `g/123/image.png`
+and `g/123/clip.webm`. Try one of these paths:
+
+- **Keep the files where they are.** In **Settings → Storage and limits →
+  Media folders**, select **Add folder…** and choose `GChan Downloads`. Turn on
+  **Include subfolders** for this example. Check **Media → Folders** for the two
+  files. MeowChan reads the [folder](#read-only-media-folders) in place and leaves
+  its contents untouched.
+- **Import a named batch.** Choose **Import files…** from the app menu and add
+  `image.png` and `clip.webm`. Review the SHA-256 duplicate check, name the batch,
+  and start the [import](#importing-your-own-files). New files are copied into
+  `meowchan-import/` under your MeowChan download folder. Exact matches already in
+  the library are linked. If files were copied, **Show batch** opens them in
+  **Media** under **Own imports**.
+
+Both paths make files available in Media. Reader posts and their attachment
+links require captured post data. Keep GChan’s HTML pages with their associated
+files and subfolders so their relative links still work when opened in a browser.
+Set your download path, check interval and parallel downloads manually in
+MeowChan’s **Settings**.
 
 ### Clipboard URL monitor
 
