@@ -19,6 +19,29 @@ public sealed class BooruComponentDispatcherTests
     });
 
     [Fact]
+    public void ADeadlineCancelsWorkAndJoinsTheOwnerBeforeAnotherFixtureStarts()
+    {
+        Thread? endedOwner = null;
+        Dispatcher? endedDispatcher = null;
+        bool dispatcherShutDown = false;
+        bool disposed = false;
+        TimeoutException failure = Assert.Throws<TimeoutException>(() => BooruComponentDispatcher.Run(() =>
+        {
+            endedOwner = Thread.CurrentThread;
+            endedDispatcher = Dispatcher.UIThread;
+            endedDispatcher.ShutdownFinished += (_, _) => dispatcherShutDown = true;
+            try { BooruComponentDispatcher.Wait(Task.Delay(Timeout.Infinite, BooruComponentDispatcher.Cancellation)); }
+            finally { disposed = true; }
+        }, () => "the deliberately blocked operation", TimeSpan.FromSeconds(1)));
+
+        Assert.Contains("the deliberately blocked operation", failure.Message);
+        Assert.True(disposed);
+        Assert.False(endedOwner!.IsAlive);
+        Assert.True(dispatcherShutDown);
+        BooruComponentDispatcher.Run(() => Assert.NotSame(endedDispatcher, Dispatcher.UIThread));
+    }
+
+    [Fact]
     public void WorkbenchModelNotificationsRenderOnTheViewsDispatcher() => BooruComponentDispatcher.Run(() =>
     {
         BooruUiHarness harness = new();
