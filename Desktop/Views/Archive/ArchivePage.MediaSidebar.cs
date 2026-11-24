@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -605,8 +604,8 @@ public partial class ArchivePage
     private bool ShowTileInMediaSidebar(ArchiveAttachmentRow row)
     {
         if (!_mediaSidebarShown || _ended || IsReaderDialogOpen || _mediaSidebar == null) return false;
-        ArchivePostRow? post = ArchivePosts.SelectedItem is ArchivePostRow selected && selected.Attachments.Contains(row)
-            ? selected : ArchivePosts.Items.OfType<ArchivePostRow>().FirstOrDefault(candidate => candidate.Attachments.Contains(row));
+        ArchivePostRow? post = (ArchivePosts.ItemsSource as ReaderPostRows)?.Materialized
+            .FirstOrDefault(candidate => candidate.Attachments.Any(attachment => ReferenceEquals(attachment, row)));
         if (post == null || !post.ShowsMedia) return false;
         int index = -1;
         for (int i = 0; i < post.Attachments.Count; i++) if (ReferenceEquals(post.Attachments[i], row)) { index = i; break; }
@@ -978,11 +977,10 @@ public partial class ArchivePage
     {
         List<ArchiveAttachmentRow> neighbours = new();
         if (_sidebarIndex + 1 < post.Attachments.Count) neighbours.Add(post.Attachments[_sidebarIndex + 1]);
-        if (ArchivePosts.ItemsSource is IList items)
+        if (ArchivePosts.ItemsSource is ReaderPostRows rows && rows.IndexOf(post) is >= 0 and var at)
         {
-            int at = items.IndexOf(post);
             foreach (int index in new[] { at + 1, at - 1 })
-                if (at >= 0 && index >= 0 && index < items.Count && items[index] is ArchivePostRow { ShowsMedia: true } near)
+                if (rows.MaterializedAt(index) is { ShowsMedia: true } near)
                     neighbours.Add(near.Attachments[0]);
         }
         GalleryDecodeRequest.Fit fit = new(target.Width, target.Height);

@@ -50,26 +50,19 @@ public partial class ArchivePage
     /// <summary>Preloads planned but not started (diagnostic and smoke seam).</summary>
     internal int PreviewPrefetchesWaiting => _previewPrefetchQueue.Waiting;
 
-    private void ReservePreviewSizes(ArchivePostRow[] posts)
+    private void BeginPostPreviews(ResourceId resource)
     {
-        CancelPreviewWork();
         HookPreviewPrefetch();
-        if (_thread == null || posts.Length == 0) return;
-        ResourceId resource = _thread.Summary.Id;
-        ReaderPreviewAspectMemo memo = ReaderPreviewAspectMemo.Shared;
         _inlineVideo.ExpandedImages.BeginThread(string.Join('/', resource.Source, resource.Board, resource.Thread));
-        foreach (ArchivePostRow post in posts)
-        {
-            if (!post.ShowsMedia) continue;
-            foreach (ArchiveAttachmentRow row in post.Attachments)
-            {
-                if (ReaderPreviewReservation.AspectKey(resource, post.Id, row.Attachment) is not { } key) continue;
-                row.RememberAspect = aspect => memo.Remember(key, aspect);
-                row.ExpandKey = key;
-                if (row.KnownAspect == null && memo.TryGet(key, out double aspect)) row.KnownAspect = aspect;
-            }
-        }
-        SchedulePreviewPrefetch();
+    }
+
+    private static void ReservePreviewSize(ResourceId resource, string postId, ArchiveAttachmentRow row)
+    {
+        if (ReaderPreviewReservation.AspectKey(resource, postId, row.Attachment) is not { } key) return;
+        ReaderPreviewAspectMemo memo = ReaderPreviewAspectMemo.Shared;
+        row.RememberAspect = aspect => memo.Remember(key, aspect);
+        row.ExpandKey = key;
+        if (row.KnownAspect == null && memo.TryGet(key, out double aspect)) row.KnownAspect = aspect;
     }
 
     private void ReserveViewportPreviewSizes(IReadOnlyList<ArchivePostRow> rows, int first, int last,
@@ -162,6 +155,7 @@ public partial class ArchivePage
     {
         if (_previewPrefetchHooked) return;
         _previewPrefetchHooked = true;
+        ArchivePosts.SelectionChanged += (_, _) => SchedulePreviewPrefetch();
         ArchivePosts.AddHandler(ScrollViewer.ScrollChangedEvent, (_, e) =>
         {
             if (e is ScrollChangedEventArgs { OffsetDelta.Y: var delta } && delta != 0) _previewPrefetchForward = delta > 0;
@@ -181,9 +175,16 @@ public partial class ArchivePage
     {
         _previewPrefetchScheduled = false;
         int posts = _readerPreviewPrefetchPosts;
-        if (_ended || ArchivePosts.ItemsSource is not IReadOnlyList<ArchivePostRow> rows || rows.Count == 0
-            || !ArchivePosts.IsEffectivelyVisible || ArchiveAttachmentView.GetLoadingSuspended(ArchivePosts)
-            || !VisiblePostRange(out int first, out int last))
+        if (_ended || ArchivePosts.ItemsSource is not ReaderPostRows rows) return;
+        int first = -1, last = -1;
+        bool visible = ArchivePosts.IsEffectivelyVisible && !ArchiveAttachmentView.GetLoadingSuspended(ArchivePosts)
+            && VisiblePostRange(out first, out last);
+        ReaderPreviewReservation.PostWindow window = !visible ? default : posts == 0 ? new(first, last + 1)
+            : ReaderPreviewReservation.PrefetchWindow(first, last, rows.Count, posts);
+        rows.Trim((index, row) => window.Contains(index) || index == ArchivePosts.SelectedIndex
+            || ReferenceEquals(ArchivePosts.ContainerFromIndex(index)?.DataContext, row), RememberEvictedPostInteraction);
+        RequestInlineReplyCounts(rows, window);
+        if (!visible)
         {
             CancelPreviewSizePass();
             _previewPrefetchQueue.Clear();
@@ -191,8 +192,7 @@ public partial class ArchivePage
             _previewPrefetched.Clear();
             return;
         }
-        ReaderPreviewReservation.PostWindow window = ReaderPreviewReservation.PrefetchWindow(first, last, rows.Count, posts);
-        ReserveViewportPreviewSizes(rows, first, last, posts == 0 ? new(first, last + 1) : window);
+        ReserveViewportPreviewSizes(rows, first, last, window);
         foreach ((ArchiveAttachmentRow row, int index) in _previewPrefetched.ToArray())
             if (!window.Contains(index)) _previewPrefetched.Remove(row);
         // Replace the old queue before cancelling stale work, since completion can hand a slot to the queue immediately.

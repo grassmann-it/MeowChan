@@ -568,6 +568,10 @@ public partial class ArchivePage : UserControl
     private void RenderThread()
     {
         CloseQuotePreview();
+        if (_thread == null) CancelProjectionBuild();
+        ResourceId? threadId = _thread?.Summary.Id ?? _selectedThread;
+        if (_projection is { } previous && previous.Thread.Summary.Id != threadId) _projection = null;
+        if (_quoteGraph is { } graph && graph.Thread != threadId) _quoteGraph = null;
         UpdateReaderThreadActions();
         ArchiveSelectHint.IsVisible = _thread == null && !_busy;
         ArchiveContentTabs.IsVisible = _thread != null;
@@ -584,6 +588,10 @@ public partial class ArchivePage : UserControl
             });
         ReaderPostProjection? projection = _thread != null ? ResolveProjection(out _) : null;
         ArchiveReaderStatus.Text = status + ReaderViewStatus(projection);
+        CancelInlineReplies();
+        _replyAutoExpand.SwitchThread(_thread?.Summary.Id);
+        _postInteraction = new();
+        CancelPreviewWork();
         if (_thread != null)
         {
             string? openingPost = ArchivePresentation.OpeningPostId(_thread);
@@ -594,17 +602,14 @@ public partial class ArchivePage : UserControl
                 && projection[carrier].ThreadIndex >= _thread.FindPostIndex(unreadFirst))
                 unreadCarrier = projection[carrier].Post.PostId;
             _unreadFirstNewId = unreadCarrier;
-            Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
             ArchivedThreadView current = _thread;
             bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == current.Summary.Id
-                && !(capturedIds.TryGetValue(target.PostId, out bool captured) ? captured
-                    : capturedIds[target.PostId] = current.FindPostIndex(target.PostId) >= 0);
-            DateTimeOffset? openingPostAt = openingPost == null
-                ? null : current.Posts.FirstOrDefault(candidate => candidate.PostId == openingPost)?.PostedAt;
+                && current.FindPostIndex(target.PostId) < 0;
+            DateTimeOffset? openingPostAt = openingPost != null && current.FindPostIndex(openingPost) is >= 0 and var openingIndex
+                ? current.Posts[openingIndex].PostedAt : null;
             PostRowContext context = new(current, openingPost, openingPostAt, DateTimeOffset.Now, unreadCarrier, unreadCount,
-                _readerView.HideMedia, projection?.IsOrdered == true, IsDead);
-            ArchivePostRow[] posts = new ArchivePostRow[projection?.Count ?? 0];
-            for (int index = 0; index < posts.Length; index++) posts[index] = BuildPostRow(projection![index], context);
+                _readerView.HideMedia, projection?.IsOrdered == true, IsDead, _mediaRead, _postInteraction);
+            ReaderPostRows? posts = projection == null ? null : new(projection, entry => BuildPostRow(entry, context));
 
             int selected = -1;
             if (projection != null && _projectionSelectionPost is { } target)
@@ -614,21 +619,22 @@ public partial class ArchivePage : UserControl
             }
             if (selected < 0 && _readerPostId is { } retained && projection != null)
                 selected = projection.PositionOf(retained);
-            if (selected < 0 && posts.Length > 0) selected = 0;
+            if (selected < 0 && projection is { Count: > 0 }) selected = 0;
 
-            ReservePreviewSizes(posts);
+            BeginPostPreviews(current.Summary.Id);
+            BeginInlineReplies(posts);
             ListBox postList = ArchivePosts;
             // Only a new snapshot or view rebuild replaces the virtualizer's index space.
             postList.ItemsSource = null;
             postList.ItemsPanel = ReaderPostList.NewPanelTemplate();
             if (postList.Scroll is ScrollViewer scroll) scroll.Offset = default;
             postList.ItemsSource = posts;
-            if (projection != null) _readerPostId = selected >= 0 ? posts[selected].Id : null;
+            if (projection != null) _readerPostId = selected >= 0 ? projection[selected].Post.PostId : null;
             postList.SelectedIndex = selected;
             UpdateReaderNavigation();
-            RefreshInlineReplies(posts);
+            SchedulePreviewPrefetch();
         }
-        else { CancelPreviewWork(); ArchivePosts.ItemsSource = null; CancelInlineReplies(); _unreadFirstNewId = null; }
+        else { ArchivePosts.ItemsSource = null; _unreadFirstNewId = null; }
         // No captured text, a view still being prepared, or a view nothing passes.
         string? noPosts = _thread == null ? null : _thread.PostCount == 0 ? "archive.noPosts"
             : projection == null ? "reader.view.preparing" : projection.Count == 0 ? "reader.view.empty" : null;
@@ -642,7 +648,7 @@ public partial class ArchivePage : UserControl
 
     private readonly record struct PostRowContext(ArchivedThreadView Thread, string? OpeningPost,
         DateTimeOffset? OpeningPostAt, DateTimeOffset RenderedAt, string? UnreadCarrier, int UnreadCount,
-        bool HideMedia, bool SuppressReplyToggle, Func<ArchiveQuote, bool> IsDead);
+        bool HideMedia, bool SuppressReplyToggle, Func<ArchiveQuote, bool> IsDead, MediaRead Media, PostInteraction Interaction);
 
     // One row in the shown order. A placeholder keeps no attachments, so it never offers or loads media.
     private ArchivePostRow BuildPostRow(ReaderPostEntry entry, PostRowContext context)
@@ -665,8 +671,8 @@ public partial class ArchivePage : UserControl
         bool grid = ReaderMediaMultiRules.UseGrid(_readerDisplayPreferences.Media, shownImages, text, columnWidth);
         int tileWidth = grid ? ReaderMediaMultiRules.TileWidth(columnWidth) : textlessWidth;
         IReadOnlyList<ArchiveAttachmentRow> attachments = stub ? Array.Empty<ArchiveAttachmentRow>()
-            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaRead, tileWidth)).ToArray());
-        return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text, attachments)
+            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, context.Media, tileWidth)).ToArray());
+        ArchivePostRow row = new(post.PostId, post.Subject ?? string.Empty, text, attachments)
         {
             Author = post.Author ?? string.Empty,
             Posted = ReaderDateText.Posted(post.PostedAt, this.ReaderDateStyle, context.OpeningPostAt, context.RenderedAt),
@@ -691,6 +697,13 @@ public partial class ArchivePage : UserControl
             MediaGrid = grid,
             SuppressReplyToggle = context.SuppressReplyToggle
         };
+        foreach (ArchiveAttachmentRow attachment in attachments)
+        {
+            ConfigureReaderAttachmentFavorite(context.Thread.Summary, context.Media, row.Id, attachment);
+            if (row.ShowsMedia) ReservePreviewSize(threadId, row.Id, attachment);
+        }
+        RestorePostInteraction(row, context.Interaction);
+        return row;
     }
 
     private void RenderMedia()
@@ -1268,6 +1281,7 @@ public partial class ArchivePage : UserControl
         ArchiveBoardFilter.EndSuggestions();
         _readerUpdateTimer?.Stop();
         CancelInlineReplies();
+        CancelPreviewWork();
         EndExportDialog();
         ++_contentRequest;
         CancelMediaLoad();

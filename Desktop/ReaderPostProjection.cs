@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -183,9 +184,10 @@ internal sealed class ReaderPostProjection
     internal int PositionOf(string postId)
     {
         int index = Thread.FindPostIndex(postId);
-        if (index < 0) return -1;
-        return _positionOf == null ? index : _positionOf[index];
+        return PositionOfThreadIndex(index);
     }
+
+    internal int PositionOfThreadIndex(int index) => (uint)index >= (uint)_posts.Count ? -1 : _positionOf?[index] ?? index;
 
     /// <summary>The post itself when shown, otherwise the next shown post by thread index, otherwise the one before;
     /// -1 for an uncaptured post or an empty view.</summary>
@@ -360,4 +362,69 @@ internal sealed class ReaderPostProjection
             return hash.ToHashCode();
         }
     }
+}
+
+// ItemsSourceView uses IList directly. Giving it only an enumerable would make it copy every row before layout.
+internal sealed class ReaderPostRows(ReaderPostProjection projection, Func<ReaderPostEntry, ArchivePostRow> build)
+    : IReadOnlyList<ArchivePostRow>, IList
+{
+    private readonly Dictionary<int, ArchivePostRow> _rows = new();
+
+    public int Count => projection.Count;
+    internal int BuiltCount { get; private set; }
+    internal IEnumerable<ArchivePostRow> Materialized => _rows.Values;
+
+    public ArchivePostRow this[int index]
+    {
+        get
+        {
+            if (_rows.TryGetValue(index, out ArchivePostRow? row)) return row;
+            row = build(projection[index]);
+            _rows.Add(index, row);
+            ++BuiltCount;
+            return row;
+        }
+    }
+
+    internal int IndexOf(ArchivePostRow row)
+    {
+        int index = projection.PositionOfThreadIndex(row.ThreadIndex);
+        return _rows.TryGetValue(index, out ArchivePostRow? current) && ReferenceEquals(current, row) ? index : -1;
+    }
+
+    internal ArchivePostRow? MaterializedAt(int index) => _rows.GetValueOrDefault(index);
+
+    internal void Trim(Func<int, ArchivePostRow, bool> keep, Action<ArchivePostRow> onEvicted)
+    {
+        // Dictionary removal does not invalidate enumeration. The callbacks only inspect existing rows.
+        foreach ((int index, ArchivePostRow row) in _rows)
+        {
+            if (keep(index, row)) continue;
+            onEvicted(row);
+            _rows.Remove(index);
+        }
+    }
+
+    public IEnumerator<ArchivePostRow> GetEnumerator()
+    {
+        for (int index = 0; index < Count; index++) yield return this[index];
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    object? IList.this[int index] { get => this[index]; set => throw new NotSupportedException(); }
+    int IList.IndexOf(object? item) => item is ArchivePostRow row ? IndexOf(row) : -1;
+    bool IList.Contains(object? item) => ((IList)this).IndexOf(item) >= 0;
+    bool IList.IsReadOnly => true;
+    bool IList.IsFixedSize => true;
+    bool ICollection.IsSynchronized => false;
+    object ICollection.SyncRoot => this;
+    void ICollection.CopyTo(Array array, int index)
+    {
+        foreach (ArchivePostRow row in this) array.SetValue(row, index++);
+    }
+    int IList.Add(object? value) => throw new NotSupportedException();
+    void IList.Clear() => throw new NotSupportedException();
+    void IList.Insert(int index, object? value) => throw new NotSupportedException();
+    void IList.Remove(object? value) => throw new NotSupportedException();
+    void IList.RemoveAt(int index) => throw new NotSupportedException();
 }

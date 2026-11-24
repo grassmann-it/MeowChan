@@ -24,28 +24,47 @@ public partial class ArchivePage
     private sealed record ReaderHistoryEntry(ArchivedThreadView View, ReaderAnchor? Anchor,
         IReadOnlyList<InlineReplyState> Replies);
 
-    private InlineReplyState[] CaptureInlineReplyState() =>
-        (ArchivePosts.ItemsSource as IEnumerable<ArchivePostRow>)?
-            .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError)
-            .Select(row => new InlineReplyState(row.Id, row.RepliesExpanded, row.RepliesLoaded,
-                row.BacklinkCount, row.RepliesOffset, Array.AsReadOnly(row.Replies.ToArray()), row.RepliesError, row.RepliesAutoExpanded))
-            .ToArray() ?? Array.Empty<InlineReplyState>();
+    private sealed class PostInteraction
+    {
+        internal Dictionary<string, InlineReplyState> Replies { get; } = new(StringComparer.Ordinal);
+        internal HashSet<int> Spoilers { get; } = new();
+    }
+
+    private PostInteraction _postInteraction = new();
+
+    private static InlineReplyState ReplyState(ArchivePostRow row) => new(row.Id, row.RepliesExpanded, row.RepliesLoaded,
+        row.BacklinkCount, row.RepliesOffset, row.Replies, row.RepliesError, row.RepliesAutoExpanded);
+
+    private void RememberEvictedPostInteraction(ArchivePostRow row)
+    {
+        if (row.SpoilersRevealed) _postInteraction.Spoilers.Add(row.ThreadIndex);
+        // A single auto-opened page can be fetched when its card next appears. Keep explicit openings and pagination.
+        if (row.RepliesOffset > 0 || !row.RepliesAutoExpanded && (row.RepliesExpanded || row.RepliesLoaded))
+            _postInteraction.Replies[row.Id] = ReplyState(row);
+    }
+
+    private InlineReplyState[] CaptureInlineReplyState() => ArchivePosts.ItemsSource is ReaderPostRows rows
+        ? _postInteraction.Replies.Values.Concat(rows.Materialized
+            .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError).Select(ReplyState)).ToArray()
+        : Array.Empty<InlineReplyState>();
 
     private void RestoreInlineReplyState(IReadOnlyList<InlineReplyState> states)
     {
-        if (ArchivePosts.ItemsSource is not IEnumerable<ArchivePostRow> rows) return;
-        Dictionary<string, InlineReplyState> byId = states.ToDictionary(state => state.PostId, StringComparer.Ordinal);
-        foreach (ArchivePostRow row in rows)
-        {
-            if (!byId.TryGetValue(row.Id, out InlineReplyState? state)) continue;
-            // Restore all loaded pages before expanding so materialization cannot
-            // replace a 20+ reply origin with a freshly loaded first page.
-            if (state.Loaded) row.SetReplies(state.Replies, state.Count ?? state.Replies.Count, state.Offset);
-            else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
-            row.SetRepliesError(state.Error);
-            row.RepliesExpanded = state.Expanded;
-            row.RepliesAutoExpanded = state.Expanded && state.AutoExpanded;
-        }
+        if (ArchivePosts.ItemsSource is not ReaderPostRows rows) return;
+        foreach (InlineReplyState state in states) _postInteraction.Replies[state.PostId] = state;
+        foreach (ArchivePostRow row in rows.Materialized.ToArray()) RestorePostInteraction(row, _postInteraction);
+    }
+
+    private void RestorePostInteraction(ArchivePostRow row, PostInteraction interaction)
+    {
+        if (interaction.Spoilers.Remove(row.ThreadIndex)) row.SpoilersRevealed = true;
+        if (!interaction.Replies.Remove(row.Id, out InlineReplyState? state)) return;
+        // Restore loaded pages before expanding, including when an origin is realized after returning from a quote.
+        if (state.Loaded) row.SetReplies(state.Replies, state.Count ?? state.Replies.Count, state.Offset);
+        else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
+        row.SetRepliesError(state.Error);
+        row.RepliesExpanded = state.Expanded && (!state.AutoExpanded || _replyAutoExpand.Enabled);
+        row.RepliesAutoExpanded = row.RepliesExpanded && state.AutoExpanded;
     }
     private readonly LinkedList<ReaderHistoryEntry> _history = new();
     private ReaderAnchor? _backlinkOriginAnchor;
