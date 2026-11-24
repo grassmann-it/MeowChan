@@ -42,7 +42,8 @@ internal sealed class GalleryFilmstrip : Border
     private readonly Button _forward = new() { Name = "GalleryFilmstripForward" };
     private readonly Button _loadMore = new()
     {
-        Name = "GalleryFilmstripLoadMore", Classes = { "subtle" }, Padding = new Thickness(4)
+        Name = "GalleryFilmstripLoadMore", Classes = { "subtle" }, Padding = new Thickness(4),
+        HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center
     };
     private readonly TextBlock _position = new() { Name = "GalleryFilmstripPosition", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
     private readonly Dictionary<int, FilmstripTile> _live = new();
@@ -356,7 +357,8 @@ internal sealed class GalleryFilmstrip : Border
     {
         if (e.Handled || !IsKeyboardFocusWithin) return false;
         // A focused tile denotes its own medium, even when the viewer is showing another.
-        // Enter on the band itself still returns to the current picture; real buttons stay native.
+        // Enter on the band itself still returns to the current picture. Native Button
+        // activation handles Enter and Space; this also honors a remapped gallery-open gesture.
         if (!MeowChan.Desktop.Commands.ShortcutService.IsCapturing
             && MeowChan.Desktop.Commands.ShortcutService.Current.Matches(e, "gallery.open"))
         {
@@ -421,7 +423,8 @@ internal sealed class GalleryFilmstrip : Border
 
     private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        bool click = _pressed && !_dragging;
+        if (!_pressed) return;
+        bool click = !_dragging;
         int tile = click ? GalleryFilmstripPlan.TileAt(e.GetPosition(_strip).X, _offset, _tile, Slots, _gap) : -1;
         _pressed = _dragging = false;
         if (ReferenceEquals(e.Pointer.Captured, _strip)) e.Pointer.Capture(null);
