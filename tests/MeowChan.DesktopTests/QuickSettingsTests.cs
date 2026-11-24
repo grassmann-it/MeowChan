@@ -34,7 +34,7 @@ public sealed class QuickSettingsTests : IDisposable
         // start muted, volume; in the media sidebar: autoplay, repeat, start muted) and "keep images expanded" are in the popover.
         Assert.Equal(new[]
         {
-            ReaderQuickSettings.MediaClickFieldId, SettingsFieldId.ReaderKeepImagesExpanded, SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.ReaderMediaSidebarSide,
+            ReaderQuickSettings.MediaClickFieldId, SettingsFieldId.ReaderKeepImagesExpanded, SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.MediaSidebarInfo, SettingsFieldId.MediaSidebarInfoMinimumFree, SettingsFieldId.MediaSidebarInfoMaximumShare, SettingsFieldId.ReaderMediaSidebarSide,
             SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
             SettingsFieldId.ReaderFocusedMediaEnlarge, SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderHoverEnlarge,
             SettingsFieldId.ReaderThumbnailWidth,

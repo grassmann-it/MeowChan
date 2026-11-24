@@ -26,6 +26,8 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderFocusedMediaScalePercent), 200, 100, 400 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeSize), 640, 240, 1600 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeDelayMs), 350, 100, 2000 };
+        yield return new object[] { nameof(Config.MediaSidebarInfoMinimumFree), 160, 96, 480 };
+        yield return new object[] { nameof(Config.MediaSidebarInfoMaximumShare), 40, 20, 60 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarWidth), 480, 240, 1200 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarMinimumWidth), 1280, 800, 3840 };
         yield return new object[] { nameof(Config.ReaderInlineVideoMaxPlayers), 2, 1, 4 };
@@ -49,8 +51,13 @@ public sealed class ReaderSettingsPersistenceTests
         foreach (int value in new[] { int.MinValue, min - 1, max + 1, int.MaxValue })
         {
             Config config = new(); property.SetValue(config, value);
-            Assert.Equal(name, Assert.Throws<ArgumentOutOfRangeException>(config.Validate).ParamName);
-            Assert.Throws<ArgumentOutOfRangeException>(() => new Config().CopySettingsFieldsFrom(config));
+            if (name is nameof(Config.MediaSidebarInfoMinimumFree) or nameof(Config.MediaSidebarInfoMaximumShare))
+                Assert.Equal(Math.Clamp(value, min, max), property.GetValue(config));
+            else
+            {
+                Assert.Equal(name, Assert.Throws<ArgumentOutOfRangeException>(config.Validate).ParamName);
+                Assert.Throws<ArgumentOutOfRangeException>(() => new Config().CopySettingsFieldsFrom(config));
+            }
             Config loaded = JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(config))!;
             Assert.Equal(Math.Clamp(value, min, max), property.GetValue(loaded));
         }

@@ -480,6 +480,17 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                        <TextBlock x:Name="MediaSidebarInfoFieldLabel" Text="{Binding MediaSidebarInfoLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding MediaSidebarInfoHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="MediaSidebarInfoInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding MediaSidebarInfoChoices}" SelectedItem="{Binding SelectedMediaSidebarInfo, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoHint}">
+                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
                                         <TextBlock x:Name="ReaderMediaSidebarSideFieldLabel" Text="{Binding ReaderMediaSidebarSideLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderMediaSidebarSideHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
@@ -497,6 +508,30 @@
                                     <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderMediaSidebarWidthInput" Value="{Binding ReaderMediaSidebarWidth, Mode=TwoWay}" Minimum="{Binding ReaderMediaSidebarWidthMinimum}" Maximum="{Binding ReaderMediaSidebarWidthMaximum}" Increment="40" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaSidebarWidthFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaSidebarWidthLabel}" AutomationProperties.HelpText="{Binding ReaderMediaSidebarWidthHelp}" />
                                         <TextBlock x:Name="ReaderMediaSidebarWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="MediaSidebarInfoMinimumFreeFieldLabel" Text="{Binding MediaSidebarInfoMinimumFreeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding MediaSidebarInfoMinimumFreeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="MediaSidebarInfoMinimumFreeInput" Value="{Binding MediaSidebarInfoMinimumFree, Mode=TwoWay}" Minimum="{Binding MediaSidebarInfoMinimumFreeMinimum}" Maximum="{Binding MediaSidebarInfoMinimumFreeMaximum}" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoMinimumFreeFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoMinimumFreeLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoMinimumFreeHelp}" />
+                                        <TextBlock x:Name="MediaSidebarInfoMinimumFreeInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="MediaSidebarInfoMaximumShareFieldLabel" Text="{Binding MediaSidebarInfoMaximumShareLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding MediaSidebarInfoMaximumShareHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="MediaSidebarInfoMaximumShareInput" Value="{Binding MediaSidebarInfoMaximumShare, Mode=TwoWay}" Minimum="{Binding MediaSidebarInfoMaximumShareMinimum}" Maximum="{Binding MediaSidebarInfoMaximumShareMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoMaximumShareFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoMaximumShareLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoMaximumShareHelp}" />
+                                        <TextBlock x:Name="MediaSidebarInfoMaximumShareInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
                             </Border>

@@ -41,9 +41,12 @@ internal static class ReaderQuickSettings
         Integer(SettingsFieldId.ReaderHoverEnlargeDelayMs, "settings.reader.hoverDelay", "settings.reader.hoverDelay.hint", Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum, 50, c => c.ReaderHoverEnlargeDelayMs, (c, v) => c.ReaderHoverEnlargeDelayMs = v),
         // R8: the media sidebar; with its scope the one choice Off / Large reader only / Always (also beside the posts of the archive view).
         Toggle(SettingsFieldId.ReaderMediaSidebar, "settings.reader.mediaSidebar", "settings.reader.mediaSidebar.hint", c => c.ReaderMediaSidebar, (c, v) => c.ReaderMediaSidebar = v),
+        Choice(SettingsFieldId.MediaSidebarInfo, "settings.reader.mediaSidebarInfo", "settings.reader.mediaSidebarInfo.hint", Options(("Off", "settings.reader.mediaSidebarInfo.off"), ("Overlay", "settings.reader.mediaSidebarInfo.overlay"), ("Auto", "settings.reader.mediaSidebarInfo.auto"), ("Always", "settings.reader.mediaSidebarInfo.always")), c => c.MediaSidebarInfo, (c, v) => c.MediaSidebarInfo = v),
         Choice(SettingsFieldId.ReaderMediaSidebarScope, "settings.reader.mediaSidebarScope", "settings.reader.mediaSidebarScope.hint", Options((Config.ReaderMediaSidebarScopeLargeReader, "settings.reader.mediaSidebarScope.large"), (Config.ReaderMediaSidebarScopeAlways, "settings.reader.mediaSidebarScope.always")), c => c.ReaderMediaSidebarScope, (c, v) => c.ReaderMediaSidebarScope = v),
         Choice(SettingsFieldId.ReaderMediaSidebarSide, "settings.reader.mediaSidebarSide", "settings.reader.mediaSidebarSide.hint", Options((Config.ReaderMediaSidebarSideLeft, "settings.reader.mediaSidebarSide.left"), (Config.ReaderMediaSidebarSideRight, "settings.reader.mediaSidebarSide.right")), c => c.ReaderMediaSidebarSide, (c, v) => c.ReaderMediaSidebarSide = v),
         Integer(SettingsFieldId.ReaderMediaSidebarWidth, "settings.reader.mediaSidebarWidth", "settings.reader.mediaSidebarWidth.hint", Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum, 40, c => c.ReaderMediaSidebarWidth, (c, v) => c.ReaderMediaSidebarWidth = v),
+        Integer(SettingsFieldId.MediaSidebarInfoMinimumFree, "settings.reader.mediaSidebarInfoMinimumFree", "settings.reader.mediaSidebarInfoMinimumFree.hint", Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum, 8, c => c.MediaSidebarInfoMinimumFree, (c, v) => c.MediaSidebarInfoMinimumFree = v),
+        Integer(SettingsFieldId.MediaSidebarInfoMaximumShare, "settings.reader.mediaSidebarInfoMaximumShare", "settings.reader.mediaSidebarInfoMaximumShare.hint", Config.MediaSidebarInfoMaximumShareMinimum, Config.MediaSidebarInfoMaximumShareMaximum, 1, c => c.MediaSidebarInfoMaximumShare, (c, v) => c.MediaSidebarInfoMaximumShare = v),
         Integer(SettingsFieldId.ReaderMediaSidebarMinimumWidth, "settings.reader.mediaSidebarMinimumWidth", "settings.reader.mediaSidebarMinimumWidth.hint", Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, 80, c => c.ReaderMediaSidebarMinimumWidth, (c, v) => c.ReaderMediaSidebarMinimumWidth = v),
         // R10: the players of the reader (in the sidebar and in posts).
         Toggle(SettingsFieldId.ReaderInlineVideoAutoplayMuted, "settings.reader.inlineVideoAutoplay", "settings.reader.inlineVideoAutoplay.hint", c => c.ReaderInlineVideoAutoplayMuted, (c, v) => c.ReaderInlineVideoAutoplayMuted = v),
@@ -85,6 +88,9 @@ internal static class ReaderQuickSettings
         Row(SettingsFieldId.ReaderKeepImagesExpanded),
         Row(SettingsFieldId.ReaderMediaSidebar, shortcut: "reader.sidebar.toggle"),
         Row(SettingsFieldId.ReaderMediaSidebarScope, when: SettingsFieldId.ReaderMediaSidebar),
+        Row(SettingsFieldId.MediaSidebarInfo, when: SettingsFieldId.ReaderMediaSidebar),
+        Row(SettingsFieldId.MediaSidebarInfoMinimumFree, when: SettingsFieldId.ReaderMediaSidebar),
+        Row(SettingsFieldId.MediaSidebarInfoMaximumShare, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.ReaderMediaSidebarSide, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.ReaderTextlessLargeImages, shortcut: "reader.view.textless-large"),
         Row(SettingsFieldId.ReaderTextlessMediaWidth, when: SettingsFieldId.ReaderTextlessLargeImages),

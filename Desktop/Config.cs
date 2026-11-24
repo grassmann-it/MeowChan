@@ -627,6 +627,31 @@ namespace MeowChan
             set => _readerMediaSidebarScope = string.Equals(value?.Trim(), ReaderMediaSidebarScopeAlways, StringComparison.OrdinalIgnoreCase)
                 ? ReaderMediaSidebarScopeAlways : ReaderMediaSidebarScopeLargeReader;
         }
+        internal static string NormalizeSidebarInfo(string? value) => value?.Trim().ToUpperInvariant() switch
+        {
+            "OVERLAY" => "Overlay", "AUTO" => "Auto", "ALWAYS" => "Always", _ => "Off"
+        };
+        private string _mediaSidebarInfo = "Off";
+        public string MediaSidebarInfo { get => _mediaSidebarInfo; set => _mediaSidebarInfo = NormalizeSidebarInfo(value); }
+
+        internal const int MediaSidebarInfoMinimumFreeMinimum = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeMinimum;
+        internal const int MediaSidebarInfoMinimumFreeMaximum = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeMaximum;
+        private int _mediaSidebarInfoMinimumFree = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeDefault;
+        public int MediaSidebarInfoMinimumFree
+        {
+            get => _mediaSidebarInfoMinimumFree;
+            set => _mediaSidebarInfoMinimumFree = Math.Clamp(value, MediaSidebarInfoMinimumFreeMinimum, MediaSidebarInfoMinimumFreeMaximum);
+        }
+
+        internal const int MediaSidebarInfoMaximumShareMinimum = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareMinimum;
+        internal const int MediaSidebarInfoMaximumShareMaximum = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareMaximum;
+        private int _mediaSidebarInfoMaximumShare = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareDefault;
+        public int MediaSidebarInfoMaximumShare
+        {
+            get => _mediaSidebarInfoMaximumShare;
+            set => _mediaSidebarInfoMaximumShare = Math.Clamp(value, MediaSidebarInfoMaximumShareMinimum, MediaSidebarInfoMaximumShareMaximum);
+        }
+
         public int ReaderMediaSidebarWidth { get; set; } = ReaderMediaSidebarWidthDefault;
         internal const int ReaderMediaSidebarWidthDefault = ReaderDisplayPreferences.MediaSidebarWidthDefault;
         internal const int ReaderMediaSidebarWidthMinimum = ReaderDisplayPreferences.MediaSidebarWidthMinimum;
@@ -2116,6 +2141,9 @@ namespace MeowChan
                 ReaderMediaSidebar = ReaderMediaSidebar,
                 ReaderMediaSidebarSide = ReaderMediaSidebarSide,
                 ReaderMediaSidebarScope = ReaderMediaSidebarScope,
+                MediaSidebarInfo = MediaSidebarInfo,
+                MediaSidebarInfoMinimumFree = MediaSidebarInfoMinimumFree,
+                MediaSidebarInfoMaximumShare = MediaSidebarInfoMaximumShare,
                 ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
                 ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
                 ReaderInlineVideo = ReaderInlineVideo,
@@ -2406,6 +2434,9 @@ namespace MeowChan
             ReaderMediaSidebar = source.ReaderMediaSidebar;
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
+            MediaSidebarInfo = source.MediaSidebarInfo;
+            MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree;
+            MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             ReaderInlineVideo = source.ReaderInlineVideo;
@@ -2672,6 +2703,9 @@ namespace MeowChan
             ReaderMediaSidebar = source.ReaderMediaSidebar;
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
+            MediaSidebarInfo = source.MediaSidebarInfo;
+            MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree;
+            MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             ReaderInlineVideo = source.ReaderInlineVideo;

@@ -8,6 +8,7 @@ internal static class CommandLabelCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("command.media.sidebar.info", "Details in the media sidebar", "Details in der Medienleiste"),
         ("command.sections.open-navigation", "Navigate sections", "Abschnitte öffnen"),
         ("command.sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen"),
         ("command.reader.skip-unavailable-group-member", "Skip unavailable member", "Fehlendes Mitglied überspringen"),
