@@ -32,7 +32,7 @@ internal sealed partial class BooruWorkbenchView
     internal static readonly string CloseWatchersName = "BooruCloseWatchers";
     internal static readonly string TabLimitNoticeName = "BooruTabLimitNotice";
 
-    private sealed record TabHeader(TextBlock Title, Button Close);
+    private sealed record TabHeader(TextBlock Title, Button Close, ContentControl Draft);
     private sealed record TabResults(string? Cursor, HashSet<string> Selected);
     private sealed class SearchTabControl(TabItem item, TabHeader header, Func<ContextMenuBuilder> compose, Action fallbackFocus) : IDisposable
     {
@@ -396,10 +396,16 @@ internal sealed partial class BooruWorkbenchView
         Button close = new() { Name = closeName, Classes = { "ghost", "booru-tab-close" } };
         close.AttachedToVisualTree += (_, _) => { if (close.Content is not Control) close.Content = CommandBindings.NamedIcon("x", 12); };
         close.Click += (_, e) => { e.Handled = true; closeTab(); };
-        StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { title, close } };
+        ContentControl draft = new()
+        {
+            Name = "BooruTabPendingDraft", VerticalAlignment = VerticalAlignment.Center, IsVisible = false
+        };
+        AutomationProperties.SetAccessibilityView(draft, AccessibilityView.Raw);
+        draft.AttachedToVisualTree += (_, _) => draft.Content ??= CommandBindings.NamedIcon("edit-2", 12);
+        StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { title, draft, close } };
         item.Header = header;
         item.SizeChanged += (_, e) => { if (e.WidthChanged && item.IsSelected) QueueActiveTabReveal(); };
-        return new TabHeader(title, close);
+        return new TabHeader(title, close, draft);
     }
 
     private void QueueActiveTabReveal() => Dispatcher.UIThread.Post(() =>
@@ -419,10 +425,17 @@ internal sealed partial class BooruWorkbenchView
         if (wasActive && IsSearchItem(_tabs.SelectedItem)) QueueSearchInputFocus(tabs.ActiveId);
     }
 
-    private static void RenderTabHeader(TabItem item, TabHeader header, string title)
+    private static void RenderTabHeader(TabItem item, TabHeader header, string title, BooruSearchView? search = null)
     {
         header.Title.Text = title;
-        ToolTip.SetTip(header.Title, title);
+        string? draft = search != null ? DraftSearchText(search) : null;
+        string? executed = search != null ? ExecutedSearchText(search) : null;
+        string tip = draft == null ? title : string.Join(Environment.NewLine, new[] { executed ?? title, draft });
+        header.Draft.IsVisible = draft != null;
+        ToolTip.SetTip(header.Title, tip);
+        ToolTip.SetTip(header.Draft, tip);
+        ToolTip.SetTip(item, tip);
+        AutomationProperties.SetHelpText(item, draft == null ? string.Empty : tip);
         string closeName = Texts.T("booru.tabs.closeFor", title);
         ToolTip.SetTip(header.Close, closeName);
         AutomationProperties.SetName(header.Close, closeName);
@@ -438,8 +451,11 @@ internal sealed partial class BooruWorkbenchView
         RenderBottomStatus(view);
         RenderViewToggleLabels();
         foreach (var (id, tab) in _searchItems)
+        {
+            BooruSearchView? snapshot = tabs.ViewOf(id);
             RenderTabHeader(tab.Item, tab.Header,
-                BooruSearchTabs.Title(tabs.ViewOf(id), Texts.T("booru.tabs.blank"), id => Texts.T("booru.tabs.post", id)));
+                BooruSearchTabs.Title(snapshot, Texts.T("booru.tabs.blank"), postId => Texts.T("booru.tabs.post", postId)), snapshot);
+        }
         if (_watcherHeader is { } header)
             RenderTabHeader(_watchersTab, header, Texts.Count("booru.ui.tab.watchers", _model.Watchers.Count));
         int activeWatchers = watchers.Rows.Count(row => row.Watcher.Status is not (BooruWatcherStatus.Paused or BooruWatcherStatus.Removed));
