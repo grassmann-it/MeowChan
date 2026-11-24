@@ -84,8 +84,7 @@ internal static class SelectionChecks
         Require(grid.SelectedItems.Count == 5, "List Select All did not select all watches.");
         long[] selectedIds = grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().ToArray();
         Texts.SetLanguage("de");
-        await Task.Delay(50);
-        Require(AutomationProperties.GetName(inspectorRemove) == "Beobachtung beenden", "The inspector watch label did not refresh.");
+        await Program.WaitUntilAsync(() => AutomationProperties.GetName(inspectorRemove) == "Beobachtung beenden (5)");
         await PresentationChecks.SwitchModeAsync(window, "Barebones");
         Require(grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().SequenceEqual(selectedIds), "Language or mode lost selected watch identities.");
         window.Width = 640; window.Height = 480;

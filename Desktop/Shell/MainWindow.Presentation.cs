@@ -334,7 +334,6 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(InspectorOpenBrowserButton, "location.open-source", Texts.T("action.openBrowser"));
         CommandBindings.ApplyLabeled(InspectorMediaRetryButton, "watch.retry-media", Texts.T("work.retry"));
         CommandBindings.ApplyLabeled(InspectorCopyUrlButton, "selection.copy-links", Texts.T("action.copyUrl"));
-        CommandBindings.Apply(InspectorRemoveButton, "watch.remove", iconWithLabel: true);
         // Offers and notices of the shell that carried a word only: the same catalog icons as the rest of the page.
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionAccept, "plus");
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionDismiss, "x");
@@ -486,6 +485,15 @@ public partial class MainWindow
         bool hasSelection = selected != null;
         InspectorEmptyState.IsVisible = !hasSelection;
         InspectorSelection.IsVisible = hasSelection;
+        int removeCount = selected switch
+        {
+            ThreadRow => SelectedThreads().Length,
+            BoardRow => SelectedBoards().Length,
+            _ => 0
+        };
+        string removeLabel = CommandCatalog.Label("watch.remove");
+        if (removeCount > 1) removeLabel += $" ({removeCount})";
+        CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", removeLabel);
         if (selected == null) return;
 
         bool isThread = selected is ThreadRow;
