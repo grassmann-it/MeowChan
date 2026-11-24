@@ -52,8 +52,9 @@ internal static class ArchiveDeletionChecks
                 "Confirmation omitted the preview's counts or size.");
             string details = Find<TextBox>(question, "ArchivePermanentDeleteDetails").Text!;
             Require(details.Contains("Retained: unrelated.txt", StringComparison.Ordinal) &&
+                details.Contains("Reader group memberships, exports and unrelated files are kept.", StringComparison.Ordinal) &&
                 details.Contains(Texts.T("bookmarks.retained"), StringComparison.Ordinal),
-                "Confirmation omitted retained files or bookmarks.");
+                "Confirmation omitted retained files, exports, reader groups or bookmarks.");
             await Program.WaitUntilAsync(() => cancel.IsFocused);
             if (key == Key.Escape) Program.CaptureWindow(question, "smoke-archive-delete-confirmation.png");
             RawKeyboardInput.Press(question, key);

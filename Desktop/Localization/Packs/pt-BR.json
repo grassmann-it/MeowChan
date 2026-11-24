@@ -2958,7 +2958,7 @@
     "archive.delete.summary": "Excluir permanentemente {0} e {1} ({2})?",
     "archive.delete.ratings": "{0} avaliações de mídia serão removidas.",
     "archive.delete.confirm": "Excluir registros e seus arquivos",
-    "archive.delete.effects": "O acompanhamento destes tópicos será encerrado. Os registros arquivados, seus próprios arquivos, os favoritos e as associações de tags serão excluídos. Os fóruns acompanhados não adicionarão estes tópicos novamente. As exportações e os arquivos não relacionados serão mantidos.",
+    "archive.delete.effects": "O acompanhamento destes tópicos será encerrado. Os registros arquivados, seus próprios arquivos, os favoritos e as associações de tags serão excluídos. Os fóruns acompanhados não adicionarão estes tópicos novamente. Os vínculos com grupos de leitura, as exportações e os arquivos não relacionados serão mantidos.",
     "archive.delete.retained": "Mantidos: ",
     "archive.delete.shared": "Compartilhados com outros tópicos: ",
     "archive.delete.blocked": "Esta seleção não pode ser excluída por completo. Revise os detalhes ou selecione menos tópicos.",

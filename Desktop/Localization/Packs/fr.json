@@ -3211,7 +3211,7 @@
     "archive.delete.summary": "Supprimer définitivement {0} et {1} ({2}) ?",
     "archive.delete.ratings": "{0} évaluations de médias seront supprimées.",
     "archive.delete.confirm": "Supprimer les entrées et leurs fichiers",
-    "archive.delete.effects": "La surveillance de ces fils cessera. Leurs entrées d’archive, leurs propres fichiers, les favoris et les associations d’étiquettes seront supprimés. Les tableaux surveillés n’ajouteront plus ces fils. Les exports et les fichiers sans rapport sont conservés.",
+    "archive.delete.effects": "La surveillance de ces fils cessera. Leurs entrées d’archive, leurs propres fichiers, les favoris et les associations d’étiquettes seront supprimés. Les tableaux surveillés n’ajouteront plus ces fils. Les appartenances aux groupes de lecture, les exports et les fichiers sans rapport sont conservés.",
     "archive.delete.retained": "Conservés : ",
     "archive.delete.shared": "Partagé avec d’autres fils : ",
     "archive.delete.blocked": "Cette sélection ne peut pas être entièrement supprimée. Examinez les détails ou sélectionnez moins de fils.",

@@ -3211,7 +3211,7 @@
     "archive.delete.summary": "¿Eliminar de forma permanente {0} y {1} ({2})?",
     "archive.delete.ratings": "Se eliminarán {0} valoraciones de medios.",
     "archive.delete.confirm": "Eliminar entradas y archivos asociados",
-    "archive.delete.effects": "Se dejarán de seguir estos hilos. Se eliminarán sus entradas del archivo, sus archivos propios, los favoritos y las asignaciones de etiquetas. Los tablones en seguimiento no volverán a añadir estos hilos. Se conservan las exportaciones y los archivos ajenos.",
+    "archive.delete.effects": "Se dejarán de seguir estos hilos. Se eliminarán sus entradas del archivo, sus archivos propios, los favoritos y las asignaciones de etiquetas. Los tablones en seguimiento no volverán a añadir estos hilos. Se conservan las asignaciones a grupos de lectura, las exportaciones y los archivos ajenos.",
     "archive.delete.retained": "Se conservan: ",
     "archive.delete.shared": "Compartido con otros hilos: ",
     "archive.delete.blocked": "Esta selección no se puede eliminar por completo. Revise los detalles o seleccione menos hilos.",

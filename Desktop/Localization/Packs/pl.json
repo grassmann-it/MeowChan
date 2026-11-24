@@ -2971,7 +2971,7 @@
     "archive.delete.ratings": "{0} ocen mediów zostanie usuniętych.",
     "archive.delete.ratings.few": "{0} oceny mediów zostaną usunięte.",
     "archive.delete.confirm": "Usuń wpisy z archiwum i ich pliki",
-    "archive.delete.effects": "Obserwowanie tych wątków zostanie zakończone. Ich wpisy w archiwum, należące do nich pliki, ulubione i przypisania tagów zostaną usunięte. Obserwowane tablice nie dodadzą ponownie tych wątków. Eksporty i niepowiązane pliki pozostaną.",
+    "archive.delete.effects": "Obserwowanie tych wątków zostanie zakończone. Ich wpisy w archiwum, należące do nich pliki, ulubione i przypisania tagów zostaną usunięte. Obserwowane tablice nie dodadzą ponownie tych wątków. Powiązania z grupami czytnika, eksporty i niepowiązane pliki pozostaną.",
     "archive.delete.retained": "Zachowane: ",
     "archive.delete.shared": "Współdzielone z innymi wątkami: ",
     "archive.delete.blocked": "Tego zaznaczenia nie można w pełni usunąć. Przejrzyj szczegóły lub zaznacz mniej wątków.",

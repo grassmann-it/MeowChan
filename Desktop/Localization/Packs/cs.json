@@ -2970,7 +2970,7 @@
     "archive.delete.ratings": "Bude odebráno {0} hodnocení médií.",
     "archive.delete.ratings.few": "Budou odebrána {0} hodnocení médií.",
     "archive.delete.confirm": "Smazat záznamy z archivu a soubory",
-    "archive.delete.effects": "Sledování těchto vláken se ukončí. Jejich záznamy v archivu, soubory, které k nim patří, oblíbené položky a přiřazení štítků se smažou. Sledované nástěnky tato vlákna znovu nepřidají. Exporty a nesouvisející soubory zůstanou.",
+    "archive.delete.effects": "Sledování těchto vláken se ukončí. Jejich záznamy v archivu, soubory, které k nim patří, oblíbené položky a přiřazení štítků se smažou. Sledované nástěnky tato vlákna znovu nepřidají. Členství ve skupinách pro čtení, exporty a nesouvisející soubory zůstanou.",
     "archive.delete.retained": "Ponecháno: ",
     "archive.delete.shared": "Sdíleno s jinými vlákny: ",
     "archive.delete.blocked": "Tento výběr nelze smazat celý. Zkontrolujte podrobnosti nebo vyberte méně vláken.",

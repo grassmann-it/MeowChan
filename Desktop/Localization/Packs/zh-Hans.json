@@ -3030,7 +3030,7 @@
     "archive.delete.summary": "永久删除{0}和{1}（{2}）？",
     "archive.delete.ratings": "将移除 {0} 个媒体评分。",
     "archive.delete.confirm": "删除归档条目及其文件",
-    "archive.delete.effects": "将停止关注这些串，并删除其归档条目、所属文件、收藏和标签关联。已关注的版块不会再次添加这些串。导出内容和无关文件将会保留。",
+    "archive.delete.effects": "将停止关注这些串，并删除其归档条目、所属文件、收藏和标签关联。已关注的版块不会再次添加这些串。阅读组中的关联、导出内容和无关文件将会保留。",
     "archive.delete.retained": "保留：",
     "archive.delete.shared": "与其他串共用：",
     "archive.delete.blocked": "无法完全删除此选择。请检查详情或选择较少的串。",
