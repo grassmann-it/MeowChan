@@ -15,6 +15,8 @@ internal enum ThemeTokenVariation
     DisabledOutline,
     // Dark reuses Accent; Light has a separate, darker pressed tone with no Workspace seed.
     PressedAccent,
+    PrimaryPressedAccent,
+    SegmentPressed,
     // Dark reuses AccentHover; Light uses the separate pressed tone, not AccentHover.
     PressedAccentBorder,
     // Breadcrumb/hyperlink text, not an outline: Dark uses AccentHover (breadcrumb only);
@@ -277,8 +279,9 @@ internal static class ThemeTokens
             ["RadioButtonCheckIconDisabledBorderBrush"] = ThemeTokenVariation.DisabledOutline,
             ["SliderThumbDisabledBorderBrush"] = ThemeTokenVariation.DisabledOutline,
             ["ToggleSwitchContainerCheckedDisabledBackground"] = ThemeTokenVariation.DisabledOutline,
-            ["ButtonSolidPrimaryPressedBackground"] = ThemeTokenVariation.PressedAccent,
-            ["ButtonSolidPrimaryPressedBorderBrush"] = ThemeTokenVariation.PressedAccent,
+            ["ButtonSolidPrimaryPressedBackground"] = ThemeTokenVariation.PrimaryPressedAccent,
+            ["ButtonSolidPrimaryPressedBorderBrush"] = ThemeTokenVariation.PrimaryPressedAccent,
+            ["Workspace.SegmentPressed"] = ThemeTokenVariation.SegmentPressed,
             ["CheckBoxCheckedPressedBackground"] = ThemeTokenVariation.PressedAccent,
             ["CheckBoxCheckedPressedBorderBrush"] = ThemeTokenVariation.PressedAccent,
             ["RadioButtonCheckIconPressedBackground"] = ThemeTokenVariation.PressedAccent,

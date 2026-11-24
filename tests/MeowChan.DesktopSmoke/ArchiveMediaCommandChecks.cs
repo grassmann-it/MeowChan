@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Threading;
@@ -86,8 +87,8 @@ internal static class ArchiveMediaCommandChecks
             current.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             ContextMenu frozenMenu = page.ArchiveMediaMenu!;
-            Button favorites = page.FindControl<Button>("ArchiveFavoritesFilter")!;
-            favorites.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            ToggleButton favorites = page.FindControl<ToggleButton>("ArchiveFavoritesFilter")!;
+            CommandBindings.InvokeAction(favorites);
             Require(!page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource!.Cast<ArchiveAssetRow>().Any(),
                 "Favorites filter did not hide the unmarked archive asset.");
             opened = null; openedEntries = null;
@@ -101,7 +102,7 @@ internal static class ArchiveMediaCommandChecks
                 .Single(item => (string?)item.Tag == "gallery.open");
             Require(hiddenGallery.IsEnabled, "A hidden inline asset lost its thread-gallery fallback.");
             page.ArchiveMediaMenu.Close();
-            favorites.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            CommandBindings.InvokeAction(favorites);
 
             // The post menu copies text, number and (where the address scheme is known) the link; clipboard faked, local only.
             List<string> copied = new();

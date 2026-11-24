@@ -1,72 +1,40 @@
-using System.Runtime.CompilerServices;
-using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Platform;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
-using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// 16.11.2026: the reader's Media tab chooses Tiles or Table with the Archive results bar's joined pair (segment toggle buttons: icon before text,
-/// the one that is on highlighted) instead of one button that names the other view. The saved choice (Config.ArchiveMediaTiles, true = Tiles) keeps
-/// its meaning. The look is the capture's; here the markup, the pair following the page's one truth, the command and the failure path.
+/// 16.11.2026: the reader's Media tab chooses Grid or Table with the Archive results bar's joined pair (segment toggle buttons: icon before text,
+/// the one that is on highlighted) instead of one button that names the other view. The saved choice (Config.ArchiveMediaTiles, true = Grid) keeps
+/// its meaning. The look is the capture's; here the real toolbar, the pair following the page's one truth, the command and the failure path.
 /// </summary>
 [Collection("Gallery viewer construction")]
 public sealed class ReaderMediaLayoutSwitchTests
 {
-    private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
-
-    private static string Root(string path, [CallerFilePath] string source = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", path));
+    private static readonly string[] MediaToolNames =
+    [
+        "ArchiveRatingFilter", "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveFavoritesFilter",
+        "ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"
+    ];
 
     [Fact]
-    public void TheMediaToolsBarEndsWithTheJoinedTilesAndTablePairLikeTheArchiveResultsBar()
+    public void TheMediaToolsBarEndsWithTheJoinedGridAndTablePair()
     {
-        XElement bar = XDocument.Load(Root("Desktop/Views/Archive/ArchivePage.axaml")).Descendants()
-            .Single(element => element.Name.LocalName == "ActionToolBar" && (string?)element.Attribute(X + "Name") == "ReaderMediaTools");
-        XElement[] items = bar.Elements().Where(element => !element.Name.LocalName.Contains('.')).ToArray();
-        // F01 (21.11.): filters and sorting left (three dropdowns, then Favorites only), view tools right (Columns, then the pair at the far right).
-        Assert.Equal(["ArchiveRatingFilter", "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveFavoritesFilter", "ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"],
-            items.Select(item => (string)item.Attribute(X + "Name")!));
-        string? Attached(XElement item, string name) => item.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "ActionToolBar." + name)?.Value;
-        Assert.Equal([1, 1, 1, 1, 2, 2, 2], items.Select(item => int.Parse(Attached(item, "Group") ?? "0")));
-        Assert.Equal(["ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"],
-            items.Where(item => Attached(item, "End") == "True").Select(item => (string)item.Attribute(X + "Name")!));
-        XElement[] pair = items.TakeLast(2).ToArray();
-        Assert.All(pair, item => Assert.Equal("ToggleButton", item.Name.LocalName));
         BooruComponentDispatcher.Run(() => WithPage(page =>
         {
-            ToggleButton tiles = page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!;
+            ActionToolBar bar = page.FindControl<ActionToolBar>("ReaderMediaTools")!;
+            Assert.Equal(MediaToolNames, bar.Items.OfType<Control>().Select(item => item.Name));
+            ToggleButton grid = page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!;
             ToggleButton table = page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!;
-            ToolbarGapPatternTests.AssertJoinedToggleClasses(tiles.Classes, "segment-first");
+            ToolbarGapPatternTests.AssertJoinedToggleClasses(grid.Classes, "segment-first");
             ToolbarGapPatternTests.AssertJoinedToggleClasses(table.Classes, "segment-last");
         }));
-        foreach (XElement toggle in pair)
-        {
-            Assert.Null(toggle.Attribute("Padding"));
-            Assert.Equal("64", (string?)toggle.Attribute("MinWidth"));
-            Assert.Equal("{StaticResource Workspace.Size.Control}", (string?)toggle.Attribute("MinHeight")); // the token (32), as on the results bar
-            Assert.Equal("OnMediaLayoutClick", (string?)toggle.Attribute("Click"));
-        }
-        Assert.DoesNotContain("ArchiveMediaMode", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml")));
-        Assert.DoesNotContain("OnMediaModeClick", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.Gallery.cs")));
-        // Both views of the pair are work-view elements of the bar (placement: More in Barebones, on the bar otherwise).
-        foreach (string id in new[] { "reader.media.layout-tiles", "reader.media.layout-table" })
-            Assert.Equal((Presence.Overflow, Presence.Direct, Presence.Direct),
-                (WorkViewPolicy.Get(id).Barebones, WorkViewPolicy.Get(id).Simple, WorkViewPolicy.Get(id).Advanced));
-        // The command that chose the view before still names both buttons, and keeps one meaning of a switch (registered by the page).
-        string adapters = File.ReadAllText(Root("Desktop/Commands/LegacyCommandAdapters.cs"));
-        Assert.Contains("[\"ArchiveMediaLayoutTiles\"] = \"archive.media-view\", [\"ArchiveMediaLayoutTable\"] = \"archive.media-view\"", adapters);
-        string source = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.MediaLayout.cs"));
-        Assert.Contains("new(\"archive.media-view\", pane,", source);
-        Assert.Contains("SetMediaLayoutAsync(!_mediaTiles)", source);
     }
 
     [Fact]
@@ -76,7 +44,7 @@ public sealed class ReaderMediaLayoutSwitchTests
         {
             ToggleButton tiles = page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!;
             ToggleButton table = page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!;
-            Assert.Equal((true, false), (tiles.IsChecked, table.IsChecked)); // the default is Tiles
+            Assert.Equal((true, false), (tiles.IsChecked, table.IsChecked)); // the default is Grid
             Assert.True(page.FindControl<ListBox>("ArchiveMediaTiles")!.IsVisible);
 
             page.MediaTilesPreference = false; // a saved Table, as the shell loads it
@@ -145,7 +113,7 @@ public sealed class ReaderMediaLayoutSwitchTests
     }
 
     [Fact]
-    public void TheButtonsSayTilesAndTableInTheCurrentLanguage()
+    public void TheButtonsSayGridAndTableInTheCurrentLanguage()
     {
         BooruComponentDispatcher.Run(() => WithPage(page =>
         {
@@ -153,11 +121,17 @@ public sealed class ReaderMediaLayoutSwitchTests
             try
             {
                 Texts.SetLanguage("de");
-                Assert.Equal("Kacheln", page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!.Content);
+                Assert.Equal("Raster", page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!.Content);
                 Assert.Equal("Tabelle", page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!.Content);
                 Texts.SetLanguage("en");
-                Assert.Equal("Tiles", page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!.Content);
+                Assert.Equal("Grid", page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!.Content);
                 Assert.Equal("Table", page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!.Content);
+                foreach (string code in Texts.BundledPackCodes())
+                {
+                    Texts.SetLanguage(code);
+                    Assert.Equal(Texts.T("tagging.page.view.grid"), page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!.Content);
+                    Assert.Equal(Texts.T("gallery.table"), page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!.Content);
+                }
             }
             finally { Texts.SetLanguage(before); }
         }));

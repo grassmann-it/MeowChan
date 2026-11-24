@@ -23,7 +23,7 @@ public partial class ArchivePage
     private static readonly string[] MediaColumnKeys = ["name", "size", "version", "rating"];
     // Fallback widths; the fit columns (posts, media, source, work, lastCapture) take ArchivePage.ColumnFit instead (A1).
     private static readonly double[] ThreadDefaultWidths = [150, 0, 70, 120, 90, 110, 145, 170, 48, 140];
-    private static readonly double[] MediaDefaultWidths = [0, 85, 125, 130];
+    private static readonly double[] MediaDefaultWidths = [0, 96, 192, 130];
     private Dictionary<string, double> _archiveColumnWidths = new(StringComparer.Ordinal);
     private Dictionary<string, bool> _archiveColumnVisibility = new(StringComparer.Ordinal);
     private Dictionary<string, int> _archiveColumnOrder = new(StringComparer.Ordinal);

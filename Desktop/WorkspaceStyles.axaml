@@ -20,6 +20,7 @@
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ToolbarToggleSurface">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.SegmentPressed">#363C45</SolidColorBrush>
                     <!-- D0 surface tokens (design language 4.3): level 2 card with a 1-px CardEdge, level 4 overlay
                          (menu, flyout, filter surface, toast) with the app's only shadow, and the scrim behind blocking
                          in-window overlays. Overlay equals Panel today (separate key so it can be tinted later).
@@ -84,9 +85,9 @@
                     <SolidColorBrush x:Key="ButtonSolidPrimaryBorderBrush">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBackground">#8ABBFF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBorderBrush">#8ABBFF</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBackground">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBackground">#5586CC</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPressedForeground">#121416</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#5586CC</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#4A525C</SolidColorBrush>
@@ -304,6 +305,7 @@
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ToolbarToggleSurface">#7D7367</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.SegmentPressed">#CAC2B6</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#726858</SolidColorBrush>
@@ -1258,10 +1260,18 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ToggleButton.segment:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ToggleButton.segment:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.segment:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.segment:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
     </Style>
     <Style Selector="ToggleButton.segment:disabled, ToggleButton.segment:pointerover:disabled, ToggleButton.segment:pressed:disabled, ToggleButton.segment:checked:disabled, ToggleButton.segment:checked:pointerover:disabled, ToggleButton.segment:checked:pressed:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="ToggleButton.segment:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
@@ -1986,8 +1996,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ToggleButton.toolbar-toggle.segment:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter,
-                     ToggleButton.toolbar-toggle.filter-toggle:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ToggleButton.toolbar-toggle.filter-toggle:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
@@ -2001,6 +2010,13 @@
     </Style>
     <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
         <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:checked:pressed:not(:disabled):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:checked:pressed:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.toolbar-toggle:disabled">
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />

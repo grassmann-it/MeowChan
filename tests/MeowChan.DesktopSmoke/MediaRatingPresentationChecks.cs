@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Styling;
 using MeowChan.Desktop;
@@ -44,7 +45,7 @@ internal static partial class MediaRatingChecks
                 await PreparePresentationCell(mode, language, theme, width, height);
                 if (!Tiles.IsEffectivelyVisible)
                 {
-                    Click(_page.FindControl<Button>("ArchiveMediaMode")!, "Expose actual media tiles in presentation cell");
+                    Click(_page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!, "Expose actual media grid in presentation cell");
                     await Program.WaitUntilAsync(() => Tiles.IsEffectivelyVisible);
                 }
                 SetChoice(Filter, 0, "Keep presentation cell on all ratings");
