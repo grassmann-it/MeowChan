@@ -93,8 +93,7 @@ internal sealed class TaggingQueueRowView : Grid
     private readonly Func<TagQueueItem, int?>? _tagCount;
     private readonly Func<TagQueueItem, (bool Favorite, int? Rating, string? Description)>? _decisionOf;
     private readonly TextBlock _number = Cell(TextAlignment.Right);
-    // The next entry of the walk: a catalog chevron (no glyph), created when the row is shown (the icon needs the asset loader).
-    private readonly ContentControl _next = new() { Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Focusable = false };
+    private readonly TaggingQueueNextMarker _next = new();
     private readonly TaggingThumbnail _preview;
     private readonly TextBlock _kind = Cell(TextAlignment.Left, muted: true);
     private readonly TextBlock _name = Cell(TextAlignment.Left);
@@ -116,13 +115,17 @@ internal sealed class TaggingQueueRowView : Grid
         _decisionOf = decisionOf;
         ColumnDefinitions = BuildColumns(showPreview, compactTable, showKind, showGroup);
         ColumnSpacing = ColumnGap;
-        MinHeight = compact ? CompactHeight : Math.Max(RowHeight, PreviewSize + 8);
+        MinHeight = compact ? CompactHeight : showPreview ? WorkspaceMetrics.TwoLineRowHeight : RowHeight;
+        if (showPreview && !compact)
+        {
+            _name.TextWrapping = TextWrapping.Wrap;
+            _name.MaxLines = 2;
+        }
         double size = compact ? CompactPreviewSize : PreviewSize;
         _preview = new TaggingThumbnail(showText: false) { Source = thumbnails, Width = size, Height = size, IsVisible = showPreview, HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetAccessibilityView(_preview, AccessibilityView.Raw);
         StackPanel number = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { _next, _number } };
-        AutomationProperties.SetAccessibilityView(_next, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(_stateIcon, AccessibilityView.Raw);
         number.Margin = NumberMargin(showPreview, showKind);
         _kind.IsVisible = showKind;
@@ -142,6 +145,7 @@ internal sealed class TaggingQueueRowView : Grid
     internal TaggingQueueRow? Row { get; private set; }
     /// <summary>The preview of this row (test seam).</summary>
     internal TaggingThumbnail Preview => _preview;
+    internal TextBlock FileName => _name;
 
     private void Add(Control control, int column)
     {
@@ -167,8 +171,7 @@ internal sealed class TaggingQueueRowView : Grid
         Row = row;
         _number.Text = row?.NumberText;
         _number.FontWeight = row?.Next == true ? FontWeight.Bold : FontWeight.Normal;
-        _next.IsVisible = row?.Next == true;
-        if (_next.IsVisible && _next.Content == null) _next.Content = CommandBindings.IconFromKey("chevron-right", 12);
+        _next.Show(row?.Next == true);
         _preview.Item = row?.Item;
         _kind.Text = row?.KindText;
         _name.Text = row?.Name;
@@ -187,6 +190,5 @@ internal sealed class TaggingQueueRowView : Grid
         if (rating.HasValue) _ratingMark.Content ??= CommandBindings.IconFromKey("star-half", 12);
         _ratingValue.Text = rating?.ToString(Localization.Texts.Culture);
         ToolTip.SetTip(_name, decisions == null ? row?.Name : row?.Name + " · " + decisions);
-        ToolTip.SetTip(_next, row?.Next == true ? Localization.Texts.T("tagging.page.next") : null);
     }
 }
