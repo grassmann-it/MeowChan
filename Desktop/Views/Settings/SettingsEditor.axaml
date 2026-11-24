@@ -229,7 +229,9 @@
                                 <TextBlock x:Name="HeaderTaglineFixedFieldLabel" Text="{Binding HeaderTaglineFixedLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding HeaderTaglineFixedHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ComboBox x:Name="HeaderTaglineFixedIdInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFixedFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineFixedLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineFixedHint}" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeaderTaglineFixedChoices}" SelectedItem="{Binding SelectedHeaderTaglineFixed, Mode=TwoWay}">
+                            <ComboBox x:Name="HeaderTaglineFixedIdInput" VerticalAlignment="Center" AutomationProperties.AutomationId="HeaderTaglineFixedIdInput" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFixedFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineFixedLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineFixedHint}" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeaderTaglineFixedChoices}" SelectedItem="{Binding SelectedHeaderTaglineFixed, Mode=TwoWay}">
+                                <!-- The finite built-in list has variable-height headings and wrapped quips. Keep every choice addressable while the popup is open. -->
+                                <ComboBox.ItemsPanel><ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate></ComboBox.ItemsPanel>
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
                         </Grid>
