@@ -6,6 +6,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -19,6 +20,37 @@ namespace MeowChan.DesktopSmoke;
 // when written (no GUI smokes at that time); the central run decides.
 internal static partial class MediaPageChecks
 {
+    private static async Task CheckNarrowMediaToolbarAsync(Window window, MediaPage page)
+    {
+        MediaPageLayout saved = page.PageLayout;
+        double width = window.Width;
+        page.ApplyLayout(saved with { TagList = true, TagListSide = MediaTagListSide.Left }, save: false);
+        try
+        {
+            window.Width = 832;
+            await UntilAsync(() => Math.Abs(page.Bounds.Width - 832) < 0.5);
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Control more = C<Control>(page, "MediaMore");
+            Control row = page.ToolbarRow;
+            double moreLeft = more.TranslatePoint(default, page)!.Value.X;
+            double moreRight = moreLeft + more.Bounds.Width;
+            double moreInRow = more.TranslatePoint(new Point(more.Bounds.Width, 0), row)!.Value.X;
+            Require(more.IsEffectivelyVisible && more.Bounds.Width > 0 && moreLeft >= 0 && moreRight <= page.Bounds.Width + 0.5
+                && moreInRow <= row.Bounds.Width + 0.5 && row.Bounds.Width >= MediaToolbarLayout.NarrowestRowWidth - 0.5,
+                $"At 832 DIP More must fit inside the toolbar and the page (row {row.Bounds.Width}, More right {moreRight}).");
+            Require(!page.TagSidebar.IsEffectivelyVisible && !page.IsPanelShown && page.PageLayout.TagListWidth == saved.TagListWidth,
+                "Narrowing must fold the sidebars and preserve the list preference.");
+            Console.WriteLine($"SMOKE media More at 832 DIP: toolbar {row.Bounds.Width:0.##}, More right {moreRight:0.##}.");
+            Program.CaptureWindow(window, "smoke-media-more-832.png");
+        }
+        finally
+        {
+            window.Width = width;
+            page.ApplyLayout(saved, save: false);
+            await UntilAsync(() => Math.Abs(page.Bounds.Width - width) < 0.5);
+        }
+    }
+
     private static async Task LayoutAsync(Window window, MediaPage page, ThemeVariant theme, string code)
     {
         string state = $"layout {theme}/{code}";
@@ -83,20 +115,29 @@ internal static partial class MediaPageChecks
         Require(page.IsPanelShown && X(panel) > X(surface), state + ": the Booru view keeps the media panel right of the grid (the list on the left).");
         TilePanelHeightMatches(page, state);
 
-        // The right side, a wider list within its range, then the width setting is brought into the range. The panel is on the right too:
-        // the list stands outermost, the panel between it and the grid; both fit beside the grid at this width (the panel keeps its own width).
+        // With both sidebars on the right, the tag list stands outermost. At its maximum width the media panel must give space to the toolbar.
         page.ApplyLayout(page.PageLayout with { TagListSide = MediaTagListSide.Right, TagListWidth = 400 });
         await UntilAsync(() => sidebar.TranslatePoint(default, page)!.Value.X > surface.TranslatePoint(default, page)!.Value.X);
         Require(Math.Abs(sidebar.Bounds.Width - 400) < 0.5, state + ": the list must be 400 dip wide on the right: " + sidebar.Bounds);
         Require(page.IsPanelShown && X(surface) < X(panel) && X(panel) < X(sidebar),
             state + ": with both on the right the order must be grid, panel, tag list: " + X(surface) + " / " + X(panel) + " / " + X(sidebar));
+        int preferredPanelWidth = page.PageLayout.PanelWidth;
         page.ApplyLayout(page.PageLayout with { TagListWidth = int.MaxValue });
         await UntilAsync(() => sidebar.Bounds.Width > 400);
         Require(Math.Abs(sidebar.Bounds.Width - Config.MediaTagListWidthMaximum) < 0.5 && page.PageLayout.TagListWidth == Config.MediaTagListWidthMaximum,
             state + ": the width must stop at its maximum: " + sidebar.Bounds.Width);
-        Require(page.IsPanelShown && Math.Abs(panel.Bounds.Width - page.PageLayout.PanelWidth) < 0.5,
-            state + ": the widest list must leave the media panel its width: " + panel.Bounds.Width);
+        MediaPanelColumns columns = MediaPanelColumns.Of(page.PageLayout, page.Bounds.Width, page.PanelMinimumPageWidth);
+        Require(page.IsPanelShown && Math.Abs(panel.Bounds.Width - columns.PanelWidth) < 0.5 && panel.Bounds.Width < preferredPanelWidth
+            && page.ToolbarRow.Bounds.Width >= MediaToolbarLayout.NarrowestRowWidth - 0.5 && page.PageLayout.PanelWidth == preferredPanelWidth,
+            state + ": the widest list must leave room for the toolbar and preserve the panel's preferred width: " + panel.Bounds.Width);
+        window.Width = 1520;
+        await UntilAsync(() => Math.Abs(panel.Bounds.Width - preferredPanelWidth) < 0.5);
+        Require(page.IsPanelShown && page.PageLayout.PanelWidth == preferredPanelWidth,
+            state + ": widening must restore the preferred media-panel width.");
+
+        window.Width = 1400;
         page.ApplyLayout(page.PageLayout with { TagListWidth = 256, TagListSide = MediaTagListSide.Left });
+        await UntilAsync(() => Math.Abs(window.ClientSize.Width - 1400) < 1 && sidebar.IsEffectivelyVisible && page.IsPanelShown);
 
         // The focus mode keeps working: the rows go, the list and the tiles stay as chosen, and the rows come back as chosen.
         page.ApplyLayout(page.PageLayout with { Subtitle = true, StatusLine = false });

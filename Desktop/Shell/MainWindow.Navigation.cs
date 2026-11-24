@@ -209,7 +209,12 @@ public partial class MainWindow
             threadMedia: _archivePage.ThreadMediaForGallery(entries));
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
         // The shell hides the host, not the page, when another page is shown (as for the media page host): inline and sidebar reader videos pause then.
-        ArchivePageHost.PropertyChanged += (_, e) => { if (e.Property == Avalonia.Visual.IsVisibleProperty && e.NewValue is false) _ = _archivePage?.PauseInlineVideos(); };
+        ArchivePageHost.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Avalonia.Visual.IsVisibleProperty || e.NewValue is not false) return;
+            _archivePage?.MediaSidebar?.InvalidateTagEditor();
+            _ = _archivePage?.PauseInlineVideos();
+        };
         ArchivePageHost.Content = _archivePage;
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "archive-done");
         InitializeMediaPage();
