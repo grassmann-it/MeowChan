@@ -229,11 +229,13 @@ internal static class ReaderViewChecks
         fixture.FailCaptureWrite = true;
         await page.ToggleThreadCaptureAsync();
         fixture.FailCaptureWrite = false;
-        Require(page.FindControl<TextBlock>("ArchiveMessage")!.Text == "Fixture capture write failed."
+        TextBlock error = page.FindControl<TextBlock>("ArchiveErrorText")!;
+        Require(error.Text == "Fixture capture write failed."
             && ReferenceEquals(source, list.ItemsSource), "The capture error did not leave the reader open.");
         fixture.FailNextRead = true;
         await page.ActivateAsync();
-        Require(!fixture.FailNextRead && ReferenceEquals(source, list.ItemsSource), "The failed refresh replaced the post list.");
+        Require(error.Text == "Fixture catalog read failed."
+            && ReferenceEquals(source, list.ItemsSource), "The refresh error did not leave the reader open.");
 
         const string last = "10499";
         await page.FocusPostAsync(last);
@@ -303,19 +305,19 @@ internal static class ReaderViewChecks
             await classifier.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             int index = page.Projection!.PositionOf(anchor);
             list.ScrollIntoView(index);
-            fixture.Window.UpdateLayout();
+            await Program.WaitUntilAsync(() => Visible(list, anchor));
             ScrollViewer scroll = list.GetVisualDescendants().OfType<ScrollViewer>().First();
             Control card = (Control)list.ContainerFromIndex(index)!;
             double top = card.TranslatePoint(default, list)!.Value.Y;
             scroll.Offset += new Vector(0, top + 16);
             list.SelectedIndex = page.Projection.PositionOf(selection);
-            fixture.Window.UpdateLayout();
-            Require(list.SelectedItem is ArchivePostRow row && row.Id == selection
+            await Program.WaitUntilAsync(() => Selected(fixture) == selection
                 && page.CurrentReaderAnchor is { } position && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2,
-                $"Could not change the old list during classification. Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.");
+                () => $"Could not change the old list during classification. Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.");
         }
         finally { classifier.Release.TrySetResult(); }
         await page.WaitForReaderViewAsync();
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         Require(list.ItemCount == 5_001 && Selected(fixture) == selection && page.CurrentReaderAnchor is { } retained
             && retained.PostId == anchor && Math.Abs(retained.Top + 16) <= 2,
             $"Publishing the filter lost the latest position. Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.");
