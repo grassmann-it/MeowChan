@@ -12,6 +12,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -446,8 +447,6 @@ internal sealed partial class ReaderMediaSidebar : Border
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
         foreach (GalleryDecisionRow row in new[] { _decision, _overlayRating })
         {
-            foreach (Button button in row.StarButtons.Cast<Button>().Append(row.ClearButton))
-                TrackDecisionPress(button);
             row.RatingRequested += value =>
             {
                 if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
@@ -457,8 +456,9 @@ internal sealed partial class ReaderMediaSidebar : Border
                 if (!e.Handled && row.RouteStarKey(e)) e.Handled = true;
             }, RoutingStrategies.Tunnel);
         }
-        TrackDecisionPress(_headerFavorite);
-        TrackDecisionPress(_tagCount);
+        foreach (Button button in _infoBar.GetVisualDescendants().Concat(_overlayActions.GetVisualDescendants())
+            .OfType<Button>().Append(_headerFavorite).Append(Open))
+            TrackDecisionPress(button);
         AddHandler(PointerReleasedEvent, (_, e) =>
         {
             if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonReleased

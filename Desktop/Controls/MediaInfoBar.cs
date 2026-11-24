@@ -50,6 +50,7 @@ internal sealed class MediaInfoBar : Grid
         _rating = rating;
         _edit = editTags;
         _rating.FavoriteVisible = false;
+        _rating.ClearButton.IsTabStop = true;
         _edit.Height = 32;
         _edit.MinWidth = 0;
         _edit.Classes.Add("panel-action");
@@ -220,7 +221,6 @@ internal sealed class MediaInfoBar : Grid
         bool focusEdit = !tight && _more.IsFocused;
         _rating.ClearButton.IsVisible = !tight;
         _rating.ClearGap = tight ? 0 : 8;
-        _rating.ClearButton.IsTabStop = _rating.ClearButton.IsEnabled;
         _toggleArrow.IsVisible = !tight;
         _more.IsVisible = tight;
         _edit.IsVisible = !tight;
