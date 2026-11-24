@@ -64,14 +64,14 @@ internal static class TaglinePicker
     }
 
     /// <summary>
-    /// The quips of the newest release the profile has not seen: those introduced after <paramref name="lastSeen"/> (none seen: ever) and not
+    /// The release quips of the newest release the profile has not seen: those introduced after <paramref name="lastSeen"/> (none seen: ever) and not
     /// after <paramref name="current"/>, restricted to the highest such version. Empty when the profile is up to date or the version is unknown.
     /// </summary>
     internal static TaglineEntry[] ReleaseCandidates(IReadOnlyList<TaglineEntry> pool, Version? current, Version? lastSeen)
     {
         if (current == null || lastSeen != null && lastSeen >= current) return [];
         Version floor = lastSeen ?? new Version(0, 0, 0);
-        TaglineEntry[] newer = pool.Where(entry => entry.Since > floor && entry.Since <= current).ToArray();
+        TaglineEntry[] newer = pool.Where(entry => entry.Category == TaglineCategory.Release && entry.Since > floor && entry.Since <= current).ToArray();
         if (newer.Length == 0) return [];
         Version latest = newer.Max(entry => entry.Since)!;
         return newer.Where(entry => entry.Since == latest).ToArray();
@@ -82,7 +82,7 @@ internal static class TaglinePicker
     {
         TaglineEntry[] others = pool.Where(entry => entry.Id != currentId).OrderBy(entry => entry.Id, StringComparer.Ordinal).ToArray();
         if (others.Length > 0) return others[random.Next(others.Length)];
-        return pool.FirstOrDefault();
+        return pool.Count == 0 ? null : pool[0];
     }
 
     private static TaglineEntry Choose(TaglineEntry[] ordered, string mode, DateOnly today, Random random) =>

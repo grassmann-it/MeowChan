@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using Avalonia.Media;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -40,6 +42,9 @@ public partial class SettingsEditor
         get => _selectedHeaderTagline;
         set
         {
+            // Replacing translated mode labels briefly clears the ComboBox selection.
+            // Keep the fixed row and its popup visible until the new mode choice binds.
+            if (_refreshingLanguageLabels && value is null) return;
             SetField(ref _selectedHeaderTagline, value, nameof(SelectedHeaderTagline));
             RaiseHeaderTaglineChanged(nameof(HeaderTaglineFixedEnabled));
             RaiseHeaderTaglineChanged(nameof(HeaderTaglineIntervalEnabled));
@@ -64,17 +69,48 @@ public partial class SettingsEditor
             new(TaglinePicker.ModeInterval, Texts.T("settings.headerTagline.interval"))
         };
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        HeaderTaglineFixedChoices = pool.Select(entry => new SettingsChoice(entry.Id, entry.Text)).ToArray();
+        var groups = pool.OrderBy(entry => entry.Category)
+            .ThenBy(entry => entry.Text, StringComparer.Create(Texts.Culture, ignoreCase: true))
+            .GroupBy(entry => entry.Category)
+            .ToArray();
+        HeaderTaglineFixedChoices = groups.SelectMany(group => group)
+            .Select(entry => new SettingsChoice(entry.Id, entry.Text)).ToArray();
+        if (HeaderTaglineFixedIdInput is { } picker)
+        {
+            var headings = groups.ToDictionary(group => group.First().Id, group => HeaderTaglineCategoryLabel(group.Key));
+            // Keep headings with their first quip so keyboard navigation has one stop per choice.
+            picker.SelectionBoxItemTemplate ??= picker.ItemTemplate;
+            picker.ItemTemplate = new FuncDataTemplate<SettingsChoice>((choice, _) =>
+            {
+                if (choice is null) return null;
+                TextBlock quip = new() { Text = choice.Label, TextWrapping = TextWrapping.Wrap };
+                if (!headings.TryGetValue(choice.Value, out string? heading)) return quip;
+                return new StackPanel
+                {
+                    Classes = { "workspace-field" },
+                    Children = { new TextBlock { Text = heading, Classes = { "workspace-field-label" } }, quip }
+                };
+            });
+        }
         foreach (string property in new[] { nameof(HeaderTaglineLabel), nameof(HeaderTaglineHint), nameof(HeaderTaglineFixedLabel),
             nameof(HeaderTaglineFixedHint), nameof(HeaderTaglineIntervalMinutesLabel), nameof(HeaderTaglineIntervalMinutesHint),
             nameof(HeaderTaglineIntervalMinutesHelp), nameof(HeaderTaglineChoices), nameof(HeaderTaglineFixedChoices) })
             RaiseHeaderTaglineChanged(property);
         string normalized = TaglinePicker.NormalizeMode(mode);
         SelectedHeaderTagline = HeaderTaglineChoices.First(item => item.Value == normalized);
-        // A stored id this language cannot show (or one that no longer exists) shows the classic quip, else the first available.
+        // Match the header fallback, including the original ID order when the classic quip is missing.
+        string? firstId = pool.Count == 0 ? null : pool[0].Id;
         SelectedHeaderTaglineFixed = HeaderTaglineFixedChoices.FirstOrDefault(item => item.Value == fixedId)
-            ?? HeaderTaglineFixedChoices.FirstOrDefault(item => item.Value == TaglineCatalog.DefaultId) ?? HeaderTaglineFixedChoices.FirstOrDefault();
+            ?? HeaderTaglineFixedChoices.FirstOrDefault(item => item.Value == TaglineCatalog.DefaultId)
+            ?? HeaderTaglineFixedChoices.FirstOrDefault(item => item.Value == firstId);
     }
+
+    private static string HeaderTaglineCategoryLabel(TaglineCategory category) => category switch
+    {
+        TaglineCategory.Release => Texts.T("settings.headerTagline.category.release"),
+        TaglineCategory.Seasonal => Texts.T("settings.headerTagline.category.seasonal"),
+        _ => Texts.T("settings.headerTagline.category.general")
+    };
 
     /// <summary>The minutes from <paramref name="minutes"/> into the draft (start, discard, reset).</summary>
     private void LoadHeaderTaglineIntervalDraft(int minutes)
