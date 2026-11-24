@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -50,6 +52,9 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     private BooruGalleryPicture _picture;
     private double _aspect = 1;
     private bool _disposed;
+
+    internal Func<TimeSpan, CancellationToken, Task>? SampleDelayAsync { get; set; }
+    internal Task SampleLoad { get; private set; } = Task.CompletedTask;
 
     internal PanelCloseButton Close { get; } = new("BooruMediaClose") { Focusable = false, IsTabStop = false };
     internal Button OpenGallery { get; } = new()
@@ -172,14 +177,14 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         Func<bool> current, Action changed)
     {
         if (_disposed || _target != target || !this.IsAttachedToVisualTree() || !IsEffectivelyVisible) return;
-        _sample.Start(port, target.Post, limits, BooruGallerySampleLoader.DefaultDelay,
+        SampleLoad = _sample.Start(port, target.Post, limits, BooruGallerySampleLoader.DefaultDelay,
             static (bytes, width, pixels) => BooruGalleryPanel.DecodeBitmap(bytes, width, pixels),
             image =>
             {
                 if (_disposed || _target != target || !IsEffectivelyVisible || !current()) return false;
                 ReplacePicture(image, BooruGalleryPicture.Sample);
                 return true;
-            }, changed);
+            }, changed, SampleDelayAsync) ?? SampleLoad;
     }
 
     private static Bitmap? DecodePreview(byte[] bytes, int maximumPixels)
@@ -284,6 +289,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     internal void Release()
     {
         _sample.Reset(offered: false);
+        SampleLoad = Task.CompletedTask;
         _facts.Hide();
         _facts.Content = null;
         _target = null;

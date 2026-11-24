@@ -84,13 +84,15 @@ public sealed class BooruMediaSidebarTests
     [Fact]
     public void FiveArrowMovesRequestOneSampleAndKeepFocusOnTheLastHit() => InWindow((harness, model, view, window) =>
     {
+        SampleTime time = new(Sidebar(view));
         harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
             BooruUiFixtures.Page(query, page, true, Enumerable.Range(101, 6)
                 .Select(id => BooruUiFixtures.Post(id.ToString(), sample: true)).ToArray())));
         harness.Previews.OnSample = (_, _) => Task.FromResult<byte[]?>(BooruUiFixtures.Png(44));
         Search(model, view);
-        WaitPastSampleDelay();
+        time.Advance(200);
         Assert.Empty(harness.Previews.SampleRequests);
+        Assert.Equal(0, time.Scheduled);
         Settle(window);
         Focus(Hit(view, "101"));
         for (int id = 101; id <= 105; ++id)
@@ -98,13 +100,19 @@ public sealed class BooruMediaSidebarTests
             Border card = Hit(view, id.ToString());
             Assert.True(card.IsFocused);
             card.RaiseEvent(KeyPress(Key.Down, card));
+            if (id < 105) time.Advance(40);
         }
         Assert.True(Hit(view, "106").IsFocused);
         Image image = Find<Image>(Sidebar(view), "BooruMediaPreview");
         var preview = image.Source;
         Button stage = Find<Button>(Sidebar(view), "BooruMediaOpenGallery");
         double height = stage.Bounds.Height;
-        BooruComponentDispatcher.WaitUntil(() => image.Source != preview, "the final hit's sample");
+        time.Advance(199);
+        Assert.Empty(harness.Previews.SampleRequests);
+        Assert.Same(preview, image.Source);
+        time.Advance(1);
+        BooruComponentDispatcher.Wait(Sidebar(view).SampleLoad);
+        Assert.NotSame(preview, Assert.IsAssignableFrom<Bitmap>(image.Source));
         window.UpdateLayout();
         Assert.Equal(new[] { "106" }, harness.Previews.SampleRequests);
         Assert.Equal(height, stage.Bounds.Height);
@@ -114,14 +122,16 @@ public sealed class BooruMediaSidebarTests
     [Fact]
     public void ClosedRestoredAndNewPagesDoNotStartSamplesAndClosingCancelsTheActiveOne() => InWindow((harness, model, view, window) =>
     {
+        SampleTime time = new(Sidebar(view));
         harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
             BooruUiFixtures.Page(query, page, page == 2, BooruUiFixtures.Post("101", sample: true), BooruUiFixtures.Post("102", sample: true))));
         Search(model, view);
         Button toggle = Find<Button>(view, "BooruMediaToggle");
         Click(toggle);
         Focus(Hit(view, "102"));
-        WaitPastSampleDelay();
+        time.Advance(200);
         Assert.Empty(harness.Previews.SampleRequests);
+        Assert.Equal(0, time.Scheduled);
         Click(toggle);
 
         int original = view.SearchTabs.ActiveId;
@@ -130,10 +140,14 @@ public sealed class BooruMediaSidebarTests
         Assert.True(view.SearchTabs.Select(original));
         Settle(window);
         Assert.Equal(Texts.T("booru.ui.post.title", "102"), Find<TextBlock>(Sidebar(view), "BooruMediaTitle").Text);
+        time.Advance(200);
+        Assert.Empty(harness.Previews.SampleRequests);
+        Assert.Equal(0, time.Scheduled);
         BooruComponentDispatcher.Wait(model.Search.GoToPageAsync(2));
         Settle(window);
-        WaitPastSampleDelay();
+        time.Advance(200);
         Assert.Empty(harness.Previews.SampleRequests);
+        Assert.Equal(0, time.Scheduled);
 
         TaskCompletionSource canceled = new(TaskCreationOptions.RunContinuationsAsynchronously);
         harness.Previews.OnSample = async (_, token) =>
@@ -143,11 +157,81 @@ public sealed class BooruMediaSidebarTests
             return null;
         };
         Focus(Hit(view, "101"));
+        time.Advance(200);
         BooruComponentDispatcher.WaitUntil(() => harness.Previews.SampleRequests.Count == 1, "an active sample");
+        Task activeLoad = Sidebar(view).SampleLoad;
         Click(toggle);
         BooruComponentDispatcher.Wait(canceled.Task);
+        BooruComponentDispatcher.Wait(activeLoad);
         Assert.Equal(new[] { "101" }, harness.Previews.SampleRequests);
     });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LeavingATabCancelsItsSampleAndALateReplyKeepsTheOtherSearchImage(bool viaWatchers) =>
+        InWindow((harness, model, view, window) =>
+        {
+            BooruMediaSidebar sidebar = Sidebar(view);
+            SampleTime time = new(sidebar);
+            harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+                BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101", sample: true))));
+            Search(model, view);
+            int original = view.SearchTabs.ActiveId;
+            int copied = view.SearchTabs.Add(copyCurrent: true);
+            Assert.NotEqual(original, copied);
+            Assert.True(view.SearchTabs.Select(original));
+            Settle(window);
+
+            TaskCompletionSource<CancellationToken> entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource canceled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<byte[]?> lateReply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            byte[] nextSample = Png(56, 28);
+            harness.Previews.OnSample = async (_, token) =>
+            {
+                if (!entered.TrySetResult(token)) return nextSample;
+                using var registration = token.Register(() => canceled.TrySetResult());
+                return await lateReply.Task; // Model a port that replies even after cancellation.
+            };
+
+            try
+            {
+                Focus(Hit(view, "101"));
+                time.Advance(200);
+                CancellationToken firstToken = BooruComponentDispatcher.Wait(entered.Task);
+                Task firstLoad = sidebar.SampleLoad;
+                Assert.False(firstToken.IsCancellationRequested);
+                Assert.Equal("101", Assert.Single(harness.Previews.SampleRequests));
+
+                if (viaWatchers) view.ShowWatchers();
+                else Assert.True(view.SearchTabs.Select(copied));
+                BooruComponentDispatcher.Wait(canceled.Task);
+                Assert.True(firstToken.IsCancellationRequested);
+
+                if (viaWatchers)
+                {
+                    view.CloseWatchers();
+                    Assert.True(view.SearchTabs.Select(copied));
+                }
+                Settle(window);
+                time.Advance(200);
+                Assert.Equal("101", Assert.Single(harness.Previews.SampleRequests));
+                Image image = Find<Image>(sidebar, "BooruMediaPreview");
+                Bitmap preview = Assert.IsAssignableFrom<Bitmap>(image.Source);
+                Focus(Hit(view, "101"));
+                time.Advance(200);
+                BooruComponentDispatcher.Wait(sidebar.SampleLoad);
+                Bitmap sample = Assert.IsAssignableFrom<Bitmap>(image.Source);
+                Assert.NotSame(preview, sample);
+                Assert.Equal(new PixelSize(56, 28), sample.PixelSize);
+
+                lateReply.SetResult(Png(24, 48));
+                BooruComponentDispatcher.Wait(firstLoad);
+                Assert.Same(sample, image.Source);
+                Assert.Equal(new[] { "101", "101" }, harness.Previews.SampleRequests);
+            }
+            finally { lateReply.TrySetResult(null); }
+        });
 
     [Fact]
     public void SidebarCommandsActOnlyOnItsHitAndMatchTheCardAfterSaving() => InWindow((harness, model, view, window) =>
@@ -318,9 +402,7 @@ public sealed class BooruMediaSidebarTests
         Settle(window);
     }
 
-    private static void WaitPastSampleDelay() => BooruComponentDispatcher.Wait(Task.Delay(BooruGallerySampleLoader.DefaultDelay + TimeSpan.FromMilliseconds(50)));
-
-    private static Control Sidebar(BooruWorkbenchView view) => Find<Control>(view, "BooruMediaSidebar");
+    private static BooruMediaSidebar Sidebar(BooruWorkbenchView view) => Find<BooruMediaSidebar>(view, "BooruMediaSidebar");
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
@@ -350,4 +432,32 @@ public sealed class BooruMediaSidebarTests
 
     private static KeyEventArgs KeyPress(Key key, Control source) =>
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, Source = source };
+
+    private sealed class SampleTime
+    {
+        private readonly List<(TimeSpan Due, TaskCompletionSource Ready)> _waiting = new();
+        private TimeSpan _now;
+        internal int Scheduled { get; private set; }
+
+        internal SampleTime(BooruMediaSidebar sidebar) => sidebar.SampleDelayAsync = WaitAsync;
+
+        private async Task WaitAsync(TimeSpan delay, CancellationToken token)
+        {
+            ++Scheduled;
+            TaskCompletionSource ready = new();
+            using var registration = token.Register(() => ready.TrySetCanceled(token));
+            _waiting.Add((_now + delay, ready));
+            await ready.Task;
+        }
+
+        internal void Advance(int milliseconds)
+        {
+            Dispatcher.UIThread.RunJobs();
+            _now += TimeSpan.FromMilliseconds(milliseconds);
+            var due = _waiting.Where(wait => wait.Due <= _now).ToArray();
+            _waiting.RemoveAll(wait => wait.Due <= _now || wait.Ready.Task.IsCompleted);
+            foreach (var wait in due) wait.Ready.TrySetResult();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
 }
