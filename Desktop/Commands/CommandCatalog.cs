@@ -231,8 +231,8 @@ public static class CommandCatalog
         new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "Shift+D", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten", "sliders", "Shift+O", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-autohide-toggle", "command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.post-overlay-toggle", "command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten", "file-text", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.filmstrip-toggle", "command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden", "columns", "Shift+L", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.post-overlay-toggle", "command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten", "layers", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.filmstrip-toggle", "command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden", "film", "Shift+L", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         // GL3: the layout menu. All unbound (rebindable); the filmstrip row of the menu is the Shift+L command above.
         new("gallery.layout-menu", "command.gallery.layout-menu", "Open layout menu", "Layout-Menü öffnen", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.layout.tools", "command.gallery.layout.tools", "Layout: show / hide tools", "Layout: Werkzeuge anzeigen / ausblenden", "tool", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
@@ -318,6 +318,7 @@ public static class CommandCatalog
         // The reader's settings popover (R7, the toolbar's gear since RL1); a user shortcut opens it too.
         new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "settings", null, CommandScope.Reader, new[] { "reader-settings" }),
         // R8: the media sidebar of the large reader (a settings-popover switch) and its steps through the focused post's media.
+        new("media.sidebar.info", "command.media.sidebar.info", "Details in the media sidebar", "Details in der Medienleiste", "info", "Shift+I", CommandScope.Reader | CommandScope.Media, new[] { "reader", "media" }),
         new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "panel-left", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-settings", "reader-media-sidebar" }),
         // The archive's thread list on or off (reader toolbar switch; Config.ArchiveThreadListHidden). No default gesture (21.11. review): each user can give it one.
         new("archive.thread-list.toggle", "command.archive.thread-list.toggle", "Thread list", "Threadliste", "panel-left", null, CommandScope.Archive | CommandScope.Reader, new[] { "reader-toolbar" }),

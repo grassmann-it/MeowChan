@@ -33,6 +33,7 @@ internal static class ShortcutMeaning
         new[] { "reader.next-thread", "gallery.next" },
         new[] { "export.open-html-dialog", "media.export-original" },
         new[] { "reader.sidebar.toggle", "media.panel.toggle" },
+        new[] { "media.sidebar.info", "gallery.layout.info" },
         new[] { "thread.tags", "tags.quick.thread-section" }
     };
 

@@ -57,8 +57,12 @@ internal static partial class QuickTagNativeTypingChecks
         }
     }
 
-    private static Button EditTags(ReaderMediaSidebar sidebar) => sidebar.GetVisualDescendants().OfType<Button>()
-        .Single(button => button.Name == "ReaderMediaSidebarEditTags");
+    private static Button EditTags(ReaderMediaSidebar sidebar)
+    {
+        if (sidebar.InfoToggle.IsChecked != true) sidebar.InfoToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        sidebar.UpdateLayout();
+        return sidebar.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ReaderMediaSidebarEditTags");
+    }
 
     private static void Check(bool condition, string description)
     {
@@ -93,7 +97,6 @@ internal static partial class QuickTagNativeTypingChecks
 
     private static async Task ReaderSidebarTagRaceAsync(MainWindow window, ArchivePage page, MediaNativeInput input)
     {
-        Button edit = EditTags(page.MediaSidebar!);
         ListBox posts = Named<ListBox>(window, "ArchivePosts");
         ArchivePostRow a = posts.Items.OfType<ArchivePostRow>().Single(row => row.Id == "482");
         ArchivePostRow b = posts.Items.OfType<ArchivePostRow>().Single(row => row.Id == PicturePost);
@@ -122,6 +125,7 @@ internal static partial class QuickTagNativeTypingChecks
             page.ToggleMediaSidebar();
             page.ToggleMediaSidebar();
             await Settle(window);
+            Button edit = EditTags(page.MediaSidebar!);
             posts.SelectedItem = a;
             page.SelectMediaSidebarIndex(1);
             posts.SelectedItem = b;

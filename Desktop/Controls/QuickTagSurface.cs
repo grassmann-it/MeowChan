@@ -482,19 +482,41 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         StackPanel tags = new() { Name = _name + "Tags", Spacing = 8,
             Children = { new StackPanel { Spacing = 4, Children = { _title, _fieldArea } }, _upper, suggestionArea, _status } };
         _sidebarActions = new ContentControl { IsVisible = false };
-        PanelActionStack actions = new(_name + "ActionStack") { Children = { _sidebarActions, Footer } };
+        UseWrappingActions();
+        StackPanel actions = new() { Spacing = FooterGap, Children = { _sidebarActions, Footer } };
         _sidebarSections = new MediaPanelSections { Tags = tags, Actions = actions };
         _flow.Content = _sidebarSections;
         ApplyFooterMode();
         RefreshTexts();
     }
 
+    internal void UseWrappingActions()
+    {
+        Footer.Children.Clear();
+        Footer.ColumnDefinitions.Clear();
+        Footer.RowDefinitions.Clear();
+        Button[] buttons = [_undo, _stamp, _advanced];
+        PanelActionStack actions = new(_name + "FooterActions");
+        foreach (Button button in buttons)
+        {
+            PanelActionStack.SizeButton(button);
+            button.Classes.Remove("quick-tag-compact-action");
+            actions.Children.Add(button);
+        }
+        Footer.Children.Add(actions);
+        FooterStacked = false;
+    }
+
     internal void SetSidebarInfo(Control info, PanelActionStack actions)
     {
         if (_sidebarSections == null || _sidebarActions == null) return;
         _sidebarSections.Info = info;
-        _sidebarActions.Content = actions.Children.Count > 0 ? actions : null;
-        _sidebarActions.IsVisible = _sidebarActions.Content != null;
+        // Keep the thread and editor commands together when the current post's actions are rebuilt.
+        if (_advanced.Parent is Panel previous) previous.Children.Remove(_advanced);
+        PanelActionStack.SizeButton(_advanced, compactSpacing: true);
+        actions.Children.Add(_advanced);
+        _sidebarActions.Content = actions;
+        _sidebarActions.IsVisible = true;
     }
 
     /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>
@@ -952,8 +974,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _undo.IsEnabled = _session.UndoSteps.Count > 0 && _session.Snapshot != null || extraSteps > 0;
         AutomationProperties.SetName(_undo, Texts.T("tags.quick.undoName", _session.UndoSteps.Count + extraSteps));
         _stamp.IsEnabled = _session.Snapshot != null && _session.Stamp.Count > 0;
-        AutomationProperties.SetName(_stamp, StampName());
-        ToolTip.SetTip(_stamp, StampName());
+        string stampName = StampName();
+        AutomationProperties.SetName(_stamp, stampName);
+        ToolTip.SetTip(_stamp, FooterTip("tags.quick.stamp.button", stampName));
         _advanced.IsEnabled = _session.Snapshot != null;
 
         AutomationProperties.SetName(this, Texts.T("tags.quick.name", label.Length == 0 ? Texts.T("tags.quick.heading") : label));
@@ -982,17 +1005,25 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetHelpText(_allChips, Texts.T("tags.quick.assigned.help"));
         AutomationProperties.SetHelpText(_someChips, Texts.T("tags.quick.assigned.help"));
         _assignedEmpty.Text = Texts.T("tags.quick.assigned.empty");
-        ToolTip.SetTip(_undo, QuickTagKeys.TextWithKey("tags.quick.undoTip", QuickTagKeys.UndoGesture(_platform)));
+        ToolTip.SetTip(_undo, FooterTip("tags.quick.undo", QuickTagKeys.TextWithKey("tags.quick.undoTip", QuickTagKeys.UndoGesture(_platform))));
         if (QuickTagKeys.StampGesture(_platform) is { } stampKey) AutomationProperties.SetAcceleratorKey(_stamp, stampKey);
         else _stamp.ClearValue(AutomationProperties.AcceleratorKeyProperty);
-        AutomationProperties.SetName(_advanced, Texts.T("tags.quick.advancedName"));
-        ToolTip.SetTip(_advanced, Texts.T("tags.quick.advancedName"));
+        string advancedName = Texts.T("tags.quick.advancedName");
+        AutomationProperties.SetName(_advanced, advancedName);
+        ToolTip.SetTip(_advanced, FooterTip("tags.quick.advanced", advancedName));
         AutomationProperties.SetHelpText(_undo, QuickTagKeys.TextWithKey("tags.quick.undoHelp", QuickTagKeys.UndoGesture(_platform)));
         AutomationProperties.SetHelpText(_stamp, QuickTagKeys.TextWithKey("tags.quick.stamp.help", QuickTagKeys.StampGesture(_platform)));
         AutomationProperties.SetHelpText(_advanced, Texts.T("tags.quick.advancedHelp"));
         // A disabled button still explains itself (the stamp says why it is empty).
         foreach (Button button in new[] { _undo, _stamp, _advanced }) ToolTip.SetShowOnDisabled(button, true);
         ApplyFooterMode();
+    }
+
+    private string FooterTip(string labelKey, string description)
+    {
+        if (_sidebarSections == null) return description;
+        string label = Texts.T(labelKey);
+        return description.StartsWith(label, StringComparison.Ordinal) ? description : label + " · " + description;
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
@@ -1038,6 +1069,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void ApplyFooterLayout(bool stacked)
     {
+        if (Footer.Children is [PanelActionStack]) return;
         FooterStacked = stacked;
         Button[] buttons = [_undo, _stamp, _advanced];
         Footer.ColumnDefinitions.Clear();
@@ -1067,8 +1099,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             buttons[index].Classes.Set("quick-tag-compact-action", !stacked && _compact);
             Grid.SetRow(buttons[index], stacked ? index : 0);
             Grid.SetColumn(buttons[index], stacked ? 0 : index);
-            if (_sidebarSections != null) PanelActionStack.Stretch(buttons[index]);
-            else buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : index == buttons.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+            buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : index == buttons.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         }
     }
 
@@ -1084,8 +1115,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         if (button.Content is not Grid { Children: [ContentControl slot, TextBlock text] }) return;
         text.Text = label;
+        text.Classes.Set("compact-action-label", _sidebarSections != null);
         // At the popover minimum keep the full command names; the outbound editor retains its arrow.
-        slot.IsVisible = !_compact || FooterStacked || ReferenceEquals(button, _advanced);
+        slot.IsVisible = Footer.Children is [PanelActionStack] || !_compact || FooterStacked || ReferenceEquals(button, _advanced);
         // The icon follows the label's foreground (also its disabled look). Only a control in a window can load it.
         if (_attached && slot.Content == null && slot.Tag is string icon)
         {
