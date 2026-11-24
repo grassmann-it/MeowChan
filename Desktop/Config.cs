@@ -146,6 +146,14 @@ namespace MeowChan
         private string[] _footerPages = [];
         /// <summary>The footer layout of <see cref="FooterPages"/>.</summary>
         [JsonIgnore] internal Desktop.Commands.FooterLayout FooterLayout => Desktop.Commands.FooterLayout.FromStored(_footerPages);
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ShowFooterNetwork { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ShowFooterDisk { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ShowFooterStatus { get; set; } = true;
+        private bool _footerDisplayDraft;
+        [JsonIgnore] internal FooterDisplayPreferences? SettingsBaselineFooterDisplays { get; set; }
         internal const int WorkViewSwitchNoticeSecondsMinimum = 0;
         internal const int WorkViewSwitchNoticeSecondsMaximum = 60;
         /// <summary>Whether entering Barebones may shrink the window; layout data itself is retained.</summary>
@@ -1995,6 +2003,14 @@ namespace MeowChan
                 WorkViewSwitchNoticeSeconds = WorkViewSwitchNoticeSeconds,
                 ShowBooruTools = ShowBooruTools,
                 FooterPages = (string[])FooterPages.Clone(),
+                ShowFooterNetwork = ShowFooterNetwork,
+                ShowFooterDisk = ShowFooterDisk,
+                ShowFooterStatus = ShowFooterStatus,
+                // Capture a profile's live values on the first clone and retain them when the draft is frozen.
+                // An unbound settings snapshot or an explicit reset applies its complete footer selection.
+                _footerDisplayDraft = true,
+                SettingsBaselineFooterDisplays = !_footerDisplayDraft && _profileDirectory != null
+                    ? FooterDisplayPreferences.FromConfig(this) : SettingsBaselineFooterDisplays,
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
@@ -2290,6 +2306,9 @@ namespace MeowChan
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             ShowBooruTools = source.ShowBooruTools;
             FooterPages = (string[])source.FooterPages.Clone();
+            ShowFooterNetwork = source.ShowFooterNetwork;
+            ShowFooterDisk = source.ShowFooterDisk;
+            ShowFooterStatus = source.ShowFooterStatus;
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
@@ -2538,6 +2557,7 @@ namespace MeowChan
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             ShowBooruTools = source.ShowBooruTools;
             FooterPages = (string[])source.FooterPages.Clone();
+            FooterDisplayPreferences.FromConfig(source).ApplyChangesTo(this, source.SettingsBaselineFooterDisplays);
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             MinimizeToTray = source.MinimizeToTray;
