@@ -1,6 +1,6 @@
 namespace MeowChan.Desktop.Booru;
 
-internal readonly record struct BooruResultRevision(int TabId, long Generation);
+internal readonly record struct BooruResultRevision(int? TabId, long Generation);
 
 /// <summary>The post and provenance of a hit as shown in one search revision.</summary>
 internal sealed record BooruResultTarget(

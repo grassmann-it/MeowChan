@@ -34,7 +34,14 @@ internal sealed partial class BooruWorkbenchView
 
     private sealed record TabHeader(TextBlock Title, Button Close);
     private sealed record TabResults(string? Cursor, HashSet<string> Selected);
-    private sealed record SearchTabControl(TabItem Item, TabHeader Header, ContextMenuHost Menu);
+    private sealed class SearchTabControl(TabItem item, TabHeader header, Func<ContextMenuBuilder> compose, Action fallbackFocus) : IDisposable
+    {
+        private readonly ContextMenuHost _menu = new(item, compose, fallbackFocus);
+        internal TabItem Item { get; } = item;
+        internal TabHeader Header { get; } = header;
+        internal void CloseMenu() => _menu.Close();
+        public void Dispose() => _menu.Dispose();
+    }
 
     private readonly Button _openWatchers = new() { Name = OpenWatchersName };
     private readonly TextBlock _tabLimitText = new() { Name = TabLimitNoticeName, TextWrapping = TextWrapping.Wrap };
@@ -347,7 +354,7 @@ internal sealed partial class BooruWorkbenchView
                 _tabResults.Remove(id);
             foreach (int id in _searchItems.Keys.Where(id => !wanted.Contains(id)).ToArray())
             {
-                _searchItems[id].Menu.Dispose();
+                _searchItems[id].Dispose();
                 _searchItems.Remove(id);
             }
             foreach (int id in ids)
@@ -355,8 +362,7 @@ internal sealed partial class BooruWorkbenchView
                 if (_searchItems.ContainsKey(id)) continue;
                 TabItem item = new() { Tag = id };
                 TabHeader header = MakeClosableHeader(item, () => CloseSearchTab(id));
-                ContextMenuHost menu = new(item, () => BuildSearchTabMenu(id), FocusSearchInput);
-                _searchItems.Add(id, new(item, header, menu));
+                _searchItems[id] = new(item, header, () => BuildSearchTabMenu(id), FocusSearchInput);
             }
 
             List<TabItem> items = ids.Select(id => _searchItems[id].Item).ToList();
@@ -400,7 +406,8 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_closed || _tabs.SelectedItem is not TabItem { IsEffectivelyVisible: true } item) return;
         item.BringIntoView();
-        if (item.Tag is int id && SearchTabs.Ids.LastOrDefault() == id) _newTabButton.BringIntoView();
+        int addIndex = _tabs.Items.IndexOf(_addTab);
+        if (addIndex > 0 && ReferenceEquals(_tabs.Items[addIndex - 1], item)) _newTabButton.BringIntoView();
     }, DispatcherPriority.Loaded);
 
     private void CloseSearchTab(int id)

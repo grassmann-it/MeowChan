@@ -450,7 +450,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return;
         _more.ContextMenu?.Close();
-        foreach (SearchTabControl tab in _searchItems.Values) tab.Menu.Close();
+        foreach (SearchTabControl tab in _searchItems.Values) tab.CloseMenu();
         Render(force: true);
     });
 
@@ -629,7 +629,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             _resultWorkViewButtons.Clear();
             _resultActions.Clear();
             DisposeResultTagMenus();
-        foreach (SearchTabControl tab in _searchItems.Values) tab.Menu.Dispose();
+        foreach (SearchTabControl tab in _searchItems.Values) tab.Dispose();
         _model.Search.EnsureSearchTab = null;
             RebuildResults(view, preserveFocus: _renderedResultRevision == view.ResultRevision);
             _renderedResultRevision = view.ResultRevision;
@@ -1198,7 +1198,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _clock.Tick -= OnClockTick;
         _keyContextHost.Dispose();
         DisposeResultTagMenus();
-        foreach (SearchTabControl tab in _searchItems.Values) tab.Menu.Dispose();
+        foreach (SearchTabControl tab in _searchItems.Values) tab.Dispose();
         _model.Search.EnsureSearchTab = null;
         ChromeChanged = null;
         ReviewCurrentBuild = null;
