@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -255,8 +256,9 @@ internal static class ReaderGalleryShortcutParityChecks
                     // Its native Click opens the gallery; the tunnel must not bypass Click.
                     Button source = page.MediaSidebar!.Open; Focus(window, source);
                     int clicks = 0;
-                    void Clicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => clicks++;
-                    source.Click += Clicked;
+                    void Clicked(object? sender, RoutedEventArgs e) => clicks++;
+                    // The sidebar's own Click handler consumes the event after opening the gallery.
+                    source.AddHandler(Button.ClickEvent, Clicked, RoutingStrategies.Bubble, handledEventsToo: true);
                     try
                     {
                         Press(source, Key.Enter);
@@ -264,7 +266,7 @@ internal static class ReaderGalleryShortcutParityChecks
                         await Program.WaitUntilAsync(() => opens > 0);
                         Require(opens == 1 && source.IsFocused, "Enter was stolen or activated twice");
                     }
-                    finally { source.Click -= Clicked; }
+                    finally { source.RemoveHandler(Button.ClickEvent, Clicked); }
                 });
                 await Scene(mode + "-tag-input-focus", async () =>
                 {
@@ -274,16 +276,20 @@ internal static class ReaderGalleryShortcutParityChecks
                     Control source = Post(); Focus(window, source); Press(source, Key.R);
                     await Program.WaitUntilAsync(() => QuickTagPopover.Current?.IsOpen == true);
                     QuickTagPopover popover = QuickTagPopover.Current!;
-                    TextBox editor = popover.Frame.GetVisualDescendants().OfType<TextBox>().First(box => box.IsEffectivelyVisible && !box.IsReadOnly);
+                    QuickTagSurface surface = popover.Surface!;
+                    TextBox editor = surface.Input.GetVisualDescendants().OfType<TextBox>().Single(box => box.IsEffectivelyVisible && !box.IsReadOnly);
                     Focus(window, editor); editor.Text = "";
                     foreach (var (key, text) in new[] { (Key.Q, "q"), (Key.H, "h"), (Key.L, "l") })
                     {
                         Press(editor, key);
                         editor.RaiseEvent(new TextInputEventArgs { RoutedEvent = InputElement.TextInputEvent, Text = text });
                     }
+                    // The synthetic text events update the inner editor before Ursa publishes its draft to the tag field.
+                    await Program.WaitUntilAsync(() => surface.Input.Text == "qhl" && surface.Session.Ready,
+                        () => $"The tag field did not receive the draft: editor='{editor.Text}', field='{surface.Input.Text}', ready={surface.Session.Ready}.");
                     Press(editor, Key.Enter, KeyModifiers.Shift);
-                    Require(editor.Text == "qhl" && editor.IsFocused && popover.IsOpen && !page.PostFilters!.IsHidden(Fixture, "7000"), "text focus/letters were stolen");
-                    QuickTagSurface surface = popover.Surface!;
+                    Require(editor.Text == "qhl" && surface.Input.Text == "qhl" && editor.IsFocused
+                        && popover.IsOpen && !page.PostFilters!.IsHidden(Fixture, "7000"), "text focus/letters were stolen");
                     int undo = surface.Session.UndoSteps.Count;
                     surface.Input.Dismiss(); // Commit the typed draft, not an asynchronous suggestion.
                     Press(editor, Key.Enter);
@@ -291,8 +297,12 @@ internal static class ReaderGalleryShortcutParityChecks
                     Require(surface.Session.UndoSteps.Count == undo + 1
                         && surface.Session.Assignments().Any(tag => tag.Tag.Name.Display == "qhl")
                         && opens == 0 && editor.IsFocused && popover.IsOpen,
-                        "Enter must commit exactly one tag without opening a gallery or moving focus");
+                        $"Enter must commit exactly one tag without opening a gallery or moving focus: undo={undo}->{surface.Session.UndoSteps.Count}, tags={string.Join(",", surface.Session.Assignments().Select(tag => tag.Tag.Name.Display))}, opens={opens}, focused={editor.IsFocused}, popover={popover.IsOpen}.");
                     await surface.UndoAsync();
+                    Press(editor, Key.Escape);
+                    await Program.WaitUntilAsync(() => !popover.IsOpen && ReferenceEquals(window.FocusManager?.GetFocusedElement(), source),
+                        () => "Escape must close Tags and restore the originating post's focus.");
+                    Require(host.IsVisible == large && opens == 0, "Escape in Tags must leave the reader in the same mode.");
                 });
             }
             await Scene("gallery-focus", async () =>

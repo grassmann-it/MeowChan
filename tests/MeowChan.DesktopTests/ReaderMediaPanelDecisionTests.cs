@@ -26,7 +26,7 @@ public sealed class ReaderMediaPanelDecisionTests
         bool favorite = false;
         int edits = 0;
         ReaderMediaSidebar sidebar = new() { Width = width, DecisionKeyContext = context,
-            OpenTagsAsync = _ => { edits++; return Task.CompletedTask; } };
+            OpenTagsAsync = (_, _) => { edits++; return Task.CompletedTask; } };
         sidebar.Describe("No. 42", "picture.png", "640×480", true, savedBytes: 4096);
         sidebar.ConfigureRating(() => true, () => rating, value => { rating = value; return Task.CompletedTask; });
         sidebar.ConfigureFavorite(() => true, () => favorite, () => { favorite = !favorite; return Task.CompletedTask; });
