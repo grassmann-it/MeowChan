@@ -1,20 +1,19 @@
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// The rules of the header "Continue reading" button as plain functions (tests and the window call the same ones).
+/// The visibility and contextual routing rules for "Continue reading".
 /// <para>
 /// Visibility: the button is there whenever the reading history has at least one entry, in every work view and on every page
-/// (also while a thread is open): it is the way back to a place and, inside a thread, the way to another one.
+/// (also while a thread is open): the book resumes the newest place and the arrow opens the history.
 /// </para>
 /// <para>
-/// Left click: outside a thread it jumps to the last reading position; inside an open thread (the reader or the gallery over it is
-/// showing) a jump would replace what is on screen, so the click opens the history list and the person picks the place. The arrow
-/// next to the button, the right mouse button and the Menu key always open the history.
+/// The shortcut and application menu retain contextual routing: resume outside a thread and open the history while the
+/// reader or the gallery is showing. The arrow, the right mouse button and the Menu key always open the history.
 /// </para>
 /// </summary>
 internal static class ReadingResumeRouting
 {
-    /// <summary>What a click on the button itself does.</summary>
+    /// <summary>The action of the shortcut or application menu.</summary>
     internal enum ClickAction
     {
         /// <summary>Opens the newest place of the history (the stored reading position).</summary>
@@ -30,7 +29,7 @@ internal static class ReadingResumeRouting
     internal static bool Visible(bool rememberReadingPosition, int historyEntries, bool storedPositionPresent) =>
         rememberReadingPosition && (historyEntries > 0 || storedPositionPresent);
 
-    /// <summary>The left click: the history list inside an open thread, the jump to the last position anywhere else.</summary>
+    /// <summary>The contextual action: the history list inside a thread, the jump to the last position elsewhere.</summary>
     internal static ClickAction Click(bool threadOpen) => threadOpen ? ClickAction.OpenHistory : ClickAction.JumpToLast;
 
     /// <summary>The key of the sentence that names the current click action (tooltip and help text).</summary>
