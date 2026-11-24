@@ -60,20 +60,30 @@ internal sealed class ThemePaletteBase
 /// </summary>
 internal sealed class ThemePalette
 {
-    /// <summary>The pressed accent step of Light: every RGB channel times 0.8 (HSV value −20 %, hue and saturation kept).</summary>
+    /// <summary>The darker pressed accent step: every RGB channel times 0.8 (HSV value −20 %, hue and saturation kept).</summary>
     internal const double PressedStep = 0.8;
     /// <summary>The drag preview alpha: 0x66 = 102 of 255 = 40 %.</summary>
     internal const byte PreviewAlpha = 0x66;
     /// <summary>The Dark disabled outline: the interactive outline mixed half-way into the panel (sRGB).</summary>
     internal const double DisabledOutlineMix = 0.5;
+    private const double SegmentPressedMix = 0.08;
+
+    private static readonly ThemeVariationRule PrimaryPressedRule =
+        new(ThemeTokenVariation.PrimaryPressedAccent, ["Workspace.Accent"], seed => Scale(seed("Workspace.Accent"), PressedStep), "Accent × 0.8");
+
+    private static readonly ThemeVariationRule SegmentPressedRule =
+        new(ThemeTokenVariation.SegmentPressed, ["Workspace.Hover", "Workspace.ControlBorder"],
+            seed => Mix(seed("Workspace.ControlBorder"), seed("Workspace.Hover"), SegmentPressedMix), "Hover mixed 8 % toward ControlBorder");
 
     private static readonly FrozenDictionary<ThemeTokenVariation, ThemeVariationRule> DarkRules = new ThemeVariationRule[]
     {
         // Pinned exception: the rule gives #4C535B for the base, today's value is #4A525C.
         new(ThemeTokenVariation.DisabledOutline, ["Workspace.ControlBorder", "Workspace.Panel"],
             seed => Mix(seed("Workspace.ControlBorder"), seed("Workspace.Panel"), DisabledOutlineMix), "ControlBorder mixed 50 % into Panel"),
-        // Dark hover is lighter (AccentHover); pressing returns to the accent itself.
+        // Dark selection controls press back to the accent itself.
         new(ThemeTokenVariation.PressedAccent, ["Workspace.Accent"], seed => seed("Workspace.Accent"), "Accent"),
+        PrimaryPressedRule,
+        SegmentPressedRule,
         new(ThemeTokenVariation.PressedAccentBorder, ["Workspace.AccentHover"], seed => seed("Workspace.AccentHover"), "AccentHover"),
         new(ThemeTokenVariation.PressedAccentText, ["Workspace.AccentHover"], seed => seed("Workspace.AccentHover"), "AccentHover"),
         new(ThemeTokenVariation.AccentPreview, ["Workspace.Accent"], seed => WithAlpha(seed("Workspace.Accent"), PreviewAlpha), "Accent at 40 % alpha"),
@@ -86,6 +96,8 @@ internal sealed class ThemePalette
         new(ThemeTokenVariation.DisabledOutline, ["Workspace.Border"], seed => seed("Workspace.Border"), "Border"),
         // #803B06 × 0.8 = #662F05 exactly.
         new(ThemeTokenVariation.PressedAccent, ["Workspace.Accent"], seed => Scale(seed("Workspace.Accent"), PressedStep), "Accent × 0.8"),
+        PrimaryPressedRule,
+        SegmentPressedRule,
         new(ThemeTokenVariation.PressedAccentBorder, ["Workspace.Accent"], seed => Scale(seed("Workspace.Accent"), PressedStep), "Accent × 0.8 (pressed accent)"),
         new(ThemeTokenVariation.PressedAccentText, ["Workspace.Accent"], seed => Scale(seed("Workspace.Accent"), PressedStep), "Accent × 0.8 (pressed accent)"),
         new(ThemeTokenVariation.AccentPreview, ["Workspace.Accent"], seed => WithAlpha(seed("Workspace.Accent"), PreviewAlpha), "Accent at 40 % alpha"),
