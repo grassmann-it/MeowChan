@@ -87,7 +87,7 @@ internal sealed partial class GalleryViewer
         _layoutButton.Content = new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center,
-            Children = { CommandBindings.NamedIcon("sliders", 16), _layoutButtonText, ChevronDown() }
+            Children = { CommandBindings.Icon(GalleryLayoutMenu.OpenCommandId), _layoutButtonText, ChevronDown() }
         };
         _layoutPanel = new LayoutMenuPanel("GalleryLayoutMenu", LayoutMenuNow, ApplyLayoutRow);
         _layoutPanel.CloseRequested += () => _layoutFlyout.Hide();

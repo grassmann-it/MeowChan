@@ -158,7 +158,11 @@ internal sealed partial class GalleryViewer
         Panel? host = null, string? iconKey = null) where T : Button
     {
         Control? mark = check ? WorkspaceIcons.Create(WorkspaceIcons.Check) : null;
-        if (mark != null) mark.Opacity = (button as ToggleButton)?.IsChecked == true ? 1 : 0;
+        if (mark != null && button is ToggleButton toggle)
+        {
+            mark.Opacity = toggle.IsChecked == true ? 1 : 0;
+            toggle.IsCheckedChanged += (_, _) => mark.Opacity = toggle.IsChecked == true ? 1 : 0;
+        }
         ContentControl icon = new();
         MenuLayout.SetFlyoutIcon(icon, iconKey ?? (CommandCatalog.TryGet(id, out var command) ? command?.Icon : null));
         TextBlock text = new()
@@ -167,6 +171,7 @@ internal sealed partial class GalleryViewer
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
+        if (label != null) AutomationProperties.SetName(button, text.Text);
         TextBlock gesture = new();
         Grid root = MenuLayout.CreateFlyoutRow(mark, icon, text, gesture);
         OverflowItem item = new(id, root, text, gesture, mark, icon, keepOpen) { LabelSource = label };
@@ -192,15 +197,18 @@ internal sealed partial class GalleryViewer
         [!Border.BackgroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Border")
     });
 
-    /// <summary>Re-reads labels, shortcut texts and check marks of the menu rows; cheap, and safe before the viewer was shown.</summary>
+    /// <summary>Re-reads labels and shortcut texts of the menu rows; cheap, and safe before the viewer was shown.</summary>
     private void RefreshOverflowItems()
     {
         foreach (Button button in _overflowButtons)
         {
             if (button.Tag is not OverflowItem item) continue;
-            if (item.LabelSource != null) item.Label.Text = item.LabelSource();
+            if (item.LabelSource != null)
+            {
+                item.Label.Text = item.LabelSource();
+                AutomationProperties.SetName(button, item.Label.Text);
+            }
             MenuLayout.SetFlyoutShortcut(item.Gesture, CommandCatalog.ShortcutDisplay(item.Id));
-            if (item.Check != null) item.Check.Opacity = (button as ToggleButton)?.IsChecked == true ? 1 : 0;
             // A command presenter (shortcut or language change) may have replaced the row with plain text.
             if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root;
         }
@@ -210,6 +218,7 @@ internal sealed partial class GalleryViewer
         // A caption belongs to its control's row: it goes with the control when a work view puts it on the toolbar.
         _modeCaption.IsVisible = ToolInMenu("gallery.toolbar.playback-mode");
         _secondsCaption.IsVisible = _slideshowSeconds.IsVisible && ToolInMenu("gallery.toolbar.slideshow-seconds");
+        RefreshWheelBrowseHelp();
         ApplyOverflowButtonText();
     }
 

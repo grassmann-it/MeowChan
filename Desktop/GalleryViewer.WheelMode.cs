@@ -39,20 +39,25 @@ internal sealed partial class GalleryViewer
     // The menu row sits with the other view choices (after the filmstrip row, before "Full screen").
     private void InitializeWheelMode()
     {
-        AddOverflowItem(_wheelBrowseToggle, "gallery.wheel-browse", check: true, keepOpen: true, label: () => Texts.T("gallery.wheelBrowse"));
+        AddOverflowItem(_wheelBrowseToggle, "gallery.wheel-browse", check: true, keepOpen: true,
+            label: () => Texts.T("gallery.wheelBrowse"), iconKey: "mouse-pointer");
         _overflowPanel.Children.Remove(_wheelBrowseToggle);
         int anchor = _overflowPanel.Children.IndexOf(_filmstripToggle);
         _overflowPanel.Children.Insert(anchor >= 0 ? anchor + 1 : _overflowPanel.Children.Count, _wheelBrowseToggle);
-        string help = Texts.T("gallery.wheelBrowse.help");
-        ToolTip.SetTip(_wheelBrowseToggle, help);
-        AutomationProperties.SetName(_wheelBrowseToggle, Texts.T("gallery.wheelBrowse"));
-        AutomationProperties.SetHelpText(_wheelBrowseToggle, help);
+        RefreshWheelBrowseHelp();
         _wheelBrowseToggle.IsChecked = GalleryWheel.IsBrowse(_wheelMode);
         _wheelBrowseToggle.Click += (_, _) =>
         {
             _wheelMode = _wheelBrowseToggle.IsChecked == true ? Config.GalleryWheelModeBrowse : Config.GalleryWheelModeZoom;
             WheelModeChanged?.Invoke(_wheelMode);
         };
+    }
+
+    private void RefreshWheelBrowseHelp()
+    {
+        string help = Texts.T("gallery.wheelBrowse.help");
+        ToolTip.SetTip(_wheelBrowseToggle, help);
+        AutomationProperties.SetHelpText(_wheelBrowseToggle, help);
     }
 
     /// <summary>The action of a wheel turn over the picture with these modifiers (the setting, inverted by Ctrl).</summary>

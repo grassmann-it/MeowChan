@@ -226,11 +226,7 @@ internal sealed partial class GalleryViewer
         else _filmstrip[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel");
     }
 
-    private void RefreshFilmstripToggle()
-    {
-        // The row's check mark follows this when the menu opens (RefreshOverflowItems).
-        _filmstripToggle.IsChecked = FilmstripWanted;
-    }
+    private void RefreshFilmstripToggle() => _filmstripToggle.IsChecked = FilmstripWanted;
 
     // ---- pointer: the top edge zone and the strip itself ----
 

@@ -154,7 +154,7 @@ internal sealed partial class GalleryViewer
         _slideshowHome.Children.Add(_videoRepeats);
         _slideshowHome.Children.Add(_reducedMotionNote);
         AddOverflowItem(_pauseOnFocusLossToggle, "gallery.slideshow-pause-on-focus-loss", check: true, keepOpen: true,
-            label: () => GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss"), host: _slideshowHome);
+            label: () => GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss"), host: _slideshowHome, iconKey: "pause-circle");
         _pauseOnFocusLossToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { PauseOnFocusLoss = !_playbackPreferences.PauseOnFocusLoss });
         void Number(AccessibleNumberInput input, Func<int, GalleryPlaybackPreferences> change) => input.ValueChanged += (_, e) =>
         {
