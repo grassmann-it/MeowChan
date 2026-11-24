@@ -152,6 +152,7 @@ namespace MeowChan
         public bool ShowFooterDisk { get; set; }
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ShowFooterStatus { get; set; } = true;
+        private bool _footerDisplayDraft;
         [JsonIgnore] internal FooterDisplayPreferences? SettingsBaselineFooterDisplays { get; set; }
         internal const int WorkViewSwitchNoticeSecondsMinimum = 0;
         internal const int WorkViewSwitchNoticeSecondsMaximum = 60;
@@ -1980,7 +1981,11 @@ namespace MeowChan
                 ShowFooterNetwork = ShowFooterNetwork,
                 ShowFooterDisk = ShowFooterDisk,
                 ShowFooterStatus = ShowFooterStatus,
-                SettingsBaselineFooterDisplays = FooterDisplayPreferences.FromConfig(this),
+                // Capture a profile's live values on the first clone and retain them when the draft is frozen.
+                // An unbound settings snapshot or an explicit reset applies its complete footer selection.
+                _footerDisplayDraft = true,
+                SettingsBaselineFooterDisplays = !_footerDisplayDraft && _profileDirectory != null
+                    ? FooterDisplayPreferences.FromConfig(this) : SettingsBaselineFooterDisplays,
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,

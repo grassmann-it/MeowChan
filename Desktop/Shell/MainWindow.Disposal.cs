@@ -42,6 +42,8 @@ public partial class MainWindow : IAsyncDisposable
         _trayStats?.Dispose();
         _headerIoMenu?.Dispose();
         _headerThemeMenu?.Dispose();
+        _footerNavigationMenu?.Dispose();
+        _footerStatusMenu?.Dispose();
         _ioUpdate?.Dispose();
         _ioClaim?.Dispose();
         _mediaFocusChromeTexts?.Dispose();
