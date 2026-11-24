@@ -1,12 +1,13 @@
 using System.Runtime.CompilerServices;
-using System.Xml.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -15,10 +16,7 @@ namespace MeowChan.DesktopTests;
 /// <summary>
 /// Narrow-window sweep of the content pages (Tom, 16.11.2026: "headings and texts vanish into nowhere in small windows"), group Archive,
 /// reader, Media and Tagging. The pure parts are checked here: the wrapping row with a minimum line height that replaced the Media status
-/// line's <c>WrapPanel.ItemHeight</c> (which cut a second status line off), and a generic guard over the archive page's XAML: every text
-/// either wraps, trims (with a tooltip where the full text would be lost) or is named below with the reason it may do neither. A headless
-/// layout of the real pages at the window minimum is not used: without a theme the Button, ListBox and ToolBar templates are not applied,
-/// so the measured bounds would not be the product's. The page captures at the minimum width (760 x 500, en and de) run centrally.
+/// line's <c>WrapPanel.ItemHeight</c> (which cut a second status line off), and the reader's find navigation under limited space.
 /// </summary>
 [Collection("Gallery viewer construction")]
 public sealed class NarrowContentLayoutTests
@@ -201,42 +199,34 @@ public sealed class NarrowContentLayoutTests
         Assert.True(text.AlwaysTip);
     }
 
-    // ---- the generic guard over the archive page's XAML ------------------------------------------------------------------------------
-
-    // Classes whose style sets TextWrapping="Wrap" (WorkspaceStyles.axaml).
-    private static readonly HashSet<string> WrappingClasses =
-        ["workspace-meta", "workspace-help", "workspace-empty-text", "workspace-status", "workspace-warning", "workspace-field-label", "workspace-error"];
-
-    // Texts that may neither wrap nor trim, with the reason. Keyed by x:Name, or by Tag for an unnamed localized text.
-    private static readonly Dictionary<string, string> Exempt = new()
+    [Theory]
+    [InlineData(112, true)]
+    [InlineData(240, false)]
+    public void ReaderFindPositionKeepsItsFullTextAndLeavesRoomForBothArrows(int width, bool trimmed) => BooruComponentDispatcher.Run(() =>
     {
-        // The page title row belongs to the shared page-header fix (the narrow-setup package); the page-title class decides there.
-        ["nav.archive"] = "page title: shared page header fix",
-        // Short numeric ranges ("51–100 of 340") between the pager's two buttons, centred; they never reach a narrow reader's width.
-        ["ArchiveReferencesPage"] = "pager range",
-    };
-
-    [Fact]
-    public void EveryTextOfTheArchivePageWrapsTrimsOrIsANamedException()
-    {
-        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-        XElement page = XDocument.Load(Root("Desktop/Views/Archive/ArchivePage.axaml")).Root!;
-        List<string> problems = new();
-        HashSet<string> used = new();
-        foreach (XElement text in page.Descendants().Where(element => element.Name.LocalName is "TextBlock" or "SelectableTextBlock" or "TrimTipTextBlock"))
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ArchivePage page = new();
+        try
         {
-            if (text.Name.LocalName == "TrimTipTextBlock") continue; // trims, with the full text as its tooltip while it is shortened
-            if (text.Attribute("TextWrapping") != null || text.Attribute("TextTrimming") != null) continue;
-            string[] classes = ((string?)text.Attribute("Classes") ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (classes.Any(WrappingClasses.Contains)) continue;
-            string key = (string?)text.Attribute(x + "Name") ?? (string?)text.Attribute("Tag") ?? (string?)text.Attribute("Text") ?? "?";
-            if (Exempt.ContainsKey(key)) { used.Add(key); continue; }
-            problems.Add(key);
+            Control navigation = page.FindControl<Control>("ReaderFindNavigation")!;
+            Button previous = page.FindControl<Button>("ReaderFindPrevious")!;
+            Button next = page.FindControl<Button>("ReaderFindNext")!;
+            TrimTipTextBlock position = page.FindControl<TrimTipTextBlock>("ReaderFindPosition")!;
+            string fullText = Texts.T("reader.sidebar.position", 123456, 234567);
+            position.Text = fullText;
+            position.IsVisible = true;
+            Layout(navigation, width);
+
+            Assert.True(previous.Bounds.Width > 0 && next.Bounds.Width > 0);
+            Assert.True(previous.Bounds.Right <= position.Bounds.Left && position.Bounds.Right <= next.Bounds.Left);
+            Assert.True(next.Bounds.Right <= width);
+            Assert.Equal(trimmed, position.IsTrimmed);
+            Assert.Equal(trimmed ? fullText : null, ToolTip.GetTip(position));
+            Assert.Equal(fullText, position.Text);
+            Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(position));
         }
-        Assert.True(problems.Count == 0, "Texts that neither wrap nor trim on the archive page: " + string.Join(", ", problems));
-        // The page's own exceptions stay current: one that no longer applies is removed. (The title's may go with the shared header fix.)
-        foreach (string key in Exempt.Keys.Where(key => key != "nav.archive")) Assert.Contains(key, used);
-    }
+        finally { page.EndLifetime(); }
+    });
 
     [Fact]
     public void TheReaderTitleThePreviewTitleAndTheThreadRowStatusTrimWithTheirFullTextAsTooltip()
