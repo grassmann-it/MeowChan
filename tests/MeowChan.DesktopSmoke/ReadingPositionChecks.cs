@@ -65,12 +65,8 @@ internal static class ReadingPositionChecks
         await CheckLateProjectionResumeAsync(window, captured!);
         await CheckSavedHeaderModesAsync(window);
         await CheckSavedHeaderGalleryAsync(window);
-        if (Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1")
-        {
-            using MediaNativeInput input = new(window);
-            await FooterNavigationChecks.CheckCurrentOverflowPageAsync(window, input);
-            await CheckReadingButtonsAsync(window, input);
-        }
+        using MediaNativeInput? input = Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1" ? new(window) : null;
+        if (input != null) await CheckReadingButtonsAsync(window, input);
         else
         {
             Button book = window.FindControl<Button>("ContinueReadingButton")!;
@@ -88,6 +84,7 @@ internal static class ReadingPositionChecks
         Require(await ReadPositionAsync(window) == captured,
             "Explicit top-bar resume changed the saved reading position.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        if (input != null) await FooterNavigationChecks.CheckCurrentOverflowPageAsync(window, input);
         Click(window.FindControl<Button>("SettingsNavigationButton")!);
         await SettingsSectionChecks.OpenAsync(window.SettingsEditor, "settings.reading-media");
         string positionFile = Path.Combine(profile, "reading-position.json");
@@ -176,9 +173,13 @@ internal static class ReadingPositionChecks
         Button book = window.FindControl<Button>("ContinueReadingButton")!;
         Button arrow = window.FindControl<Button>("ContinueReadingHistoryButton")!;
         var history = window.ReadingHistoryList!;
+        await Program.WaitUntilAsync(() => window.IsActive && !window.ArchivePage.IsBusy
+            && book.IsEffectivelyEnabled && arrow.IsEffectivelyEnabled);
+        await FooterNavigationChecks.WaitForResumeHitAsync(window);
         Require(book.Focus(NavigationMethod.Tab), "Cannot focus the header book.");
         await input.KeyAsync(MediaNativeInput.Tab);
-        await Program.WaitUntilAsync(() => arrow.IsFocused);
+        await Program.WaitUntilAsync(() => arrow.IsFocused,
+            () => "Focus after Tab from the book: " + (window.FocusManager?.GetFocusedElement() as Control)?.Name);
         await input.KeyAsync(MediaNativeInput.Enter);
         await Program.WaitUntilAsync(() => history.IsOpen && history.Panel.Bounds.Width > 0);
         Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible, "The history arrow activated the book.");
