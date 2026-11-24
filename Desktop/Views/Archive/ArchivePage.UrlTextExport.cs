@@ -39,6 +39,7 @@ public partial class ArchivePage
             return Task.CompletedTask;
         // The lock is acquired synchronously, before any reader/show/picker await.
         _urlTextExportBusy = true;
+        _mediaSidebar?.InvalidateTagEditor();
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _urlTextExportCancellation = cancellation;
         return UrlTextExportTask = RunUrlTextExportAsync(id, origin, owner, cancellation);

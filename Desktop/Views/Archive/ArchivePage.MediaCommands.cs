@@ -336,8 +336,10 @@ public partial class ArchivePage
                 current: () => SidebarCurrent() && ReferenceEquals(_thread, thread) && ReferenceEquals(ActionableSavedMediaSidebarRow, saved),
                 sidebarToken: token);
         }
-        if (_displayedSidebarMedium is not { } shown) return Task.CompletedTask;
-        bool Current() => SidebarCurrent() && ArchivePostsTab.IsSelected
+        TabItem? tab = ArchiveContentTabs.SelectedItem as TabItem;
+        if ((tab != ArchivePostsTab && tab != ArchiveReferencesTab) || _displayedSidebarMedium is not { } shown)
+            return Task.CompletedTask;
+        bool Current() => SidebarCurrent() && ReferenceEquals(ArchiveContentTabs.SelectedItem, tab)
             && ReferenceEquals(_thread, shown.Thread) && _selectedThread == shown.Thread.Summary.Id
             && _displayedSidebarMedium == shown;
         if (!Current()) return Task.CompletedTask;

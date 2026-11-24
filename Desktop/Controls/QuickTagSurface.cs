@@ -365,6 +365,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _stripHost.Name = _name + "SuggestionsHost"; _upper.Name = _name + "Body"; _flow.Name = _name + "Scroll";
         _stripEmpty.Name = _name + "SuggestionsEmpty"; _assignedEmpty.Name = _name + "AssignedEmpty";
         _markedClear.Name = _name + "MarkedClear";
+        AutomationProperties.SetAutomationId(_input, _input.Name);
+        AutomationProperties.SetAutomationId(_advanced, _advanced.Name);
 
         _markedBadge = WorkspaceChips.CreateBadge(_name + "Marked", string.Empty, compact: true);
         _markedLabel = (TextBlock)_markedBadge.Child!;
@@ -1581,6 +1583,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (suggestion.Reason == QuickTagReason.Stamp) { content.Children.Add(StampBadge()); keyed = true; }
             content.Children.Add(ChipLabel(display));
             Button button = new() { Name = name, Focusable = true };
+            AutomationProperties.SetAutomationId(button, name);
             if (suggestion.CreatesTag)
             {
                 // A provider tag or a new name: the dashed source chip (I8), never mistaken for an own tag.

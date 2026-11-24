@@ -729,7 +729,7 @@
                                 </Grid>
                             </TabItem>
                             <!-- Only present while there are captured replies to show: LoadBacklinksAsync shows it with its count. -->
-                            <TabItem x:Name="ArchiveReferencesTab" wv:WorkViewElement.Id="reader.tabs.references" IsVisible="False">
+                            <TabItem x:Name="ArchiveReferencesTab" AutomationProperties.AutomationId="ArchiveReferencesTab" wv:WorkViewElement.Id="reader.tabs.references" IsVisible="False">
                                 <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8" RowSpacing="{StaticResource Workspace.Space.8}">
                                     <StackPanel Spacing="{StaticResource Workspace.Space.2}">
                                         <TextBlock x:Name="ArchiveReferencesHelp" Tag="archive.referencesHelp" Classes="muted localized" TextWrapping="Wrap" />
@@ -765,7 +765,7 @@
                         </Popup>
                         <Border x:Name="ReaderNavigationHitHost" Background="Transparent" IsVisible="{Binding #ReaderNavigation.IsHitTestVisible}"
                                 IsHitTestVisible="True" HorizontalAlignment="Right" VerticalAlignment="Bottom" ZIndex="1000">
-                        <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" Background="{DynamicResource Workspace.Card}" IsVisible="False" HorizontalAlignment="Right"
+                        <WrapPanel x:Name="ReaderNavigation" AutomationProperties.AutomationId="ReaderNavigation" Classes="reader-cross" Background="{DynamicResource Workspace.Card}" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,32">
                             <!-- The navigation bar is an overlay above the content, one capsule of 40 dip: [thread arrow, counter, thread arrow | post arrow,
                                  counter, post arrow]. The whole capsule takes the pointer (a click in a gap never reaches the post below); below
