@@ -83,7 +83,10 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _queueWork = new TaggingQueueController(host);
-        _thumbnails = new TaggingThumbnails(_lifetime.Token);
+        _thumbnails = new TaggingThumbnails(_lifetime.Token)
+        {
+            PosterCacheDirectory = System.IO.Path.Combine(host.ProfileDirectory, "cache", "video-posters-v1")
+        };
         Name = "TaggingPage";
         // Every key of the page runs in the "tagging" context, as the commands of its queue list are declared (tagging.remove, media.tile-size.*): a default
         // that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
@@ -206,10 +209,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             Children = { _header, _status, BuildClearConfirmation() } };
         header.Children.Add(queueControls);
         header.Children.Add(_error);
-        SizeChanged += (_, _) =>
-        {
-            UpdateTableLayout();
-        };
+        SizeChanged += (_, _) => ApplyPanelLayout();
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
 
         _list.ItemTemplate = RowTemplate();
@@ -219,7 +219,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             if (e.Container is ListBoxItem item && row != null)
             {
                 AutomationProperties.SetName(item, row.AccessibleName);
-                AutomationProperties.SetHelpText(item, row.AccessibleDetails(TagCountOf(row.Item)));
+                (_, _, string? decisions) = DecisionOf(row.Item);
+                string details = row.AccessibleDetails(TagCountOf(row.Item));
+                AutomationProperties.SetHelpText(item, decisions == null ? details : details + " · " + decisions);
             }
         };
         ScrollViewer.SetHorizontalScrollBarVisibility(_list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -249,9 +251,12 @@ public sealed partial class TaggingPage : UserControl, IDisposable
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
-        Border list = new() { Child = listArea, Margin = new Thickness(12, 0, 12, 4) };
-        Grid.SetRow(list, 1);
-        layout.Children.Add(list);
+        Border list = new() { Child = listArea, Margin = new Thickness(12, 0, 12, 4), ClipToBounds = true };
+        list.SizeChanged += (_, e) => UpdateTableLayout(e.NewSize.Width + list.Margin.Left + list.Margin.Right);
+        _panelBody.Children.Add(list);
+        _panelBody.Children.Add(_panelHandle);
+        Grid.SetRow(_panelBody, 1);
+        layout.Children.Add(_panelBody);
         return layout;
     }
 
@@ -260,7 +265,8 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     {
         bool compact = _compactRows;
         bool kind = _showKindColumn, group = _showGroupColumn;
-        return new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueRowView(_thumbnails, TagCountOf, compact, ShowPreviewColumn, _compactTable, kind, group));
+        return new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueRowView(_thumbnails, TagCountOf, compact, ShowPreviewColumn, _compactTable, kind, group,
+            decisionOf: DecisionOf));
     }
 
     /// <summary>The number of own media tags of an entry, or null when the tag store is not known (shown as a dash).</summary>
@@ -303,9 +309,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     /// Keeps the table's information columns in the viewport at small widths. The compact geometry trims text with a tooltip and the
     /// row help text carries every value for keyboard and assistive-technology users; no column is removed.
     /// </summary>
-    private void UpdateTableLayout()
+    private void UpdateTableLayout(double listWidth)
     {
-        bool compact = TaggingQueueRowView.UseCompactColumns(Bounds.Width);
+        bool compact = TaggingQueueRowView.UseCompactColumns(listWidth);
         if (compact == _compactTable) return;
         _compactTable = compact;
         _list.ItemTemplate = RowTemplate();
@@ -491,6 +497,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         RefreshWorkView();
         UpdateSelectionBar();
         if (hadResultFocus || hadSelectionFocus && SelectedCount == 0) FocusContent(focused);
+        RebindPanel();
     }
 
     private TagQueueKey[] SelectedKeys() => ActiveList.SelectedItems?.OfType<TaggingQueueRow>().Select(row => row.Key).ToArray() ?? Array.Empty<TagQueueKey>();
@@ -505,6 +512,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _startContext = TaggingQueueView.LastShown(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, _effectiveScope)?.Description;
         UpdateStart();
         RefreshCommandStates();
+        RefreshPanelActions();
     }
 
     private void UpdateStart()
@@ -571,6 +579,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             LocalizeView();
             LocalizeStamp();
             LocalizeSelection();
+            LocalizePanel();
         }
         finally { _localizing = false; }
     }
@@ -614,6 +623,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _queueWork.End();
         _keyContext.Dispose();
         EndTagging();
+        StopPanel();
         _menuHost?.Dispose();
         _gridMenuHost?.Dispose();
         _tagDialog?.Dispose();

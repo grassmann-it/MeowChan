@@ -59,6 +59,7 @@ public partial class MainWindow
     private void ConfigureMediaPanel()
     {
         _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
+        _taggingPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
         _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true }, ReaderSettingsPreferences.Gallery(_session.Config));
         ConfigureGalleryScrubPreview(); // the panel's timeline hover preview uses the profile's scrub cache (the gallery's)
     }
@@ -274,9 +275,12 @@ public partial class MainWindow
         return _favoriteChanges.IsPending(key) ? _favoriteChanges.Target(key, false) : null;
     }
 
-    private async Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent)
+    private Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent) =>
+        ExecuteMediaLibraryMenuActionAsync(id, indexed, presentationCurrent, taggingCurrent: null);
+
+    private async Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent, Func<bool>? taggingCurrent)
     {
-        Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
+        Func<bool> hostCurrent = taggingCurrent ?? CaptureMediaPageMenuGuard();
         bool Current() => hostCurrent() && presentationCurrent();
         if (!Current()) return;
         Control? origin = FocusManager?.GetFocusedElement() as Control;
@@ -340,7 +344,7 @@ public partial class MainWindow
         }
         finally
         {
-            RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
+            if (taggingCurrent == null) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
         }
     }
 

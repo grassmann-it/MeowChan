@@ -29,6 +29,7 @@ public partial class MainWindow
         if (_isClosing) return;
         ApplyGalleryPreferences();
         _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
+        _taggingPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
     }
 
     /// <summary>
