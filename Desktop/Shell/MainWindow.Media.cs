@@ -26,6 +26,19 @@ public partial class MainWindow
     private MediaPage? _mediaPage;
     internal MediaPage? MediaPageForTests => _mediaPage;
 
+    private void RegisterMediaSidebarInfoCommands()
+    {
+        if (_archivePage is { } archive && archive.FindControl<Control>("ArchiveReaderPane") is { } readerPane)
+            _shortcutRouter.RegisterOwned(new CommandRegistration("media.sidebar.info", readerPane,
+                () => _gallery == null && !HasBlockingPageDecision() && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive),
+                () => archive.IsMediaSidebarShown && archive.CanToggleMediaSidebar,
+                () => archive.MediaSidebar?.ToggleDetails(), Priority: 100));
+        if (_mediaPage is { } media)
+            _shortcutRouter.RegisterOwned(new CommandRegistration("media.sidebar.info", media,
+                () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                () => media.IsPanelShown, () => media.Panel?.ToggleDetails(), Priority: 100));
+    }
+
     private int ConfiguredMediaTagListWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).TagListWidth;
 
     private int ConfiguredMediaPanelWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).PanelWidth;

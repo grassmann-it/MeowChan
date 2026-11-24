@@ -187,7 +187,16 @@ public partial class SettingsEditor
     public SettingsChoice? SelectedMediaSidebarInfo
     {
         get => _selectedMediaSidebarInfo;
-        set => SetField(ref _selectedMediaSidebarInfo, value, nameof(SelectedMediaSidebarInfo));
+        set
+        {
+            if (_refreshingLanguageLabels)
+            {
+                if (_selectedMediaSidebarInfo == value) return;
+                _selectedMediaSidebarInfo = value;
+                Raise(new[] { nameof(SelectedMediaSidebarInfo) });
+            }
+            else SetField(ref _selectedMediaSidebarInfo, value, nameof(SelectedMediaSidebarInfo));
+        }
     }
     public IReadOnlyList<SettingsChoice> MediaSidebarInfoChoices { get; private set; } = Array.Empty<SettingsChoice>();
     public string MediaSidebarInfoLabel => Texts.T("settings.reader.mediaSidebarInfo");
