@@ -24,6 +24,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     /// <summary>Edge of a star glyph in dip.</summary>
     private const int FavoriteGlyphSize = 16;
     private readonly int _starGlyphSize;
+    private readonly TranslateTransform _starOffset = new();
     private readonly bool _popover;
     private readonly StackPanel _bar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _unavailable = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
@@ -105,12 +106,11 @@ internal sealed class GalleryDecisionRow : StackPanel
         _favorite.Width = labelFits ? favoriteWidth : WorkspaceMetrics.InputHeight;
         _favorite.Padding = new Thickness(labelFits ? 12 : 0, 0);
         _group.ColumnDefinitions[3].Width = new GridLength(FavoriteVisible ? 8 : 0);
+        _starOffset.X = (_starGlyphSize - width) / 2;
         foreach (ToggleButton star in _stars)
         {
             star.Width = width;
             star.Height = height;
-            if (star.Content is Control glyph)
-                glyph.RenderTransform = new TranslateTransform((_starGlyphSize - width) / 2, 0);
         }
         return base.MeasureOverride(availableSize);
     }
@@ -260,7 +260,9 @@ internal sealed class GalleryDecisionRow : StackPanel
         for (int index = 0; index < _stars.Length; index++)
         {
             ToggleButton star = _stars[index];
-            star.Content = FavoriteStar.Create(index < shown, _starGlyphSize, tinted: !previewing);
+            Border glyph = FavoriteStar.Create(index < shown, _starGlyphSize, tinted: !previewing);
+            glyph.RenderTransform = _starOffset;
+            star.Content = glyph;
             star.Classes.Set("rating-preview", previewing && index < shown);
         }
     }

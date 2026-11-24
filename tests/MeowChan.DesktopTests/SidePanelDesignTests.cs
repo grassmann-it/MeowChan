@@ -93,6 +93,7 @@ public sealed class SidePanelDesignTests
             row.Preview(4);
             Settle(window);
             Assert.Equal(before, controls.Select(control => In(control, frame)));
+            Near(left, In((Control)row.StarButtons[0].Content!, frame).Left);
         }
         row.Preview(null);
         row.Show(original);
