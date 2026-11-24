@@ -1,13 +1,18 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Storage;
 
 namespace MeowChan.DesktopTests;
 
@@ -100,26 +105,23 @@ public sealed class FavoritesEverywhereTests : IDisposable
     }
 
     [Fact]
-    public void TheStarTooltipNamesTheClickThenItsKeysOnOneLine()
+    public void TheStarTooltipNamesTheClickThenItsKeysOnOneLine() => BooruComponentDispatcher.Run(() =>
     {
-        string unmarked = FavoriteKeys.Tooltip(false, "reader");
-        Assert.DoesNotContain("\n", unmarked);
-        // The first key plus at most one alias (Tom's decision #135): the toggle first, then the explicit key.
-        Assert.Equal(Texts.T("viewer.favorite.add") + " · " + string.Join(" / ", FavoriteKeys.EffectiveKeys(FavoriteKeys.ToggleId, "reader")
-            .Concat(FavoriteKeys.EffectiveKeys(FavoriteKeys.AddId, "reader")).Distinct().Take(2)), unmarked);
-        Assert.EndsWith("· F / M", unmarked);
-        string marked = FavoriteKeys.Tooltip(true, "reader");
-        Assert.Equal(Texts.T("viewer.favorite.remove") + " · " + string.Join(" / ", FavoriteKeys.EffectiveKeys(FavoriteKeys.ToggleId, "reader")
-            .Concat(FavoriteKeys.EffectiveKeys(FavoriteKeys.RemoveId, "reader")).Distinct().Take(2)), marked);
-        Assert.EndsWith("· F / U", marked);
-        Assert.DoesNotContain("\n", marked);
-        // The star has one tooltip source: a rebinding re-runs its own Refresh, never the catalog's "Add / remove favorite · F".
-        string button = Source("Desktop/ArchiveFavoriteButton.cs");
-        Assert.Contains("CommandBindings.ObservePresentation(this, Refresh);", button);
-        Assert.Contains("FavoriteKeys.Tooltip(marked, KeyContext)", button);
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ShortcutService.Publish(new());
+        bool marked = false;
+        ArchiveFavoriteButton star = new();
+        star.Configure(() => true, () => marked, () => { marked = !marked; return Task.CompletedTask; });
+
+        Assert.Equal(Texts.T("viewer.favorite.add") + " · F / M", Assert.IsType<string>(ToolTip.GetTip(star)));
+        Click(star);
+        Assert.True(star.IsChecked);
+        Assert.Equal(Texts.T("viewer.favorite.remove") + " · F / U", Assert.IsType<string>(ToolTip.GetTip(star)));
+
         Texts.SetLanguage("de");
-        Assert.StartsWith("Aus Favoriten entfernen", FavoriteKeys.Tooltip(true));
-    }
+        ShortcutService.Publish(new ShortcutBindingsSection().Set(FavoriteKeys.ToggleId, [ShortcutGesture.Parse("F9")]));
+        Assert.Equal(Texts.T("viewer.favorite.remove") + " · F9 / U", Assert.IsType<string>(ToolTip.GetTip(star)));
+    });
 
     // ---- every star toggles ----
 
@@ -150,35 +152,173 @@ public sealed class FavoritesEverywhereTests : IDisposable
         Assert.False(ArchiveFavoriteButton.ReadState(available, marked, error).Available);
     }
 
-    [Fact]
-    public void TheStarsUseTheRowWiringAndShowAPendingWrite()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheStarsUseTheRowWiringAndShowAPendingWrite(bool inSidebar) => BooruComponentDispatcher.Run(() =>
     {
-        string button = Source("Desktop/ArchiveFavoriteButton.cs");
-        // Pending: disabled and named "… · saving" until the write returns.
-        Assert.Contains("Refresh(); // pending", button);
-        Assert.Contains("Texts.T(\"gallery.saving\")", button);
-        Assert.Contains("if (row != null) _favorite.Configure(row);", Source("Desktop/Views/Archive/ReaderMediaSidebar.cs"));
-        Assert.Contains("Texts.T(\"gallery.saving\")", Source("Desktop/MediaLibraryTileView.cs"));
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool marked = false;
+        int writes = 0;
+        ArchiveAttachmentRow row = new(new CapturedAttachment(0, "sample", OriginalFileName: "sample.png"))
+        {
+            FavoriteAvailable = () => true,
+            IsFavorite = () => marked,
+            ToggleFavoriteAsync = async () => { writes++; await release.Task; marked = true; }
+        };
+        ToggleButton star;
+        if (inSidebar)
+        {
+            ReaderMediaSidebar sidebar = new();
+            sidebar.Describe("No. 42", "sample.png", "", true);
+            sidebar.ConfigureFavorite(row);
+            star = sidebar.FavoriteButton;
+        }
+        else
+        {
+            ArchiveFavoriteButton postStar = new();
+            postStar.Configure(row);
+            star = postStar;
+        }
+        Assert.True(star.IsEnabled);
+        try
+        {
+            Click(star);
+            Assert.Equal(1, writes);
+            Assert.False(star.IsChecked);
+            if (!inSidebar)
+            {
+                Assert.False(star.IsEnabled);
+                Assert.Contains(Texts.T("gallery.saving"), AutomationProperties.GetName(star));
+            }
+            Click(star);
+            Assert.Equal(1, writes);
+        }
+        finally
+        {
+            release.TrySetResult();
+            BooruComponentDispatcher.WaitUntil(() => star.IsEnabled && star.IsChecked == true,
+                "the favorite star to show the stored value");
+        }
+        Assert.DoesNotContain(Texts.T("gallery.saving"), AutomationProperties.GetName(star));
+    });
+
+    [Theory]
+    [InlineData("post")]
+    [InlineData("archive tile")]
+    [InlineData("reader sidebar")]
+    [InlineData("media panel")]
+    [InlineData("media tile")]
+    [InlineData("gallery")]
+    public void EveryFavoriteStarOfTheDesktopIsARealToggleOrADecorativeBadge(string surface) =>
+        BooruComponentDispatcher.Run(() => BooruComponentDispatcher.Wait(ExerciseFavoriteSurfaceAsync(surface)));
+
+    private static async Task ExerciseFavoriteSurfaceAsync(string surface)
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
+        MediaAssetReference asset = media.Asset;
+        MediaAssetSnapshot manifest = media.Snapshot;
+        MediaLibraryEntry indexed = Entry(asset.OriginalFileName!) with
+        {
+            Directory = media.Directory, AssetId = asset.AssetId, Sha256 = asset.Sha256, Length = asset.Length
+        };
+        GalleryEntry entry = new(new(indexed.Thread, media.Directory, asset.AssetId), manifest, asset, null, null, false, true);
+        List<object> writes = [];
+        Task Write(object target) { writes.Add(target); return Task.CompletedTask; }
+        ToggleButton? toggle = null;
+        await using GalleryViewer? viewer = surface == "gallery" ? new GalleryViewer() : null;
+        Control host;
+        object expected;
+        switch (surface)
+        {
+            case "post":
+                ArchiveAttachmentRow post = new(new CapturedAttachment(0, "sample", OriginalFileName: indexed.Name))
+                { FavoriteAvailable = () => true };
+                post.ToggleFavoriteAsync = () => Write(post);
+                host = new ArchiveAttachmentView { DataContext = post };
+                expected = post;
+                break;
+            case "archive tile":
+                ArchiveAssetRow archive = new(manifest, asset) { FavoriteAvailable = () => true, IsFavorite = () => true };
+                archive.ToggleFavoriteAsync = () => Write(archive);
+                host = new ArchiveMediaTileView { DataContext = archive };
+                expected = archive;
+                break;
+            case "reader sidebar":
+                ArchiveAttachmentRow shown = new(new CapturedAttachment(0, "sample")) { FavoriteAvailable = () => true };
+                shown.ToggleFavoriteAsync = () => Write(shown);
+                ReaderMediaSidebar sidebar = new();
+                sidebar.Describe("No. 42", "sample.png", "", true);
+                sidebar.ConfigureFavorite(shown);
+                host = sidebar;
+                toggle = sidebar.FavoriteButton;
+                expected = shown;
+                break;
+            case "media panel":
+                ReaderMediaSidebar panel = new() { DecisionKeyContext = "media" };
+                panel.Describe("", "sample.png", "", true);
+                panel.ConfigureFavorite(() => true, () => false, () => Write(indexed));
+                host = panel;
+                toggle = panel.FavoriteButton;
+                expected = indexed;
+                break;
+            case "media tile":
+                MediaLibraryTileView tile = new() { FavoriteToggle = item => Write(item) };
+                tile.DataContext = Row(indexed, MediaLibraryFlag.Yes);
+                host = tile;
+                toggle = tile.FavoriteToggleButton;
+                expected = indexed;
+                break;
+            case "gallery":
+                viewer!.FavoriteToggleRequested += item => writes.Add(item);
+                host = viewer;
+                expected = entry;
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(surface));
+        }
+
+        Window window = new() { Width = 900, Height = 700, Content = host };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            if (viewer != null)
+            {
+                await viewer.ShowAsync(entry, BooruComponentDispatcher.Cancellation);
+                viewer.SetInteractionAvailable(true);
+                viewer.SetFavorite(false);
+                toggle = viewer.GetVisualDescendants().OfType<ToggleButton>().Single(b => b.Name == "GalleryFavoriteIndicator");
+            }
+            window.UpdateLayout();
+            toggle ??= Assert.Single(host.GetVisualDescendants().OfType<ArchiveFavoriteButton>());
+            Assert.True(toggle.IsEffectivelyVisible && toggle.IsEffectivelyEnabled, surface);
+            Click(toggle);
+            Assert.Same(expected, Assert.Single(writes));
+
+            foreach (MediaBadgeView badge in host.GetVisualDescendants().OfType<MediaBadgeView>())
+            {
+                Assert.False(badge.IsHitTestVisible);
+                Assert.False(badge.Focusable);
+            }
+            // A decorative badge in the picture has no button route.
+            MediaBadgeView decoration = new() { Options = MediaBadgeOptions.Archive };
+            decoration.Apply(new MediaBadgeState(Favorite: true), new Size(170, 125));
+            PlacedBadge placed = Assert.Single(decoration.Plan.Badges, badge => badge.Badge.Id == MediaBadgeId.Favorite);
+            window.Content = decoration;
+            window.UpdateLayout();
+            Point badgeCenter = decoration.TranslatePoint(placed.Bounds.Center, window)!.Value;
+            Assert.False(decoration.IsHitTestVisible);
+            Assert.NotSame(decoration, window.InputHitTest(badgeCenter));
+            window.MouseDown(badgeCenter, MouseButton.Left);
+            window.MouseUp(badgeCenter, MouseButton.Left);
+            Assert.Single(writes);
+        }
+        finally { window.Close(); }
     }
 
-    [Fact]
-    public void EveryFavoriteStarOfTheDesktopIsARealToggleOrADecorativeBadge()
-    {
-        // Source contract: the interactive stars all run the shared favourite call; the badges on pictures and small tiles stay decorative.
-        string button = Source("Desktop/ArchiveFavoriteButton.cs");
-        Assert.Contains("FavoriteKeys.Tooltip(marked, KeyContext)", button);
-        Assert.Contains("internal void Configure(ArchiveAttachmentRow? row)", button);
-        Assert.Contains("_favorite.Configure(row);", Source("Desktop/ArchiveAttachmentView.cs"));          // the reader post's file line
-        Assert.Contains("_favorite.Configure(row);", Source("Desktop/ArchiveMediaTileView.cs"));           // the archive's media tiles
-        Assert.Contains("_favorite.Configure(row);", Source("Desktop/Views/Archive/ReaderMediaSidebar.cs")); // the sidebar viewer's header
-        Assert.Contains("panel.ConfigureFavorite(PanelFavoriteAvailable", Source("Desktop/Views/Media/MediaPage.Panel.cs")); // the Media page's panel
-        string tile = Source("Desktop/MediaLibraryTileView.cs");                                             // the Media page's tile corner
-        Assert.Contains("await toggle(row.Entry)", tile);
-        Assert.Contains("FavoriteKeys.Tooltip(marked, \"media\")", tile);
-        Assert.Contains("FavoriteToggle = ToggleTileFavoriteAsync", Source("Desktop/Views/Media/MediaPage.cs"));
-        Assert.Contains("FavoriteKeys.Tooltip(_favoriteSelected, \"gallery\")", Source("Desktop/GalleryViewer.Favorites.cs")); // the gallery badge
-        Assert.Contains("ToggleArchiveMediaFavoriteAsync(entry)", Source("Desktop/Views/Archive/ArchivePage.MediaCommands.cs"));
-    }
+    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     // ---- routing per surface (the decisions; the window routing is the smokes') ----
 
