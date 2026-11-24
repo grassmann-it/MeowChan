@@ -92,6 +92,45 @@ public sealed class MediaFirstSidebarTests
         }
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void FailedRatingStaysVisibleAtTheDockingBoundary(bool automatic) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using RenderTargetBitmap picture = new(new PixelSize(600, 600));
+        ReaderMediaSidebar panel = new();
+        panel.Describe("No. 7", "same.png", "", true, mediumKey: "asset");
+        panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, "asset", picture.PixelSize);
+        panel.SetTags(["sky"], null);
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = automatic ? "Auto" : "Off" });
+        const string failure = "Rating could not be saved.";
+        int writes = 0;
+        panel.ConfigureRating(() => true, () => 3, _ => { writes++; return Task.FromException(new IOException(failure)); });
+        // The square image has 104 DIP free in Auto. A manual dock leaves exactly 240 DIP for the frame.
+        Window window = new() { Width = 320, Height = automatic ? 480 : 410, Content = panel };
+        try
+        {
+            window.Show();
+            if (!automatic) panel.ToggleDetails();
+            Settle(window);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
+            double imageHeight = panel.Picture.Bounds.Height;
+            if (!automatic) Assert.Equal(240, panel.Frame.Bounds.Height, 0.5);
+            panel.DecisionRow.StarButtons[4].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Settle(window);
+            Assert.Equal(1, writes);
+            Assert.False(panel.Details.IsEffectivelyVisible);
+            var alert = Assert.Single(panel.GetVisualDescendants().OfType<TextBlock>(), t => t.IsEffectivelyVisible && t.Text == failure);
+            Rect bounds = new(alert.TranslatePoint(default, panel)!.Value, alert.Bounds.Size);
+            Assert.True(bounds.Height > 0 && new Rect(panel.Bounds.Size).Contains(bounds));
+            Assert.Equal(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(alert));
+            Assert.True(panel.Picture.Bounds.Height >= imageHeight);
+            Assert.True(panel.Frame.Bounds.Height >= ReaderMediaSidebarRules.MinimumPictureHeight);
+        }
+        finally { window.Close(); }
+    });
+
     [Fact]
     public void ReorderingTheShownMediumKeepsItsSourceAndAutoHysteresis() => BooruComponentDispatcher.Run(() =>
     {

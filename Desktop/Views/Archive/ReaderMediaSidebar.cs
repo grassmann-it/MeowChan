@@ -283,7 +283,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Classes = { "workspace-meta" }, Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly GalleryDecisionRow _decision = new("ReaderMediaSidebarDecision", compact: true, favorite: false, sidebar: true);
-    private readonly TextBlock _decisionError = new() { Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _decisionError = new() { Margin = new Thickness(0, 4, 0, 0), Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Button _editTags = new() { Name = "ReaderMediaSidebarEditTags" };
     private Func<bool>? _favoriteAvailable;
     private Func<bool>? _isFavorite;
@@ -441,7 +441,7 @@ internal sealed partial class ReaderMediaSidebar : Border
 
         _info.Children.Add(_facts);
         _info.Children.Add(_provenanceNote);
-        _infoBar = new MediaInfoBar(_decision, _editTags, _decisionError, _info, OpenTagEditor);
+        _infoBar = new MediaInfoBar(_decision, _editTags, _info, OpenTagEditor);
         _details.Child = _infoBar;
         _overlayActions = MediaInfoBar.CreateActionGrid(_overlayRating, _tagCount, _expand);
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
@@ -508,11 +508,12 @@ internal sealed partial class ReaderMediaSidebar : Border
             UpdateCardRows();
         };
         UpdateCardRows();
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto") };
         layout.Children.Add(_header);
         layout.Children.Add(_live);
         Grid.SetRow(_card, 1); layout.Children.Add(_card);
         Grid.SetRow(_details, 2); layout.Children.Add(_details);
+        Grid.SetRow(_decisionError, 3); layout.Children.Add(_decisionError);
         // Header is visually first. Its close is the last element in the sidebar's tab order.
         KeyboardNavigation.SetTabIndex(Close, 1);
         Child = layout;

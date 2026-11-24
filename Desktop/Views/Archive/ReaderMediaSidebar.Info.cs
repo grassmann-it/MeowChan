@@ -236,9 +236,11 @@ internal sealed partial class ReaderMediaSidebar
             _infoPreferences.MediaSidebarInfo == "Auto" && source.HasValue);
         if (canDock && inner.Width > 0 && inner.Height > 0 && _fileName.Length > 0)
         {
-            _infoBar.Measure(new Size(inner.Width, double.PositiveInfinity));
+            Size unconstrained = new(inner.Width, double.PositiveInfinity);
+            _infoBar.Measure(unconstrained);
+            _decisionError.Measure(unconstrained);
             layout = ReaderMediaSidebarRules.InfoLayout(_infoPreferences, _detailsOverride, inner, source, rows,
-                _wasDocked, _image.MaxHeight, _infoBar.DesiredSize.Height);
+                _wasDocked, _image.MaxHeight, _infoBar.DesiredSize.Height + _decisionError.DesiredSize.Height);
         }
         _wasDocked = layout.Docked;
         bool showOverlay = !_wasDocked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
@@ -255,7 +257,7 @@ internal sealed partial class ReaderMediaSidebar
                 ? new GridLength(Math.Ceiling((layout.CardHeight + _card.Margin.Top) * scale) / scale)
                 : GridLength.Star;
             // Keep unused Auto-mode height below the bar so rounding preserves each measured row.
-            grid.RowDefinitions[3].Height = auto ? GridLength.Star : GridLength.Auto;
+            grid.RowDefinitions[4].Height = auto ? GridLength.Star : GridLength.Auto;
         }
         InfoToggle.IsChecked = _wasDocked;
         string tip = CommandBindings.Tooltip("media.sidebar.info");

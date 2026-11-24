@@ -43,10 +43,10 @@ internal sealed class MediaInfoBar : Grid
     private bool _returnFactsFocus;
     private readonly MenuFlyout _menu = new();
 
-    internal MediaInfoBar(GalleryDecisionRow rating, Button editTags, TextBlock error, Control factsContent, Action<Control> edit)
+    internal MediaInfoBar(GalleryDecisionRow rating, Button editTags, Control factsContent, Action<Control> edit)
     {
         Name = "ReaderMediaSidebarInfoBar";
-        RowDefinitions = new RowDefinitions("32,Auto,Auto,Auto");
+        RowDefinitions = new RowDefinitions("32,Auto,Auto");
         _rating = rating;
         _edit = editTags;
         _rating.FavoriteVisible = false;
@@ -77,10 +77,7 @@ internal sealed class MediaInfoBar : Grid
         _empty.Click += (_, _) => edit(_empty);
         _actions = CreateActionGrid(rating, new Grid { Children = { _toggle, _empty } }, new Grid { Children = { _edit, _more } });
         Children.Add(_actions);
-        error.Margin = new Thickness(0, 4, 0, 0);
-        SetRow(error, 1);
-        Children.Add(error);
-        SetRow(_chips, 2);
+        SetRow(_chips, 1);
         Children.Add(_chips);
 
         Grid summary = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), VerticalAlignment = VerticalAlignment.Center };
@@ -244,7 +241,7 @@ internal sealed class MediaInfoBar : Grid
         _date.Measure(Size.Infinity);
         double minFacts = Math.Max(200, _date.DesiredSize.Width + 24);
         bool inline = _hasFacts && width >= threshold + 16 + minFacts;
-        SetRow(_facts, inline ? 0 : 3);
+        SetRow(_facts, inline ? 0 : 2);
         double trailingActions = tagButton.DesiredSize.Width + 8 + editWidth + 16;
         _facts.Margin = inline ? new Thickness(ratingWithGap, 0, trailingActions, 0) : new Thickness(0, 4, 0, 0);
         _facts.VerticalAlignment = VerticalAlignment.Center;
