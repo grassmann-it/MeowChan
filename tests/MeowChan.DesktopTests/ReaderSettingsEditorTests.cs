@@ -428,13 +428,14 @@ public sealed class ReaderSettingsEditorTests : IDisposable
                 return Task.CompletedTask;
             };
             page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(saved));
+            Grid root = page.FindControl<Grid>("ArchiveRoot")!;
             Size size = new(1600, 800);
-            ReaderMediaSidebarLayoutTests.Layout(page, size);
+            ReaderMediaSidebarLayoutTests.Layout(root, size);
             ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
             Grid host = Assert.IsType<Grid>(sidebar.Parent);
             GridSplitter splitter = Assert.Single(host.Children.OfType<GridSplitter>(), control => control.Name == "ReaderMediaSidebarSplitter");
             host.ColumnDefinitions[Grid.GetColumn(sidebar)].Width = new GridLength(380);
-            ReaderMediaSidebarLayoutTests.Layout(page, size);
+            ReaderMediaSidebarLayoutTests.Layout(root, size);
             splitter.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Right });
             Assert.Equal(380, saved.ReaderMediaSidebarWidth);
             Assert.Equal(380m, editor.ReaderMediaSidebarWidth);
