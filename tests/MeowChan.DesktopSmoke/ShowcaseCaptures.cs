@@ -9,6 +9,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -66,7 +67,7 @@ internal static class ShowcaseCaptures
         // Search remains active beside the actual saved-media tiles of its selected thread.
         page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
         if (!page.FindControl<ListBox>("ArchiveMediaTiles")!.IsVisible)
-            Click(page.FindControl<Button>("ArchiveMediaMode")!);
+            CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!);
         await WaitForArchiveTilesAsync(window, page);
         await CaptureAsync(window, "v0.9.0-archive.png");
 
