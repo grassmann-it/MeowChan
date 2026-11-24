@@ -33,7 +33,7 @@ public partial class ArchivePage
         Button anchor = ReaderPopupAnchor(origin) as Button ?? origin;
         if (PopupToggle.Close(anchor)) return;
         ContextMenu menu = BuildReaderThreadMenu();
-        menu.Placement = Avalonia.Controls.Primitives.PlacementMode.BottomEdgeAlignedLeft;
+        menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         anchor.ContextMenu = menu;
         PopupToggle.Track(anchor, menu);
         if (!ReferenceEquals(anchor, origin))
