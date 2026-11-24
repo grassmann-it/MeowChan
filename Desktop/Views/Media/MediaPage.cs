@@ -1279,6 +1279,8 @@ public sealed partial class MediaPage : UserControl
         bool several = selectedCount > 1 && _grid.Selection.IsSelected(row.Index);
         bool hostActions = ExecuteMediaMenuActionAsync != null;
         IReadOnlyList<MediaLibraryTile>? queueTiles = several ? SelectedTiles : null;
+        string?[] fileNames = queueTiles == null ? [MediaFileActions.FileName(entry.Name)]
+            : queueTiles.Select(selected => MediaFileActions.FileName(selected.Entry.Name)).ToArray();
         MediaLibraryTileRow[] favoriteRows = several ? _grid.Selection.SelectedItems.OfType<MediaLibraryTileRow>().ToArray() : [row];
         bool?[] favoriteStates = favoriteRows.Select(selected => FavoriteKeyState(selected, PendingFavorite)).ToArray();
         MediaMenuFacts facts = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry))
@@ -1307,6 +1309,10 @@ public sealed partial class MediaPage : UserControl
             ExportWired = hostActions,
             FolderWired = hostActions,
             CopyPathWired = hostActions,
+            HasFileNames = fileNames.All(name => !string.IsNullOrWhiteSpace(name)),
+            OpenExternalWired = hostActions,
+            OpenExternalBlocked = entry.Directory == null ? MediaMenuReasons.NotSaved
+                : !MediaFileActions.CanOpenWithDefaultProgram(entry.Name) ? Texts.T("gallery.fileOnly.blocked") : null,
             DetailsWired = hostActions,
             Posts = entry.PostId != null ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
             ShowInThreadWired = ShowInThread != null,
@@ -1329,6 +1335,8 @@ public sealed partial class MediaPage : UserControl
                 : () => ExecuteMediaActionAsync("media.export-original", entry, Current),
             [MediaMenuAction.ShowInFolder] = () => ExecuteMediaActionAsync("media.show-in-folder", entry, Current),
             [MediaMenuAction.CopyPath] = () => ExecuteMediaActionAsync("media.copy-path", entry, Current),
+            [MediaMenuAction.CopyFileName] = () => MenuClipboard.CopyAsync(origin, string.Join(Environment.NewLine, fileNames), ShowSelectionNote),
+            [MediaMenuAction.OpenExternal] = () => ExecuteMediaActionAsync("media.open-external", entry, Current),
             [MediaMenuAction.Details] = () => ExecuteMediaActionAsync("media.details", entry, Current),
             [MediaMenuAction.ShowInThread] = () => ShowInThread == null || entry.PostId == null ? Task.CompletedTask : ShowInThread(entry),
             [MediaMenuAction.OpenProviderPost] = () => OpenProviderPostAsync(entry),

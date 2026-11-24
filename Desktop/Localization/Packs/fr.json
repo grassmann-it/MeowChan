@@ -2614,6 +2614,7 @@
     "command.media.details": "Afficher les détails du média",
     "command.post.copy-link": "Copier le lien du message",
     "command.post.open-source": "Ouvrir le message sur la source",
+    "command.media.copy-file-name": "Copier les noms de fichiers",
     "command.media.copy-path": "Copier le chemin du fichier",
     "command.media.open-external": "Ouvrir avec le programme par défaut",
     "command.post.copy-text": "Copier le texte du message",

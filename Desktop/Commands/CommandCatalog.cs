@@ -378,6 +378,7 @@ public static class CommandCatalog
         new("media.show-in-folder", "command.media.show-in-folder", "Show in folder", "Im Ordner anzeigen", "folder", "Primary+O", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
         new("media.details", "command.media.details", "Show media details", "Mediendetails anzeigen", "info", "I", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
         new("media.copy-path", "command.media.copy-path", "Copy file path", "Dateipfad kopieren", "copy", "Primary+Shift+C", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
+        new("media.copy-file-name", "command.media.copy-file-name", "Copy file names", "Dateinamen kopieren", "copy", null, CommandScope.Archive | CommandScope.Reader | CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu", "tagging" }),
         new("media.open-external", "command.media.open-external", "Open with default program", "Mit Standardprogramm öffnen", "external-link", "Primary+Shift+O", CommandScope.Gallery, new[] { "gallery-file-only" }),
         // Revision 19: Primary+Shift+C copies the selected post's link, like the file path of a medium (Ctrl/Cmd+C stays text copy).
         new("post.copy-link", "command.post.copy-link", "Copy post link", "Post-Link kopieren", "link", "Primary+Shift+C", CommandScope.Reader, new[] { "reader-post-menu" }),

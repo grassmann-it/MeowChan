@@ -203,6 +203,7 @@ internal static class CommandLabelCatalog
         ("command.media.next-untagged", "Next untagged medium", "Nächstes Medium ohne Tags"),
         ("command.media.copy-path", "Copy file path", "Dateipfad kopieren"),
         ("command.media.open-external", "Open with default program", "Mit Standardprogramm öffnen"),
+        ("command.media.copy-file-name", "Copy file names", "Dateinamen kopieren"),
         ("command.post.copy-link", "Copy post link", "Post-Link kopieren"),
         ("command.post.open-source", "Open post on source", "Post auf Quelle öffnen"),
         ("command.post.copy-text", "Copy post text", "Post-Text kopieren"),

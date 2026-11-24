@@ -30,8 +30,10 @@ internal enum MediaMenuAction
     RateAndTag,
     Queue,
     Export,
-    ShowInFolder,
     CopyPath,
+    CopyFileName,
+    ShowInFolder,
+    OpenExternal,
     Details,
     ShowInThread,
     OpenProviderPost,
@@ -111,6 +113,9 @@ internal sealed record MediaMenuFacts(MediaMenuSurface Surface, MediaMenuTarget?
     internal bool ExportWired { get; init; } = true;
     internal bool FolderWired { get; init; } = true;
     internal bool CopyPathWired { get; init; } = true;
+    internal bool HasFileNames { get; init; } = true;
+    internal bool OpenExternalWired { get; init; } = true;
+    internal string? OpenExternalBlocked { get; init; }
     internal bool DetailsWired { get; init; } = true;
     internal MediaMenuPostScope Posts { get; init; } = MediaMenuPostScope.None;
     internal bool ShowInThreadWired { get; init; } = true;
@@ -136,12 +141,13 @@ internal sealed record MediaMenuItemModel(MediaMenuAction Action, string? Comman
         MediaMenuAction.CopyProviderPost => CommandCatalog.Get("post.copy-link").Icon,
         _ => null
     };
-    /// <summary>Open and show-in-thread group the first section, the file actions the second, the post actions the third.</summary>
+    /// <summary>Opening and editing, copying and sharing, file location, then the source post.</summary>
     internal int Group => Action switch
     {
         MediaMenuAction.Open or MediaMenuAction.Favorite or MediaMenuAction.RateAndTag or MediaMenuAction.Queue => 0,
-        MediaMenuAction.Export or MediaMenuAction.ShowInFolder or MediaMenuAction.CopyPath or MediaMenuAction.Details => 1,
-        _ => 2
+        MediaMenuAction.Export or MediaMenuAction.CopyPath or MediaMenuAction.CopyFileName => 1,
+        MediaMenuAction.ShowInFolder or MediaMenuAction.OpenExternal or MediaMenuAction.Details => 2,
+        _ => 3
     };
 }
 
@@ -227,10 +233,15 @@ internal static class MediaMenuComposition
             facts.Present && facts.ExportWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
         // One file each (MD-01/KB-06): with several selected they say so instead of acting on one of them; the other entries act on the selection.
         string? OneFile() => NeedsFile() ?? (facts.SeveralSelected ? MediaMenuReasons.SeveralSelected : null);
-        Add(MediaMenuAction.ShowInFolder, "media.show-in-folder", CommandCatalog.Label("media.show-in-folder"),
-            facts.Present && facts.FolderWired && !facts.SeveralSelected, OneFile() ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.CopyPath, "media.copy-path", CommandCatalog.Label("media.copy-path"),
             facts.Present && facts.CopyPathWired && !facts.SeveralSelected, OneFile() ?? MediaMenuReasons.Unavailable);
+        Add(MediaMenuAction.CopyFileName, "media.copy-file-name", CommandCatalog.Label("media.copy-file-name"),
+            facts.Present && facts.HasFileNames, NeedsFile() ?? MediaMenuReasons.Unavailable);
+        Add(MediaMenuAction.ShowInFolder, "media.show-in-folder", CommandCatalog.Label("media.show-in-folder"),
+            facts.Present && facts.FolderWired && !facts.SeveralSelected, OneFile() ?? MediaMenuReasons.Unavailable);
+        Add(MediaMenuAction.OpenExternal, "media.open-external", CommandCatalog.Label("media.open-external"),
+            facts.Present && facts.OpenExternalWired && !facts.SeveralSelected && facts.OpenExternalBlocked == null,
+            OneFile() ?? facts.OpenExternalBlocked ?? MediaMenuReasons.Unavailable, showShortcut: inGallery);
         Add(MediaMenuAction.Details, "media.details", CommandCatalog.Label("media.details"),
             facts.Present && facts.DetailsWired && !facts.SeveralSelected, OneFile() ?? MediaMenuReasons.Unavailable);
         // A post-dependent action never picks one of several posts and never acts without one.

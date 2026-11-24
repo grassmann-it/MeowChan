@@ -2619,6 +2619,7 @@
     "command.media.details": "Показать подробности медиафайла",
     "command.post.copy-link": "Копировать ссылку на пост",
     "command.post.open-source": "Открыть пост на источнике",
+    "command.media.copy-file-name": "Копировать имена файлов",
     "command.media.copy-path": "Копировать путь к файлу",
     "command.media.open-external": "Открыть в программе по умолчанию",
     "command.post.copy-text": "Копировать текст поста",

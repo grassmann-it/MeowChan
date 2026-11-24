@@ -2241,6 +2241,7 @@
     "command.media.export-original": "Esporta",
     "command.media.show-in-folder": "Mostra nella cartella",
     "command.media.details": "Mostra dettagli del media",
+    "command.media.copy-file-name": "Copia i nomi dei file",
     "command.media.copy-path": "Copia percorso del file",
     "command.media.open-external": "Apri con il programma predefinito",
     "command.post.copy-link": "Copia link del post",

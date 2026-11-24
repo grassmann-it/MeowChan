@@ -47,6 +47,7 @@ public partial class ArchivePage
     internal Func<TagContext, QuickTagPopoverOptions>? TagPopoverOptions { get; set; }
     /// <summary>Copies a saved file's path to the clipboard and says so; supplied by the shell.</summary>
     internal Func<string, Task>? CopyFilePathAsync { get; set; }
+    internal Func<GalleryEntry, Task>? OpenMediaExternallyAsync { get; set; }
     private readonly Dictionary<FavoriteAssetKey, string> _favoriteErrors = new();
     internal void ClearFavoriteError(FavoriteAssetKey key)
     {
@@ -643,6 +644,9 @@ public partial class ArchivePage
         string[] postIds = subject.PostIds;
         bool severalPosts = postIds.Length > 1;
         GalleryEntry? target = subject.Target;
+        string?[] fileNames = selection is { Length: > 1 }
+            ? selection.Select(row => MediaFileActions.FileName(row.Asset.OriginalFileName, row.Asset.Path)).ToArray()
+            : [MediaFileActions.FileName(target?.Asset.OriginalFileName, target?.Asset.Path)];
         GalleryEntry? galleryTarget = subject.GalleryTarget;
         GalleryMediaTagUnavailable tagReason = subject.TagReason;
         bool taggable = tagEntry != null;
@@ -680,6 +684,9 @@ public partial class ArchivePage
             QueueKeyReachesTarget = target != null,
             FolderWired = CanShowInFolder(),
             CopyPathWired = CanCopyPath(),
+            HasFileNames = fileNames.All(name => !string.IsNullOrWhiteSpace(name)),
+            OpenExternalWired = OpenMediaExternallyAsync != null,
+            OpenExternalBlocked = selection is { Length: > 1 } ? MediaMenuReasons.SeveralSelected : MediaFileActions.DefaultProgramBlockedReason(target?.Asset.Path),
             Posts = severalPosts ? MediaMenuPostScope.Several : postIds.Length == 1 ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
             ShowInThreadWired = postIds.Length != 1 || CanShowInThread() // one post: the entry is on exactly when its handler can run
         };
@@ -715,6 +722,9 @@ public partial class ArchivePage
                 return Task.CompletedTask;
             }),
             [MediaMenuAction.CopyPath] = When(MediaMenuAction.CopyPath, CanCopyPath, () => CopyFilePathAsync!(target!.Asset.Path)),
+            [MediaMenuAction.CopyFileName] = () => MenuClipboard.CopyAsync(origin, string.Join(Environment.NewLine, fileNames), reportError),
+            [MediaMenuAction.OpenExternal] = When(MediaMenuAction.OpenExternal, () => target != null && OpenMediaExternallyAsync != null,
+                () => OpenMediaExternallyAsync!(target!)),
             [MediaMenuAction.Details] = () =>
             {
                 string details = target == null ? attachment?.Label + Environment.NewLine + MediaMenuReasons.NotSaved

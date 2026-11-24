@@ -133,19 +133,13 @@ public partial class MainWindow
         { ShowNotification(Texts.T("notification.error"), Texts.T("media.copyPath.failed"), NotificationType.Warning, operation: "media.copy-path"); }
     }
 
-    // A file the gallery cannot show is handed to the system's default program, except types that could run as a
-    // program; those can only be shown in their folder.
+    // Recheck the resolved local file at activation, including from menus opened before the file disappeared.
     private async Task OpenMediaFileExternallyAsync(GalleryEntry entry)
     {
         string path = entry.Asset.Path;
-        if (!MediaFileActions.CanOpenWithDefaultProgram(path))
+        if (MediaFileActions.DefaultProgramBlockedReason(path) is { } reason)
         {
-            ShowNotification(Texts.T("notification.error"), Texts.T("gallery.fileOnly.blocked"), NotificationType.Warning, operation: "media.open-external");
-            return;
-        }
-        if (!File.Exists(path))
-        {
-            ShowNotification(Texts.T("notification.error"), Texts.T("gallery.fileOnly.missing"), NotificationType.Warning, operation: "media.open-external");
+            ShowNotification(Texts.T("notification.error"), reason, NotificationType.Warning, operation: "media.open-external");
             return;
         }
         try { await (OpenFileForTests?.Invoke(path) ?? ExternalLauncher.OpenAsync(path)); }

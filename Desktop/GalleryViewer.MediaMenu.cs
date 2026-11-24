@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 
@@ -68,6 +69,9 @@ internal sealed partial class GalleryViewer
             QueueBlocked = TagQueueActions.BlockedReason(true, provider),
             FolderWired = ShowInFolderRequested != null,
             CopyPathWired = CopyPathRequested != null,
+            HasFileNames = !string.IsNullOrWhiteSpace(MediaFileActions.FileName(entry.Asset.OriginalFileName, entry.Asset.Path)),
+            OpenExternalWired = OpenExternalRequested != null,
+            OpenExternalBlocked = MediaFileActions.DefaultProgramBlockedReason(entry.Asset.Path),
             DetailsWired = DetailsRequested != null,
             Posts = entry.Post != null ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
             ShowInThreadWired = ReadPostRequested != null,
@@ -95,6 +99,8 @@ internal sealed partial class GalleryViewer
                 : item with { Available = RateAndTagTileRequested != null, Reason = RateAndTagTileRequested != null ? null : MediaMenuReasons.Unavailable }).ToArray() };
         MediaMenuSession session = new(model.Surface, model.Target, () => !_terminalRetirement && navigation == _navigationId
             && (!shown || _entry is { } current && MediaMenuTarget.Of(current) == model.Target));
+        Control owner = !shown ? _filmstrip : _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
+        string? fileName = MediaFileActions.FileName(entry.Asset.OriginalFileName, entry.Asset.Path);
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
             [MediaMenuAction.Favorite] = Sync(() => FavoriteToggleRequested?.Invoke(entry)),
@@ -103,6 +109,8 @@ internal sealed partial class GalleryViewer
             [MediaMenuAction.Export] = Sync(() => ExportOriginalRequested?.Invoke(entry)),
             [MediaMenuAction.ShowInFolder] = Sync(() => ShowInFolderRequested?.Invoke(entry)),
             [MediaMenuAction.CopyPath] = Sync(() => CopyPathRequested?.Invoke(entry)),
+            [MediaMenuAction.CopyFileName] = () => MenuClipboard.CopyAsync(owner, fileName!, MenuExplanationRequested),
+            [MediaMenuAction.OpenExternal] = Sync(() => OpenExternalRequested?.Invoke(entry)),
             [MediaMenuAction.Details] = Sync(() => DetailsRequested?.Invoke(entry)),
             [MediaMenuAction.ShowInThread] = Sync(() => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); }),
             [MediaMenuAction.OpenProviderPost] = Sync(() => ProviderPostOpenRequested?.Invoke(entry)),
@@ -121,7 +129,6 @@ internal sealed partial class GalleryViewer
                 () => !_terminalRetirement && PostBookmarkRequested != null, run) };
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
             text => MenuExplanationRequested?.Invoke(text), playback);
-        Control owner = !shown ? _filmstrip : _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();
         _mediaMenuPresenter.Show(menu, session, owner, attachToOrigin: true, fallbackFocus: FocusGallerySurface);

@@ -182,8 +182,17 @@ public sealed partial class TaggingPage
         return ComposeRowMenu();
     }
 
-    private ContextMenuBuilder? ComposeRowMenu() => Lead == null ? null
-        : TaggingQueueMenu.Compose(CommandContext(), id => () => OpenActions.Start(() => ExecuteRowCommandAsync(id), "tagging.menu"));
+    private ContextMenuBuilder? ComposeRowMenu()
+    {
+        TaggingCommandContext context = CommandContext();
+        if (context.Lead == null) return null;
+        string names = SelectionFileNames(context.Selected);
+        return TaggingQueueMenu.Compose(context, id => () => OpenActions.Start(id == TaggingCommands.CopyFileName
+            ? () => MenuClipboard.CopyAsync(this, names, ShowStatus) : () => ExecuteRowCommandAsync(id), "tagging.menu"));
+    }
+
+    private static string SelectionFileNames(IReadOnlyList<TaggingQueueRow> selected) =>
+        string.Join(Environment.NewLine, selected.Select(row => MeowChan.Desktop.MediaActions.MediaFileActions.FileName(row.Item.Name)));
 
     /// <summary>The menu as plain data (smoke and test seam); null without a selection.</summary>
     internal ContextMenuModel? ListMenuModel() => ComposeRowMenu()?.ToModel();
@@ -295,6 +304,7 @@ public sealed partial class TaggingPage
             TaggingCommands.ShowInMedia => Leaving(ShowInMedia, lead.Item),
             TaggingCommands.ShowInFolder => Leaving(ShowInFolder, lead.Item),
             TaggingCommands.CopyPath => Leaving(CopyPath, lead.Item),
+            TaggingCommands.CopyFileName => MenuClipboard.CopyAsync(this, SelectionFileNames(selected), ShowStatus),
             TaggingCommands.MoveUp => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, -1, _effectiveScope), select: lead.Key),
             TaggingCommands.MoveDown => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, 1, _effectiveScope), select: lead.Key),
             TaggingCommands.MoveFirst => AfterAsync(_queueWork.MoveToEdgeAsync(lead.Key, toEnd: false), select: lead.Key),

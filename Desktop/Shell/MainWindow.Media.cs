@@ -308,6 +308,7 @@ public partial class MainWindow
                     if (Path.GetDirectoryName(entry.Asset.Path) is string directory) OpenDirectory(directory);
                     break;
                 case "media.copy-path": await CopyMediaPathAsync(entry); break;
+                case "media.open-external": await OpenMediaFileExternallyAsync(entry); break;
                 case "media.details": await ShowGalleryDetailsAsync(entry); break;
                 case "media.tags.edit": await EditMediaLibraryTagsForMenuAsync(indexed, Current, entry); break;
                 default: throw new InvalidOperationException("Unsupported media menu action: " + id);

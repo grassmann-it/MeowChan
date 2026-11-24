@@ -2470,6 +2470,7 @@
     "command.media.details": "미디어 세부 정보 표시",
     "command.post.copy-link": "게시물 링크 복사",
     "command.post.open-source": "소스에서 게시물 열기",
+    "command.media.copy-file-name": "파일 이름 복사",
     "command.media.copy-path": "파일 경로 복사",
     "command.media.open-external": "기본 프로그램으로 열기",
     "command.post.copy-text": "게시물 텍스트 복사",

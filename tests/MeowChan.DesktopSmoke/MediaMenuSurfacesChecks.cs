@@ -32,7 +32,7 @@ internal static class MediaMenuSurfacesChecks
     private static readonly string[] Order =
     {
         "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add",
-        "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread"
+        "media.export-original", "media.copy-path", "media.copy-file-name", "media.show-in-folder", "media.open-external", "media.details", "gallery.show-in-thread"
     };
 
     internal static async Task RunAsync(MainWindow owner)

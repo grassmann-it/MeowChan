@@ -2251,6 +2251,7 @@
     "command.media.export-original": "Exportovat",
     "command.media.show-in-folder": "Zobrazit ve složce",
     "command.media.details": "Zobrazit podrobnosti média",
+    "command.media.copy-file-name": "Kopírovat názvy souborů",
     "command.media.copy-path": "Kopírovat cestu k souboru",
     "command.media.open-external": "Otevřít ve výchozím programu",
     "command.post.copy-link": "Kopírovat odkaz na příspěvek",

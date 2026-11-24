@@ -167,6 +167,7 @@ public partial class MainWindow
         _archivePage.TagPopoverOptions = TagPopoverDefaults;
         _archivePage.DecisionFor = DecisionFor;
         _archivePage.CopyFilePathAsync = CopyFilePathAsync;
+        _archivePage.OpenMediaExternallyAsync = OpenMediaFileExternallyAsync;
         _archivePage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         _archivePage.IsArchiveFavorite = _session.IsFavorite;
         _archivePage.ArchiveFavoritesUnreadable = () => _session.FavoritesUnreadable;
