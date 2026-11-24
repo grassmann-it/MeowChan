@@ -53,6 +53,7 @@ public sealed class MacShortcutDefaultsTests
 
     [Theory]
     [InlineData("window.fullscreen", "⌃⌘F / F11 (Fn)", "F11")]
+    [InlineData("input.focus-download-search", "⌘F", "Ctrl+F")]
     [InlineData("watch.remove", "⌘⌫ / ⌦", "Delete")]
     [InlineData("archive.delete-permanently", "⇧⌘⌫ / ⇧⌦", "Shift+Delete")]
     [InlineData("thread.details", "⌘I / ⌥↩", "Alt+Enter")]

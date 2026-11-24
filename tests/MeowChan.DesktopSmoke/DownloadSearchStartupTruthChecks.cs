@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
@@ -14,7 +15,8 @@ using MeowChan.Persistence;
 namespace MeowChan.DesktopSmoke;
 
 // Standalone, opt-in entry so this disjoint fixture needs no Program/project/selector edits.
-// Build the smoke project with -p:DefineConstants=DOWNLOAD_SEARCH_STARTUP_TRUTH
+// After building the application, build the smoke project in the same configuration
+// with -p:BuildProjectReferences=false -p:DefineConstants=DOWNLOAD_SEARCH_STARTUP_TRUTH
 // -p:StartupObject=MeowChan.DesktopSmoke.DownloadSearchStartupTruthChecks .
 // Run the resulting assembly with scripts/run-desktop-smoke.py --mode normal (private Xvfb).
 internal static class DownloadSearchStartupTruthChecks
@@ -230,6 +232,14 @@ internal static class DownloadSearchStartupTruthChecks
         await AppliedAsync(window);
         AssertPending(window);
         Require(input.Text == query && input.IsKeyboardFocusWithin, "Catalog milestone changed query/focus.");
+        if (live)
+        {
+            RawKeyboardInput.Press(window, Key.Tab);
+            Require(C<Button>(window, "DownloadSearchClose").IsFocused, "Tab could not leave the pending search field.");
+            RawKeyboardInput.Press(window, Key.Tab, RawInputModifiers.Shift);
+            Require(input.IsKeyboardFocusWithin, "Shift+Tab could not return to the pending search field.");
+            Program.CaptureWindow(window, "smoke-download-search-restoring.png");
+        }
         readable.Release.TrySetResult();
         await Read<Task>(window, "_restoreTask").WaitAsync(Deadline);
         await AppliedAsync(window);
@@ -336,7 +346,7 @@ internal static class DownloadSearchStartupTruthChecks
         }
         await AppliedAsync(window);
         C<Button>(window, "DownloadSearchClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        PressEnter(showBoards);
+        ActivateEmptyAction(window, showBoards, "smoke-download-search-0-4.png");
         Require(tabs.SelectedIndex == 1 && input.Text == "  BoArD-only-match  " && !input.IsVisible
             && C<DataGrid>(window, "BoardsDataGrid").IsKeyboardFocusWithin, "Keyboard switch to Boards lost the query or focus.");
 
@@ -345,7 +355,7 @@ internal static class DownloadSearchStartupTruthChecks
         await AppliedAsync(window);
         Require(tabs.SelectedIndex == 1 && window.VisibleThreads.Count == 3 && window.VisibleBoards.Count == 0
             && Equals(showThreads.Content, "Show 3 matching threads"), "The 3/0 search did not offer the Thread action.");
-        PressEnter(showThreads);
+        ActivateEmptyAction(window, showThreads, "smoke-download-search-3-0.png");
         Require(tabs.SelectedIndex == 0 && input.Text == "thread-only-match"
             && C<DataGrid>(window, "ThreadsDataGrid").IsKeyboardFocusWithin, "Keyboard switch to Threads lost the query or focus.");
 
@@ -354,7 +364,7 @@ internal static class DownloadSearchStartupTruthChecks
         C<Button>(window, "DownloadSearchClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(tabs.SelectedIndex == 0 && window.VisibleBoards.Count == 0 && window.VisibleThreads.Count == 0
             && Equals(showBoards.Content, "Clear search text") && !input.IsVisible, "The 0/0 search did not offer to clear the folded query.");
-        PressEnter(showBoards);
+        ActivateEmptyAction(window, showBoards, "smoke-download-search-0-0.png");
         await AppliedAsync(window);
         Require(string.IsNullOrEmpty(input.Text) && input.IsKeyboardFocusWithin && tabs.SelectedIndex == 0
             && window.VisibleBoards.Count >= 4 && window.VisibleThreads.Count >= 3, "Clearing did not restore the lists and focus the search field.");
@@ -362,11 +372,15 @@ internal static class DownloadSearchStartupTruthChecks
         Console.WriteLine("W112-46 PASS: keyboard actions 0/4, 3/0, 0/0, pending restore and localized layout.");
     }
 
-    private static void PressEnter(Button button)
+    private static void ActivateEmptyAction(MainWindow window, Button button, string screenshot)
     {
-        Require(button.IsEffectivelyVisible && button.Focus(NavigationMethod.Tab), "Search action is not keyboard focusable.");
-        button.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-        button.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Enter });
+        TabItem tab = (TabItem)C<TabControl>(window, "DownloadsTabs").SelectedItem!;
+        Require(tab.Focus() && button.IsEffectivelyVisible, "The active tab or search action is unavailable.");
+        for (int step = 0; step < 24 && !button.IsFocused; step++)
+            RawKeyboardInput.Press(window, Key.Tab);
+        Require(button.IsFocused, "Tab did not reach " + button.Name);
+        Program.CaptureWindow(window, screenshot);
+        RawKeyboardInput.Press(window, Key.Enter);
     }
 
     private static async Task TerminalAsync(MainWindow owner, StartupPreviewSmokeApp app, bool fail)

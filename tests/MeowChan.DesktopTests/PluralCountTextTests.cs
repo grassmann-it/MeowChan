@@ -41,7 +41,8 @@ public sealed class PluralCountTextTests : IDisposable
         "tags.manage.orphansUnchecked", "tags.dialog.usesName", "tags.dialog.row.all", "tags.dialog.removedMany",
         "tags.suggest.count", "work.missingAndErrors", "work.interventionCount", "booru.ui.status.results",
         "booru.ui.post.favorites", "queue.ask", "tagging.page.progress.results",
-        "media.count.media", "media.count.threads", "archive.delete.threads", "archive.delete.files",
+        "downloads.searchShowBoards", "downloads.searchShowThreads", "media.count.media", "media.count.threads",
+        "archive.delete.threads", "archive.delete.files",
         "archive.delete.bytes", "import.done.tags", "export.collectionSelection", "media.filter.count", "media.untagged.hint"
     };
 
