@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
@@ -44,6 +45,8 @@ public sealed class BooruComponentDispatcherTests
     [Fact]
     public void WorkbenchModelNotificationsRenderOnTheViewsDispatcher() => BooruComponentDispatcher.Run(() =>
     {
+        // Exercise the first splitter in the isolated locator before the Booru docks are present.
+        _ = new GridSplitter();
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
         using BooruWorkbenchView view = new(model, ownsModel: false);
