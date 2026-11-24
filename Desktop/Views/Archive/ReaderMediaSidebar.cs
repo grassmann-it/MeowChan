@@ -508,7 +508,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             UpdateCardRows();
         };
         UpdateCardRows();
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto") };
         layout.Children.Add(_header);
         layout.Children.Add(_live);
         Grid.SetRow(_card, 1); layout.Children.Add(_card);

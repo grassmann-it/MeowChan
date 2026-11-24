@@ -254,6 +254,8 @@ internal sealed partial class ReaderMediaSidebar
             grid.RowDefinitions[1].Height = auto
                 ? new GridLength(Math.Ceiling((layout.CardHeight + _card.Margin.Top) * scale) / scale)
                 : GridLength.Star;
+            // Keep unused Auto-mode height below the bar so rounding preserves each measured row.
+            grid.RowDefinitions[3].Height = auto ? GridLength.Star : GridLength.Auto;
         }
         InfoToggle.IsChecked = _wasDocked;
         string tip = CommandBindings.Tooltip("media.sidebar.info");

@@ -232,7 +232,8 @@ internal sealed class MediaInfoBar : Grid
             new Typeface(_editLabel.FontFamily, _editLabel.FontStyle, _editLabel.FontWeight), _editLabel.FontSize, _editLabel.Foreground);
         double editWidth = Math.Ceiling(text.WidthIncludingTrailingWhitespace) + 16 + 8 + 24 + 2;
         // Keep the label stable when switching between zero tags and a count with a chevron.
-        double threshold = 160 + 16 + Math.Max(64, tagButton.DesiredSize.Width) + 8 + editWidth;
+        const double ratingWithGap = 5 * 24 + 8 + 32 + 16;
+        double threshold = ratingWithGap + Math.Max(64, tagButton.DesiredSize.Width) + 8 + editWidth;
         bool label = width >= threshold;
         _edit.Classes.Set(WorkspaceIcons.SquareClass, !label);
         _editLabel.IsVisible = label;
@@ -244,7 +245,8 @@ internal sealed class MediaInfoBar : Grid
         double minFacts = Math.Max(200, _date.DesiredSize.Width + 24);
         bool inline = _hasFacts && width >= threshold + 16 + minFacts;
         SetRow(_facts, inline ? 0 : 3);
-        _facts.Margin = inline ? new Thickness(176, 0, tagButton.DesiredSize.Width + 8 + editWidth + 16, 0) : new Thickness(0, 4, 0, 0);
+        double trailingActions = tagButton.DesiredSize.Width + 8 + editWidth + 16;
+        _facts.Margin = inline ? new Thickness(ratingWithGap, 0, trailingActions, 0) : new Thickness(0, 4, 0, 0);
         _facts.VerticalAlignment = VerticalAlignment.Center;
         return base.MeasureOverride(availableSize);
     }
