@@ -1361,6 +1361,7 @@
     "selection.export": "Экспортировать выбранное",
     "selection.remove": "Убрать выбранное",
     "selection.copyUrls": "Копировать выбранные URL",
+    "selection.actionSubset": "{0} ({1} из {2})",
     "selection.failed": "Действий не выполнено: {0} из {1}: {2}",
     "shell.pausing": "Приостановка…",
     "action.pausingShort": "Приостановка…",

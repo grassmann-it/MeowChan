@@ -1356,6 +1356,7 @@
     "selection.export": "Exportar selección",
     "selection.remove": "Quitar selección",
     "selection.copyUrls": "Copiar URL seleccionadas",
+    "selection.actionSubset": "{0} ({1} de {2})",
     "selection.failed": "Fallaron {0} de {1} acciones: {2}",
     "shell.pausing": "Pausando…",
     "action.pausingShort": "Pausando…",

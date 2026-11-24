@@ -289,7 +289,11 @@ public partial class MainWindow
         {
             DataGrid grid = WorkspaceControl<DataGrid>(gridName);
             if (grid.ContextMenu is ContextMenu menu)
+            {
                 foreach (Control control in menu.GetLogicalDescendants().OfType<Control>()) LocalizeWorkspaceControl(control);
+                foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(item => item.Tag is "watch.check" or "watch.retry-media"))
+                    CommandBindings.Refresh(item);
+            }
             foreach (DataGridColumn column in grid.Columns)
             {
                 string? key = column.SortMemberPath switch

@@ -910,6 +910,7 @@
     "selection.export": "Eksportuj zaznaczenie",
     "selection.remove": "Usuń zaznaczone",
     "selection.copyUrls": "Kopiuj zaznaczone URL",
+    "selection.actionSubset": "{0} ({1} z {2})",
     "selection.failed": "Nieudane akcje: {0} z {1}: {2}",
     "shell.pausing": "Wstrzymywanie…",
     "action.pausingShort": "Wstrzymywanie…",

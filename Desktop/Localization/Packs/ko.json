@@ -1241,6 +1241,7 @@
     "selection.export": "선택 항목 내보내기",
     "selection.remove": "선택 항목 제거",
     "selection.copyUrls": "선택한 URL 복사",
+    "selection.actionSubset": "{0} ({2}개 중 {1}개)",
     "selection.failed": "작업 {1}개 중 {0}개 실패: {2}",
     "shell.pausing": "일시 중지하는 중…",
     "action.pausingShort": "일시 중지하는 중…",

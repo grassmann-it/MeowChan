@@ -910,6 +910,7 @@
     "selection.export": "Exportovat výběr",
     "selection.remove": "Odebrat výběr",
     "selection.copyUrls": "Kopírovat vybrané adresy URL",
+    "selection.actionSubset": "{0} ({1} z {2})",
     "selection.failed": "Selhalo akcí: {0} z {1}: {2}",
     "shell.pausing": "Pozastavuje se…",
     "action.pausingShort": "Pozastavuje se…",

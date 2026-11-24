@@ -1241,6 +1241,7 @@
     "selection.export": "選択項目をエクスポート",
     "selection.remove": "選択項目を削除",
     "selection.copyUrls": "選択したURLをコピー",
+    "selection.actionSubset": "{0}（{2} 件中 {1} 件）",
     "selection.failed": "{1}件中{0}件の操作が失敗しました: {2}",
     "shell.pausing": "一時停止しています…",
     "action.pausingShort": "一時停止しています…",
