@@ -496,7 +496,8 @@ public sealed class SidePanelDesignTests
         // Fable §2.1: 40 DIP (4 + 32 + 4) for one row, 56 for two; actions gain whole labels only.
         bool single = header.UsesSingleRow;
         Near(single ? 32 : 48, header.Bounds.Height);
-        if (panel.Bounds.Width <= 480) Assert.False(single);
+        if (panel.Bounds.Width <= 320) Assert.False(single);
+        if (single) Assert.True(In(header.Meta, header).Left >= In(panel.Title, header).Right);
         if (panel.Bounds.Width >= 700) Assert.True(single);
         Near(16, header.Meta.Bounds.Height);
         Rect? previous = null;

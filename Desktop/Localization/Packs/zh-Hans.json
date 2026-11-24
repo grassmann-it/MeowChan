@@ -16,6 +16,7 @@
     "settings.reader.mediaSidebarInfo.shortHeight": "高度不足",
     "command.media.sidebar.info": "显示媒体信息",
     "command.media.sidebar.autohide": "自动隐藏工具栏",
+    "media.sidebar.settings": "侧栏设置",
     "media.sidebar.pin": "保持详情展开",
     "media.sidebar.unpin": "收起详情",
     "booru.ui.result.showInMedia": "在媒体中显示",

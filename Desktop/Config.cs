@@ -642,6 +642,16 @@ namespace MeowChan
         private string _mediaSidebarInfo = "Auto";
         public bool MediaSidebarAutoHide { get; set; }
         public bool MediaSidebarFacts { get; set; } = true;
+        public bool MediaSidebarPinned { get; set; }
+
+        internal bool SidebarFactsVisible => MediaSidebarInfo != "Off" && MediaSidebarFacts;
+
+        internal void SetSidebarFacts(bool visible)
+        {
+            MediaSidebarFacts = visible;
+            // A click can recover a profile written when Off hid the whole bar.
+            if (MediaSidebarInfo == "Off") MediaSidebarInfo = "Auto";
+        }
         public string MediaSidebarInfo { get => _mediaSidebarInfo; set => _mediaSidebarInfo = NormalizeSidebarInfo(value); }
 
         internal const int MediaSidebarInfoMinimumFreeMinimum = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeMinimum;
@@ -2161,6 +2171,7 @@ namespace MeowChan
                 ReaderMediaSidebarScope = ReaderMediaSidebarScope,
                 MediaSidebarAutoHide = MediaSidebarAutoHide,
                 MediaSidebarFacts = MediaSidebarFacts,
+                MediaSidebarPinned = MediaSidebarPinned,
                 MediaSidebarInfo = MediaSidebarInfo,
                 MediaSidebarInfoMinimumFree = MediaSidebarInfoMinimumFree,
                 MediaSidebarInfoMaximumShare = MediaSidebarInfoMaximumShare,
@@ -2459,6 +2470,7 @@ namespace MeowChan
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
             MediaSidebarAutoHide = source.MediaSidebarAutoHide;
             MediaSidebarFacts = source.MediaSidebarFacts;
+            MediaSidebarPinned = source.MediaSidebarPinned;
             MediaSidebarInfo = source.MediaSidebarInfo;
             MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree;
             MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;
@@ -2731,6 +2743,7 @@ namespace MeowChan
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
             MediaSidebarAutoHide = source.MediaSidebarAutoHide;
             MediaSidebarFacts = source.MediaSidebarFacts;
+            MediaSidebarPinned = source.MediaSidebarPinned;
             MediaSidebarInfo = source.MediaSidebarInfo;
             MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree;
             MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;

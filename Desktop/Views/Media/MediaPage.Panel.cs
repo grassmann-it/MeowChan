@@ -75,7 +75,6 @@ public sealed partial class MediaPage
 
     private ReaderMediaPreferences _panelPreferences = ReaderMediaPreferences.Default;
     internal Action<Action<Config>>? SavePanelSetting { get; set; }
-    internal Action<string>? SavePanelInfoMode { get; set; }
 
     internal void ConfigurePanelInfo(ReaderMediaPreferences preferences)
     {
@@ -120,11 +119,6 @@ public sealed partial class MediaPage
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
         // The full-height panel owns the header and card, with a horizontal inset from both edges.
         panel.ConfigureInfo(_panelPreferences);
-        panel.SaveInfoMode = mode =>
-        {
-            _panelPreferences = _panelPreferences with { MediaSidebarInfo = mode };
-            SavePanelInfoMode?.Invoke(mode);
-        };
         panel.SaveSidebarSetting = update =>
         {
             _panelPreferences = panel.CopyBarSettingsTo(_panelPreferences);

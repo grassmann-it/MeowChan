@@ -16,6 +16,7 @@
     "settings.reader.mediaSidebarInfo.shortHeight": "高さが足りません",
     "command.media.sidebar.info": "メディア情報を表示",
     "command.media.sidebar.autohide": "操作バーを自動的に隠す",
+    "media.sidebar.settings": "サイドバーの設定",
     "media.sidebar.pin": "詳細を開いたままにする",
     "media.sidebar.unpin": "詳細を閉じる",
     "booru.ui.result.showInMedia": "メディアで表示",

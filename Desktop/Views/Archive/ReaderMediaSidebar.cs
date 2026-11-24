@@ -667,7 +667,6 @@ internal sealed partial class ReaderMediaSidebar : Border
         {
             if (origin == null && !_details.IsVisible)
             {
-                _infoBar.PinEditorAnchor(true);
                 RevealBars();
                 UpdateInfoLayout();
                 TopLevel.GetTopLevel(this)?.UpdateLayout();
@@ -691,7 +690,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             {
                 _cancelTagEditor = null;
                 _tagEditorAnchor = null;
-                RestoreDetailsAfterTagEditor();
+                UpdateInfoLayout();
             }
         }
     }
@@ -713,7 +712,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         cancel();
         if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor))
             popover.Close(QuickTagPopoverCloseReason.Stale);
-        if (_cancelTagEditor == null) RestoreDetailsAfterTagEditor();
+        if (_cancelTagEditor == null) UpdateInfoLayout();
         return true;
     }
 
@@ -745,15 +744,18 @@ internal sealed partial class ReaderMediaSidebar : Border
         if (_videoDuration is { } duration)
             dimensions = ReaderMediaSidebarRules.HeaderText("", dimensions, GalleryVideoPlayer.FormatVideoTime((long)duration.TotalMilliseconds));
         _facts.Show(_location ?? "", _author, _posted, _fileName, compactSize, dimensions, sizeDescription);
-        if (_expandedRows.IsVisible && _infoPreferences.MediaSidebarFacts) RefreshAdditionalFacts();
+        UpdateExpansion(refreshFacts: true);
     }
 
     private void RefreshAdditionalFacts()
     {
         _extraGrid.Children.Clear();
-        _extraGrid.Add(Texts.T("media.fact.file"), _fileName, fileName: true);
-        if (_savedBytes is long saved) _extraGrid.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(saved));
-        if (_sourceBytes is long source) _extraGrid.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(source));
+        _facts.AddHiddenFields(_extraGrid, FactsVisible, SizesDiffer);
+        if (_savedBytes is long saved && _sourceBytes is long source && saved != source)
+        {
+            _extraGrid.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(saved));
+            _extraGrid.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(source));
+        }
         if (_sourceHint is { } hint) _extraGrid.Add(Texts.T("media.fact.sourceHint"),
             Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
         _provenanceNote.Text = string.Join(Environment.NewLine, new[] { _provenance, _historical ? Texts.T("gallery.viewer8") : null }
@@ -853,6 +855,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         _infoBar.SetTags(_tags, _tagsBlocked, OpenTagsAsync != null);
         if (_expandedRows.IsVisible) PopulateExpandedTags();
+        UpdateExpansion();
     }
 
     internal void RefreshFavorite() { RefreshDecisions(); UpdateBadges(); }

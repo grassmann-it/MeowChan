@@ -16,6 +16,7 @@
     "settings.reader.mediaSidebarInfo.shortHeight": "Hauteur insuffisante",
     "command.media.sidebar.info": "Afficher les informations du média",
     "command.media.sidebar.autohide": "Masquer automatiquement les barres",
+    "media.sidebar.settings": "Réglages du panneau latéral",
     "media.sidebar.pin": "Garder les détails dépliés",
     "media.sidebar.unpin": "Replier les détails",
     "booru.ui.result.showInMedia": "Afficher dans Médias",

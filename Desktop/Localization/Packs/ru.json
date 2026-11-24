@@ -16,6 +16,7 @@
     "settings.reader.mediaSidebarInfo.shortHeight": "Недостаточно высоты",
     "command.media.sidebar.info": "Показывать сведения о файле",
     "command.media.sidebar.autohide": "Автоматически скрывать панели",
+    "media.sidebar.settings": "Настройки боковой панели",
     "media.sidebar.pin": "Оставить подробности открытыми",
     "media.sidebar.unpin": "Свернуть подробности",
     "booru.ui.result.showInMedia": "Показать в разделе «Медиа»",

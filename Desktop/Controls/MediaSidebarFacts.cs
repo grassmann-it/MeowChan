@@ -32,8 +32,11 @@ internal sealed class MediaSidebarFacts : Grid
             }, "diagnostics.copy");
         }
 
+        internal string? Value { get; private set; }
+
         internal void Show(string label, string? value, string? description = null)
         {
+            Value = value;
             Label.Text = label;
             _value.Text = string.IsNullOrWhiteSpace(value) ? "—" : value;
             _copy.Header = Texts.T("diagnostics.copy");
@@ -74,6 +77,18 @@ internal sealed class MediaSidebarFacts : Grid
         _fields[3].Show(Texts.T("media.fact.file"), file);
         _fields[4].Show(Texts.T("archive.size"), size, sizeDescription);
         _fields[5].Show(Texts.T("media.fact.dimensions"), dimensions);
+    }
+
+    internal bool ShowsFileAndSize => _columns > 1;
+
+    internal void AddHiddenFields(MediaFactGrid target, bool compactVisible, bool splitSize)
+    {
+        for (int i = 0; i < _fields.Length; i++)
+        {
+            Field field = _fields[i];
+            if ((compactVisible && field.IsVisible) || (i == 4 && splitSize)) continue;
+            target.Add(field.Label.Text ?? "", field.Value, fileName: i == 3);
+        }
     }
 
     protected override Size MeasureOverride(Size availableSize)

@@ -16,6 +16,7 @@
     "settings.reader.mediaSidebarInfo.shortHeight": "Nedostatečná výška",
     "command.media.sidebar.info": "Zobrazit údaje o médiu",
     "command.media.sidebar.autohide": "Automaticky skrývat ovládací lišty",
+    "media.sidebar.settings": "Nastavení postranního panelu",
     "media.sidebar.pin": "Ponechat podrobnosti rozbalené",
     "media.sidebar.unpin": "Sbalit podrobnosti",
     "booru.ui.result.showInMedia": "Zobrazit v sekci Média",

@@ -193,15 +193,11 @@ public partial class ArchivePage
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
         sidebar.SaveSidebarSetting = update =>
         {
-            ApplyReaderMediaPreferences(sidebar.CopyBarSettingsTo(ReaderMedia));
+            var next = sidebar.CopyBarSettingsTo(ReaderMedia);
+            bool factsChanged = next.MediaSidebarInfo != ReaderMedia.MediaSidebarInfo || next.MediaSidebarFacts != ReaderMedia.MediaSidebarFacts;
+            ApplyReaderMediaPreferences(next);
             if (SaveReaderMediaSwitches is { } save)
-                OpenActions.Start(() => save(update, []), "media.sidebar.info");
-        };
-        sidebar.SaveInfoMode = mode =>
-        {
-            ApplyReaderMediaPreferences(ReaderMedia with { MediaSidebarInfo = mode });
-            if (SaveReaderMediaSwitches is { } save)
-                OpenActions.Start(() => save(config => config.MediaSidebarInfo = mode, [SettingsFieldId.MediaSidebarInfo]), "media.sidebar.info");
+                OpenActions.Start(() => save(update, factsChanged ? [SettingsFieldId.MediaSidebarInfo] : []), "media.sidebar.info");
         };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);

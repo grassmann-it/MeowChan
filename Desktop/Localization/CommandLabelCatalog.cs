@@ -10,6 +10,7 @@ internal static class CommandLabelCatalog
     {
         ("command.media.sidebar.info", "Show sidebar facts", "Fakten anzeigen"),
         ("command.media.sidebar.autohide", "Auto-hide sidebar controls", "Leisten automatisch ausblenden"),
+        ("media.sidebar.settings", "Sidebar settings", "Leisten-Einstellungen"),
         ("media.sidebar.pin", "Keep details expanded", "Details geöffnet halten"),
         ("media.sidebar.unpin", "Collapse details", "Details einklappen"),
         ("command.sections.open-navigation", "Navigate sections", "Abschnitte öffnen"),

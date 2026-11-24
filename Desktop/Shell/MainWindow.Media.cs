@@ -148,11 +148,12 @@ public partial class MainWindow
         // the tag list switch stays in its own key (MediaBooruMode), so both ways of switching it write the same state.
         _mediaPage.RestoreLayout(MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode));
         ConfigureMediaPanel();
-        _mediaPage.SavePanelSetting = update => OpenActions.Start(() => SaveQuickSettingsAsync(update), "media.sidebar.info");
-        _mediaPage.SavePanelInfoMode = mode => OpenActions.Start(async () =>
+        _mediaPage.SavePanelSetting = update => OpenActions.Start(async () =>
         {
-            await SaveQuickSettingsAsync(config => config.MediaSidebarInfo = mode);
-            _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
+            bool previous = _config.SidebarFactsVisible;
+            await SaveQuickSettingsAsync(update);
+            if (previous != _config.SidebarFactsVisible)
+                _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
         }, "media.sidebar.info");
         _mediaPage.SaveLayoutAsync = layout => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = layout.TagList; config.MediaLayout = layout.Format(); });
         _session.StateChanged += OnMediaTagQueueChanged;

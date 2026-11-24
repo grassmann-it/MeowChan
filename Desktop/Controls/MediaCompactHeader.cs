@@ -106,7 +106,7 @@ internal sealed class MediaCompactHeader : Grid
         double fileMinimum = prefixWidth + MeasureText(Meta, separator + Line("")) + Math.Min(112, MeasureText(Meta, _file));
         if (_file.Length > 0 && _detail.Length > 0) fileMinimum += MeasureText(Meta, " · ");
         double free = width - icons - titleWidth - fileMinimum - 24;
-        bool single = free >= 0 && width >= 480;
+        bool single = free >= 0;
         // Add labels in reverse order of removal: gallery, favorite, then info.
         bool fits = single;
         foreach (int i in LabelPriority)

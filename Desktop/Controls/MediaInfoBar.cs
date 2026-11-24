@@ -19,6 +19,8 @@ internal sealed class MediaInfoBar : Grid
     private readonly TextBlock _editLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly ToggleButton _toggle = new() { Name = "ReaderMediaSidebarTagsToggle" };
     private readonly Button _empty = new() { Name = "ReaderMediaSidebarTagsEmpty" };
+    private readonly Control _tagIcon = CommandBindings.IconFromKey("tag", 16);
+    private readonly Control _emptyTagIcon = CommandBindings.IconFromKey("tag", 16);
     private readonly TextBlock _count = new();
     private readonly TextBlock _zero = new() { Text = "0" };
     internal ToggleButton Expand { get; } = new() { Name = "ReaderMediaSidebarExpand", Width = 32, Height = 32, MinWidth = 0,
@@ -50,14 +52,15 @@ internal sealed class MediaInfoBar : Grid
         _edit.Content = _editContent;
         _edit.Click += (_, _) => edit(_edit);
         Expand.Content = _expansionArrow;
-        _toggle.Content = Horizontal(CommandBindings.IconFromKey("tag", 16), _count);
-        _empty.Content = Horizontal(CommandBindings.IconFromKey("tag", 16), _zero);
+        _toggle.Content = Horizontal(_tagIcon, _count);
+        _empty.Content = Horizontal(_emptyTagIcon, _zero);
         foreach (Button button in new Button[] { _toggle, _empty })
         {
             button.Classes.Add("ghost");
             button.Focusable = button.IsTabStop = false;
             button.Height = 24;
-            button.MinHeight = button.MinWidth = 0;
+            button.MinHeight = 0;
+            button.MinWidth = WorkspaceMetrics.RatingStarMinWidth;
             button.Padding = new Thickness(8, 0);
             button.VerticalAlignment = VerticalAlignment.Center;
             ToolTip.SetShowOnDisabled(button, true);
@@ -88,8 +91,6 @@ internal sealed class MediaInfoBar : Grid
     }
 
     internal Control EditorAnchor => _edit;
-    internal bool EditorAnchorPinned { get; private set; }
-    internal void PinEditorAnchor(bool pinned) => EditorAnchorPinned = pinned;
 
     internal void SetTags(IReadOnlyList<string>? tags, string? blocked, bool canEdit)
     {
@@ -149,9 +150,12 @@ internal sealed class MediaInfoBar : Grid
         double width = Math.Max(0, availableSize.Width - 2 * inset);
         const double stars = 5 * WorkspaceMetrics.RatingStarMinWidth;
         const double gap = 4;
-        double countInset = width < 232 ? 0 : 8;
+        bool narrow = availableSize.Width < 260;
+        double iconWidth = narrow ? WorkspaceMetrics.RatingStarMinWidth : 32;
+        Expand.Width = iconWidth;
+        double countInset = narrow ? 0 : 8;
         _toggle.Padding = _empty.Padding = new Thickness(countInset, 0);
-        double expandWidth = Expand.Width + gap;
+        double expandWidth = Expand.IsVisible ? Expand.Width + gap : 0;
         width = Math.Max(0, width - expandWidth);
         var digits = new FormattedText(_count.Text ?? "0", Texts.Culture, FlowDirection,
             new Typeface(_count.FontFamily, _count.FontStyle, _count.FontWeight), _count.FontSize, _count.Foreground);
@@ -164,9 +168,11 @@ internal sealed class MediaInfoBar : Grid
         _edit.Classes.Set(WorkspaceIcons.SquareClass, !label);
         _editLabel.IsVisible = label;
         _editContent.Spacing = label ? 8 : 0;
-        _edit.Width = label ? editWidth : 32;
-        // In a very narrow bar the tag icon keeps its target; its tooltip and accessible name include the count.
-        _count.IsVisible = _zero.IsVisible = width - stars - gap - _edit.Width >= tagButtonWidth;
+        _edit.Width = label ? editWidth : iconWidth;
+        // Preserve the count and its pointer target when the icon and digits no longer fit together.
+        double tagSpace = Math.Max(WorkspaceMetrics.RatingStarMinWidth, width - stars - gap - _edit.Width);
+        _toggle.MaxWidth = _empty.MaxWidth = tagSpace;
+        _tagIcon.IsVisible = _emptyTagIcon.IsVisible = tagSpace >= tagButtonWidth;
         _edit.Padding = new Thickness(label ? 12 : 0, 0);
         _inline = _tagCount > 0 && width - stars - countWidth - _edit.Width - 2 * gap >= 200;
         _toggle.IsVisible = _tagCount > 0 && !_inline;

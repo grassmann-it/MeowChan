@@ -16,6 +16,7 @@
     "settings.reader.mediaSidebarInfo.shortHeight": "Za mała wysokość",
     "command.media.sidebar.info": "Pokaż dane pliku",
     "command.media.sidebar.autohide": "Automatycznie ukrywaj paski",
+    "media.sidebar.settings": "Ustawienia panelu bocznego",
     "media.sidebar.pin": "Pozostaw szczegóły rozwinięte",
     "media.sidebar.unpin": "Zwiń szczegóły",
     "booru.ui.result.showInMedia": "Pokaż w sekcji Media",

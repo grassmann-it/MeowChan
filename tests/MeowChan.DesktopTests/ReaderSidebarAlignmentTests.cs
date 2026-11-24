@@ -59,7 +59,8 @@ public sealed class ReaderSidebarAlignmentTests
             Assert.False(sidebar.PositionPill.IsVisible);
             Assert.Empty(sidebar.Title.Text!);
             double emptyHeight = sidebar.HeaderRow.Bounds.Height;
-            Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, emptyHeight);
+            // Tom 19:55: “Der Kopf ist einzeilig, solange es passt.”
+            Assert.Equal(32, emptyHeight);
 
             string file = new string('W', 250) + ".png";
             sidebar.Describe("No. 123", file, "", true, savedBytes: 100L * 1024 * 1024);
@@ -68,7 +69,7 @@ public sealed class ReaderSidebarAlignmentTests
             double frameHeight = sidebar.Frame.Bounds.Height;
             Control details = sidebar.Details;
             double occupied = frameHeight + details.Bounds.Height;
-            Assert.Equal(emptyHeight, headerHeight);
+            Assert.Equal(48, headerHeight);
             // Tom 19:55: “Unten liegt eine feste Infoleiste”.
             Assert.True(details.IsVisible);
             TextBlock meta = ((MediaCompactHeader)sidebar.HeaderRow).Meta;

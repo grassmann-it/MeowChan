@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
@@ -24,6 +25,12 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class MediaFirstSidebarTests
 {
+    private static readonly int[] CaptureWidths = [280, 320, 480, 831];
+    private static readonly string[] CaptureLanguages = ["en", "de", "ru"];
+    private static readonly bool[] FactsStates = [true, false];
+    private static readonly string[] CompactFactKeys = ["media.fact.location", "media.fact.author", "media.fact.posted",
+        "media.fact.file", "archive.size", "media.fact.dimensions"];
+    private static readonly string[] ContrastBackdrops = ["#FFFFFF", "#000000"];
     private static readonly string[] GearEntries = ["autoHide", "facts"];
 
     [Theory]
@@ -188,6 +195,15 @@ public sealed class MediaFirstSidebarTests
             Assert.True(panel.Details.IsEffectivelyVisible);
             Assert.Equal(image, InPanel(panel.Picture));
             Assert.Equal(close, InPanel(panel.Close));
+            window.FocusManager!.Focus(null);
+            panel.ObserveIdle(time + 4 * System.Diagnostics.Stopwatch.Frequency);
+            panel.ObserveIdle(time + 5 * System.Diagnostics.Stopwatch.Frequency);
+            Assert.False(panel.Details.IsEffectivelyVisible);
+            Assert.True(panel.Frame.Focus(NavigationMethod.Tab));
+            Assert.True(panel.Details.IsEffectivelyVisible);
+            Click(window, Center(panel.InfoToggle, window));
+            Assert.False(panel.InfoToggle.IsChecked);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
         }
         finally { window.Close(); }
     });
@@ -296,11 +312,11 @@ public sealed class MediaFirstSidebarTests
             Settle(window);
             Assert.False(target.IsPressed);
             Assert.Equal(new int?[] { 2, 4 }, ratings);
-            Assert.Equal(new[] { false, true }, favorites);
+            Assert.Equal((false, true), (favorites[0], favorites[1]));
 
             Click(window, Center(target, window));
             Assert.Equal(favorite ? new int?[] { 2, 4 } : [2, 3], ratings);
-            Assert.Equal(favorite ? new[] { false, false } : [false, true], favorites);
+            Assert.Equal((false, !favorite), (favorites[0], favorites[1]));
         }
         finally { window.Close(); }
     });
@@ -382,7 +398,7 @@ public sealed class MediaFirstSidebarTests
         {
             window.Show();
             Settle(window);
-            Button gear = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarSettings");
+            ToggleButton gear = SidePanelDesignTests.ById<ToggleButton>(sidebar, "ReaderMediaSidebarSettings");
             // M7: the gear contains only auto-hide and facts in every host.
             (ContextMenu Menu, MenuItem[] Items) Open()
             {
@@ -392,6 +408,12 @@ public sealed class MediaFirstSidebarTests
                 Assert.Equal(GearEntries, items.Select(item => Assert.IsType<string>(item.Tag)));
                 return (menu, items);
             }
+            Assert.Equal(Texts.T("media.sidebar.settings"), ToolTip.GetTip(gear));
+            var toggled = Open();
+            Assert.True(gear.IsChecked);
+            Click(window, Center(gear, window));
+            Assert.False(toggled.Menu.IsOpen);
+            Assert.False(gear.IsChecked);
             var first = Open();
             Assert.False(first.Items[0].IsChecked);
             Assert.True(first.Items[1].IsChecked);
@@ -418,7 +440,8 @@ public sealed class MediaFirstSidebarTests
         sidebar.Describe("No. 42", "fixture.webm", "640 × 360", true, savedBytes: 4096);
         sidebar.SetSourceFacts("Board", "Reviewer", "25.11.", 4096, 8192, null);
         sidebar.SetTags(Enumerable.Range(1, 20).Select(i => $"tag {i}").ToArray(), null);
-        sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { HoverDelayMs = ReaderDisplayPreferences.HoverEnlargeDelayMinimum });
+        Config saved = new();
+        sidebar.SaveSidebarSetting = update => update(saved);
         Window window = new() { Width = 320, Height = 800, Content = sidebar };
         try
         {
@@ -431,24 +454,77 @@ public sealed class MediaFirstSidebarTests
             Settle(window);
             Assert.False(more.IsEffectivelyVisible);
             double compact = sidebar.Details.Bounds.Height;
+            Rect card = sidebar.Card.Bounds;
             window.MouseMove(Center(chevron, window));
             BooruComponentDispatcher.WaitUntil(() => more.IsEffectivelyVisible, "hover expands the info bar");
             Settle(window);
-            Assert.True(sidebar.Details.Bounds.Height > compact);
+            // Fable §7 and Tom 21:45: hover overlays the medium; only the pin reserves space.
+            Assert.Equal(compact, sidebar.Details.Bounds.Height);
+            Assert.Equal(card, sidebar.Card.Bounds);
+            Assert.Contains(window.OpenedPopups, popup => popup.Child?.IsVisualAncestorOf(more) == true);
             Assert.Contains(more.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "tag 20");
             Assert.Contains(more.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == Texts.T("media.fact.source"));
             window.MouseMove(leave);
             BooruComponentDispatcher.WaitUntil(() => !more.IsEffectivelyVisible, "leaving releases the hover expansion");
             Click(window, Center(chevron, window));
             window.MouseMove(leave);
+            Assert.True(saved.MediaSidebarPinned);
+            Assert.True(sidebar.Details.Bounds.Height > compact);
+            Assert.True(sidebar.Card.Bounds.Height < card.Height);
             var dwell = System.Diagnostics.Stopwatch.StartNew();
-            BooruComponentDispatcher.WaitUntil(() => dwell.ElapsedMilliseconds >= 2 * ReaderDisplayPreferences.HoverEnlargeDelayMinimum,
+            BooruComponentDispatcher.WaitUntil(() => dwell.ElapsedMilliseconds >= 500,
                 "the transient hover interval elapses after pinning");
             Assert.True(more.IsEffectivelyVisible);
             Click(window, Center(chevron, window));
             window.MouseMove(leave);
             BooruComponentDispatcher.WaitUntil(() => !more.IsEffectivelyVisible, "click releases the pinned expansion");
+            Assert.False(saved.MediaSidebarPinned);
             Assert.True(sidebar.DecisionRow.IsEffectivelyVisible);
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void ExpansionOnlyAddsFactsMissingFromTheCurrentLayout() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ReaderMediaSidebar sidebar = new();
+        sidebar.Describe("No. 42", "scene.png", "640 × 360", true, savedBytes: 4096);
+        sidebar.SetSourceFacts("Board", "Author", "25.11.", 4096, 4096, null);
+        Window window = new() { Width = 831, Height = 800, Content = sidebar };
+        try
+        {
+            window.Show();
+            Settle(window);
+            var toggle = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarExpand");
+            var rows = SidePanelDesignTests.ById<ScrollViewer>(sidebar, "ReaderMediaSidebarExpanded");
+            Assert.False(toggle.IsEffectivelyVisible);
+            Assert.False(rows.IsEffectivelyVisible);
+            Click(window, Center(sidebar.InfoToggle, window));
+            Assert.True(toggle.IsEffectivelyVisible);
+            Click(window, Center(toggle, window));
+            string[] Labels() => rows.GetVisualDescendants().OfType<TextBlock>()
+                .Where(t => t.Classes.Contains("workspace-meta") && t.IsEffectivelyVisible)
+                .Select(t => t.Text ?? "").ToArray();
+            foreach (string key in CompactFactKeys)
+                Assert.Single(Labels(), label => label == Texts.T(key));
+            Assert.DoesNotContain(Texts.T("media.fact.saved"), Labels());
+            Assert.DoesNotContain(Texts.T("media.fact.source"), Labels());
+            sidebar.SetTags(["sky"], null);
+            Click(window, Center(sidebar.InfoToggle, window));
+            Assert.True(rows.IsEffectivelyVisible);
+            Assert.DoesNotContain(Texts.T("media.fact.file"), Labels());
+            sidebar.SetSourceFacts("Board", "Author", "25.11.", 4096, 8192, null);
+            Settle(window);
+            Assert.Single(Labels(), label => label == Texts.T("media.fact.saved"));
+            Assert.Single(Labels(), label => label == Texts.T("media.fact.source"));
+            BooruReviewTestPlatform.Resize(window, 320);
+            Assert.Single(Labels(), label => label == Texts.T("media.fact.file"));
+            sidebar.SetSourceFacts("Board", "Author", "25.11.", 4096, 4096, null);
+            sidebar.SetTags([], null);
+            BooruReviewTestPlatform.Resize(window, 831);
+            Assert.False(rows.IsEffectivelyVisible);
+            Assert.False(toggle.IsEffectivelyVisible);
         }
         finally { window.Close(); }
     });
@@ -513,35 +589,51 @@ public sealed class MediaFirstSidebarTests
             void Capture(string layout)
             {
                 if (Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN") is not { Length: > 0 } dir) return;
-                using RenderTargetBitmap result = new(new PixelSize(width, 900));
+                using RenderTargetBitmap result = new(new PixelSize((int)panel.Bounds.Width, 900));
                 result.Render(panel);
-                result.Save(Path.Combine(dir, $"112-mf-reader-{orientation}-{layout}-{width}.png"), PngBitmapEncoderOptions.Default);
+                result.Save(Path.Combine(dir, $"112-mf-reader-{orientation}-{layout}.png"), PngBitmapEncoderOptions.Default);
+            }
+            if (width == CaptureWidths[1] && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN")))
+            {
+                foreach (string language in CaptureLanguages)
+                {
+                    Texts.SetLanguage(language);
+                    foreach (int captureWidth in CaptureWidths)
+                    {
+                        window.PlatformImpl!.Resize(new Size(captureWidth, 900), WindowResizeReason.User);
+                        foreach (bool shown in FactsStates)
+                        {
+                            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarFacts = shown });
+                            Settle();
+                            Capture($"{language}-{captureWidth}-facts-{(shown ? "on" : "off")}");
+                        }
+                    }
+                }
+                Texts.SetLanguage("en");
+                window.PlatformImpl!.Resize(new Size(width, 900), WindowResizeReason.User);
             }
             panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
             Settle();
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN")))
-            {
-                foreach (string mode in new[] { "Off", "Overlay", "Auto", "Always" })
-                {
-                    panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = mode });
-                    window.MouseMove(new Point(width / 2, 150));
-                    Settle();
-                    Capture(mode.ToLowerInvariant());
-                }
-                panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
-                Settle();
-            }
             // Tom 25.11. 19:55: “Das Medium wird nie verdeckt”; “ⓘ / Shift+I schaltet nur die Fakten”.
             SidePanelDesignTests.AssertCompactHeader(panel);
             Assert.False(panel.PositionPill.IsVisible);
             Assert.Equal("2 / 64", SidePanelDesignTests.ById<TextBlock>(panel, "ReaderMediaSidebarPosition").Text);
             Rect full = In(panel.Card), image = In(panel.Picture);
             Assert.Equal(In(panel.Frame).Center.Y, image.Center.Y, 0.5);
-            Assert.False(details.IsVisible);
-            Assert.False(overlay.IsVisible);
-            Assert.DoesNotContain(panel.GetVisualDescendants(), c => c is GalleryDecisionRow or MediaSidebarFacts && c.IsEffectivelyVisible);
+            Assert.True(details.IsVisible);
+            Assert.True(overlay.IsVisible);
+            var compactFacts = SidePanelDesignTests.ById<MediaSidebarFacts>(panel, "ReaderMediaSidebarFacts");
+            Assert.False(compactFacts.IsEffectivelyVisible);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
+            Assert.False(panel.InfoToggle.IsChecked);
+            Click(window, Center(panel.InfoToggle, window));
+            Assert.True(compactFacts.IsEffectivelyVisible);
+            Assert.True(panel.InfoToggle.IsChecked);
+            Click(window, Center(panel.InfoToggle, window));
+            Assert.False(compactFacts.IsEffectivelyVisible);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
             BooruComponentDispatcher.Wait(panel.EditTagsAsync());
-            Assert.Same(panel.InfoToggle, tagAnchor);
+            Assert.Same(SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarEditTags"), tagAnchor);
             Assert.True(panel.DecisionRow.RequestRating(4));
             Assert.Contains(MediaRatingText.Value(4), panel.LiveText);
             Assert.Equal(4, panel.DecisionRow.View.Rating);
@@ -578,7 +670,7 @@ public sealed class MediaFirstSidebarTests
                 Color c = Assert.IsAssignableFrom<ISolidColorBrush>(overlay.Child!.FindResource(ThemeVariant.Dark, token)).Color;
                 return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
             }
-            foreach (string backdrop in new[] { "#FFFFFF", "#000000" })
+            foreach (string backdrop in ContrastBackdrops)
             {
                 string surface = ContrastRules.CompositeOver($"#{background.A:X2}{background.R:X2}{background.G:X2}{background.B:X2}", backdrop);
                 Assert.True(ContrastRules.Contrast("#FFFFFF", surface) >= 7);
@@ -629,7 +721,7 @@ public sealed class MediaFirstSidebarTests
             Assert.Equal(In(panel.Frame).Center.Y, In(panel.Picture).Center.Y, 0.5);
             Assert.False(In(overlay).Intersects(In(panel.Frame)));
 
-            panel.InfoToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Click(window, Center(panel.InfoToggle, window));
             panel.Describe("No. 42", "next.jpg", "", true);
             Settle();
             Assert.False(facts.IsEffectivelyVisible);

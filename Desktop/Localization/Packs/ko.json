@@ -16,6 +16,7 @@
     "settings.reader.mediaSidebarInfo.shortHeight": "높이가 부족함",
     "command.media.sidebar.info": "미디어 정보 표시",
     "command.media.sidebar.autohide": "도구 모음 자동 숨기기",
+    "media.sidebar.settings": "사이드바 설정",
     "media.sidebar.pin": "세부 정보 펼친 상태로 유지",
     "media.sidebar.unpin": "세부 정보 접기",
     "booru.ui.result.showInMedia": "미디어에 표시",

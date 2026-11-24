@@ -197,7 +197,8 @@ public sealed class ReaderMediaSidebarLayoutTests
                     Assert.Equal(0, sidebar.TranslatePoint(default, host)!.Value.Y);
                     Assert.Equal(8, sidebar.Padding.Top);
                     Assert.Equal(8, sidebar.Padding.Bottom);
-                    Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
+                    // Tom 19:55: “Der Kopf ist einzeilig, solange es passt.”
+                    Assert.Equal(32, sidebar.HeaderRow.Bounds.Height);
                     // Fable §2.1: “Höhe 40 DIP (4 + 32 + 4)” (56 DIP with a second line).
                     Assert.Equal(12, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
                     Assert.Equal(sidebar.Bounds.Height - 32 - sidebar.HeaderRow.Bounds.Height, sidebar.Card.Bounds.Height);
@@ -267,7 +268,9 @@ public sealed class ReaderMediaSidebarLayoutTests
             SidePanelDesignTests.AssertCompactHeader(sidebar);
             if (sidebar.PositionPill.IsVisible) Assert.Contains("16 / 23", sidebar.PositionPill.Label.Text);
             Assert.Equal("Medium 16 of 23", ToolTip.GetTip(sidebar.PositionPill));
-            Assert.Equal(2, sidebar.HeaderRow.GetVisualDescendants().OfType<ToggleButton>().Count());
+            // Tom 20:05 / Fable §12: the gear also reflects whether its menu is open.
+            Assert.Equal(new[] { sidebar.FavoriteButton, sidebar.InfoToggle, sidebar.SettingsButton },
+                sidebar.HeaderRow.GetVisualDescendants().OfType<ToggleButton>().ToArray());
             Assert.Equal("No. 123", sidebar.Title.Text);
             // 19:55: position in the filename line, without a pill or an opening action.
             Assert.Empty(sidebar.HeaderRow.GetVisualDescendants().OfType<MediaPositionPill>());
@@ -291,7 +294,7 @@ public sealed class ReaderMediaSidebarLayoutTests
         void Layout()
         {
             window.UpdateLayout();
-            Assert.Equal(48, view.HeaderRow.Bounds.Height);
+            Assert.Equal(((MediaCompactHeader)view.HeaderRow).UsesSingleRow ? 32 : 48, view.HeaderRow.Bounds.Height);
             Assert.Equal(height, view.Bounds.Height);
             // Fable §2.1: “Höhe 40 DIP (4 + 32 + 4)” (56 DIP with a second line).
             Assert.Equal(view.Padding.Top + 4, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
@@ -305,7 +308,8 @@ public sealed class ReaderMediaSidebarLayoutTests
             Layout();
             Rect emptyHeader = view.HeaderRow.Bounds;
             Rect emptyCard = view.Card.Bounds;
-            Assert.Equal(48, emptyHeader.Height);
+            // Tom 19:55: “Der Kopf ist einzeilig, solange es passt.”
+            Assert.Equal(32, emptyHeader.Height);
             GalleryTagPanelPosition mediaPosition = new(1234567890, 1234567891, false);
             string positionText = MediaPositionText.Long(mediaPosition)!;
             view.Describe("No. 123", new string('x', 500) + ".png", "50000×100", true,

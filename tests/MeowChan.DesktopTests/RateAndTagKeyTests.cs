@@ -576,10 +576,12 @@ public sealed class RateAndTagMediaPageKeyTests
         Control origin = fixture.ShowPanelOn(2);
         ReaderMediaSidebar panel = fixture.PanelView!;
         panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
-        List<string> savedModes = [];
-        panel.SaveInfoMode = savedModes.Add;
+        // Tom 21:35: “ⓘ/Shift+I schaltet NUR die Fakten … Sterne und Tags bleiben immer sichtbar.”
+        List<Action<Config>> settingsWrites = [];
+        panel.SaveSidebarSetting = settingsWrites.Add;
         Assert.Equal(0, panel.Bounds.Height);
-        Assert.False(panel.Details.IsVisible);
+        Assert.True(panel.Details.IsVisible);
+        Assert.False(panel.InfoToggle.IsChecked);
         KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture(command));
         fixture.Press(origin, gesture.Key, gesture.KeyModifiers);
 
@@ -593,8 +595,9 @@ public sealed class RateAndTagMediaPageKeyTests
         Assert.Equal(FirstTwoTiles, fixture.Grid.Selection.SelectedIndexes.ToArray());
         closed.SetResult();
         Dispatcher.UIThread.RunJobs();
-        Assert.False(panel.Details.IsVisible);
-        Assert.Empty(savedModes);
+        Assert.True(panel.Details.IsVisible);
+        Assert.False(panel.InfoToggle.IsChecked);
+        Assert.Empty(settingsWrites);
     });
 
     [Fact]
