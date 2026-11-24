@@ -69,7 +69,7 @@ public sealed class GalleryVideoPlayerMenuTests
                 SendKey(Assert.IsType<MenuItem>(rows[0].Items[0]), Key.Left);
                 Assert.False(rows[0].IsSubMenuOpen);
                 Assert.True(rows[0].IsFocused);
-                if (language is "de" or "ja") CaptureMenu(menu, language, scale);
+                if (language is "de" or "ja") CaptureMenu(popup, language, scale);
                 SendKey(rows[0], Key.Escape);
                 Assert.False(player.PlayerMenu.IsOpen);
                 Assert.True(anchor.IsFocused);
@@ -219,12 +219,11 @@ public sealed class GalleryVideoPlayerMenuTests
         Assert.InRange(row.Bounds.Width, icon.Bounds.Width + label.Bounds.Width, MenuLayout.DefaultMaximumWidth);
     }
 
-    private static void CaptureMenu(MenuBase menu, string language, double scale)
+    private static void CaptureMenu(TopLevel popup, string language, double scale)
     {
         if (Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_VIDEO_MENU") is not { Length: > 0 } directory) return;
-        PixelSize pixels = PixelSize.FromSize(menu.Bounds.Size, scale);
-        using RenderTargetBitmap bitmap = new(pixels, new Vector(96 * scale, 96 * scale));
-        bitmap.Render(menu);
+        using WriteableBitmap bitmap = popup.CaptureRenderedFrame()
+            ?? throw new InvalidOperationException("The menu popup did not render a frame.");
         bitmap.Save(Path.Combine(directory, $"video-menu-{language}-{scale * 100:0}.png"), PngBitmapEncoderOptions.Default);
     }
 
