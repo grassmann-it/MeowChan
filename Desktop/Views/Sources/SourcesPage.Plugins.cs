@@ -86,7 +86,9 @@ public partial class SourcesPage
         Button details = this.FindControl<Button>("SourcePluginButton")!;
         CommandBindings.ApplyLabeled(details, "plugins.details", Texts.T("sources.pluginDetails"));
         details.IsEnabled = !IsBusy;
-        CommandBindings.Apply(this.FindControl<Button>("SourcePluginMore")!, "plugins.actions", iconOnly: true);
+        Button more = this.FindControl<Button>("SourcePluginMore")!;
+        if (more.Focusable) PopupToggle.Prepare(more);
+        CommandBindings.Apply(more, "plugins.actions", iconOnly: true);
         this.FindControl<Button>("SourcePluginMore")!.IsEnabled = !IsBusy;
     }
 

@@ -15,6 +15,7 @@ public partial class DiagnosticsPage
 {
     private void InitializeRowInteraction()
     {
+        AddHandler(KeyDownEvent, OnDiagnosticFilterKeys, RoutingStrategies.Tunnel);
         foreach (string name in new[] { "DiagnosticsGrid", "PlatformGrid" })
         {
             DataGrid grid = this.FindControl<DataGrid>(name)!;
@@ -22,6 +23,20 @@ public partial class DiagnosticsPage
             // Tunnel: the table moves to the next row on Enter and copies its cells on Ctrl+C before a bubbling handler would see the key.
             grid.AddHandler(KeyDownEvent, OnDiagnosticRowKeyDown, RoutingStrategies.Tunnel);
         }
+    }
+
+    private void OnDiagnosticFilterKeys(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing) return;
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+        {
+            e.Handled = TryDismissDiagnosticFilters();
+            return;
+        }
+        if (!CommandBindings.Matches(e, "input.focus-diagnostics-search")) return;
+        if (this.FindControl<ComboBox>("DiagnosticSourceFilter")!.IsDropDownOpen) return;
+        FocusSearch();
+        e.Handled = true;
     }
 
     /// <summary>Whether the row has a primary action (a target that can be shown in Downloads).</summary>

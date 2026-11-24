@@ -29,7 +29,7 @@ public partial class RulesPage
         if (_ended) return;
         bool changed = viewChanged || view != _workView;
         _workView = view;
-        if (changed) { _templatesRevealed = false; _stateOpened.Clear(); }
+        if (changed) { Desktop.Controls.PopupToggle.Close(RulesMoreButton); _templatesRevealed = false; _stateOpened.Clear(); }
         RefreshWorkViewPresentation(changed);
     }
 
@@ -51,7 +51,7 @@ public partial class RulesPage
         ApplyStateful(RulePluginExpander, "filter|" + scope, viewChanged, PluginFilterActive);
         RefreshTemplatesPresentation(view, viewChanged);
         RefreshPluginFilterHeader();
-        WorkViewMoreSurface.Configure(RulesMoreButton, MoreEntries().Count);
+        WorkViewMoreSurface.ConfigureToggle(RulesMoreButton, MoreEntries().Count);
     }
 
     // R6: a block whose state needs attention opens when that state appears and on entering a view; between those the user's choice stays.
@@ -102,14 +102,23 @@ public partial class RulesPage
             if (WorkViewPolicy.Resolve(id, view) == Presence.Overflow && WorkViewElement.GetStateVisible(button))
                 entries.Add(new(WorkViewPolicy.Get(id).OverflowOrder, "rules.open-origin", label,
                     () => CommandBindings.InvokeAction(button), () => button.IsEnabled));
-        if (WorkViewPolicy.Resolve("rules.templates", view) == Presence.Overflow && !RuleTemplatesCard.IsVisible)
+        if (WorkViewPolicy.Resolve("rules.templates", view) == Presence.Overflow)
             entries.Add(new(WorkViewPolicy.Get("rules.templates").OverflowOrder, null, () => Texts.T("templates.title"),
-                RevealTemplates, () => IsEditable));
+                ToggleTemplates, () => IsEditable && !TemplatesNeedAttention)
+                { Id = "rules.templates", Checked = RuleTemplatesCard.IsVisible });
         return entries;
     }
 
     private void OnRulesMoreClick(object? sender, RoutedEventArgs e) =>
         WorkViewMoreSurface.Open(RulesMoreButton, MoreEntries());
+
+    private void ToggleTemplates()
+    {
+        if (!_templatesRevealed) { RevealTemplates(); return; }
+        _templatesRevealed = false;
+        RefreshWorkViewPresentation();
+        RulesScroll.Focus();
+    }
 
     /// <summary>The "Templates" entry of More: shows the block for this view (until the view changes) and moves focus to its list.</summary>
     internal void RevealTemplates()

@@ -130,18 +130,51 @@ public partial class SettingsEditor
     public void OpenSectionNavigation()
     {
         if (!CanOpenSectionNavigation) return;
-        SettingsSections.OpenNavigation();
-        if (SettingsCategories.IsVisible)
-            (SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault(button => Equals(button.Tag, _selectedCategoryId))
-                ?? SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault())?.Focus();
+        if (!SettingsCategories.IsVisible)
+        {
+            SettingsSections.OpenNavigation();
+            return;
+        }
+        (SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault(button => Equals(button.Tag, _selectedCategoryId))
+            ?? SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault())?.Focus();
     }
     public bool CanGoToSection(string id) => IsEditable
         && (SettingsSections.IsExpanded || SettingsCategories.IsVisible && SettingsCategories.IsKeyboardFocusWithin)
         && _sectionNavigation?.CanNavigate(id) == true;
     public void GoToSection(string id) { if (CanGoToSection(id)) SettingsSections.Navigate(id); }
 
+    internal bool TryDismissSectionNavigation()
+    {
+        if (!SettingsSections.IsEffectivelyVisible || !SettingsSections.IsExpanded || !SettingsSections.IsKeyboardFocusWithin) return false;
+        CloseSectionNavigation();
+        return true;
+    }
+
+    private void CloseSectionNavigation()
+    {
+        SettingsSections.IsExpanded = false;
+        FocusSettingsContent();
+    }
+
     private void InitializeSectionNavigation()
     {
+        Desktop.Controls.PopupToggle.Prepare(SettingsMoreButton);
+        AutomationProperties.SetAutomationId(SettingsSections, SettingsSections.Name);
+        SettingsSections.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Handled || ShortcutService.IsCapturing || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None
+                || e.Source is Visual source && source.GetSelfAndVisualAncestors().OfType<ComboBox>().Any(box => box.IsDropDownOpen)) return;
+            e.Handled = TryDismissSectionNavigation();
+        }, RoutingStrategies.Bubble);
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Handled || ShortcutService.IsCapturing || SettingsCategories.IsVisible || !CanOpenSectionNavigation
+                || CommandRouter.IsNativeInput(e.Source, e.Key) && !CommandBindings.IsTextSafeChord(e)
+                || !ShortcutService.Current.Matches(e, "sections.open-navigation")) return;
+            if (SettingsSections.IsExpanded) CloseSectionNavigation();
+            else OpenSectionNavigation();
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
         _sectionNavigation = new SectionNavigationController(SettingsScrollViewer, () => !_isClosed && IsEditable);
         _sectionNavigation.Navigating += () => { _suppressPassiveErrorReveal = true; _errorRevealRevision++; };
         SettingsSections.Connect(_sectionNavigation);
