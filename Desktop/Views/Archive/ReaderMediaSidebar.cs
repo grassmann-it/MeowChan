@@ -727,7 +727,7 @@ internal sealed class ReaderMediaSidebar : Border
             WrapPanel chips = new() { ItemSpacing = 8, LineSpacing = 8 };
             foreach (string tag in _tags!)
             {
-                Button chip = new() { Name = "ReaderMediaSidebarTag", Content = new TextBlock { Text = tag } };
+                Button chip = new() { Name = "ReaderMediaSidebarTag", Content = new TextBlock { Text = tag, Classes = { WorkspaceChips.Label } } };
                 WorkspaceChips.MarkTagPill(chip, WorkspaceChips.TagPillAssigned);
                 AutomationProperties.SetName(chip, tag);
                 chip.AttachedToVisualTree += (_, _) => ContextMenuHost.Install(chip,
