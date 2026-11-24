@@ -35,12 +35,14 @@ internal static class BooruInput
 {
     internal static BooruParsedInput Parse(BooruInputMode mode, string? text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return new BooruParsedInput(BooruInputKind.Empty);
         // A full link can never be a tag query (':' and '/' are outside the tag subset), so a pasted
         // post link is recognized in either mode instead of failing with a tag error.
-        if (mode == BooruInputMode.Post || text.Contains("://", System.StringComparison.Ordinal))
-            return ParsePost(text);
-        return ParseTags(text);
+        if (mode == BooruInputMode.Post || text?.Contains("://", System.StringComparison.Ordinal) == true)
+            return string.IsNullOrWhiteSpace(text) ? new BooruParsedInput(BooruInputKind.Empty) : ParsePost(text);
+        DanbooruTagQuery? query = ReadTagDraft(text, out BooruInputIssue issue);
+        if (query != null) return new BooruParsedInput(BooruInputKind.Tags, query.ProviderQuery);
+        return issue == BooruInputIssue.None ? new BooruParsedInput(BooruInputKind.Empty)
+            : new BooruParsedInput(BooruInputKind.Invalid, Issue: issue);
     }
 
     private static BooruParsedInput ParsePost(string text)
@@ -52,12 +54,16 @@ internal static class BooruInput
         return new BooruParsedInput(BooruInputKind.Invalid, Issue: issue);
     }
 
-    private static BooruParsedInput ParseTags(string text)
+    internal static DanbooruTagQuery? ReadTagDraft(string? text, out BooruInputIssue issue)
     {
-        if (DanbooruTagQuery.TryParse(text, out DanbooruTagQuery? query, out DanbooruTagQueryError error) && query is not null)
-            return new BooruParsedInput(BooruInputKind.Tags, query.ProviderQuery);
-        return new BooruParsedInput(BooruInputKind.Invalid, Issue: error switch
+        if (DanbooruTagQuery.TryParse(text ?? string.Empty, out DanbooruTagQuery? query, out DanbooruTagQueryError error))
         {
+            issue = BooruInputIssue.None;
+            return query;
+        }
+        issue = error switch
+        {
+            DanbooruTagQueryError.None or DanbooruTagQueryError.Empty => BooruInputIssue.None,
             DanbooruTagQueryError.TooManyTagTerms => BooruInputIssue.TooManyTags,
             DanbooruTagQueryError.TooManyTerms => BooruInputIssue.TooManyTerms,
             DanbooruTagQueryError.UnsupportedExpression => BooruInputIssue.Unsupported,
@@ -66,6 +72,7 @@ internal static class BooruInput
             DanbooruTagQueryError.InputTooLong or DanbooruTagQueryError.TermTooLong => BooruInputIssue.TooLong,
             DanbooruTagQueryError.InvalidNegativeTerm => BooruInputIssue.Negative,
             _ => BooruInputIssue.Characters
-        });
+        };
+        return null;
     }
 }

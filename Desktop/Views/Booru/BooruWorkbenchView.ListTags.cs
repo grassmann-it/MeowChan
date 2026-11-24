@@ -33,16 +33,20 @@ internal sealed partial class BooruWorkbenchView
         {
             BooruTag tag = ordered[i];
             string label = Texts.T("booru.ui.tagCategory." + tag.Category);
-            Button chip = new()
+            ChipOutline outline = WorkspaceChips.CreateSourceTag(tag.Name, tag.Category, compact: true);
+            DraftTagButton chip = new()
             {
                 Name = ResultTagPrefix + post.PostId + ":" + tag.Name,
-                Content = WorkspaceChips.CreateSourceTag(tag.Name, tag.Category, compact: true),
+                Content = outline,
                 Classes = { WorkspaceChips.SourceButton }, MaxWidth = 240
             };
-            string accessible = Texts.T("booru.ui.tags.addFor", tag.Name, label);
-            AutomationProperties.SetName(chip, accessible);
-            ToolTip.SetTip(chip, accessible);
-            chip.Click += (_, _) => { if (result.IsCurrent()) AddTagToSearch(tag.Name); };
+            chip.Click += (_, _) =>
+            {
+                if (result.IsCurrent())
+                    EditTagDraft(tag.Name, chip.ExcludeOnClick ? BooruTagDraftAction.Exclude : BooruTagDraftAction.Include,
+                        CaptureResultLink(result.Target));
+            };
+            _resultTagChips.Add((chip, outline, tag, label));
             _resultTagMenus.Add(new ContextMenuHost(chip, () => ComposeTagMenu(tag.Name, result.Target), () => chip.Focus(NavigationMethod.Tab)));
             buttons[i] = chip;
             items[i] = chip;

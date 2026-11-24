@@ -8,11 +8,13 @@ namespace MeowChan.Desktop;
 /// <summary>How a quip is meant: a joke or a plain statement. Kept as data so a provider (or a later setting) can filter by it.</summary>
 internal enum TaglineTone { Playful, Plain }
 
+internal enum TaglineCategory { General, Release, Seasonal }
+
 /// <summary>
 /// One quip, ready to show: its stable <paramref name="Id"/> (what the "Fixed" setting stores), the version of MeowChan that introduced it
 /// (<paramref name="Since"/>, what the release highlight compares with) and the <paramref name="Text"/> in the language it was asked for.
 /// </summary>
-internal sealed record TaglineEntry(string Id, Version Since, TaglineTone Tone, string Text);
+internal sealed record TaglineEntry(string Id, Version Since, TaglineTone Tone, string Text, TaglineCategory Category = TaglineCategory.General);
 
 /// <summary>
 /// A source of quips. The built-in one reads the language packs; a theme (or any later feature) can add its own through
@@ -31,9 +33,9 @@ internal interface ITaglineProvider
 /// <summary>The quips that ship with MeowChan: ids, introducing version and tone here; the text of <c>x</c> is <c>shell.tagline.quip.x</c> in every pack.</summary>
 internal sealed class BuiltInTaglineProvider : ITaglineProvider
 {
-    private sealed record Definition(string Id, Version Since, TaglineTone Tone);
+    private sealed record Definition(string Id, Version Since, TaglineTone Tone, TaglineCategory Category = TaglineCategory.General);
 
-    // The release quips of 1.1.0 are the ones a first start after the update shows. Ids are persisted (Config.HeaderTaglineFixedId): never rename one.
+    // Ids are persisted in Config.HeaderTaglineFixedId. Release eligibility is explicit and independent of Since and Tone.
     private static readonly Definition[] Definitions =
     [
         new("cats", new Version(1, 0, 0), TaglineTone.Playful),
@@ -44,20 +46,20 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         new("reader", new Version(1, 0, 0), TaglineTone.Plain),
         new("units", new Version(1, 0, 0), TaglineTone.Playful),
         new("tray", new Version(1, 0, 0), TaglineTone.Plain),
-        new("booru", new Version(1, 1, 0), TaglineTone.Playful),
-        new("flashbang", new Version(1, 1, 0), TaglineTone.Playful),
-        new("workviews", new Version(1, 1, 0), TaglineTone.Playful),
-        new("tags", new Version(1, 1, 0), TaglineTone.Playful),
-        new("vibetested", new Version(1, 1, 0), TaglineTone.Playful),
-        new("pink", new Version(1, 1, 0), TaglineTone.Playful),
-        new("workflow", new Version(1, 1, 0), TaglineTone.Playful),
-        // Self-deprecating quips: introduced as 1.0.0 on purpose, so they never take the "release line" of the first start after an update.
+        new("booru", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
+        new("flashbang", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
+        new("workviews", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
+        new("tags", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
+        new("vibetested", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
+        new("pink", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
+        new("workflow", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
+        // Legacy self-deprecating quips retain their original Since values.
         new("jdownloader", new Version(1, 0, 0), TaglineTone.Playful),
         new("worksonmine", new Version(1, 0, 0), TaglineTone.Playful),
         new("noai", new Version(1, 0, 0), TaglineTone.Playful),
         new("whatbooru", new Version(1, 0, 0), TaglineTone.Playful),
         new("features", new Version(1, 0, 0), TaglineTone.Playful),
-        // 1.1.1 additions: more self-deprecating and UX lines (1.0.0 for the same reason), goals, and the release quips of 1.1.1.
+        // Legacy 1.1.1 additions: self-deprecating and UX lines, goals, and release quips.
         new("settingsforsettings", new Version(1, 0, 0), TaglineTone.Playful),
         new("tooltipflicker", new Version(1, 0, 0), TaglineTone.Playful),
         new("bugfeature", new Version(1, 0, 0), TaglineTone.Playful),
@@ -72,13 +74,19 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         new("evenspacing", new Version(1, 0, 0), TaglineTone.Playful),
         new("lightdark", new Version(1, 0, 0), TaglineTone.Plain),
         new("fewerclicks", new Version(1, 0, 0), TaglineTone.Plain),
-        new("boorutabs", new Version(1, 1, 1), TaglineTone.Playful),
-        new("downloadall", new Version(1, 1, 1), TaglineTone.Playful),
-        new("threadswitch", new Version(1, 1, 1), TaglineTone.Playful),
-        new("tagquickfix", new Version(1, 1, 1), TaglineTone.Playful),
-        new("taglinesfeature", new Version(1, 1, 1), TaglineTone.Playful),
+        new("boorutabs", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
+        new("downloadall", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
+        new("threadswitch", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
+        new("tagquickfix", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
+        new("taglinesfeature", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
         new("yourarchive", new Version(1, 0, 0), TaglineTone.Plain),
         new("sortnothoard", new Version(1, 0, 0), TaglineTone.Plain),
+        new("fetchthem", new Version(1, 1, 2), TaglineTone.Playful),
+        new("tabsbreed", new Version(1, 1, 2), TaglineTone.Playful),
+        new("pawprint", new Version(1, 1, 2), TaglineTone.Playful),
+        new("sortedquips", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Release),
+        new("snowed", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal),
+        new("trickorthread", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal),
     ];
 
     private readonly Func<string, string?> _lookup;
@@ -98,7 +106,7 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         foreach (Definition definition in Definitions)
         {
             string? text = TaglineCatalog.CleanText(_lookup(KeyFor(definition.Id)));
-            if (text != null) result.Add(new TaglineEntry(definition.Id, definition.Since, definition.Tone, text));
+            if (text != null) result.Add(new TaglineEntry(definition.Id, definition.Since, definition.Tone, text, definition.Category));
         }
         return result;
     }

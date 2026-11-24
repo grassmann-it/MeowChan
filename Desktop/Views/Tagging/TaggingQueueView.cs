@@ -153,12 +153,11 @@ internal static class TaggingQueueView
     internal static string ProgressText(TagQueueSnapshot queue) => ProgressText(queue, null, false);
 
     /// <summary>Decisions out of the active queue scope, including entries hidden by the status filter.</summary>
-    internal static (string Text, string Description) ProgressCount(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
+    internal static string ProgressCount(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
     {
         TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
         int decided = counts.Done + counts.Skipped;
-        return (Texts.Count("tagging.page.progress.results", counts.Count, decided, counts.Count),
-            Texts.T("tagging.page.progress.done", decided.ToString("N0", Texts.Culture), counts.Count.ToString("N0", Texts.Culture)));
+        return Texts.Count("tagging.page.progress.results", counts.Count, decided, counts.Count);
     }
 
     internal static string ProgressText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
@@ -186,9 +185,9 @@ internal static class TaggingQueueView
     internal static string? StartLabel(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
     {
         if (ResumeIndex(queue, groupId, ungrouped, scope) is not { } resume) return null;
-        TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
-        bool fresh = counts.Done + counts.Skipped == 0 && resume == FirstOpen(queue, groupId, ungrouped, scope);
-        int ordinal = Ordinal(queue, resume, groupId, ungrouped, scope);
+        TaggingQueueCounts counts = Counts(queue, groupId, ungrouped);
+        int ordinal = Ordinal(queue, resume, groupId, ungrouped);
+        bool fresh = counts.Done + counts.Skipped == 0 && (queue.Cursor == 0 || ordinal == 1);
         return fresh ? Texts.T("command.tagging.start") : Texts.T("tagging.page.continue", ordinal);
     }
 
@@ -202,7 +201,7 @@ internal static class TaggingQueueView
     {
         ArgumentNullException.ThrowIfNull(queue);
         if (ResumeIndex(queue, groupId, ungrouped, scope) is not { } resume) return null;
-        TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
+        TaggingQueueCounts counts = Counts(queue, groupId, ungrouped);
         return queue.Cursor > 0 || counts.Done + counts.Skipped > 0 ? resume : null;
     }
 
@@ -216,23 +215,17 @@ internal static class TaggingQueueView
     {
         if (LastShownIndex(queue, groupId, ungrouped, scope) is not { } index) return null;
         TagQueueItem item = queue.Items[index];
-        TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
+        TaggingQueueCounts counts = Counts(queue, groupId, ungrouped);
         string name = item.Name.Length == 0 ? item.AssetId : item.Name;
-        return (name, Texts.T("tagging.page.lastShown", name, Ordinal(queue, index, groupId, ungrouped, scope), counts.Count));
+        return (name, Texts.T("tagging.page.lastShown", name, Ordinal(queue, index, groupId, ungrouped), counts.Count));
     }
 
-    private static int FirstOpen(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope)
-    {
-        for (int index = 0; index < queue.Items.Count; index++)
-            if (InGroup(queue.Items[index], groupId, ungrouped) && (scope == null || scope(queue.Items[index])) && queue.Items[index].State == TagQueueState.Open) return index;
-        return -1;
-    }
-
-    private static int Ordinal(TagQueueSnapshot queue, int index, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope)
+    // Match the gallery's queue position. The row scope only chooses which open entry to show.
+    private static int Ordinal(TagQueueSnapshot queue, int index, string? groupId, bool ungrouped)
     {
         int ordinal = 0;
         for (int i = 0; i <= index && i < queue.Items.Count; i++)
-            if (InGroup(queue.Items[i], groupId, ungrouped) && (scope == null || scope(queue.Items[i]))) ordinal++;
+            if (InGroup(queue.Items[i], groupId, ungrouped)) ordinal++;
         return ordinal;
     }
 
