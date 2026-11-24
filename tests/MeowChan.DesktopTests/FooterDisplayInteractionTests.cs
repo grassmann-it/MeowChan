@@ -5,9 +5,11 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Stats;
@@ -63,9 +65,21 @@ public sealed class FooterDisplayInteractionTests
         TextBlock disk = Find<TextBlock>(window, "FooterDiskRate");
         TextBlock status = Find<TextBlock>(window, "WorkspaceStatus");
         TextBlock counts = Find<TextBlock>(window, "WorkspaceCounts");
+        TextBlock warning = Find<TextBlock>(window, "WorkspaceStoreWarning");
+        ShrinkRowPanel row = Assert.IsType<ShrinkRowPanel>(strip.Child);
+        Assert.Collection(row.Children,
+            item => Assert.Same(status, item),
+            item => Assert.Equal("UpdateNoticeButton", Assert.IsType<Button>(item).Name),
+            item => Assert.Same(warning, Assert.IsType<Button>(item).Content),
+            item => Assert.Same(counts, item),
+            item => Assert.Same(network, item),
+            item => Assert.Same(disk, item));
+        Assert.All(new[] { status, counts, warning, network, disk },
+            item => Assert.Same(TextTrimming.CharacterEllipsis, item.TextTrimming));
         Assert.True(status.IsVisible && counts.IsVisible);
         Assert.False(network.IsVisible || disk.IsVisible);
         Assert.Equal(IoStatsVisibility.None, window.IoStatsClaim);
+        double defaultCountsRight = BoundsIn(counts, window).Right;
 
         Click(window, FreeSpace(strip, window), MouseButton.Right);
         AssertChecks(strip, false, false, true);
@@ -73,6 +87,7 @@ public sealed class FooterDisplayInteractionTests
         await BooruTestSupport.WaitAsync(() => network.IsVisible, "network in footer");
         Layout(window);
         Assert.True(network.Bounds.Width > 0);
+        Assert.True(BoundsIn(counts, window).Right < defaultCountsRight);
         Assert.False(disk.IsVisible);
         Assert.Equal(IoStatsVisibility.Window, window.IoStatsClaim);
         source.Add("fixture", net: 2 * 1024 * 1024);
@@ -109,6 +124,7 @@ public sealed class FooterDisplayInteractionTests
         await BooruTestSupport.WaitAsync(() => !status.IsVisible && !counts.IsVisible, "status and counts hidden");
         Layout(window);
         Assert.True(network.IsVisible && disk.IsVisible);
+        Assert.Equal(BoundsIn(strip, window).Left + strip.Padding.Left, BoundsIn(network, window).Left, precision: 1);
         Assert.True(navigation.Bounds.Height > 0);
 
         Button media = Find<Button>(window, "MediaNavigationButton");

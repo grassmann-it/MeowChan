@@ -317,23 +317,6 @@ public sealed class NarrowShellLayoutTests : IDisposable
     // ---- the shell rows in the XAML -------------------------------------------------------------------------------
 
     [Fact]
-    public void TheStatusLineIsOneShrinkingRowWithTheStateFirst()
-    {
-        XDocument main = XDocument.Parse(Source("Desktop/Shell/MainWindow.axaml"));
-        XElement row = Named(main, "WorkspaceStatusRow");
-        Assert.Equal("ShrinkRowPanel", row.Name.LocalName);
-        Assert.Equal("True", (string?)row.Attribute("FillFirst"));
-        Assert.Equal(new[] { "WorkspaceStatus", "WorkspaceStoreWarningButton", "WorkspaceCounts" },
-            row.Elements().Select(element => (string?)element.Attribute(X + "Name")).ToArray());
-        foreach (string text in new[] { "WorkspaceStatus", "WorkspaceCounts", "WorkspaceStoreWarning" })
-            Assert.Equal("CharacterEllipsis", (string?)Named(main, text).Attribute("TextTrimming"));
-        Assert.DoesNotContain(row.Descendants(), element => element.Attribute("Grid.Column") != null);
-        string updates = Source("Desktop/Shell/MainWindow.Updates.cs");
-        Assert.Contains("status.Children.Insert(Math.Min(1, status.Children.Count), _updateNotice);", updates);
-        Assert.DoesNotContain("ColumnDefinitions.Insert", updates);
-    }
-
-    [Fact]
     public void TheSourceBoardCellShortensTheHostAndTheHeadsEndInAnEllipsis()
     {
         string main = Source("Desktop/Shell/MainWindow.axaml");
