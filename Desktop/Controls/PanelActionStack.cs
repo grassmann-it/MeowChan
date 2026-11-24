@@ -16,19 +16,19 @@ internal sealed class PanelActionStack : MinLineWrapPanel
         ItemSpacing = LineSpacing = 8;
     }
 
-    internal static void SizeButton(Button button)
+    internal static void SizeButton(Button button, bool compactSpacing = false)
     {
         button.Classes.Set("panel-action", true);
         button.HorizontalAlignment = HorizontalAlignment.Left;
-        button.Padding = new Thickness(12, 0);
+        button.Padding = new Thickness(compactSpacing ? 8 : 12, 0);
         button.MinWidth = 96;
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.Height = WorkspaceMetrics.InputHeight;
     }
 
-    internal static void Present(Button button, string icon, bool compactLabel = false)
+    internal static void Present(Button button, string icon, bool compactLabel = false, bool compactSpacing = false)
     {
-        SizeButton(button);
+        SizeButton(button, compactSpacing);
         button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
         {
             TextBlock text = new()
@@ -40,7 +40,7 @@ internal sealed class PanelActionStack : MinLineWrapPanel
             Grid.SetColumn(text, 1);
             Border mark = (Border)CommandBindings.IconFromKey(icon, 16);
             mark.Bind(Border.BackgroundProperty, text.GetObservable(TextBlock.ForegroundProperty));
-            return new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, Children = { mark, text } };
+            return new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = compactSpacing ? 4 : 8, Children = { mark, text } };
         });
         ToolTip.SetTip(button, ToolTip.GetTip(button) ?? button.Content);
     }

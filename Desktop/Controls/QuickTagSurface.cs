@@ -513,6 +513,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _sidebarSections.Info = info;
         // Keep the thread and editor commands together when the current post's actions are rebuilt.
         if (_advanced.Parent is Panel previous) previous.Children.Remove(_advanced);
+        PanelActionStack.SizeButton(_advanced, compactSpacing: true);
         actions.Children.Add(_advanced);
         _sidebarActions.Content = actions;
         _sidebarActions.IsVisible = true;
