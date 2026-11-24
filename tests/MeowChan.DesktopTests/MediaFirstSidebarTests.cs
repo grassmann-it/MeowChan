@@ -335,28 +335,40 @@ public sealed class MediaFirstSidebarTests
             }
             Assert.False(panel.FavoriteButton.Focus(NavigationMethod.Tab));
             Assert.False(panel.FavoriteButton.IsTabStop);
-            Assert.True(panel.InfoToggle.Focus(NavigationMethod.Tab));
-            Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
             var ratingBar = overlay.GetVisualDescendants().OfType<GalleryDecisionRow>().Single();
-            var overlayActions = overlay.GetVisualDescendants().OfType<Button>()
-                .Where(button => !button.GetVisualAncestors().Contains(ratingBar)).ToArray();
-            Assert.Equal(2, overlayActions.Length);
-            foreach (Control next in new Control[] { panel.Open, panel.Frame, ratingBar.FocusStar,
-                overlayActions[0], overlayActions[1], panel.Close })
+            Control frame = ById<Control>(panel, "ReaderMediaSidebarFrame");
+            Button expand = ById<Button>(overlay, "ReaderMediaSidebarTagsToggle");
+            Button edit = ById<Button>(overlay, "ReaderMediaSidebarEditTags");
+            Button star = ById<Button>(ratingBar, "ReaderMediaSidebarOverlayRatingRating4");
+            Control[] actions = [ById<Button>(panel, "ReaderMediaSidebarInfoToggle"),
+                ById<Button>(panel, "ReaderMediaSidebarOpen"), ById<Button>(panel, "ReaderMediaSidebarClose"), edit, expand, star];
+            Assert.True(frame.Focus(NavigationMethod.Tab));
+            Assert.All(actions, action =>
             {
-                window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
-                window.KeyRelease(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
-                Settle();
-                Assert.Same(next, window.FocusManager!.GetFocusedElement());
-            }
+                Assert.False(action.Focus(NavigationMethod.Tab));
+                Assert.False(action.IsTabStop);
+                Assert.Same(frame, window.FocusManager!.GetFocusedElement());
+            });
+            window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+            window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+            Settle();
+            Assert.DoesNotContain(window.FocusManager!.GetFocusedElement(), actions);
 
-            Assert.True(overlayActions[1].Focus(NavigationMethod.Tab));
+            Assert.True(frame.Focus(NavigationMethod.Tab));
             window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             Settle();
+            Assert.False(details.IsVisible);
+            Click(window, Center(star, window));
+            Assert.Equal(4, rating);
+            Assert.Same(frame, window.FocusManager!.GetFocusedElement());
+            Click(window, Center(edit, window));
+            Assert.Same(panel.InfoToggle, tagAnchor);
+            Assert.Same(frame, window.FocusManager!.GetFocusedElement());
+            Click(window, Center(expand, window));
             Assert.True(details.IsVisible);
-            Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
-            Assert.True(panel.DecisionRow.FocusRating());
+            Assert.Same(frame, window.FocusManager!.GetFocusedElement());
+            Assert.False(panel.DecisionRow.FocusRating());
             // Use the sidebar's key route with input from the focused control, as the two hosts do.
             window.KeyDown += RouteInfo;
             try
@@ -365,10 +377,13 @@ public sealed class MediaFirstSidebarTests
                 window.KeyReleaseQwerty(PhysicalKey.I, RawInputModifiers.Shift);
                 Settle();
                 Assert.False(details.IsVisible);
-                Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
+                Assert.Same(frame, window.FocusManager!.GetFocusedElement());
             }
             finally { window.KeyDown -= RouteInfo; }
             void RouteInfo(object? sender, KeyEventArgs e) => panel.RouteInfoKey(e);
+            static T ById<T>(Control root, string id) where T : Control =>
+                Assert.Single(root.GetVisualDescendants().OfType<T>(), item =>
+                    item.IsEffectivelyVisible && AutomationProperties.GetAutomationId(item) == id);
 
             panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Auto" });
             Settle();

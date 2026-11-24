@@ -290,7 +290,7 @@ public sealed class MediaTileEnterTests
                 }
         }
 
-        /// <summary>Presents the given panel row independently of grid selection and returns its visible "Open in gallery" button.</summary>
+        /// <summary>Presents the given panel row independently of grid selection.</summary>
         internal Control ShowPanelOn(int index)
         {
             MediaLibraryTileRow row = Rows[index];
@@ -312,8 +312,9 @@ public sealed class MediaTileEnterTests
                 MaterializeContent(section);
             Assert.Contains(panel, panel.Open.GetVisualAncestors());
             Assert.Contains(_page, panel.Open.GetVisualAncestors());
-            Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled && panel.Open.Focusable);
-            return panel.Open;
+            Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled);
+            Assert.False(panel.Open.Focusable);
+            return panel.Frame;
         }
 
         private static void MaterializeContent(ContentControl control)

@@ -78,7 +78,9 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
             return page.IsPanelShown && page.PanelRow?.Entry.PostId == "43" && page.Panel?.Open.IsEffectivelyEnabled == true;
         }, "the picture in the Media panel");
         ReaderMediaSidebar panel = Assert.IsType<ReaderMediaSidebar>(page.Panel);
-        Assert.True(panel.Open.Focus());
+        Control frame = Assert.Single(panel.GetVisualDescendants().OfType<Control>(), control =>
+            control.IsEffectivelyVisible && Avalonia.Automation.AutomationProperties.GetAutomationId(control) == "ReaderMediaSidebarFrame");
+        Assert.True(frame.Focus());
 
         QuickTagPopover popover = await RateAndTagWindowFixture.OpenEditorAsync(window);
         Assert.Same(popover, window.MediaPageTagPopover);

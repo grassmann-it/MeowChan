@@ -62,6 +62,8 @@ internal sealed class GalleryDecisionRow : StackPanel
         {
             int number = index + 1;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
+            AutomationProperties.SetAutomationId(star, star.Name);
+            star.Focusable = !compact;
             star.Click += (_, _) => OnStar(number);
             TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
             _bar.Children.Add(star);
@@ -71,6 +73,10 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.Classes.Add("media-control");
         _clear.Classes.Add("rating-clear");
         _clear.Click += OnClear;
+        _clear.Focusable = !compact;
+        _favorite.Focusable = _favorite.IsTabStop = !compact;
+        AutomationProperties.SetAutomationId(_clear, _clear.Name);
+        AutomationProperties.SetAutomationId(_favorite, _favorite.Name);
         _clear.VerticalAlignment = VerticalAlignment.Center;
         _clear.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(_clear, 2);
@@ -217,7 +223,7 @@ internal sealed class GalleryDecisionRow : StackPanel
             ToggleButton star = _stars[index];
             star.IsEnabled = view.Available;
             star.IsChecked = view.Available && !view.RatingMixed && rating == index + 1;
-            star.IsTabStop = index == stopIndex;
+            star.IsTabStop = _popover && index == stopIndex;
         }
         _clear.IsTabStop = false;
         _clear.IsEnabled = view.Available && (view.Rating.HasValue || view.RatingMixed);

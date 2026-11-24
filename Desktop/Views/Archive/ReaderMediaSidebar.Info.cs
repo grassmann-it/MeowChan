@@ -62,10 +62,14 @@ internal sealed partial class ReaderMediaSidebar
     private readonly GalleryDecisionRow _overlayRating = new("ReaderMediaSidebarOverlayRating", compact: true, favorite: false);
     private readonly Button _tagCount = new()
     {
+        Name = "ReaderMediaSidebarOverlayEditTags",
         Height = 24, MinHeight = 0, MinWidth = 48, Padding = new Thickness(8, 0), VerticalAlignment = VerticalAlignment.Center,
         Classes = { WorkspaceChips.Chip, WorkspaceChips.Compact }
     };
-    private readonly Button _expand = new() { Width = WorkspaceMetrics.InputHeight, Height = WorkspaceMetrics.InputHeight };
+    private readonly Button _expand = new()
+    {
+        Name = "ReaderMediaSidebarTagsToggle", Width = WorkspaceMetrics.InputHeight, Height = WorkspaceMetrics.InputHeight
+    };
     private readonly Grid _overlayActions = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,4,Auto") };
     private readonly DispatcherTimer _hideOverlay = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private ReaderMediaPreferences _infoPreferences = ReaderMediaPreferences.Default;
@@ -132,6 +136,9 @@ internal sealed partial class ReaderMediaSidebar
         _expand.Click += (_, _) => ToggleDetails();
         _detailOpen.Click += (_, _) => GalleryRequested?.Invoke(this, EventArgs.Empty);
         _tagCount.Click += (_, _) => OpenActions.Start(EditTagsAsync, "media.tags.edit");
+        foreach (Button action in new Button[] { InfoToggle, _detailOpen, _tagCount, _expand })
+            ConfigurePointerAction(action);
+        AutomationProperties.SetAutomationId(_tagCount, "ReaderMediaSidebarEditTags");
         _overlayActions.Children.Add(_overlayRating);
         Grid.SetColumn(_tagCount, 2); _overlayActions.Children.Add(_tagCount);
         Grid.SetColumn(_expand, 4); _overlayActions.Children.Add(_expand);
@@ -158,6 +165,7 @@ internal sealed partial class ReaderMediaSidebar
         _videoRow.SizeChanged += (_, _) => UpdateInfoLayout();
         _sections.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) UpdateInfoLayout(); };
         _frame.Focusable = true;
+        AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
     }
 
     private void LocalizeInfo()
@@ -241,7 +249,7 @@ internal sealed partial class ReaderMediaSidebar
         bool showOverlay = !docked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
             _infoPreferences.MediaSidebarInfo is "Auto" or "Overlay";
         if ((!docked && _details.IsKeyboardFocusWithin) || (!showOverlay && _overlay.IsKeyboardFocusWithin))
-            InfoToggle.Focus(NavigationMethod.Tab);
+            _frame.Focus(NavigationMethod.Tab);
         _details.IsVisible = docked;
         _details.MaxHeight = docked ? layout.DetailsLimit : double.PositiveInfinity;
         bool auto = docked && double.IsFinite(layout.CardHeight);

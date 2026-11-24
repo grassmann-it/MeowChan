@@ -444,6 +444,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         _info.Children.Add(_provenanceNote);
         _actions.Children.Add(_detailOpen);
         _actions.Children.Add(_editTags);
+        foreach (Button action in new Button[] { _headerFavorite, Open, Close, _editTags })
+            ConfigurePointerAction(action);
         _editTags.Click += (_, _) => OpenActions.Start(EditTagsAsync, "media.tags.edit");
         _rating.Children.Add(_decision);
         _rating.Children.Add(_decisionError);
@@ -457,10 +459,6 @@ internal sealed partial class ReaderMediaSidebar : Border
             {
                 if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
             };
-            row.AddHandler(KeyDownEvent, (_, e) =>
-            {
-                if (!e.Handled && row.RouteStarKey(e)) e.Handled = true;
-            }, RoutingStrategies.Tunnel);
         }
         TrackDecisionPress(_headerFavorite);
         AddHandler(PointerReleasedEvent, (_, e) =>
@@ -532,6 +530,13 @@ internal sealed partial class ReaderMediaSidebar : Border
         };
         Localize();
         ShowEmpty();
+    }
+
+    private static void ConfigurePointerAction(Button button)
+    {
+        button.Focusable = false;
+        button.IsTabStop = false;
+        AutomationProperties.SetAutomationId(button, button.Name);
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
