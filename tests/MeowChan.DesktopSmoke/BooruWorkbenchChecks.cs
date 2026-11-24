@@ -29,6 +29,11 @@ internal static partial class BooruWorkbenchChecks
     internal static async Task RunAsync(MainWindow owner)
     {
         Dispatcher.UIThread.VerifyAccess();
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_BOORU_SIDEBAR_SHOTS") is { Length: > 0 } sidebarShots)
+        {
+            await CaptureMediaSidebarAsync(owner, sidebarShots);
+            return;
+        }
         string originalLanguage = Texts.Language;
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         string shots = Environment.GetEnvironmentVariable("MEOWCHAN_BOORU_SHOTS") ?? AppContext.BaseDirectory;
@@ -565,6 +570,55 @@ internal static partial class BooruWorkbenchChecks
 
     // ---- accessibility (1.1.0 audit H1-H3, M2, M3) ---------------------------------------------------------------------------
 
+    private static async Task CaptureMediaSidebarAsync(MainWindow owner, string shots)
+    {
+        Directory.CreateDirectory(shots);
+        BooruUiHarness harness = new();
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101"), BooruUiFixtures.Post("102", sample: true, score: 0),
+                BooruUiFixtures.Post("103"))));
+        harness.Previews.OnSample = (_, _) => Task.FromResult<byte[]?>(BooruUiFixtures.Png(103));
+        using BooruPage page = new(harness.Services);
+        Window window = new() { Width = 1152, Height = 850, Content = page, ShowInTaskbar = false };
+        try
+        {
+            page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
+            page.View.RestoreMediaSidebar(open: true);
+            window.Show(owner);
+            await SettleAsync(window);
+            TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+            input.Text = "cat";
+            await Program.WaitUntilAsync(() => Find<Button>(page, BooruWorkbenchView.SubmitName).IsEnabled,
+                () => "the Booru sidebar fixture search was not ready");
+            Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
+            await Program.WaitUntilAsync(() => Previews(page) == 3, () => "the Booru sidebar fixture previews did not arrive");
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+            {
+                window.RequestedThemeVariant = theme;
+                foreach (BooruResultView mode in new[] { BooruResultView.List, BooruResultView.Grid })
+                {
+                    page.View.SetResultView(mode, save: false);
+                    page.View.RestoreMediaSidebar(open: false);
+                    page.View.RestoreMediaSidebar(open: true);
+                    page.View.SetCursor("102");
+                    await SettleAsync(window);
+                    Require(Math.Abs(window.ClientSize.Width - 1152) <= 1, "The sidebar capture is not 1152 DIP wide.");
+                    Control sidebar = Find<Control>(page, "BooruMediaSidebar");
+                    Image image = Find<Image>(sidebar, "BooruMediaPreview");
+                    IImage preview = image.Source ?? throw new InvalidOperationException("The sidebar preview did not arrive.");
+                    string stem = $"booru-sidebar-{mode}-{theme}".ToLowerInvariant();
+                    Capture(window, shots, stem + "-preview");
+                    page.View.SetCursor("102", requestSidebarSample: true);
+                    await Program.WaitUntilAsync(() => image.Source != null && !ReferenceEquals(image.Source, preview),
+                        () => "the Booru sidebar sample did not arrive");
+                    await SettleAsync(window);
+                    Capture(window, shots, stem + "-sample");
+                }
+            }
+        }
+        finally { window.Close(); }
+    }
+
     private static async Task CheckSearchRowResizeAsync(MainWindow owner, BooruUiHarness h, string shots)
     {
         string language = Texts.Language;
@@ -851,7 +905,10 @@ internal static partial class BooruWorkbenchChecks
     private static List<Control> Cards(Control root, string prefix) => Controls(root).OfType<Border>()
         .Where(border => border.Name is { } name && name.StartsWith(prefix, StringComparison.Ordinal)).Cast<Control>().ToList();
 
-    private static int Previews(Control root) => Controls(root).OfType<Image>().Count(image => image.Source is Bitmap);
+    private static int Previews(Control root) =>
+        Controls(root).OfType<Image>().Count(image => image.Source is Bitmap
+            && image.GetVisualAncestors().OfType<Border>().Any(border =>
+                border.Name?.StartsWith("BooruPreviewFrame:", StringComparison.Ordinal) == true));
 
     private static string Text(Control root) => string.Join('\n', Controls(root).Where(control => control.IsEffectivelyVisible)
         .Select(control => control switch
