@@ -4,6 +4,17 @@ internal static class ReaderSettingsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("settings.reader.mediaSidebarInfo.shortHeight", "Too little height", "Zu wenig Höhe"),
+        ("settings.reader.mediaSidebarInfoMaximumShare.hint", "Maximum share of panel height when docking manually.", "Maximaler Anteil der Panelhöhe beim manuellen Andocken."),
+        ("settings.reader.mediaSidebarInfoMaximumShare", "Maximum detail height (%)", "Maximale Detailhöhe (%)"),
+        ("settings.reader.mediaSidebarInfoMinimumFree.hint", "Free space needed to dock details automatically.", "Freier Platz zum automatischen Andocken der Details."),
+        ("settings.reader.mediaSidebarInfoMinimumFree", "Minimum free height (dip)", "Freie Mindesthöhe (dip)"),
+        ("settings.reader.mediaSidebarInfo.always", "Always", "Immer"),
+        ("settings.reader.mediaSidebarInfo.auto", "Automatic", "Automatisch"),
+        ("settings.reader.mediaSidebarInfo.overlay", "Overlay", "Overlay"),
+        ("settings.reader.mediaSidebarInfo.off", "Off", "Aus"),
+        ("settings.reader.mediaSidebarInfo.hint", "Also applies to the detail panel on the Media page.", "Gilt auch für das Detailpanel der Media-Seite."),
+        ("settings.reader.mediaSidebarInfo", "Media sidebar info", "Infos in der Medienleiste"),
         ("settings.reader.thumbnailWidth", "Preview image width (px)", "Breite der Vorschaubilder (px)"),
         ("settings.reader.thumbnailWidth.hint", "Normal reader previews use this width setting (120–480 px); decoding never goes below the existing 240 × 180 floor. The Reader layout uses 1.5 times this width and still decodes up to 1040 × 720, but that full-size preview is not retained. Larger bitmaps use proportionally more of the shared preview byte budget, so 480-pixel previews retain fewer cached items.", "Normale Reader-Vorschauen verwenden diese Breiteneinstellung (120–480 px); beim Dekodieren wird der bisherige Boden von 240 × 180 nie unterschritten. Das Layout des Readers verwendet das 1,5-Fache dieser Breite und dekodiert weiterhin bis 1040 × 720, behält diese Vollgrößen-Vorschau aber nicht. Größere Bitmaps verbrauchen anteilig mehr vom gemeinsamen Bytebudget, daher bleiben bei 480 Pixeln weniger Vorschauen im Cache."),
         ("settings.reader.foldLines", "Fold long posts above (lines)", "Lange Posts kürzen ab (Zeilen)"),

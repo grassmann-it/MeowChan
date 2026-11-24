@@ -13,7 +13,7 @@ namespace MeowChan.Desktop.Controls;
 /// minimum. Every item is arranged over its line's full height, so <c>VerticalAlignment.Center</c> centres a one-line text in a 32 dip line
 /// exactly as <c>ItemHeight</c> did. Hidden items take no room and no gap.
 /// </summary>
-internal sealed class MinLineWrapPanel : Panel
+internal class MinLineWrapPanel : Panel
 {
     public static readonly StyledProperty<double> ItemSpacingProperty =
         AvaloniaProperty.Register<MinLineWrapPanel, double>(nameof(ItemSpacing));
@@ -30,6 +30,8 @@ internal sealed class MinLineWrapPanel : Panel
     public double LineSpacing { get => GetValue(LineSpacingProperty); set => SetValue(LineSpacingProperty, value); }
     /// <summary>The least height of a line, in dip (a line with a taller item is as high as that item).</summary>
     public double MinLineHeight { get => GetValue(MinLineHeightProperty); set => SetValue(MinLineHeightProperty, value); }
+
+    internal bool KeepPairOnOneLine { get; init; }
 
     /// <summary>One line of the row: the first and the last item (indexes into the visible items), its width and its height.</summary>
     internal readonly record struct Line(int First, int Last, double Width, double Height);
@@ -80,7 +82,17 @@ internal sealed class MinLineWrapPanel : Panel
     protected override Size MeasureOverride(Size availableSize)
     {
         Size item = new(availableSize.Width, double.PositiveInfinity);
-        foreach (Control child in Children) child.Measure(item);
+        if (KeepPairOnOneLine && Children is [{ IsVisible: true } first, { IsVisible: true } second])
+        {
+            // Reserve the editor's natural width. The leading thread command can use its icon in the remaining space.
+            second.Measure(item);
+            double remaining = item.Width - ItemSpacing - second.DesiredSize.Width;
+            first.Measure(remaining >= first.MinWidth ? item.WithWidth(remaining) : item);
+        }
+        else
+        {
+            foreach (Control child in Children) child.Measure(item);
+        }
         CollectShown();
         List<Line> lines = Lines(_sizes, availableSize.Width, ItemSpacing, MinLineHeight);
         double width = 0, height = 0;

@@ -43,6 +43,14 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     private Func<bool>? _marked;
     private Func<Task>? _toggle;
     private bool _running;
+    private string? _caption;
+    internal void SetCaption(string? caption)
+    {
+        if (_caption == caption) return;
+        _caption = caption;
+        Refresh();
+    }
+
     private Func<string?>? _errorSource;
     private Func<FavoriteStarHold>? _hold;
     private string? _error;
@@ -53,7 +61,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     /// The execution context whose keys the tooltip names (EffectiveShortcutBindings.ExecutionContexts): every star of this kind sits in the reader (a post's
     /// file line, the media sidebar, the Media tab's tiles), whose keys run in "reader".
     /// </summary>
-    internal string KeyContext { get; init; } = "reader";
+    internal string KeyContext { get; set; } = "reader";
 
     internal ArchiveFavoriteButton()
     {
@@ -138,7 +146,11 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         Border star = MeowChan.Desktop.Controls.FavoriteStar.Create(marked, tinted: _error == null);
         // Dimmed while the saved copy is still being looked up, as the thread star is while its state loads.
         if (hold == FavoriteStarHold.Loading) star.Opacity = 0.5;
-        Content = star;
+        Content = _caption == null ? star : new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
+            Children = { star, new TextBlock { Text = _caption, VerticalAlignment = VerticalAlignment.Center } }
+        };
         // A failed write keeps the star in place: an error edge plus the reason in the tooltip, which
         // opens once for a new error, instead of a text block that pushes the card layout apart.
         bool failed = _error != null;

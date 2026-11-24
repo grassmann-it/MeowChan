@@ -111,10 +111,7 @@ public sealed class StartupErrorWindowTests
         Assert.Same(copy, window.FocusManager!.GetFocusedElement());
         Press(window, Key.Enter, PhysicalKey.Enter);
 
-        Task<string?> read = window.Clipboard!.TryGetTextAsync();
-        Dispatcher.UIThread.RunJobs();
-        Assert.True(read.IsCompletedSuccessfully);
-        Assert.Equal(Message, read.GetAwaiter().GetResult());
+        Assert.Equal(Message, BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync()));
         Assert.Equal("Message text copied.", status.Text);
         Assert.True(status.IsVisible);
         Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(status));
@@ -186,7 +183,7 @@ public sealed class StartupErrorWindowTests
     }
 
     private static void WithWindow(Func<IClipboard?>? getClipboard, Action<StartupErrorWindow> run) =>
-        OwnedUiDispatcher.Run(() =>
+        BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
             string previousLanguage = Texts.Language;

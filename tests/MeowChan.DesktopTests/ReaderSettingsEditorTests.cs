@@ -2,7 +2,10 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -31,6 +34,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderFocusedMediaScalePercent), "settings.reader.focusedScale", nameof(SettingsEditor.ReaderFocusedMediaScalePercentMinimum), nameof(SettingsEditor.ReaderFocusedMediaScalePercentMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderHoverEnlargeSize), "settings.reader.hoverSize", nameof(SettingsEditor.ReaderHoverEnlargeSizeMinimum), nameof(SettingsEditor.ReaderHoverEnlargeSizeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderHoverEnlargeDelayMs), "settings.reader.hoverDelay", nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMinimum), nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.MediaSidebarInfoMinimumFree), "settings.reader.mediaSidebarInfoMinimumFree", nameof(SettingsEditor.MediaSidebarInfoMinimumFreeMinimum), nameof(SettingsEditor.MediaSidebarInfoMinimumFreeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaSidebarWidth), "settings.reader.mediaSidebarWidth", nameof(SettingsEditor.ReaderMediaSidebarWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaSidebarMinimumWidth), "settings.reader.mediaSidebarMinimumWidth", nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderInlineVideoMaxPlayers), "settings.reader.inlineVideoPlayers", nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMinimum), nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMaximum), "SettingsReadingMediaPage"),
@@ -398,6 +402,45 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Assert.Null(editor.ReaderFoldLines);
         Assert.Equal("unfinished draft", GetInput(editor, nameof(Config.ReaderFoldLines)).Text);
     }
+
+    [Fact]
+    public void SavingTheSplitterWidthKeepsUncommittedInfoSettings() => ReaderMediaSidebarLayoutTests.OnDispatcher(() =>
+    {
+        SettingsEditor editor = CreateValidDraft();
+        Config saved = Get<Config>(editor, "_config");
+        saved.ReaderMediaSidebar = true;
+        saved.ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways;
+        saved.ReaderMediaSidebarMinimumWidth = Config.ReaderMediaSidebarMinimumWidthMinimum;
+        saved.ReaderMediaSidebarWidth = 320;
+        editor.MediaSidebarInfoMinimumFree = 200;
+        GetInput(editor, nameof(Config.MediaSidebarInfoMinimumFree)).Value = 200;
+        editor.SelectedMediaSidebarInfo = new SettingsChoice("Always", "Always");
+        ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
+        try
+        {
+            page.SaveReaderMediaSwitches = (change, fields) =>
+            {
+                change(saved);
+                editor.RefreshConfirmedSettings(fields);
+                return Task.CompletedTask;
+            };
+            page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(saved));
+            Grid root = page.FindControl<Grid>("ArchiveRoot")!;
+            Size size = new(1600, 800);
+            ReaderMediaSidebarLayoutTests.Layout(root, size);
+            ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+            Grid host = Assert.IsType<Grid>(sidebar.Parent);
+            GridSplitter splitter = Assert.Single(host.Children.OfType<GridSplitter>(), control => control.Name == "ReaderMediaSidebarSplitter");
+            host.ColumnDefinitions[Grid.GetColumn(sidebar)].Width = new GridLength(380);
+            ReaderMediaSidebarLayoutTests.Layout(root, size);
+            splitter.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Right });
+            Assert.Equal(380, saved.ReaderMediaSidebarWidth);
+            Assert.Equal(380m, editor.ReaderMediaSidebarWidth);
+            Assert.Equal(200m, GetInput(editor, nameof(Config.MediaSidebarInfoMinimumFree)).Value);
+            Assert.Equal("Always", editor.SelectedMediaSidebarInfo!.Value);
+        }
+        finally { page.EndLifetime(); }
+    });
 
     private static string DraftValue(SettingsEditor editor, string id)
     {

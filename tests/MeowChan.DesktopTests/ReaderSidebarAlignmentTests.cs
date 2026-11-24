@@ -19,8 +19,8 @@ public sealed class ReaderSidebarAlignmentTests
     public void FullHeightSidebarKeepsTheStableHeaderAndPostsColumnIsolation(bool right) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
-        Assert.Equal(32, ReaderMediaSidebar.HeaderLineHeight);
-        Assert.Equal(16, ReaderMediaSidebar.HeaderTopInset);
+        Assert.Equal(48, ReaderMediaSidebar.HeaderLineHeight);
+        Assert.Equal(8, ReaderMediaSidebar.HeaderTopInset);
         ArchivePage page = Page();
         Window window = new() { Width = 1440, Height = 720, Content = page };
         void LayoutAt(double height)
@@ -45,7 +45,7 @@ public sealed class ReaderSidebarAlignmentTests
             page.ApplyReaderMediaPreferences(preferences with { SidebarRight = right });
             LayoutAt(720);
             ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
-            Assert.IsType<MediaSidebarHeader>(sidebar.HeaderRow);
+            Assert.IsType<MediaCompactHeader>(sidebar.HeaderRow);
             GridSplitter splitter = Assert.Single(pane.Children.OfType<GridSplitter>());
             Assert.True(page.IsMediaSidebarShown);
             Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
@@ -59,25 +59,24 @@ public sealed class ReaderSidebarAlignmentTests
             Assert.False(sidebar.PositionPill.IsVisible);
             Assert.Empty(sidebar.Title.Text!);
             double emptyHeight = sidebar.HeaderRow.Bounds.Height;
-            Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, emptyHeight);
+            // Tom 19:55: “Der Kopf ist einzeilig, solange es passt.”
+            Assert.Equal(32, emptyHeight);
 
             string file = new string('W', 250) + ".png";
-            sidebar.Describe("No. 123", file, "100 MiB", true);
+            sidebar.Describe("No. 123", file, "", true, savedBytes: 100L * 1024 * 1024);
             LayoutAt(720);
             double headerHeight = sidebar.HeaderRow.Bounds.Height;
             double frameHeight = sidebar.Frame.Bounds.Height;
-            ScrollViewer details = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "ReaderMediaSidebarDetails");
+            Control details = sidebar.Details;
             double occupied = frameHeight + details.Bounds.Height;
-            Assert.Equal(emptyHeight, headerHeight);
-            MediaFactGrid facts = Assert.Single(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
-            SelectableTextBlock metadata = Assert.Single(facts.Children.OfType<SelectableTextBlock>(),
-                text => text.Name == "ReaderMediaSidebarFile");
-            Assert.Equal(file, ToolTip.GetTip(metadata));
-            Assert.True(metadata.TranslatePoint(default, sidebar)!.Value.Y
-                >= sidebar.Card.TranslatePoint(new Point(0, sidebar.Card.Bounds.Height), sidebar)!.Value.Y);
-            Assert.True(sidebar.Open.TranslatePoint(default, sidebar)!.Value.Y
-                > metadata.TranslatePoint(default, sidebar)!.Value.Y);
-
+            Assert.Equal(48, headerHeight);
+            // Tom 19:55: “Unten liegt eine feste Infoleiste”.
+            Assert.True(details.IsVisible);
+            TextBlock meta = ((MediaCompactHeader)sidebar.HeaderRow).Meta;
+            Assert.Equal(file + " · 100 MiB", ToolTip.GetTip(meta));
+            Assert.Contains("…", meta.Text);
+            Assert.EndsWith(".png · 100 MiB", meta.Text);
+            Assert.True(meta.TranslatePoint(default, sidebar)!.Value.Y < sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y);
             LayoutAt(900);
             Assert.Equal(headerHeight, sidebar.HeaderRow.Bounds.Height);
             Assert.True(sidebar.Frame.Bounds.Height > frameHeight);

@@ -158,6 +158,25 @@ public sealed class MediaTileEnterTests
     });
 
     [Fact]
+    public void TheFocusedPanelFrameOnlyOpensItsMediumThroughTheGalleryBinding() => Run(fixture =>
+    {
+        fixture.ShowPanelOn(Fixture.LocalIndex);
+        Control frame = fixture.PanelView!.Frame;
+        var original = ShortcutService.CurrentSection;
+        try
+        {
+            ShortcutService.Publish(new ShortcutBindingsSection().Set("gallery.open", [ShortcutGesture.Parse("Alt+O")]));
+            fixture.Press(frame, Key.Enter);
+            fixture.Press(frame, Key.Enter, KeyModifiers.Control);
+            Assert.Empty(fixture.Opened);
+            fixture.Press(frame, Key.O, KeyModifiers.Alt);
+            (IReadOnlyList<MediaLibraryEntry> entries, int start) = Assert.Single(fixture.Opened);
+            Assert.Same(fixture.Entries[Fixture.LocalIndex], entries[start]);
+        }
+        finally { ShortcutService.Publish(original); }
+    });
+
+    [Fact]
     public void EnterOnATileWhoseFileIsNotSavedSaysSoInsteadOfDoingNothing() => Run(fixture =>
     {
         fixture.Grid.SelectedIndex = Fixture.MissingIndex;
@@ -283,25 +302,16 @@ public sealed class MediaTileEnterTests
             ReaderMediaSidebar panel = PanelView = Assert.IsType<ReaderMediaSidebar>(_page.Panel);
             typeof(MediaPage).GetMethod("DescribePanel", InstanceNonPublic)!.Invoke(_page, [panel, row]);
 
-            // The action section exists only for a described medium. Materialize the presenters
-            // so the real key route goes through the sidebar and the page without a layout pass.
+            // Attach the header to the page so the real key event bubbles through both.
             _page.ApplyTemplate();
             _page.Presenter!.UpdateChild();
-            ScrollViewer details = panel.GetVisualDescendants().OfType<ScrollViewer>().Single(view => view.Name == "ReaderMediaSidebarDetails");
-            MaterializeContent(details);
-            foreach (ContentControl section in Assert.IsAssignableFrom<Panel>(details.Content).Children.OfType<ContentControl>())
-                MaterializeContent(section);
             Assert.Contains(panel, panel.Open.GetVisualAncestors());
             Assert.Contains(_page, panel.Open.GetVisualAncestors());
-            Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled && panel.Open.Focusable);
-            return panel.Open;
-        }
-
-        private static void MaterializeContent(ContentControl control)
-        {
-            control.Template = BareContentTemplate;
-            control.ApplyTemplate();
-            control.Presenter!.UpdateChild();
+            // Kürzelschema §Vorrang: “Panelknöpfe nehmen in 1.1.2 keinen Fokus.”
+            Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled);
+            Assert.False(panel.Open.Focusable);
+            Assert.True(panel.Frame.Focusable);
+            return SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarOpen");
         }
 
         internal Control Container(int index) => Grid.ContainerFromIndex(index)

@@ -140,6 +140,7 @@ public partial class MainWindow : Window
             // Section and rule-template registrations belong to pages built after the first frame
             // (EnsureDeferredWorkspacePages installs them there).
             RegisterTagAndFilterCommands();
+            RegisterMediaSidebarInfoCommands();
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             InitializeStatusColumnRedundancy();
@@ -1280,8 +1281,6 @@ public partial class MainWindow : Window
             candidate.Theme = MeowChan.Desktop.Theming.ThemePreference.Toggled(_config.Theme, ActualThemeVariant == ThemeVariant.Dark);
             await SaveAppearanceAsync(candidate);
         };
-        InspectorCopyUrlButton.Click += async (sender, e) =>
-            await CopyUrlsAsync(GetInspectorUrl() is string url ? new[] { url } : Array.Empty<string>());
     }
 
     private async Task SaveAppearanceAsync(Config candidate)

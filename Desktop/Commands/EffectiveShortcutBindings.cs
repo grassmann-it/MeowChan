@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 25;
+    public const int DefaultsRevision = 27;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -129,6 +129,8 @@ public sealed class EffectiveShortcutBindings
     /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
+        ["media.sidebar.autohide"] = 27, ["gallery.layout.info"] = 27,
+        ["media.sidebar.info"] = 26,
         ["booru.search.submit"] = 25, ["booru.search.alternate"] = 25,
         // Revision 24 (Lightroom rating keys): 1 to 5 rate and 0 removes the rating (Shift+1 to Shift+5 and Shift+0 stay as the second key); Fit gains Primary+0
         // while the bare 0 and 1 of Fit and 1:1 are given up (NumPad0 and NumPad1 stay). The rating ids are listed below since revision 9: a saved binding of another
@@ -223,11 +225,11 @@ public sealed class EffectiveShortcutBindings
         // Revision 13 (the gallery key scheme, GalleryShortcutScheme): Shift plus a letter shows or hides a block, plain letters act on the playback.
         // Changed: the post panel P to Shift+P, the slideshow S to D, mute Shift+M to M, the frame snapshot Shift+S to S (video.mute, video.snapshot and
         // gallery.slideshow-toggle are in the table since revisions 2 and 5; their entries stay). New: Shift+H hides the tools, Shift+O switches the
-        // controls overlay, and Shift+I / Shift+N show the info line and the hint row of the Layout menu (GL3, applied when those commands exist). The card mode of the tagging
+        // controls overlay, and (originally) Shift+I / Shift+N show the info line and the hint row of the Layout menu (GL3, applied when those commands exist). The card mode of the tagging
         // mode moved from K to Shift+K (the cards are a block).
         // "Add favorite" moved from M (now mute) to B; a binding saved for any of them stays untouched. (Revision 20 gave M back to "Add favorite", below; revision 21 dropped B.)
         ["gallery.context-toggle"] = 13, ["gallery.tools-toggle"] = 13, ["gallery.overlay-toggle"] = 13,
-        ["gallery.layout.info"] = 13, ["gallery.layout.hints"] = 13,
+        ["gallery.layout.hints"] = 13,
         // Revision 14 (Tom's decision of 15.11.2026): video speed gets the extra keys X (slower) and C (faster), because [ and ] sit behind AltGr on
         // German and French layouts and Ctrl+Alt is not a valid gesture. [ ] and Backspace (normal speed) stay. Both commands are listed since revision 5;
         // the entry now says that a saved binding of another command on X or C also wins over the new key (the key alone yields, [ or ] stay).

@@ -35,7 +35,7 @@ public sealed class ThreadFavoriteHydrationTests
         using TempDirectory profile = new();
         Seed(profile.Path, marked);
         byte[] before = File.ReadAllBytes(Path.Combine(profile.Path, "thread-favorites.json"));
-        await using DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile.Path, Array.Empty<IImageBoard>()));
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         host.AfterCatalogReadableForTests = async token => { entered.SetResult(); await release.Task.WaitAsync(token); };
@@ -69,7 +69,7 @@ public sealed class ThreadFavoriteHydrationTests
         Seed(profile.Path, true);
         string path = Path.Combine(profile.Path, "thread-favorites.json");
         File.WriteAllText(path, "{damaged");
-        await using DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile.Path, Array.Empty<IImageBoard>()));
         ThreadFavoriteLoadSnapshot? published = null;
         host.CatalogReadableChanged += () => published = host.GetPublishedThreadFavoriteSnapshot();
         await host.StartAsync().WaitAsync(Deadline);
@@ -88,7 +88,7 @@ public sealed class ThreadFavoriteHydrationTests
         using TempDirectory profile = new();
         Seed(profile.Path, true);
         byte[] before = File.ReadAllBytes(Path.Combine(profile.Path, "thread-favorites.json"));
-        DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+        DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile.Path, Array.Empty<IImageBoard>()));
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         host.AfterCatalogReadableForTests = async token => { entered.SetResult(); await Task.Delay(Timeout.Infinite, token); };
         Task startup = host.StartAsync();
@@ -158,8 +158,8 @@ public sealed class ThreadFavoriteHydrationTests
     public async Task RebindingCannotPublishAnOldProfilesDelayedAcknowledgementOrWriteToTheNewProfile()
     {
         using TempDirectory first = new(), second = new();
-        await using DesktopSessionHost oldHost = new(first.Path, Array.Empty<IImageBoard>());
-        await using DesktopSessionHost newHost = new(second.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost oldHost = OwnedUiDispatcher.CreateHost(() => new(first.Path, Array.Empty<IImageBoard>()));
+        await using DesktopSessionHost newHost = OwnedUiDispatcher.CreateHost(() => new(second.Path, Array.Empty<IImageBoard>()));
         WithPage(page =>
         {
             ArchiveThreadRow row = Row();
@@ -196,8 +196,8 @@ public sealed class ThreadFavoriteHydrationTests
     public async Task OldCompletionCannotClearNewProfilesPendingCommandOrPublishItsError(bool oldFails)
     {
         using TempDirectory first = new(), second = new();
-        await using DesktopSessionHost oldHost = new(first.Path, Array.Empty<IImageBoard>());
-        await using DesktopSessionHost newHost = new(second.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost oldHost = OwnedUiDispatcher.CreateHost(() => new(first.Path, Array.Empty<IImageBoard>()));
+        await using DesktopSessionHost newHost = OwnedUiDispatcher.CreateHost(() => new(second.Path, Array.Empty<IImageBoard>()));
         WithPage(page =>
         {
             ArchiveThreadRow row = Row();
@@ -254,7 +254,7 @@ public sealed class ThreadFavoriteHydrationTests
                 ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, Path.Combine(profile.Path, "uncreated-media"),
                 new[] { new CapturedPost("42", 0, PostFieldPresence.All, Html: "Saved local post") }));
         }
-        await using DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile.Path, Array.Empty<IImageBoard>()));
         if (!attachBeforeStartup) await host.StartAsync().WaitAsync(Deadline);
         BooruComponentDispatcher.Run(() =>
         {

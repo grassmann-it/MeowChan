@@ -26,6 +26,7 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderFocusedMediaScalePercent), 200, 100, 400 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeSize), 640, 240, 1600 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeDelayMs), 350, 100, 2000 };
+        yield return new object[] { nameof(Config.MediaSidebarInfoMinimumFree), 104, 64, 480 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarWidth), 480, 240, 1200 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarMinimumWidth), 1280, 800, 3840 };
         yield return new object[] { nameof(Config.ReaderInlineVideoMaxPlayers), 2, 1, 4 };
@@ -49,8 +50,13 @@ public sealed class ReaderSettingsPersistenceTests
         foreach (int value in new[] { int.MinValue, min - 1, max + 1, int.MaxValue })
         {
             Config config = new(); property.SetValue(config, value);
-            Assert.Equal(name, Assert.Throws<ArgumentOutOfRangeException>(config.Validate).ParamName);
-            Assert.Throws<ArgumentOutOfRangeException>(() => new Config().CopySettingsFieldsFrom(config));
+            if (name == nameof(Config.MediaSidebarInfoMinimumFree))
+                Assert.Equal(Math.Clamp(value, min, max), property.GetValue(config));
+            else
+            {
+                Assert.Equal(name, Assert.Throws<ArgumentOutOfRangeException>(config.Validate).ParamName);
+                Assert.Throws<ArgumentOutOfRangeException>(() => new Config().CopySettingsFieldsFrom(config));
+            }
             Config loaded = JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(config))!;
             Assert.Equal(Math.Clamp(value, min, max), property.GetValue(loaded));
         }
@@ -85,6 +91,7 @@ public sealed class ReaderSettingsPersistenceTests
     {
         using TempDirectory directory = new();
         Config config = JsonSerializer.Deserialize("{\"ReaderPageSize\":" + legacyPageSize + "}", ConfigJsonContext.Default.Config)!;
+        config.MediaSidebarInfoMaximumShare = 57;
         config.ReaderDateStyle = dateStyle;
         config.ReaderThumbnailWidth = width;
         config.ReaderPostWidth = "Column";
@@ -97,6 +104,7 @@ public sealed class ReaderSettingsPersistenceTests
             config = Config.LoadConfig(directory.Path);
             Assert.Null(config.LoadWarning);
             Assert.Equal(dateStyle, config.ReaderDateStyle);
+            Assert.Equal(57, config.MediaSidebarInfoMaximumShare);
             Assert.Equal(Enum.Parse<ReaderDateStyle>(dateStyle), ReaderSettingsPreferences.DateStyle(config));
             Assert.Equal(width, config.ReaderThumbnailWidth);
             Assert.DoesNotContain("ReaderPageSize", JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config), StringComparison.Ordinal);

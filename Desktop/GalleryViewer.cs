@@ -913,10 +913,13 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         }
         panel.Children.Add(button); return button;
     }
-    internal void SetPosition(string label, bool previous, bool next, GalleryTagPanelPosition? sidebarPosition = null)
+    internal void SetPosition(string label, bool previous, bool next, GalleryTagPanelPosition? sidebarPosition = null,
+        int? mediaAhead = null)
     {
         _sidebarPosition = sidebarPosition;
+        _mediaAhead = mediaAhead;
         _position.Text = _compactPosition.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next;
+        RefreshTaggingBack();
         ToolTip.SetTip(_compactPosition, ThreadPositions is { Unavailable: > 0 } media
             ? Texts.T("thread.media.unavailable", media.Unavailable) : null);
         RefreshPanelCounter();
@@ -1512,12 +1515,12 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             GalleryPostParts parts = BuildPostParts(entry, ContextCommand);
             _context.Rating = PostDecisionSection();
             _context.Tags = BuildPostTagsSection();
-            _context.Info = parts.Info;
+            _context.Info = _postFactsVisible ? parts.Info : null;
             if (_tagNames != null)
             {
                 Button edit = ContextCommand(parts.Actions, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"),
                     () => OnSidePanelSegmentRequested(GallerySidePanelSegment.Tags, focusContent: true));
-                PanelActionStack.Present(edit, CommandCatalog.Get("media.tags.edit").Icon);
+                PanelActionStack.Present(edit, CommandCatalog.Get("media.tags.edit").Icon, compactLabel: true, compactSpacing: true);
             }
             _context.Actions = parts.Actions.Children.Count > 0 ? parts.Actions : null;
         }
@@ -1549,7 +1552,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private GalleryPostParts BuildPostParts(GalleryEntry entry, Func<Panel, string, string, Action, Button> command)
     {
         StackPanel info = new() { Name = "GalleryPostInfo", Spacing = 8 };
-        PanelActionStack actions = new("GalleryPostActions");
+        PanelActionStack actions = new("GalleryPostActions") { KeepPairOnOneLine = true };
         IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
         if (associations.Count > 1)
         {
@@ -1586,7 +1589,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             }
             Button show = command(actions, "GalleryReadPost", Texts.T("gallery.viewer10"),
                 () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
-            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon);
+            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon,
+                compactLabel: true, compactSpacing: true, allowIconOnly: true);
         }
         else
         {
@@ -1728,6 +1732,13 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             if (_video.MatchesTransportShortcut(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
         }
         if (!IsGalleryShortcutInput(e)) return;
+        if (CommandBindings.Matches(e, "media.sidebar.info")) { TogglePostFacts(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "media.sidebar.autohide"))
+        {
+            ChangePlaybackPreferences(_playbackPreferences with { OverlayPostContext = !_playbackPreferences.OverlayPostContext });
+            e.Handled = true;
+            return;
+        }
         if (HandleFilmstripKey(e) || HandleLayoutKey(e)) return;
         if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTagMode); e.Handled = true; return; }
         foreach (var (_, id) in PlaybackActions())

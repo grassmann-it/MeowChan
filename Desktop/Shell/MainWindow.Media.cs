@@ -26,6 +26,28 @@ public partial class MainWindow
     private MediaPage? _mediaPage;
     internal MediaPage? MediaPageForTests => _mediaPage;
 
+    private void RegisterMediaSidebarInfoCommands()
+    {
+        if (_shortcutRouter == null) return;
+        foreach (string id in new[] { "media.sidebar.info", "media.sidebar.autohide" })
+        {
+            void Report(string? hint)
+            {
+                if (!string.IsNullOrWhiteSpace(hint))
+                    ShowNotification(CommandCatalog.Label(id), hint, NotificationType.Information);
+            }
+            if (_archivePage is { } archive && archive.FindControl<Control>("ArchiveReaderPane") is { } readerPane)
+                _shortcutRouter.RegisterOwned(new CommandRegistration(id, readerPane,
+                    () => _gallery == null && !HasBlockingPageDecision() && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive),
+                    () => archive.CanToggleMediaSidebar,
+                    () => Report(archive.RunSidebarCommand(id)), Priority: 100));
+            if (_mediaPage is { } media)
+                _shortcutRouter.RegisterOwned(new CommandRegistration(id, media,
+                    () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                    () => media.CanTogglePanel, () => Report(media.RunSidebarCommand(id)), Priority: 100));
+        }
+    }
+
     private int ConfiguredMediaTagListWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).TagListWidth;
 
     private int ConfiguredMediaPanelWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).PanelWidth;
@@ -45,6 +67,7 @@ public partial class MainWindow
     // and file limits, and the gallery's fit limit for its picture.
     private void ConfigureMediaPanel()
     {
+        _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
         _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true }, ReaderSettingsPreferences.Gallery(_session.Config));
         ConfigureGalleryScrubPreview(); // the panel's timeline hover preview uses the profile's scrub cache (the gallery's)
     }
@@ -125,6 +148,13 @@ public partial class MainWindow
         // the tag list switch stays in its own key (MediaBooruMode), so both ways of switching it write the same state.
         _mediaPage.RestoreLayout(MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode));
         ConfigureMediaPanel();
+        _mediaPage.SavePanelSetting = update => OpenActions.Start(async () =>
+        {
+            bool previous = _config.SidebarFactsVisible;
+            await SaveQuickSettingsAsync(update);
+            if (previous != _config.SidebarFactsVisible)
+                _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
+        }, "media.sidebar.info");
         _mediaPage.SaveLayoutAsync = layout => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = layout.TagList; config.MediaLayout = layout.Format(); });
         _session.StateChanged += OnMediaTagQueueChanged;
         Closed += (_, _) => _session.StateChanged -= OnMediaTagQueueChanged;

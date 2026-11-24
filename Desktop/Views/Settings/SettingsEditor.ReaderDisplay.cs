@@ -31,6 +31,8 @@ public partial class SettingsEditor
     public int ReadingHistoryMenuEntriesMaximum => Config.ReadingHistoryMenuEntriesMaximum;
     public int ReaderMediaSidebarWidthMinimum => Config.ReaderMediaSidebarWidthMinimum;
     public int ReaderMediaSidebarWidthMaximum => Config.ReaderMediaSidebarWidthMaximum;
+    public int MediaSidebarInfoMinimumFreeMinimum => Config.MediaSidebarInfoMinimumFreeMinimum;
+    public int MediaSidebarInfoMinimumFreeMaximum => Config.MediaSidebarInfoMinimumFreeMaximum;
     public int ReaderMediaSidebarMinimumWidthMinimum => Config.ReaderMediaSidebarMinimumWidthMinimum;
     public int ReaderMediaSidebarMinimumWidthMaximum => Config.ReaderMediaSidebarMinimumWidthMaximum;
     public int ReaderInlineVideoMaxPlayersMinimum => Config.ReaderInlineVideoMaxPlayersMinimum;
@@ -179,6 +181,24 @@ public partial class SettingsEditor
     public IReadOnlyList<SettingsChoice> ReaderMediaSidebarScopeChoices { get; private set; } = Array.Empty<SettingsChoice>();
     public string ReaderMediaSidebarScopeLabel => Texts.T("settings.reader.mediaSidebarScope");
     public string ReaderMediaSidebarScopeHint => Texts.T("settings.reader.mediaSidebarScope.hint");
+    private SettingsChoice? _selectedMediaSidebarInfo;
+    public SettingsChoice? SelectedMediaSidebarInfo
+    {
+        get => _selectedMediaSidebarInfo;
+        set
+        {
+            if (_refreshingLanguageLabels)
+            {
+                if (_selectedMediaSidebarInfo == value) return;
+                _selectedMediaSidebarInfo = value;
+                Raise(new[] { nameof(SelectedMediaSidebarInfo) });
+            }
+            else SetField(ref _selectedMediaSidebarInfo, value, nameof(SelectedMediaSidebarInfo));
+        }
+    }
+    public IReadOnlyList<SettingsChoice> MediaSidebarInfoChoices { get; private set; } = Array.Empty<SettingsChoice>();
+    public string MediaSidebarInfoLabel => Texts.T("settings.reader.mediaSidebarInfo");
+    public string MediaSidebarInfoHint => Texts.T("settings.reader.mediaSidebarInfo.hint");
     private SettingsChoice? _selectedReaderMediaSidebarSide;
     public SettingsChoice? SelectedReaderMediaSidebarSide
     {
@@ -193,6 +213,11 @@ public partial class SettingsEditor
     public string ReaderMediaSidebarWidthLabel => Texts.T("settings.reader.mediaSidebarWidth");
     public string ReaderMediaSidebarWidthHint => Texts.T("settings.reader.mediaSidebarWidth.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum);
     public string ReaderMediaSidebarWidthHelp => FieldHelp(nameof(ReaderMediaSidebarWidthInput), ReaderMediaSidebarWidthHint);
+    private decimal? _mediaSidebarInfoMinimumFree;
+    public decimal? MediaSidebarInfoMinimumFree { get => _mediaSidebarInfoMinimumFree; set => SetField(ref _mediaSidebarInfoMinimumFree, value, nameof(MediaSidebarInfoMinimumFree)); }
+    public string MediaSidebarInfoMinimumFreeLabel => Texts.T("settings.reader.mediaSidebarInfoMinimumFree");
+    public string MediaSidebarInfoMinimumFreeHint => Texts.T("settings.reader.mediaSidebarInfoMinimumFree.hint") + " " + Texts.T("settings.reader.range", Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum);
+    public string MediaSidebarInfoMinimumFreeHelp => FieldHelp(nameof(MediaSidebarInfoMinimumFreeInput), MediaSidebarInfoMinimumFreeHint);
     private decimal? _readerMediaSidebarMinimumWidth;
     public decimal? ReaderMediaSidebarMinimumWidth { get => _readerMediaSidebarMinimumWidth; set => SetField(ref _readerMediaSidebarMinimumWidth, value, nameof(ReaderMediaSidebarMinimumWidth)); }
     public string ReaderMediaSidebarMinimumWidthLabel => Texts.T("settings.reader.mediaSidebarMinimumWidth");
@@ -297,6 +322,16 @@ public partial class SettingsEditor
         Raise(new[] { nameof(ReaderMediaSidebarScopeChoices) });
         SelectedReaderMediaSidebarScope = ReaderMediaSidebarScopeChoices.FirstOrDefault(item => item.Value == scope) ?? ReaderMediaSidebarScopeChoices[0];
     }
+    private void RefreshMediaSidebarInfoChoices(string scope)
+    {
+        MediaSidebarInfoChoices = new SettingsChoice[]
+        {
+            new("Off", Texts.T("settings.reader.mediaSidebarInfo.off")),
+            new("Always", Texts.T("workview.column.on"))
+        };
+        Raise(new[] { nameof(MediaSidebarInfoChoices) });
+        SelectedMediaSidebarInfo = MediaSidebarInfoChoices[scope == "Off" ? 0 : 1];
+    }
 
     private void RefreshMediaSidebarSideChoices(string side)
     {
@@ -371,6 +406,7 @@ public partial class SettingsEditor
         RefreshReaderChoices(date, spoilers, upscale);
         RefreshMediaSidebarSideChoices(SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide);
         RefreshMediaSidebarScopeChoices(SelectedReaderMediaSidebarScope?.Value ?? _config.ReaderMediaSidebarScope);
+        RefreshMediaSidebarInfoChoices(SelectedMediaSidebarInfo?.Value ?? (_config.SidebarFactsVisible ? "Always" : "Off"));
         RefreshMediaClickChoices(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick));
     }
 
@@ -417,6 +453,8 @@ public partial class SettingsEditor
         ReaderMediaSidebar = config.ReaderMediaSidebar;
         ReaderMediaSidebarWidth = config.ReaderMediaSidebarWidth;
         ResetNumber(ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth.Value);
+        MediaSidebarInfoMinimumFree = config.MediaSidebarInfoMinimumFree;
+        ResetNumber(MediaSidebarInfoMinimumFreeInput, MediaSidebarInfoMinimumFree.Value);
         ReaderMediaSidebarMinimumWidth = config.ReaderMediaSidebarMinimumWidth;
         ResetNumber(ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth.Value);
         RefreshMediaClickChoices(ReaderMediaClickRules.ToKey(config.EffectiveReaderMediaClick));
@@ -443,27 +481,7 @@ public partial class SettingsEditor
         RefreshReaderChoices(config.ReaderDateStyle, config.ReaderSpoilers, config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
         RefreshMediaSidebarSideChoices(config.ReaderMediaSidebarSide);
         RefreshMediaSidebarScopeChoices(config.ReaderMediaSidebarScope);
-    }
-
-    /// <summary>
-    /// The three reader media switches are also quick toggles of the reader's View menu. After one of them changed there, the draft shows
-    /// the confirmed value again (an unsaved edit of the same switch is replaced; every other field of the draft stays).
-    /// </summary>
-    internal void RefreshConfirmedReaderMedia()
-    {
-        if (_isClosed) return;
-        ReaderTextlessLargeImages = _config.ReaderTextlessLargeImages;
-        ReaderFocusedMediaEnlarge = _config.ReaderFocusedMediaEnlarge;
-        ReaderHoverEnlarge = _config.ReaderHoverEnlarge;
-        // The media sidebar's switch (View menu) and its dragged width (splitter in the reader).
-        ReaderMediaSidebar = _config.ReaderMediaSidebar;
-        // The archive view's switch chooses Always or Large reader only.
-        if (SelectedReaderMediaSidebarScope?.Value != _config.ReaderMediaSidebarScope) RefreshMediaSidebarScopeChoices(_config.ReaderMediaSidebarScope);
-        if (ReaderMediaSidebarWidth != _config.ReaderMediaSidebarWidth)
-        {
-            ReaderMediaSidebarWidth = _config.ReaderMediaSidebarWidth;
-            ResetNumber(ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth.Value);
-        }
+        RefreshMediaSidebarInfoChoices(config.SidebarFactsVisible ? "Always" : "Off");
     }
 
     private void ApplyReaderDraft(Config candidate)
@@ -491,8 +509,14 @@ public partial class SettingsEditor
         candidate.ReaderHoverEnlarge = ReaderHoverEnlarge;
         candidate.ReaderMediaSidebar = ReaderMediaSidebar;
         candidate.ReaderMediaSidebarScope = SelectedReaderMediaSidebarScope?.Value ?? _config.ReaderMediaSidebarScope;
+        if (SelectedMediaSidebarInfo is { } facts)
+        {
+            candidate.MediaSidebarInfo = facts.Value;
+            candidate.MediaSidebarFacts = facts.Value != "Off";
+        }
         candidate.ReaderMediaSidebarSide = SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide;
         candidate.ReaderMediaSidebarWidth = GetInteger(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum);
+        candidate.MediaSidebarInfoMinimumFree = GetInteger(MediaSidebarInfoMinimumFree, MediaSidebarInfoMinimumFreeLabel, Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum);
         candidate.ReaderMediaSidebarMinimumWidth = GetInteger(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
         candidate.ChooseReaderMediaClick(ReaderMediaClickRules.FromKey(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick)));
         candidate.ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted;
@@ -548,6 +572,7 @@ public partial class SettingsEditor
         yield return (ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, string.Empty, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum, true);
         yield return (ReaderHoverEnlargeDelayMsInput, ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsLabel, string.Empty, Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum, true);
         yield return (ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, string.Empty, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum, true);
+        yield return (MediaSidebarInfoMinimumFreeInput, MediaSidebarInfoMinimumFree, MediaSidebarInfoMinimumFreeLabel, string.Empty, Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum, true);
         yield return (ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, string.Empty, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, true);
         yield return (ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, string.Empty, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum, true);
         yield return (ReaderInlineVideoMaxFileMiBInput, ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, string.Empty, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, true);
@@ -627,6 +652,9 @@ public partial class SettingsEditor
                 case SettingsFieldId.ReaderMediaSidebarScope:
                     RefreshMediaSidebarScopeChoices(_config.ReaderMediaSidebarScope);
                     break;
+                case SettingsFieldId.MediaSidebarInfo:
+                    RefreshMediaSidebarInfoChoices(_config.SidebarFactsVisible ? "Always" : "Off");
+                    break;
                 case SettingsFieldId.ReaderMediaSidebarSide:
                     RefreshMediaSidebarSideChoices(_config.ReaderMediaSidebarSide);
                     break;
@@ -634,6 +662,11 @@ public partial class SettingsEditor
                     ReaderMediaSidebarWidth = _config.ReaderMediaSidebarWidth;
                     ResetNumber(ReaderMediaSidebarWidthInput, _config.ReaderMediaSidebarWidth);
                     break;
+                case SettingsFieldId.MediaSidebarInfoMinimumFree:
+                    MediaSidebarInfoMinimumFree = _config.MediaSidebarInfoMinimumFree;
+                    ResetNumber(MediaSidebarInfoMinimumFreeInput, _config.MediaSidebarInfoMinimumFree);
+                    break;
+
                 case SettingsFieldId.ReaderMediaSidebarMinimumWidth:
                     ReaderMediaSidebarMinimumWidth = _config.ReaderMediaSidebarMinimumWidth;
                     ResetNumber(ReaderMediaSidebarMinimumWidthInput, _config.ReaderMediaSidebarMinimumWidth);
@@ -723,8 +756,10 @@ public partial class SettingsEditor
         nameof(ReaderHoverEnlargeLabel), nameof(ReaderHoverEnlargeHint),
         nameof(ReaderMediaSidebarLabel), nameof(ReaderMediaSidebarHint),
         nameof(ReaderMediaSidebarScopeLabel), nameof(ReaderMediaSidebarScopeHint),
+        nameof(MediaSidebarInfoLabel), nameof(MediaSidebarInfoHint),
         nameof(ReaderMediaSidebarSideLabel), nameof(ReaderMediaSidebarSideHint),
         nameof(ReaderMediaSidebarWidthLabel), nameof(ReaderMediaSidebarWidthHint), nameof(ReaderMediaSidebarWidthHelp),
+        nameof(MediaSidebarInfoMinimumFreeLabel), nameof(MediaSidebarInfoMinimumFreeHint), nameof(MediaSidebarInfoMinimumFreeHelp),
         nameof(ReaderMediaSidebarMinimumWidthLabel), nameof(ReaderMediaSidebarMinimumWidthHint), nameof(ReaderMediaSidebarMinimumWidthHelp),
         nameof(ReaderMediaClickLabel), nameof(ReaderMediaClickHint),
         nameof(ReaderInlineVideoAutoplayMutedLabel), nameof(ReaderInlineVideoAutoplayMutedHint),
@@ -765,6 +800,7 @@ public partial class SettingsEditor
         nameof(ReaderHoverEnlargeSizeHelp),
         nameof(ReaderHoverEnlargeDelayMsHelp),
         nameof(ReaderMediaSidebarWidthHelp),
+        nameof(MediaSidebarInfoMinimumFreeHelp),
         nameof(ReaderMediaSidebarMinimumWidthHelp),
         nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBHelp),
