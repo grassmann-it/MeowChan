@@ -43,7 +43,7 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     [Fact]
     public void CloneAndBothCopiesKeepEverySidebarValue()
     {
-        Config source = new() { MediaSidebarInfo = " auto ", MediaSidebarInfoMinimumFree = 200, MediaSidebarInfoMaximumShare = 50, ReaderMediaSidebar = true, ReaderMediaSidebarScope = "Always", ReaderMediaSidebarSide = "Right", ReaderMediaSidebarWidth = 700, ReaderMediaSidebarMinimumWidth = 1600 };
+        Config source = new() { MediaSidebarAutoHide = true, MediaSidebarFacts = false, MediaSidebarInfo = " auto ", MediaSidebarInfoMinimumFree = 200, MediaSidebarInfoMaximumShare = 50, ReaderMediaSidebar = true, ReaderMediaSidebarScope = "Always", ReaderMediaSidebarSide = "Right", ReaderMediaSidebarWidth = 700, ReaderMediaSidebarMinimumWidth = 1600 };
         Config clone = source.Clone(), copy = new(), settings = new();
         copy.CopyFrom(source);
         settings.CopySettingsFieldsFrom(source);
@@ -51,6 +51,8 @@ public sealed class ReaderMediaSidebarTests : IDisposable
         {
             ReaderMediaPreferences media = ReaderMediaPreferences.From(config);
             Assert.True(media.Sidebar);
+            Assert.True(media.MediaSidebarAutoHide);
+            Assert.False(media.MediaSidebarFacts);
             Assert.Equal("Auto", media.MediaSidebarInfo);
             Assert.Equal(200, media.MediaSidebarInfoMinimumFree);
             Assert.Equal(50, media.MediaSidebarInfoMaximumShare);

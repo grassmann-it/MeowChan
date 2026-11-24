@@ -101,6 +101,13 @@ public sealed partial class MediaPage
 
     // ---- the view -------------------------------------------------------------------------------------------------------------
 
+    internal string? RunSidebarCommand(string id)
+    {
+        bool shown = _panelShown;
+        if (!shown && id == "media.sidebar.info" && !_layout.Panel) TogglePanelByShortcut();
+        return EnsurePanel().RunBarCommand(id, shown) ?? (_panelShown ? null : PanelHint());
+    }
+
     private ReaderMediaSidebar EnsurePanel()
     {
         if (_panel is { } existing) return existing;

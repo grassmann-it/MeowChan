@@ -17,8 +17,19 @@ internal sealed class MediaCompactHeader : Grid
     private readonly MediaPositionPill _pill;
     private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly Button[] _labeled;
-    private readonly TextBlock[] _captions = [new(), new(), new()];
-    private string _file = "", _detail = "";
+    private readonly string[] _captions = ["", "", ""];
+    private readonly bool?[] _visibleLabels = new bool?[3];
+    private static readonly int[] LabelPriority = [2, 0, 1];
+    private string _fullTitle = "", _file = "", _detail = "";
+    private bool _hasPostTitle;
+
+    private readonly Grid _metadata = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), VerticalAlignment = VerticalAlignment.Center };
+    internal bool UsesSingleRow => GetRow(_metadata) == 0;
+    internal TextBlock Position { get; } = new()
+    {
+        FontWeight = FontWeight.SemiBold, Height = 16, MaxLines = 1, Classes = { "workspace-meta" },
+        [!TextBlock.ForegroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Text")
+    };
 
     internal TextBlock Meta { get; } = new()
     {
@@ -44,16 +55,21 @@ internal sealed class MediaCompactHeader : Grid
         }
         SetColumn(_actions, 2);
         Children.Add(_actions);
-        SetRow(Meta, 1);
-        SetColumnSpan(Meta, 3);
-        Children.Add(Meta);
+        SetRow(_metadata, 1);
+        SetColumnSpan(_metadata, 3);
+        SetColumn(Meta, 1);
+        AutomationProperties.SetAutomationId(Position, "ReaderMediaSidebarPosition");
+        _metadata.Children.Add(Position);
+        _metadata.Children.Add(Meta);
+        Children.Add(_metadata);
     }
 
     internal void Localize()
     {
-        _captions[0].Text = Texts.T("gallery.decision.favorite");
-        _captions[1].Text = Texts.T("gallery.toolbar.label.info");
-        _captions[2].Text = Texts.T("workview.overview.page.gallery");
+        Array.Clear(_visibleLabels);
+        _captions[0] = Texts.T("gallery.decision.favorite");
+        _captions[1] = Texts.T("gallery.toolbar.label.info");
+        _captions[2] = Texts.T("workview.overview.page.gallery");
         InvalidateMeasure();
     }
 
@@ -64,8 +80,11 @@ internal sealed class MediaCompactHeader : Grid
         _actions.Children.Add(new Border { Width = WorkspaceMetrics.InputHeight });
     }
 
-    internal void Describe(string file, string detail)
+    internal void Describe(string file, string detail, bool hasPostTitle)
     {
+        _fullTitle = _title.Text ?? "";
+        _hasPostTitle = hasPostTitle;
+        AutomationProperties.SetName(_title, _fullTitle);
         _file = file;
         _detail = detail;
 
@@ -77,23 +96,33 @@ internal sealed class MediaCompactHeader : Grid
         double width = availableSize.Width;
         const double icons = 5 * WorkspaceMetrics.InputHeight + 4 * 4;
         string prefix = _pill.Bare ?? "";
-        string Line(string file) => ReaderMediaSidebarRules.HeaderText(prefix, file, _detail);
-        double titleWidth = MeasureText(_title, _title.Text);
-        double fileMinimum = MeasureText(Meta, Line(_file.Length == 0 ? "" : "abcdefghij…xyz.webm"));
+        string Line(string file) => ReaderMediaSidebarRules.HeaderText("", file, _detail);
+        Position.Text = prefix;
+        Position.IsVisible = prefix.Length > 0;
+        double prefixWidth = MeasureText(Position, prefix);
+        string separator = prefix.Length > 0 && (_file.Length > 0 || _detail.Length > 0) ? " · " : "";
+        double titleWidth = MeasureText(_title, _fullTitle);
+        // Reserve enough of the actual name to recognize it before spending space on action labels.
+        double fileMinimum = prefixWidth + MeasureText(Meta, separator + Line("")) + Math.Min(112, MeasureText(Meta, _file));
+        if (_file.Length > 0 && _detail.Length > 0) fileMinimum += MeasureText(Meta, " · ");
         double free = width - icons - titleWidth - fileMinimum - 24;
         bool single = free >= 0 && width >= 480;
         // Add labels in reverse order of removal: gallery, favorite, then info.
         bool fits = single;
-        foreach (int i in new[] { 2, 0, 1 })
+        foreach (int i in LabelPriority)
         {
-            double extra = Math.Ceiling(MeasureText(Meta, _captions[i].Text)) + 16;
+            double extra = Math.Ceiling(MeasureText(Meta, _captions[i])) + 16;
             fits = fits && free >= extra;
-            if (_labeled[i] is ArchiveFavoriteButton star) star.SetCaption(fits ? _captions[i].Text : null);
-            else
+            if (_visibleLabels[i] != fits)
             {
-                string command = i == 1 ? "media.sidebar.info" : "gallery.open";
-                if (fits) CommandBindings.ApplyLabeled(_labeled[i], command, _captions[i].Text!);
-                else CommandBindings.Apply(_labeled[i], command, iconOnly: true);
+                _visibleLabels[i] = fits;
+                if (_labeled[i] is ArchiveFavoriteButton star) star.SetCaption(fits ? _captions[i] : null);
+                else
+                {
+                    string command = i == 1 ? "media.sidebar.info" : "gallery.open";
+                    if (fits) CommandBindings.ApplyLabeled(_labeled[i], command, _captions[i]);
+                    else CommandBindings.Apply(_labeled[i], command, iconOnly: true);
+                }
             }
             _labeled[i].Width = 32 + (fits ? extra : 0);
             _labeled[i].Classes.Set(WorkspaceIcons.SquareClass, !fits);
@@ -103,15 +132,21 @@ internal sealed class MediaCompactHeader : Grid
         _actions.Measure(Size.Infinity);
         _title.MinWidth = 0;
         _title.MaxWidth = Math.Max(0, width - _actions.DesiredSize.Width - 4);
-        SetRow(Meta, single ? 0 : 1);
-        SetColumn(Meta, single ? 1 : 0);
-        SetColumnSpan(Meta, single ? 1 : 3);
+        // At 280 DIP keep the identifying digits when the translated post prefix no longer fits.
+        int start = _fullTitle.Length;
+        while (start > 0 && char.IsDigit(_fullTitle[start - 1])) start--;
+        _title.Text = _hasPostTitle && titleWidth > _title.MaxWidth && start > 0 && start < _fullTitle.Length &&
+            char.IsWhiteSpace(_fullTitle[start - 1]) &&
+            MeasureText(_title, _fullTitle[start..]) <= _title.MaxWidth ? _fullTitle[start..] : _fullTitle;
+        SetRow(_metadata, single ? 0 : 1);
+        SetColumn(_metadata, single ? 1 : 0);
+        SetColumnSpan(_metadata, single ? 1 : 3);
         Meta.VerticalAlignment = VerticalAlignment.Center;
-        Meta.Margin = single ? new Thickness(16, 0, 8, 0) : default;
+        _metadata.Margin = single ? new Thickness(16, 0, 8, 0) : default;
         double fileRoom = single ? width - titleWidth - _actions.DesiredSize.Width - 24 : width;
-        string full = Line(_file);
-        string file = MediaFactGrid.FitFileName(_file, candidate => MeasureText(Meta, Line(candidate)) <= fileRoom);
-        Meta.Text = Line(file);
+        string full = ReaderMediaSidebarRules.HeaderText(prefix, _file, _detail);
+        string file = MediaFactGrid.FitFileName(_file, candidate => prefixWidth + MeasureText(Meta, separator + Line(candidate)) <= fileRoom);
+        Meta.Text = separator + Line(file);
         ToolTip.SetTip(Meta, full);
         AutomationProperties.SetName(Meta, full);
         return base.MeasureOverride(availableSize);

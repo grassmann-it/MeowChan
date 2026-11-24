@@ -543,6 +543,16 @@ public partial class ArchivePage
         return ReaderMediaMultiRules.DiscoveryHint(media with { Sidebar = on }, largeReader: true, width, CommandCatalog.ShortcutDisplay("reader.sidebar.toggle"));
     }
 
+    internal string? RunSidebarCommand(string id)
+    {
+        bool shown = _mediaSidebarShown;
+        if (!shown && id == "media.sidebar.info" && !ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader))
+            ToggleMediaSidebar();
+        ReaderMediaSidebar sidebar = EnsureMediaSidebar();
+        if (!shown) sidebar.ConfigureInfo(ReaderMedia);
+        return sidebar.RunBarCommand(id, shown) ?? (_mediaSidebarShown ? null : MediaSidebarHint());
+    }
+
     internal bool CanToggleMediaSidebar => !_ended && !IsFilenameSearchOpen && !IsReaderDialogOpen;
 
     /// <summary>

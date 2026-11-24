@@ -473,7 +473,7 @@ public sealed class SidePanelDesignTests
                 Settle(window);
                 AssertCompactHeader(panel);
                 Assert.False(panel.PositionPill.IsVisible);
-                Assert.StartsWith("2 / 64 · ", header.Meta.Text);
+                Assert.Equal("2 / 64", header.Position.Text);
                 Assert.Contains(".jpg", header.Meta.Text);
                 // §2.1: filename and size in the header; §2.2: dimensions in the facts.
                 Assert.EndsWith(SizeText.Format(2 * 1024 * 1024), header.Meta.Text);
@@ -494,7 +494,7 @@ public sealed class SidePanelDesignTests
     {
         MediaCompactHeader header = Assert.IsType<MediaCompactHeader>(panel.HeaderRow);
         // Fable §2.1: 40 DIP (4 + 32 + 4) for one row, 56 for two; actions gain whole labels only.
-        bool single = Grid.GetRow(header.Meta) == 0;
+        bool single = header.UsesSingleRow;
         Near(single ? 32 : 48, header.Bounds.Height);
         if (panel.Bounds.Width <= 480) Assert.False(single);
         if (panel.Bounds.Width >= 700) Assert.True(single);
@@ -519,7 +519,7 @@ public sealed class SidePanelDesignTests
             Near(panel.PositionPill.Label.DesiredSize.Width + 18, panel.PositionPill.Bounds.Width);
         }
         else if (panel.PositionPill.HasPosition)
-            Assert.StartsWith(panel.PositionPill.Bare + " · ", header.Meta.Text);
+            Assert.Equal(panel.PositionPill.Bare, header.Position.Text);
     }
 
     private static string SamplePicture([CallerFilePath] string path = "") => Path.Combine(Path.GetDirectoryName(path)!,

@@ -271,7 +271,7 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal("No. 123", sidebar.Title.Text);
             // 19:55: position in the filename line, without a pill or an opening action.
             Assert.Empty(sidebar.HeaderRow.GetVisualDescendants().OfType<MediaPositionPill>());
-            Assert.StartsWith("16 / 23", ((MediaCompactHeader)sidebar.HeaderRow).Meta.Text);
+            Assert.Equal("16 / 23", SidePanelDesignTests.ById<TextBlock>(sidebar, "ReaderMediaSidebarPosition").Text);
         }
         finally { window.Close(); }
     });
@@ -318,7 +318,7 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Contains(new string('x', 500) + ".png", ToolTip.GetTip(metadata)?.ToString());
             Assert.EndsWith("100 MiB", metadata.Text);
             Assert.Contains(view.GetVisualDescendants().OfType<SelectableTextBlock>(), t => t.Text == "50000×100" && t.IsEffectivelyVisible);
-            if (!view.PositionPill.IsVisible) Assert.StartsWith(view.PositionPill.Bare + " · ", metadata.Text);
+            Assert.Equal(view.PositionPill.Bare, SidePanelDesignTests.ById<TextBlock>(view, "ReaderMediaSidebarPosition").Text);
             Assert.Equal(positionText, ToolTip.GetTip(view.PositionPill));
             Assert.True(view.Open.IsEffectivelyVisible);
             // 19:55: “Unten liegt eine feste Infoleiste: Sterne · Tags ... darunter die Fakten.”

@@ -251,7 +251,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 8 };
     private readonly MediaSidebarFacts _facts = new();
     private GalleryVideoPlayer? _factPlayer;
-    private string? _videoFactKey;
+    private int _videoFactRevision;
     private TimeSpan? _videoDuration;
     private (int Width, int Height)? _videoSize;
     private string? _location, _author, _posted, _provenance;
@@ -448,13 +448,15 @@ internal sealed partial class ReaderMediaSidebar : Border
                 _factPlayer.ViewSurfaceChanged -= RefreshVideoSize;
                 _factPlayer.DurationChanged -= RefreshVideoDuration;
                 _factPlayer = null;
+                if (OperatingSystem.IsWindows()) ConfigureInfo(_infoPreferences);
             }
             if (change.NewItems?.OfType<GalleryVideoPlayer>().FirstOrDefault() is { } player)
             {
                 _factPlayer = player;
-                _videoFactKey = _mediumKey;
+                _videoFactRevision = _mediumRevision;
                 player.ViewSurfaceChanged += RefreshVideoSize;
                 player.DurationChanged += RefreshVideoDuration;
+                if (OperatingSystem.IsWindows()) ConfigureInfo(_infoPreferences);
             }
         };
         _info.Children.Add(_facts);
@@ -729,7 +731,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _heading.Text = _postLine.Length > 0 ? _postLine : _fileName.Length > 0 ? _fileName : ShowEmptyTitle ? Texts.T(TitleKey) : string.Empty;
         ToolTip.SetTip(_heading, _heading.Text);
         string size = (_savedBytes ?? _sourceBytes) is long length ? SizeText.Format(length) : "";
-        _header.Describe(_fileName, size);
+        _header.Describe(_fileName, size, hasPostTitle: _postLine.Length > 0);
         string? compactSize = size;
         string? sizeDescription = null;
         if (_savedBytes is long savedSize && _sourceBytes is long sourceSize && savedSize != sourceSize)
@@ -742,6 +744,11 @@ internal sealed partial class ReaderMediaSidebar : Border
         if (_videoDuration is { } duration)
             dimensions = ReaderMediaSidebarRules.HeaderText("", dimensions, GalleryVideoPlayer.FormatVideoTime((long)duration.TotalMilliseconds));
         _facts.Show(_location ?? "", _author, _posted, _fileName, compactSize, dimensions, sizeDescription);
+        if (_expandedRows.IsVisible && _infoPreferences.MediaSidebarFacts) RefreshAdditionalFacts();
+    }
+
+    private void RefreshAdditionalFacts()
+    {
         _extraGrid.Children.Clear();
         _extraGrid.Add(Texts.T("media.fact.file"), _fileName, fileName: true);
         if (_savedBytes is long saved) _extraGrid.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(saved));
@@ -755,14 +762,14 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void RefreshVideoSize()
     {
-        if (_videoFactKey != _mediumKey || _factPlayer?.SourceSize is not { } size || _videoSize == size) return;
+        if (_videoFactRevision != _mediumRevision || _factPlayer?.SourceSize is not { } size || _videoSize == size) return;
         _videoSize = size;
         RefreshFacts();
     }
 
     private void RefreshVideoDuration(TimeSpan? duration)
     {
-        if (_videoFactKey != _mediumKey || duration == null || _videoDuration == duration) return;
+        if (_videoFactRevision != _mediumRevision || duration == null || _videoDuration == duration) return;
         _videoDuration = duration;
         RefreshFacts();
     }

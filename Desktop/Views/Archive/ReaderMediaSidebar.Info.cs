@@ -97,6 +97,23 @@ internal sealed partial class ReaderMediaSidebar
 
     private bool InfoEnabled => _infoPreferences.MediaSidebarInfo != "Off";
 
+    internal string? RunBarCommand(string id, bool wasShown)
+    {
+        if (id == "media.sidebar.autohide")
+        {
+            ToggleAutoHide();
+            return wasShown ? null : CommandCatalog.Label(id) + " · " +
+                Texts.T(_infoPreferences.MediaSidebarAutoHide ? "workview.column.on" : "settings.reader.mediaSidebarInfo.off");
+        }
+        if (wasShown) ToggleDetails();
+        else
+        {
+            if (!InfoEnabled) ToggleInfoBar();
+            if (!_infoPreferences.MediaSidebarFacts) ToggleDetails();
+        }
+        return null;
+    }
+
     internal void ToggleDetails()
     {
         bool facts = !_infoPreferences.MediaSidebarFacts;
@@ -125,8 +142,8 @@ internal sealed partial class ReaderMediaSidebar
     private ContextMenu SettingsMenu()
     {
         var menu = new ContextMenuBuilder()
-            .Check("autoHide", Texts.T("viewer.playback.autoHide"), _infoPreferences.MediaSidebarAutoHide, ToggleAutoHide)
-            .Check("facts", CommandCatalog.Label("media.sidebar.info"), _infoPreferences.MediaSidebarFacts, ToggleDetails);
+            .Check("autoHide", CommandBindings.Tooltip("media.sidebar.autohide", keyContext: _decision.KeyContext), _infoPreferences.MediaSidebarAutoHide, ToggleAutoHide)
+            .Check("facts", CommandBindings.Tooltip("media.sidebar.info", keyContext: _decision.KeyContext), _infoPreferences.MediaSidebarFacts, ToggleDetails);
         return menu.Build()!;
     }
 
@@ -139,9 +156,11 @@ internal sealed partial class ReaderMediaSidebar
     internal bool RouteInfoKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key) ||
-            !ShortcutService.Current.Matches(e, "media.sidebar.info", _decision.KeyContext) ||
             !CommandRouter.IsRoutingContextActive(this, e.Source)) return false;
-        ToggleDetails();
+        var bindings = ShortcutService.Current;
+        if (bindings.Matches(e, "media.sidebar.autohide", _decision.KeyContext)) ToggleAutoHide();
+        else if (bindings.Matches(e, "media.sidebar.info", _decision.KeyContext)) ToggleDetails();
+        else return false;
         e.Handled = true;
         return true;
     }
@@ -203,13 +222,13 @@ internal sealed partial class ReaderMediaSidebar
         };
         _frame.SizeChanged += (_, _) => PositionBars();
         PositionBars();
-        AddHandler(PointerMovedEvent, (_, _) => RevealBars(), RoutingStrategies.Tunnel, handledEventsToo: true);
-        PointerEntered += (_, _) => RevealBars();
+        AddHandler(PointerMovedEvent, (_, _) => OnPointerActivity(), RoutingStrategies.Tunnel, handledEventsToo: true);
+        PointerEntered += (_, _) => OnPointerActivity();
         PointerExited += (_, _) => _idle = new(Stopwatch.GetTimestamp(), Leaving: true);
         AddHandler(PointerPressedEvent, (_, e) =>
         {
             _pressedPointers.Add(e.Pointer);
-            RevealBars();
+            OnPointerActivity();
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerReleasedEvent, (_, e) =>
         {
@@ -254,6 +273,8 @@ internal sealed partial class ReaderMediaSidebar
     {
         bool open = _details.IsVisible && (_pinned || _hovered);
         if (open && !_expandedRows.IsVisible) PopulateExpandedTags();
+        if (open && _infoPreferences.MediaSidebarFacts && (!_expandedRows.IsVisible || !_extraFacts.IsVisible))
+            RefreshAdditionalFacts();
         _expandedRows.IsVisible = open;
         _extraFacts.IsVisible = _infoPreferences.MediaSidebarFacts;
         _expandedRows.MaxHeight = Math.Max(0, Bounds.Height * _infoPreferences.MediaSidebarInfoMaximumShare / 100);
@@ -263,9 +284,12 @@ internal sealed partial class ReaderMediaSidebar
     private bool HasBarPopup() => _cancelTagEditor != null || TopLevel.GetTopLevel(this)?.OpenedPopups.Any(p =>
         p.Child is not ToolTip && p.PlacementTarget is Control anchor && InBar(this, anchor)) == true;
 
+    // A native Windows video draws over sibling controls. Keep them reachable while that player owns the frame.
+    private bool UseOverlayBars => _infoPreferences.MediaSidebarAutoHide && !(OperatingSystem.IsWindows() && _factPlayer != null);
+
     private void PositionBars()
     {
-        bool overlay = _infoPreferences.MediaSidebarAutoHide;
+        bool overlay = UseOverlayBars;
         Panel head = overlay ? _overlayLayer : _dockedHead;
         Panel foot = overlay ? _overlayLayer : _layout;
         if (_headBar.Parent != head)
@@ -291,6 +315,13 @@ internal sealed partial class ReaderMediaSidebar
         _closeFace.Margin = new Thickness(0, 4, inset, 0);
     }
 
+    private void OnPointerActivity()
+    {
+        if (!UseOverlayBars) return;
+        if (_barsHidden || _fadeStarted.HasValue) RevealBars();
+        else _idle = new(Stopwatch.GetTimestamp());
+    }
+
     internal void RevealBars()
     {
         _idle = new(Stopwatch.GetTimestamp());
@@ -298,13 +329,13 @@ internal sealed partial class ReaderMediaSidebar
         _barsHidden = false;
         _headBar.Opacity = _details.Opacity = 1;
         UpdateInfoLayout();
-        if (_infoPreferences.MediaSidebarAutoHide && IsEffectivelyVisible && this.IsAttachedToVisualTree()) _hideOverlay.Start();
+        if (UseOverlayBars && IsEffectivelyVisible && this.IsAttachedToVisualTree()) _hideOverlay.Start();
         else _hideOverlay.Stop();
     }
 
     internal void ObserveIdle(long now)
     {
-        if (!_infoPreferences.MediaSidebarAutoHide) return;
+        if (!UseOverlayBars) return;
         bool popup = _pinned || HasBarPopup();
         _idle = _idle.Observe(now, _infoPreferences.ControlsIdleHideMs, _headBar.IsPointerOver || _details.IsPointerOver || _closeFace.IsPointerOver,
             _pressedPointers.Count != 0, popup, out bool hide);

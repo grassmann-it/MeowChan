@@ -327,12 +327,10 @@ public partial class SettingsEditor
         MediaSidebarInfoChoices = new SettingsChoice[]
         {
             new("Off", Texts.T("settings.reader.mediaSidebarInfo.off")),
-            new("Overlay", Texts.T("settings.reader.mediaSidebarInfo.overlay")),
-            new("Auto", Texts.T("settings.reader.mediaSidebarInfo.auto")),
-            new("Always", Texts.T("settings.reader.mediaSidebarInfo.always"))
+            new("Always", Texts.T("workview.column.on"))
         };
         Raise(new[] { nameof(MediaSidebarInfoChoices) });
-        SelectedMediaSidebarInfo = MediaSidebarInfoChoices.FirstOrDefault(item => item.Value == scope) ?? MediaSidebarInfoChoices[0];
+        SelectedMediaSidebarInfo = MediaSidebarInfoChoices[scope == "Off" ? 0 : 1];
     }
 
     private void RefreshMediaSidebarSideChoices(string side)

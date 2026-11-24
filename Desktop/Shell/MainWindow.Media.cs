@@ -28,15 +28,23 @@ public partial class MainWindow
 
     private void RegisterMediaSidebarInfoCommands()
     {
-        if (_archivePage is { } archive && archive.FindControl<Control>("ArchiveReaderPane") is { } readerPane)
-            _shortcutRouter.RegisterOwned(new CommandRegistration("media.sidebar.info", readerPane,
-                () => _gallery == null && !HasBlockingPageDecision() && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive),
-                () => archive.IsMediaSidebarShown && archive.CanToggleMediaSidebar,
-                () => archive.MediaSidebar?.ToggleDetails(), Priority: 100));
-        if (_mediaPage is { } media)
-            _shortcutRouter.RegisterOwned(new CommandRegistration("media.sidebar.info", media,
-                () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
-                () => media.IsPanelShown, () => media.Panel?.ToggleDetails(), Priority: 100));
+        foreach (string id in new[] { "media.sidebar.info", "media.sidebar.autohide" })
+        {
+            void Report(string? hint)
+            {
+                if (!string.IsNullOrWhiteSpace(hint))
+                    ShowNotification(CommandCatalog.Label(id), hint, NotificationType.Information);
+            }
+            if (_archivePage is { } archive && archive.FindControl<Control>("ArchiveReaderPane") is { } readerPane)
+                _shortcutRouter.RegisterOwned(new CommandRegistration(id, readerPane,
+                    () => _gallery == null && !HasBlockingPageDecision() && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive),
+                    () => archive.CanToggleMediaSidebar,
+                    () => Report(archive.RunSidebarCommand(id)), Priority: 100));
+            if (_mediaPage is { } media)
+                _shortcutRouter.RegisterOwned(new CommandRegistration(id, media,
+                    () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                    () => media.CanTogglePanel, () => Report(media.RunSidebarCommand(id)), Priority: 100));
+        }
     }
 
     private int ConfiguredMediaTagListWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).TagListWidth;

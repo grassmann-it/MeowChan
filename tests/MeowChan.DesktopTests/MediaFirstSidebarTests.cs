@@ -66,8 +66,13 @@ public sealed class MediaFirstSidebarTests
         KeyEventArgs KeyI(KeyModifiers modifiers) => new() { Key = Key.I, KeyModifiers = modifiers };
         Assert.True(bindings.Matches(KeyI(KeyModifiers.Shift), "media.sidebar.info", "reader"));
         Assert.True(bindings.Matches(KeyI(KeyModifiers.Shift), "media.sidebar.info", "media"));
-        Assert.False(EffectiveShortcutBindings.ContextsOverlap("media.sidebar.info", "gallery.layout.info"));
-        Assert.True(bindings.Matches(KeyI(KeyModifiers.Shift), "gallery.layout.info", "gallery"));
+        // Kürzelschema §Reservierte Tasten: sidebar facts and the separate gallery information line.
+        Assert.True(EffectiveShortcutBindings.ContextsOverlap("media.sidebar.info", "gallery.layout.info"));
+        // Tom 25.11 19:55: “Shift+I = Fakten, Shift+A = Autohide; Galerie-Infozeile auf Shift+Z.”
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Z, KeyModifiers = KeyModifiers.Shift }, "gallery.layout.info", "gallery"));
+        Assert.False(bindings.Matches(KeyI(KeyModifiers.Shift), "gallery.layout.info", "gallery"));
+        foreach (string context in new[] { "reader", "media" })
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.A, KeyModifiers = KeyModifiers.Shift }, "media.sidebar.autohide", context));
         Assert.True(bindings.Matches(KeyI(KeyModifiers.Meta), "media.details", "media"));
         Assert.True(bindings.Matches(KeyI(KeyModifiers.Meta | KeyModifiers.Shift), "import.open", "shell"));
         Assert.True(CommandRouter.IsNativeInput(new TextBox(), Key.I));
@@ -83,11 +88,16 @@ public sealed class MediaFirstSidebarTests
     }
 
     [Fact]
-    public void EquivalentInfoOverridesCoexistAndTheNewDefaultYieldsToAnOlderReaderBinding()
+    public void GalleryInfoOverridesMustBeDistinctAndTheNewDefaultYieldsToAnOlderReaderBinding()
     {
         ShortcutGesture info = new("I", ["Shift"]);
         var explicitInfo = new ShortcutBindingsSection().Set("media.sidebar.info", [info]).Set("gallery.layout.info", [info]);
-        Assert.DoesNotContain(EffectiveShortcutBindings.Build(explicitInfo).Issues, issue => issue.BlocksSave);
+        // Both commands now execute in the gallery and have separate meanings (19:55, Shift+I / Shift+Z).
+        Assert.Contains(EffectiveShortcutBindings.Build(explicitInfo).Issues, issue => issue.BlocksSave);
+        var galleryOverride = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("gallery.layout.info", [info]));
+        KeyEventArgs galleryKey = new() { Key = Key.I, KeyModifiers = KeyModifiers.Shift };
+        Assert.True(galleryOverride.Matches(galleryKey, "gallery.layout.info", "gallery"));
+        Assert.False(galleryOverride.Matches(galleryKey, "media.sidebar.info", "gallery"));
         var readerOverride = new ShortcutBindingsSection().Set("reader.sidebar.toggle", [info]);
         var bindings = EffectiveShortcutBindings.Build(readerOverride);
         KeyEventArgs shiftI = new() { Key = Key.I, KeyModifiers = KeyModifiers.Shift };
@@ -100,6 +110,8 @@ public sealed class MediaFirstSidebarTests
     public void DefaultModeAndLimitsNormalizeAtTheProfileBoundary()
     {
         Config config = new();
+        Assert.False(config.MediaSidebarAutoHide);
+        Assert.True(config.MediaSidebarFacts);
         Assert.Equal(("Auto", 104, 40), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
         config.MediaSidebarInfo = "unknown";
         config.MediaSidebarInfoMinimumFree = -1;
@@ -234,7 +246,7 @@ public sealed class MediaFirstSidebarTests
             window.Show();
             Settle(window);
             Assert.True(panel.DecisionRow.IsEffectivelyVisible);
-        // Tom 25.11. 19:55: “Das Medium wird nie verdeckt”; “ⓘ / Shift+I schaltet nur die Fakten”.
+            // Tom 25.11. 19:55: “Das Medium wird nie verdeckt”; “ⓘ / Shift+I schaltet nur die Fakten”.
             window.PlatformImpl!.Resize(new Size(320, 468), WindowResizeReason.User);
             Settle(window);
             Assert.True(panel.DecisionRow.IsEffectivelyVisible);
@@ -357,6 +369,46 @@ public sealed class MediaFirstSidebarTests
     });
 
     [Fact]
+    public void GearOffersExactlyTheTwoSharedPreferencesAndReflectsShortcutChanges() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Config saved = new();
+        ReaderMediaSidebar sidebar = new() { SaveSidebarSetting = update => update(saved) };
+        sidebar.Describe("No. 42", "fixture.jpg", "", true);
+        Window window = new() { Width = 320, Height = 640, Content = sidebar };
+        try
+        {
+            window.Show();
+            Settle(window);
+            Button gear = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarSettings");
+            // M7: the gear contains only auto-hide and facts in every host.
+            (ContextMenu Menu, MenuItem[] Items) Open()
+            {
+                Click(window, Center(gear, window));
+                ContextMenu menu = Assert.Single(window.OpenedPopups.Select(p => p.Child).OfType<ContextMenu>());
+                MenuItem[] items = menu.Items.Cast<MenuItem>().ToArray();
+                Assert.Equal(new[] { "autoHide", "facts" }, items.Select(item => item.Tag));
+                return (menu, items);
+            }
+            var first = Open();
+            Assert.False(first.Items[0].IsChecked);
+            Assert.True(first.Items[1].IsChecked);
+            first.Items[1].Command!.Execute(null);
+            first.Menu.Close();
+            Assert.False(saved.MediaSidebarFacts);
+            Assert.True(sidebar.DecisionRow.IsEffectivelyVisible);
+            Assert.True(sidebar.RouteInfoKey(new KeyEventArgs { Key = Key.A, KeyModifiers = KeyModifiers.Shift, Source = sidebar.Frame }));
+            Assert.True(saved.MediaSidebarAutoHide);
+            Settle(window);
+            var second = Open();
+            Assert.True(second.Items[0].IsChecked);
+            Assert.False(second.Items[1].IsChecked);
+            second.Menu.Close();
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
     public void HoverRevealsAllTagsAndTheChevronKeepsThemOpenAfterLeaving() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -372,7 +424,7 @@ public sealed class MediaFirstSidebarTests
             Settle(window);
             var more = SidePanelDesignTests.ById<ScrollViewer>(sidebar, "ReaderMediaSidebarExpanded");
             var chevron = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarExpand");
-            Point leave = Center(sidebar.Frame, window);
+            Point leave = sidebar.Frame.TranslatePoint(new Point(8, 8), window)!.Value;
             window.MouseMove(leave);
             Settle(window);
             Assert.False(more.IsEffectivelyVisible);
@@ -387,7 +439,9 @@ public sealed class MediaFirstSidebarTests
             BooruComponentDispatcher.WaitUntil(() => !more.IsEffectivelyVisible, "leaving releases the hover expansion");
             Click(window, Center(chevron, window));
             window.MouseMove(leave);
-            Settle(window);
+            var dwell = System.Diagnostics.Stopwatch.StartNew();
+            BooruComponentDispatcher.WaitUntil(() => dwell.ElapsedMilliseconds >= 2 * ReaderDisplayPreferences.HoverEnlargeDelayMinimum,
+                "the transient hover interval elapses after pinning");
             Assert.True(more.IsEffectivelyVisible);
             Click(window, Center(chevron, window));
             window.MouseMove(leave);
@@ -478,7 +532,7 @@ public sealed class MediaFirstSidebarTests
             // Tom 25.11. 19:55: “Das Medium wird nie verdeckt”; “ⓘ / Shift+I schaltet nur die Fakten”.
             SidePanelDesignTests.AssertCompactHeader(panel);
             Assert.False(panel.PositionPill.IsVisible);
-            Assert.Contains("2 / 64", ((MediaCompactHeader)panel.HeaderRow).Meta.Text);
+            Assert.Equal("2 / 64", SidePanelDesignTests.ById<TextBlock>(panel, "ReaderMediaSidebarPosition").Text);
             Rect full = In(panel.Card), image = In(panel.Picture);
             Assert.Equal(In(panel.Frame).Center.Y, image.Center.Y, 0.5);
             Assert.False(details.IsVisible);
@@ -489,8 +543,18 @@ public sealed class MediaFirstSidebarTests
             Assert.True(panel.DecisionRow.RequestRating(4));
             Assert.Contains(MediaRatingText.Value(4), panel.LiveText);
             Assert.Equal(4, panel.DecisionRow.View.Rating);
+            // The rating badge can stand in for the controls when auto-hide conceals both bars.
+            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true, MediaSidebarInfo = "Off" });
+            window.MouseMove(Center(panel.Frame, window));
+            Settle();
+            long idle = System.Diagnostics.Stopwatch.GetTimestamp() + 60 * System.Diagnostics.Stopwatch.Frequency;
+            panel.ObserveIdle(idle);
+            panel.ObserveIdle(idle + System.Diagnostics.Stopwatch.Frequency);
+            Assert.False(panel.HeaderRow.IsEffectivelyVisible);
+            Assert.Contains(panel.Badges.Plan.Badges, mark => mark.Badge.Id == MediaBadgeId.Rating && mark.Badge.Label == "4");
             Assert.True(panel.DecisionRow.RequestRating(null));
             Assert.Null(panel.DecisionRow.View.Rating);
+            Assert.DoesNotContain(panel.Badges.Plan.Badges, mark => mark.Badge.Id == MediaBadgeId.Rating);
             panel.DecisionRow.RequestRating(3);
 
             panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true, MediaSidebarInfo = "Off" });

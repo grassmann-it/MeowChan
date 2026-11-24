@@ -117,7 +117,9 @@ public sealed class MediaPagePanelLayoutTests
             panel.Describe("No. 123", "media.png", "10 MiB", canOpen: true, threadPosition: new(1234567890, 1234567891, false));
             ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));
             SidePanelDesignTests.AssertCompactHeader(panel);
-            Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+            // Fable §2.1: the 32 DIP action row has 4 DIP padding inside the 8 DIP sidebar inset.
+            Control header = SidePanelDesignTests.ById<MediaCompactHeader>(panel, "ReaderMediaSidebarHeaderRow");
+            Assert.Equal(12, header.TranslatePoint(default, panel)!.Value.Y);
 
             page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
             ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));
