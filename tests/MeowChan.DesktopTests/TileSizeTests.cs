@@ -1,8 +1,12 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -255,6 +259,34 @@ public sealed class TileSizeTests : IDisposable
         Assert.Contains("_archivePage.MediaTileSizePreference = MediaTileSizes.Parse(_config.ArchiveMediaTileSize);", shell);
         Assert.Contains("current.ArchiveMediaTileSize = size.ToString()", shell);
     }
+
+    [Fact]
+    public void TheTilePanelFillsTheWidthAndKeepsTheFinalPartialRowOnTheSameAxes() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ListBox list = new()
+        {
+            ItemsSource = new[] { "first", "second", "third", "fourth", "fifth" },
+            ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { FillColumns = true })
+        };
+        ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+        Window window = new() { Width = 620, Height = 520, Content = list };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            MediaTilePanel panel = Assert.IsType<MediaTilePanel>(list.ItemsPanelRoot);
+            Assert.Equal(3, panel.Columns);
+            Control[] tiles = Enumerable.Range(0, 5)
+                .Select(index => Assert.IsAssignableFrom<Control>(list.ContainerFromIndex(index))).ToArray();
+            Rect BoundsInPanel(Control tile) => new(tile.TranslatePoint(default, panel)!.Value, tile.Bounds.Size);
+            Assert.InRange(Math.Abs(BoundsInPanel(tiles[2]).Right - panel.Bounds.Width), 0, 1);
+            Assert.Equal(BoundsInPanel(tiles[0]).X, BoundsInPanel(tiles[3]).X, 0);
+            Assert.Equal(BoundsInPanel(tiles[1]).X, BoundsInPanel(tiles[4]).X, 0);
+            Assert.True(BoundsInPanel(tiles[3]).Top > BoundsInPanel(tiles[0]).Top);
+        }
+        finally { window.Close(); }
+    });
 
     // ---- the new defaults (revision 20) --------------------------------------------------------------------------------------
 

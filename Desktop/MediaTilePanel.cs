@@ -47,6 +47,9 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
 
     public event EventHandler? ViewportChanged;
 
+    /// <summary>Share the available width across the same column axes in every row.</summary>
+    internal bool FillColumns { get; init; }
+
     private double _columnWidth = CellWidth;
 
     /// <summary>
@@ -98,7 +101,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
                     ++_restoreGeneration;
                 }
                 if (Columns != columns) SetCurrentValue(ColumnsProperty, columns);
-                double cellWidth = Math.Min(_columnWidth, width);
+                double cellWidth = FillColumns ? width / columns : Math.Min(_columnWidth, width);
                 if (ItemWidth != cellWidth) SetCurrentValue(ItemWidthProperty, cellWidth);
             }
             return base.MeasureOverride(availableSize);
