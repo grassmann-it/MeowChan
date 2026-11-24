@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -31,6 +32,7 @@ public sealed partial class TaggingPage
     private readonly TextBlock _clearQuestion = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _clearYes = new() { Name = "TaggingClearYes", Classes = { "danger" } };
     private readonly Button _clearNo = new() { Name = "TaggingClearNo" };
+    private bool _clearResetsDamagedQueue;
     private ContextMenuHost? _menuHost;
     private ListBoxItem? _spaceRow;
 
@@ -182,6 +184,10 @@ public sealed partial class TaggingPage
     private Border BuildClearConfirmation()
     {
         WorkViewElement.SetId(_clearConfirm, "tagging.clear-confirm");
+        AutomationProperties.SetAutomationId(_clear, "tagging.clear");
+        AutomationProperties.SetAutomationId(_clearQuestion, "tagging.clear-question");
+        AutomationProperties.SetAutomationId(_clearNo, "tagging.clear-cancel");
+        AutomationProperties.SetAutomationId(_clearYes, "tagging.clear-confirm-action");
         StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _clearNo, _clearYes } };
         _clearConfirm.Child = new StackPanel { Spacing = 8, Children = { _clearQuestion, buttons } };
         return _clearConfirm;
@@ -396,6 +402,7 @@ public sealed partial class TaggingPage
     private void AskClear()
     {
         if (_queueWork.Ended || _queueWork.Busy) return;
+        _clearResetsDamagedQueue = _queueWork.LoadError != null;
         RefreshClearQuestionText();
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: true);
         _clearNo.Focus();
@@ -403,10 +410,9 @@ public sealed partial class TaggingPage
 
     private void RefreshClearQuestionText()
     {
-        bool reset = _queueWork.LoadError != null;
-        _clearQuestion.Text = reset ? Texts.T("tagging.page.reset.ask")
+        _clearQuestion.Text = _clearResetsDamagedQueue ? Texts.T("tagging.page.reset.ask")
             : Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
-        _clearYes.Content = Texts.T(reset ? "tagging.page.reset.yes" : "tagging.page.clear.yes");
+        _clearYes.Content = Texts.T(_clearResetsDamagedQueue ? "tagging.page.reset.yes" : "tagging.page.clear.yes");
     }
 
     private void CloseClearQuestion(bool focusClear)
@@ -424,12 +430,14 @@ public sealed partial class TaggingPage
         return true;
     }
 
-    /// <summary>Empties the queue. A damaged file is kept next to its place and replaced by an empty queue (the store's recovery).</summary>
-    internal async Task ClearAllAsync()
+    private async Task ClearAllAsync()
     {
+        if (!ClearQuestionOpen) return;
+        bool resetDamaged = _clearResetsDamagedQueue;
         CloseClearQuestion(focusClear: false);
-        await AfterAsync(_queueWork.ClearAllAsync());
-        FocusContent();
+        await AfterAsync(_queueWork.ClearAllAsync(resetDamaged));
+        if (!resetDamaged && _queueWork.LoadError != null && IsEffectivelyVisible) AskClear();
+        else FocusContent();
     }
 
     /// <summary>Waits for one controller command, then shows the queue it committed (or kept) and the sentence it left.</summary>

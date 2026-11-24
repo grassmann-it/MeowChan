@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
@@ -346,7 +347,7 @@ public sealed class TaggingPageTests : IDisposable
             await host.EnqueueTagQueueAsync(items);
             TaggingQueueController work = new(host);
             await work.LoadAsync();
-            Assert.True(await work.ClearAllAsync());
+            Assert.True(await work.ClearAllAsync(resetDamaged: false));
             Assert.Equal(0, host.GetTagQueue()!.Count);
             Assert.Equal("The tagging queue is empty now.", work.Status);
             Assert.Null(TaggingQueueView.StartLabel(work.Queue));
@@ -406,6 +407,70 @@ public sealed class TaggingPageTests : IDisposable
                     Assert.DoesNotContain("Entries to remove:", prompt);
                     Assert.Equal("Reset tagging queue", page.ClearYesButton.Content);
                 }
+            }
+            finally
+            {
+                page.End();
+                window.Close();
+            }
+        }
+    });
+
+    [Fact]
+    public void ConfirmingAClearAfterTheFileBecomesUnreadableRequiresASeparateReset() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            using TempDirectory temp = new();
+            await using DesktopSessionHost host = await StartAsync(temp.Path);
+            TagQueueItem item = Item(1);
+            await host.EnqueueTagQueueAsync([item]);
+            TagQueueGroup group = Assert.Single((await host.CreateTagQueueGroupAsync("Review", [item.Key])).Groups);
+            await host.SetTagQueueGroupStampAsync(group.Id, ["reviewed"]);
+            await host.SetTagQueueStampAsync(["general"]);
+            TaggingPage page = new(host);
+            Window window = new() { Content = page, Width = 760, Height = 640 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                await page.ActivateAsync();
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(new[] { "reviewed" }, Assert.Single(page.Queue.Groups).Stamp);
+                Assert.Equal(new[] { "general" }, page.Queue.Stamp);
+                Find<Button>("tagging.clear").Command!.Execute(null);
+                window.UpdateLayout();
+                Button confirm = Find<Button>("tagging.clear-confirm-action");
+                Button cancel = Find<Button>("tagging.clear-cancel");
+                Assert.True(cancel.IsFocused);
+                Assert.Equal("Clear tagging queue", confirm.Content);
+
+                string path = Path.Combine(temp.Path, TagQueueStore.FileName);
+                byte[] damaged = [.. (await File.ReadAllBytesAsync(path)), (byte)'{'];
+                await File.WriteAllBytesAsync(path, damaged);
+                confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => page.ClearQuestionOpen && Equals(confirm.Content, "Reset tagging queue"),
+                    "a separate queue reset confirmation");
+
+                Assert.True(cancel.IsFocused);
+                Assert.Contains("including its groups and stamps", Find<TextBlock>("tagging.clear-question").Text);
+                Assert.Equal(damaged, await File.ReadAllBytesAsync(path));
+                Assert.Empty(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
+
+                confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => !page.IsBusy && host.TagQueueError == null, "the explicitly confirmed queue reset");
+                TagQueueSnapshot reset = await host.LoadTagQueueAsync();
+                Assert.Empty(reset.Items);
+                Assert.Empty(reset.Groups);
+                Assert.Empty(reset.Stamp);
+                string preserved = Assert.Single(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
+                Assert.Equal(damaged, await File.ReadAllBytesAsync(preserved));
+
+                T Find<T>(string id) where T : Control => page.GetVisualDescendants().OfType<T>()
+                    .Single(control => AutomationProperties.GetAutomationId(control) == id);
             }
             finally
             {

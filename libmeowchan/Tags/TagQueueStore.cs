@@ -171,16 +171,15 @@ internal sealed class TagQueueStore
     });
 
     /// <summary>
-    /// Removes every entry (<paramref name="finishedOnly"/> false) or only the finished ones. On an unreadable file the damaged file is
-    /// preserved next to it and a fresh empty queue is written, so a damaged queue can always be cleared; a file of a newer version is
-    /// refused.
+    /// Removes every entry (<paramref name="finishedOnly"/> false) or only the finished ones. With explicit reset confirmation,
+    /// an unreadable file is preserved next to it and replaced with a fresh empty queue. A file of a newer version is refused.
     /// </summary>
-    internal TagQueueSnapshot Clear(bool finishedOnly, CancellationToken token = default) => _lease.RunExclusive(() =>
+    internal TagQueueSnapshot Clear(bool finishedOnly, CancellationToken token = default, bool resetDamaged = false) => _lease.RunExclusive(() =>
     {
         token.ThrowIfCancellationRequested();
         TagQueueSnapshot current;
         try { current = ReadWritable(); }
-        catch (InvalidDataException) when (!finishedOnly)
+        catch (InvalidDataException) when (resetDamaged && !finishedOnly)
         {
             // The recovery save never rotates damaged bytes into the backup: WriteAllText without a backup preserves them next to the
             // file (one .corrupt-* copy), then the empty queue replaces them.

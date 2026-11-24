@@ -13,7 +13,7 @@ namespace MeowChan.Desktop;
 /// The working part of the tagging page (PT2) without any control: it reads the queue, runs one host command at a time (states,
 /// order, removal, clearing, cursor, stamp) and keeps the sentence the page shows afterwards. Every command writes
 /// <c>tag-queue.json</c> before it completes; a refused or failed change keeps the shown queue and says why, an unreadable file
-/// becomes <see cref="LoadError"/> (shown as the page's error state, recoverable by reloading or clearing). Nothing here assigns a tag, favorite
+    /// becomes <see cref="LoadError"/> (shown as the page's error state, recoverable by reloading or resetting). Nothing here assigns a tag, favorite
 /// or rating.
 /// </summary>
 internal sealed class TaggingQueueController
@@ -172,9 +172,9 @@ internal sealed class TaggingQueueController
         return RunAsync(() => _host.ClearTagQueueAsync(finishedOnly: true), _ => Texts.T("tagging.page.clearedDone", done));
     }
 
-    /// <summary>Empties the queue; on an unreadable file the store keeps the damaged copy next to it and writes an empty queue.</summary>
-    internal Task<bool> ClearAllAsync() =>
-        RunAsync(() => _host.ClearTagQueueAsync(finishedOnly: false), _ => Texts.T("tagging.page.cleared"), allowDamaged: true);
+    /// <summary>Empties the queue, with recovery of an unreadable file only after reset confirmation.</summary>
+    internal Task<bool> ClearAllAsync(bool resetDamaged) =>
+        RunAsync(() => _host.ClearTagQueueAsync(resetDamaged: resetDamaged), _ => Texts.T("tagging.page.cleared"), allowDamaged: resetDamaged);
 
     /// <summary>Puts the walk's cursor on an entry ("continue here"); no sentence, the gallery opens next.</summary>
     internal Task<bool> SetCursorAsync(int index) => index == Queue.Cursor ? Task.FromResult(true)
