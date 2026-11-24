@@ -190,7 +190,7 @@ internal static class PluginUxChecks
             && HashFiles(root) == beforeFiles && fixture.ForbiddenCalls == 0,
             "Disclosure/status refresh changed raw draft, persisted metadata or executed plugin code.");
         await ToggleAsync(scope);
-        await RevealAsync(window, C<Button>(page, "PluginSave"));
+        Require(RootedVisible(C<Button>(page, "PluginSave")), "The fixed Save action is unavailable.");
         await ActivateAsync(C<Button>(page, "PluginSave"));
         await Program.WaitUntilAsync(() => !page.IsBusy && page.GetVisualDescendants().OfType<PluginSettingsEditor>()
             .Single(e => ReferenceEquals(e.Draft, draft.Sources[PluginUxFixture.SourceId])).FindField("limit")!.IsFocused);
