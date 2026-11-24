@@ -286,21 +286,32 @@ public sealed class BooruListLayoutTests
         Border card = fixture.Card("101");
         Button chip = ShownTags(card)[^1];
         Assert.True(chip.Focus());
-        fixture.ResizeViewport(800, afterLayout: () =>
-        {
-            Assert.DoesNotContain(chip, ShownTags(card));
-            Assert.True(FindById<CheckBox>(fixture.Card("102"), "BooruSelect:102").Focus());
-            Press(fixture.Window, PhysicalKey.Tab);
-            IInputElement? moved = fixture.Window.FocusManager!.GetFocusedElement();
-            Assert.NotNull(moved);
-            Assert.NotSame(chip, moved);
-            Assert.NotSame(card, moved);
-            Assert.NotSame(FindById<CheckBox>(fixture.Card("102"), "BooruSelect:102"), moved);
-            fixture.Settle();
-            Assert.Same(moved, fixture.Window.FocusManager.GetFocusedElement());
-        });
+        IInputElement? moved = null;
+        chip.PropertyChanged += OnChipFolded;
+        try { fixture.ResizeViewport(800); }
+        finally { chip.PropertyChanged -= OnChipFolded; }
+        Assert.NotNull(moved);
+        Assert.Same(moved, fixture.Window.FocusManager!.GetFocusedElement());
         Assert.False(chip.Focus());
         Assert.Equal("1boy", fixture.Model.Search.View.Input);
+
+        void OnChipFolded(object? sender, AvaloniaPropertyChangedEventArgs change)
+        {
+            if (change.Property != InputElement.FocusableProperty || chip.Focusable) return;
+            chip.PropertyChanged -= OnChipFolded;
+            // Send Tab after arrangement hides this chip, while the focus return is still queued.
+            Dispatcher.UIThread.Post(() =>
+            {
+                Assert.DoesNotContain(chip, ShownTags(card));
+                CheckBox other = FindById<CheckBox>(fixture.Card("102"), "BooruSelect:102");
+                Assert.True(other.Focus());
+                Press(fixture.Window, PhysicalKey.Tab);
+                moved = fixture.Window.FocusManager!.GetFocusedElement();
+                Assert.NotSame(chip, moved);
+                Assert.NotSame(card, moved);
+                Assert.NotSame(other, moved);
+            }, DispatcherPriority.Normal);
+        }
     });
 
     [Fact]
@@ -705,7 +716,7 @@ public sealed class BooruListLayoutTests
             Window.UpdateLayout();
         }
 
-        internal void ResizeViewport(int width, int height = 820, Action? afterLayout = null)
+        internal void ResizeViewport(int width, int height = 820)
         {
             for (int attempt = 0; attempt < 6; attempt++)
             {
@@ -713,11 +724,6 @@ public sealed class BooruListLayoutTests
                 if (Math.Abs(viewport.Width - width) <= 0.1 && Math.Abs(viewport.Height - height) <= 0.1) break;
                 Window.PlatformImpl!.Resize(new Size(Window.ClientSize.Width + width - viewport.Width,
                     Window.ClientSize.Height + height - viewport.Height), WindowResizeReason.User);
-                if (attempt == 0 && afterLayout != null)
-                {
-                    Window.UpdateLayout();
-                    afterLayout();
-                }
                 Settle();
             }
             Near(width, Scroll.Viewport.Width);
