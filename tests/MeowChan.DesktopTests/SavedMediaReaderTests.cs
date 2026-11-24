@@ -395,12 +395,13 @@ public sealed class SavedMediaReaderTests
             tiles.SelectedItem = first;
             page.TickMediaSidebarFollow();
             WaitUntil(() => sidebar.Load.ShownSource == new PixelSize(17, 11));
-            sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Overlay" });
+            // Fable §12: Auto-hide places the controls over the picture when they are revealed.
+            sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true, MediaSidebarFacts = false });
             Control frame = VisibleById<Control>(sidebar, "ReaderMediaSidebarFrame");
             Assert.True(frame.Focus());
             Layout(window);
             Control overlay = ById<Control>(sidebar, "ReaderMediaSidebarOverlay");
-            Point imagePoint = HitPoint(window, frame, new Point(frame.Bounds.Width / 2, 8));
+            Point imagePoint = HitPoint(window, frame);
             Point overlayPoint = HitPoint(window, overlay);
             Assert.False(overlay.IsVisualAncestorOf(Assert.IsAssignableFrom<Visual>(window.InputHitTest(imagePoint))));
             PressKey(window, PhysicalKey.M);
@@ -427,7 +428,7 @@ public sealed class SavedMediaReaderTests
             page.TickMediaSidebarFollow();
             WaitUntil(() => sidebar.Load.ShownSource == new PixelSize(19, 13));
             Layout(window);
-            Point secondImagePoint = HitPoint(window, frame, new Point(frame.Bounds.Width / 2, 8));
+            Point secondImagePoint = HitPoint(window, frame);
             window.MouseUp(secondImagePoint, MouseButton.Middle, RawInputModifiers.None);
             Assert.Single(folders);
             Assert.True(frame.Focus());

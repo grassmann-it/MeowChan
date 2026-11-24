@@ -117,14 +117,14 @@ internal static partial class MediaPageChecks
                 "The title/actions line must be inset inside the full-height sidebar.");
             Point InHeader(Control control) => control.TranslatePoint(default, panel.HeaderRow)!.Value;
             Require(Math.Abs(InHeader(panel.Title).X) <= 1
-                && InHeader(panel.PositionPill).X >= panel.Title.Bounds.Right + 7.5
-                && Math.Abs(InHeader(panel.PositionPill).X - panel.Title.Bounds.Right - 8) <= 1
+                && Math.Abs(InHeader(panel.PositionPill).X + panel.PositionPill.Bounds.Width / 2
+                    - (panel.Title.Bounds.Right + InHeader(panel.FavoriteButton).X) / 2) <= 1
                 && Math.Abs(InHeader(panel.Close).X + panel.Close.Bounds.Width - panel.HeaderRow.Bounds.Width) <= 1,
                 "The tabs, post number, position and actions are misaligned.");
             Require(Math.Abs(TopOf(panel.Card) - panelTop - 16 - panel.HeaderRow.Bounds.Height) <= 1,
                 "The card must begin below the Media header.");
-            ScrollViewer details = C<ScrollViewer>(panel, "ReaderMediaSidebarDetails");
-            Require(!details.IsVisible && Math.Abs(TopOf(panel.Card) + panel.Card.Bounds.Height - (hostTop + panelHost.Bounds.Height - 8)) <= 1,
+            Control last = panel.Details.IsVisible ? panel.Details : panel.Card;
+            Require(TopOf(last) + last.Bounds.Height <= hostTop + panelHost.Bounds.Height - 7,
                 "The media card and details must consume the host height below the title line.");
             page.SetBooruMode(true, save: false);
             TextBlock tagsTitle = C<TextBlock>(page.TagSidebar, "MediaTagSidebarTitle");

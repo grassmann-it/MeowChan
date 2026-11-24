@@ -26,6 +26,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     private readonly int _starGlyphSize;
     private readonly TranslateTransform _starOffset = new();
     private readonly bool _popover;
+    private readonly bool _sidebar;
     private readonly StackPanel _bar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _unavailable = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
@@ -44,11 +45,12 @@ internal sealed class GalleryDecisionRow : StackPanel
     private bool _attached;
     private string? _keyContext;
 
-    internal GalleryDecisionRow(string name, bool compact = false, bool favorite = true)
+    internal GalleryDecisionRow(string name, bool compact = false, bool favorite = true, bool sidebar = false)
     {
         Name = name;
         _starGlyphSize = compact ? 20 : 24;
         _popover = !compact;
+        _sidebar = sidebar;
         Spacing = 4;
         _group.Children.Add(_bar);
         FavoriteVisible = favorite;
@@ -63,7 +65,7 @@ internal sealed class GalleryDecisionRow : StackPanel
             int number = index + 1;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
             AutomationProperties.SetAutomationId(star, star.Name);
-            star.Focusable = !compact;
+            if (sidebar) star.Focusable = false;
             star.Click += (_, _) => OnStar(number);
             TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
             _bar.Children.Add(star);
@@ -73,8 +75,6 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.Classes.Add("media-control");
         _clear.Classes.Add("rating-clear");
         _clear.Click += OnClear;
-        _clear.Focusable = !compact;
-        _favorite.Focusable = _favorite.IsTabStop = !compact;
         AutomationProperties.SetAutomationId(_clear, _clear.Name);
         AutomationProperties.SetAutomationId(_favorite, _favorite.Name);
         _clear.VerticalAlignment = VerticalAlignment.Center;
@@ -223,7 +223,7 @@ internal sealed class GalleryDecisionRow : StackPanel
             ToggleButton star = _stars[index];
             star.IsEnabled = view.Available;
             star.IsChecked = view.Available && !view.RatingMixed && rating == index + 1;
-            star.IsTabStop = _popover && index == stopIndex;
+            star.IsTabStop = !_sidebar && index == stopIndex;
         }
         _clear.IsTabStop = false;
         _clear.IsEnabled = view.Available && (view.Rating.HasValue || view.RatingMixed);
@@ -233,8 +233,13 @@ internal sealed class GalleryDecisionRow : StackPanel
         AutomationProperties.SetHelpText(_bar, caption);
         AutomationProperties.SetAccessibilityView(_bar, AccessibilityView.Content);
         ToolTip.SetTip(_bar, caption);
-        _unavailable.IsVisible = !view.Available;
+        _unavailable.IsVisible = !_sidebar && !view.Available;
         _unavailable.Text = Texts.T("gallery.decision.status.unavailable");
+        if (_sidebar)
+        {
+            ToolTip.SetShowOnDisabled(_group, true);
+            ToolTip.SetTip(_group, view.Available ? caption : _unavailable.Text);
+        }
         // Keep the current rating available to assistive technology and hover.
         AutomationProperties.SetHelpText(_group, ShortcutHelp.Append(GalleryDecisionText.Summary(view),
             ShortcutHelp.Commands(_keyContext ?? "gallery", Enumerable.Range(1, 5).Select(number => "media.rating.set-" + number)
@@ -325,7 +330,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     private void OnStar(int number)
     {
         Show(_view, _favoriteAvailable);
-        RatingRequested?.Invoke(number);
+        RatingRequested?.Invoke(!_view.RatingMixed && _view.Rating == number ? null : number);
         GiveFocusBack();
     }
 
