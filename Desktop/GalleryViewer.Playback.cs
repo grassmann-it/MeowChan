@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -377,12 +378,7 @@ internal sealed partial class GalleryViewer
         string key = CommandCatalog.IconForState("gallery.slideshow-toggle", _slideshow.IsRunning ? "running" : "stopped");
         if (_slideshowToggle.Tag is OverflowItem item)
         {
-            if (item.Root.Children.Count == 0 || item.Root.Children[0].Tag as string == key) return;
-            Border lead = (Border)CommandBindings.Icon("gallery.slideshow-toggle", 16, _slideshow.IsRunning ? "running" : "stopped");
-            lead.HorizontalAlignment = HorizontalAlignment.Center;
-            lead.Bind(Border.BackgroundProperty, lead.GetObservable(Avalonia.Controls.Documents.TextElement.ForegroundProperty));
-            lead.Tag = key;
-            item.Root.Children[0] = lead;
+            MenuLayout.SetFlyoutIcon(item.Icon, key);
             return;
         }
         string label = AutomationProperties.GetName(_slideshowToggle) ?? string.Empty;

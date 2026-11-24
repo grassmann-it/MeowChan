@@ -70,20 +70,22 @@ internal sealed class ContextMenuBuilder
     /// One value of an exclusive choice; the entries of one <paramref name="group"/> are the choices, one of them checked. An entry that is
     /// <paramref name="available"/> = false stays visible with its state, disabled, and says <paramref name="reason"/> as its tooltip and help text.
     /// </summary>
-    internal ContextMenuBuilder Radio(string group, string id, string label, bool isChecked, Action invoke, bool available = true, string? reason = null)
+    internal ContextMenuBuilder Radio(string group, string id, string label, bool isChecked, Action invoke, bool available = true,
+        string? reason = null, string? icon = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(group);
         ArgumentNullException.ThrowIfNull(invoke);
         if (isChecked && _sections.SelectMany(section => section).Any(entry => entry.Kind == ContextMenuEntryKind.Radio && entry.Group == group && entry.Checked))
             throw new ArgumentException("Only one entry of the group \"" + group + "\" can be checked.", nameof(isChecked));
-        return Add(new(ContextMenuEntryKind.Radio, id, label, null, group, isChecked, available, reason, invoke, true));
+        return Add(new(ContextMenuEntryKind.Radio, id, label, null, group, isChecked, available, reason, invoke, true, Icon: icon));
     }
 
     /// <summary>A switch; a switch that is not <paramref name="available"/> stays visible with its state, disabled, and says <paramref name="reason"/>.</summary>
-    internal ContextMenuBuilder Check(string id, string label, bool isChecked, Action invoke, bool available = true, string? reason = null)
+    internal ContextMenuBuilder Check(string id, string label, bool isChecked, Action invoke, bool available = true,
+        string? reason = null, string? icon = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
-        return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, available, reason, invoke, true));
+        return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, available, reason, invoke, true, Icon: icon));
     }
 
     /// <summary>A submenu whose children are composed with the same section and availability rules.</summary>
