@@ -16,7 +16,8 @@ namespace MeowChan.DesktopTests;
 /// </summary>
 internal static class OwnedUiDispatcher
 {
-    // Construct the host on the fixture's dispatcher while it applies the profile's initial view limits.
+    // Headless host construction publishes shortcuts synchronously. Keep that publication inside the fixture's
+    // dispatcher and restore the enclosing test's observers and snapshot before returning the host.
     internal static DesktopSessionHost CreateHost(Func<DesktopSessionHost> create)
     {
         using ShortcutTestState shortcuts = new();
