@@ -55,10 +55,12 @@ internal static class DialogWindow
     }
 
     /// <summary>Puts <paramref name="content"/> below the app caption of the right variant and makes it the window's content.</summary>
-    internal static void Frame(Window window, Control content, bool modal, string? captionName = null)
+    internal static WindowChromeBar Frame(Window window, Control content, bool modal, string? captionName = null)
     {
         ArgumentNullException.ThrowIfNull(window);
-        window.Content = WindowChrome.Frame(window, content, KindFor(modal), captionName);
+        Grid root = WindowChrome.Frame(window, content, KindFor(modal), captionName);
+        window.Content = root;
+        return (WindowChromeBar)root.Children[0];
     }
 
     /// <summary>

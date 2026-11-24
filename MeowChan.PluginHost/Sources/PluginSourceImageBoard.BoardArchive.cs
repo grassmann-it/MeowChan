@@ -107,7 +107,10 @@ public sealed partial class PluginSourceImageBoard
                 if (!Router.TryResolve(snapshot.Url, out SourceResourceKind threadKind, out string threadBoard, out string? threadId, out _)
                     || threadKind != SourceResourceKind.Thread || threadBoard != board || threadId != id)
                     throw new PluginWorkerException("invalid_source_result", "Snapshot URL does not identify the selected thread.");
-                SourcePost? op = snapshot.Posts.FirstOrDefault(post => post.PostId == id);
+                SourcePost? op = ArchivePostOrder.ThreadNumberIdentifiesOpeningPost(Name)
+                    ? snapshot.Posts.FirstOrDefault(post => post.PostId == id)
+                    : ArchivePostOrder.FirstDeclaredPost(snapshot.Posts, post => post.PostId, post => post.Ordinal,
+                        Description.PostOrder == PostOrderKind.DecimalPostId);
                 string openingPost = op is { TextFormat: SourceTextFormat.Html } ? ArchiveText.PlainText(op.Text) : op?.Text ?? string.Empty;
                 return new BoardArchiveThreadDetails(snapshot.Title, openingPost, snapshot.SourceState);
             case ThreadNotFound:
