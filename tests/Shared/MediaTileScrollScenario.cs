@@ -85,7 +85,11 @@ internal static class MediaTileScrollScenario
             await SettleAsync(window);
             CheckActivation(3, "Open in gallery from the context menu");
         }
-        finally { page.EndLifetime(); window.Close(); }
+        finally
+        {
+            try { page.EndLifetime(); }
+            finally { window.Close(); }
+        }
     }
 
     private static async Task<(ListBoxItem, MediaLibraryTileView)> WaitForTileAsync(ListBox grid, int index, string assetId,
@@ -101,8 +105,8 @@ internal static class MediaTileScrollScenario
                     { IsArrangeValid: true, IsEffectivelyVisible: true, Bounds.Width: > 0, DataContext: MediaLibraryTileRow bound } tile
                 && ReferenceEquals(bound, row)
                 && tile.FindAncestorOfType<ScrollContentPresenter>() is { } viewport
-                && tile.Badges.Bounds is { Width: > 0, Height: > 0 }
-                && tile.Badges.TranslatePoint(new Rect(tile.Badges.Bounds.Size).Center, viewport) is { } point
+                && tile.Badges.GetVisualParent() is Control { IsArrangeValid: true, Bounds.Width: > 0, Bounds.Height: > 0 } preview
+                && preview.TranslatePoint(new Rect(preview.Bounds.Size).Center, viewport) is { } point
                 && new Rect(viewport.Bounds.Size).Contains(point)
                 && tile.GetVisualDescendants().OfType<Border>().SingleOrDefault(mark => mark.Name == "MediaTileSelected") is { } check
                 && check.IsEffectivelyVisible == selected && (!selected || check is { IsArrangeValid: true, Bounds.Width: > 0 }))
@@ -114,7 +118,9 @@ internal static class MediaTileScrollScenario
 
     private static async Task ClickAsync(MediaLibraryTileView tile, Window window, MouseButton button, int count)
     {
-        Point at = tile.Badges.TranslatePoint(new Rect(tile.Badges.Bounds.Size).Center, window)
+        Visual preview = tile.Badges.GetVisualParent()
+            ?? throw new InvalidOperationException("The arranged tile has no preview.");
+        Point at = preview.TranslatePoint(new Rect(preview.Bounds.Size).Center, window)
             ?? throw new InvalidOperationException("The arranged tile detached before the pointer input.");
         using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
         bool right = button == MouseButton.Right;

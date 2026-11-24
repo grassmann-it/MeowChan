@@ -14,9 +14,12 @@ public sealed class MediaTileScrollTests
     {
         using TempDirectory profile = new();
         using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(BooruComponentDispatcher.Cancellation);
+        // Let the scenario close its window on timeout while its dispatcher is still pumping.
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
         ShortcutService.Publish(new ShortcutBindingsSection());
-        BooruComponentDispatcher.Wait(MediaTileScrollScenario.RunAsync(profile.Path, BooruComponentDispatcher.Cancellation, capture: Capture));
-    });
+        BooruComponentDispatcher.Wait(MediaTileScrollScenario.RunAsync(profile.Path, deadline.Token, capture: Capture));
+    }, timeout: TimeSpan.FromSeconds(45));
 
     private static void Capture(Window window)
     {
