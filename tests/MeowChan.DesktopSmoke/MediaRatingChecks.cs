@@ -348,9 +348,9 @@ internal static partial class MediaRatingChecks
             string[] stable = Visible().Select(row => row.Asset.AssetId).ToArray();
             SetChoice(Filter, 1, "Exercise rebind away from full projection"); SetChoice(Filter, 0, "Return to full projection for stable tie check");
             Observe("Stable exact-key order after filter round trip", stable.SequenceEqual(Visible().Select(row => row.Asset.AssetId)));
-            Click(_page.FindControl<Button>("ArchiveMediaMode")!, "Switch to actual table view");
+            Click(_page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!, "Switch to actual table view");
             Program.CaptureWindow(window, "smoke-rating-table.png");
-            Click(_page.FindControl<Button>("ArchiveMediaMode")!, "Return to actual tiles view");
+            Click(_page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!, "Return to actual grid view");
             await Task.Delay(100); CheckTileLabels();
             SetChoice(Filter, 5, "Filter minimum 4 for selection removal");
             await Pick(Row(8), 1);
