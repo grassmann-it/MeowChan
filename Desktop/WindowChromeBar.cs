@@ -187,7 +187,7 @@ public sealed class WindowChromeBar : UserControl
 
     private void OnWindowClosed(object? sender, EventArgs e) => Detach();
 
-    private void Detach()
+    internal void Detach()
     {
         if (_window is not { } window) return;
         window.PropertyChanged -= OnWindowPropertyChanged;
