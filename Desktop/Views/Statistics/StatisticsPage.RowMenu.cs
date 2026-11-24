@@ -64,9 +64,4 @@ public partial class StatisticsPage
         _statusHide = Avalonia.Threading.DispatcherTimer.RunOnce(() => ResetStatusPanel.IsVisible = false, TimeSpan.FromSeconds(5));
     }
 
-    private void DisposeRowMenus()
-    {
-        _gridMenu?.Dispose();
-        _compactMenu?.Dispose();
-    }
 }

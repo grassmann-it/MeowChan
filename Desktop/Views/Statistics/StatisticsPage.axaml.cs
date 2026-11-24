@@ -22,9 +22,10 @@ namespace MeowChan;
 /// what the window hands it through <see cref="Apply"/>; it owns no sampling timer and holds no claim on the hub, so a page nobody
 /// looks at costs nothing.
 /// </summary>
-public partial class StatisticsPage : UserControl
+public partial class StatisticsPage : UserControl, IDisposable
 {
     private readonly ObservableCollection<StatisticsRow> _rows = [];
+    private readonly IDisposable _pageKeyContext;
     private IoStatsHub? _hub;
     private Func<string, string?>? _sourceName;
     private IoStatsSnapshot? _last;
@@ -39,9 +40,8 @@ public partial class StatisticsPage : UserControl
 
     public StatisticsPage()
     {
-        // Every key of the Status page's statistics segment runs in the "statistics" context (S3 P2-4): a default that a saved binding took away only
-        // elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "statistics");
+        // Keep defaults active here when a saved binding only displaces them in another context.
+        _pageKeyContext = KeyContextHost.Install(this, _ => "statistics");
         InitializeComponent();
         _pageMargin = StatisticsContent.Margin;
         StatisticsGrid.ItemsSource = _rows;
@@ -77,10 +77,19 @@ public partial class StatisticsPage : UserControl
         _sourceName = sourceName;
     }
 
-    internal void EndLifetime()
+    public void Dispose()
     {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || _ended) return;
         _ended = true;
-        DisposeRowMenus();
+        _pageKeyContext.Dispose();
+        _gridMenu?.Dispose();
+        _compactMenu?.Dispose();
         _statusHide?.Dispose();
         ResetConfirmation.Hide();
         Texts.Changed -= OnLanguageChanged;
@@ -180,8 +189,7 @@ public partial class StatisticsPage : UserControl
         _last = snapshot;
         if (retentionChanged) SetRetainedHeader(snapshot.RetentionDays);
 
-        // A sample of idle traffic is zero. Before sampling, the hub has an empty series and default rates.
-        ApplyCurrentRates(snapshot.Series.Count == 0 && snapshot.Rate == IoRates.Zero ? null : snapshot.Rate);
+        ApplyCurrentRates(snapshot.HasFreshSample ? snapshot.Rate : null);
 
         int interval = _hub?.Options.SampleIntervalMs ?? Config.StatsSampleIntervalMsDefault;
         int seconds = IoStatsDisplay.HistorySeconds(snapshot.Series.Capacity, interval);
