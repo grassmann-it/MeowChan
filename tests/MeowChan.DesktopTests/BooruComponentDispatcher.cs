@@ -27,6 +27,9 @@ internal static class BooruComponentDispatcher
 
     internal static CancellationToken Cancellation => Current.Cancellation;
 
+    internal static Delegate[] LanguageSubscribers() =>
+        (Field(typeof(Texts), nameof(Texts.Changed)).GetValue(null) as Delegate)?.GetInvocationList() ?? [];
+
     private static Owner Current => _current
         ?? throw new InvalidOperationException("This operation must run on the component dispatcher.");
 
