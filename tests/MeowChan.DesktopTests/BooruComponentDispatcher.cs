@@ -25,6 +25,12 @@ internal static class BooruComponentDispatcher
         owner.Run();
     }
 
+    internal static void Run(Func<Task> test, TimeSpan? timeout = null) => Run(() =>
+    {
+        AvaloniaSynchronizationContext.InstallIfNeeded();
+        Wait(test());
+    }, timeout: timeout);
+
     internal static CancellationToken Cancellation => Current.Cancellation;
 
     internal static Delegate[] LanguageSubscribers() =>

@@ -120,7 +120,7 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
     // ---- the page --------------------------------------------------------------------------------------------
 
     [BooruSharedFact]
-    public async Task TheMismatchStatusStatesTheWholeRouteOnBothTabsAndOffersTheSharedReviewName()
+    public void TheMismatchStatusStatesTheWholeRouteOnBothTabsAndOffersTheSharedReviewName() => BooruComponentDispatcher.Run(async () =>
     {
         using Fixture f = await Fixture.MismatchAsync();
         f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable, ReleasesPin: true);
@@ -146,10 +146,10 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
         Assert.Equal(text, watchers.Text.Text);
         Assert.True(watchers.Review.IsVisible && watchers.Review.IsEnabled);
         Assert.Equal("Review bundled repairs", AutomationProperties.GetName(watchers.Review));
-    }
+    });
 
     [BooruSharedFact]
-    public async Task AConfirmedRepairShowsTheCalmRestartNoticeWithoutSearchAgainOrReview()
+    public void AConfirmedRepairShowsTheCalmRestartNoticeWithoutSearchAgainOrReview() => BooruComponentDispatcher.Run(async () =>
     {
         using Fixture f = await Fixture.MismatchAsync();
         f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.ConfirmedPending);
@@ -164,10 +164,10 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
         Assert.False(search.Open.IsVisible);
         Assert.StartsWith("Repair confirmed.", f.View.WatcherRepairForTests.Text.Text);
         Assert.False(f.View.WatcherRepairForTests.Review.IsVisible);
-    }
+    });
 
     [BooruSharedFact]
-    public void TheSessionObservationAloneShowsTheRouteWhenThePageIsOpenedLater()
+    public void TheSessionObservationAloneShowsTheRouteWhenThePageIsOpenedLater() => BooruComponentDispatcher.Run(() =>
     {
         // A fresh page of the same session: nothing was searched here, the session observed the mismatch earlier.
         BooruUiHarness h = new();
@@ -178,10 +178,10 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
         view.Repair = new BooruBuildRepair(true, BooruRepairStage.ConfirmedPending);
         Assert.StartsWith("Repair confirmed. Restart MeowChan", view.SearchRepairForTests.Text.Text);
         Assert.True(view.WatcherRepairForTests.Host.IsVisible);
-    }
+    });
 
     [BooruSharedFact]
-    public async Task ABlockedPreviewNamesTheReasonAndTheNextStepInsteadOfOpeningAnEmptyDialog()
+    public void ABlockedPreviewNamesTheReasonAndTheNextStepInsteadOfOpeningAnEmptyDialog() => BooruComponentDispatcher.Run(async () =>
     {
         using Fixture f = await Fixture.MismatchAsync();
         f.View.OpenPluginDetails = () => Task.CompletedTask;
@@ -194,10 +194,10 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
         Assert.Equal("Open Danbooru plugin", AutomationProperties.GetName(search.Open));
         f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Blocked, BlockedReasonKey: BooruBuildRepair.NothingToReviewKey);
         Assert.Contains("No current bundled Danbooru build is waiting for review.", search.Text.Text);
-    }
+    });
 
     [BooruSharedFact]
-    public async Task TheReviewIsDisabledWithAVisibleReasonWhileTheRouteCannotRunAndANoticeIsShownAndCleared()
+    public void TheReviewIsDisabledWithAVisibleReasonWhileTheRouteCannotRunAndANoticeIsShownAndCleared() => BooruComponentDispatcher.Run(async () =>
     {
         using Fixture f = await Fixture.MismatchAsync();
         string? reason = "booru.ui.repair.busy";
@@ -219,16 +219,16 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
         Assert.Equal("The review did not open. Open Plugins and choose “Review bundled repairs” there.", search.Note.Text);
         f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable);
         Assert.False(search.Note.IsVisible); // a new reading retires the transient notice
-    }
+    });
 
     [BooruSharedFact]
-    public async Task WithoutAHostRouteNoReviewButtonIsOffered()
+    public void WithoutAHostRouteNoReviewButtonIsOffered() => BooruComponentDispatcher.Run(async () =>
     {
         using Fixture f = await Fixture.MismatchAsync(route: false);
         f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable);
         Assert.False(f.View.SearchRepairForTests.Review.IsVisible);
         Assert.False(f.View.SearchRepairForTests.Retry.IsVisible);
-    }
+    });
 
     [Fact]
     public void AWatcherCheckOfAMismatchedBuildSaysWhatItIsInsteadOfDisabledOrNotRunning()
