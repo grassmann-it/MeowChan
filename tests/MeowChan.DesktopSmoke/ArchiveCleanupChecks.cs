@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
@@ -100,15 +102,31 @@ internal static class ArchiveCleanupChecks
             (p, ids, token) => prepare(p, ids, token), (p, token) => execute(p, token), () => []);
         Task closed = Show(dialog, owner);
         await Ready(dialog); await CheckFocusAsync(dialog, "Refresh", "open");
-        Require(!C<Button>(dialog, "Review").IsEnabled, "Cleanup preselected candidates.");
+        await CheckSelectionSummaryAsync(dialog, 0, 0);
+        Require(!C<Button>(dialog, "Review").IsEnabled && !C<Button>(dialog, "InspectSelection").IsEnabled,
+            "Empty selection opened an inspection or deletion preview.");
         Capture(dialog, "initial-controlled");
         await SearchAsync(dialog, "100", [Id("100")]); Click(dialog, "SelectShown");
         await SearchAsync(dialog, "102", [Id("102")]); Click(dialog, "SelectShown");
+        await CheckSelectionSummaryAsync(dialog, 2, 1);
+        await InspectSelectionAsync(dialog, [Id("100"), Id("102")]);
+        Capture(dialog, "selection");
+        C<Button>(dialog, "Back").RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await CheckFocusAsync(dialog, "InspectSelection", "selection-escape");
+        Require(C<TextBox>(dialog, "Search").Text == "102" && ListedIds(dialog).SequenceEqual([Id("102")]),
+            "Returning from selection inspection lost the search.");
+        await CheckSelectionSummaryAsync(dialog, 2, 1);
         await SearchAsync(dialog, "103", [Id("103")], selectShownEnabled: false); Require(!C<Button>(dialog, "SelectShown").IsEnabled, "More than two assets became selectable.");
         C<ComboBox>(dialog, "Filter").SelectedIndex = 2; await SearchAsync(dialog, "", [Id("104")], selectShownEnabled: false);
         Require(!C<Button>(dialog, "SelectShown").IsEnabled, "Protected rows became selectable.");
+        await CheckSelectionSummaryAsync(dialog, 2, 2);
+        await InspectSelectionAsync(dialog, [Id("100"), Id("102")]);
+        Click(dialog, "Back"); await CheckFocusAsync(dialog, "InspectSelection", "selection-back");
+        Require(C<ComboBox>(dialog, "Filter").SelectedIndex == 2 && ListedIds(dialog).SequenceEqual([Id("104")]),
+            "Returning from selection inspection lost the eligibility filter.");
+        Require(preparations.Count == 0 && executionCalls == 0, "Inspecting the selection started a deletion step.");
         Click(dialog, "Review"); await Confirmation(dialog);
-        Require(preparations.Single().ToHashSet().SetEquals([Id("100"), Id("102")]), "Filters changed the explicit selection.");
+        Require(preparations.Single().SequenceEqual([Id("100"), Id("102")]), "Filters changed the explicit selection.");
         Require(!C<Button>(dialog, "Confirm").IsEnabled, "Permanent confirm lacks separate acknowledgement.");
         await CheckFocusAsync(dialog, "Back", "review"); Capture(dialog, "review-controlled");
         Click(dialog, "Back"); await CheckFocusAsync(dialog, "Review", "back");
@@ -117,6 +135,8 @@ internal static class ArchiveCleanupChecks
         Require(!C<Button>(dialog, "Review").IsEnabled && !C<ListBox>(dialog, "List").IsEnabled, "Refresh retained usable selection.");
         await Program.WaitUntilAsync(() => previewCalls == 2);
         Click(dialog, "Cancel"); pendingPreview.SetResult(preview); await Ready(dialog);
+        await CheckSelectionSummaryAsync(dialog, 0, 0);
+        Require(!C<Button>(dialog, "InspectSelection").IsEnabled, "Canceled refresh retained an inspectable selection.");
         Require(!C<Button>(dialog, "Review").IsEnabled && !C<Button>(dialog, "SelectShown").IsEnabled, "Canceled late preview was adopted.");
         string canceledStatus = Texts.Language == "de" ? "Prüfung abgebrochen. Vor der Auswahl neu prüfen." : "Check canceled. Check again before selecting.";
         Require(C<TextBlock>(dialog, "Status").Text == canceledStatus && !C<Button>(dialog, "Cancel").IsVisible,
@@ -124,6 +144,17 @@ internal static class ArchiveCleanupChecks
         await CheckFocusAsync(dialog, "Refresh", "preview-cancel"); Capture(dialog, "preview-canceled");
         pendingPreview = null; Click(dialog, "Refresh"); await Ready(dialog);
         C<ComboBox>(dialog, "Filter").SelectedIndex = 0; await SearchAsync(dialog, "100", [Id("100")]); Click(dialog, "SelectShown");
+        await InspectSelectionAsync(dialog, [Id("100")]);
+        string language = Texts.Language;
+        Texts.SetLanguage(language == "en" ? "de" : "en");
+        await InspectRowsAsync(dialog, [Id("100")]);
+        Texts.SetLanguage(language);
+        dialog.InvalidatePreview();
+        await CheckFocusAsync(dialog, "Refresh", "selection-invalidated");
+        await CheckSelectionSummaryAsync(dialog, 0, 0);
+        Require(!C<Button>(dialog, "InspectSelection").IsEnabled && !C<Button>(dialog, "Review").IsEnabled,
+            "Invalidating an inspected selection left stale actions available.");
+        Click(dialog, "Refresh"); await Ready(dialog); await SearchAsync(dialog, "100", [Id("100")]); Click(dialog, "SelectShown");
         TaskCompletionSource<ArchiveCleanupExecutionPlan> pendingPlan = new(TaskCreationOptions.RunContinuationsAsynchronously);
         bool preparing = false; prepare = (_, _, _) => { preparing = true; return pendingPlan.Task; };
         Click(dialog, "Review"); await Program.WaitUntilAsync(() => C<Button>(dialog, "Cancel").IsVisible);
@@ -184,6 +215,9 @@ internal static class ArchiveCleanupChecks
         entry.Focus(); Click(entry);
         await Program.WaitUntilAsync(() => owner.OwnedWindows.OfType<ArchiveCleanupDialog>().Any());
         ArchiveCleanupDialog dialog = owner.OwnedWindows.OfType<ArchiveCleanupDialog>().Single(); await Ready(dialog);
+        await CheckSelectionSummaryAsync(dialog, 0, 0);
+        Require(!C<Button>(dialog, "InspectSelection").IsEnabled && !C<Button>(dialog, "Review").IsEnabled,
+            "The real empty selection enabled a review.");
         Capture(dialog, "real-preview"); Click(dialog, "Close");
         await Program.WaitUntilAsync(() => !owner.OwnedWindows.Contains(dialog));
         Require(File.Exists(Path.Combine(Media(profile, "102"), "asset0.bin")), "Closing preview deleted real media.");
@@ -202,8 +236,15 @@ internal static class ArchiveCleanupChecks
         Click(entry); await Program.WaitUntilAsync(() => owner.OwnedWindows.OfType<ArchiveCleanupDialog>().Any());
         dialog = owner.OwnedWindows.OfType<ArchiveCleanupDialog>().Single(); await Ready(dialog);
         await SearchAsync(dialog, "100", [Id("100")]); Click(dialog, "SelectShown"); await SearchAsync(dialog, "102", [Id("102")]); Click(dialog, "SelectShown");
+        await CheckSelectionSummaryAsync(dialog, 2, 1);
+        await InspectSelectionAsync(dialog, [Id("100"), Id("102")]);
+        Click(dialog, "Back"); await CheckFocusAsync(dialog, "InspectSelection", "real-selection-back");
         Click(dialog, "Review"); await Confirmation(dialog);
         Require(!C<Button>(dialog, "Confirm").IsEnabled, "Real confirmation enabled before acknowledgement.");
+        string loss = C<TextBlock>(dialog, "LossSummary").Text ?? "";
+        Require(loss.Split('\n').Where(line => line.StartsWith("4chan /g/ ", StringComparison.Ordinal))
+            .SequenceEqual(new[] { Id("100"), Id("102") }.Select(ArchiveCleanupText.Identity)), "The loss preview showed different IDs.");
+        Require(File.Exists(Path.Combine(Media(profile, "102"), "asset0.bin")), "Inspection or loss preview deleted real media.");
         await CheckFocusAsync(dialog, "Back", "real-review"); Capture(dialog, "real-confirmation");
         C<CheckBox>(dialog, "ConfirmAcknowledgement").IsChecked = true; Click(dialog, "Confirm"); await Ready(dialog);
         Require(dialog.ArchiveChanged && string.IsNullOrEmpty(C<TextBlock>(dialog, "Error").Text), "Real cleanup did not complete cleanly.");
@@ -280,27 +321,53 @@ internal static class ArchiveCleanupChecks
     }
     private static T C<T>(Window dialog, string suffix) where T : Control => dialog.FindControl<T>("ArchiveCleanup" + suffix)
         ?? throw new InvalidOperationException("Missing ArchiveCleanup" + suffix);
+    private static ResourceId[] ListedIds(Window dialog) => C<ListBox>(dialog, "List").Items
+        .Cast<ArchiveCleanupPreviewRow>().Select(row => row.Id).ToArray();
+    private static async Task CheckSelectionSummaryAsync(Window dialog, int selected, int hidden)
+    {
+        TextBlock summary = C<TextBlock>(dialog, "SelectionSummary");
+        Button inspect = C<Button>(dialog, "InspectSelection");
+        string expected = Texts.T("archive.cleanup.selection.visibility", selected, hidden);
+        await Program.WaitUntilAsync(() => summary.Text == expected && VisibilityOf(summary, dialog).FullyVisible
+            && VisibilityOf(inspect, dialog).FullyVisible,
+            () => $"Selection count or action is out of view for {expected}; actual count: {summary.Text}");
+    }
+    private static async Task InspectSelectionAsync(Window dialog, ResourceId[] expected)
+    {
+        Click(dialog, "InspectSelection");
+        await InspectRowsAsync(dialog, expected);
+    }
+    private static async Task InspectRowsAsync(Window dialog, ResourceId[] expected)
+    {
+        ListBox list = C<ListBox>(dialog, "List");
+        await CheckFocusAsync(dialog, "Back", "selection-view");
+        await Program.WaitUntilAsync(() => AutomationProperties.GetName(list) == Texts.T("archive.cleanup.selection.heading")
+            && list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => VisibilityOf(item, dialog).FullyVisible),
+            () => $"Selection list bounds: {list.Bounds}; visible: {list.IsEffectivelyVisible}; name: {AutomationProperties.GetName(list)}");
+        Require(ListedIds(dialog).SequenceEqual(expected), "Inspection showed different IDs.");
+        Require(!list.GetVisualDescendants().OfType<CheckBox>().Any(), "Inspection allowed changing the selection.");
+        Require(!C<Button>(dialog, "Review").IsVisible && !C<Button>(dialog, "Confirm").IsVisible,
+            "Inspection displayed a deletion action.");
+    }
     private static async Task SearchAsync(Window dialog, string text, ResourceId[] expectedIds, bool selectShownEnabled = true)
     {
         // Avalonia TextChanged is asynchronous, after rendering. Observe the actual list and action
         // rather than assuming Text assignment has already run the product's RenderRows handler.
         C<TextBox>(dialog, "Search").Text = text;
-        ResourceId[] VisibleIds() => C<ListBox>(dialog, "List").ItemsSource?.Cast<ArchiveCleanupPreviewRow>()
-            .Select(row => row.Id).ToArray() ?? [];
         try
         {
-            await Program.WaitUntilAsync(() => VisibleIds().SequenceEqual(expectedIds)
+            await Program.WaitUntilAsync(() => ListedIds(dialog).SequenceEqual(expectedIds)
                 && C<Button>(dialog, "SelectShown").IsEnabled == selectShownEnabled);
         }
         catch (TimeoutException error)
         {
             throw new InvalidOperationException("Cleanup search did not settle for '" + text + "': expected rows "
                 + string.Join(",", expectedIds.Select(id => id.Thread)) + "; actual rows "
-                + string.Join(",", VisibleIds().Select(id => id.Thread)) + "; SelectShown expected="
+                + string.Join(",", ListedIds(dialog).Select(id => id.Thread)) + "; SelectShown expected="
                 + selectShownEnabled + ", actual=" + C<Button>(dialog, "SelectShown").IsEnabled, error);
         }
         Console.WriteLine("SMOKE cleanup search settled: text=" + text + "; visible="
-            + string.Join(",", VisibleIds().Select(id => id.Thread)) + "; SelectShown=" + selectShownEnabled);
+            + string.Join(",", ListedIds(dialog).Select(id => id.Thread)) + "; SelectShown=" + selectShownEnabled);
     }
     private static void Click(Window dialog, string suffix) => Click(C<Button>(dialog, suffix));
     private static void Click(Button button)

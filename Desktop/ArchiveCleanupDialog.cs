@@ -32,25 +32,32 @@ internal sealed class ArchiveCleanupDialog : Window
     private readonly TextBlock _scope = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _hint = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _selectionSummary = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _selectionTotals = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly WrapPanel _selectionBar = new() { ItemSpacing = 8, LineSpacing = 4 };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap };
     private readonly MeowChan.Desktop.Controls.SearchBox _search = new();
     private readonly ComboBox _filter = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ListBox _list = new();
+    private readonly IDataTemplate _inventoryRowTemplate;
+    private readonly IDataTemplate _inspectionRowTemplate;
     private readonly StackPanel _inventoryControls = new() { Spacing = 8 };
     private readonly TextBox _details = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 52, MaxHeight = 100 };
     private readonly Expander _detailsSection = new() { HorizontalAlignment = HorizontalAlignment.Stretch, IsVisible = false };
     private readonly TextBlock _candidatesHeading = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _selectedHeading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _lossHeading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _loss = new() { TextWrapping = TextWrapping.Wrap };
     private readonly CheckBox _ack = new();
     private readonly StackPanel _confirmation = new() { Spacing = 8, IsVisible = false };
     private readonly StackPanel _outcome = new() { Spacing = 8 };
     private readonly Button _refresh = new(), _selectShown = new(), _clear = new(), _review = new();
+    private readonly Button _inspectSelection = new();
     private readonly Button _confirm = new(), _back = new(), _cancel = new(), _close = new(), _folder = new();
     private ArchiveCleanupExecutionPlan? _plan;
     private CancellationTokenSource? _operation;
     private bool _busy, _executing, _closed, _closeWhenIdle, _localizing;
+    private bool _inspectingSelection;
     private int _generation, _focusGeneration;
 
     internal bool ArchiveChanged { get; private set; }
@@ -94,23 +101,27 @@ internal sealed class ArchiveCleanupDialog : Window
         Named(_search, "Search"); Named(_filter, "Filter"); Named(_list, "List"); Named(_details, "Details");
         Named(_loss, "LossSummary"); Named(_ack, "ConfirmAcknowledgement"); Named(_refresh, "Refresh");
         Named(_selectShown, "SelectShown"); Named(_clear, "ClearSelection"); Named(_review, "Review");
+        Named(_inspectSelection, "InspectSelection");
         Named(_confirm, "Confirm"); Named(_back, "Back"); Named(_cancel, "Cancel"); Named(_close, "Close"); Named(_folder, "OpenFolder");
         _error.Classes.Add("workspace-error");
         _hint.Classes.Add("workspace-help"); _scope.Classes.Add("workspace-meta"); _loss.Classes.Add("workspace-warning");
         _candidatesHeading.Classes.Add("section-title");
-        _lossHeading.Classes.Add("section-title"); _selectionSummary.Classes.Add("section-title");
+        _selectedHeading.Classes.Add("section-title");
+        _lossHeading.Classes.Add("section-title"); _selectionTotals.Classes.Add("section-title");
         _review.Classes.Add("primary"); _confirm.Classes.Add("danger");
         // I1b: the secondary tools carry a catalog icon before their text (primary and danger actions stay text).
         MeowChan.Desktop.Controls.IconButtons.WithText(_refresh, "refresh-cw"); MeowChan.Desktop.Controls.IconButtons.WithText(_selectShown, "check-square"); MeowChan.Desktop.Controls.IconButtons.WithText(_clear, "x");
         _back.Classes.Add("subtle"); _close.Classes.Add("subtle");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(_selectionSummary, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
         _search.TextChanged += (_, _) => RenderRows();
         _filter.SelectionChanged += (_, _) => { if (!_localizing) RenderRows(); };
         _list.Styles.Add(new Style(selector => selector.OfType<ListBoxItem>())
         { Setters = { new Setter(ContentControl.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch) } });
         _list.SelectionChanged += (_, _) => UpdateDetails();
-        _list.ItemTemplate = new FuncDataTemplate<ArchiveCleanupPreviewRow>((row, _) => row == null ? new TextBlock() : BuildRow(row));
+        _inventoryRowTemplate = new FuncDataTemplate<ArchiveCleanupPreviewRow>((row, _) => row == null ? new TextBlock() : BuildRow(row, editable: true));
+        _inspectionRowTemplate = new FuncDataTemplate<ArchiveCleanupPreviewRow>((row, _) => row == null ? new TextBlock() : BuildRow(row, editable: false));
         _refresh.Click += async (_, _) => await RefreshAsync();
         _selectShown.Click += (_, _) =>
         {
@@ -118,8 +129,9 @@ internal sealed class ArchiveCleanupDialog : Window
             RenderRows(); _selectShown.Focus();
         };
         _clear.Click += (_, _) => { _selection.Clear(); RenderRows(); _clear.Focus(); };
+        _inspectSelection.Click += (_, _) => InspectSelection();
         _review.Click += async (_, _) => await ReviewAsync();
-        _back.Click += (_, _) => EndConfirmation();
+        _back.Click += (_, _) => GoBack();
         _ack.IsCheckedChanged += (_, _) => UpdateActions();
         _confirm.Click += async (_, _) => await ExecuteAsync();
         _cancel.Click += (_, _) => CancelOperation();
@@ -149,31 +161,38 @@ internal sealed class ArchiveCleanupDialog : Window
         detailsContent.Children.Add(_details); detailsContent.Children.Add(_folder);
         _detailsSection.Content = detailsContent;
         StackPanel bottom = new() { Spacing = 12 };
-        bottom.Children.Add(_selectionSummary); bottom.Children.Add(_detailsSection);
+        bottom.Children.Add(_selectionTotals); bottom.Children.Add(_detailsSection);
         _confirmation.Children.Add(_lossHeading); _confirmation.Children.Add(_loss); _confirmation.Children.Add(_ack);
         Border warning = new() { Child = _confirmation };
         warning.Classes.Add("workspace-warning");
         // Visibility follows the confirmation itself, without a blank warning surface in the preview.
         _confirmation.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) warning.IsVisible = _confirmation.IsVisible; };
         warning.IsVisible = false; bottom.Children.Add(warning);
+        _selectionSummary.VerticalAlignment = VerticalAlignment.Center;
+        _selectionBar.Children.Add(_selectionSummary); _selectionBar.Children.Add(_inspectSelection);
         _outcome.Children.Add(_status);
         // The outcome keeps the full width above the actions; the confirm step's action stands right-most (review and confirm never show together).
         Border footer = DialogFooter.Build(_confirm, new Control[] { _refresh, _close, _cancel, _back, _review },
-            new ScrollViewer { Content = _outcome, MaxHeight = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, statusAbove: true);
+            new StackPanel { Spacing = 4, Children =
+            {
+                _selectionBar,
+                new ScrollViewer { Content = _outcome, MaxHeight = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }
+            } }, statusAbove: true);
         // Inventory, details and loss summary scroll; the next safe action stays in the fixed footer.
         Grid body = new() { Margin = new Thickness(16, 0, 16, 16), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 16 };
-        body.Children.Add(_inventoryControls); body.Children.Add(_list); Grid.SetRow(_list, 1);
+        body.Children.Add(_inventoryControls); body.Children.Add(_selectedHeading);
+        body.Children.Add(_list); Grid.SetRow(_list, 1);
         body.Children.Add(bottom); Grid.SetRow(bottom, 2);
         _list.MinHeight = 100; _list.Height = 240;
         DialogWindow.Frame(this, DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error)), modal: true);
         names.Complete();
         Localize();
-        // Escape cancels the running operation, then the confirmation step, then closes (RequestClose defers while busy).
+        // Escape cancels the running operation or returns to the inventory before closing the dialog.
         DialogEscape.Attach(this, () =>
         {
             if (_busy) { CancelOperation(); return true; }
-            if (_plan == null) return false;
-            EndConfirmation(); return true;
+            if (_plan == null && !_inspectingSelection) return false;
+            GoBack(); return true;
         }, close: RequestClose);
         Closing += (_, e) =>
         {
@@ -195,13 +214,13 @@ internal sealed class ArchiveCleanupDialog : Window
         if (_closed) return;
         Title = ArchiveCleanupText.Title;
         _candidatesHeading.Text = Texts.T("archive.cleanup.inventory");
+        _selectedHeading.Text = Texts.T("archive.cleanup.selection.heading");
         _detailsSection.Header = Texts.T("archive.cleanup.details.heading");
         _lossHeading.Text = Texts.T("archive.cleanup.loss.heading");
         _hint.Text = Texts.T("archive.cleanup.hint");
         _search.PlaceholderText = Texts.T("archive.cleanup.search");
         AutomationProperties.SetName(_search, _search.PlaceholderText);
         AutomationProperties.SetName(_filter, Texts.T("archive.cleanup.filter.label"));
-        AutomationProperties.SetName(_list, Texts.T("archive.cleanup.list.label"));
         AutomationProperties.SetName(_details, Texts.T("archive.cleanup.details.label"));
         int filter = Math.Max(0, _filter.SelectedIndex);
         _localizing = true;
@@ -216,6 +235,7 @@ internal sealed class ArchiveCleanupDialog : Window
         _refresh.Content = Texts.T("archive.cleanup.refresh");
         _selectShown.Content = Texts.T("archive.cleanup.selectShown");
         _clear.Content = Texts.T("archive.cleanup.clearSelection");
+        _inspectSelection.Content = Texts.T("archive.cleanup.selection.inspect");
         _review.Content = Texts.T("archive.cleanup.review");
         _confirm.Content = Texts.T("archive.cleanup.confirm");
         _back.Content = Texts.T("archive.cleanup.back");
@@ -240,12 +260,8 @@ internal sealed class ArchiveCleanupDialog : Window
             || row.Title.Contains(query, StringComparison.OrdinalIgnoreCase))).ToArray() ?? Array.Empty<ArchiveCleanupPreviewRow>();
     }
 
-    private Control BuildRow(ArchiveCleanupPreviewRow row)
+    private Control BuildRow(ArchiveCleanupPreviewRow row, bool editable)
     {
-        CheckBox choice = new() { Name = "ArchiveCleanupChoose", VerticalAlignment = VerticalAlignment.Top,
-            IsEnabled = _selection.CanSelect(row), IsChecked = _selection.IsSelected(row.Id) };
-        AutomationProperties.SetName(choice, ArchiveCleanupText.Identity(row.Id) + " · " + ArchiveCleanupText.State(row.Eligibility) + " · " + ArchiveCleanupText.Media(row));
-        choice.IsCheckedChanged += (_, _) => { _selection.SetSelected(row.Id, choice.IsChecked == true); UpdateSummary(); UpdateActions(); };
         StackPanel text = new() { Spacing = 4 };
         text.Children.Add(new TextBlock { Text = row.Title, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
         TextBlock identity = new() { Text = ArchiveCleanupText.Identity(row.Id), TextWrapping = TextWrapping.Wrap };
@@ -257,9 +273,20 @@ internal sealed class ArchiveCleanupDialog : Window
         TextBlock protection = new() { Text = ArchiveCleanupText.State(row.Eligibility)
             + (row.Reasons.Count > 0 ? " · " + ArchiveCleanupText.Reasons(row) : ""), TextWrapping = TextWrapping.Wrap };
         protection.Classes.Add("workspace-meta"); state.Children.Add(protection);
-        Grid content = new() { ColumnDefinitions = new ColumnDefinitions("Auto,2*,*"), ColumnSpacing = 12, Margin = new Thickness(0, 8) };
-        content.Children.Add(choice); content.Children.Add(text); Grid.SetColumn(text, 1);
-        content.Children.Add(state); Grid.SetColumn(state, 2);
+        Grid content = new() { ColumnDefinitions = new ColumnDefinitions(editable ? "Auto,2*,*" : "2*,*"),
+            ColumnSpacing = 12, Margin = new Thickness(0, 8) };
+        if (editable)
+        {
+            CheckBox choice = new() { Name = "ArchiveCleanupChoose", VerticalAlignment = VerticalAlignment.Top,
+                IsEnabled = _selection.CanSelect(row), IsChecked = _selection.IsSelected(row.Id) };
+            AutomationProperties.SetName(choice, ArchiveCleanupText.Identity(row.Id) + " · " + ArchiveCleanupText.State(row.Eligibility) + " · " + ArchiveCleanupText.Media(row));
+            choice.IsCheckedChanged += (_, _) => { _selection.SetSelected(row.Id, choice.IsChecked == true); UpdateSummary(); UpdateActions(); };
+            content.Children.Add(choice);
+        }
+        Grid.SetColumn(text, content.Children.Count);
+        content.Children.Add(text);
+        Grid.SetColumn(state, content.Children.Count);
+        content.Children.Add(state);
         return content;
     }
 
@@ -267,7 +294,9 @@ internal sealed class ArchiveCleanupDialog : Window
     {
         if (_closed || _localizing) return;
         ResourceId? lead = (_list.SelectedItem as ArchiveCleanupPreviewRow)?.Id;
-        var rows = VisibleRows(); _list.ItemsSource = rows;
+        var rows = _inspectingSelection ? _selection.SelectedRows : VisibleRows();
+        _list.ItemTemplate = _inspectingSelection ? _inspectionRowTemplate : _inventoryRowTemplate;
+        _list.ItemsSource = rows;
         _list.SelectedItem = rows.FirstOrDefault(row => row.Id == lead);
         UpdateDetails(); UpdateSummary(); UpdateActions();
     }
@@ -294,27 +323,41 @@ internal sealed class ArchiveCleanupDialog : Window
                 + (!preview.Complete ? Texts.T("archive.cleanup.scope.incomplete")
                     : _selection.Invalidated || preview.IsStale ? ArchiveCleanupText.Stale : Texts.T("archive.cleanup.scope.nothingSelected"));
         var selected = _selection.SelectedRows;
-        _selectionSummary.Text = Texts.T("archive.cleanup.selection.summary", selected.Count,
+        if (!_inspectingSelection)
+        {
+            int shown = _list.Items.OfType<ArchiveCleanupPreviewRow>().Count(row => _selection.IsSelected(row.Id));
+            _selectionSummary.Text = Texts.T("archive.cleanup.selection.visibility", selected.Count, selected.Count - shown);
+        }
+        _selectionTotals.Text = Texts.T("archive.cleanup.selection.summary", selected.Count,
             selected.Sum(row => (long)row.PostCount), selected.Sum(row => (long)(row.Media.SavedAssetCount ?? 0)),
             selected.Sum(row => row.Media.VerifiedBytes));
     }
     private void UpdateActions()
     {
         bool confirming = _plan != null;
-        bool choosing = !_busy && !confirming && !_closed;
+        bool inventory = !confirming && !_inspectingSelection;
+        bool choosing = !_busy && inventory && !_closed;
         // The exact loss summary replaces the inventory during confirmation. Back preserves its selection.
-        _hint.IsVisible = _inventoryControls.IsVisible = _list.IsVisible = !confirming;
+        _hint.IsVisible = _inventoryControls.IsVisible = inventory;
+        _scope.IsVisible = !_inspectingSelection;
+        _selectedHeading.IsVisible = _inspectingSelection;
+        _list.IsVisible = !confirming;
+        _selectionBar.IsVisible = inventory;
+        _outcome.IsVisible = !_inspectingSelection;
+        AutomationProperties.SetName(_list, _inspectingSelection ? _selectedHeading.Text : Texts.T("archive.cleanup.list.label"));
         _detailsSection.IsVisible = _details.IsVisible = !confirming && _list.SelectedItem is ArchiveCleanupPreviewRow;
         _folder.IsVisible = _details.IsVisible && _openFolder != null;
-        _list.IsEnabled = choosing && _selection.CanChoose;
+        _list.IsEnabled = !_busy && !confirming && _selection.CanChoose;
         _search.IsEnabled = _filter.IsEnabled = choosing;
-        _refresh.IsVisible = !confirming;
-        _refresh.IsEnabled = !_busy && _plan == null;
+        _refresh.IsVisible = inventory;
+        _refresh.IsEnabled = choosing;
         _selectShown.IsEnabled = choosing && _selection.CanChoose && VisibleRows().Any(_selection.CanSelect);
-        _clear.IsEnabled = choosing && _selection.SelectedRows.Count > 0;
-        _review.IsEnabled = choosing && _selection.CanChoose && _selection.SelectedRows.Count > 0;
-        _review.IsVisible = _plan == null;
-        _confirm.IsVisible = _back.IsVisible = _confirmation.IsVisible = _plan != null;
+        bool hasSelection = _selection.SelectedRows.Count > 0;
+        _clear.IsEnabled = choosing && hasSelection;
+        _inspectSelection.IsEnabled = _review.IsEnabled = choosing && _selection.CanChoose && hasSelection;
+        _review.IsVisible = inventory;
+        _confirm.IsVisible = _confirmation.IsVisible = confirming;
+        _back.IsVisible = confirming || _inspectingSelection;
         _confirm.IsEnabled = !_busy && _plan?.CanExecute == true && _ack.IsChecked == true && _selection.CanChoose;
         _back.IsEnabled = _ack.IsEnabled = !_busy;
         _cancel.IsVisible = _busy; _cancel.IsEnabled = _busy && _operation?.IsCancellationRequested == false;
@@ -369,7 +412,7 @@ internal sealed class ArchiveCleanupDialog : Window
     }
     private async Task ReviewAsync()
     {
-        if (_busy || _closed || _plan != null || !_selection.CanChoose || _selection.SelectedRows.Count == 0) return;
+        if (_busy || _closed || _plan != null || _inspectingSelection || !_selection.CanChoose || _selection.SelectedRows.Count == 0) return;
         ArchiveCleanupPreview preview = _selection.Preview!;
         ResourceId[] ids = _selection.FreezeSelected();
         var operation = BeginOperation();
@@ -400,9 +443,23 @@ internal sealed class ArchiveCleanupDialog : Window
             if (!_closed) { RenderRows(); FocusAfterLayout(_plan != null ? _back : _refresh, _plan != null ? null : _outcome); }
         }
     }
-    private void EndConfirmation()
+    private void InspectSelection()
+    {
+        if (!_inspectSelection.IsEnabled) return;
+        _inspectingSelection = true;
+        RenderRows();
+        FocusAfterLayout(_back, _list);
+    }
+    private void GoBack()
     {
         if (_busy) return;
+        if (_inspectingSelection)
+        {
+            _inspectingSelection = false;
+            RenderRows();
+            FocusAfterLayout(_inspectSelection);
+            return;
+        }
         _plan = null; _ack.IsChecked = false; UpdateActions(); FocusAfterLayout(_review);
     }
     private async Task ExecuteAsync()
@@ -460,7 +517,10 @@ internal sealed class ArchiveCleanupDialog : Window
     {
         if (_closed) return;
         ++_generation; _selection.Invalidate(); _plan = null; _ack.IsChecked = false;
+        bool wasInspecting = _inspectingSelection;
+        _inspectingSelection = false;
         _operation?.Cancel(); _status.Text = ArchiveCleanupText.Stale; RenderRows();
+        if (wasInspecting) FocusAfterLayout(_refresh, _outcome);
     }
     private void CancelOperation()
     {
