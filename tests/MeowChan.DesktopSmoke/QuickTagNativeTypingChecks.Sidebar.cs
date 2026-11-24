@@ -83,9 +83,12 @@ internal static partial class QuickTagNativeTypingChecks
         PrivateMediaTagTarget target = ((MediaTagSubject.Bound)visible).Target;
         Check(snapshot.MediaAssignments.Where(assignment => assignment.TagId.Value == tagId.Value).Select(assignment => assignment.Target).SequenceEqual([target])
             && snapshot.TagsOf(prior).All(definition => definition.Name.Display != tag), "The tag was written to an unexpected attachment revision.");
+        await Program.WaitUntilAsync(() => editor.Session.Ready && string.IsNullOrEmpty(editor.Input.Text));
         editor.Input.Dismiss();
         await input.KeyAsync(MediaNativeInput.Escape);
-        await Program.WaitUntilAsync(() => QuickTagPopover.Current == null && origin.IsFocused);
+        if (popover.IsOpen) await input.KeyAsync(MediaNativeInput.Escape);
+        await Program.WaitUntilAsync(() => QuickTagPopover.Current == null && origin.IsFocused,
+            () => $"After Escape: editor open={popover.IsOpen}, reason={popover.Reason}, focus={Describe(window.FocusManager?.GetFocusedElement())}.");
     }
 
     private static async Task ReaderSidebarTagRaceAsync(MainWindow window, ArchivePage page, MediaNativeInput input)
@@ -129,6 +132,7 @@ internal static partial class QuickTagNativeTypingChecks
                 $"Edit tags captured {captured?.EntryKey.ToString() ?? "nothing"} at {page.MediaSidebar.HeaderLine}; expected {savedA.EntryKey} (edit visible={edit.IsEffectivelyVisible}).");
             await Program.WaitUntilAsync(() => page.MediaSidebar.HeaderLine.Contains("picture-481.jpg", StringComparison.Ordinal));
             page.TagPopoverAsync = open;
+            await Settle(window);
             edit.Focus();
             await input.KeyAsync(MediaNativeInput.Enter);
             await Program.WaitUntilAsync(() => QuickTagPopover.Current is { IsOpen: true, Surface: not null });
