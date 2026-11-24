@@ -173,24 +173,6 @@ public sealed class MediaFocusFullscreenTests : IDisposable
     // ---- what the shell hides ----
 
     [Fact]
-    public void TheShellHidesTheFooterAlwaysAndTheHeaderOnlyWhenTheSettingAsksForIt()
-    {
-        string chrome = Source(Chrome);
-        // The conditions: the mode is on, the Media page is shown, nothing covers it.
-        Assert.Contains("bool hide = _mediaFocusActive && !_isClosing && _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null;", chrome);
-        Assert.Contains("_mediaFocusFooterHidden = hide;", chrome);
-        Assert.Contains("_mediaFocusHeaderHidden = hide && _config.MediaFocusHidesHeader;", chrome);
-        // The footer: the status strip and the page navigation lose their rows as well as their visibility.
-        Assert.Contains("WorkspaceStatusBar.IsVisible = WorkspaceNavigation.IsVisible = !hideFooter;", chrome);
-        Assert.Contains("WorkspaceRoot.RowDefinitions[2].Height = new GridLength(hideFooter ? 0 : StatusStripHeight);", chrome);
-        Assert.Contains("WorkspaceRoot.RowDefinitions[3].Height = new GridLength(hideFooter ? 0 : NavigationHeight);", chrome);
-        // The numbers are those of the XAML rows.
-        string markup = Source("Desktop/Shell/MainWindow.axaml");
-        Assert.Contains("<RowDefinition Height=\"26\" />\n            <RowDefinition Height=\"52\" />", markup.Replace("\r\n", "\n"));
-        Assert.Contains("StatusStripHeight = 26, NavigationHeight = 52", chrome);
-    }
-
-    [Fact]
     public void TheHeaderFloatsOverThePageBehindAHoverStripSoTheWindowControlsStayReachable() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();

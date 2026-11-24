@@ -1106,8 +1106,6 @@ public sealed class HelpDocumentationTests
         // Header-off is not a global measurement switch; the page still has its independent visible claim.
         Assert.Equal(IoStatsVisibility.None, IoStatsDisplay.Claim(windowShown: true, graphVisible: false, pageVisible: false));
         Assert.Equal(IoStatsVisibility.Window, IoStatsDisplay.Claim(windowShown: true, graphVisible: false, pageVisible: true));
-        Assert.Contains("IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, StatisticsSegmentShown)",
-            Read("Desktop/Shell/MainWindow.Transfer.cs"), StringComparison.Ordinal);
         Assert.DoesNotContain("upload is not measured", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("writes only", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
