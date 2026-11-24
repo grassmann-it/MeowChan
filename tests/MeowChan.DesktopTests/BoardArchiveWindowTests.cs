@@ -144,20 +144,12 @@ public sealed class BoardArchiveWindowTests
             BoardArchiveWindow dialog = new([board], (_, _) => throw new InvalidOperationException("Unexpected board read"),
                 (_, _) => throw new InvalidOperationException("Unexpected detail read"),
                 _ => throw new InvalidOperationException("Unexpected watch"), _ => { });
-            dialog.Width += 8;
             var failure = new InvalidOperationException("Injected failure after layout.");
             bool closed = false;
             dialog.Closed += (_, _) => closed = true;
             owner.Show();
             Delegate[] before = BooruComponentDispatcher.LanguageSubscribers();
-            dialog.Resized += (_, args) =>
-            {
-                Assert.Equal(WindowResizeReason.Layout, args.Reason);
-                Assert.True(dialog.IsArrangeValid);
-                var caption = Assert.Single(dialog.GetVisualDescendants().OfType<WindowChromeBar>());
-                Assert.Contains(BooruComponentDispatcher.LanguageSubscribers(), handler => ReferenceEquals(handler.Target, caption));
-                throw failure;
-            };
+            dialog.LayoutUpdated += FailAfterLayout;
             try
             {
                 Assert.Same(failure, Assert.Throws<InvalidOperationException>(() =>
@@ -169,6 +161,15 @@ public sealed class BoardArchiveWindowTests
             {
                 if (dialog.IsVisible) dialog.Close();
                 if (owner.IsVisible) owner.Close();
+            }
+
+            void FailAfterLayout(object? sender, EventArgs args)
+            {
+                dialog.LayoutUpdated -= FailAfterLayout;
+                Assert.True(dialog.IsArrangeValid);
+                var caption = Assert.Single(dialog.GetVisualDescendants().OfType<WindowChromeBar>());
+                Assert.Contains(BooruComponentDispatcher.LanguageSubscribers(), handler => ReferenceEquals(handler.Target, caption));
+                throw failure;
             }
         });
 

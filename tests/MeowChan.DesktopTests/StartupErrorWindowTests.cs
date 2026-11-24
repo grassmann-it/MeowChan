@@ -60,18 +60,13 @@ public sealed class StartupErrorWindowTests
             using IDisposable platform = BooruReviewTestPlatform.Enter();
             Delegate[] before = BooruComponentDispatcher.LanguageSubscribers();
             Window window = new StartupErrorWindow(Message);
-            window.Width += 8;
             bool closed = false;
             window.Closed += (_, _) => closed = true;
             var failure = new InvalidOperationException("Injected failure after layout.");
             if (failInOpened)
                 window.Opened += (_, _) => FailAfterLayout();
             else
-                window.Resized += (_, args) =>
-                {
-                    Assert.Equal(WindowResizeReason.Layout, args.Reason);
-                    FailAfterLayout();
-                };
+                window.LayoutUpdated += FailAfterFirstLayout;
             try
             {
                 Assert.Same(failure, Assert.Throws<InvalidOperationException>(window.Show));
@@ -81,6 +76,12 @@ public sealed class StartupErrorWindowTests
             finally
             {
                 if (window.IsVisible) window.Close();
+            }
+
+            void FailAfterFirstLayout(object? sender, EventArgs args)
+            {
+                window.LayoutUpdated -= FailAfterFirstLayout;
+                FailAfterLayout();
             }
 
             void FailAfterLayout()
