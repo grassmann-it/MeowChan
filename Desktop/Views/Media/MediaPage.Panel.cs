@@ -283,7 +283,7 @@ public sealed partial class MediaPage
     private void RequestPanel(MediaLibraryTileRow? row)
     {
         if (!ReferenceEquals(_panelWanted, row)) CancelPanelLoad();
-        if (!SamePanelTagTarget(_panelWanted?.Entry, row?.Entry)) _panel?.InvalidateTagEditor();
+        if (!SamePanelTagTarget(_panelWanted?.Entry, row?.Entry)) _panel?.InvalidateDecisionTarget();
         _panelWanted = row;
         long now = _panelClock.ElapsedMilliseconds;
         if (_panelThrottle.Request(now)) { RefreshPanel(); return; }
@@ -380,7 +380,7 @@ public sealed partial class MediaPage
     {
         bool changed = !SamePanelTagTarget(_panelRow?.Entry, row?.Entry);
         _panelRow = row;
-        if (changed) _panel?.InvalidateTagEditor();
+        if (changed) _panel?.InvalidateDecisionTarget();
     }
 
     private void DescribePanel(ReaderMediaSidebar panel, MediaLibraryTileRow row)
@@ -469,7 +469,7 @@ public sealed partial class MediaPage
 
     // ---- the video -------------------------------------------------------------------------------------------------------------------
 
-    private static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Thread, entry.Directory, entry.AssetId,
+    internal static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Thread, entry.Directory, entry.AssetId,
         entry.MediaId, entry.Variant, entry.Sha256, entry.Length);
 
     /// <summary>The panel shows this tile (or none): a saved video offers inline playback in the panel; any other medium gives a player back.</summary>

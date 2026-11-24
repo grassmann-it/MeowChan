@@ -661,7 +661,7 @@ public partial class ArchivePage
         if (!_mediaSidebarShown || _ended) return;
         if (selectionChanged)
         {
-            _mediaSidebar?.InvalidateTagEditor();
+            _mediaSidebar?.InvalidateDecisionTarget();
             // Throttle starting the next decode, not retiring the previous selection. Otherwise an old completion can still publish
             // a picture/error (or a strip thumbnail) in the interval before the follow timer runs.
             CancelMediaSidebarLoad();
@@ -880,7 +880,7 @@ public partial class ArchivePage
             ? (thread, post, attachment) : null;
         if (_displayedSidebarMedium == next) return;
         _displayedSidebarMedium = next;
-        _mediaSidebar?.InvalidateTagEditor();
+        _mediaSidebar?.InvalidateDecisionTarget();
     }
 
     // The identity of a medium in the sidebar: the thread, the post and the attachment (as the inline video's slot keys it), stable across rebuilt rows.

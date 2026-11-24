@@ -593,10 +593,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         bool newMedium = _mediumKey != mediumKey || mediumKey == null && (_fileName != fileLine || _postLine != postLine);
         if (newMedium)
         {
-            _infoBar.CloseFlyouts();
-            InvalidateTagEditor();
+            InvalidateDecisionTarget();
             _mediumKey = mediumKey;
-            _mediumRevision++;
             _wasDocked = false;
         }
         if (newMedium || _postLine != postLine || _fileName != fileLine)
@@ -663,6 +661,15 @@ internal sealed partial class ReaderMediaSidebar : Border
                 _tagEditorAnchor = null;
             }
         }
+    }
+
+    // A post or attachment revision can change even when its decoded picture is reusable.
+    internal void InvalidateDecisionTarget()
+    {
+        _mediumRevision++;
+        _decisionFailure = null;
+        _infoBar.CloseFlyouts();
+        InvalidateTagEditor();
     }
 
     internal bool InvalidateTagEditor()
