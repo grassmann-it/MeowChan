@@ -45,6 +45,7 @@ public partial class MainWindow
     // and file limits, and the gallery's fit limit for its picture.
     private void ConfigureMediaPanel()
     {
+        _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
         _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true }, ReaderSettingsPreferences.Gallery(_session.Config));
         ConfigureGalleryScrubPreview(); // the panel's timeline hover preview uses the profile's scrub cache (the gallery's)
     }
@@ -125,6 +126,11 @@ public partial class MainWindow
         // the tag list switch stays in its own key (MediaBooruMode), so both ways of switching it write the same state.
         _mediaPage.RestoreLayout(MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode));
         ConfigureMediaPanel();
+        _mediaPage.SavePanelInfoMode = mode => OpenActions.Start(async () =>
+        {
+            await SaveQuickSettingsAsync(config => config.MediaSidebarInfo = mode);
+            _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
+        }, "media.sidebar.info");
         _mediaPage.SaveLayoutAsync = layout => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = layout.TagList; config.MediaLayout = layout.Format(); });
         _session.StateChanged += OnMediaTagQueueChanged;
         Closed += (_, _) => _session.StateChanged -= OnMediaTagQueueChanged;

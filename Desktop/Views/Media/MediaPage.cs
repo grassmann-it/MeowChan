@@ -947,6 +947,7 @@ public sealed partial class MediaPage : UserControl
     internal async Task EditTagsByShortcutAsync()
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
+        if (_panel is { IsKeyboardFocusWithin: true } panel && _panelShown) { await panel.EditTagsAsync(); return; }
         if (_grid.Selection.Count > 1) { await TagSelectionAsync(initialFocus: QuickTagInitialFocus.TagInput); return; }
         if (SelectedRow is not { } row) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;

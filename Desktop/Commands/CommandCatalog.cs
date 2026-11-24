@@ -317,6 +317,7 @@ public static class CommandCatalog
         // The reader's settings popover (R7, the toolbar's gear since RL1); a user shortcut opens it too.
         new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "settings", null, CommandScope.Reader, new[] { "reader-settings" }),
         // R8: the media sidebar of the large reader (a settings-popover switch) and its steps through the focused post's media.
+        new("media.sidebar.info", "command.media.sidebar.info", "Details in the media sidebar", "Details in der Medienleiste", "info", "Shift+I", CommandScope.Reader | CommandScope.Media, new[] { "reader", "media" }),
         new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "panel-left", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-settings", "reader-media-sidebar" }),
         // The archive's thread list on or off (reader toolbar switch; Config.ArchiveThreadListHidden). No default gesture (21.11. review): each user can give it one.
         new("archive.thread-list.toggle", "command.archive.thread-list.toggle", "Thread list", "Threadliste", "panel-left", null, CommandScope.Archive | CommandScope.Reader, new[] { "reader-toolbar" }),

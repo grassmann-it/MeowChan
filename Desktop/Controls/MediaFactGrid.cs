@@ -88,39 +88,40 @@ internal sealed class MediaFactGrid : Grid
 
         protected override Size MeasureOverride(Size availableSize)
         {
-            Text = FitFileName(availableSize.Width);
+            Text = FitFileName(_fullName, candidate => Fits(candidate, availableSize.Width));
             return base.MeasureOverride(availableSize);
-        }
-
-        private string FitFileName(double width)
-        {
-            if (Fits(_fullName, width)) return _fullName;
-            int[] elements = StringInfo.ParseCombiningCharacters(_fullName);
-            int dot = _fullName.LastIndexOf('.');
-            int extension = dot > 0 ? Array.BinarySearch(elements, dot) : -1;
-            int suffixLength = extension >= 0 ? elements.Length - extension : 0;
-            if (suffixLength > 0 && !Fits("…" + _fullName[dot..], width)) suffixLength = 0;
-            string best = suffixLength > 0 ? "…" + _fullName[dot..] : "…";
-            int low = suffixLength + 1;
-            int high = elements.Length - 1;
-            while (low <= high)
-            {
-                int kept = (low + high) / 2;
-                int suffix = Math.Max(suffixLength, kept / 2);
-                int prefix = kept - suffix;
-                string candidate = _fullName[..elements[prefix]] + "…" + (suffix == 0 ? "" : _fullName[elements[^suffix]..]);
-                if (Fits(candidate, width))
-                {
-                    best = candidate;
-                    low = kept + 1;
-                }
-                else high = kept - 1;
-            }
-            return best;
         }
 
         private bool Fits(string text, double width) => double.IsPositiveInfinity(width)
             || new FormattedText(text, Texts.Culture, FlowDirection,
                 new Typeface(FontFamily, FontStyle, FontWeight, FontStretch), FontSize, Foreground).Width <= width;
     }
+
+    internal static string FitFileName(string fullName, Func<string, bool> fits)
+    {
+        if (fits(fullName)) return fullName;
+        int[] elements = StringInfo.ParseCombiningCharacters(fullName);
+        int dot = fullName.LastIndexOf('.');
+        int extension = dot > 0 ? Array.BinarySearch(elements, dot) : -1;
+        int suffixLength = extension >= 0 ? elements.Length - extension : 0;
+        if (suffixLength > 0 && !fits("…" + fullName[dot..])) suffixLength = 0;
+        string best = suffixLength > 0 ? "…" + fullName[dot..] : "…";
+        int low = suffixLength + 1;
+        int high = elements.Length - 1;
+        while (low <= high)
+        {
+            int kept = (low + high) / 2;
+            int suffix = Math.Max(suffixLength, kept / 2);
+            int prefix = kept - suffix;
+            string candidate = fullName[..elements[prefix]] + "…" + (suffix == 0 ? "" : fullName[elements[^suffix]..]);
+            if (fits(candidate))
+            {
+                best = candidate;
+                low = kept + 1;
+            }
+            else high = kept - 1;
+        }
+        return best;
+    }
+
 }

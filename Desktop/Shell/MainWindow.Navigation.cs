@@ -151,6 +151,7 @@ public partial class MainWindow
         _archivePage.SaveReaderMediaSwitches = async change =>
         {
             await _session.SaveViewPreferencesAsync(change);
+            _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
             _settingsEditor?.RefreshConfirmedReaderMedia();
         };
         _archivePage.FullscreenRequested = ToggleFullscreen;

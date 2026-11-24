@@ -26,7 +26,9 @@ public partial class MainWindow
     private async Task SaveQuickSettingsAsync(Action<Config> change)
     {
         await _session.SaveViewPreferencesAsync(change);
-        if (!_isClosing) ApplyGalleryPreferences();
+        if (_isClosing) return;
+        ApplyGalleryPreferences();
+        _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
     }
 
     /// <summary>

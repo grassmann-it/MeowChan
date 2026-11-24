@@ -25,6 +25,7 @@ public static class WorkspaceMetrics
     public const double CompactRowHeight = 32;
     internal const double InputHeight = 32;
     internal const double FilterChipHeight = 28;
+    internal const double MediaFirstInset = 8;
     internal const double MediaPanelSectionGap = 12;
     internal const double MediaFactLabelWidth = 120;
     internal const double MediaFactStackWidth = 232;

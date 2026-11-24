@@ -144,6 +144,7 @@ public partial class ArchivePage
         _sidebarPointerContext.Reset(); // a key ends a pointer gesture whose release never came
         if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (_mediaSidebar?.IsInfoMenuSource(source) == true) return;
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
             && SidebarMediaContext(path) == null && SidebarStripContext(path) == null) return;
         ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
@@ -162,7 +163,7 @@ public partial class ArchivePage
     {
         _sidebarPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _ended || !_available || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || e.Source is not Control source
-            || !e.GetCurrentPoint(sidebar).Properties.IsRightButtonPressed || MediaMenuPresenter.IsNativeTextSource(source)) return;
+            || sidebar.IsInfoMenuSource(source) || !e.GetCurrentPoint(sidebar).Properties.IsRightButtonPressed || MediaMenuPresenter.IsNativeTextSource(source)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;
         ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
@@ -180,7 +181,7 @@ public partial class ArchivePage
     {
         if (e.Handled || _ended || !_available || e.Source is not Control source) return;
         // Text inputs and selectable text keep their own native menu.
-        if (MediaMenuPresenter.IsNativeTextSource(source)) return;
+        if (MediaMenuPresenter.IsNativeTextSource(source) || _mediaSidebar?.IsInfoMenuSource(source) == true) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (_sidebarPointerContext.IsPending && _mediaSidebar != null && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
             && _sidebarPointerContext.TryConsume()) // the menu opened with the press

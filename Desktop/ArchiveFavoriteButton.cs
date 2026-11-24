@@ -53,7 +53,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     /// The execution context whose keys the tooltip names (EffectiveShortcutBindings.ExecutionContexts): every star of this kind sits in the reader (a post's
     /// file line, the media sidebar, the Media tab's tiles), whose keys run in "reader".
     /// </summary>
-    internal string KeyContext { get; init; } = "reader";
+    internal string KeyContext { get; set; } = "reader";
 
     internal ArchiveFavoriteButton()
     {

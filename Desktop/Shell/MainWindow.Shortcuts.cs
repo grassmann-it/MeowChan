@@ -83,6 +83,8 @@ public partial class MainWindow
                 () => live.CanShowNewPostsByShortcut, () => _ = live.ShowReaderUpdatesAsync(), Priority: 100));
             // R8: the media sidebar switch works in both readers and switches the sidebar of the view it is used in (the archive view shows it
             // with "Always"); its steps act wherever it is shown (CanStepMediaSidebar).
+            _shortcutRouter.RegisterOwned(new CommandRegistration("media.sidebar.info", readerPane, ReaderShown,
+                () => live.IsMediaSidebarShown && live.CanToggleMediaSidebar, () => live.MediaSidebar?.ToggleDetails(), Priority: 100));
             _shortcutRouter.Register(new CommandRegistration("reader.sidebar.toggle", readerPane, ReaderShown,
                 () => live.CanToggleMediaSidebar, live.ToggleMediaSidebar, Priority: 100));
             _shortcutRouter.Register(new CommandRegistration("reader.sidebar.previous-media", readerPane, ReaderShown,
@@ -104,6 +106,9 @@ public partial class MainWindow
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
                 () => media.CanToggleFocusMode, media.ToggleFocusModeByShortcut, Priority: 100));
             // The media panel's switch (S-4): Primary+Shift+M, as the reader's media sidebar; the choice is the Layout menu row's (saved).
+            _shortcutRouter.RegisterOwned(new CommandRegistration("media.sidebar.info", media,
+                () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                () => media.IsPanelShown, () => media.Panel?.ToggleDetails(), Priority: 100));
             _shortcutRouter.Register(new CommandRegistration(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
                 () => media.CanTogglePanel, media.TogglePanelByShortcut, Priority: 100));

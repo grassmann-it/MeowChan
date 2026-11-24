@@ -189,7 +189,7 @@ public sealed class EffectiveShortcutBindings
         ["media.rating.set-1"] = 9, ["media.rating.set-2"] = 9, ["media.rating.set-3"] = 9, ["media.rating.set-4"] = 9,
         ["media.rating.set-5"] = 9, ["media.rating.clear"] = 9,
         // New in revision 9: the reader's media sidebar (R8).
-        ["reader.sidebar.toggle"] = 9, ["reader.sidebar.previous-media"] = 9, ["reader.sidebar.next-media"] = 9,
+        ["media.sidebar.info"] = 9, ["reader.sidebar.toggle"] = 9, ["reader.sidebar.previous-media"] = 9, ["reader.sidebar.next-media"] = 9,
         // New in revision 9: the media page's focus mode (M4), Shift+F next to the favourite's F.
         ["media.focus-mode"] = 9,
         // New in revision 9 (PT3): the keys of the tagging mode in the gallery. They live in their own context ("gallery-tagging"), so they

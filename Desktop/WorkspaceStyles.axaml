@@ -3,6 +3,7 @@
         xmlns:ursa="https://irihi.tech/ursa">
     <Styles.Resources>
         <ResourceDictionary>
+            <SolidColorBrush x:Key="Workspace.MediaScrim">#D2181A1F</SolidColorBrush>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="Workspace.Background">#121416</SolidColorBrush>
@@ -1505,6 +1506,14 @@
     <Style Selector="ToggleButton.rating-star:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
+    <Style Selector="Border.media-sidebar-overlay Button /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.media-sidebar-overlay Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#F0181A1F" />
+    </Style>
+
     <!-- The one hairline of the quick tag popover and the gallery tag panel: between the decision row (favourite, rating) and the tag field. Its own 4 dip
          above and below add to the field area's 8 dip spacing: 12 dip of air on both sides. -->
     <Style Selector="Button.quick-tag-compact-action">
@@ -1518,11 +1527,11 @@
          transparent at rest (the padding gives it back), ControlBorder under the pointer, the accent when pressed or focused by the keyboard.
          The checked fill of a toggle is switched off: the filled gold star is the saved state. -->
     <Style Selector="ToggleButton.gallery-favorite-badge">
-        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="White" /><Setter Property="Padding" Value="7,3" />
     </Style>
     <Style Selector="ToggleButton.gallery-favorite-badge /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="ToggleButton.gallery-favorite-badge:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="#F0181A1F" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="White" />
@@ -1536,7 +1545,7 @@
     <!-- Disabled: the dark scrim stays (a Muted label would be dark on dark in Light), dimmed to 0.75 with no hover, focus or pressed state. -->
     <Style Selector="ToggleButton.gallery-favorite-badge:disabled, ToggleButton.gallery-favorite-badge:checked:disabled, ToggleButton.gallery-favorite-badge:disabled:pointerover, ToggleButton.gallery-favorite-badge:checked:disabled:pointerover, ToggleButton.gallery-favorite-badge:disabled:pressed, ToggleButton.gallery-favorite-badge:checked:disabled:pressed"><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="ToggleButton.gallery-favorite-badge:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="Slider.media-slider">
         <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />

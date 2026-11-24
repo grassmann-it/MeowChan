@@ -17,6 +17,7 @@ internal sealed class MediaPositionPill : Border
     };
     private readonly Path _check = WorkspaceIcons.Create(WorkspaceIcons.Check, inheritForeground: false);
     private string? _short, _bare;
+    internal string? Bare => _bare;
     internal bool HasPosition => _short != null;
 
     protected override System.Type StyleKeyOverride => typeof(Border);

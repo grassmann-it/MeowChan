@@ -188,6 +188,12 @@ public partial class ArchivePage
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
+        sidebar.SaveInfoMode = mode =>
+        {
+            ApplyReaderMediaPreferences(ReaderMedia with { MediaSidebarInfo = mode });
+            if (SaveReaderMediaSwitches is { } save)
+                OpenActions.Start(() => save(config => config.MediaSidebarInfo = mode), "media.sidebar.info");
+        };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
@@ -379,6 +385,7 @@ public partial class ArchivePage
             force = true;
         }
         if (_mediaSidebar is not { } sidebar || _mediaSidebarSplitter is not { } splitter) return;
+        sidebar.ConfigureInfo(media);
         double gaps = large ? 0 : 2 * ReaderMediaSidebarRules.ArchiveViewGap;
         double width = ReaderMediaSidebarRules.EffectiveWidth(media.SidebarWidth, readerWidth, gaps);
         if (!force && shown == _mediaSidebarShown && media.SidebarRight == _mediaSidebarRight && (!shown || width == _mediaSidebarAppliedWidth)) return;
