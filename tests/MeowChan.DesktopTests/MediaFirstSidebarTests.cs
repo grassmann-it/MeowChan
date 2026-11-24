@@ -24,6 +24,8 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class MediaFirstSidebarTests
 {
+    private static readonly string[] GearEntries = ["autoHide", "facts"];
+
     [Theory]
     [InlineData(SavedMediaKind.Image, "sample.jpg")]
     [InlineData(SavedMediaKind.Video, "sample.webm")]
@@ -387,7 +389,7 @@ public sealed class MediaFirstSidebarTests
                 Click(window, Center(gear, window));
                 ContextMenu menu = Assert.Single(window.OpenedPopups.Select(p => p.Child).OfType<ContextMenu>());
                 MenuItem[] items = menu.Items.Cast<MenuItem>().ToArray();
-                Assert.Equal(new[] { "autoHide", "facts" }, items.Select(item => item.Tag));
+                Assert.Equal(GearEntries, items.Select(item => Assert.IsType<string>(item.Tag)));
                 return (menu, items);
             }
             var first = Open();

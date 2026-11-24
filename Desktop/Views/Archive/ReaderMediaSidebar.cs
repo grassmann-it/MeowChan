@@ -252,6 +252,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private readonly MediaSidebarFacts _facts = new();
     private GalleryVideoPlayer? _factPlayer;
     private int _videoFactRevision;
+    private GalleryVideoPlayer? _readingTrackDimensions;
     private TimeSpan? _videoDuration;
     private (int Width, int Height)? _videoSize;
     private string? _location, _author, _posted, _provenance;
@@ -762,15 +763,36 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void RefreshVideoSize()
     {
-        if (_videoFactRevision != _mediumRevision || _factPlayer?.SourceSize is not { } size || _videoSize == size) return;
-        _videoSize = size;
-        RefreshFacts();
+        if (_videoFactRevision != _mediumRevision || _videoSize.HasValue || _factPlayer is not { } player ||
+            player.SourceSize == null || ReferenceEquals(_readingTrackDimensions, player)) return;
+        _readingTrackDimensions = player;
+        _ = ReadVideoSizeAsync(player, _mediumRevision);
+    }
+
+    private async Task ReadVideoSizeAsync(GalleryVideoPlayer player, int revision)
+    {
+        try
+        {
+            if (await player.ReadTrackDimensionsAsync() is not { } size ||
+                revision != _mediumRevision || !ReferenceEquals(_factPlayer, player)) return;
+            _videoSize = size;
+            RefreshFacts();
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            Serilog.Log.Debug(error, "Could not read the sidebar video's track dimensions");
+        }
+        finally
+        {
+            if (ReferenceEquals(_readingTrackDimensions, player)) _readingTrackDimensions = null;
+        }
     }
 
     private void RefreshVideoDuration(TimeSpan? duration)
     {
         if (_videoFactRevision != _mediumRevision || duration == null || _videoDuration == duration) return;
         _videoDuration = duration;
+        RefreshVideoSize();
         RefreshFacts();
     }
 

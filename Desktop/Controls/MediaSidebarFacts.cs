@@ -45,6 +45,7 @@ internal sealed class MediaSidebarFacts : Grid
     }
 
     private readonly Field[] _fields = [new(), new(), new(), new(), new(), new()];
+    private readonly TextBlock[] _separators = [new(), new()];
     private int _columns;
 
     internal MediaSidebarFacts()
@@ -53,6 +54,16 @@ internal sealed class MediaSidebarFacts : Grid
         ColumnSpacing = 12;
         RowSpacing = 4;
         foreach (Field field in _fields) Children.Add(field);
+        for (int row = 0; row < _separators.Length; ++row)
+        {
+            var dot = _separators[row];
+            dot.Text = "·";
+            dot.Classes.Add("workspace-meta");
+            AutomationProperties.SetAccessibilityView(dot, AccessibilityView.Raw);
+            SetRow(dot, row);
+            SetColumn(dot, 1);
+            Children.Add(dot);
+        }
     }
 
     internal void Show(string location, string? author, string? posted, string file, string? size, string? dimensions, string? sizeDescription)
@@ -71,30 +82,46 @@ internal sealed class MediaSidebarFacts : Grid
         if (_columns != columns)
         {
             _columns = columns;
-            ColumnDefinitions = columns == 3 ? new("*,*,*") : new("*,*");
+            ColumnDefinitions = columns switch { 3 => new("*,*,*"), 2 => new("*,*"), _ => new("Auto,Auto,*") };
             RowDefinitions = columns == 2 ? new("Auto,Auto,Auto") : new("Auto,Auto");
-        }
-        // At the smallest width only location/author and date/dimensions remain; all values retain their accessible labels.
-        int layoutColumns = ColumnDefinitions.Count;
-        double columnWidth = Math.Max(0, (availableSize.Width - (layoutColumns - 1) * ColumnSpacing) / layoutColumns);
-        for (int column = 0; column < layoutColumns; ++column)
-        {
-            double labelWidth = 0;
-            for (int i = column; i < _fields.Length && columns > 1; i += columns)
+            ColumnSpacing = columns == 1 ? 4 : 12;
+            foreach (var dot in _separators) dot.IsVisible = columns == 1;
+            for (int i = 0; i < _fields.Length; ++i)
             {
-                _fields[i].Label.IsVisible = true;
-                _fields[i].Label.Measure(Size.Infinity);
-                labelWidth = Math.Max(labelWidth, _fields[i].Label.DesiredSize.Width);
+                var field = _fields[i];
+                bool narrow = columns == 1;
+                field.Label.IsVisible = !narrow;
+                field.IsVisible = !narrow || i is 0 or 1 or 2 or 5;
+                field.ColumnSpacing = narrow ? 0 : 4;
+                if (narrow) field.ColumnDefinitions[0].Width = new GridLength(0);
+                SetColumn(field, narrow ? i % 2 * 2 : i % columns);
+                SetRow(field, narrow ? i < 2 ? 0 : 1 : i / columns);
             }
-            for (int i = column; i < _fields.Length; i += layoutColumns)
+        }
+
+        if (columns == 1)
+        {
+            // Give location and date their natural width while leaving room for the author and dimensions.
+            _fields[1].Measure(Size.Infinity);
+            _fields[5].Measure(Size.Infinity);
+            _separators[0].Measure(Size.Infinity);
+            double valuesWidth = Math.Max(0, availableSize.Width - 2 * ColumnSpacing - _separators[0].DesiredSize.Width);
+            double trailing = Math.Max(_fields[1].DesiredSize.Width, _fields[5].DesiredSize.Width);
+            ColumnDefinitions[0].MaxWidth = valuesWidth - Math.Min(trailing, valuesWidth / 2);
+        }
+        else
+        {
+            double columnWidth = Math.Max(0, (availableSize.Width - (columns - 1) * ColumnSpacing) / columns);
+            for (int column = 0; column < columns; ++column)
             {
-                Field field = _fields[i];
-                field.Label.IsVisible = columns > 1;
-                field.IsVisible = columns > 1 || i is 0 or 1 or 2 or 5;
-                field.ColumnSpacing = columns == 1 ? 0 : 4;
-                field.ColumnDefinitions[0].Width = new GridLength(Math.Min(columnWidth * 0.4, labelWidth));
-                SetColumn(field, column);
-                SetRow(field, columns == 1 ? i < 2 ? 0 : 1 : i / columns);
+                double labelWidth = 0;
+                for (int i = column; i < _fields.Length; i += columns)
+                {
+                    _fields[i].Label.Measure(Size.Infinity);
+                    labelWidth = Math.Max(labelWidth, _fields[i].Label.DesiredSize.Width);
+                }
+                for (int i = column; i < _fields.Length; i += columns)
+                    _fields[i].ColumnDefinitions[0].Width = new GridLength(Math.Min(columnWidth * 0.4, labelWidth));
             }
         }
         return base.MeasureOverride(availableSize);

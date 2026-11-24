@@ -28,6 +28,7 @@ public partial class MainWindow
 
     private void RegisterMediaSidebarInfoCommands()
     {
+        if (_shortcutRouter == null) return;
         foreach (string id in new[] { "media.sidebar.info", "media.sidebar.autohide" })
         {
             void Report(string? hint)

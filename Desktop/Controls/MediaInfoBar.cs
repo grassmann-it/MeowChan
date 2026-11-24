@@ -20,6 +20,7 @@ internal sealed class MediaInfoBar : Grid
     private readonly ToggleButton _toggle = new() { Name = "ReaderMediaSidebarTagsToggle" };
     private readonly Button _empty = new() { Name = "ReaderMediaSidebarTagsEmpty" };
     private readonly TextBlock _count = new();
+    private readonly TextBlock _zero = new() { Text = "0" };
     internal ToggleButton Expand { get; } = new() { Name = "ReaderMediaSidebarExpand", Width = 32, Height = 32, MinWidth = 0,
         Padding = new Thickness(0), Focusable = false, IsTabStop = false, Classes = { WorkspaceIcons.SquareClass } };
     private readonly Control _expansionArrow = Chevron();
@@ -50,7 +51,7 @@ internal sealed class MediaInfoBar : Grid
         _edit.Click += (_, _) => edit(_edit);
         Expand.Content = _expansionArrow;
         _toggle.Content = Horizontal(CommandBindings.IconFromKey("tag", 16), _count);
-        _empty.Content = Horizontal(CommandBindings.IconFromKey("tag", 16), new TextBlock { Text = "0" });
+        _empty.Content = Horizontal(CommandBindings.IconFromKey("tag", 16), _zero);
         foreach (Button button in new Button[] { _toggle, _empty })
         {
             button.Classes.Add("ghost");
@@ -148,27 +149,31 @@ internal sealed class MediaInfoBar : Grid
         double width = Math.Max(0, availableSize.Width - 2 * inset);
         const double stars = 5 * WorkspaceMetrics.RatingStarMinWidth;
         const double gap = 4;
-        Button count = _tagCount == 0 ? _empty : _toggle;
         double countInset = width < 232 ? 0 : 8;
         _toggle.Padding = _empty.Padding = new Thickness(countInset, 0);
-        width = Math.Max(0, width - 36);
-        count.Measure(Size.Infinity);
+        double expandWidth = Expand.Width + gap;
+        width = Math.Max(0, width - expandWidth);
+        var digits = new FormattedText(_count.Text ?? "0", Texts.Culture, FlowDirection,
+            new Typeface(_count.FontFamily, _count.FontStyle, _count.FontWeight), _count.FontSize, _count.Foreground);
+        double tagButtonWidth = 16 + gap + Math.Ceiling(digits.WidthIncludingTrailingWhitespace) + 2 * countInset + 2;
         var text = new FormattedText(_editLabel.Text ?? "", Texts.Culture, FlowDirection,
             new Typeface(_editLabel.FontFamily, _editLabel.FontStyle, _editLabel.FontWeight), _editLabel.FontSize, _editLabel.Foreground);
         double editWidth = Math.Ceiling(text.WidthIncludingTrailingWhitespace) + 16 + 8 + 24 + 2;
-        double countWidth = Math.Max(64, count.DesiredSize.Width);
+        double countWidth = Math.Max(64, tagButtonWidth);
         bool label = width > 288 && width >= stars + countWidth + gap + editWidth + 8;
         _edit.Classes.Set(WorkspaceIcons.SquareClass, !label);
         _editLabel.IsVisible = label;
         _editContent.Spacing = label ? 8 : 0;
         _edit.Width = label ? editWidth : 32;
+        // In a very narrow bar the tag icon keeps its target; its tooltip and accessible name include the count.
+        _count.IsVisible = _zero.IsVisible = width - stars - gap - _edit.Width >= tagButtonWidth;
         _edit.Padding = new Thickness(label ? 12 : 0, 0);
         _inline = _tagCount > 0 && width - stars - countWidth - _edit.Width - 2 * gap >= 200;
         _toggle.IsVisible = _tagCount > 0 && !_inline;
         _chips.IsVisible = _tagCount > 0 && (_expanded || _inline);
         _actions.Margin = new Thickness(inset, 4);
         SetRow(_chips, _inline ? 0 : 1);
-        _chips.Margin = _inline ? new Thickness(inset + stars + gap, 0, inset + _edit.Width + gap + 36, 0)
+        _chips.Margin = _inline ? new Thickness(inset + stars + gap, 0, inset + _edit.Width + gap + expandWidth, 0)
             : new Thickness(inset, 0, inset, 4);
         return base.MeasureOverride(availableSize);
     }

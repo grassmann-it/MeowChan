@@ -37,6 +37,17 @@ internal sealed partial class GalleryVideoPlayer
 
     /// <summary>The video's own size once known: the decoded frame on the software surface, the player's report on Windows.</summary>
     internal (int Width, int Height)? SourceSize => _sourceSize;
+    // File facts use the visible video track. A software output frame may include decoder padding.
+    internal Task<(int Width, int Height)?> ReadTrackDimensionsAsync() =>
+        VideoPlaybackObservation.RunAsync<Playback, (int Width, int Height)?>(_operations.WaitAsync, _operations.Release,
+            _lifetime, _generation, () => _playback, static playback => playback.Generation, static playback =>
+            {
+                MediaTrack track = playback.Media.Tracks.FirstOrDefault(track => track.TrackType == TrackType.Video);
+                var video = track.Data.Video;
+                return video.Width is > 0 and <= int.MaxValue && video.Height is > 0 and <= int.MaxValue
+                    ? ((int)video.Width, (int)video.Height) : null;
+            }, static _ => null);
+
     /// <summary>The area the picture is placed in (the video surface's cell, in dip).</summary>
     internal Size SurfaceSize => SurfaceControl.Bounds.Size;
     internal Control SurfaceControl => UsesSoftwareVideo ? _softwareHost : _video;
