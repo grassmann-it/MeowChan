@@ -9,6 +9,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -221,6 +222,53 @@ public sealed class SavedMediaReaderTests
             PressArrow(window, PhysicalKey.ArrowLeft);
             Assert.Equal(0, page.Grid.SelectedIndex);
             WaitUntil(() => ReferenceEquals(rows[0], page.PanelRow));
+        }
+        finally
+        {
+            page.EndLifetime();
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void NarrowMediaPageShowsThePanelWhenFocusModeHidesTheToolbar() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        MediaPage page = new(_ => throw new InvalidOperationException("Use the fixture snapshot"))
+        {
+            IsAvailable = true,
+            PanelMinimumPageWidthSource = () => Config.MediaPanelMinimumPageWidthMinimum
+        };
+        Window window = new() { Width = 832, Height = 700, Content = page };
+        try
+        {
+            typeof(MediaPage).GetField("_snapshot", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(page, new MediaLibrarySnapshot([MediaTagCountsTests.Entry(1)], [], [], complete: true));
+            page.ResetFilters();
+            page.ApplyLayout(page.PageLayout with { Panel = true, TagList = false }, save: false);
+            window.Show();
+            Layout(window);
+            Grid body = page.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == "MediaBodyRow");
+            Grid content = page.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == "MediaContentRow");
+            Control toolbar = page.FocusHiddenRows[0];
+            double width = body.Bounds.Width;
+            Assert.True(toolbar.IsEffectivelyVisible);
+            Assert.False(page.IsPanelShown);
+
+            page.ToggleFocusModeByShortcut();
+            Layout(window);
+            Assert.Equal(width, body.Bounds.Width);
+            Assert.False(toolbar.IsEffectivelyVisible);
+            Assert.True(page.IsPanelShown);
+            ColumnDefinition panel = content.ColumnDefinitions[page.PageLayout.PanelSide == MediaPanelSide.Right ? 2 : 0];
+            Assert.True(panel.ActualWidth > panel.MinWidth);
+            Assert.True(panel.MaxWidth > panel.ActualWidth);
+
+            page.FocusExitButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Layout(window);
+            Assert.Equal(width, body.Bounds.Width);
+            Assert.True(toolbar.IsEffectivelyVisible);
+            Assert.False(page.IsPanelShown);
         }
         finally
         {

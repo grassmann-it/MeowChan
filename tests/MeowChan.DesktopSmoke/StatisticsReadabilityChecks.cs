@@ -21,7 +21,7 @@ internal static class StatisticsReadabilityChecks
         {
             Persist = false, SampleIntervalMs = 2500, HistorySamples = 300
         });
-        StatisticsPage page = new();
+        using StatisticsPage page = new();
         page.Attach(hub, null);
         // This isolated page fixture has no MainWindow work-view. Its intended compact/expanded
         // variants are selected explicitly by the page's actual source-viewport width.
@@ -107,7 +107,6 @@ internal static class StatisticsReadabilityChecks
         }
         finally
         {
-            page.EndLifetime();
             host.Close();
             Texts.SetLanguage(language);
         }
@@ -119,7 +118,7 @@ internal static class StatisticsReadabilityChecks
         IoSourceStats source = new("Synthetic source", counts, counts, counts, new IoRates(NetDown: 131072, NetUp: 0, DiskWrite: 65536, DiskRead: 32768, Requests: 1));
         return new IoStatsSnapshot
         {
-            RetentionDays = 7, Rate = source.Rate, Sources = [source], Total = source,
+            RetentionDays = 7, Rate = source.Rate, HasFreshSample = true, Sources = [source], Total = source,
             Series = new IoSeries(capacity: 300, count: 4, netDown: [0, 65536, 98304, 131072], netUp: [0, 0, 0, 0], diskWrite: [0, 0, 32768, 65536], diskRead: [0, 0, 0, 32768], requests: [0, 1, 1, 1])
         };
     }

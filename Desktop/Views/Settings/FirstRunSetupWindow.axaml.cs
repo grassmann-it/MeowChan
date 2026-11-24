@@ -318,7 +318,6 @@ internal partial class FirstRunSetupWindow : Window
         if (_busy || _closed) return;
         _hasAction = true;
         FirstRunSetupRawDraft raw = SynchronizeDraft();
-        ClearActionErrors();
         DownloadDestinationResult syntax = DownloadDestinationValidator.Normalize(raw.Folder, _baseline.DownloadPathBaseDirectory);
         if (syntax.NormalizedPath is { } path) await CheckAsync(path);
         else ReportInvalidFolder();
