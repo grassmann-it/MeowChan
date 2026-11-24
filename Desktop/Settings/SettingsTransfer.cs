@@ -213,6 +213,8 @@ public static class SettingsTransfer
             ReaderMediaSidebar = source.ReaderMediaSidebar,
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth,
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope,
+            MediaSidebarAutoHide = source.MediaSidebarAutoHide,
+            MediaSidebarFacts = source.MediaSidebarFacts,
             MediaSidebarInfo = source.MediaSidebarInfo,
             MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree,
             MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare,

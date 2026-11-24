@@ -48,7 +48,12 @@ public partial class MediaPage
         if (action == FavoriteKeyAction.None || CommandRouter.IsNativeInput(e.Source, e.Key) || _panelRow is not { } row) return false;
         e.Handled = true;
         if (FavoriteKeyIsRepeat(e)) return true;
-        if (PanelFavoriteAvailable()) FavoriteKeyTask = WriteFavoriteKeyAsync(action, new[] { row });
+        if (PanelFavoriteAvailable())
+        {
+            bool marked = PendingFavorite?.Invoke(row.Entry) ?? row.State?.Favorite == MediaLibraryFlag.Yes;
+            foreach (var write in FavoriteKeys.Writes(action, new bool?[] { marked }))
+                FavoriteKeyTask = SetTileFavoriteAsync(row.Entry, write.Selected);
+        }
         return true;
     }
 

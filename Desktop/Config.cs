@@ -640,6 +640,8 @@ namespace MeowChan
             "OFF" => "Off", "OVERLAY" => "Overlay", "ALWAYS" => "Always", _ => "Auto"
         };
         private string _mediaSidebarInfo = "Auto";
+        public bool MediaSidebarAutoHide { get; set; }
+        public bool MediaSidebarFacts { get; set; } = true;
         public string MediaSidebarInfo { get => _mediaSidebarInfo; set => _mediaSidebarInfo = NormalizeSidebarInfo(value); }
 
         internal const int MediaSidebarInfoMinimumFreeMinimum = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeMinimum;
@@ -2157,6 +2159,8 @@ namespace MeowChan
                 ReaderMediaSidebar = ReaderMediaSidebar,
                 ReaderMediaSidebarSide = ReaderMediaSidebarSide,
                 ReaderMediaSidebarScope = ReaderMediaSidebarScope,
+                MediaSidebarAutoHide = MediaSidebarAutoHide,
+                MediaSidebarFacts = MediaSidebarFacts,
                 MediaSidebarInfo = MediaSidebarInfo,
                 MediaSidebarInfoMinimumFree = MediaSidebarInfoMinimumFree,
                 MediaSidebarInfoMaximumShare = MediaSidebarInfoMaximumShare,
@@ -2453,6 +2457,8 @@ namespace MeowChan
             ReaderMediaSidebar = source.ReaderMediaSidebar;
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
+            MediaSidebarAutoHide = source.MediaSidebarAutoHide;
+            MediaSidebarFacts = source.MediaSidebarFacts;
             MediaSidebarInfo = source.MediaSidebarInfo;
             MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree;
             MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;
@@ -2723,6 +2729,8 @@ namespace MeowChan
             ReaderMediaSidebar = source.ReaderMediaSidebar;
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
+            MediaSidebarAutoHide = source.MediaSidebarAutoHide;
+            MediaSidebarFacts = source.MediaSidebarFacts;
             MediaSidebarInfo = source.MediaSidebarInfo;
             MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree;
             MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;

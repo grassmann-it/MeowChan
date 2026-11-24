@@ -61,7 +61,11 @@ internal sealed partial class ReaderMediaSidebar
     private ReaderMediaPreferences _infoPreferences = ReaderMediaPreferences.Default;
     private SidebarOverlayIdle _idle;
     private long? _fadeStarted;
-    private bool? _detailsOverride;
+    private readonly Grid _layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+    private readonly OverlayLayer _overlayLayer = new() { ZIndex = 2 };
+    private readonly Grid _dockedHead = new();
+    internal Button SettingsButton { get; } = new() { Name = "ReaderMediaSidebarSettings" };
+    internal Action<Action<Config>>? SaveSidebarSetting { get; set; }
     private bool _barsHidden;
     internal Action<string>? SaveInfoMode { get; set; }
 
@@ -73,25 +77,45 @@ internal sealed partial class ReaderMediaSidebar
 
     internal void ConfigureInfo(ReaderMediaPreferences preferences)
     {
-        if (_infoPreferences.MediaSidebarInfo != preferences.MediaSidebarInfo) _detailsOverride = null;
         _infoPreferences = preferences;
-        UpdateInfoLayout();
+        PositionBars();
+        RevealBars();
     }
 
-    private bool InfoEnabled => _detailsOverride ?? _infoPreferences.MediaSidebarInfo != "Off";
+    private bool InfoEnabled => _infoPreferences.MediaSidebarInfo != "Off";
 
     internal void ToggleDetails()
     {
-        _detailsOverride = !InfoEnabled;
-        RevealBars();
+        bool facts = !_infoPreferences.MediaSidebarFacts;
+        ConfigureInfo(_infoPreferences with { MediaSidebarFacts = facts });
+        SaveSidebarSetting?.Invoke(config => config.MediaSidebarFacts = facts);
         _live.Text = ReaderMediaSidebarRules.HeaderText(_postLine, CommandCatalog.Label("media.sidebar.info"),
-            Texts.T(InfoEnabled ? "workview.column.on" : "settings.reader.mediaSidebarInfo.off"));
+            Texts.T(facts ? "workview.column.on" : "settings.reader.mediaSidebarInfo.off"));
     }
 
-    internal void ResetInfoOverride()
+    internal void ToggleAutoHide()
     {
-        _detailsOverride = null;
-        UpdateInfoLayout();
+        bool hide = !_infoPreferences.MediaSidebarAutoHide;
+        ConfigureInfo(_infoPreferences with { MediaSidebarAutoHide = hide });
+        SaveSidebarSetting?.Invoke(config => config.MediaSidebarAutoHide = hide);
+    }
+
+    internal void ResetInfoOverride() => UpdateInfoLayout();
+
+    private void ToggleInfoBar()
+    {
+        string mode = InfoEnabled ? "Off" : "Always";
+        ConfigureInfo(_infoPreferences with { MediaSidebarInfo = mode });
+        SaveInfoMode?.Invoke(mode);
+    }
+
+    private ContextMenu SettingsMenu()
+    {
+        var menu = new ContextMenuBuilder()
+            .Check("autoHide", Texts.T("viewer.playback.autoHide"), _infoPreferences.MediaSidebarAutoHide, ToggleAutoHide)
+            .Check("facts", CommandCatalog.Label("media.sidebar.info"), _infoPreferences.MediaSidebarFacts, ToggleDetails)
+            .Check("bar", Texts.T("settings.reader.mediaSidebarInfo"), InfoEnabled, ToggleInfoBar);
+        return menu.Build()!;
     }
 
     private void RestoreDetailsAfterTagEditor()
@@ -111,7 +135,7 @@ internal sealed partial class ReaderMediaSidebar
     }
 
     internal bool IsInfoMenuSource(object? source) =>
-        source is Visual visual && (ReferenceEquals(visual, InfoToggle) || InfoToggle.IsVisualAncestorOf(visual));
+        source is Visual visual && (InBar(InfoToggle, visual) || InBar(SettingsButton, visual));
 
     private bool IsOverlaySource(object? source) => source is Visual visual &&
         (InBar(_headBar, visual) || InBar(_details, visual) || InBar(_closeFace, visual));
@@ -126,7 +150,10 @@ internal sealed partial class ReaderMediaSidebar
         _headBar.Child = DarkScope(_header);
         _details.Child = DarkScope(new StackPanel { Children = { _infoBar, _decisionError } });
         _closeFace.Child = DarkScope(Close);
-        _frame.Children.Add(new OverlayLayer { ZIndex = 2, Children = { _headBar, _details, _closeFace } });
+        _frame.Children.Add(_overlayLayer);
+        _layout.Children.Add(_dockedHead);
+        SettingsButton.Click += (_, _) => SettingsMenu().Open(SettingsButton);
+        InfoToggle.ContextRequested += (_, e) => { SettingsMenu().Open(InfoToggle); e.Handled = true; };
         _frame.SizeChanged += (_, _) => PositionBars();
         PositionBars();
         AddHandler(PointerMovedEvent, (_, _) => RevealBars(), RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -162,6 +189,25 @@ internal sealed partial class ReaderMediaSidebar
 
     private void PositionBars()
     {
+        bool overlay = _infoPreferences.MediaSidebarAutoHide;
+        Panel head = overlay ? _overlayLayer : _dockedHead;
+        Panel foot = overlay ? _overlayLayer : _layout;
+        if (_headBar.Parent != head)
+        {
+            foreach (Control bar in new Control[] { _headBar, _details, _closeFace })
+                (bar.Parent as Panel)?.Children.Remove(bar);
+            head.Children.Add(_headBar);
+            foot.Children.Add(_details);
+            head.Children.Add(_closeFace);
+            Grid.SetRow(_details, overlay ? 0 : 2);
+            _headBar[!BackgroundProperty] = new DynamicResourceExtension(overlay ? "Workspace.MediaScrim" : "Workspace.Card");
+            _details[!BackgroundProperty] = new DynamicResourceExtension(overlay ? "Workspace.MediaScrim" : "Workspace.Card");
+            ((ThemeVariantScope)_headBar.Child!).RequestedThemeVariant = overlay ? ThemeVariant.Dark : ThemeVariant.Default;
+            ((ThemeVariantScope)_details.Child!).RequestedThemeVariant = overlay ? ThemeVariant.Dark : ThemeVariant.Default;
+            ((ThemeVariantScope)_closeFace.Child!).RequestedThemeVariant = overlay ? ThemeVariant.Dark : ThemeVariant.Default;
+            _card.Margin = overlay ? default : new Thickness(0, 8, 0, 0);
+            _details.Margin = overlay ? default : new Thickness(0, 8, 0, 0);
+        }
         double inset = _frame.Bounds.Width < 260 ? 4 : 8;
         _headBar.Padding = new Thickness(inset, 4);
         _closeFace.Margin = new Thickness(0, 4, inset, 0);
@@ -174,11 +220,13 @@ internal sealed partial class ReaderMediaSidebar
         _barsHidden = false;
         _headBar.Opacity = _details.Opacity = 1;
         UpdateInfoLayout();
-        if (IsEffectivelyVisible && this.IsAttachedToVisualTree()) _hideOverlay.Start();
+        if (_infoPreferences.MediaSidebarAutoHide && IsEffectivelyVisible && this.IsAttachedToVisualTree()) _hideOverlay.Start();
+        else _hideOverlay.Stop();
     }
 
     internal void ObserveIdle(long now)
     {
+        if (!_infoPreferences.MediaSidebarAutoHide) return;
         bool popup = _cancelTagEditor != null || TopLevel.GetTopLevel(this)?.OpenedPopups.Any(p =>
             p.Child is not ToolTip && p.PlacementTarget is Control anchor && InBar(this, anchor)) == true;
         _idle = _idle.Observe(now, _infoPreferences.ControlsIdleHideMs, _headBar.IsPointerOver || _details.IsPointerOver || _closeFace.IsPointerOver,
@@ -198,6 +246,10 @@ internal sealed partial class ReaderMediaSidebar
 
     private void LocalizeInfo()
     {
+        _header.Localize();
+        SettingsButton.Content = CommandBindings.IconFromKey("settings", 16);
+        ToolTip.SetTip(SettingsButton, Texts.T("settings.title"));
+        AutomationProperties.SetName(SettingsButton, Texts.T("settings.title"));
         CommandBindings.Apply(InfoToggle, "media.sidebar.info", iconOnly: true);
         CommandBindings.Apply(Open, "gallery.open", iconOnly: true);
         ToolTip.SetTip(InfoToggle, CommandBindings.Tooltip("media.sidebar.info"));
@@ -208,7 +260,7 @@ internal sealed partial class ReaderMediaSidebar
     {
         _headBar.IsVisible = !_barsHidden;
         _details.IsVisible = !_barsHidden && _fileName.Length > 0 && (InfoEnabled || _infoBar.EditorAnchorPinned || _decisionError.IsVisible);
-        InfoToggle.IsChecked = InfoEnabled;
+        InfoToggle.IsChecked = _infoPreferences.MediaSidebarFacts;
         _closeFace.Classes.Set("floating", _barsHidden);
         UpdateBadges();
     }

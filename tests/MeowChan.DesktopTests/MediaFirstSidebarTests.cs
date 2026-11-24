@@ -24,6 +24,41 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class MediaFirstSidebarTests
 {
+    [Theory]
+    [InlineData(SavedMediaKind.Image, "sample.jpg")]
+    [InlineData(SavedMediaKind.Video, "sample.webm")]
+    public void HeaderFavoriteClicksTheDisplayedOccurrenceOfAGroupedTile(SavedMediaKind kind, string name) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        MediaPage page = new(_ => throw new InvalidOperationException());
+        MediaLibraryEntry entry = new(BooruMediaIdentity.Thread("42"), "Thread", 1, DateTimeOffset.UnixEpoch, null,
+            "42", 1, null, 0, null, null, "asset", new string('a', 64), 100, "media", "original", name, kind,
+            MediaLibraryPresence.Present, false, false);
+        var row = new MediaLibraryTileRow(new(entry, [entry, entry with { PostId = "43" }]), 0,
+            _ => new(MediaLibraryFlag.No, true, null, true, [], [], null));
+        var writes = new List<(string, MediaLibraryEntry)>();
+        page.ExecuteMediaMenuActionAsync = (command, target, current) =>
+        {
+            Assert.True(current());
+            writes.Add((command, target));
+            return Task.CompletedTask;
+        };
+        ReaderMediaSidebar panel = new() { DecisionKeyContext = "media" };
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        typeof(MediaPage).GetMethod("SetPanelRow", flags)!.Invoke(page, [row]);
+        typeof(MediaPage).GetMethod("DescribePanel", flags)!.Invoke(page, [panel, row]);
+        Window window = new() { Width = 831, Height = 700, Content = panel };
+        try
+        {
+            window.Show();
+            Settle(window);
+            Assert.True(panel.FavoriteButton.IsEffectivelyEnabled);
+            Click(window, Center(panel.FavoriteButton, window));
+            Assert.Equal(("favorites.toggle", entry), Assert.Single(writes));
+        }
+        finally { window.Close(); page.EndLifetime(); }
+    });
+
     [Fact]
     public void MacDetailsAndImportKeepTheirOwnGestures()
     {

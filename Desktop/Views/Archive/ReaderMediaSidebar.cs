@@ -462,8 +462,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
         DetachedFromVisualTree += (_, _) => _decisionPresses.Clear();
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
-        _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, Close) { Name = "ReaderMediaSidebarHeaderRow" };
-        _header.SetFactsContent(_info);
+        _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, SettingsButton, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _header.ReserveCloseSpace(Close);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
@@ -498,7 +497,11 @@ internal sealed partial class ReaderMediaSidebar : Border
             UpdateCardRows();
         };
         UpdateCardRows();
-        Child = new Grid { Children = { _card, _live } };
+        Grid.SetRow(_card, 1);
+        Grid.SetRow(_live, 1);
+        _layout.Children.Add(_card);
+        _layout.Children.Add(_live);
+        Child = _layout;
         InitializeInfo();
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
@@ -669,7 +672,6 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         _mediumRevision++;
         _decisionFailure = null;
-        _header.CloseFacts();
         InvalidateTagEditor();
     }
 
@@ -701,7 +703,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _heading.Text = _postLine.Length > 0 ? _postLine : _fileName.Length > 0 ? _fileName : ShowEmptyTitle ? Texts.T(TitleKey) : string.Empty;
         ToolTip.SetTip(_heading, _heading.Text);
         string size = (_savedBytes ?? _sourceBytes) is long length ? SizeText.Format(length) : "";
-        _header.Describe(_fileName, ReaderMediaSidebarRules.HeaderText("", size, _detail));
+        _header.Describe(_fileName, size);
         _facts.Children.Clear();
         _facts.Add(Texts.T("media.fact.location"), _location);
         _facts.Add(Texts.T("media.fact.author"), _author);

@@ -148,6 +148,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
     internal bool SidebarAlways { get; init; }
     /// <summary>The sidebar sits right of the posts instead of left.</summary>
     internal int ControlsIdleHideMs { get; init; } = Config.ControlsIdleHideMsDefault;
+    internal bool MediaSidebarAutoHide { get; init; }
+    internal bool MediaSidebarFacts { get; init; } = true;
     internal string MediaSidebarInfo { get; init; } = "Auto";
     internal int MediaSidebarInfoMinimumFree { get; init; } = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeDefault;
     internal int MediaSidebarInfoMaximumShare { get; init; } = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareDefault;
@@ -172,6 +174,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         SidebarAlways = config.ReaderMediaSidebarScope == Config.ReaderMediaSidebarScopeAlways,
         SidebarRight = config.ReaderMediaSidebarSide == Config.ReaderMediaSidebarSideRight,
         ControlsIdleHideMs = config.ControlsIdleHideMs,
+        MediaSidebarAutoHide = config.MediaSidebarAutoHide,
+        MediaSidebarFacts = config.MediaSidebarFacts,
         MediaSidebarInfo = config.MediaSidebarInfo,
         MediaSidebarInfoMinimumFree = config.MediaSidebarInfoMinimumFree,
         MediaSidebarInfoMaximumShare = config.MediaSidebarInfoMaximumShare,

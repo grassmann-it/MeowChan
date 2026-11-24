@@ -191,6 +191,11 @@ public partial class ArchivePage
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
+        sidebar.SaveSidebarSetting = update =>
+        {
+            if (SaveReaderMediaSwitches is { } save)
+                OpenActions.Start(() => save(update, []), "media.sidebar.info");
+        };
         sidebar.SaveInfoMode = mode =>
         {
             ApplyReaderMediaPreferences(ReaderMedia with { MediaSidebarInfo = mode });

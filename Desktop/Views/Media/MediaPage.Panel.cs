@@ -74,6 +74,7 @@ public sealed partial class MediaPage
     internal void ConfigureScrubPreviewCache(VideoScrubPreviewCache? cache) => _panelVideoController.ScrubCache = cache;
 
     private ReaderMediaPreferences _panelPreferences = ReaderMediaPreferences.Default;
+    internal Action<Action<Config>>? SavePanelSetting { get; set; }
     internal Action<string>? SavePanelInfoMode { get; set; }
 
     internal void ConfigurePanelInfo(ReaderMediaPreferences preferences)
@@ -117,6 +118,7 @@ public sealed partial class MediaPage
             _panelPreferences = _panelPreferences with { MediaSidebarInfo = mode };
             SavePanelInfoMode?.Invoke(mode);
         };
+        panel.SaveSidebarSetting = update => SavePanelSetting?.Invoke(update);
         panel.Localize();
         panel.ShowEmpty();
         // The drag handle's name and tip exist from the start, not only after the first language change.
@@ -391,8 +393,9 @@ public sealed partial class MediaPage
         panel.Describe(postLine, row.Name, _panelDimensions, OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
             threadPosition: PanelPositionOf(row), savedBytes: entry.Length, mediumKey: PanelVideoKey(entry));
         // Each write freezes the panel row even when the grid refreshes its selection.
-        panel.ConfigureFavorite(PanelFavoriteAvailable, () => row.State?.Favorite == MediaLibraryFlag.Yes,
-            () => ToggleTileFavoriteAsync(entry));
+        panel.ConfigureFavorite(() => ReferenceEquals(_panelRow, row) && PanelFavoriteAvailable(),
+            () => PendingFavorite?.Invoke(entry) ?? row.State?.Favorite == MediaLibraryFlag.Yes,
+            () => ExecuteMediaActionAsync("favorites.toggle", entry, () => ReferenceEquals(_panelRow, row)));
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && _panelShown && ReferenceEquals(_panelRow, row);
         panel.ConfigureRating(() => Current() && !_selectionBusy && ExecuteMediaMenuActionAsync != null && row.State?.RatingKnown == true,
             () => _panelRow?.State?.UserRating, value => ExecuteMediaActionAsync(value is int rating ? "media.rating.set-" + rating : "media.rating.clear", entry, Current));
@@ -401,7 +404,7 @@ public sealed partial class MediaPage
     }
 
     private bool PanelFavoriteAvailable() => !_lifetime.IsCancellationRequested && ExecuteMediaMenuActionAsync != null
-        && _panelRow is { Entry.Presence: MediaLibraryPresence.Present, Tile.IsGroup: false, State.Favorite: not MediaLibraryFlag.Unknown };
+        && _panelRow is { Entry.Presence: MediaLibraryPresence.Present, State.Favorite: not MediaLibraryFlag.Unknown };
 
     // The frame's size in physical pixels; before the first layout an estimate from the configured width and the window height.
     private (double Width, double Height) PanelTarget(ReaderMediaSidebar panel)

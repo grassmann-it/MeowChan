@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan.Desktop.Controls;
 
@@ -14,69 +15,29 @@ internal sealed class MediaCompactHeader : Grid
 {
     private readonly TextBlock _title;
     private readonly MediaPositionPill _pill;
-    private readonly double _actionsWidth;
     private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+    private readonly Button[] _labeled;
+    private readonly TextBlock[] _captions = [new(), new(), new()];
     private string _file = "", _detail = "";
-    private readonly Button _fileButton = new()
-    {
-        Name = "ReaderMediaSidebarFactSummary", Classes = { "ghost" }, Focusable = false, IsTabStop = false,
-        Padding = new Thickness(0), Height = 16, MinHeight = 0, MinWidth = 0, BorderThickness = new Thickness(0),
-        HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Center
-    };
-    private readonly Flyout _facts = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
-    private readonly ScrollViewer _factScroll = new() { Padding = new Thickness(12), MaxHeight = 318,
-        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-
-    internal void SetFactsContent(Control content)
-    {
-        if (_fileButton.Flyout != null)
-        {
-            _factScroll.Content = content;
-            return;
-        }
-        Children.Remove(Meta);
-        SetRow(Meta, 0);
-        SetColumnSpan(Meta, 1);
-        var chevron = WorkspaceIcons.Create(WorkspaceIcons.ChevronDown);
-        chevron.Width = chevron.Height = 12;
-        SetColumn(chevron, 1);
-        _fileButton.Content = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 4, Children = { Meta, chevron } };
-        SetRow(_fileButton, 1);
-        SetColumnSpan(_fileButton, 3);
-        Children.Add(_fileButton);
-        _factScroll.Content = content;
-        _facts.Content = _factScroll;
-        _facts.FlyoutPresenterClasses.Add("quick-tag-popover");
-        _fileButton.Flyout = _facts;
-        _facts.Opening += (_, _) => SizeFacts();
-        SizeChanged += (_, _) => { if (_facts.IsOpen) SizeFacts(); };
-    }
-
-    internal void CloseFacts()
-    {
-        if (_facts.IsOpen) _facts.Hide();
-    }
-
-    private void SizeFacts() => _factScroll.Width = Math.Max(0, Math.Min(Bounds.Width, 480) - 2);
 
     internal TextBlock Meta { get; } = new()
     {
         Name = "ReaderMediaSidebarMeta", Classes = { "workspace-meta" }, MaxLines = 1, Height = 16
     };
 
-    internal MediaCompactHeader(TextBlock title, MediaPositionPill pill, params Button[] buttons)
+    internal MediaCompactHeader(TextBlock title, MediaPositionPill pill, ArchiveFavoriteButton favorite, ToggleButton info, Button open, Button settings, PanelCloseButton close)
     {
         _title = title;
         _pill = pill;
-        RowDefinitions = new RowDefinitions("32,16");
-        const int actionSpacing = 4;
-        _actionsWidth = buttons.Length * WorkspaceMetrics.InputHeight + Math.Max(0, buttons.Length - 1) * actionSpacing;
+        _labeled = [favorite, info, open];
+        RowDefinitions = new RowDefinitions("32,Auto");
         ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto");
         Children.Add(title);
-
-        foreach (Button button in buttons)
+        Localize();
+        foreach (Button button in new Button[] { favorite, info, open, settings, close })
         {
             button.Width = button.Height = WorkspaceMetrics.InputHeight;
+            button.MinWidth = 0;
             button.Classes.Add(WorkspaceIcons.SquareClass);
             button.Focusable = button.IsTabStop = false;
             _actions.Children.Add(button);
@@ -86,6 +47,14 @@ internal sealed class MediaCompactHeader : Grid
         SetRow(Meta, 1);
         SetColumnSpan(Meta, 3);
         Children.Add(Meta);
+    }
+
+    internal void Localize()
+    {
+        _captions[0].Text = Texts.T("gallery.decision.favorite");
+        _captions[1].Text = Texts.T("gallery.toolbar.label.info");
+        _captions[2].Text = Texts.T("workview.overview.page.gallery");
+        InvalidateMeasure();
     }
 
     // The live close button stays at this same position when both bars disappear.
@@ -99,22 +68,50 @@ internal sealed class MediaCompactHeader : Grid
     {
         _file = file;
         _detail = detail;
-        _fileButton.IsVisible = file.Length > 0 || detail.Length > 0;
+
         InvalidateMeasure();
     }
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        double room = Math.Max(0, availableSize.Width - _actionsWidth);
-        _title.MaxWidth = Math.Max(64, room);
+        double width = availableSize.Width;
+        const double icons = 5 * WorkspaceMetrics.InputHeight + 4 * 4;
         string prefix = _pill.Bare ?? "";
         string Line(string file) => ReaderMediaSidebarRules.HeaderText(prefix, file, _detail);
-        double fileRoom = availableSize.Width - (_fileButton.Flyout == null ? 0 : 16);
+        double titleWidth = MeasureText(_title, _title.Text);
+        double fileMinimum = MeasureText(Meta, Line(_file.Length == 0 ? "" : "abcdefghij…xyz.webm"));
+        double free = width - icons - titleWidth - fileMinimum - 24;
+        bool single = free >= 0 && width >= 480;
+        // Add labels in reverse order of removal: gallery, favorite, then info.
+        bool fits = single;
+        foreach (int i in new[] { 2, 0, 1 })
+        {
+            double extra = Math.Ceiling(MeasureText(Meta, _captions[i].Text)) + 16;
+            fits = fits && free >= extra;
+            if (_labeled[i] is ArchiveFavoriteButton star) star.SetCaption(fits ? _captions[i].Text : null);
+            else
+            {
+                string command = i == 1 ? "media.sidebar.info" : "gallery.open";
+                if (fits) CommandBindings.ApplyLabeled(_labeled[i], command, _captions[i].Text!);
+                else CommandBindings.Apply(_labeled[i], command, iconOnly: true);
+            }
+            _labeled[i].Width = 32 + (fits ? extra : 0);
+            _labeled[i].Classes.Set(WorkspaceIcons.SquareClass, !fits);
+            _labeled[i].Padding = new Thickness(fits ? 4 : 0, 0);
+            if (fits) free -= extra;
+        }
+        _actions.Measure(Size.Infinity);
+        _title.MinWidth = 0;
+        _title.MaxWidth = Math.Max(0, width - _actions.DesiredSize.Width - 4);
+        SetRow(Meta, single ? 0 : 1);
+        SetColumn(Meta, single ? 1 : 0);
+        SetColumnSpan(Meta, single ? 1 : 3);
+        Meta.VerticalAlignment = VerticalAlignment.Center;
+        Meta.Margin = single ? new Thickness(16, 0, 8, 0) : default;
+        double fileRoom = single ? width - titleWidth - _actions.DesiredSize.Width - 24 : width;
         string full = Line(_file);
         string file = MediaFactGrid.FitFileName(_file, candidate => MeasureText(Meta, Line(candidate)) <= fileRoom);
         Meta.Text = Line(file);
-        ToolTip.SetTip(_fileButton, full);
-        AutomationProperties.SetName(_fileButton, full);
         ToolTip.SetTip(Meta, full);
         AutomationProperties.SetName(Meta, full);
         return base.MeasureOverride(availableSize);
