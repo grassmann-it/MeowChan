@@ -17,12 +17,13 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Persistence;
+using Xunit.Abstractions;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Avalonia global state")]
-public sealed class BoardAdmissionSuggestionTests
+public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
 {
     private const string Board = BoardArchiveHostTests.BoardUrl;
     private const string Rpt = "/rpt/";
@@ -230,7 +231,10 @@ public sealed class BoardAdmissionSuggestionTests
                     Layout(dialog);
                     return Controls<CheckBox>(dialog, "BoardAdmissionSuggestion." + Rpt).Any();
                 }, "proposal from 5000 local archive titles");
-                Assert.True(elapsed!.Elapsed < TimeSpan.FromMilliseconds(200), $"Suggestion displayed after {elapsed.Elapsed.TotalMilliseconds:F0} ms");
+                TimeSpan timeToShowSuggestion = elapsed!.Elapsed;
+                output.WriteLine($"Suggestion from 5,000 local archive titles displayed after {timeToShowSuggestion.TotalMilliseconds:F1} ms.");
+                Assert.True(timeToShowSuggestion < TimeSpan.FromMilliseconds(200),
+                    $"Suggestion displayed after {timeToShowSuggestion.TotalMilliseconds:F1} ms");
                 Assert.Equal("5,000 saved threads analysed", Find<TextBlock>(dialog, "BoardAdmissionSuggestionsScanned").Text);
             }
             finally { dialog.Close(); }
