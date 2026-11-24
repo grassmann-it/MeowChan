@@ -234,6 +234,7 @@ public partial class ArchivePage
             if (cell != null) cell.Focusable = true;
             if (cell?.Focus(NavigationMethod.Pointer) != true) item?.Focus();
             UpdateActions();
+            FollowSavedMediaSelection();
         }
         (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment),
             SeveralSelectedWith(asset, attachment), playback);
