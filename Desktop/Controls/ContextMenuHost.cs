@@ -66,6 +66,18 @@ internal sealed class ContextMenuHost : IDisposable
         _lastKeyOpen = DateTime.UtcNow;
         e.Handled = true;
         Show(atPointer: false);
+        if (OpenMenu is not { } menu) return;
+
+        // The popup receives focus on open. Avalonia would otherwise close it on the release of its own menu key.
+        Key openingKey = e.Key;
+        menu.AddHandler(InputElement.KeyUpEvent, ConsumeOpeningKeyRelease, RoutingStrategies.Tunnel);
+
+        void ConsumeOpeningKeyRelease(object? sender, KeyEventArgs release)
+        {
+            if (release.Key != openingKey) return;
+            release.Handled = true;
+            menu.RemoveHandler(InputElement.KeyUpEvent, ConsumeOpeningKeyRelease);
+        }
     }
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
