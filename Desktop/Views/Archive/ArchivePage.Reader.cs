@@ -33,11 +33,9 @@ public partial class ArchivePage
         if (IsExternalLinkDialogOpen) { CloseExternalLinkDialog(); return true; }
         if (IsFilenameSearchOpen) { InvalidateFilenameSearch(); return true; }
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
-        // Escape inside the media sidebar only leaves it (R8): the focus goes back to the selected post, before any reader-wide dismissal. Whether the
-        // sidebar is on is a stored layout choice that the × button, the View menu and Primary+Shift+M change; Escape never switches it off (RD-01).
         if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source))
         {
-            if (_mediaSidebar?.InvalidateTagEditor() != true) FocusSelectedPostOrList();
+            if (_mediaSidebar?.InvalidateTagEditor() != true) CloseMediaSidebar();
             return true;
         }
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
@@ -53,16 +51,13 @@ public partial class ArchivePage
             CloseQuotePreview();
             return true;
         }
+        if (DismissReaderQuickSettings()) return true;
         if (!_ended && ReaderFindBar.IsVisible && IsThreadFindSource(source))
         {
-            CloseThreadFind();
+            DismissThreadFind();
             return true;
         }
-        if (!_ended && ReaderTagBar.IsVisible && IsTagBarSource(source))
-        {
-            CloseTagBar(focusOpen: true);
-            return true;
-        }
+        if (!_ended && TryDismissThreadTags(source)) return true;
         if (!_ended && (ReaderFindBar.IsVisible || ReaderTagBar.IsVisible) && IsThreadToolsCloseSource(source))
         {
             CloseThreadTools();
@@ -963,10 +958,9 @@ public partial class ArchivePage
             return;
         }
         // Thread find is a Reader-only command (never a global find): it needs an open thread.
-        if (_thread != null && CommandBindings.Matches(e, "reader.find"))
+        if (_thread != null && CommandBindings.Matches(e, "reader.find") && TryOpenReaderFindByKey(e))
         {
             e.Handled = true;
-            OnOpenThreadFind(null, e);
             return;
         }
         if (_thread != null && ReaderFindBar.IsVisible && TryMoveThreadFindByShortcut(e)) return;

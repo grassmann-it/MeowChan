@@ -12,7 +12,18 @@ public partial class ArchivePage
 {
     private FilterSurfaceController _filterSurface = null!;
 
-    private void InitializeFilterSurface() => _filterSurface = new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface, () => _ended, drivesVisibility: false, overlay: true);
+    private void InitializeFilterSurface()
+    {
+        PopupToggle.Prepare(ArchiveFilters);
+        ArchiveFilters.Classes.Add("surface-toggle");
+        ArchiveSourceFilter.ReleaseEscape = true;
+        ArchiveBoardFilter.ReleaseEscape = true;
+        ArchiveSourceFilter.ProtectComposition = true;
+        ArchiveBoardFilter.ProtectComposition = true;
+        _filterSurface = new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface, () => _ended,
+            drivesVisibility: false, restoreContentFocus: () => ArchiveSelectionList.Focus());
+        ArchiveFilters.IsCheckedChanged += (_, _) => PopupToggle.Present(ArchiveFilters, IsFilterSurfaceOpen);
+    }
 
     // The surface names itself and carries its cross (MD4 overlay header); both follow the language and the cross keeps its name.
     private void LocalizeFilterSurface()
@@ -23,7 +34,7 @@ public partial class ArchivePage
 
     internal bool IsFilterSurfaceOpen => ArchiveFilters.IsChecked == true;
 
-    /// <summary>The filters shortcut: opens the filter surface and moves into it, or closes it and returns to the toggle.</summary>
+    /// <summary>The filters shortcut: opens the surface and moves into it, or closes it and returns to results.</summary>
     internal void ToggleFilterSurfaceByShortcut()
     {
         if (_ended) return;

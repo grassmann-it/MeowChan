@@ -152,7 +152,7 @@ public partial class ArchivePage
         else
             Add("thread.show-in-media", () => ShowArchiveSelectionInMedia(ids, lead),
                 () => ShowThreadsInMediaRequested != null, null, count: () => ids.Length);
-        if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id));
+        if (ids.Length == 1) Add("thread.tags", async () => await ToggleThreadTagsAsync(lead.Summary.Id));
         // Post bookmarks are scoped to individual posts, but the manager is still useful from a
         // thread selection: it is the only place to review bookmarks when no post row is open.
         Add("post-bookmarks.open-manager", () => OpenPostBookmarks?.Invoke(),
@@ -210,6 +210,12 @@ public partial class ArchivePage
         builder.Append(unavailable);
         UpdateExplanation();
         builder.Populate(menu);
+        MenuItem? tags = menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "thread.tags"));
+        if (tags != null)
+        {
+            tags.ToggleType = MenuItemToggleType.CheckBox;
+            tags.IsChecked = _thread?.Summary.Id == lead.Summary.Id && ReaderTagBar.IsVisible;
+        }
         // The place of the thread is the continue entry's tooltip and help text (the builder gives enabled entries none).
         if (continueTip != null && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "navigation.continue-reading")) is { } continueItem)
         {
@@ -220,6 +226,7 @@ public partial class ArchivePage
         refresh.Tick += (_, _) =>
         {
             foreach (MenuItem item in menu.Items.OfType<MenuItem>()) CommandBindings.Refresh(item);
+            if (tags != null) tags.IsChecked = _thread?.Summary.Id == lead.Summary.Id && ReaderTagBar.IsVisible;
             UpdateExplanation();
         };
         _archiveMenuRefreshTimers.Add(menu, refresh);

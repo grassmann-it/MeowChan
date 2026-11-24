@@ -838,7 +838,9 @@ public partial class MainWindow
                 && _diagnosticsPage?.TryDismissDiagnosticFilters() == true)
             { e.Handled = true; return; }
             // A search field with text takes its first Escape to clear itself (SearchBox); nothing around it reacts to that key.
-            if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
+            bool readerFindSource = _archivePage?.IsThreadFindSource(e.Source) == true;
+            if ((readerFindSource || _archivePage?.IsTagBarSource(e.Source) == true) && MeowChan.ArchivePage.ReaderInputIsComposing(e.Source)) return;
+            if (!readerFindSource && MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
             if (_selectedPage == WorkspacePage.Tagging && _taggingPage is { StampOpen: true } tagging)
@@ -887,6 +889,9 @@ public partial class MainWindow
         if (CommandBindings.Matches(e, "window.minimize") && !CommandRouter.IsNativeInput(e.Source, e.Key))
         { e.Handled = true; MinimizeWindow(toTray: false); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
+        if ((_selectedPage == WorkspacePage.Archive || _largeReaderOpen) && (_gallery == null || _gallerySuspended)
+            && _archivePage?.TryToggleArchiveColumnsByKey(e) == true)
+        { e.Handled = true; return; }
         if (TryRouteMediaReturn(e)) return;
         // Native video -> image retirement can clear focus before the next key.
         // A Window-source arrow would otherwise reach Avalonia's directional focus

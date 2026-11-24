@@ -31,7 +31,7 @@
                     <!-- AP2: one search field with its scope chip inside (Text / File name / SHA-256), the same as in the reader
                          find bar. Each scope keeps its own draft in its own box; only the chosen one is shown and holds the chip. -->
                     <Grid x:Name="ArchiveSearchRow" wv:WorkViewElement.Id="archive.search.field" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
-                        <controls:SearchBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown">
+                        <controls:SearchBox x:Name="ArchiveSearchText" AutomationProperties.AutomationId="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown">
                             <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ArchiveSearchScope" wv:WorkViewElement.Id="archive.search.scope" /></controls:SearchBox.ScopeChip>
                         </controls:SearchBox>
                         <controls:SearchBox x:Name="ArchiveFilenameQuery" MaxLength="512" IsVisible="False" />
@@ -162,16 +162,15 @@
                             </StackPanel>
                         </ScrollViewer>
                         <!-- U09: the unapplied draft stands visibly above the buttons (like the toggle's marker); Apply filters runs the Search path. -->
-                        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="{StaticResource Workspace.Space.8}" RowSpacing="{StaticResource Workspace.Space.8}">
-                            <TextBlock x:Name="ArchiveFilterDraftNote" Grid.ColumnSpan="2" Classes="workspace-meta" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
+                        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
+                            <TextBlock x:Name="ArchiveFilterDraftNote" Classes="workspace-meta" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
                             <Button x:Name="ArchiveFilterApply" Grid.Row="1" Tag="archive.applyFilters" Classes="localized" Click="OnFilterApplyClick" />
-                            <Button x:Name="ArchiveFilterClose" Grid.Row="1" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
                         </Grid>
                     </Grid>
                 </Border>
                 <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="workspace-section-flush">
                     <Grid RowDefinitions="*,Auto">
-                        <ListBox x:Name="ArchiveThreads" Classes="workspace-selection-bar" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox x:Name="ArchiveThreads" AutomationProperties.AutomationId="ArchiveThreads" Classes="workspace-selection-bar" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
@@ -203,7 +202,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <DataGrid x:Name="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
+                        <DataGrid x:Name="ArchiveThreadTable" AutomationProperties.AutomationId="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
                                   PointerReleased="OnArchiveColumnsReleased"
                                   SelectionChanged="OnThreadTableSelected" DoubleTapped="OnThreadTableDoubleTapped">
                             <DataGrid.Styles>
@@ -287,15 +286,15 @@
                         <controls:TrimTipTextBlock x:Name="ArchiveReaderTitle" Classes="section-title" VerticalAlignment="Center" />
                     </controls:HeaderBar>
                     <!-- WV3: the work view and available width decide what sits under More. The sidebar group always stays on the bar. -->
-                    <desktop:ActionToolBar x:Name="ReaderToolbar" PrioritizedOverflow="True">
+                    <desktop:ActionToolBar x:Name="ReaderToolbar" AutomationProperties.AutomationId="ReaderToolbar" PrioritizedOverflow="True">
                         <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /></Style></desktop:ActionToolBar.Styles>
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" wv:WorkViewElement.Id="reader.toolbar.thread-favorite" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
                     <Button x:Name="ArchiveReadPosts" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveOpenGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
-                    <ToggleButton x:Name="ReaderFindOpen" Classes="toolbar-toggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnThreadFindToggleClick" />
-                    <ToggleButton x:Name="ReaderTagsOpen" Classes="toolbar-toggle" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
+                    <ToggleButton x:Name="ReaderFindOpen" Classes="toolbar-toggle surface-toggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnThreadFindToggleClick" />
+                    <ToggleButton x:Name="ReaderTagsOpen" Classes="toolbar-toggle surface-toggle" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
                     <Button x:Name="ExportArchiveButton" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
                          remove watch) in one menu; the settings gear next to it is the reader's own look. -->
@@ -320,7 +319,7 @@
                         <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
                              dialogs on Enter or Search, Text finds in the open thread as before. -->
                         <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
-                            <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged">
+                            <controls:SearchBox x:Name="ReaderFindQuery" AutomationProperties.AutomationId="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged">
                                 <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ReaderFindScope" /></controls:SearchBox.ScopeChip>
                             </controls:SearchBox>
                             <controls:SearchBox x:Name="ReaderFilenameQuery" Width="240" MaxLength="512" IsVisible="False" />
@@ -384,7 +383,7 @@
                                              1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
                                              shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
-                                        <desktop:ReaderPostList x:Name="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        <desktop:ReaderPostList x:Name="ArchivePosts" AutomationProperties.AutomationId="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.BringIntoViewOnFocusChange="False"
                                                  Background="{DynamicResource Workspace.Background}" Padding="0,4"
                                                  ContainerPrepared="OnReaderPostContainerPrepared">
@@ -669,7 +668,7 @@
                                         <ComboBox x:Name="ArchiveVersionScope" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.version-scope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
                                         <ToggleButton x:Name="ArchiveFavoritesFilter" Classes="toolbar-toggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" IsCheckedChanged="OnArchiveFavoritesFilterChanged" />
                                         <!-- F01 (21.11.): filters and sorting on the left; the view tools (Columns, then the Grid/Table pair last) dock to the right edge. -->
-                                        <Button x:Name="ArchiveMediaColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
+                                        <Button x:Name="ArchiveMediaColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" IsVisible="False" />
                                         <ToggleButton x:Name="ArchiveMediaLayoutTiles" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Grid" Classes="toolbar-toggle segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
                                         <ToggleButton x:Name="ArchiveMediaLayoutTable" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="toolbar-toggle segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
                                     </desktop:ActionToolBar>

@@ -175,6 +175,7 @@ public partial class ArchivePage
             ? ArchiveMediaGrid : ArchiveThreadTable;
         // The button has no column under it, so only the commands for all columns are offered here; the header's own menu adds "Fit column".
         ContextMenu menu = BuildArchiveColumnsMenu(grid, null);
+        PopupToggle.Track(button, menu);
         button.ContextMenu = menu;
         // Its checks and fit entries describe the table now: not kept for a later right-click.
         menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };

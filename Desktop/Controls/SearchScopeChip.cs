@@ -65,7 +65,7 @@ public sealed class SearchScopeChip : Button
         Padding = new Thickness(2, 0, 4, 0);
         Margin = new Thickness(0, 0, 4, 0);
         MinHeight = 0; MinWidth = 0;
-        Focusable = false;
+        PopupToggle.Prepare(this);
         IsTabStop = false;
         Refresh();
     }
@@ -141,7 +141,7 @@ public sealed class SearchScopeChip : Button
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (!e.Handled && ((e.Key == Key.Down && e.KeyModifiers == KeyModifiers.Alt) || (e.Key == Key.F4 && e.KeyModifiers == KeyModifiers.None)))
+        if (!e.Handled && IsMenuShortcut(e))
         {
             e.Handled = true;
             ShowMenu();
@@ -150,10 +150,13 @@ public sealed class SearchScopeChip : Button
         base.OnKeyDown(e);
     }
 
-    /// <summary>Opens the scope menu with the current scope checked and focused.</summary>
+    internal static bool IsMenuShortcut(KeyEventArgs e) => !ShortcutService.IsCapturing
+        && (e.Key == Key.Down && e.KeyModifiers == KeyModifiers.Alt || e.Key == Key.F4 && e.KeyModifiers == KeyModifiers.None);
+
+    /// <summary>Toggles the scope menu, focusing the current scope when opened.</summary>
     public void ShowMenu()
     {
-        if (!IsEffectivelyEnabled) return;
+        if (PopupToggle.Close(this) || !IsEffectivelyEnabled) return;
         ContextMenuBuilder builder = new ContextMenuBuilder();
         foreach (SearchScope scope in _scopes.Length > 1 ? _scopes : Array.Empty<SearchScope>())
         {
@@ -185,6 +188,13 @@ public sealed class SearchScopeChip : Button
             }
         }
         MenuItem? current = menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "search.scope." + _scope));
+        PopupToggle.Track(this, menu);
+        menu.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!IsMenuShortcut(e)) return;
+            e.Handled = PopupToggle.Close(this);
+            if (e.Handled) Owner?.Focus(NavigationMethod.Tab);
+        }, RoutingStrategies.Tunnel);
         menu.Closed += (_, _) =>
         {
             if (ReferenceEquals(OpenMenu, menu)) OpenMenu = null;
@@ -195,7 +205,7 @@ public sealed class SearchScopeChip : Button
         OpenMenu = menu;
         // A work view may have taken the chip off the field (it is hidden while the scope is Text): the menu then opens at the field.
         menu.Open(IsEffectivelyVisible || Owner == null ? this : Owner);
-        if (current != null) Dispatcher.UIThread.Post(() => current.Focus(NavigationMethod.Tab));
+        if (current != null) Dispatcher.UIThread.Post(() => { if (menu.IsOpen) current.Focus(NavigationMethod.Tab); });
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -208,6 +218,7 @@ public sealed class SearchScopeChip : Button
             _geometryApplied = true;
         }
         Texts.Changed += OnTextsChanged;
+        if (Name is { } name) AutomationProperties.SetAutomationId(this, name);
         Refresh();
     }
 
@@ -236,6 +247,7 @@ public sealed class SearchScopeChip : Button
         _chevron.IsVisible = _scopes.Length > 1;
         string tip = TipWithShortcut();
         AutomationProperties.SetName(this, Texts.T("search.scope.name", label));
+        PopupToggle.Present(this, OpenMenu?.IsOpen == true);
         AutomationProperties.SetHelpText(this, tip);
         ToolTip.SetTip(this, tip);
         ApplyOwnerHelp();

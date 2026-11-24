@@ -24,7 +24,7 @@ public partial class ArchivePage
     {
         Bind("ArchiveLayoutList", OnArchiveLayoutClick);
         Bind("ArchiveLayoutTable", OnArchiveLayoutClick);
-        Bind("ArchiveThreadColumnsButton", OnArchiveColumnsClick);
+        Bind("ArchiveThreadColumnsButton", OnArchiveColumnToggleClick);
         Bind("ArchiveResultsGallery", OnResultsGalleryClick, () => ResultActionsReady && _listTotal > 0);
         Bind("ArchiveResultsOpenInMedia", OnResultsOpenInMediaClick, () => CanOpenResultsInMedia);
         Bind("ArchiveFavoritesOverview", OnFavoritesOverviewClick, () => ResultActionsReady);
