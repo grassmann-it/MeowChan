@@ -10,14 +10,14 @@ using Avalonia.Threading;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// Interaction audit V11 and V12: the Booru hit cards are keyboard stops (Enter, arrows, context menu) and a double click on a watcher
-/// shows its query in the search box. Fixtures only: fake ports, no provider request, no window, no application. The live focus ring
-/// and the focus move itself are checked by the desktop smoke (BooruWorkbenchViewChecks), which needs a window.
+/// shows its query in the search box. Fake ports keep the fixtures offline. The chip-menu check uses a headless window to realize the chips.
 /// </summary>
 [Collection("Localization")]
 public sealed class BooruHitKeyboardTests
@@ -286,10 +286,11 @@ public sealed class BooruHitKeyboardTests
     [Fact]
     public void ASourceTagChipHasItsOwnMenuToEditAndCopyTheTag() => OnDispatcher(async () =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
         {
-            List<Border> cards = await SearchAsync(harness, model, view);
+            await SearchAsync(harness, model, view);
             SearchBox input = Field<SearchBox>(view, "_input");
             input.Text = string.Empty;
             model.Search.SetInput(string.Empty);
@@ -317,10 +318,21 @@ public sealed class BooruHitKeyboardTests
             Assert.DoesNotContain(harness.Search.Searches, search => search.Query.Contains('-'));
 
             // The chip of a hit carries a menu host of its own, so a right click on it never opens the card's menu.
-            Button chip = Button(cards[0], BooruWorkbenchView.ResultTagPrefix + "101:cat");
-            KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
-            Raise(chip, apps);
-            Assert.True(apps.Handled);
+            Window window = new() { Content = view, Width = 1152, Height = 700, Classes = { MotionPolicy.OffClass } };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                Button chip = Button(Cards(view)[0], BooruWorkbenchView.ResultTagPrefix + "101:cat");
+                KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
+                Raise(chip, apps);
+                Assert.True(apps.Handled);
+            }
+            finally
+            {
+                window.Close();
+                Dispatcher.UIThread.RunJobs();
+            }
         }
     });
 

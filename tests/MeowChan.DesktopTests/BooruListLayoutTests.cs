@@ -17,6 +17,7 @@ using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 using SkiaSharp;
@@ -508,6 +509,8 @@ public sealed class BooruListLayoutTests
                 workbench.ApplyListProfile(config);
                 Window = workbench;
                 Model = workbench.Model;
+                Window.Classes.Add(MotionPolicy.OffClass);
+                Window.RequestedThemeVariant = ThemeVariant.Dark;
                 Window.Show();
                 View = Assert.Single(Window.GetVisualDescendants().OfType<BooruWorkbenchView>());
             }
@@ -517,11 +520,10 @@ public sealed class BooruListLayoutTests
                 View = _page.View;
                 Model = _page.Model;
                 View.ApplyListProfile(config);
-                Window = new Window { Content = _page };
+                Window = new Window { Content = _page, Classes = { MotionPolicy.OffClass }, RequestedThemeVariant = ThemeVariant.Dark };
                 Window.Show();
             }
 
-            Window.RequestedThemeVariant = ThemeVariant.Dark;
             Window.Activate();
             View.ShowInMedia = id => { ShownLocally.Add(id); return Task.FromResult(true); };
             View.Gallery.SampleDelay = TimeSpan.Zero;

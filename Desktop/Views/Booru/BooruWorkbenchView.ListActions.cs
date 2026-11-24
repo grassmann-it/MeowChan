@@ -24,12 +24,9 @@ internal sealed partial class BooruWorkbenchView
     {
         string postId = result.PostId;
         BooruResultActionRow actions = new(postId, _listActionWidths, CreateListStatus(row), () => card.Focus(NavigationMethod.Tab));
-        AddResultCommands(row, result, actions);
-        ResultCommand[] commands = result.Commands(row).ToArray();
-        Button[] buttons = actions.Children.OfType<Button>().ToArray();
-        for (int i = 0; i < commands.Length; i++)
+        bool primary = true;
+        foreach (ResultCommand command in result.Commands(row))
         {
-            ResultCommand command = commands[i];
             string label = command.Action switch
             {
                 ResultAction.Load => BooruResultActionRow.ShortLabel(row.Load == BooruRowLoad.AlreadyLoaded ? "again" : "load"),
@@ -41,11 +38,22 @@ internal sealed partial class BooruWorkbenchView
                 _ => BooruResultActionRow.ShortLabel("media")
             };
             string icon = command.Action == ResultAction.Copy ? "copy" : command.Icon;
-            bool extra = command.Action == ResultAction.ShowInMedia || (command.Action == ResultAction.Cancel && i > 0);
-            actions.Add(buttons[i], label, icon, i == 0, extra, menu => AddResultItem(menu, result, command, command.Prefix));
+            bool extra = command.Action == ResultAction.ShowInMedia || (command.Action == ResultAction.Cancel && !primary);
+            Button button = new()
+            {
+                Name = command.Prefix + postId, Classes = { primary ? "primary" : "ghost" },
+                IsEnabled = result.IsAvailable(command.Action, row)
+            };
+            AutomationProperties.SetName(button, command.Name);
+            ToolTip.SetTip(button, command.Tip);
+            ToolTip.SetShowOnDisabled(button, true);
+            if (command.Reason != null) AutomationProperties.SetHelpText(button, command.Reason);
+            button.Click += (_, _) => { if (result.IsCurrent()) result.Run(command.Action); };
+            if (command.WorkViewId is { } id) RegisterWorkViewAction(button, id, _resultWorkViewButtons);
+            actions.Add(button, label, icon, primary, extra, menu => AddResultItem(menu, result, command, command.Prefix));
+            primary = false;
         }
 
-        actions.Children.Add(gallery);
         actions.Add(gallery, Texts.T("booru.gallery.name"), CommandCatalog.Get("gallery.open").Icon, primary: false, extra: false,
             menu => menu.Command("gallery.open", () => { if (result.IsCurrent()) OpenGallery(postId); }, showShortcut: false));
         actions.Finish();
@@ -162,6 +170,7 @@ internal sealed class BooruResultActionRow : Panel
         button.Content = label;
         PrepareButton(button);
         _entries.Add(new Entry(button, icon, primary, extra, addToMenu));
+        Children.Add(button);
     }
 
     internal void Finish() => Children.AddRange([_more, _status]);
