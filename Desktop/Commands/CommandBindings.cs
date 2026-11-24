@@ -34,7 +34,7 @@ public static class CommandBindings
     // never per command/label/shortcut or arbitrary caller key. Do not dispose on menu/window close.
     private static readonly Dictionary<(string Mask, bool Dark), Bitmap> NativeIcons = new();
     private static readonly ConditionalWeakTable<Button, ButtonContent> ButtonContents = new();
-    private static readonly ConditionalWeakTable<object, RefreshCallback> Presentations = new();
+    private static readonly ConditionalWeakTable<AvaloniaObject, RefreshCallback> Presentations = new();
     // One callback holder per owner. Observe swaps Refresh in place and registers the owner with the ShortcutService once per
     // snapshot (Revision): re-applying a presentation many times must not add an observer entry each time. The service only
     // invokes an entry after taking it out of its list, so an invoked holder counts as unregistered again, whatever the revision.
@@ -43,17 +43,32 @@ public static class CommandBindings
         public Action Refresh;
         public readonly Action Invoke;
         public long RegisteredRevision = -1;
-        public RefreshCallback(Action refresh) { Refresh = refresh; Invoke = () => { RegisteredRevision = -1; Refresh(); }; }
+        public RefreshCallback(AvaloniaObject owner, Action refresh)
+        {
+            Refresh = refresh;
+            Invoke = () =>
+            {
+                if (!owner.CheckAccess())
+                {
+                    // Keep this presentation registered for a publish on its owning dispatcher.
+                    Observe(owner, Refresh);
+                    return;
+                }
+
+                RegisteredRevision = -1;
+                Refresh();
+            };
+        }
     }
     private static readonly ConditionalWeakTable<Control, ActionPresentation> Actions = new();
     private sealed record ActionPresentation(string Id, bool PreserveHelp);
     private static void Track(Control control, string id, bool preserveHelp = false)
     { Actions.Remove(control); Actions.Add(control, new(id, preserveHelp)); }
-    private static void Observe(object owner, Action refresh)
+    private static void Observe(AvaloniaObject owner, Action refresh)
     {
         if (!Presentations.TryGetValue(owner, out RefreshCallback? callback))
         {
-            callback = new RefreshCallback(refresh);
+            callback = new RefreshCallback(owner, refresh);
             Presentations.Add(owner, callback);
         }
         else callback.Refresh = refresh;
