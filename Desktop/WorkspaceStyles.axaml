@@ -2011,6 +2011,13 @@
     <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
         <Setter Property="Foreground" Value="White" />
     </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:checked:pressed:not(:disabled):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:checked:pressed:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
     <Style Selector="ToggleButton.toolbar-toggle:disabled">
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="Opacity" Value="0.75" />

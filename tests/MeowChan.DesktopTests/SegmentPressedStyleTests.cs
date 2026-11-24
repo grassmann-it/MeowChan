@@ -100,6 +100,10 @@ public sealed class SegmentPressedStyleTests
             window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
             Assert.Equal(pressedFill, ColorOf(presenter.Background));
             Assert.Equal(accent, ColorOf(presenter.BorderBrush));
+            Assert.True(candidate.IsChecked);
+            Assert.True(candidate.IsFocused);
+            Assert.True(ring.IsEffectivelyVisible);
+            Assert.Equal(accent, ColorOf(ring.BorderBrush));
             window.KeyReleaseQwerty(PhysicalKey.Space, RawInputModifiers.None);
             Assert.Equal(1, selections);
             Assert.Equal(checkedFill, ColorOf(presenter.Background));
