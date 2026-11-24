@@ -9,7 +9,7 @@ public sealed class UpdateSimulationTests
 {
     private static UpdateServiceOptions Options(bool prereleases = false) => new()
     {
-        CurrentVersion = SemanticVersion.Parse("1.1.0"), RuntimeIdentifier = "linux-x64", IncludePrereleases = prereleases
+        CurrentVersion = SemanticVersion.Parse("1.1.2"), RuntimeIdentifier = "linux-x64", IncludePrereleases = prereleases
     };
 
     private static UpdateService Service(UpdateServiceTests.Fixture fixture, string? simulate, string? disable = null,
@@ -20,7 +20,7 @@ public sealed class UpdateSimulationTests
     [InlineData("9.9.9")]
     [InlineData("v9.9.9")]
     [InlineData(" 9.9.9 ")]
-    [InlineData("1.1.1")]
+    [InlineData("1.1.3")]
     public async Task ASimulatedNewerVersionIsAvailableWithoutNetworkOrState(string value)
     {
         using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("0.0.1"));
@@ -42,8 +42,8 @@ public sealed class UpdateSimulationTests
     }
 
     [Theory]
-    [InlineData("1.1.0")]
-    [InlineData("1.0.9")]
+    [InlineData("1.1.2")]
+    [InlineData("1.1.1")]
     [InlineData("1.2.0-beta.1")] // a prerelease is not offered while prereleases are off, as in a real check
     public async Task ASimulatedVersionThatIsNotNewerIsUpToDate(string value)
     {

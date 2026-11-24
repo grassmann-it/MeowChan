@@ -209,7 +209,7 @@ internal sealed class ContextMenuBuilder
                 ToolTip.SetTip(submenu, entry.Label + " · " + unavailable);
                 AutomationProperties.SetHelpText(submenu, unavailable);
             }
-            if (entry.Icon != null) submenu.Icon = CommandBindings.IconFromKey(entry.Icon);
+            if (entry.Icon != null) submenu.Icon = CommandBindings.IconFromKey(entry.Icon, deferMask: true);
             submenu.Tag = entry.Id;
             return submenu;
         }
@@ -223,7 +223,7 @@ internal sealed class ContextMenuBuilder
         else
         {
             item = new MenuItem { Header = Label(), Command = new DelegateCommand(invoke, Available), IsEnabled = Available() };
-            if (entry.Icon != null) item.Icon = CommandBindings.IconFromKey(entry.Icon);
+            if (entry.Icon != null) item.Icon = CommandBindings.IconFromKey(entry.Icon, deferMask: true);
             AutomationProperties.SetName(item, Label());
             if (!Available() && Reason() != null)
             {
