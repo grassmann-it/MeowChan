@@ -251,10 +251,10 @@ internal static class ReaderStabilityChecks
         await page.FocusPostAsync("1050");
         await Program.WaitUntilAsync(() => VisibleRows(posts).All(row => row.BacklinkCount.HasValue));
         await Flush(window);
-        Func<CancellationToken, Task>? previous = page.BeforeInlineReplyCountsPublicationAsync;
+        var previous = page.BeforeInlineReplyCountsPublicationAsync;
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        page.BeforeInlineReplyCountsPublicationAsync = async token =>
+        page.BeforeInlineReplyCountsPublicationAsync = async (_, _, token) =>
         {
             entered.TrySetResult();
             await release.Task.WaitAsync(token);

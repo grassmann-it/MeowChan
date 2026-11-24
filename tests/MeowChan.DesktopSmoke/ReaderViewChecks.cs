@@ -11,6 +11,7 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
+using Microsoft.Data.Sqlite;
 using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
@@ -31,6 +32,9 @@ internal static class ReaderViewChecks
         internal bool Staircase { get; init; }
         internal int JumpPost { get; init; }
         internal bool Windowed { get; init; }
+        internal int ReaderOpens { get; set; }
+        internal bool FailNextRead { get; set; }
+        internal bool FailCaptureWrite { get; set; }
         internal ArchivePage Page { get; set; } = null!;
         internal Window Window { get; set; } = null!;
         internal ListBox List => Page.FindControl<ListBox>("ArchivePosts")!;
@@ -206,10 +210,30 @@ internal static class ReaderViewChecks
         first.SpoilersRevealed = true;
         Console.WriteLine($"SMOKE {count} posts: {firstDisplay} rows at first display; {source.BuiltCount} after the first reply count.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-10000-first.png");
+        int beforeHover = source.BuiltCount;
+        Control firstCard = (Control)list.ContainerFromItem(first)!;
+        foreach (string target in new[] { "5500", "5504", "10499" })
+        {
+            ArchiveQuoteRow reference = new(new ArchiveQuote(new ArchivePostId(fixture.Id, ThreadId),
+                new ArchivePostId(fixture.Id, target), ">>" + target, null));
+            page.RequestQuotePreview(reference, firstCard, default, immediate: false);
+            Require(ReferenceEquals(page.QuotePreviewRow, reference) && !page.IsQuoteHighlightVisible
+                && source.BuiltCount == beforeHover, "Hovering a distant quote built or highlighted a post outside the viewport.");
+            page.CloseQuotePreview();
+        }
         page.ReaderExpandRepliesPreference = true;
         await Program.WaitUntilAsync(() => first is { RepliesAutoExpanded: true, RepliesLoaded: true });
         Require(first.Replies.Count == 1, "The realized post did not open its captured reply.");
         await page.SetRepliesExpandedAsync(first, false);
+
+        fixture.FailCaptureWrite = true;
+        await page.ToggleThreadCaptureAsync();
+        fixture.FailCaptureWrite = false;
+        Require(page.FindControl<TextBlock>("ArchiveMessage")!.Text == "Fixture capture write failed."
+            && ReferenceEquals(source, list.ItemsSource), "The capture error did not leave the reader open.");
+        fixture.FailNextRead = true;
+        await page.ActivateAsync();
+        Require(!fixture.FailNextRead && ReferenceEquals(source, list.ItemsSource), "The failed refresh replaced the post list.");
 
         const string last = "10499";
         await page.FocusPostAsync(last);
@@ -221,6 +245,11 @@ internal static class ReaderViewChecks
             $"Tail jump selected index {list.SelectedIndex} and built {source.BuiltCount} rows, with {source.Materialized.Count()} resident.");
         Console.WriteLine($"SMOKE tail {last}: {source.BuiltCount} rows built, {source.Materialized.Count()} resident.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-10000-last.png");
+        ArchivePostRow tail = (ArchivePostRow)list.SelectedItem!;
+        await page.SetRepliesExpandedAsync(tail, true);
+        Require(tail.Replies is [{ Quote.Origin.PostId: "10498" }], "The distant reply did not open after capture and refresh failures.");
+        await page.SetRepliesExpandedAsync(tail, false);
+        Console.WriteLine("SMOKE capture and refresh failures left the distant reply count and reply card usable.");
 
         await page.FocusPostAsync(ThreadId);
         Require(list.SelectedItem is ArchivePostRow { SpoilersRevealed: true, RepliesExpanded: false, RepliesLoaded: true } rebuilt
@@ -241,42 +270,216 @@ internal static class ReaderViewChecks
         await ToggleAsync(fixture, "reader.view.media-only");
         await Program.WaitUntilAsync(AtRetainedAnchor, AnchorDetails);
 
+        await CheckInteractionDuringFilterAsync(fixture, anchor, selection);
+        await Program.WaitUntilAsync(AtRetainedAnchor, AnchorDetails);
+
         ResourceId replacement = fixture.Id with { Thread = "10500" };
         await fixture.Catalog.CaptureAsync(new CapturedThreadSnapshot(replacement, "https://boards.4chan.org/g/thread/10500",
             "Replacement thread", ThreadSourceState.Active, DateTimeOffset.UtcNow, fixture.Profile,
-            [new CapturedPost(selection, 0, PostFieldPresence.All, Html: "This post has no inbound reference.")]));
-        TaskCompletionSource<CancellationToken> delayed = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        page.BeforeInlineReplyCountsPublicationAsync = async token =>
+            LongThreadPosts(5010).Select(post => post with { Html = "A post without quotes." }).ToArray()));
+        await CheckReplyHistoryAsync(fixture, replacement, anchor, selection);
+        await CheckReplyCountGenerationAsync(fixture, replacement, selection);
+        await CheckLegacyReplyCountScanAsync(owner);
+
+        bool AtRetainedAnchor() => Selected(fixture) == selection && page.CurrentReaderAnchor is { } position
+            && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2;
+        string AnchorDetails() => $"Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.";
+    }
+
+    private static bool Visible(ListBox list, string id) => list.GetRealizedContainers().Any(card =>
+        card.DataContext is ArchivePostRow row && row.Id == id && card.TranslatePoint(default, list) is { } top
+        && top.Y < list.Bounds.Height && top.Y + card.Bounds.Height > 0);
+
+    private static async Task CheckInteractionDuringFilterAsync(Fixture fixture, string anchor, string selection)
+    {
+        ArchivePage page = fixture.Page;
+        ListBox list = fixture.List;
+        await page.FocusPostAsync(ThreadId);
+        HeldClassifier classifier = new();
+        page.RegisterPostClassifier(classifier);
+        Require(page.ToggleReaderViewOption("reader.view.media-only"), "Could not start the delayed media filter.");
+        try
         {
-            if (delayed.TrySetResult(token)) await release.Task;
+            await classifier.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            int index = page.Projection!.PositionOf(anchor);
+            list.ScrollIntoView(index);
+            fixture.Window.UpdateLayout();
+            ScrollViewer scroll = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+            Control card = (Control)list.ContainerFromIndex(index)!;
+            double top = card.TranslatePoint(default, list)!.Value.Y;
+            scroll.Offset += new Vector(0, top + 16);
+            list.SelectedIndex = page.Projection.PositionOf(selection);
+            fixture.Window.UpdateLayout();
+            Require(list.SelectedItem is ArchivePostRow row && row.Id == selection
+                && page.CurrentReaderAnchor is { } position && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2,
+                $"Could not change the old list during classification. Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.");
+        }
+        finally { classifier.Release.TrySetResult(); }
+        await page.WaitForReaderViewAsync();
+        Require(list.ItemCount == 5_001 && Selected(fixture) == selection && page.CurrentReaderAnchor is { } retained
+            && retained.PostId == anchor && Math.Abs(retained.Top + 16) <= 2,
+            $"Publishing the filter lost the latest position. Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.");
+        classifier.Active = false;
+        await ToggleAsync(fixture, "reader.view.media-only");
+        Console.WriteLine("SMOKE delayed filter retained the scroll offset and the new selection from the old list.");
+    }
+
+    private sealed class HeldClassifier : IReaderPostClassifier
+    {
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal bool Active { get; set; } = true;
+        public bool IsActive(ResourceId thread) => Active;
+        public bool UsesQuoteGraph => false;
+        public long Revision => 0;
+        public void Classify(ArchivedThreadView thread, ReaderQuoteGraph? graph, ReaderPostVerdict[] verdicts, CancellationToken token)
+        {
+            Entered.TrySetResult();
+            Release.Task.Wait(token);
+        }
+    }
+
+    private static async Task CheckReplyHistoryAsync(Fixture fixture, ResourceId replacement, string anchor, string selection)
+    {
+        ArchivePage page = fixture.Page;
+        ListBox list = fixture.List;
+        await ToggleAsync(fixture, "reader.view.media-only");
+        page.InlineReplyPageSize = ReaderDisplayLimits.ReplyStepMinimum;
+        ArchivePostRow Parent() => (ArchivePostRow)list.Items[page.Projection!.PositionOf(anchor)]!;
+        ArchivePostRow parent = Parent();
+        await page.SetRepliesExpandedAsync(parent, true);
+        Require(parent.Replies.Count == 1 && parent.HasMoreReplies, "The first reply page did not offer a second page.");
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        Control card = (Control)list.ContainerFromItem(parent)!;
+        Button more = card.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, parent.MoreRepliesLabel));
+        more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => parent.Replies.Count == 2);
+        ArchiveQuoteRow[] loaded = parent.Replies.ToArray();
+        Require(loaded.Select(reply => reply.Quote.Origin.PostId).SequenceEqual(new[] { "5501", "5503" })
+            && loaded.All(reply => !string.IsNullOrWhiteSpace(reply.ReplyExcerpt)), "The two reply pages did not have the seeded content.");
+        page.ReaderExpandRepliesPreference = true;
+        ArchiveQuoteRow jump = new(new ArchiveQuote(new ArchivePostId(fixture.Id, anchor),
+            new ArchivePostId(replacement, selection), ">>" + selection, null));
+        LocalReadingPosition place = new("4chan", "g", ThreadId, anchor, -16, selection);
+        foreach (bool expanded in new[] { true, false })
+        {
+            await page.SetRepliesExpandedAsync(Parent(), expanded);
+            await page.ResumeReadingPositionAsync(place);
+            await page.NavigateQuoteAsync(jump);
+            Require(page.CurrentThread?.Summary.Id == replacement && page.CanGoHistoryBack, "The quote did not reach the other thread.");
+            page.GoHistoryBackByShortcut();
+            await Program.WaitUntilAsync(() => page.CurrentThread?.Summary.Id == fixture.Id && !page.IsProjectionPending
+                && Selected(fixture) == selection && page.CurrentReaderAnchor is { } position
+                && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2);
+            ArchivePostRow returned = Parent();
+            Require(returned.RepliesExpanded == expanded && returned.Replies.SequenceEqual(loaded) && returned.RepliesOffset == 1,
+                "Back lost loaded reply pages or changed their expanded state.");
+        }
+
+        Action galleryReturn = page.CaptureGalleryOrigin();
+        await page.NavigateQuoteAsync(jump);
+        galleryReturn();
+        await Program.WaitUntilAsync(() => page.CurrentThread?.Summary.Id == fixture.Id && !page.IsProjectionPending
+            && Selected(fixture) == selection && page.CurrentReaderAnchor is { } position
+            && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2);
+        Require(Parent().Replies.SequenceEqual(loaded) && !Parent().RepliesExpanded, "Gallery return lost the closed reply pages.");
+        page.ReaderExpandRepliesPreference = false;
+        await ToggleAsync(fixture, "reader.view.media-only");
+        Console.WriteLine("SMOKE quote back and gallery return restored reply pages, selection, and offset through the active filter.");
+    }
+
+    private static async Task CheckReplyCountGenerationAsync(Fixture fixture, ResourceId replacement, string selection)
+    {
+        ArchivePage page = fixture.Page;
+        ListBox list = fixture.List;
+        await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow row && row.Id == selection && row.BacklinkCount == 1);
+        TaskCompletionSource<CancellationToken> delayed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource replacementStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseReplacement = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        page.BeforeInlineReplyCountsPublicationAsync = async (thread, ids, token) =>
+        {
+            if (!ids.Contains(selection)) return;
+            if (thread == fixture.Id && delayed.TrySetResult(token)) await release.Task;
+            if (thread == replacement && replacementStarted.TrySetResult()) await releaseReplacement.Task;
         };
         try
         {
             await page.LoadThreadAsync(fixture.Id, resetPage: false);
             CancellationToken outdated = await delayed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Task oldRead = page.InlineReplyCountsTask;
             ArchivePostRow old = (ArchivePostRow)list.SelectedItem!;
+            int index = list.SelectedIndex;
             Require(old.Id == selection && old.BacklinkCount == null, "The retained post did not wait for its delayed reply count.");
             await page.LoadThreadAsync(replacement);
+            await page.FocusPostAsync(selection);
+            await replacementStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Task replacementRead = page.InlineReplyCountsTask;
+            ArchivePostRow current = (ArchivePostRow)list.SelectedItem!;
+            Require(list.SelectedIndex == index && current.Id == selection && current.BacklinkCount == null
+                && !ReferenceEquals(old, current), "The two requests did not target overlapping post IDs at the same index.");
             release.TrySetResult();
-            await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: selection, BacklinkCount: 0 });
-            Require(outdated.IsCancellationRequested && old.BacklinkCount == null && !ReferenceEquals(old, list.SelectedItem)
-                && list.ItemCount == 1, "A delayed reply count crossed thread generations.");
+            await oldRead;
+            Require(outdated.IsCancellationRequested && old.BacklinkCount == null && current.BacklinkCount == null,
+                "The old request published into the old or the new post after the switch.");
+            releaseReplacement.TrySetResult();
+            await replacementRead;
+            Require(old.BacklinkCount == null && current.BacklinkCount == 0 && ReferenceEquals(current, list.SelectedItem),
+                "The replacement request did not publish its own count.");
         }
         finally
         {
             page.BeforeInlineReplyCountsPublicationAsync = null;
             release.TrySetResult();
+            releaseReplacement.TrySetResult();
         }
         Console.WriteLine("SMOKE delayed counts: thread switch discarded the old generation.");
+    }
 
-        bool AtRetainedAnchor() => Selected(fixture) == selection && page.CurrentReaderAnchor is { } position
-            && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2;
-        string AnchorDetails() => $"Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.";
-
-        static bool Visible(ListBox list, string id) => list.GetRealizedContainers().Any(card =>
-            card.DataContext is ArchivePostRow row && row.Id == id && card.TranslatePoint(default, list) is { } top
-            && top.Y < list.Bounds.Height && top.Y + card.Bounds.Height > 0);
+    private static async Task CheckLegacyReplyCountScanAsync(MainWindow owner)
+    {
+        const int count = 200;
+        List<string[]> windows = new();
+        await using Fixture fixture = await OpenAsync(owner, count, windowed: true, beforeLoad: opening =>
+        {
+            using var connection = new SqliteConnection($"Data Source={Path.Combine(opening.Profile, "archive.db")};Pooling=False");
+            connection.Open();
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = "PRAGMA user_version=1";
+            command.ExecuteNonQuery();
+            opening.Page.ReaderPreviewPrefetchPosts = ReaderPreviewReservation.PrefetchPostsMinimum;
+            opening.Page.BeforeInlineReplyCountsPublicationAsync = (_, ids, _) =>
+            {
+                windows.Add(ids.ToArray());
+                return Task.CompletedTask;
+            };
+        });
+        ArchivePage page = fixture.Page;
+        ListBox list = fixture.List;
+        await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: ThreadId, BacklinkCount: 1 });
+        int opens = fixture.ReaderOpens;
+        Require(opens == 2 && list.ItemsSource is ReaderPostRows rows && rows.MaterializedAt(count - 1)?.BacklinkCount == null,
+            "The legacy reader must open once for the thread and once for its counts without publishing outside the viewport.");
+        int[] VisibleIndices() => list.GetRealizedContainers()
+            .Where(card => card.DataContext is ArchivePostRow row && Visible(list, row.Id)).Select(list.IndexFromContainer).Order().ToArray();
+        string[] Ids(int first, int last) => Enumerable.Range(first, last - first + 1)
+            .Select(index => page.Projection![index].Post.PostId).ToArray();
+        int[] visible = VisibleIndices();
+        Require(windows.SelectMany(window => window).Distinct().SequenceEqual(Ids(visible[0], visible[^1])),
+            "At zero prefetch the reader requested more than the visible posts.");
+        await page.FocusPostAsync("699");
+        await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "699", BacklinkCount: 1 });
+        Require(fixture.ReaderOpens == opens, "Scrolling the legacy archive opened a second full-count read.");
+        visible = VisibleIndices();
+        windows.Clear();
+        string[] expected = Ids(visible[0] - ReaderPreviewReservation.PrefetchPostsMaximum, visible[0] - 1);
+        page.ReaderPreviewPrefetchPosts = ReaderPreviewReservation.PrefetchPostsMaximum;
+        await Program.WaitUntilAsync(() => windows.Count > 0);
+        Require(windows[0].SequenceEqual(expected), "At maximum prefetch the tail window did not include the preceding posts.");
+        await ToggleAsync(fixture, "reader.view.media-only");
+        await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "699", BacklinkCount: 1 });
+        Require(fixture.ReaderOpens == opens, "Reprojecting the legacy snapshot opened a second full-count read.");
+        Console.WriteLine("SMOKE schema 1 used one scan in separate viewports and requested the expected posts at prefetch settings 0 and 50.");
     }
 
     private static async Task<Fixture> OpenAsync(MainWindow owner, int count, bool staircase = false, int jumpPost = 0,
@@ -289,7 +492,14 @@ internal static class ReaderViewChecks
         Fixture fixture = new() { Profile = profile, Lease = lease, Catalog = catalog, Id = new("4chan", "g", ThreadId),
             Staircase = staircase, JumpPost = jumpPost, Windowed = windowed };
         await CaptureAsync(fixture, count);
-        ArchivePage page = new(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { });
+        ArchivePage page = new(token =>
+        {
+            ++fixture.ReaderOpens;
+            if (!fixture.FailNextRead) return ArchiveReader.OpenAsync(profile, token);
+            fixture.FailNextRead = false;
+            return Task.FromException<ArchiveReader>(new IOException("Fixture catalog read failed."));
+        }, (_, _) => fixture.FailCaptureWrite ? Task.FromException(new IOException("Fixture capture write failed.")) : Task.CompletedTask,
+            _ => { });
         fixture.Page = page;
         Control pane = page.DetachReader();
         fixture.Window = new Window { Width = 1440, Height = 900, Content = pane, Title = "Private reader view" };
@@ -310,7 +520,7 @@ internal static class ReaderViewChecks
     private static CapturedPost[] LongThreadPosts(int count) => Enumerable.Range(0, count).Select(index =>
     {
         string id = (500 + index).ToString();
-        string? quote = index switch { 1 => ThreadId, 5005 => "5504", _ when index == count - 2 => (499 + count).ToString(), _ => null };
+        string? quote = index switch { 1 => ThreadId, 5001 or 5003 => "5500", 5005 => "5504", _ when index == count - 2 => (499 + count).ToString(), _ => null };
         string body = quote == null ? string.Empty : $"<a href=\"#p{quote}\" class=\"quotelink\">&gt;&gt;{quote}</a> ";
         return new CapturedPost(id, index, PostFieldPresence.All, Html: $"<p>{body}Captured post {id}.</p>",
             Attachments: index % 2 == 0 || index == count - 1 ? [new(0, "image-" + id, OriginalFileName: "example.png")] : null);
