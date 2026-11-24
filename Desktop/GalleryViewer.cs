@@ -913,9 +913,11 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         }
         panel.Children.Add(button); return button;
     }
-    internal void SetPosition(string label, bool previous, bool next, GalleryTagPanelPosition? sidebarPosition = null)
+    internal void SetPosition(string label, bool previous, bool next, GalleryTagPanelPosition? sidebarPosition = null,
+        int? mediaAhead = null)
     {
         _sidebarPosition = sidebarPosition;
+        _mediaAhead = mediaAhead;
         _position.Text = _compactPosition.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next;
         ToolTip.SetTip(_compactPosition, ThreadPositions is { Unavailable: > 0 } media
             ? Texts.T("thread.media.unavailable", media.Unavailable) : null);
