@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -141,7 +142,6 @@ internal sealed class BooruResultActionRow : Panel
     private readonly List<Entry> _entries = [];
     private readonly TextBlock _status;
     private readonly Button _more;
-    private readonly ContextMenuHost _moreMenu;
     private Entry[] _overflow = [];
     private Rect[] _slots = [];
 
@@ -153,12 +153,8 @@ internal sealed class BooruResultActionRow : Panel
         _more = new Button { Name = Name + ".More", Classes = { "ghost" }, Content = string.Empty };
         PrepareButton(_more);
         ShowIcon(_more, "more-horizontal");
-        _moreMenu = new ContextMenuHost(_more, ComposeOverflow, returnFocus);
-        _more.Click += (_, _) =>
-        {
-            if (_moreMenu.OpenMenu is { } menu) menu.Close();
-            else _moreMenu.Show();
-        };
+        _more.Click += (_, _) => ToggleOverflow(returnFocus);
+        _more.DetachedFromVisualTree += (_, _) => _more.ContextMenu?.Close();
     }
 
     internal void Add(Button button, string label, string icon, bool primary, bool extra, Action<ContextMenuBuilder> addToMenu)
@@ -200,6 +196,7 @@ internal sealed class BooruResultActionRow : Panel
         for (int i = 0; i < _entries.Count; i++)
         {
             Entry entry = _entries[i];
+            if (!entry.Button.IsVisible) continue;
             double labelWidth = _labels.Measure((string)entry.Button.Content!, LabelWidths.Font.From(entry.Button));
             widths[i] = tier == 1 || (tier == 2 && entry.Primary)
                 ? entry.Primary ? Math.Max(_labels.Primary, labelWidth) : labelWidth
@@ -208,7 +205,7 @@ internal sealed class BooruResultActionRow : Panel
         }
         for (int i = widths.Length - 1; i >= 0 && needed > width; i--)
         {
-            if (!_entries[i].Extra) continue;
+            if (!_entries[i].Extra || widths[i] == 0) continue;
             needed -= widths[i] - HeightDip;
             widths[i] = HeightDip;
         }
@@ -224,7 +221,7 @@ internal sealed class BooruResultActionRow : Panel
         Entry[] orderedOverflow = _entries.Where(overflow.Contains).ToArray();
         if (!_overflow.SequenceEqual(orderedOverflow))
         {
-            _moreMenu.OpenMenu?.Close();
+            _more.ContextMenu?.Close();
             _overflow = orderedOverflow;
         }
 
@@ -234,7 +231,11 @@ internal sealed class BooruResultActionRow : Panel
         {
             Entry entry = _entries[i];
             double buttonWidth = widths[i];
-            if (buttonWidth > 0)
+            bool displayed = buttonWidth > 0;
+            entry.Button.Opacity = displayed ? 1 : 0;
+            entry.Button.IsHitTestVisible = displayed;
+            AutomationProperties.SetAccessibilityView(entry.Button, displayed ? AccessibilityView.Content : AccessibilityView.Raw);
+            if (displayed)
             {
                 bool showLabel = buttonWidth > HeightDip;
                 if (entry.LabelShown != showLabel)
@@ -266,7 +267,7 @@ internal sealed class BooruResultActionRow : Panel
         {
             for (int i = widths.Length - 1; i >= 0 && needed > width; i--)
             {
-                if (_entries[i].Extra != extras) continue;
+            if (_entries[i].Extra != extras || widths[i] == 0) continue;
                 needed -= widths[i] + Gap;
                 widths[i] = 0;
                 overflow.Add(_entries[i]);
@@ -276,8 +277,8 @@ internal sealed class BooruResultActionRow : Panel
         void Place(int index, double elementWidth)
         {
             Control control = Children[index];
-            control.IsVisible = elementWidth > 0;
-            if (!control.IsVisible) return;
+            if (index >= _entries.Count) control.IsVisible = elementWidth > 0;
+            if (elementWidth <= 0) return;
             _slots[index] = new Rect(x, 0, elementWidth, HeightDip);
             control.Measure(_slots[index].Size);
             x += elementWidth + Gap;
@@ -290,11 +291,22 @@ internal sealed class BooruResultActionRow : Panel
         return finalSize;
     }
 
-    private ContextMenuBuilder? ComposeOverflow()
+    private void ToggleOverflow(Action returnFocus)
     {
-        if (_overflow.Length == 0) return null;
-        ContextMenuBuilder menu = new();
-        foreach (Entry entry in _overflow) entry.AddToMenu(menu);
-        return menu;
+        if (_more.ContextMenu is { } current)
+        {
+            current.Close();
+            return;
+        }
+        ContextMenuBuilder builder = new();
+        foreach (Entry entry in _overflow) entry.AddToMenu(builder);
+        if (builder.Build() is not { } menu) return;
+        _more.ContextMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_more.ContextMenu, menu)) _more.ContextMenu = null;
+            if (_more.IsAttachedToVisualTree()) returnFocus();
+        };
+        menu.Open(_more);
     }
 }
