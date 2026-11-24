@@ -193,6 +193,7 @@ public partial class ArchivePage
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
         sidebar.SaveSidebarSetting = update =>
         {
+            ApplyReaderMediaPreferences(sidebar.CopyBarSettingsTo(ReaderMedia));
             if (SaveReaderMediaSwitches is { } save)
                 OpenActions.Start(() => save(update, []), "media.sidebar.info");
         };

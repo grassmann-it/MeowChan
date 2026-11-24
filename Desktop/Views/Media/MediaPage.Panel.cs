@@ -118,7 +118,11 @@ public sealed partial class MediaPage
             _panelPreferences = _panelPreferences with { MediaSidebarInfo = mode };
             SavePanelInfoMode?.Invoke(mode);
         };
-        panel.SaveSidebarSetting = update => SavePanelSetting?.Invoke(update);
+        panel.SaveSidebarSetting = update =>
+        {
+            _panelPreferences = panel.CopyBarSettingsTo(_panelPreferences);
+            SavePanelSetting?.Invoke(update);
+        };
         panel.Localize();
         panel.ShowEmpty();
         // The drag handle's name and tip exist from the start, not only after the first language change.

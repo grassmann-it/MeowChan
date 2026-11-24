@@ -198,8 +198,9 @@ public sealed class ReaderMediaSidebarLayoutTests
                     Assert.Equal(8, sidebar.Padding.Top);
                     Assert.Equal(8, sidebar.Padding.Bottom);
                     Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
-                    Assert.Equal(8, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
-                    Assert.Equal(sidebar.Bounds.Height - 24 - sidebar.HeaderRow.Bounds.Height, sidebar.Card.Bounds.Height);
+                    // Fable §2.1: “Höhe 40 DIP (4 + 32 + 4)” (56 DIP with a second line).
+                    Assert.Equal(12, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
+                    Assert.Equal(sidebar.Bounds.Height - 32 - sidebar.HeaderRow.Bounds.Height, sidebar.Card.Bounds.Height);
                     Assert.Equal(sidebar.Bounds.Height - 8, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
                     double chrome = sidebar.Bounds.Height - sidebar.Frame.Bounds.Height;
                     chromeHeight ??= chrome;
@@ -268,7 +269,9 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal("Medium 16 of 23", ToolTip.GetTip(sidebar.PositionPill));
             Assert.Equal(2, sidebar.HeaderRow.GetVisualDescendants().OfType<ToggleButton>().Count());
             Assert.Equal("No. 123", sidebar.Title.Text);
-            Assert.Same(sidebar.PositionPill, Assert.Single(sidebar.HeaderRow.GetVisualDescendants().OfType<MediaPositionPill>()));
+            // 19:55: position in the filename line, without a pill or an opening action.
+            Assert.Empty(sidebar.HeaderRow.GetVisualDescendants().OfType<MediaPositionPill>());
+            Assert.StartsWith("16 / 23", ((MediaCompactHeader)sidebar.HeaderRow).Meta.Text);
         }
         finally { window.Close(); }
     });
@@ -290,10 +293,11 @@ public sealed class ReaderMediaSidebarLayoutTests
             window.UpdateLayout();
             Assert.Equal(48, view.HeaderRow.Bounds.Height);
             Assert.Equal(height, view.Bounds.Height);
-            Assert.Equal(view.Padding.Top, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
+            // Fable §2.1: “Höhe 40 DIP (4 + 32 + 4)” (56 DIP with a second line).
+            Assert.Equal(view.Padding.Top + 4, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
             Control details = view.Details;
             double detailsHeight = details.IsVisible ? details.Bounds.Height + details.Margin.Top : 0;
-            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 8 - detailsHeight, view.Card.Bounds.Height, 1);
+            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 16 - detailsHeight, view.Card.Bounds.Height, 1);
         }
         try
         {
@@ -304,19 +308,22 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal(48, emptyHeader.Height);
             GalleryTagPanelPosition mediaPosition = new(1234567890, 1234567891, false);
             string positionText = MediaPositionText.Long(mediaPosition)!;
-            view.Describe("No. 123", new string('x', 500) + ".png", "100 MiB · 50000×100", true,
-                mediaPosition);
+            view.Describe("No. 123", new string('x', 500) + ".png", "50000×100", true,
+                mediaPosition, 100L * 1024 * 1024);
             view.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
             view.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
             Layout();
             SidePanelDesignTests.AssertCompactHeader(view);
             TextBlock metadata = ((MediaCompactHeader)view.HeaderRow).Meta;
             Assert.Contains(new string('x', 500) + ".png", ToolTip.GetTip(metadata)?.ToString());
-            Assert.EndsWith("100 MiB · 50000×100", metadata.Text);
+            Assert.EndsWith("100 MiB", metadata.Text);
+            Assert.Contains(view.GetVisualDescendants().OfType<SelectableTextBlock>(), t => t.Text == "50000×100" && t.IsEffectivelyVisible);
             if (!view.PositionPill.IsVisible) Assert.StartsWith(view.PositionPill.Bare + " · ", metadata.Text);
             Assert.Equal(positionText, ToolTip.GetTip(view.PositionPill));
             Assert.True(view.Open.IsEffectivelyVisible);
-            Assert.DoesNotContain(view.GetVisualDescendants(), c => c is GalleryDecisionRow or MediaFactGrid && c.IsEffectivelyVisible);
+            // 19:55: “Unten liegt eine feste Infoleiste: Sterne · Tags ... darunter die Fakten.”
+            Assert.True(view.DecisionRow.IsEffectivelyVisible);
+            Assert.Single(view.GetVisualDescendants().OfType<MediaSidebarFacts>(), facts => facts.IsEffectivelyVisible);
             Rect header = view.HeaderRow.Bounds;
             Rect card = view.Card.Bounds;
             Assert.Equal(view.Card.Bounds.Height - 2, view.Frame.Bounds.Height);

@@ -249,7 +249,11 @@ internal sealed partial class ReaderMediaSidebar : Border
     private readonly MediaPositionPill _positionPill = new("ReaderMediaSidebarThreadPosition", announce: false);
     private readonly MediaInfoBar _infoBar;
     private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 8 };
-    private readonly MediaFactGrid _facts = new("ReaderMediaSidebarFacts");
+    private readonly MediaSidebarFacts _facts = new();
+    private GalleryVideoPlayer? _factPlayer;
+    private string? _videoFactKey;
+    private TimeSpan? _videoDuration;
+    private (int Width, int Height)? _videoSize;
     private string? _location, _author, _posted, _provenance;
     private long? _savedBytes, _sourceBytes;
     private MediaProviderSizeHint? _sourceHint;
@@ -397,8 +401,8 @@ internal sealed partial class ReaderMediaSidebar : Border
     private void UpdateCardRows()
     {
         _videoRow.IsVisible = _videoRow.Children.Any(child => child.IsVisible);
-        _stripRow.Margin = new Thickness(8, 8, 8, _videoRow.IsVisible ? 0 : 8);
-        _videoRow.Margin = new Thickness(8);
+        _stripRow.Margin = new Thickness(8);
+        _videoRow.Margin = new Thickness(8, 0);
         UpdateInfoLayout();
     }
 
@@ -437,6 +441,22 @@ internal sealed partial class ReaderMediaSidebar : Border
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
 
+        _frame.Children.CollectionChanged += (_, change) =>
+        {
+            if (_factPlayer != null && change.OldItems?.Contains(_factPlayer) == true)
+            {
+                _factPlayer.ViewSurfaceChanged -= RefreshVideoSize;
+                _factPlayer.DurationChanged -= RefreshVideoDuration;
+                _factPlayer = null;
+            }
+            if (change.NewItems?.OfType<GalleryVideoPlayer>().FirstOrDefault() is { } player)
+            {
+                _factPlayer = player;
+                _videoFactKey = _mediumKey;
+                player.ViewSurfaceChanged += RefreshVideoSize;
+                player.DurationChanged += RefreshVideoDuration;
+            }
+        };
         _info.Children.Add(_facts);
         _info.Children.Add(_provenanceNote);
         _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor);
@@ -464,6 +484,10 @@ internal sealed partial class ReaderMediaSidebar : Border
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, SettingsButton, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _header.ReserveCloseSpace(Close);
+        foreach (Control control in new Control[] { _header, _heading, _header.Meta, _headerFavorite, InfoToggle, Open, SettingsButton,
+            Close, _details, _decision, _facts, _infoBar, _card, _videoRow })
+            AutomationProperties.SetAutomationId(control, control.Name);
+        AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -486,8 +510,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         _stripRow.Children.Add(_stripCounter);
 
         _card.Children.Add(_frame);
-        Grid.SetRow(_stripRow, 1); _card.Children.Add(_stripRow);
-        Grid.SetRow(_videoRow, 2); _card.Children.Add(_videoRow);
+        Grid.SetRow(_stripRow, 2); _card.Children.Add(_stripRow);
+        Grid.SetRow(_videoRow, 1); _card.Children.Add(_videoRow);
         Grid.SetRowSpan(_edge, 3); _edge.ZIndex = 1; _card.Children.Add(_edge);
         _stripRow.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) UpdateCardRows(); };
         _videoRow.Children.CollectionChanged += (_, e) =>
@@ -581,6 +605,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         {
             InvalidateDecisionTarget();
             _mediumKey = mediumKey;
+            _videoSize = null;
+            _videoDuration = null;
         }
         if (newMedium || _postLine != postLine || _fileName != fileLine)
         {
@@ -704,18 +730,35 @@ internal sealed partial class ReaderMediaSidebar : Border
         ToolTip.SetTip(_heading, _heading.Text);
         string size = (_savedBytes ?? _sourceBytes) is long length ? SizeText.Format(length) : "";
         _header.Describe(_fileName, size);
-        _facts.Children.Clear();
-        _facts.Add(Texts.T("media.fact.location"), _location);
-        _facts.Add(Texts.T("media.fact.author"), _author);
-        _facts.Add(Texts.T("media.fact.posted"), _posted);
-        _facts.Add(Texts.T("media.fact.file"), _fileName, "ReaderMediaSidebarFile", fileName: true);
-        if (_savedBytes is long bytes) _facts.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(bytes));
-        if (_sourceBytes is long source) _facts.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(source));
-        if (_sourceHint is { } hint) _facts.Add(Texts.T("media.fact.sourceHint"), Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
-        _facts.Add(Texts.T("media.fact.dimensions"), _detail);
+        string? compactSize = size;
+        string? sizeDescription = null;
+        if (_savedBytes is long savedSize && _sourceBytes is long sourceSize && savedSize != sourceSize)
+        {
+            compactSize = size + " / " + SizeText.Format(sourceSize);
+            sizeDescription = Texts.T("media.fact.saved") + " · " + MediaProvenanceText.FactSize(savedSize) +
+                Environment.NewLine + Texts.T("media.fact.source") + " · " + MediaProvenanceText.FactSize(sourceSize);
+        }
+        string dimensions = _videoSize is { } video ? $"{video.Width} × {video.Height}" : _detail;
+        if (_videoDuration is { } duration)
+            dimensions = ReaderMediaSidebarRules.HeaderText("", dimensions, GalleryVideoPlayer.FormatVideoTime((long)duration.TotalMilliseconds));
+        _facts.Show(_location ?? "", _author, _posted, _fileName, compactSize, dimensions, sizeDescription);
         _provenanceNote.Text = string.Join(Environment.NewLine, new[] { _provenance, _historical ? Texts.T("gallery.viewer8") : null }
             .Where(text => !string.IsNullOrEmpty(text)));
         _provenanceNote.IsVisible = _provenanceNote.Text.Length > 0;
+    }
+
+    private void RefreshVideoSize()
+    {
+        if (_videoFactKey != _mediumKey || _factPlayer?.SourceSize is not { } size || _videoSize == size) return;
+        _videoSize = size;
+        RefreshFacts();
+    }
+
+    private void RefreshVideoDuration(TimeSpan? duration)
+    {
+        if (_videoFactKey != _mediumKey || duration == null || _videoDuration == duration) return;
+        _videoDuration = duration;
+        RefreshFacts();
     }
 
     internal void SetSourceFacts(string location, string? author, string? posted, long? savedBytes, long? sourceBytes,

@@ -40,7 +40,10 @@ public sealed class ReaderMediaPanelDecisionTests
         {
             window.Show();
             window.UpdateLayout();
-            Assert.DoesNotContain(sidebar.GetVisualDescendants().OfType<GalleryDecisionRow>(), row => row.IsEffectivelyVisible);
+            // Tom 19:55: “ⓘ / Shift+I schaltet nur die Fakten ... Sterne und Tags bleiben.”
+            Assert.Single(sidebar.GetVisualDescendants().OfType<GalleryDecisionRow>(), row => row.IsEffectivelyVisible);
+            var facts = SidePanelDesignTests.ById<MediaSidebarFacts>(sidebar, "ReaderMediaSidebarFacts");
+            Assert.True(facts.IsEffectivelyVisible);
             Click(sidebar.InfoToggle);
             window.UpdateLayout();
             GalleryDecisionRow decision = Assert.Single(sidebar.GetVisualDescendants().OfType<GalleryDecisionRow>(), row => row.IsEffectivelyVisible);
@@ -51,7 +54,7 @@ public sealed class ReaderMediaPanelDecisionTests
             Assert.Equal(5, rating);
             Assert.Equal(5, decision.View.Rating);
             // W112-72 §3: “Kein Entfernen-Knopf, kein ⋯: Klick auf den aktiven Stern löscht”.
-            Button edit = sidebar.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ReaderMediaSidebarEditTags");
+            Button edit = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarEditTags");
             Assert.False(decision.ClearButton.IsEffectivelyVisible);
             Assert.Null(edit.Flyout);
             Click(decision.StarButtons[4]);
@@ -60,9 +63,9 @@ public sealed class ReaderMediaPanelDecisionTests
             Click(sidebar.FavoriteButton);
             Assert.True(favorite);
             Assert.True(sidebar.FavoriteButton.IsChecked);
-            Control tags = sidebar.GetVisualDescendants().OfType<StackPanel>().Single(control => control.Name == "ReaderMediaSidebarTags");
+            Control tags = SidePanelDesignTests.ById<StackPanel>(sidebar, "ReaderMediaSidebarTags");
             Assert.Contains(tags.GetVisualDescendants().OfType<TextBlock>(), block => block.Text == "sample");
-            Assert.Empty(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
+            Assert.False(facts.IsEffectivelyVisible);
             Assert.True(edit.IsEffectivelyVisible);
             Assert.Equal(decision.TranslatePoint(default, sidebar)!.Value.Y, edit.TranslatePoint(default, sidebar)!.Value.Y, 0.5);
             Click(edit);
@@ -118,7 +121,7 @@ public sealed class ReaderMediaPanelDecisionTests
                 return edited.Count == 1 ? close.Task : Task.CompletedTask;
             };
             window.UpdateLayout();
-            var edit = sidebar.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ReaderMediaSidebarEditTags");
+            var edit = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarEditTags");
             Assert.True(edit.IsEffectivelyVisible);
             Assert.Null(edit.Flyout);
             Task editor = sidebar.EditTagsAsync();

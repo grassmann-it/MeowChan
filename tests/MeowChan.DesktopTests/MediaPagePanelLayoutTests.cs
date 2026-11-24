@@ -91,8 +91,9 @@ public sealed class MediaPagePanelLayoutTests
                 Assert.Equal(0, panel.Margin.Bottom);
                 Assert.False(page.IsPanelHeaderLifted);
                 Assert.Equal(48, panel.HeaderRow.Bounds.Height);
-                Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
-                Assert.Equal(16 + panel.HeaderRow.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y);
+                // Fable §2.1: “Höhe 40 DIP (4 + 32 + 4)” (56 DIP with a second line).
+                Assert.Equal(12, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(24 + panel.HeaderRow.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y);
                 Assert.True(panel.Card.Bounds.Height > 0);
                 Control details = panel.Details;
                 Control last = details.IsVisible ? details : panel.Card;

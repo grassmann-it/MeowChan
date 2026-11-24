@@ -29,7 +29,7 @@ public sealed class SidePanelDesignTests
 {
     private static readonly bool[] Segments = [false, true];
     private static readonly string[] BuiltInLanguages = ["en", "de"];
-    private static readonly int[] InfoBarWidths = [240, 280, 320, 480, 700];
+    private static readonly int[] InfoBarWidths = [240, 280, 320, 480, 700, 831];
     private static readonly int[] Widths = [240, 280, 320, 360, 480];
 
     private static void Run(Action test) => BooruComponentDispatcher.Run(() =>
@@ -340,10 +340,10 @@ public sealed class SidePanelDesignTests
         try
         {
             window.Show();
-            var bar = Assert.Single(panel.GetVisualDescendants().OfType<MediaInfoBar>());
-            T Find<T>(string name) where T : Control => bar.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
-            // W112-72 §3–4: “Leistenhöhe mit Padding 40”, “Tag-Zeile ... 68”, Fakten an der Dateizeile.
-            Button facts = panel.HeaderRow.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ReaderMediaSidebarFactSummary");
+            var bar = ById<MediaInfoBar>(panel, "ReaderMediaSidebarInfoBar");
+            T Find<T>(string name) where T : Control => ById<T>(panel, name);
+            // Fable §2.2, Variante A: “Fakten fest darunter, 3 Spalten × 2 Zeilen”; “kein Flyout”.
+            var facts = ById<MediaSidebarFacts>(panel, "ReaderMediaSidebarFacts");
             Button edit = Find<Button>("ReaderMediaSidebarEditTags");
             foreach (string language in BuiltInLanguages.Concat(Texts.BundledPackCodes()))
             {
@@ -376,6 +376,12 @@ public sealed class SidePanelDesignTests
                         Assert.Equal(width >= 480, edit.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible));
                         Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(tag)));
                         Assert.Empty(bar.GetVisualDescendants().OfType<MediaFactGrid>());
+                        Assert.True(facts.IsEffectivelyVisible);
+                        Assert.True(In(facts, panel).Top >= In(bar, panel).Bottom);
+                        var values = facts.GetVisualDescendants().OfType<SelectableTextBlock>().Where(c => c.IsEffectivelyVisible).ToArray();
+                        Assert.Equal(width < 420 ? 4 : 6, values.Length);
+                        Assert.Equal(width < 420 || width >= 600 ? 2 : 3, values.Select(c => In(c, panel).Top).Distinct().Count());
+                        Assert.All(values, value => Assert.False(string.IsNullOrEmpty(AutomationProperties.GetName(value))));
                         if (language is "en" or "de" or "ru" && width is 320 or 480)
                         {
                             foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
@@ -416,26 +422,30 @@ public sealed class SidePanelDesignTests
             Near(expandedHeight - 28, bar.Bounds.Height);
 
             Rect card = In(panel.Card, panel), image = In(panel.Picture, panel);
-            Assert.False(facts.Focus(NavigationMethod.Tab));
-            {
-                Point point = In(facts, window).Center;
-                window.MouseMove(point);
-                window.MouseDown(point, MouseButton.Left);
-                window.MouseUp(point, MouseButton.Left);
-                Settle(window);
-                Flyout flyout = Assert.IsType<Flyout>(facts.Flyout);
-                Assert.True(flyout.IsOpen);
-                ScrollViewer content = Assert.IsType<ScrollViewer>(flyout.Content);
-                Assert.Contains(content.GetVisualDescendants().OfType<MediaFactGrid>().Single().GetVisualDescendants()
-                    .OfType<SelectableTextBlock>(), text => text.Text == "evening.jpg");
-                Assert.Equal(card, In(panel.Card, panel));
-                Assert.Equal(image, In(panel.Picture, panel));
-                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
-                window.KeyReleaseQwerty(PhysicalKey.Escape, RawInputModifiers.None);
-                Settle(window);
-                Assert.False(flyout.IsOpen);
-                Assert.False(facts.IsFocused);
-            }
+            // 19:55: “Kein Chevron im Kopf”; a pointer click on the plain filename leaves the facts below the image.
+            TextBlock filename = ((MediaCompactHeader)panel.HeaderRow).Meta;
+            Assert.False(filename.Focus(NavigationMethod.Tab));
+            Point point = In(filename, window).Center;
+            window.MouseMove(point);
+            window.MouseDown(point, MouseButton.Left);
+            window.MouseUp(point, MouseButton.Left);
+            Settle(window);
+            Assert.Empty(window.OpenedPopups.Where(popup => popup.Child is not ToolTip));
+            Assert.True(facts.IsEffectivelyVisible);
+            Assert.Equal(card, In(panel.Card, panel));
+            Assert.Equal(image, In(panel.Picture, panel));
+            BooruReviewTestPlatform.Resize(window, 831);
+            Settle(window);
+            Assert.Contains(facts.GetVisualDescendants().OfType<SelectableTextBlock>(),
+                value => value.IsEffectivelyVisible && value.Text == "evening.jpg");
+            Point info = In(panel.InfoToggle, window).Center;
+            window.MouseMove(info);
+            window.MouseDown(info, MouseButton.Left);
+            window.MouseUp(info, MouseButton.Left);
+            Settle(window);
+            Assert.False(facts.IsEffectivelyVisible);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
+            Assert.False(filename.IsFocused);
             panel.SetTags([], "read only");
             var empty = Find<Button>("ReaderMediaSidebarTagsEmpty");
             Assert.False(empty.IsEnabled);
@@ -463,25 +473,37 @@ public sealed class SidePanelDesignTests
                 Assert.False(panel.PositionPill.IsVisible);
                 Assert.StartsWith("2 / 64 · ", header.Meta.Text);
                 Assert.Contains(".jpg", header.Meta.Text);
-                Assert.EndsWith(SizeText.Format(2 * 1024 * 1024) + " · 1080×1920", header.Meta.Text);
+                // §2.1: filename and size in the header; §2.2: dimensions in the facts.
+                Assert.EndsWith(SizeText.Format(2 * 1024 * 1024), header.Meta.Text);
+                Assert.Contains(panel.GetVisualDescendants().OfType<SelectableTextBlock>(), v => v.Text == "1080×1920" && v.IsEffectivelyVisible);
                 Assert.Contains(filename, ToolTip.GetTip(header.Meta)?.ToString());
                 Assert.Single(header.Meta.TextLayout.TextLines);
-                Assert.True(panel.Card.Bounds.Height >= 0.88 * panel.Bounds.Height);
+                Near(In(panel.Card, panel).Bottom + 8, In(panel.Details, panel).Top);
+                Assert.True(panel.Frame.Bounds.Height > panel.Details.Bounds.Height);
             }
         }
         finally { window.Close(); }
     });
 
+    internal static T ById<T>(Visual root, string id) where T : Control =>
+        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
+
     internal static void AssertCompactHeader(ReaderMediaSidebar panel)
     {
         MediaCompactHeader header = Assert.IsType<MediaCompactHeader>(panel.HeaderRow);
-        Near(48, header.Bounds.Height);
+        // Fable §2.1: 40 DIP (4 + 32 + 4) for one row, 56 for two; actions gain whole labels only.
+        bool single = Grid.GetRow(header.Meta) == 0;
+        Near(single ? 32 : 48, header.Bounds.Height);
+        if (panel.Bounds.Width <= 480) Assert.False(single);
+        if (panel.Bounds.Width >= 700) Assert.True(single);
         Near(16, header.Meta.Bounds.Height);
         Rect? previous = null;
-        foreach (Button button in new Button[] { panel.FavoriteButton, panel.InfoToggle, panel.Open, panel.Close })
+        foreach (Button button in new Button[] { panel.FavoriteButton, panel.InfoToggle, panel.Open, panel.SettingsButton, panel.Close })
         {
             Rect rect = In(button, header);
-            Near(32, rect.Width); Near(32, rect.Height);
+            Near(32, rect.Height);
+            if (!single || button == panel.Close || button == panel.SettingsButton) Near(32, rect.Width);
+            else Assert.True(rect.Width >= 32);
             if (previous.HasValue) Near(previous.Value.Right + 4, rect.Left);
             previous = rect;
         }

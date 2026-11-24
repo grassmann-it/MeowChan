@@ -82,6 +82,12 @@ internal sealed partial class ReaderMediaSidebar
         RevealBars();
     }
 
+    internal ReaderMediaPreferences CopyBarSettingsTo(ReaderMediaPreferences preferences) => preferences with
+    {
+        MediaSidebarFacts = _infoPreferences.MediaSidebarFacts,
+        MediaSidebarAutoHide = _infoPreferences.MediaSidebarAutoHide
+    };
+
     private bool InfoEnabled => _infoPreferences.MediaSidebarInfo != "Off";
 
     internal void ToggleDetails()
@@ -113,8 +119,7 @@ internal sealed partial class ReaderMediaSidebar
     {
         var menu = new ContextMenuBuilder()
             .Check("autoHide", Texts.T("viewer.playback.autoHide"), _infoPreferences.MediaSidebarAutoHide, ToggleAutoHide)
-            .Check("facts", CommandCatalog.Label("media.sidebar.info"), _infoPreferences.MediaSidebarFacts, ToggleDetails)
-            .Check("bar", Texts.T("settings.reader.mediaSidebarInfo"), InfoEnabled, ToggleInfoBar);
+            .Check("facts", CommandCatalog.Label("media.sidebar.info"), _infoPreferences.MediaSidebarFacts, ToggleDetails);
         return menu.Build()!;
     }
 
@@ -148,12 +153,24 @@ internal sealed partial class ReaderMediaSidebar
     {
         InfoToggle.Click += (_, _) => ToggleDetails();
         _headBar.Child = DarkScope(_header);
-        _details.Child = DarkScope(new StackPanel { Children = { _infoBar, _decisionError } });
+        _info.Margin = new Thickness(8, 0);
+        var factArea = new Border
+        {
+            Name = "ReaderMediaSidebarFactArea", MinHeight = 60, Padding = new Thickness(0, 8),
+            BorderThickness = new Thickness(0, 1, 0, 0), Child = _info,
+            [!BorderBrushProperty] = new DynamicResourceExtension("Workspace.CardEdge")
+        };
+        _details.Child = DarkScope(new StackPanel { Children = { _infoBar, factArea, _decisionError } });
         _closeFace.Child = DarkScope(Close);
         _frame.Children.Add(_overlayLayer);
         _layout.Children.Add(_dockedHead);
         SettingsButton.Click += (_, _) => SettingsMenu().Open(SettingsButton);
-        InfoToggle.ContextRequested += (_, e) => { SettingsMenu().Open(InfoToggle); e.Handled = true; };
+        InfoToggle.ContextRequested += (_, e) =>
+        {
+            new ContextMenuBuilder().Check("bar", Texts.T("settings.reader.mediaSidebarInfo"), InfoEnabled, ToggleInfoBar)
+                .Build()!.Open(InfoToggle);
+            e.Handled = true;
+        };
         _frame.SizeChanged += (_, _) => PositionBars();
         PositionBars();
         AddHandler(PointerMovedEvent, (_, _) => RevealBars(), RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -200,6 +217,8 @@ internal sealed partial class ReaderMediaSidebar
             foot.Children.Add(_details);
             head.Children.Add(_closeFace);
             Grid.SetRow(_details, overlay ? 0 : 2);
+            _headBar.Classes.Set("media-sidebar-overlay", overlay);
+            _details.Classes.Set("media-sidebar-overlay", overlay);
             _headBar[!BackgroundProperty] = new DynamicResourceExtension(overlay ? "Workspace.MediaScrim" : "Workspace.Card");
             _details[!BackgroundProperty] = new DynamicResourceExtension(overlay ? "Workspace.MediaScrim" : "Workspace.Card");
             ((ThemeVariantScope)_headBar.Child!).RequestedThemeVariant = overlay ? ThemeVariant.Dark : ThemeVariant.Default;
@@ -260,6 +279,7 @@ internal sealed partial class ReaderMediaSidebar
     {
         _headBar.IsVisible = !_barsHidden;
         _details.IsVisible = !_barsHidden && _fileName.Length > 0 && (InfoEnabled || _infoBar.EditorAnchorPinned || _decisionError.IsVisible);
+        if (_info.Parent is Border factArea) factArea.IsVisible = _infoPreferences.MediaSidebarFacts;
         InfoToggle.IsChecked = _infoPreferences.MediaSidebarFacts;
         _closeFace.Classes.Set("floating", _barsHidden);
         UpdateBadges();

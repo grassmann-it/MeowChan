@@ -62,14 +62,15 @@ public sealed class ReaderSidebarAlignmentTests
             Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, emptyHeight);
 
             string file = new string('W', 250) + ".png";
-            sidebar.Describe("No. 123", file, "100 MiB", true);
+            sidebar.Describe("No. 123", file, "", true, savedBytes: 100L * 1024 * 1024);
             LayoutAt(720);
             double headerHeight = sidebar.HeaderRow.Bounds.Height;
             double frameHeight = sidebar.Frame.Bounds.Height;
             Control details = sidebar.Details;
             double occupied = frameHeight + details.Bounds.Height;
             Assert.Equal(emptyHeight, headerHeight);
-            Assert.False(details.IsVisible);
+            // Tom 19:55: “Unten liegt eine feste Infoleiste”.
+            Assert.True(details.IsVisible);
             TextBlock meta = ((MediaCompactHeader)sidebar.HeaderRow).Meta;
             Assert.Equal(file + " · 100 MiB", ToolTip.GetTip(meta));
             Assert.Contains("…", meta.Text);

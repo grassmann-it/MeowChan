@@ -307,8 +307,11 @@ public sealed class MediaTileEnterTests
             _page.Presenter!.UpdateChild();
             Assert.Contains(panel, panel.Open.GetVisualAncestors());
             Assert.Contains(_page, panel.Open.GetVisualAncestors());
-            Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled && panel.Open.Focusable);
-            return panel.Open;
+            // Kürzelschema §Vorrang: “Panelknöpfe nehmen in 1.1.2 keinen Fokus.”
+            Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled);
+            Assert.False(panel.Open.Focusable);
+            Assert.True(panel.Frame.Focusable);
+            return SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarOpen");
         }
 
         internal Control Container(int index) => Grid.ContainerFromIndex(index)

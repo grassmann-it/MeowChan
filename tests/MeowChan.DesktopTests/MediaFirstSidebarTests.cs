@@ -147,6 +147,8 @@ public sealed class MediaFirstSidebarTests
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using RenderTargetBitmap picture = new(new PixelSize(600, 900));
         ReaderMediaSidebar panel = new();
+        // Tom 25.11. 19:55: “Das Medium wird nie verdeckt”; “ⓘ / Shift+I schaltet nur die Fakten”.
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true });
         panel.Describe("No. 7", "portrait.png", "", true);
         panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
         Window window = new() { Width = 320, Height = 800, Content = panel };
@@ -187,7 +189,7 @@ public sealed class MediaFirstSidebarTests
         panel.Describe("No. 7", "same.png", "", true, mediumKey: "asset");
         panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, "asset", picture.PixelSize);
         panel.SetTags(["sky"], null);
-        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = automatic ? "Auto" : "Off" });
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = automatic });
         const string failure = "Rating could not be saved.";
         int writes = 0;
         panel.ConfigureRating(() => true, () => 3, _ => { writes++; return Task.FromException(new IOException(failure)); });
@@ -209,14 +211,15 @@ public sealed class MediaFirstSidebarTests
             Rect bounds = new(alert.TranslatePoint(default, panel)!.Value, alert.Bounds.Size);
             Assert.True(bounds.Height > 0 && new Rect(panel.Bounds.Size).Contains(bounds));
             Assert.Equal(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(alert));
-            Assert.Equal(imageHeight, panel.Picture.Bounds.Height);
+            if (automatic) Assert.Equal(imageHeight, panel.Picture.Bounds.Height);
+            else Assert.True(panel.Picture.Bounds.Height <= imageHeight && panel.Picture.Bounds.Height > 0);
             Assert.Equal(panel.Card.Bounds.Height - 2, panel.Frame.Bounds.Height, 0.5);
         }
         finally { window.Close(); }
     });
 
     [Fact]
-    public void ReorderingTheShownMediumKeepsItsSourceAndAutoHysteresis() => BooruComponentDispatcher.Run(() =>
+    public void ReorderingTheShownMediumKeepsItsSourceAndDockedActions() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using RenderTargetBitmap picture = new(new PixelSize(600, 600));
@@ -231,7 +234,7 @@ public sealed class MediaFirstSidebarTests
             window.Show();
             Settle(window);
             Assert.True(panel.DecisionRow.IsEffectivelyVisible);
-            // For a square picture in this panel, window height minus width and 56 DIP is the free height.
+        // Tom 25.11. 19:55: “Das Medium wird nie verdeckt”; “ⓘ / Shift+I schaltet nur die Fakten”.
             window.PlatformImpl!.Resize(new Size(320, 468), WindowResizeReason.User);
             Settle(window);
             Assert.True(panel.DecisionRow.IsEffectivelyVisible);
@@ -241,7 +244,7 @@ public sealed class MediaFirstSidebarTests
             Assert.Same(picture, panel.Shown);
             Describe(7, "asset-b");
             Settle(window);
-            Assert.False(panel.DecisionRow.IsEffectivelyVisible);
+            Assert.True(panel.DecisionRow.IsEffectivelyVisible);
         }
         finally { window.Close(); }
     });
@@ -304,7 +307,7 @@ public sealed class MediaFirstSidebarTests
         panel.ConfigureRating(() => true, () => rating, value => { rating = value; return Task.CompletedTask; });
         panel.SetTags(["cat", "dog"], null);
         panel.ShowPicture(poster, _ => { }, true, double.PositiveInfinity, double.PositiveInfinity);
-        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Overlay" });
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always", MediaSidebarAutoHide = true });
         // Both hosts add the idle activator after creating the sidebar.
         ReaderInlineVideoSlot slot = new(panel.FrameArea, activatorWhenIdle: true);
         panel.VideoRow.Children.Add(slot.Below);
@@ -320,14 +323,14 @@ public sealed class MediaFirstSidebarTests
             Point freePoster = panel.Picture.TranslatePoint(new Point(40, 35), window)!.Value;
             window.MouseMove(freePoster);
             Settle(window);
-            var overlay = panel.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "ReaderMediaSidebarOverlay");
+            var overlay = SidePanelDesignTests.ById<Border>(panel, "ReaderMediaSidebarOverlay");
             Assert.True(overlay.IsEffectivelyVisible);
             Assert.True(slot.Activator.IsEffectivelyVisible);
-            var ratingRow = overlay.GetVisualDescendants().OfType<GalleryDecisionRow>().Single();
+            var ratingRow = SidePanelDesignTests.ById<GalleryDecisionRow>(panel, "ReaderMediaSidebarDecision");
             var actions = overlay.GetVisualDescendants().OfType<Button>()
-                .Where(button => !button.GetVisualAncestors().Contains(ratingRow)).ToArray();
+                .Where(button => button.IsEffectivelyVisible && AutomationProperties.GetAutomationId(button) is "ReaderMediaSidebarEditTags" or "ReaderMediaSidebarTagsToggle").ToArray();
             Assert.Equal(2, actions.Length);
-            foreach (Button button in ratingRow.StarButtons.Cast<Button>().Append(ratingRow.ClearButton).Concat(actions))
+            foreach (Button button in ratingRow.StarButtons.Cast<Button>().Concat(actions))
             {
                 Point topLeft = button.TranslatePoint(default, overlay)!.Value;
                 Assert.InRange(topLeft.X, 0, overlay.Bounds.Width - button.Bounds.Width + 0.01);
@@ -338,11 +341,13 @@ public sealed class MediaFirstSidebarTests
                 Click(window, Center(ratingRow.StarButtons[index], window));
                 Assert.Equal(index + 1, rating);
             }
-            Click(window, Center(ratingRow.ClearButton, window));
+            // Fable §1: “kein ⋯, Stern-Klick löscht”.
+            Assert.False(ratingRow.ClearButton.IsEffectivelyVisible);
+            Click(window, Center(ratingRow.StarButtons[4], window));
             Assert.Null(rating);
-            Click(window, Center(actions[0], window));
+            Click(window, Center(actions.Single(b => AutomationProperties.GetAutomationId(b) == "ReaderMediaSidebarEditTags"), window));
             Assert.Equal(1, tagOpens);
-            Click(window, Center(actions[1], window));
+            Click(window, Center(actions.Single(b => AutomationProperties.GetAutomationId(b) == "ReaderMediaSidebarTagsToggle"), window));
             Assert.True(panel.DecisionRow.IsEffectivelyVisible);
             Assert.Equal(0, playRequests);
             Click(window, freePoster);
@@ -373,7 +378,7 @@ public sealed class MediaFirstSidebarTests
     [InlineData(320, true)]
     [InlineData(480, false)]
     [InlineData(480, true)]
-    public void MediaKeepsItsTopAndAutoUsesOnlySpareHeight(int width, bool portrait) => BooruComponentDispatcher.Run(() =>
+    public void DockingReservesSpaceAndOverlayLeavesTheImageStable(int width, bool portrait) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.Initialize();
@@ -406,7 +411,7 @@ public sealed class MediaFirstSidebarTests
             void Settle() { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
             Settle();
             Control details = panel.Details;
-            var overlay = panel.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "ReaderMediaSidebarOverlay");
+            var overlay = SidePanelDesignTests.ById<Border>(panel, "ReaderMediaSidebarOverlay");
             Rect In(Control c) => new(c.TranslatePoint(default, panel)!.Value, c.Bounds.Size);
             void Capture(string layout)
             {
@@ -429,31 +434,37 @@ public sealed class MediaFirstSidebarTests
                 panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
                 Settle();
             }
+            // Tom 25.11. 19:55: “Das Medium wird nie verdeckt”; “ⓘ / Shift+I schaltet nur die Fakten”.
             SidePanelDesignTests.AssertCompactHeader(panel);
-            Assert.True(panel.PositionPill.IsVisible);
+            Assert.False(panel.PositionPill.IsVisible);
+            Assert.Contains("2 / 64", ((MediaCompactHeader)panel.HeaderRow).Meta.Text);
             Rect full = In(panel.Card), image = In(panel.Picture);
-            Assert.True(full.Height >= 0.92 * panel.Bounds.Height);
+            Assert.Equal(In(panel.Frame).Center.Y, image.Center.Y, 0.5);
             Assert.False(details.IsVisible);
             Assert.False(overlay.IsVisible);
-            Assert.DoesNotContain(panel.GetVisualDescendants(), c => c is GalleryDecisionRow or MediaFactGrid && c.IsEffectivelyVisible);
+            Assert.DoesNotContain(panel.GetVisualDescendants(), c => c is GalleryDecisionRow or MediaSidebarFacts && c.IsEffectivelyVisible);
             BooruComponentDispatcher.Wait(panel.EditTagsAsync());
             Assert.Same(panel.InfoToggle, tagAnchor);
             Assert.True(panel.DecisionRow.RequestRating(4));
             Assert.Contains(MediaRatingText.Value(4), panel.LiveText);
-            Assert.Contains(panel.Badges.Plan.Badges, mark => mark.Badge.Id == MediaBadgeId.Rating && mark.Badge.Label == "4");
+            Assert.Equal(4, panel.DecisionRow.View.Rating);
             Assert.True(panel.DecisionRow.RequestRating(null));
-            Assert.DoesNotContain(panel.Badges.Plan.Badges, mark => mark.Badge.Id == MediaBadgeId.Rating);
+            Assert.Null(panel.DecisionRow.View.Rating);
             panel.DecisionRow.RequestRating(3);
 
-            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Overlay" });
+            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true, MediaSidebarInfo = "Off" });
+            Settle();
+            full = In(panel.Card);
+            image = In(panel.Picture);
+            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true });
             window.MouseMove(new Point(width / 2, 150));
             Settle();
             Assert.True(overlay.IsVisible);
             Assert.Equal(full, In(panel.Card));
             Assert.Equal(image, In(panel.Picture));
-            Assert.Equal(image.Bottom, In(overlay).Bottom, 0.5);
-            Assert.Equal(40, overlay.Bounds.Height);
-            Assert.Equal(full.Width - 2, overlay.Bounds.Width, 0.5);
+            Assert.Equal(In(panel.Frame).Bottom, In(overlay).Bottom, 0.5);
+            Assert.True(overlay.Bounds.Height >= 100);
+            Assert.Equal(In(panel.Frame).Width, overlay.Bounds.Width, 0.5);
             Color background = Assert.IsAssignableFrom<ISolidColorBrush>(overlay.Background).Color;
             string ColorOf(string token)
             {
@@ -467,70 +478,64 @@ public sealed class MediaFirstSidebarTests
                 Assert.True(ContrastRules.Contrast(ColorOf("Workspace.Favorite"), surface) >= 3);
                 Assert.True(ContrastRules.Contrast(ColorOf("Workspace.Accent"), surface) >= 3);
             }
-            Assert.True(panel.FavoriteButton.Focus(NavigationMethod.Tab));
-            var ratingBar = overlay.GetVisualDescendants().OfType<GalleryDecisionRow>().Single();
-            var overlayActions = overlay.GetVisualDescendants().OfType<Button>()
-                .Where(button => !button.GetVisualAncestors().Contains(ratingBar)).ToArray();
-            Assert.Equal(2, overlayActions.Length);
-            // 25.11., 17:55: Sidebar buttons do not receive keyboard focus.
+            Assert.False(panel.FavoriteButton.Focus(NavigationMethod.Tab));
+            var ratingBar = SidePanelDesignTests.ById<GalleryDecisionRow>(panel, "ReaderMediaSidebarDecision");
+            var facts = SidePanelDesignTests.ById<MediaSidebarFacts>(panel, "ReaderMediaSidebarFacts");
+            var actions = overlay.GetVisualDescendants().OfType<Button>()
+                .Where(button => AutomationProperties.GetAutomationId(button) is "ReaderMediaSidebarTagsToggle" or "ReaderMediaSidebarEditTags").ToArray();
+            Assert.Equal(2, actions.Length);
             Assert.False(ratingBar.FocusStar.Focusable);
-            foreach (Control next in new Control[] { panel.InfoToggle, panel.Open, panel.Frame,
-                overlayActions[0], overlayActions[1], panel.Close })
+            Assert.True(panel.Frame.Focus(NavigationMethod.Tab));
+            foreach (Control action in new Control[] { panel.InfoToggle, panel.Open, panel.SettingsButton, actions[0], actions[1], panel.Close })
             {
-                window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
-                window.KeyRelease(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
-                Settle();
-                Assert.Same(next, window.FocusManager!.GetFocusedElement());
+                Assert.False(action.Focus(NavigationMethod.Tab));
+                Assert.Same(panel.Frame, window.FocusManager!.GetFocusedElement());
             }
-
-            Assert.True(overlayActions[1].Focus(NavigationMethod.Tab));
-            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-            window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-            Settle();
+            Click(window, Center(actions.Single(b => AutomationProperties.GetAutomationId(b) == "ReaderMediaSidebarEditTags"), window));
+            Assert.Same(actions.Single(b => AutomationProperties.GetAutomationId(b) == "ReaderMediaSidebarEditTags"), tagAnchor);
             Assert.True(details.IsVisible);
-            Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
+            Assert.Same(panel.Frame, window.FocusManager!.GetFocusedElement());
             Assert.False(panel.DecisionRow.FocusRating());
-            // Use the sidebar's key route with input from the focused control, as the two hosts do.
             window.KeyDown += RouteInfo;
             try
             {
                 window.KeyPressQwerty(PhysicalKey.I, RawInputModifiers.Shift);
                 window.KeyReleaseQwerty(PhysicalKey.I, RawInputModifiers.Shift);
                 Settle();
-                Assert.False(details.IsVisible);
-                Assert.Same(panel.InfoToggle, window.FocusManager!.GetFocusedElement());
+                Assert.False(facts.IsEffectivelyVisible);
+                Assert.True(ratingBar.IsEffectivelyVisible);
+                Assert.Same(panel.Frame, window.FocusManager!.GetFocusedElement());
             }
             finally { window.KeyDown -= RouteInfo; }
             void RouteInfo(object? sender, KeyEventArgs e) => panel.RouteInfoKey(e);
 
-            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Auto" });
-            Settle();
-            Assert.Equal(!portrait || width == 320, details.IsVisible);
-            Assert.Equal(image.Size, In(panel.Picture).Size);
-            if (details.IsVisible) Assert.Equal(In(panel.Card).Bottom + 8, In(details).Top, 0.5);
-
-            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always" });
+            panel.ConfigureInfo(ReaderMediaPreferences.Default);
             Settle();
             Assert.True(details.IsVisible);
-            Assert.Equal(true, panel.InfoToggle.IsChecked);
+            Assert.True(In(panel.Frame).Contains(In(panel.Picture)));
+            Assert.Equal(In(panel.Card).Bottom + 8, In(details).Top, 0.5);
+            double withFacts = details.Bounds.Height;
+            Assert.True(panel.InfoToggle.IsChecked);
+            Assert.True(facts.IsEffectivelyVisible);
             Assert.InRange(details.Bounds.Height, 1, 360);
             Assert.True(panel.Card.Bounds.Height >= 900 * 0.55);
-            Assert.Equal(image.Top, In(panel.Picture).Top, 0.5);
-            Assert.False(overlay.IsVisible);
+            Assert.Equal(In(panel.Frame).Center.Y, In(panel.Picture).Center.Y, 0.5);
+            Assert.False(In(overlay).Intersects(In(panel.Frame)));
 
             panel.InfoToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             panel.Describe("No. 42", "next.jpg", "", true);
-            Assert.False(details.IsVisible);
-            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
-            var infoKey = new KeyEventArgs { Key = Key.I, KeyModifiers = KeyModifiers.Shift, Source = panel.InfoToggle };
+            Settle();
+            Assert.False(facts.IsEffectivelyVisible);
+            Assert.True(details.Bounds.Height < withFacts);
+            var infoKey = new KeyEventArgs { Key = Key.I, KeyModifiers = KeyModifiers.Shift, Source = panel.Frame };
             Assert.True(panel.RouteInfoKey(infoKey));
             Assert.True(infoKey.Handled);
-            Assert.True(details.IsVisible);
+            Assert.True(facts.IsEffectivelyVisible);
             window.PlatformImpl!.Resize(new Size(width, 380), WindowResizeReason.User);
             Settle();
-            Assert.False(details.IsVisible);
-            Assert.Equal(false, panel.InfoToggle.IsChecked);
-            Assert.Contains(Texts.T("settings.reader.mediaSidebarInfo.shortHeight"), ToolTip.GetTip(panel.InfoToggle)?.ToString());
+            Assert.True(details.IsVisible);
+            Assert.True(panel.InfoToggle.IsChecked);
+            Assert.Contains(CommandCatalog.Label("media.sidebar.info"), ToolTip.GetTip(panel.InfoToggle)?.ToString());
             window.PlatformImpl.Resize(new Size(width, 392), WindowResizeReason.User);
             Settle();
             Assert.True(details.IsVisible);

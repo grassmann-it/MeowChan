@@ -59,6 +59,8 @@ internal sealed class MediaInfoBar : Grid
             ToolTip.SetShowOnDisabled(button, true);
         }
         _chips = new TagLine(edit) { Name = "ReaderMediaSidebarTags" };
+        foreach (Control control in new Control[] { _edit, _toggle, _empty, _chips })
+            AutomationProperties.SetAutomationId(control, control.Name);
         _toggle.Click += (_, _) =>
         {
             _expanded = _toggle.IsChecked == true;
@@ -135,7 +137,8 @@ internal sealed class MediaInfoBar : Grid
         const double stars = 5 * WorkspaceMetrics.RatingStarMinWidth;
         const double gap = 4;
         Button count = _tagCount == 0 ? _empty : _toggle;
-        _toggle.Padding = _empty.Padding = new Thickness(width < 232 ? 0 : 8, 0);
+        double countInset = width < 232 ? 0 : 8;
+        _toggle.Padding = _empty.Padding = new Thickness(countInset, 0);
         _toggleArrow.IsVisible = width >= 232;
         count.Measure(Size.Infinity);
         var text = new FormattedText(_editLabel.Text ?? "", Texts.Culture, FlowDirection,
@@ -182,6 +185,7 @@ internal sealed class MediaInfoBar : Grid
 
         internal TagLine(Action<Control> edit)
         {
+            AutomationProperties.SetAutomationId(_rest, _rest.Name);
             _rest.Focusable = _rest.IsTabStop = false;
             Children.Add(_rest);
             Height = 24;

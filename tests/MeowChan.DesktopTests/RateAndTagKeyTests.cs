@@ -78,7 +78,8 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
             return page.IsPanelShown && page.PanelRow?.Entry.PostId == "43" && page.Panel?.Open.IsEffectivelyEnabled == true;
         }, "the picture in the Media panel");
         ReaderMediaSidebar panel = Assert.IsType<ReaderMediaSidebar>(page.Panel);
-        Assert.True(panel.Open.Focus());
+        // Kürzelschema §Vorrang: Panelknöpfe nehmen keinen Fokus; der Videorahmen ist das Tastaturziel.
+        Assert.True(panel.Frame.Focus());
 
         QuickTagPopover popover = await RateAndTagWindowFixture.OpenEditorAsync(window);
         Assert.Same(popover, window.MediaPageTagPopover);
