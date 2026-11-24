@@ -37,8 +37,6 @@ public partial class MainWindow
         if (_workspaceInitialized) return;
         _workspaceInitialized = true;
         _workspaceRefresh = new CoalescedUiUpdate(RefreshWorkspace);
-        // Escape clears the typed search first (SearchBox); in an empty field it closes the search bar.
-        DownloadSearchInput.ExitRequested += (_, e) => { if (_downloadSearchOpen) { OnDownloadSearchClose(DownloadSearchInput, new RoutedEventArgs()); e.Handled = true; } };
         UrlList.CollectionChanged += OnWorkspaceCollectionChanged;
         BoardsList.CollectionChanged += OnWorkspaceCollectionChanged;
         Texts.Changed += OnWorkspaceLanguageChanged;
@@ -351,7 +349,6 @@ public partial class MainWindow
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
         LocalizeHeaderTagline();
-        LocalizeDownloadSearchClose();
         LocalizeAdmissionDismiss();
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
@@ -442,6 +439,7 @@ public partial class MainWindow
     private void RefreshDetailsToggleIcon()
     {
         bool visible = WorkspaceInspector.IsVisible;
+        DetailsToggleButton.IsChecked = visible;
         CommandBindings.ApplyLabeled(DetailsToggleButton,
             visible ? "inspector.close" : "thread.details",
             Texts.T(visible ? "action.hideDetails" : "action.showDetails"));
@@ -662,8 +660,12 @@ public partial class MainWindow
         RefreshWorkspace();
     }
 
-    private void OnDetailsToggleClick(object? sender, RoutedEventArgs e)
+    private void OnDetailsToggleClick(object? sender, RoutedEventArgs e) => ToggleWorkspaceDetails();
+
+    private void ToggleWorkspaceDetails()
     {
+        bool closing = WorkspaceInspector.IsVisible;
+        if (closing) DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
         if (_workspaceNarrowLayout) _workspaceNarrowInspectorVisible = !_workspaceNarrowInspectorVisible;
         else _workspaceInspectorVisible = !_workspaceInspectorVisible;
         UpdateWorkspaceLayout();

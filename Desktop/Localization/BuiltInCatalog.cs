@@ -146,8 +146,6 @@ internal static class BuiltInCatalog
         ("downloads.searchCount", "{0} results", "{0} Treffer"),
         ("downloads.searchActive", "{0} results · {1}", "{0} Treffer · {1}"),
         ("downloads.searchClear", "Clear", "Leeren"),
-        ("downloads.searchClose", "Close", "Schließen"),
-        ("downloads.searchCloseTip", "Close the search bar. Esc clears the text first, then closes the bar.", "Suchleiste schließen. Esc leert zuerst den Text und schließt dann die Leiste."),
         ("downloads.searchEmpty", "No matches in this tab.", "Keine Treffer in diesem Tab."),
         ("downloads.searchClearQuery", "Clear search text", "Suchtext löschen"),
         ("downloads.searchShowBoards", "Show {0} matching boards", "{0} passende Boards anzeigen"),

@@ -198,7 +198,6 @@ public sealed class HeaderBarContractTests
     public static TheoryData<string, string> InlineCloses => new()
     {
         { "Desktop/Views/Archive/ArchivePage.axaml", "ClosePreviewButton" },
-        { "Desktop/Shell/MainWindow.axaml", "DownloadSearchClose" },
         { "Desktop/Shell/MainWindow.axaml", "InspectorCloseButton" },
     };
 
@@ -350,13 +349,10 @@ public sealed class HeaderBarContractTests
     {
         string find = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.ThreadFind.cs"));
         string tags = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.Tags.cs"));
-        string presentation = File.ReadAllText(Root("Desktop/Shell/MainWindow.Presentation.cs"));
         string fullscreen = File.ReadAllText(Root("Desktop/Shell/MainWindow.Fullscreen.cs"));
         // F17: no separate close button any more; the Find and Tags toggles carry the x.
         Assert.DoesNotContain("ReaderToolsClose", find);
-        // DL-07: the close of the Downloads search bar is a labelled "Close" with the chevron, never a second cross beside the field's clear button.
-        Assert.DoesNotContain("HeaderBar.MakeClose(DownloadSearchClose", presentation);
-        Assert.Contains("LocalizeDownloadSearchClose();", presentation);
+        // FIX-112-TOGGLE audit §1 replaces the Downloads close with the opener. The click pair is exercised by DownloadSearchChecks.
         Assert.Contains("CommandBindings.Apply(ShellHelpClose, \"window.close\", iconOnly: true)", fullscreen);
         Assert.Contains("HeaderBar.MakeClose(ClosePreviewButton", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml.cs")));
     }

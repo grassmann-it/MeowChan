@@ -143,12 +143,19 @@ public partial class MainWindow
     private void OpenFrozenDetails(DownloadMenuTarget frozen)
     {
         DataGrid grid = DownloadList(frozen.Boards);
+        bool sameTarget = WorkspaceInspector.IsVisible && (GetWorkspaceSelection() switch
+        {
+            BoardRow selected => frozen.Boards && selected.WatchId == frozen.LeadWatch,
+            ThreadRow selected => !frozen.Boards && selected.WatchId == frozen.LeadWatch,
+            _ => false
+        });
         if (frozen.Boards && _boardRows.TryGetValue(frozen.LeadWatch, out BoardRow? board) && VisibleBoards.Contains(board))
         { _boardLeadId = board.WatchId; if (!grid.SelectedItems.Contains(board)) grid.SelectedItem = board; }
         else if (!frozen.Boards && _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? thread) && VisibleThreads.Contains(thread))
         { _threadLeadId = thread.WatchId; if (!grid.SelectedItems.Contains(thread)) grid.SelectedItem = thread; }
         else return;
-        OpenWorkspaceDetails();
+        if (sameTarget) ToggleWorkspaceDetails();
+        else OpenWorkspaceDetails();
     }
 
     private void EditFrozenRules(ResourceId id)

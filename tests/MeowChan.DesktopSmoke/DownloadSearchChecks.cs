@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using System.ComponentModel;
@@ -54,7 +55,19 @@ internal static class DownloadSearchChecks
             await CheckRowFocusAsync(window, grid, complete, waiting);
             grid.SelectedItems.Clear();
             grid.SelectedItems.Add(rows[0]); grid.SelectedItems.Add(rows[1]);
-            window.FocusDownloadSearch();
+            ToggleButton search = window.FindControl<ToggleButton>("DownloadSearchButton")!;
+            Click(search);
+            Require(input.IsVisible && search.IsChecked == true && input.IsKeyboardFocusWithin,
+                "The search button did not open the field.");
+            Click(search);
+            Require(!input.IsVisible && search.IsChecked == false && grid.IsKeyboardFocusWithin && !search.Focusable,
+                "A second click did not close the search and return to the active list.");
+            RawInputModifiers primary = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+            RawKeyboardInput.Press(window, Key.F, primary);
+            Require(input.IsVisible && input.IsKeyboardFocusWithin, "The search shortcut did not open the field.");
+            RawKeyboardInput.Press(window, Key.F, primary);
+            Require(!input.IsVisible && search.IsChecked == false, "A second search shortcut did not close the field.");
+            Click(search);
             input.Text = "aLPHa local";
             await synthetic.WaitForAppliedAsync();
             await Program.WaitUntilAsync(() => window.VisibleThreads.Count == 150);
@@ -80,7 +93,14 @@ internal static class DownloadSearchChecks
             tabs.SelectedIndex = 1;
             await Program.WaitUntilAsync(() => window.VisibleBoards.Contains(board));
             Require(window.VisibleResultCount == window.VisibleBoards.Count, "Board count did not follow the active list.");
-            Click(window.FindControl<Button>("DownloadSearchClose")!);
+            ToggleButton details = window.FindControl<ToggleButton>("DetailsToggleButton")!;
+            if (details.IsChecked != true) Click(details);
+            input.Focus();
+            RawKeyboardInput.Press(window, Key.Escape);
+            Require(!input.IsVisible && input.Text == "local" && details.IsChecked == true
+                && window.FindControl<DataGrid>("BoardsDataGrid")!.IsKeyboardFocusWithin,
+                "Escape did not fold only the active search and preserve its query.");
+            Click(details);
             Require(window.FindControl<Control>("DownloadSearchBar")!.IsVisible && window.FindControl<Button>("DownloadSearchClear")!.IsVisible,
                 "Collapsed active search lost its filter summary or clear action.");
             Click(window.FindControl<Button>("DownloadSearchClear")!);

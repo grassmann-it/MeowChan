@@ -821,6 +821,12 @@ public partial class MainWindow
             // sees Escape on macOS. The gallery retains that ownership for one
             // bounded grace so closing the popup cannot close the gallery too.
             if (_gallery != null && !_gallerySuspended && _gallery.ConsumeRecentlyClosedPlaybackMenuEscape(e)) return;
+            if (IsDownloadSearchSource(e.Source))
+            {
+                if (!DismissShellMenu()) CloseDownloadSearch();
+                e.Handled = true;
+                return;
+            }
             // A search field with text takes its first Escape to clear itself (SearchBox); nothing around it reacts to that key.
             if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
@@ -847,8 +853,7 @@ public partial class MainWindow
             if (_selectedPage == WorkspacePage.Downloads && WorkspaceInspector.IsVisible)
             {
                 e.Handled = true;
-                OnDetailsToggleClick(sender, e);
-                DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
+                ToggleWorkspaceDetails();
             }
             return;
         }
@@ -923,7 +928,7 @@ public partial class MainWindow
             if (CommandBindings.Matches(e, "input.focus-download-search") && CanFocusDownloadSearch)
             {
                 e.Handled = true;
-                FocusDownloadSearch();
+                ToggleDownloadSearch();
                 return;
             }
             if (TryRunUnroutedShellCommand(e)) return;

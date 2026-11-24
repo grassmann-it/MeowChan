@@ -298,8 +298,6 @@
     "downloads.searchCount": "{0} resultados",
     "downloads.searchActive": "{0} resultados · {1}",
     "downloads.searchClear": "Limpar",
-    "downloads.searchClose": "Fechar",
-    "downloads.searchCloseTip": "Fechar a barra de pesquisa. Esc limpa primeiro o texto e depois fecha a barra.",
     "downloads.searchEmpty": "Nenhum resultado nesta aba.",
     "downloads.searchClearQuery": "Limpar o texto da busca",
     "downloads.searchShowBoards": "Mostrar {0} boards correspondentes",

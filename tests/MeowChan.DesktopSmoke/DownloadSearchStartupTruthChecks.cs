@@ -161,7 +161,7 @@ internal static class DownloadSearchStartupTruthChecks
         window.FocusDownloadSearch();
         C<TextBox>(window, "DownloadSearchInput").Text = "no-local-result";
         await AppliedAsync(window);
-        C<Button>(window, "DownloadSearchClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(window, "DownloadSearchButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(C<TextBlock>(window, "DownloadSearchSummary").Text!.Contains("no-local-result", StringComparison.Ordinal),
             "Collapsed pending query lost its text.");
         if (historical > 0)
@@ -235,7 +235,7 @@ internal static class DownloadSearchStartupTruthChecks
         if (live)
         {
             RawKeyboardInput.Press(window, Key.Tab);
-            Require(C<Button>(window, "DownloadSearchClose").IsFocused, "Tab could not leave the pending search field.");
+            Require(!input.IsKeyboardFocusWithin, "Tab could not leave the pending search field.");
             RawKeyboardInput.Press(window, Key.Tab, RawInputModifiers.Shift);
             Require(input.IsKeyboardFocusWithin, "Shift+Tab could not return to the pending search field.");
             Program.CaptureWindow(window, "smoke-download-search-restoring.png");
@@ -348,7 +348,7 @@ internal static class DownloadSearchStartupTruthChecks
             Texts.SetLanguage("en");
         }
         await AppliedAsync(window);
-        C<Button>(window, "DownloadSearchClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(window, "DownloadSearchButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         ActivateEmptyAction(window, showBoards, "smoke-download-search-0-4.png");
         Require(tabs.SelectedIndex == 1 && input.Text == "  BoArD-only-match  " && !input.IsVisible
             && C<DataGrid>(window, "BoardsDataGrid").IsKeyboardFocusWithin, "Keyboard switch to Boards lost the query or focus.");
@@ -364,7 +364,7 @@ internal static class DownloadSearchStartupTruthChecks
 
         input.Text = "neither-list-matches";
         await AppliedAsync(window);
-        C<Button>(window, "DownloadSearchClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(window, "DownloadSearchButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(tabs.SelectedIndex == 0 && window.VisibleBoards.Count == 0 && window.VisibleThreads.Count == 0
             && Equals(showBoards.Content, "Clear search text") && !input.IsVisible, "The 0/0 search did not offer to clear the folded query.");
         ActivateEmptyAction(window, showBoards, "smoke-download-search-0-0.png");
