@@ -198,7 +198,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     });
 
     [Fact]
-    public void TheSidebarsRatingBlockStarStillTogglesTheFavouriteAndTheBadgesStayWithoutOne() => OnOwnDispatcher(() =>
+    public void OnlyTheSidebarHeaderTogglesTheFavourite() => OnOwnDispatcher(() =>
     {
         ReaderMediaSidebar sidebar = new();
         bool favorite = false;
@@ -210,8 +210,8 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.NotSame(header, detail);
         Assert.True(header.IsEnabled);
         Assert.False(header.IsChecked);
-        Assert.True(detail.IsVisible);
-        detail.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.False(detail.IsVisible);
+        header.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal((1, true), (writes, favorite));
         Assert.True(header.IsChecked);
         Assert.True(detail.IsChecked);
@@ -243,7 +243,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         sidebar.Describe("No. 7", "cat.png", "", true);
         sidebar.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
         sidebar.ConfigureRating(() => true, () => 3, _ => Task.CompletedTask);
-        sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = docked ? "Always" : "Off" });
+        sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = !docked });
         Window window = new() { Width = 320, Height = 820, Content = sidebar };
         try
         {
@@ -252,6 +252,13 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             sidebar.ShowPicture(preview, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
+            // Tom 21:35: only explicit auto-hide conceals the stars and exposes the picture badge.
+            if (!docked)
+            {
+                long idle = System.Diagnostics.Stopwatch.GetTimestamp() + 60 * System.Diagnostics.Stopwatch.Frequency;
+                sidebar.ObserveIdle(idle);
+                sidebar.ObserveIdle(idle + System.Diagnostics.Stopwatch.Frequency);
+            }
             Assert.Equal(docked, sidebar.IsVisualAncestorOf(sidebar.DecisionRow) && sidebar.DecisionRow.IsEffectivelyVisible);
             Assert.Equal(true, sidebar.FavoriteButton.IsChecked);
             Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);

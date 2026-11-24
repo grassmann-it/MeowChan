@@ -1517,7 +1517,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             GalleryPostParts parts = BuildPostParts(entry, ContextCommand);
             _context.Rating = PostDecisionSection();
             _context.Tags = BuildPostTagsSection();
-            _context.Info = parts.Info;
+            _context.Info = _postFactsVisible ? parts.Info : null;
             if (_tagNames != null)
             {
                 Button edit = ContextCommand(parts.Actions, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"),
@@ -1591,7 +1591,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             }
             Button show = command(actions, "GalleryReadPost", Texts.T("gallery.viewer10"),
                 () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
-            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon, compactLabel: true, compactSpacing: true);
+            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon,
+                compactLabel: true, compactSpacing: true, allowIconOnly: true);
         }
         else
         {
@@ -1741,6 +1742,13 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             if (_video.MatchesTransportShortcut(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
         }
         if (!IsGalleryShortcutInput(e)) return;
+        if (CommandBindings.Matches(e, "media.sidebar.info")) { TogglePostFacts(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "media.sidebar.autohide"))
+        {
+            ChangePlaybackPreferences(_playbackPreferences with { OverlayPostContext = !_playbackPreferences.OverlayPostContext });
+            e.Handled = true;
+            return;
+        }
         if (HandleFilmstripKey(e) || HandleLayoutKey(e)) return;
         if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTagMode); e.Handled = true; return; }
         foreach (var (_, id) in PlaybackActions())
