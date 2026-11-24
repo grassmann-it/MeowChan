@@ -228,27 +228,33 @@ public partial class MainWindow
         BoardsEmptyState.Text = current ? Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty") : pending;
         ThreadsEmptyState.IsVisible = _startupPreviewShown ? HistoricThreads.Count == 0 : VisibleThreads.Count == 0;
         ThreadsEmptyPanel.IsVisible = ThreadsEmptyState.IsVisible;
-        // The next step is offered only for a truly empty, current list; not for a search without hits or a pending claim.
         ThreadsEmptyImportButton.IsVisible = ThreadsEmptyState.IsVisible && current && !active;
         BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
         BoardsEmptyPanel.IsVisible = BoardsEmptyState.IsVisible;
         BoardsEmptyImportButton.IsVisible = BoardsEmptyState.IsVisible && current && !active;
-        UpdateDownloadSearchEmptyAction(ThreadsEmptySearchButton, !boards && current && active && VisibleThreads.Count == 0,
-            "downloads.searchShowBoards", VisibleBoards.Count);
-        UpdateDownloadSearchEmptyAction(BoardsEmptySearchButton, boards && current && active && VisibleBoards.Count == 0,
-            "downloads.searchShowThreads", VisibleThreads.Count);
+        string? actionLabel = null;
+        if (current && active && VisibleResultCount == 0)
+        {
+            int matches = boards ? VisibleThreads.Count : VisibleBoards.Count;
+            actionLabel = matches == 0 ? Texts.T("downloads.searchClearQuery")
+                : boards ? Texts.Count("downloads.searchShowThreads", matches)
+                : Texts.Count("downloads.searchShowBoards", matches);
+        }
+        UpdateDownloadSearchEmptyAction(ThreadsEmptySearchButton, boards ? null : actionLabel);
+        UpdateDownloadSearchEmptyAction(BoardsEmptySearchButton, boards ? actionLabel : null);
         RefreshDownloadsToolbarEmptiness(active);
         TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");
         AutomationProperties.SetName(input, Texts.T("downloads.searchPlaceholder"));
     }
 
-    private static void UpdateDownloadSearchEmptyAction(Button button, bool show, string targetKey, int count)
+    private static void UpdateDownloadSearchEmptyAction(Button button, string? label)
     {
-        button.IsVisible = show;
-        if (!show) return;
-        string label = count > 0 ? Texts.Count(targetKey, count) : Texts.T("downloads.searchClearQuery");
-        button.Content = label;
-        AutomationProperties.SetName(button, label);
+        if (label != null)
+        {
+            button.Content = label;
+            AutomationProperties.SetName(button, label);
+        }
+        button.IsVisible = label != null;
     }
 }
