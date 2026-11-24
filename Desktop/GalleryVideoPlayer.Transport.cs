@@ -571,6 +571,7 @@ internal sealed partial class GalleryVideoPlayer
 
     private void ResetTransportExtras()
     {
+        if (_playerMenu.IsOpen) _playerMenu.Hide();
         _abLoop.Clear(); _abLoopNotice = null;
         _loopJumpTimer.Stop();
         _audioTrackChoices = Array.Empty<VideoAudioTrackChoice>(); _audioTrackCurrent = -1;

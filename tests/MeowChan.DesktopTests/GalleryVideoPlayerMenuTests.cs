@@ -132,11 +132,11 @@ public sealed class GalleryVideoPlayerMenuTests
 
             rows = Open(player, anchor);
             AssertChoices(rows[1], ["Original", Texts.T("viewer.video.audioTrack.item", 2)], Texts.T("viewer.video.audioTrack.item", 2));
-            player.PlayerMenu.Hide();
 
             // Show runs the real medium transition; missing verified bytes keep it off the native backend.
             BooruComponentDispatcher.Wait(player.ShowAsync(UnavailableVideo("next.webm"), CancellationToken.None));
             Settle(anchor);
+            Assert.False(player.PlayerMenu.IsOpen);
             Assert.False(anchor.IsEnabled);
             Assert.Equal(1f, player.Rate);
             EnableFakeTransport(player);
