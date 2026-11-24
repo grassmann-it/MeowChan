@@ -1,6 +1,6 @@
 namespace MeowChan.PluginSdk;
 
-public enum SourceResourceKind { Board, Thread }
+public enum SourceResourceKind { Board, Thread, BoardArchive }
 
 /// <summary>Declarative alphabet of an extracted identity, excluding route literal affixes.</summary>
 public enum RouteIdentifierKind
