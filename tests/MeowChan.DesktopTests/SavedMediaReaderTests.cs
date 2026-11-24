@@ -60,15 +60,17 @@ public sealed class SavedMediaReaderTests
                 bool visible = mode != Config.ReaderNavigationModeOff;
                 Assert.Equal(visible, bar.IsEffectivelyVisible);
                 Assert.Equal(visible, bar.IsHitTestVisible);
+                Assert.Equal(visible ? 1 : 0, bar.Opacity);
                 now += delay - 2;
                 page.TickReaderNavigationIdle();
                 Assert.Equal(visible, bar.IsHitTestVisible);
                 now += 2;
                 page.TickReaderNavigationIdle();
-                Assert.Equal(mode == Config.ReaderNavigationModeAlways, bar.IsHitTestVisible);
+                bool staysShown = mode == Config.ReaderNavigationModeAlways;
+                Assert.Equal(staysShown, bar.IsHitTestVisible);
+                Assert.Equal(staysShown ? 1 : 0, bar.Opacity);
                 if (mode == Config.ReaderNavigationModeAuto)
                 {
-                    Assert.Equal(0, bar.Opacity);
                     page.NotifyReaderPointerMoved(default);
                     Assert.True(bar.IsHitTestVisible);
                     Assert.Equal(1, bar.Opacity);
