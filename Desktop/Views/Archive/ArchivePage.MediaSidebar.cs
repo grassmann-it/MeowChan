@@ -105,7 +105,10 @@ public partial class ArchivePage
         ReaderMediaSidebarToggle.AttachedToVisualTree += SubscribeLayout;
         ReaderMediaSidebarToggle.DetachedFromVisualTree += UnsubscribeLayout;
         RefreshMediaSidebarToggle();
-        ArchivePosts.SelectionChanged += (_, _) => OnMediaSidebarSelectionChanged();
+        ArchivePosts.SelectionChanged += (_, _) =>
+        {
+            if (!ArchiveMediaTab.IsSelected) OnMediaSidebarSelectionChanged();
+        };
         // The archive view: the pane gets posts, splitter and sidebar columns.
         // Reader chrome stays over the posts only; the sidebar owns its full-height
         // column with a stable title line. Hidden, it returns the column to the posts.
@@ -468,6 +471,8 @@ public partial class ArchivePage
     {
         if (_mediaSidebarShown) return;
         _sidebarShownDetail = string.Empty;
+        _savedMediaSidebarRow = null;
+        _savedSidebarTags = null;
         _mediaSidebar?.ShowEmpty();
     }
 
@@ -557,19 +562,24 @@ public partial class ArchivePage
 
     private void FocusSelectedPostOrList()
     {
+        if (ArchiveMediaTab.IsSelected)
+        {
+            VisibleMediaList.Focus();
+            return;
+        }
         ListBox posts = ArchivePosts;
         if (posts.SelectedItem is { } item && posts.ContainerFromItem(item) is Control container && container.Focus()) return;
         posts.Focus();
     }
 
-    internal bool CanStepMediaSidebar(int delta) => !_ended && _mediaSidebarShown && !IsReaderDialogOpen
+    internal bool CanStepMediaSidebar(int delta) => !_ended && _mediaSidebarShown && !IsReaderDialogOpen && !ArchiveMediaTab.IsSelected
         && ArchivePosts.SelectedItem is ArchivePostRow { ShowsMedia: true } post
         && ReaderMediaSidebarRules.CanStep(_sidebarIndex, post.Attachments.Count, delta);
 
     private void OnMediaSidebarStepKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || _ended || _busy || _obscuredByGallery || IsReaderDialogOpen
-            || !_mediaSidebarShown || sender is not Control owner || e.Source is not Visual source
+            || ArchiveMediaTab.IsSelected || !_mediaSidebarShown || sender is not Control owner || e.Source is not Visual source
             || !source.GetSelfAndVisualAncestors().Contains(owner)
             || !CommandRouter.IsRoutingContextActive(owner, source)) return;
         int direction = ReaderSidebarStepKeys.Direction(e, ArchivePosts, _mediaSidebar?.Strip,
@@ -619,12 +629,17 @@ public partial class ArchivePage
     /// <summary>"Open in gallery" (and a click on the picture): the gallery at this medium, the same path as Enter on a post.</summary>
     internal void OpenMediaSidebarMedia()
     {
-        if (_ended || !_mediaSidebarShown || IsReaderDialogOpen || CurrentSidebarAttachment() is not { OpenPreview: { } open }) return;
-        open();
+        if (_ended || !_mediaSidebarShown || IsReaderDialogOpen) return;
+        if (ArchiveMediaTab.IsSelected)
+        {
+            if (SavedMediaSidebarRow is { } saved)
+                OpenActions.Start(() => OpenAssetGalleryAsync(saved, _mediaSidebar?.FrameArea), "archive.media.open");
+        }
+        else CurrentSidebarAttachment()?.OpenPreview?.Invoke();
     }
 
     private ArchiveAttachmentRow? CurrentSidebarAttachment() =>
-        ArchivePosts.SelectedItem is ArchivePostRow { ShowsMedia: true } post
+        !ArchiveMediaTab.IsSelected && ArchivePosts.SelectedItem is ArchivePostRow { ShowsMedia: true } post
             ? post.Attachments[ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, post.Attachments.Count)] : null;
 
     // ---- following the selection -----------------------------------------------------------------------------------------------
@@ -642,7 +657,8 @@ public partial class ArchivePage
         }
         long now = _sidebarClock.ElapsedMilliseconds;
         // A selection that is only cleared (a page or thread being rebuilt) waits for the tick: the picture does not flash away.
-        if (ArchivePosts.SelectedItem == null) _sidebarThrottle.MarkPending();
+        bool hasSelection = ArchiveMediaTab.IsSelected ? SelectedMediaRow() != null : ArchivePosts.SelectedItem != null;
+        if (!hasSelection) _sidebarThrottle.MarkPending();
         else if (_sidebarThrottle.Request(now)) { RefreshMediaSidebar(); return; }
         DispatcherTimer timer = _sidebarFollowTimer ??= CreateSidebarTimer(() =>
         {
@@ -650,7 +666,7 @@ public partial class ArchivePage
         });
         if (!timer.IsEnabled)
         {
-            timer.Interval = TimeSpan.FromMilliseconds(ArchivePosts.SelectedItem == null
+            timer.Interval = TimeSpan.FromMilliseconds(!hasSelection
                 ? ReaderMediaSidebarRules.FollowIntervalMs : _sidebarThrottle.Remaining(now));
             timer.Start();
         }
@@ -690,7 +706,7 @@ public partial class ArchivePage
         // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
-    private void RefreshMediaSidebarDecisions()
+    private void RefreshPostMediaSidebarDecisions()
     {
         if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || _displayedSidebarMedium is not { } shown
             || !ReferenceEquals(_thread, shown.Thread)) return;
@@ -742,6 +758,12 @@ public partial class ArchivePage
         if (_obscuredByGallery) { _mediaSidebarDirty = true; return; }
         _mediaSidebarDirty = false;
         CancelMediaSidebarLoad();
+        if (ArchiveMediaTab.IsSelected)
+        {
+            RefreshSavedMediaSidebar(sidebar);
+            return;
+        }
+        _savedMediaSidebarRow = null;
         ArchivePostRow? post = ArchivePosts.SelectedItem as ArchivePostRow;
         string? key = post == null ? null : _thread?.Summary.Id + "\n" + post.Id;
         bool samePost = string.Equals(key, _sidebarPostKey, StringComparison.Ordinal);

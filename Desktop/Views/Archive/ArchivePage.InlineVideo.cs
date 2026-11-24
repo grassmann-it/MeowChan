@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -10,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Gallery;
 
 namespace MeowChan;
 
@@ -57,7 +59,11 @@ public partial class ArchivePage
     {
         _ = _inlineVideo.ConfigureAsync(media.Video);
         _inlineVideo.AutoplayInPosts = media.Video.InPost && media.Video.AutoplayMuted && !_mediaSidebarShown;
-        if (_mediaSidebarShown) OfferSidebarVideo(ArchivePosts.SelectedItem as ArchivePostRow, CurrentSidebarAttachment());
+        if (_mediaSidebarShown)
+        {
+            if (SavedMediaSidebarRow is { } saved && _thread is { } thread) OfferSavedSidebarVideo(SavedSidebarEntry(thread, saved), SavedSidebarKey(thread, saved));
+            else OfferSidebarVideo(ArchivePosts.SelectedItem as ArchivePostRow, CurrentSidebarAttachment());
+        }
     }
 
     /// <summary>Every inline player is disposed (reader closed or moved, other thread, media deletion, page end).</summary>
@@ -167,7 +173,8 @@ public partial class ArchivePage
         if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar) return;
         object? focused = TopLevel.GetTopLevel(sidebar)?.FocusManager?.GetFocusedElement();
         if (focused is Visual visual && !visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar))) return;
-        ArchivePosts.Focus(NavigationMethod.Pointer);
+        Control list = ArchiveMediaTab.IsSelected ? VisibleMediaList : ArchivePosts;
+        list.Focus(NavigationMethod.Pointer);
     }
 
     // ---- keys in the media sidebar -----------------------------------------------------------------------------------------------
@@ -214,11 +221,16 @@ public partial class ArchivePage
     /// <summary>The sidebar shows this attachment (or none): a video offers inline playback; any other medium gives a player back.</summary>
     private void OfferSidebarVideo(ArchivePostRow? post, ArchiveAttachmentRow? row)
     {
-        if (_sidebarVideo is not { } slot) return;
         bool offered = _mediaSidebarShown && post != null && ReaderInlineVideoRules.CanOffer(_inlineVideo.Options, row);
-        string? key = offered ? _thread?.Summary.Id + "\n" + post!.Id + "\n" + ReaderInlineVideoSlot.KeyOf(row!.Attachment) : null;
-        slot.Offer(offered ? _inlineVideo : null, key, row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty,
-            row?.OpenPreview);
+        string? key = offered ? SidebarMediumKey(post!, row!) : null;
+        OfferSidebarVideo(key, row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty, row?.OpenPreview);
+    }
+
+    private void OfferSidebarVideo(string? key, Func<CancellationToken, Task<GalleryEntry?>>? resolve, string name, Action? open)
+    {
+        if (_sidebarVideo is not { } slot) return;
+        bool offered = key != null;
+        slot.Offer(offered ? _inlineVideo : null, key, resolve, name, open);
         // MD-03: the hand over the picture only where a single click acts (OnMediaSidebarPictureActivated); a double click opens the gallery anyway.
         if (_mediaSidebar is { } sidebar) sidebar.SingleClickActs = slot.IsOffered;
         if (!offered) { _sidebarVideoAutoplay?.Stop(); _sidebarVideoAutoplayKey = null; }
@@ -238,10 +250,10 @@ public partial class ArchivePage
         _sidebarVideoAutoplay?.Stop();
         if (_sidebarVideo is not { IsOffered: true, IsLive: false }
             || !ReaderInlineVideoRules.ShouldAutoplayViewer(_inlineVideo.Options, _mediaSidebarShown && !_obscuredByGallery)) return;
-        _sidebarVideoAutoplayKey = ArchivePosts.SelectedItem is ArchivePostRow post ? post.Id + "\n" + _sidebarIndex : null;
+        _sidebarVideoAutoplayKey = SidebarVideoAutoplayTarget();
         DispatcherTimer timer = _sidebarVideoAutoplay ??= CreateSidebarTimer(() =>
         {
-            string? key = ArchivePosts.SelectedItem is ArchivePostRow current ? current.Id + "\n" + _sidebarIndex : null;
+            string? key = SidebarVideoAutoplayTarget();
             if (!_ended && _mediaSidebarShown && !_obscuredByGallery && key != null && key == _sidebarVideoAutoplayKey
                 && _sidebarVideo is { IsOffered: true, IsLive: false } video)
                 _ = video.PlayAsync(); // the sidebar's own autoplay is not muted by force: its "start muted" decides
@@ -249,4 +261,8 @@ public partial class ArchivePage
         timer.Interval = TimeSpan.FromMilliseconds(ReaderInlineVideoRules.AutoplayDelayMs);
         timer.Start();
     }
+
+    private string? SidebarVideoAutoplayTarget() => ArchiveMediaTab.IsSelected
+        ? _thread is { } thread && SelectedMediaRow() is { } saved ? SavedSidebarKey(thread, saved) : null
+        : ArchivePosts.SelectedItem is ArchivePostRow post ? post.Id + "\n" + _sidebarIndex : null;
 }

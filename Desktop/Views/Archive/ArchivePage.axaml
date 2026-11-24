@@ -326,8 +326,12 @@
                             <controls:SearchBox x:Name="ReaderFilenameQuery" Width="240" MaxLength="512" IsVisible="False" />
                             <controls:SearchBox x:Name="ReaderHashQuery" Width="240" MaxLength="256" IsVisible="False" />
                             <Button x:Name="ReaderFindSearch" IsVisible="False" Click="OnReaderScopeSearchClick" />
-                            <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
-                            <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
+                            <StackPanel x:Name="ReaderFindNavigation" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.4}">
+                                <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
+                                <TextBlock x:Name="ReaderFindPosition" VerticalAlignment="Center"
+                                           AutomationProperties.LiveSetting="Polite" />
+                                <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
+                            </StackPanel>
                             <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />
                         </WrapPanel>
                     </StackPanel>
@@ -342,7 +346,7 @@
                     </WrapPanel>
                     </StackPanel>
                     <StackPanel x:Name="ReaderFindDetails" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
-                        <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                         <controls:SearchCarryOffer x:Name="ReaderFindCarryOffer" />
                         <TextBlock x:Name="ReaderFindExcerpt" TextWrapping="Wrap" />
                     </StackPanel>
@@ -654,30 +658,43 @@
                                 </Grid>
                             </TabItem>
                             <TabItem x:Name="ArchiveMediaTab" wv:WorkViewElement.Id="reader.tabs.media" Header="Media">
-                                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}" Margin="8,2">
+                                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}" Margin="8,4">
                                     <!-- WV3: one bar instead of a wrapping row; what the view does not show directly sits under More.
                                          An active favourites/rating filter or all versions stays on the bar (R6). -->
                                     <desktop:ActionToolBar x:Name="ReaderMediaTools" PrioritizedOverflow="True">
-                                        <!-- 16.11.: the Tiles/Table choice is the Archive results bar's joined pair (segment classes, icon before text, the one on is highlighted),
-                                             not one button that names the other view. -->
+                                        <!-- Grid and Table use the same joined toggle style as the Archive results bar. -->
                                         <ComboBox x:Name="ArchiveRatingFilter" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.rating-filter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
                                         <ComboBox x:Name="ArchiveMediaSort" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.sort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
                                         <ComboBox x:Name="ArchiveVersionScope" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.version-scope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
-                                        <Button x:Name="ArchiveFavoritesFilter" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
-                                        <!-- F01 (21.11.): filters and sorting on the left; the view tools (Columns, then the Tiles/Table pair last) dock to the right edge. -->
+                                        <ToggleButton x:Name="ArchiveFavoritesFilter" Classes="toolbar-toggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" IsCheckedChanged="OnArchiveFavoritesFilterChanged" />
+                                        <!-- F01 (21.11.): filters and sorting on the left; the view tools (Columns, then the Grid/Table pair last) dock to the right edge. -->
                                         <Button x:Name="ArchiveMediaColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
-                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="toolbar-toggle segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Grid" Classes="toolbar-toggle segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
                                         <ToggleButton x:Name="ArchiveMediaLayoutTable" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="toolbar-toggle segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
                                     </desktop:ActionToolBar>
                                     <Grid x:Name="ArchiveMediaSurface" Grid.Row="1">
-                                        <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
+                                        <controls:RowFocusDataGrid x:Name="ArchiveMediaGrid" Classes="row-focus" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
                                             <DataGrid.Columns>
                                                 <DataGridTemplateColumn Width="*" MinWidth="220" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                                <DataGridTextColumn Width="85" MinWidth="70" Binding="{Binding Size, DataType=desktop:ArchiveAssetRow}" />
-                                                <DataGridTextColumn Width="125" MinWidth="100" Binding="{Binding Version, DataType=desktop:ArchiveAssetRow}" />
+                                                <DataGridTemplateColumn Width="96" MinWidth="88">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate x:DataType="desktop:ArchiveAssetRow">
+                                                            <TextBlock Text="{Binding Size}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                                                       ToolTip.Tip="{Binding ExactSize}" VerticalAlignment="Center" />
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Width="192" MinWidth="128">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate x:DataType="desktop:ArchiveAssetRow">
+                                                            <TextBlock Text="{Binding Version}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                                                       ToolTip.Tip="{Binding VersionDetail}" VerticalAlignment="Center" />
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
                                                 <DataGridTextColumn Width="130" MinWidth="100" Binding="{Binding RatingLabel, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
-                                        </DataGrid>
+                                        </controls:RowFocusDataGrid>
                                         <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
                                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                                             <!-- The tile panel is made in code (ArchivePage.TileSize.cs): its cell follows the tile size. -->
@@ -688,7 +705,6 @@
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,32,8,8" />
                                     </Grid>
                                     <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}">
-                                        <controls:TrimTipTextBlock x:Name="ArchiveThreadMediaTotal" Classes="muted tnum" IsVisible="False" />
                                         <TextBlock x:Name="ArchiveRatingStatus" wv:WorkViewElement.Id="reader.media.rating-error" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
                                         <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
@@ -698,7 +714,17 @@
                                             <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
                                             <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
                                             <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />
-                                        </WrapPanel><desktop:ActionToolBar x:Name="ReaderMediaActions" HorizontalAlignment="Right" PrioritizedOverflow="True"><Button x:Name="ArchiveEditRatingButton" wv:WorkViewElement.Id="reader.media.edit-rating" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" wv:WorkViewElement.Id="reader.media.preview" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /><Button x:Name="ArchiveManageRatingsButton" wv:WorkViewElement.Id="reader.media.manage-ratings" Click="OnManageMediaRatingsClick" /></desktop:ActionToolBar></StackPanel>
+                                        </WrapPanel>
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                            <controls:TrimTipTextBlock x:Name="ArchiveThreadMediaTotal" Classes="muted tnum"
+                                                                       VerticalAlignment="Center" IsVisible="False" />
+                                            <desktop:ActionToolBar x:Name="ReaderMediaActions" Grid.Column="1" HorizontalAlignment="Right" PrioritizedOverflow="True">
+                                                <Button x:Name="ArchiveEditRatingButton" wv:WorkViewElement.Id="reader.media.edit-rating" IsEnabled="False" Click="OnEditMediaRatingClick" />
+                                                <Button x:Name="PreviewArchiveMediaButton" wv:WorkViewElement.Id="reader.media.preview" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" />
+                                                <Button x:Name="ArchiveManageRatingsButton" wv:WorkViewElement.Id="reader.media.manage-ratings" Click="OnManageMediaRatingsClick" />
+                                            </desktop:ActionToolBar>
+                                        </Grid>
+                                    </StackPanel>
                                 </Grid>
                             </TabItem>
                             <!-- Only present while there are captured replies to show: LoadBacklinksAsync shows it with its count. -->
