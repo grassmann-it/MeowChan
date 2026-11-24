@@ -12,7 +12,6 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -662,11 +661,10 @@ internal sealed partial class ReaderMediaSidebar : Border
         Action cancel = request.Cancel;
         _cancelTagEditor = cancel;
         Control? anchor = null;
-        Visual[] anchorPath = [];
-        void OnAnchorVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
+        void OnAnchorVisibilityChanged(object? sender, EventArgs args)
         {
-            if (change.Property == IsVisibleProperty && ReferenceEquals(_cancelTagEditor, cancel)
-                && anchor is { IsEffectivelyVisible: false }) InvalidateTagEditor();
+            if (ReferenceEquals(_cancelTagEditor, cancel) && anchor is { IsEffectivelyVisible: false })
+                InvalidateTagEditor();
         }
         void OnAnchorDetached(object? sender, VisualTreeAttachmentEventArgs args)
         {
@@ -687,8 +685,7 @@ internal sealed partial class ReaderMediaSidebar : Border
                 TopLevel.GetTopLevel(this)?.UpdateLayout();
             }
             if (request.IsCancellationRequested) return;
-            anchorPath = anchor.GetSelfAndVisualAncestors().ToArray();
-            foreach (Visual visual in anchorPath) visual.PropertyChanged += OnAnchorVisibilityChanged;
+            anchor.IsEffectivelyVisibleChanged += OnAnchorVisibilityChanged;
             anchor.DetachedFromVisualTree += OnAnchorDetached;
             await openTags(anchor, request.Token);
             // Blocked editors can be opened synchronously by the host.
@@ -697,8 +694,14 @@ internal sealed partial class ReaderMediaSidebar : Border
         }
         finally
         {
-            if (anchor != null) anchor.DetachedFromVisualTree -= OnAnchorDetached;
-            foreach (Visual visual in anchorPath) visual.PropertyChanged -= OnAnchorVisibilityChanged;
+            if (anchor != null)
+            {
+                anchor.IsEffectivelyVisibleChanged -= OnAnchorVisibilityChanged;
+                anchor.DetachedFromVisualTree -= OnAnchorDetached;
+            }
+            // A light-dismiss can close the popover before the same interaction opens the gallery.
+            // A write that is still waiting must also lose its permission when the editor closes.
+            request.Cancel();
             if (ReferenceEquals(_cancelTagEditor, cancel))
             {
                 _cancelTagEditor = null;

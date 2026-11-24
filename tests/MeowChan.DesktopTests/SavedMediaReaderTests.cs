@@ -161,11 +161,12 @@ public sealed class SavedMediaReaderTests
     });
 
     [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    public void SidebarTagWriteIsRevokedDuringLocalValidation(bool advanced, bool openGallery) =>
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, true)]
+    public void SidebarTagWriteIsRevokedDuringLocalValidation(bool advanced, bool openGallery, bool dismissFirst) =>
         RunWithShell(async (page, window, host, subjects) =>
         {
             page.UseManualReaderTicks(static () => 0);
@@ -207,6 +208,11 @@ public sealed class SavedMediaReaderTests
                 (LocalMediaObservation observation, CancellationToken token) = await validating.Task.WaitAsync(BooruComponentDispatcher.Cancellation);
                 Assert.Equal(Assert.IsType<MediaTagSubject.Local>(subjects['b']).Observation, observation);
 
+                if (dismissFirst)
+                {
+                    RateAndTagWindowFixture.Escape(window);
+                    await editor.Result.WaitAsync(BooruComponentDispatcher.Cancellation);
+                }
                 if (openGallery)
                 {
                     await window.OpenGalleryAsync(ThreadId);
