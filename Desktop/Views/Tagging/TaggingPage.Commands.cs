@@ -182,7 +182,7 @@ public sealed partial class TaggingPage
     private Border BuildClearConfirmation()
     {
         WorkViewElement.SetId(_clearConfirm, "tagging.clear-confirm");
-        StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _clearYes, _clearNo } };
+        StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _clearNo, _clearYes } };
         _clearConfirm.Child = new StackPanel { Spacing = 8, Children = { _clearQuestion, buttons } };
         return _clearConfirm;
     }

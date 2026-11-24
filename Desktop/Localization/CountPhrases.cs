@@ -20,5 +20,5 @@ internal static class CountPhrases
         Texts.T("archive.delete.summary",
             Texts.Count("archive.delete.threads", threads),
             Texts.Count("archive.delete.files", files),
-            Texts.Count("archive.delete.bytes", bytes));
+            bytes < 1024 ? Texts.Count("archive.delete.bytes", bytes) : SizeText.Format(bytes));
 }

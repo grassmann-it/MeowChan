@@ -38,7 +38,7 @@ internal static class WorkCatalog
         ("work.scopeSummary", "Retry scope: {0} media files in {1} threads. Untouched: {2} of {3} already saved, {4} already queued.", "Umfang: {0} Mediendateien in {1} Threads. Unberührt: {2} von {3} schon gespeichert, {4} schon eingereiht."),
         ("work.nextStep", "Next step: {0}.", "Nächster Schritt: {0}."),
         ("work.retryFailed", "The media retry could not be scheduled: {0}", "Der Medienversuch konnte nicht geplant werden: {0}"),
-        ("watch.removed", "Removed from watching: {0} · downloaded files are kept", "Aus Beobachtung entfernt: {0} · heruntergeladene Dateien bleiben erhalten"),
+        ("watch.removed", "Stopped watching: {0} · archive entries and downloaded files are kept", "Beobachtung beendet: {0} · Archiveinträge und heruntergeladene Dateien bleiben erhalten"),
         ("watch.undo", "Undo", "Rückgängig"),
         ("watch.undoDone", "Watching again: {0}. Added as a new watch; position and priority are not restored.", "Wieder in Beobachtung: {0}. Als neue Beobachtung aufgenommen; Position und Priorität werden nicht wiederhergestellt."),
         ("watch.undoPartial", "{0} of {1} could not be watched again. The URL results under Downloads show why.", "{0} von {1} konnten nicht wieder aufgenommen werden. Die URL-Ergebnisse unter Downloads nennen den Grund."),

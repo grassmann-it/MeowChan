@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -182,9 +183,21 @@ internal sealed class FolderSourcesPanel : UserControl
             Button yes = new() { Name = "FolderSourceRemoveConfirm", Content = Texts.T("folderSource.remove.confirm") };
             Button no = new() { Name = "FolderSourceRemoveKeep", Content = Texts.T("folderSource.remove.keep") };
             yes.Classes.Add("danger"); no.Classes.Add("subtle");
+            void KeepSource()
+            {
+                _confirmRemove = null;
+                Render();
+            }
             yes.Click += async (_, _) => { _confirmRemove = null; await RunAsync(() => _services.Remove(root.Id)); };
-            no.Click += (_, _) => { _confirmRemove = null; Render(); };
-            row.Children.Add(new StackPanel { Spacing = 4, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { yes, no } } } });
+            no.Click += (_, _) => KeepSource();
+            StackPanel confirmation = new() { Spacing = 4, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { no, yes } } } };
+            confirmation.KeyDown += (_, e) =>
+            {
+                if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
+                e.Handled = true;
+                KeepSource();
+            };
+            row.Children.Add(confirmation);
             Dispatcher.UIThread.Post(() => no.Focus());
         }
         Border card = new() { Child = row, Padding = new Thickness(12), CornerRadius = new CornerRadius(5) };

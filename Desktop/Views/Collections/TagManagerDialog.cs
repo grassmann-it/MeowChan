@@ -37,7 +37,7 @@ internal sealed class TagManagerDialog : Window
     private readonly Button _delete = new() { Name = "TagManagerDelete" };
     private readonly StackPanel _confirm = new() { Name = "TagManagerConfirm", Spacing = 8, IsVisible = false };
     private readonly TextBlock _confirmText = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button _confirmDelete = new() { Name = "TagManagerConfirmDelete" };
+    private readonly Button _confirmDelete = new() { Name = "TagManagerConfirmDelete", Classes = { "danger" } };
     private readonly Button _keep = new() { Name = "TagManagerKeep" };
     private readonly TextBlock _status = new() { Name = "TagManagerStatus", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { Name = "TagManagerError", TextWrapping = TextWrapping.Wrap };

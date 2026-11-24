@@ -73,7 +73,7 @@ public partial class MainWindow
         {
             ArchivePermanentDeletionPlan plan = await _session.PrepareArchiveDeletionAsync(ids);
             if (_isClosing) return;
-            string title = CommandCatalog.Label("archive.delete-permanently");
+            string title = Texts.T("archive.delete.confirm");
             // Modals plan MD3: the form step; the title stands in the title bar only, the destructive action is the primary one.
             Window dialog = DialogWindow.Create(title, DialogSize.M, modal: true);
             dialog.Name = "ArchivePermanentDeleteDialog";
@@ -107,10 +107,7 @@ public partial class MainWindow
             // Blockers and failures stay local and above the body; progress and results remain in the footer.
             TextBlock failure = new() { TextWrapping = TextWrapping.Wrap };
             Button cancel = new() { Name = "ArchivePermanentDeleteCancel", Content = Texts.T("action.cancel") };
-            Button delete = CommandBindings.CreateButton("archive.delete-permanently", () => { });
-            delete.Name = "ArchivePermanentDeleteConfirm";
-            delete.Command = null;
-            delete.Classes.Add("danger");
+            Button delete = new() { Name = "ArchivePermanentDeleteConfirm", Content = title, Classes = { "danger" } };
             delete.IsEnabled = plan.Catalog.Threads.Count > 0 && !plan.Files.HasBlockers && plan.Catalog.SharedMediaDirectories.Count == 0;
             if (!delete.IsEnabled)
                 failure.Text = Texts.T("archive.delete.blocked");

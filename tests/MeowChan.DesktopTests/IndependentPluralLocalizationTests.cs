@@ -27,14 +27,14 @@ public sealed class IndependentPluralLocalizationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("de", 1, 1, "1 Thread und 1 lokale Datei (2.048 Bytes) endgültig löschen?")]
-    [InlineData("de", 1, 2, "1 Thread und 2 lokale Dateien (2.048 Bytes) endgültig löschen?")]
-    [InlineData("de", 2, 1, "2 Threads und 1 lokale Datei (2.048 Bytes) endgültig löschen?")]
-    [InlineData("de", 2, 2, "2 Threads und 2 lokale Dateien (2.048 Bytes) endgültig löschen?")]
-    [InlineData("en", 1, 1, "Permanently delete 1 thread and 1 local file (2,048 bytes)?")]
-    [InlineData("en", 1, 2, "Permanently delete 1 thread and 2 local files (2,048 bytes)?")]
-    [InlineData("en", 2, 1, "Permanently delete 2 threads and 1 local file (2,048 bytes)?")]
-    [InlineData("en", 2, 2, "Permanently delete 2 threads and 2 local files (2,048 bytes)?")]
+    [InlineData("de", 1, 1, "1 Thread und 1 lokale Datei (2 KiB) endgültig löschen?")]
+    [InlineData("de", 1, 2, "1 Thread und 2 lokale Dateien (2 KiB) endgültig löschen?")]
+    [InlineData("de", 2, 1, "2 Threads und 1 lokale Datei (2 KiB) endgültig löschen?")]
+    [InlineData("de", 2, 2, "2 Threads und 2 lokale Dateien (2 KiB) endgültig löschen?")]
+    [InlineData("en", 1, 1, "Permanently delete 1 thread and 1 local file (2 KiB)?")]
+    [InlineData("en", 1, 2, "Permanently delete 1 thread and 2 local files (2 KiB)?")]
+    [InlineData("en", 2, 1, "Permanently delete 2 threads and 1 local file (2 KiB)?")]
+    [InlineData("en", 2, 2, "Permanently delete 2 threads and 2 local files (2 KiB)?")]
     public void DeletionThreadsAndFilesHaveIndependentPluralDecisions(string language, int threads, int files, string expected)
     {
         Texts.SetLanguage(language);
