@@ -634,13 +634,13 @@ public partial class MainWindow : Window
         try
         {
             allAccepted = await SubmitAdmissionBatchAsync(input);
-            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened)
+            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened && !_admissionArchiveOpened)
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);
                 ShowNotification(Texts.T(fromClipboard ? "clipboard.title" : "admission.results"),
                     Texts.T(fromClipboard ? "clipboard.empty" : "admission.empty"), NotificationType.Information, operation: "admission.empty");
             }
-            return allAccepted && (_admissionResults.Count != 0 || _admissionBooruOpened);
+            return allAccepted && (_admissionResults.Count != 0 || _admissionBooruOpened || _admissionArchiveOpened);
         }
         catch (OperationCanceledException) when (_isClosing)
         {
