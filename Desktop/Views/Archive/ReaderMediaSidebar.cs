@@ -768,7 +768,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         if (_videoFactRevision != _mediumRevision || _videoSize.HasValue || _factPlayer is not { } player ||
             player.SourceSize == null || ReferenceEquals(_readingTrackDimensions, player)) return;
         _readingTrackDimensions = player;
-        _ = ReadVideoSizeAsync(player, _mediumRevision);
+        int revision = _mediumRevision;
+        OpenActions.Start(() => ReadVideoSizeAsync(player, revision), "media.sidebar.info");
     }
 
     private async Task ReadVideoSizeAsync(GalleryVideoPlayer player, int revision)
