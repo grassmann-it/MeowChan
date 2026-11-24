@@ -25,12 +25,37 @@
 
             <Border wv:WorkViewElement.Id="statistics.now" Classes="workspace-section">
                 <StackPanel Spacing="{StaticResource Workspace.Space.8}">
-                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.24}" LineSpacing="{StaticResource Workspace.Space.8}">
-                        <StackPanel MinWidth="130"><TextBlock x:Name="NetCaption" Classes="muted" /><TextBlock x:Name="NetValue" Classes="stats-value" /></StackPanel>
-                        <StackPanel MinWidth="130"><TextBlock x:Name="NetUpCaption" Classes="muted" /><TextBlock x:Name="NetUpValue" Classes="stats-value" /></StackPanel>
-                        <StackPanel MinWidth="130"><TextBlock x:Name="DiskWriteCaption" Classes="muted" /><TextBlock x:Name="DiskWriteValue" Classes="stats-value" /></StackPanel>
-                        <StackPanel MinWidth="130"><TextBlock x:Name="DiskReadCaption" Classes="muted" /><TextBlock x:Name="DiskReadValue" Classes="stats-value" /></StackPanel>
-                        <StackPanel MinWidth="130"><TextBlock x:Name="RequestsCaption" Classes="muted" /><TextBlock x:Name="RequestsValue" Classes="stats-value" /></StackPanel>
+                    <WrapPanel x:Name="CurrentRates" ItemSpacing="{StaticResource Workspace.Space.24}" LineSpacing="{StaticResource Workspace.Space.8}">
+                        <StackPanel x:Name="NetworkRates" Spacing="{StaticResource Workspace.Space.4}">
+                            <TextBlock x:Name="NetworkRatesTitle" Classes="section-title" />
+                            <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                <StackPanel MinWidth="112">
+                                    <TextBlock x:Name="NetCaption" Classes="muted" />
+                                    <TextBlock x:Name="NetValue" Classes="stats-value" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" MinWidth="112">
+                                    <TextBlock x:Name="NetUpCaption" Classes="muted" />
+                                    <TextBlock x:Name="NetUpValue" Classes="stats-value" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel x:Name="DiskRates" Spacing="{StaticResource Workspace.Space.4}">
+                            <TextBlock x:Name="DiskRatesTitle" Classes="section-title" />
+                            <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                <StackPanel MinWidth="112">
+                                    <TextBlock x:Name="DiskReadCaption" Classes="muted" />
+                                    <TextBlock x:Name="DiskReadValue" Classes="stats-value" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" MinWidth="112">
+                                    <TextBlock x:Name="DiskWriteCaption" Classes="muted" />
+                                    <TextBlock x:Name="DiskWriteValue" Classes="stats-value" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel x:Name="RequestRate" Spacing="{StaticResource Workspace.Space.4}">
+                            <TextBlock x:Name="RequestsCaption" Classes="section-title" />
+                            <TextBlock x:Name="RequestsValue" Classes="stats-value" />
+                        </StackPanel>
                     </WrapPanel>
                     <Grid wv:WorkViewElement.Id="statistics.history" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                         <TextBlock x:Name="HistoryTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
