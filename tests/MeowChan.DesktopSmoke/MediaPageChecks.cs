@@ -392,6 +392,7 @@ internal static partial class MediaPageChecks
             await host.SetMediaTagAsync(keep.Tag, MediaLibraryFilterEngine.TagTarget(fixtureTwo)!, true).WaitAsync(Deadline);
             List<MediaLibraryEntry> edited = new();
             MediaPage page = new(host.OpenArchiveReaderAsync) { ReadUserData = () => UserData(host), EditTags = entry => { edited.Add(entry); return Task.CompletedTask; } };
+            page.InitializeSharedMediaMenus();
             Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media state", ShowInTaskbar = false };
             try
             {

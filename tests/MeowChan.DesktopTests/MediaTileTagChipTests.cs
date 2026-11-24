@@ -101,6 +101,7 @@ public sealed class MediaTileTagChipTests : IDisposable
             IsAvailable = true,
             ReadUserData = () => data
         };
+        page.InitializeSharedMediaMenus();
         Window window = new() { Width = 1440, Height = 840, Content = page };
         try
         {

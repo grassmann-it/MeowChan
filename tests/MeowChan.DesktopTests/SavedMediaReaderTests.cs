@@ -1029,13 +1029,13 @@ public sealed class SavedMediaReaderTests
             {
                 using TempDirectory profile = new();
                 string downloads = Path.Combine(profile.Path, "downloads");
-                string mediaDirectory = StorageLayout.GetThreadDirectory(downloads, ThreadId.Source, ThreadId.Board, ThreadId.Thread!);
-                (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(mediaDirectory, includePostAndReply: true);
                 new Config
                 {
                     DownloadPath = downloads, FirstRunSetupVersion = 1, DownloadsPaused = true,
                     WorkspaceMode = "Advanced", Language = "en", MediaSidebarInfo = "Always"
                 }.SaveConfig(profile.Path);
+                string mediaDirectory = StorageLayout.GetThreadDirectory(downloads, ThreadId.Source, ThreadId.Board, ThreadId.Thread!);
+                (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(mediaDirectory, includePostAndReply: true);
                 await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
                 using IDisposable manifests = VirtualMediaManifests.Register(Path.GetDirectoryName(mediaDirectory)!,
                     (directory, _, _) => Task.FromResult(directory == manifest.Directory ? manifest
