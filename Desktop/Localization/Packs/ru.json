@@ -5130,6 +5130,8 @@
     "tagging.page.tile.tags": "Теги: {0}",
     "tagging.page.empty.queue": "Очередь тегов пуста. Выделите медиа на странице «Медиа» и выберите «Добавить в очередь тегов».",
     "tagging.page.empty.media": "Перейти в раздел «Медиа»",
+    "tagging.page.empty.add": "Добавить медиафайлы",
+    "tagging.page.empty.reviewSkipped": "Просмотреть пропущенные файлы ({0})",
     "tagging.page.empty.how": "Как работает разметка тегами?",
     "tagging.page.empty.allDone": "Все записи выполнены или пропущены ({0}).",
     "tagging.page.empty.reopen": "Снова открыть пропущенные",

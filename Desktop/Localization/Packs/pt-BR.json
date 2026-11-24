@@ -5112,6 +5112,8 @@
     "tagging.page.tile.tags": "Tags: {0}",
     "tagging.page.empty.queue": "A fila de tags está vazia. Selecione mídias na página Mídia e escolha “Adicionar à fila de tags”.",
     "tagging.page.empty.media": "Ir para Mídia",
+    "tagging.page.empty.add": "Adicionar mídias",
+    "tagging.page.empty.reviewSkipped": "Revisar mídias puladas ({0})",
     "tagging.page.empty.how": "Como funciona a marcação com tags?",
     "tagging.page.empty.allDone": "Todas as entradas estão concluídas ou puladas ({0}).",
     "tagging.page.empty.reopen": "Reabrir as puladas",

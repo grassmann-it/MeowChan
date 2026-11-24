@@ -5153,6 +5153,8 @@
     "tagging.page.tile.tags": "Tagi: {0}",
     "tagging.page.empty.queue": "Kolejka tagowania jest pusta. Zaznacz media na stronie Media i wybierz „Dodaj do kolejki tagowania”.",
     "tagging.page.empty.media": "Przejdź do Mediów",
+    "tagging.page.empty.add": "Dodaj multimedia",
+    "tagging.page.empty.reviewSkipped": "Przejrzyj pominięte multimedia ({0})",
     "tagging.page.empty.how": "Jak działa tagowanie?",
     "tagging.page.empty.allDone": "Wszystkie wpisy są zakończone lub pominięte ({0}).",
     "tagging.page.empty.reopen": "Otwórz ponownie pominięte",

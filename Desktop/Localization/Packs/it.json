@@ -5112,6 +5112,8 @@
     "tagging.page.tile.tags": "Tag: {0}",
     "tagging.page.empty.queue": "La coda di tagging è vuota. Seleziona dei media nella pagina Media e scegli «Aggiungi alla coda di tagging».",
     "tagging.page.empty.media": "Vai a Media",
+    "tagging.page.empty.add": "Aggiungi media",
+    "tagging.page.empty.reviewSkipped": "Rivedi i media saltati ({0})",
     "tagging.page.empty.how": "Come funziona il tagging?",
     "tagging.page.empty.allDone": "Tutte le voci sono completate o saltate ({0}).",
     "tagging.page.empty.reopen": "Riapri le saltate",

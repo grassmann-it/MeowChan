@@ -16,11 +16,15 @@ internal static class TaggingEmptyStates
         => Of(queue, filter, shown, groupId: null, ungrouped: false);
 
     internal static TaggingEmptyKind Of(TagQueueSnapshot queue, TaggingQueueFilter filter, int shown, string? groupId, bool ungrouped)
+        => Of(queue, filter, shown, groupId, ungrouped, TaggingQueueView.Counts(queue, groupId, ungrouped));
+
+    internal static TaggingEmptyKind Of(TagQueueSnapshot queue, TaggingQueueFilter filter, int shown, string? groupId, bool ungrouped,
+        TaggingQueueCounts counts)
     {
         if (shown > 0) return TaggingEmptyKind.None;
         if (groupId != null && queue.CountFor(groupId) == 0 || ungrouped && queue.CountFor(null) == 0) return TaggingEmptyKind.GroupEmpty;
         if (queue.Count == 0) return TaggingEmptyKind.QueueEmpty;
-        return filter == TaggingQueueFilter.Open && TaggingQueueView.Counts(queue, groupId, ungrouped).Open == 0
+        return filter == TaggingQueueFilter.Open && counts.Count > 0 && counts.Open == 0
             ? TaggingEmptyKind.AllDone : TaggingEmptyKind.FilterNoHits;
     }
 }

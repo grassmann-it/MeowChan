@@ -5019,6 +5019,8 @@
     "tagging.page.tile.tags": "タグ: {0}",
     "tagging.page.empty.queue": "タグ付けキューは空です。メディアページでメディアを選択し、「タグ付けキューに追加」を選んでください。",
     "tagging.page.empty.media": "メディアへ移動",
+    "tagging.page.empty.add": "メディアを追加",
+    "tagging.page.empty.reviewSkipped": "スキップしたメディアを確認（{0} 件）",
     "tagging.page.empty.how": "タグ付けの仕組みは？",
     "tagging.page.empty.allDone": "すべての項目が完了またはスキップされました（{0}）。",
     "tagging.page.empty.reopen": "スキップした項目を未処理に戻す",

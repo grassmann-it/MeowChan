@@ -61,10 +61,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private readonly WrapPanel _emptyActions = new() { Name = "TaggingEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Button _emptyMedia = new() { Name = "TaggingEmptyMedia" };
     private readonly Button _emptyHow = new() { Name = "TaggingEmptyHow", Classes = { "link" } };
-    private readonly Button _emptyDeleteGroup = new() { Name = "TaggingEmptyDeleteGroup", Classes = { "danger" } };
-    private readonly Button _emptyClearDone = new() { Name = "TaggingEmptyClearDone" };
-    private readonly Button _emptyReopen = new() { Name = "TaggingEmptyReopen" };
+    private readonly Button _emptyReviewSkipped = new() { Name = "TaggingEmptyReviewSkipped" };
     private readonly Button _emptyShowAll = new() { Name = "TaggingEmptyShowAll" };
+    private readonly Button _emptyMore = new() { Name = "TaggingEmptyMore" };
     private readonly TextBlock _status = new() { Name = "TaggingStatus", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TaggingThumbnails _thumbnails;
@@ -226,10 +225,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _empty.Classes.Add(WorkspaceEmptyState.TextClass);
         _emptyState.Children.Add(_empty);
         _emptyActions.Children.Add(_emptyShowAll);
+        _emptyActions.Children.Add(_emptyReviewSkipped);
         _emptyActions.Children.Add(_emptyMedia);
-        _emptyActions.Children.Add(_emptyClearDone);
-        _emptyActions.Children.Add(_emptyReopen);
-        _emptyActions.Children.Add(_emptyDeleteGroup);
+        _emptyActions.Children.Add(_emptyMore);
         _emptyState.Children.Add(_emptyActions);
         _emptyState.Children.Add(_emptyHow);
         _emptyHow.HorizontalAlignment = HorizontalAlignment.Center;
@@ -619,6 +617,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _tagDialog?.Dispose();
         _tagDialog = null;
         EndColumns();
+        _emptyMoreHost?.Dispose();
         _selectionMenuHost?.Dispose();
         _groupManageHost?.Dispose();
         _lifetime.Cancel();

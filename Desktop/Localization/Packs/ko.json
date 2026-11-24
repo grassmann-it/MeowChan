@@ -5019,6 +5019,8 @@
     "tagging.page.tile.tags": "태그: {0}",
     "tagging.page.empty.queue": "태그 지정 대기열이 비어 있습니다. 미디어 페이지에서 미디어를 선택하고 “태그 지정 대기열에 추가”를 선택하세요.",
     "tagging.page.empty.media": "미디어로 이동",
+    "tagging.page.empty.add": "미디어 추가",
+    "tagging.page.empty.reviewSkipped": "건너뛴 미디어 검토 ({0}개)",
     "tagging.page.empty.how": "태그 지정은 어떻게 작동하나요?",
     "tagging.page.empty.allDone": "모든 항목이 완료되었거나 건너뛴 상태입니다({0}).",
     "tagging.page.empty.reopen": "건너뛴 항목을 미처리로 되돌리기",

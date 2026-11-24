@@ -5106,6 +5106,8 @@
     "tagging.page.tile.tags": "Étiquettes : {0}",
     "tagging.page.empty.queue": "La file d’étiquetage est vide. Sélectionnez des médias sur la page Médias et choisissez « Ajouter à la file d’étiquetage ».",
     "tagging.page.empty.media": "Aller à Médias",
+    "tagging.page.empty.add": "Ajouter des médias",
+    "tagging.page.empty.reviewSkipped": "Examiner les médias ignorés ({0})",
     "tagging.page.empty.how": "Comment fonctionne l’étiquetage ?",
     "tagging.page.empty.allDone": "Toutes les entrées sont terminées ou ignorées ({0}).",
     "tagging.page.empty.reopen": "Rouvrir les ignorées",

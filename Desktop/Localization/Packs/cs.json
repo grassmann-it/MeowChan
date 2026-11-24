@@ -5152,6 +5152,8 @@
     "tagging.page.tile.tags": "Štítky: {0}",
     "tagging.page.empty.queue": "Fronta štítkování je prázdná. Vyberte média na stránce Média a zvolte „Přidat do fronty štítkování“.",
     "tagging.page.empty.media": "Přejít na Média",
+    "tagging.page.empty.add": "Přidat média",
+    "tagging.page.empty.reviewSkipped": "Prohlédnout přeskočená média ({0})",
     "tagging.page.empty.how": "Jak štítkování funguje?",
     "tagging.page.empty.allDone": "Všechny položky jsou hotové nebo přeskočené ({0}).",
     "tagging.page.empty.reopen": "Znovu otevřít přeskočené",

@@ -114,6 +114,8 @@ internal static class TaggingPageCatalog
         ("tagging.page.tile.tags", "Tags: {0}", "Tags: {0}"),
         ("tagging.page.empty.queue", "The tagging queue is empty. Select media on the Media page and choose “Add to tagging queue”.", "Die Tagging-Warteschlange ist leer. Wähle auf der Medienseite Medien aus und nimm „Zur Tagging-Warteschlange“."),
         ("tagging.page.empty.media", "Go to Media", "Zur Medienseite"),
+        ("tagging.page.empty.add", "Add media", "Medien hinzufügen"),
+        ("tagging.page.empty.reviewSkipped", "Review skipped media ({0})", "Übersprungene Medien ansehen ({0})"),
         ("tagging.page.empty.how", "How does tagging work?", "Wie funktioniert Taggen?"),
         ("tagging.page.empty.allDone", "Every entry is finished or skipped ({0}).", "Alle Einträge sind erledigt oder übersprungen ({0})."),
         ("tagging.page.empty.group", "The group “{0}” has no entries.", "Die Gruppe „{0}“ hat noch keine Einträge."),

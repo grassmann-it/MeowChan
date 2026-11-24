@@ -5019,6 +5019,8 @@
     "tagging.page.tile.tags": "标签：{0}",
     "tagging.page.empty.queue": "标签队列是空的。请在“媒体”页面选择媒体，然后选择“加入标签队列”。",
     "tagging.page.empty.media": "前往媒体",
+    "tagging.page.empty.add": "添加媒体",
+    "tagging.page.empty.reviewSkipped": "查看已跳过的媒体（{0} 项）",
     "tagging.page.empty.how": "打标签是如何运作的？",
     "tagging.page.empty.allDone": "所有条目都已完成或跳过（{0}）。",
     "tagging.page.empty.reopen": "将已跳过的重设为待处理",

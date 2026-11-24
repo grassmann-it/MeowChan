@@ -5106,6 +5106,8 @@
     "tagging.page.tile.tags": "Etiquetas: {0}",
     "tagging.page.empty.queue": "La cola de etiquetado está vacía. Seleccione medios en la página Medios y elija «Añadir a la cola de etiquetado».",
     "tagging.page.empty.media": "Ir a Medios",
+    "tagging.page.empty.add": "Añadir contenido multimedia",
+    "tagging.page.empty.reviewSkipped": "Revisar archivos omitidos ({0})",
     "tagging.page.empty.how": "¿Cómo funciona el etiquetado?",
     "tagging.page.empty.allDone": "Todas las entradas están terminadas u omitidas ({0}).",
     "tagging.page.empty.reopen": "Reabrir las omitidas",
