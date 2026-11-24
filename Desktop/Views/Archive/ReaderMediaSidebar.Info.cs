@@ -231,10 +231,16 @@ internal sealed partial class ReaderMediaSidebar
         Size inner = panelSize.Deflate(Padding + BorderThickness);
         double rows = (_stripRow.IsVisible ? _stripRow.DesiredSize.Height : 0) + (_videoRow.IsVisible ? _videoRow.DesiredSize.Height : 0);
         PixelSize? source = _mediumKey == Load.ShownKey ? Load.ShownSource : null;
-        _infoBar.Measure(new Size(inner.Width, double.PositiveInfinity));
-        var layout = ReaderMediaSidebarRules.InfoLayout(_infoPreferences, _detailsOverride, inner, source, rows,
-            _wasDocked, _image.MaxHeight, _infoBar.DesiredSize.Height);
-        _wasDocked = layout.Docked && _fileName.Length > 0;
+        SidebarInfoLayout layout = default;
+        bool canDock = _detailsOverride ?? (_infoPreferences.MediaSidebarInfo == "Always" ||
+            _infoPreferences.MediaSidebarInfo == "Auto" && source.HasValue);
+        if (canDock && inner.Width > 0 && inner.Height > 0 && _fileName.Length > 0)
+        {
+            _infoBar.Measure(new Size(inner.Width, double.PositiveInfinity));
+            layout = ReaderMediaSidebarRules.InfoLayout(_infoPreferences, _detailsOverride, inner, source, rows,
+                _wasDocked, _image.MaxHeight, _infoBar.DesiredSize.Height);
+        }
+        _wasDocked = layout.Docked;
         bool showOverlay = !_wasDocked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
             _infoPreferences.MediaSidebarInfo is "Auto" or "Overlay";
         if ((!_wasDocked && _details.IsKeyboardFocusWithin) || (!showOverlay && _overlay.IsKeyboardFocusWithin))
