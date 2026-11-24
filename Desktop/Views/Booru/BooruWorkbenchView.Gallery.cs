@@ -185,7 +185,7 @@ internal sealed partial class BooruWorkbenchView
     private async Task ChangePageAsync(int delta)
     {
         BooruSearchModel search = _model.Search;
-        int tab = SearchTabs.ActiveId;
+        int? tab = SearchTabs.ActiveId;
         BooruSearchView before = search.View;
         int page = before.Page + delta;
         Control pagerButton = delta < 0 ? _previous : _next;

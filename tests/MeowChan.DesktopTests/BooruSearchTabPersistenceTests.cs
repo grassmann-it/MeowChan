@@ -96,7 +96,7 @@ public sealed class BooruSearchTabPersistenceTests
         Control content = Assert.IsAssignableFrom<Control>(Assert.IsType<TabItem>(strip.SelectedItem).Content);
         Border status = Assert.Single(content.GetLogicalDescendants().OfType<Border>(), border => border.Name == BooruWorkbenchView.StatusName);
         Assert.Contains(status.GetLogicalDescendants().OfType<TextBlock>(), text => text.Text == Texts.T("booru.tabs.restore.load"));
-        restoredTabs.Select(BooruSearchTabs.PrimaryId);
+        restoredTabs.Select(restoredTabs.Ids[0]);
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(BooruInputMode.Post, restored.Model.Search.View.Mode);
         Assert.Equal("42", restored.Model.Search.View.ExecutedPostId);
@@ -112,8 +112,7 @@ public sealed class BooruSearchTabPersistenceTests
     [InlineData("{\"version\":1, broken")]
     [InlineData("{\"version\":1,\"providerId\":\"danbooru\",\"activeIndex\":6,\"tabs\":[null]}")]
     [InlineData("{\"version\":1,\"version\":1,\"providerId\":\"danbooru\",\"activeIndex\":0,\"tabs\":[null]}")]
-    [InlineData("{\"version\":2,\"providerId\":\"danbooru\",\"activeIndex\":0,\"tabs\":[null]}")]
-    public async Task InvalidOrFutureFilesAreQuarantinedAndTheNextSaveWorks(string contents)
+    public async Task DamagedFilesAreQuarantinedAndTheNextSaveWorks(string contents)
     {
         using TempDirectory profile = new();
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
@@ -122,14 +121,16 @@ public sealed class BooruSearchTabPersistenceTests
         await File.WriteAllTextAsync(path, contents);
         using BooruWorkbenchModel model = new(new BooruUiHarness().Services);
         BooruSearchTabStore store = new(lease);
-        Assert.Null(store.Load(model.Search.View, 2, 1, Source));
+        Assert.Null(store.Load(model.Search.View, 1, Source));
         Assert.False(File.Exists(path));
         Assert.Equal(contents, await File.ReadAllTextAsync(path + ".bad"));
 
+        BooruSearchTabs tabs = new(model.Search);
+        tabs.Add(copyCurrent: false);
         model.Search.SetInput("safe_draft");
-        store.Save(new BooruSearchTabs(model.Search).Capture(2), 1);
+        store.Save(tabs.Capture(2), 1);
         await store.PendingSave;
-        BooruTabSnapshot loaded = Assert.IsType<BooruTabSnapshot>(store.Load(model.Search.View, 2, 1, Source));
+        BooruTabSnapshot loaded = Assert.IsType<BooruTabSnapshot>(store.Load(model.Search.View, 1, Source));
         Assert.Equal("safe_draft", Assert.Single(loaded.Tabs)!.Input);
         Assert.Equal(contents, await File.ReadAllTextAsync(path + ".bad"));
         Assert.Empty(Directory.GetFiles(profile.Path, ".*.tmp"));
@@ -149,7 +150,7 @@ public sealed class BooruSearchTabPersistenceTests
             """);
         using BooruWorkbenchModel model = new(new BooruUiHarness().Services);
         BooruSearchTabStore store = new(lease);
-        BooruTabSnapshot loaded = Assert.IsType<BooruTabSnapshot>(store.Load(model.Search.View, 2, 20, Source));
+        BooruTabSnapshot loaded = Assert.IsType<BooruTabSnapshot>(store.Load(model.Search.View, 20, Source));
         BooruSearchView tab = Assert.IsType<BooruSearchView>(Assert.Single(loaded.Tabs));
         Assert.Equal(5, tab.Page);
         Assert.Equal(new BooruPagerLimits(5, 20), tab.PagerLimits);
@@ -157,7 +158,7 @@ public sealed class BooruSearchTabPersistenceTests
     }
 
     [Fact]
-    public async Task SaveAndLoadLimitsKeepThePermanentAndActiveTabsAndBoundTheirResults()
+    public async Task SaveLimitKeepsTheEarliestAndActiveTabsAndBoundsTheirResults()
     {
         using TempDirectory profile = new();
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
@@ -168,7 +169,8 @@ public sealed class BooruSearchTabPersistenceTests
         using BooruWorkbenchModel model = new(harness.Services);
         BooruSearchModel search = model.Search;
         BooruSearchTabs tabs = new(search);
-        search.SetInput("primary");
+        tabs.Add(copyCurrent: false);
+        search.SetInput("first");
         tabs.Add(copyCurrent: false);
         search.SetInput("middle");
         tabs.Add(copyCurrent: false);
@@ -184,13 +186,13 @@ public sealed class BooruSearchTabPersistenceTests
         JsonElement saved = document.RootElement.GetProperty("tabs");
         Assert.Equal(2, saved.GetArrayLength());
         Assert.Equal(2, saved[1].GetProperty("rows").GetArrayLength());
-        BooruTabSnapshot loaded = Assert.IsType<BooruTabSnapshot>(store.Load(search.View, 2, 1, Source));
-        Assert.Collection(loaded.Tabs, tab => Assert.Equal("primary", tab!.Input), tab => Assert.Equal("active", tab!.Input));
+        BooruTabSnapshot loaded = Assert.IsType<BooruTabSnapshot>(store.Load(search.View, 1, Source));
+        Assert.Collection(loaded.Tabs, tab => Assert.Equal("first", tab!.Input), tab => Assert.Equal("active", tab!.Input));
         Assert.Equal(1, loaded.ActiveIndex);
         Assert.True(loaded.Tabs[1]!.HasNextPage);
         Assert.Equal("203", Assert.Single(loaded.Tabs[1]!.Rows).Post.PostId);
 
-        BooruTabSnapshot drafts = Assert.IsType<BooruTabSnapshot>(store.Load(search.View, 2, 0, Source));
+        BooruTabSnapshot drafts = Assert.IsType<BooruTabSnapshot>(store.Load(search.View, 0, Source));
         BooruSearchView active = drafts.Tabs[1]!;
         Assert.Empty(active.Rows);
         Assert.True(active.NeedsLoad);
@@ -239,8 +241,9 @@ public sealed class BooruSearchTabPersistenceTests
             Assert.False(File.Exists(path));
             BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => File.Exists(path), "debounced search tabs save"));
             BooruComponentDispatcher.Wait(store.PendingSave);
-            BooruTabSnapshot snapshot = Assert.IsType<BooruTabSnapshot>(store.Load(page.Model.Search.View, 2, 1, Source));
-            Assert.Equal("latest", Assert.Single(snapshot.Tabs)!.Input);
+            BooruTabSnapshot snapshot = Assert.IsType<BooruTabSnapshot>(store.Load(page.Model.Search.View, 1, Source));
+            Assert.Empty(snapshot.Tabs);
+            Assert.Equal("latest", snapshot.Draft!.Input);
             page.FlushSearchTabs();
             BooruComponentDispatcher.Wait(store.PendingSave);
         }
@@ -251,9 +254,117 @@ public sealed class BooruSearchTabPersistenceTests
         optedOut.Model.Search.SetInput("private_draft");
         optedOut.FlushSearchTabs();
         BooruComponentDispatcher.Wait(store.PendingSave);
-        BooruTabSnapshot previous = Assert.IsType<BooruTabSnapshot>(store.Load(optedOut.Model.Search.View, 2, 1, Source));
-        Assert.Equal("latest", Assert.Single(previous.Tabs)!.Input);
+        BooruTabSnapshot previous = Assert.IsType<BooruTabSnapshot>(store.Load(optedOut.Model.Search.View, 1, Source));
+        Assert.Empty(previous.Tabs);
+        Assert.Equal("latest", previous.Draft!.Input);
     });
+
+    [Theory]
+    [InlineData(0, false, 33, 0)]
+    [InlineData(32, false, 33, 32)]
+    [InlineData(0, true, 32, 0)]
+    [InlineData(32, true, 32, 31)]
+    public void LegacyFullProfileKeepsAllOccupiedSlots(int active, bool placeholder, int expectedCount, int expectedIndex) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using TempDirectory profile = new();
+            Config config = JsonSerializer.Deserialize("""{"BooruSearchTabs":32,"BooruSavedTabs":33}""", ConfigJsonContext.Default.Config)!;
+            using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+            lease.Admission.CompleteStartup();
+            var legacyTabs = Enumerable.Range(0, 33).Select(index => new
+            {
+                mode = index == 32 ? 1 : 0,
+                input = index == 0 && placeholder ? "" : $"draft_{index}",
+                query = index == 1 ? "cat" : null,
+                postId = index == 32 ? "42" : null,
+                page = index == 1 ? 2 : 1,
+                isEnd = false,
+                empty = false,
+                rows = Array.Empty<object>(),
+                maximumPage = 3,
+                postsPerPage = 7
+            }).ToArray();
+            string path = Path.Combine(profile.Path, BooruSearchTabStore.FileName);
+            string original = JsonSerializer.Serialize(new { version = 1, providerId = "danbooru", activeIndex = active, tabs = legacyTabs });
+            File.WriteAllText(path, original);
+            BooruUiHarness offline = new();
+            using BooruPage page = new(WithSource(offline));
+            BooruSearchTabStore store = new(lease);
+            page.RestoreSearchTabs(store, config);
+            BooruSearchTabs tabs = page.View.SearchTabs;
+            Assert.Equal(33, tabs.Limit);
+            Assert.Equal(expectedCount, tabs.Ids.Count);
+            Assert.Equal(tabs.Ids[expectedIndex], tabs.ActiveId);
+            foreach (int index in Enumerable.Range(0, expectedCount))
+                Assert.Equal($"draft_{index + (placeholder ? 1 : 0)}", tabs.ViewOf(tabs.Ids[index])!.Input);
+            BooruSearchView paged = tabs.ViewOf(tabs.Ids[placeholder ? 0 : 1])!;
+            Assert.Equal("cat", paged.ExecutedQuery);
+            Assert.Equal(2, paged.Page);
+            Assert.Equal(new BooruPagerLimits(3, 7), paged.PagerLimits);
+            BooruSearchView post = tabs.ViewOf(tabs.Ids[^1])!;
+            Assert.Equal("42", post.ExecutedPostId);
+            Assert.Equal(BooruInputMode.Post, post.Mode);
+            Assert.Equal(0, offline.ProviderRequests);
+            page.FlushSearchTabs();
+            BooruComponentDispatcher.Wait(store.PendingSave);
+            Assert.Equal(original, File.ReadAllText(path));
+            Assert.False(File.Exists(path + ".bad"));
+        });
+
+    [Fact]
+    public void ClosingTheLastTabPersistsEmptyAcrossRestart() => BooruComponentDispatcher.Run(() =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        BooruSearchTabStore store = new(lease);
+        BooruUiHarness harness = new();
+        using (BooruPage page = new(WithSource(harness)))
+        {
+            page.RestoreSearchTabs(store, new Config());
+            Assert.True(page.View.TryShowQueryInNewTab("cat"));
+            page.FlushSearchTabs();
+            BooruComponentDispatcher.Wait(store.PendingSave);
+        }
+        using (BooruPage page = new(WithSource(harness)))
+        {
+            page.RestoreSearchTabs(store, new Config());
+            Assert.Equal("cat", page.Model.Search.View.Input);
+            Assert.True(page.View.SearchTabs.Close(Assert.Single(page.View.SearchTabs.Ids)));
+            page.FlushSearchTabs();
+            BooruComponentDispatcher.Wait(store.PendingSave);
+        }
+        using BooruPage reopened = new(WithSource(harness));
+        reopened.RestoreSearchTabs(store, new Config());
+        Assert.Empty(reopened.View.SearchTabs.Ids);
+        Assert.Null(reopened.View.SearchTabs.ActiveId);
+        Assert.Empty(reopened.Model.Search.View.Input);
+        Assert.Equal(0, harness.ProviderRequests);
+        Assert.False(File.Exists(Path.Combine(profile.Path, BooruSearchTabStore.FileName + ".bad")));
+    });
+
+    [Theory]
+    [InlineData("""{"version":2,"state":{"activeIndex":0,"tabs":[{"sourceId":"danbooru","instanceId":"default","query":"cat","page":1}]}}""")]
+    [InlineData("""{"Version":1,"State":{"ActiveIndex":0,"Tabs":[{"SourceId":"danbooru","InstanceId":"default","Query":"cat","Page":1}]}}""")]
+    [InlineData("""{"version":17,"state":{}}""")]
+    public async Task NewerAndScopedFormatsStayInPlaceEvenAfterAnEdit(string content)
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        string path = Path.Combine(profile.Path, BooruSearchTabStore.FileName);
+        await File.WriteAllTextAsync(path, content);
+        using BooruWorkbenchModel model = new(new BooruUiHarness().Services);
+        BooruSearchTabStore store = new(lease);
+        Assert.Null(store.Load(model.Search.View, 1, Source));
+        BooruSearchTabs tabs = new(model.Search);
+        tabs.Add(copyCurrent: false);
+        model.Search.SetInput("cat");
+        store.Save(tabs.Capture(2), 1);
+        await store.PendingSave;
+        Assert.Equal(content, await File.ReadAllTextAsync(path));
+        Assert.False(File.Exists(path + ".bad"));
+    }
 
     private static BooruWorkbenchServices WithSource(BooruUiHarness harness) =>
         new(harness.Search, harness.Queue, harness.Watchers, harness.Previews, harness.Clock, harness.Links.Actions) { Source = Source };

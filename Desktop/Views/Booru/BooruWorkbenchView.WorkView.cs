@@ -89,6 +89,12 @@ internal sealed partial class BooruWorkbenchView
     {
         List<WorkViewMoreSurface.Entry> entries = new();
         object? tab = _tabs.SelectedItem;
+        if (IsSearchItem(tab))
+        {
+            bool CanSubmit() => ReferenceEquals(tab, _tabs.SelectedItem) && _model.Search.CanSubmit;
+            entries.Add(new(10, AlternateSubmitCommand, () => Texts.T("booru.tabs.searchNewShort"),
+                () => OpenActions.Start(() => SubmitSearchAsync(alternate: true), AlternateSubmitCommand), CanSubmit, "search"));
+        }
         foreach (ResultActions result in _resultActions)
         {
             foreach (ResultCommand link in result.LinkCommands())

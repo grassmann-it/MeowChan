@@ -266,15 +266,16 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         if (watchers) page.View.ShowWatchers();
         else
         {
-            int activeId = page.View.SearchTabs.ActiveId;
-            TabItem search = tabs.Items.OfType<TabItem>().Single(tab => tab.Tag is int id && id == activeId);
+            int? activeId = page.View.SearchTabs.ActiveId;
+            TabItem search = tabs.Items.OfType<TabItem>().Single(tab => Equals(tab.Tag, activeId) && tab.Name != BooruWorkbenchView.WatchersTabName);
             tabs.SelectedItem = search;
         }
         for (int pass = 0; pass < 2; pass++)
             await Dispatcher.UIThread.InvokeAsync(page.UpdateLayout, DispatcherPriority.Background);
         bool selected = watchers
             ? (tabs.SelectedItem as TabItem)?.Name == BooruWorkbenchView.WatchersTabName
-            : tabs.SelectedItem is TabItem { Tag: int id } && id == page.View.SearchTabs.ActiveId;
+            : tabs.SelectedItem is TabItem search && search.Name != BooruWorkbenchView.WatchersTabName
+                && Equals(search.Tag, page.View.SearchTabs.ActiveId);
         Require(selected, "The actual tab selection did not settle.");
     }
 

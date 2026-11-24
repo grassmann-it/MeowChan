@@ -196,6 +196,7 @@ internal sealed partial class BooruSearchModel : IDisposable
                 _view = _view with { Mode = BooruInputMode.Post };
         }
         if (refused) { RaiseChanged(); return; }
+        EnsureSearchTab?.Invoke();
         if (parsed.Kind == BooruInputKind.Post) await RunPostAsync(parsed.PostId!).ConfigureAwait(false);
         else await RunSearchAsync(parsed.Canonical!, 1, ReadPagerLimits()).ConfigureAwait(false);
     }

@@ -105,8 +105,6 @@ public partial class SettingsEditor
             Number(SourceHeapMiBInput, () => SourceHeapMiB, value => SourceHeapMiB = value, config => config.PluginSourceHeapMiB),
             Number(FilterHeapMiBInput, () => FilterHeapMiB, value => FilterHeapMiB = value, config => config.PluginFilterHeapMiB),
             Number(BooruCatalogMiBInput, () => BooruCatalogMiB, value => BooruCatalogMiB = value, config => config.BooruCatalogLimitMiB),
-            Choice(BooruNewSearchTargetInput, () => SelectedBooruNewSearchTarget?.Value,
-                value => SelectedBooruNewSearchTarget = Choice(BooruSearchTargetChoices, value), config => config.BooruNewSearchTarget),
             Flag(RestoreBooruSearchTabsInput, () => RestoreBooruSearchTabs, value => RestoreBooruSearchTabs = value, config => config.RestoreBooruSearchTabs),
             Number(BooruSearchPagesInput, () => BooruSearchPages, value => BooruSearchPages = value, config => config.BooruSearchPages),
             Number(BooruSearchPostsPerPageInput, () => BooruSearchPostsPerPage, value => BooruSearchPostsPerPage = value, config => config.BooruSearchPostsPerPage),

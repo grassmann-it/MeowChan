@@ -53,6 +53,7 @@ public static class SettingsTransfer
         nameof(Config.DownloadsPaused),
         nameof(Config.LastExportDirectory),
         nameof(Config.GalleryFrameDirectory),
+        nameof(Config.BooruNewSearchTarget), // legacy preference without a live setting
         // These are persisted view/notice state rather than user settings.
         nameof(Config.GalleryContextOpen),
         nameof(Config.ArchiveBridgeHintSeen),
@@ -229,7 +230,6 @@ public static class SettingsTransfer
             MediaTagListTop = source.MediaTagListTop,
             BooruResultTagsShown = source.BooruResultTagsShown,
             BooruListLayout = source.BooruListLayout,
-            BooruNewSearchTarget = source.BooruNewSearchTarget,
             BooruSearchTabs = source.BooruSearchTabs,
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs,
             BooruSearchPages = source.BooruSearchPages,

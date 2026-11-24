@@ -99,7 +99,6 @@ internal static partial class BooruWorkbenchChecks
 
             // ---- search: the query is visible exactly as sent -------------------------------------------------------
             // This state walkthrough deliberately reuses a single search tab.
-            page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
             await CheckSearchRowResizeAsync(owner, h, shots);
             await CheckLiveGalleryAsync(owner);
             await CheckPopoutBoundsAfterShutdownAsync(owner);
@@ -569,7 +568,6 @@ internal static partial class BooruWorkbenchChecks
     {
         string language = Texts.Language;
         using BooruPage page = new(h.Services);
-        page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
         // Keep the same page layout across the resize, including below the Advanced shell's native minimum.
         Window window = new() { Width = 1440, Height = 850, Content = page, ShowInTaskbar = false };
         int requests = h.ProviderRequests, loads = h.Queue.Loads.Count, watcherCalls = h.Watchers.Calls.Count;
@@ -582,8 +580,7 @@ internal static partial class BooruWorkbenchChecks
             WrapPanel actions = Find<WrapPanel>(page, "BooruSearchActions");
             Button submit = Find<Button>(page, BooruWorkbenchView.SubmitName);
             Button create = Find<Button>(page, BooruWorkbenchView.CreateWatcherName);
-            Button[] secondary = { Find<Button>(page, BooruWorkbenchView.AlternateSubmitName), Find<Button>(page, BooruWorkbenchView.OpenInNewTabName),
-                create, Find<Button>(page, BooruWorkbenchView.DownloadAllName) };
+            Button[] secondary = { create, Find<Button>(page, BooruWorkbenchView.DownloadAllName) };
             Control row = (Control)input.Parent!;
             foreach ((string nextLanguage, bool post, int narrowWidth) in new[]
             {
@@ -599,13 +596,8 @@ internal static partial class BooruWorkbenchChecks
                     && mode.SelectionBoxItem as string == Texts.T(modeKey) && submit.Content as string == Texts.T(submitKey)
                     && submit.IsEffectivelyEnabled && create.IsEffectivelyEnabled == !post,
                     () => "Search resize fixture did not apply language/mode: " + nextLanguage);
-                Button alternate = secondary[0], duplicate = secondary[1];
-                Require(AutomationProperties.GetName(alternate) == alternate.Content as string
-                    && AutomationProperties.GetHelpText(alternate)?.Contains(Texts.T("booru.tabs.searchNew"), StringComparison.Ordinal) == true
-                    && AutomationProperties.GetName(create) == create.Content as string
-                    && AutomationProperties.GetName(duplicate) == Texts.T("booru.tabs.duplicate")
-                    && duplicate.Content as string == Texts.T("booru.tabs.duplicate"),
-                    "The localized actions do not expose their visible labels as accessible names: " + nextLanguage);
+                Require(AutomationProperties.GetName(create) == create.Content as string,
+                    "The localized Watch action does not expose its visible label: " + nextLanguage);
                 double wideWidth = 0;
                 int pass = 0;
                 foreach (int requestedWidth in new[] { 1440, narrowWidth, 1440 })
@@ -680,8 +672,12 @@ internal static partial class BooruWorkbenchChecks
     private static async Task CheckTabStripAsync(MainWindow owner, BooruPage page, string shots)
     {
         TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
-        TabItem first = (TabItem)tabs.SelectedItem!;
         Button add = Find<Button>(page, BooruWorkbenchView.NewSearchTabName);
+        Require(page.View.SearchTabs.Ids.Count == 0 && Find<TextBox>(page, BooruWorkbenchView.InputName).IsEffectivelyVisible,
+            "The initial search field needs to be visible on an empty tab strip.");
+        Click(add);
+        await SettleAsync(owner);
+        TabItem first = (TabItem)tabs.SelectedItem!;
         Rect firstBounds = SearchLayoutBounds(first, owner);
         Rect addBounds = SearchLayoutBounds(add, owner);
         Require(Math.Abs(firstBounds.Height - addBounds.Height) <= 1 && addBounds.Width >= 44 && addBounds.Left > firstBounds.Right,
@@ -716,7 +712,11 @@ internal static partial class BooruWorkbenchChecks
         }
         finally { Application.Current.RequestedThemeVariant = theme; }
         Click(close);
-        Require(ReferenceEquals(tabs.SelectedItem, first), "Closing the extra tab did not restore the first search tab.");
+        Require(ReferenceEquals(tabs.SelectedItem, first), "Closing the second tab did not restore the first search tab.");
+        Click(first.GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("booru-tab-close")));
+        await SettleAsync(owner);
+        Require(page.View.SearchTabs.Ids.Count == 0 && Find<TextBox>(page, BooruWorkbenchView.InputName).IsEffectivelyVisible,
+            "Closing the last tab did not return to the empty search field.");
     }
 
     private static async Task CheckResultsFooterAsync(MainWindow owner, BooruPage page)

@@ -432,7 +432,7 @@ public sealed class BooruGalleryInlineTests
             int searches = harness.Search.Requests;
             int tab = view.SearchTabs.Add(copyCurrent: true);
             await wait.UntilAsync(() => view.Gallery.CurrentPostId == "101", "the copied gallery");
-            view.SearchTabs.Select(BooruSearchTabs.PrimaryId);
+            view.SearchTabs.Select(view.SearchTabs.Ids[0]);
             view.SearchTabs.Select(tab);
             await wait.UntilAsync(() => view.Gallery.CurrentPostId == "101", "the restored gallery");
             Assert.Equal(BooruGalleryPicture.Preview, view.Gallery.Picture);
@@ -466,7 +466,7 @@ public sealed class BooruGalleryInlineTests
             model.Search.CancelBulk();
             Assert.False(bulk.IsCompleted);
 
-            view.SearchTabs.Select(BooruSearchTabs.PrimaryId);
+            view.SearchTabs.Select(view.SearchTabs.Ids[0]);
             await BooruTestSupport.WaitAsync(() => status.IsVisible && button.IsEnabled, "the restored cancel button");
             Assert.Equal(Texts.T("booru.bulk.stop"), button.Content);
             model.Search.CancelBulk();

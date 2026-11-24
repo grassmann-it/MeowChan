@@ -234,7 +234,7 @@ internal sealed partial class BooruWorkbenchView
     internal void ShowWatcherQuery(string query)
     {
         if (_closed) return;
-        if (OpensNewSearchTab)
+        if (SearchTabs.ActiveId is null)
         {
             if (!TryShowQueryInNewTab(query)) return;
         }

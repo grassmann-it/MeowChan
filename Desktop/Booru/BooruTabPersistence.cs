@@ -15,6 +15,7 @@ internal sealed class BooruTabPersistence : IDisposable
     private readonly QueryDebounce _debounce;
     private BooruSearchView _observed;
     private bool _disposed;
+    private int _dirty;
 
     internal BooruTabPersistence(BooruWorkbenchView view, BooruSearchTabStore store, Config config)
     {
@@ -22,7 +23,7 @@ internal sealed class BooruTabPersistence : IDisposable
         _store = store;
         _config = config;
         if (config.RestoreBooruSearchTabs
-            && store.Load(view.Model.Search.View, TabLimit, config.BooruSavedResultsPerTab, view.Model.Services.Source) is { } snapshot)
+            && store.Load(view.Model.Search.View, config.BooruSavedResultsPerTab, view.Model.Services.Source) is { } snapshot)
             view.RestoreSearchTabs(snapshot);
 
         _observed = view.Model.Search.View;
@@ -31,8 +32,6 @@ internal sealed class BooruTabPersistence : IDisposable
         view.Model.Search.Changed += OnSearchChanged;
     }
 
-    private int TabLimit => Math.Min(_config.BooruSavedTabs, _view.SearchTabs.Limit + 1);
-
     private void OnSearchChanged()
     {
         BooruSearchView current = _view.Model.Search.View;
@@ -40,12 +39,16 @@ internal sealed class BooruTabPersistence : IDisposable
         if (!ReferenceEquals(Interlocked.Exchange(ref _observed, current), current)) Schedule();
     }
 
-    private void Schedule() => _debounce.Request(SaveDelay);
+    private void Schedule()
+    {
+        Interlocked.Exchange(ref _dirty, 1);
+        _debounce.Request(SaveDelay);
+    }
 
     private void Save()
     {
-        if (_config.RestoreBooruSearchTabs)
-            _store.Save(_view.SearchTabs.Capture(TabLimit), _config.BooruSavedResultsPerTab);
+        if (!_config.RestoreBooruSearchTabs || Interlocked.Exchange(ref _dirty, 0) == 0) return;
+        _store.Save(_view.SearchTabs.Capture(_config.BooruSavedTabs), _config.BooruSavedResultsPerTab);
     }
 
     public void Dispose()

@@ -4,138 +4,125 @@ using System.Linq;
 
 namespace MeowChan.Desktop.Booru;
 
-/// <summary>
-/// The extra tabs next to the permanent search. Slot 0 is the permanent Search tab (it cannot be closed and does not count
-/// against the limit); every other slot is one opened search. The tabs share the one <see cref="BooruSearchModel"/>: leaving a tab stores
-/// the model's immutable view in it, entering a tab puts that view back (never sending a request).
-/// </summary>
+/// <summary>Searches share one model. Leaving a tab stores its view; entering a tab restores it without sending a request.</summary>
 internal sealed class BooruSearchTabs
 {
-    internal const int PrimaryId = 0;
-
     private readonly BooruSearchModel _search;
     private readonly Func<int> _limit;
-    private readonly List<Slot> _slots = new() { new Slot(PrimaryId) };
-    private int _nextId = PrimaryId + 1;
-    private int _activeId = PrimaryId;
+    private readonly List<Slot> _slots = new();
+    private int _nextId = 1;
+    private int? _activeId;
 
-    private sealed class Slot(int id)
+    private sealed class Slot(int id, BooruSearchView? snapshot)
     {
         internal int Id { get; } = id;
-        internal BooruSearchView? Snapshot { get; set; }
+        internal BooruSearchView? Snapshot { get; set; } = snapshot;
     }
 
     internal BooruSearchTabs(BooruSearchModel search, Func<int>? limit = null)
     {
         _search = search ?? throw new ArgumentNullException(nameof(search));
-        _limit = limit ?? (() => MeowChan.Config.BooruSearchTabsDefault);
+        _search.EnsureSearchTab = EnsureActive;
+        _limit = limit ?? (() => Config.BooruSearchTabsDefault);
     }
 
-    /// <summary>Raised after the set of tabs or the active tab changed.</summary>
     internal event Action? Changed;
-
-    internal int ActiveId => _activeId;
-    /// <summary>The ids in strip order, the permanent Search tab first.</summary>
-    internal IReadOnlyList<int> Ids { get { List<int> ids = new(_slots.Count); foreach (Slot slot in _slots) ids.Add(slot.Id); return ids; } }
-
-    /// <summary>How many extra tabs may be open (the setting, clamped to its range; read at each use).</summary>
-    internal int Limit => Math.Clamp(_limit(), MeowChan.Config.BooruSearchTabsMinimum, MeowChan.Config.BooruSearchTabsMaximum);
-    internal int ExtraCount => _slots.Count - 1;
-    internal bool CanAdd => ExtraCount < Limit;
-
-    /// <summary>Keep the permanent and active tabs when trimming, without changing their order.</summary>
-    internal static int[] RetainedIndices(int count, int activeIndex, int limit)
-    {
-        if (activeIndex < limit) return Enumerable.Range(0, Math.Min(count, limit)).ToArray();
-        return Enumerable.Range(0, limit - 1).Append(activeIndex).ToArray();
-    }
+    internal int? ActiveId => _activeId;
+    internal IReadOnlyList<int> Ids => _slots.Select(slot => slot.Id).ToArray();
+    internal int Limit => Math.Clamp(_limit(), Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
+    internal bool CanAdd => _slots.Count < Limit;
 
     internal BooruTabSnapshot Capture(int limit)
     {
         int activeIndex = _slots.FindIndex(slot => slot.Id == _activeId);
-        int[] indices = RetainedIndices(_slots.Count, activeIndex, limit);
         BooruSearchView current = _search.View;
+        if (activeIndex < 0)
+            return new BooruTabSnapshot(current.ProviderId, -1, [], current);
+
+        // Keep the active tab and the earliest remaining tabs in strip order.
+        int[] indices = activeIndex < limit
+            ? Enumerable.Range(0, Math.Min(_slots.Count, limit)).ToArray()
+            : Enumerable.Range(0, limit - 1).Append(activeIndex).ToArray();
         return new BooruTabSnapshot(current.ProviderId, Array.IndexOf(indices, activeIndex),
             indices.Select(index => index == activeIndex ? current : _slots[index].Snapshot).ToArray());
     }
 
-    /// <summary>Initializes the strip before it is shown. IDs here belong to the new session.</summary>
     internal void Restore(BooruTabSnapshot snapshot)
     {
+        foreach (Slot slot in _slots) _search.CancelBulk(slot.Id);
         _slots.Clear();
-        for (int index = 0; index < snapshot.Tabs.Length; index++)
-            _slots.Add(new Slot(index == 0 ? PrimaryId : _nextId++) { Snapshot = snapshot.Tabs[index] });
-        Slot active = _slots[snapshot.ActiveIndex];
-        _activeId = active.Id;
-        _search.Restore(active.Snapshot, _activeId);
+        foreach (BooruSearchView? tab in snapshot.Tabs)
+            _slots.Add(new Slot(_nextId++, tab));
+        Slot? active = _slots.Count == 0 ? null : _slots[snapshot.ActiveIndex];
+        _activeId = active?.Id;
+        _search.Restore(active?.Snapshot ?? snapshot.Draft, _activeId);
         Changed?.Invoke();
     }
 
-    /// <summary>The view a tab shows: the live one for the active tab, else the stored one (null: a blank search).</summary>
-    internal BooruSearchView? ViewOf(int id)
-    {
-        if (id == _activeId) return _search.View;
-        return Find(id)?.Snapshot;
-    }
+    internal BooruSearchView? ViewOf(int id) => id == _activeId ? _search.View : Find(id)?.Snapshot;
 
-    /// <summary>Opens a new tab and makes it the active one. <paramref name="copyCurrent"/> starts it with the current search and its results.</summary>
-    /// <returns>The new tab's id, or -1 when the limit is reached.</returns>
-    internal int Add(bool copyCurrent)
+    /// <summary>Opens a blank tab or copies a tab's draft and results. Returns -1 if the tab cannot be opened.</summary>
+    internal int Add(bool copyCurrent) => Add(copyCurrent ? _activeId : null);
+
+    internal int Add(int? copyFrom)
     {
         if (!CanAdd) return -1;
-        Slot slot = new(_nextId++);
-        BooruSearchView? copy = copyCurrent ? _search.View : null;
+        BooruSearchView? snapshot = copyFrom is { } id ? ViewOf(id) : null;
         Store();
+        Slot slot = new(_nextId++, snapshot);
+        _slots.Add(slot);
+        Activate(slot);
+        return slot.Id;
+    }
+
+    private void EnsureActive()
+    {
+        if (_activeId.HasValue) return;
+        Slot slot = new(_nextId++, null);
         _slots.Add(slot);
         _activeId = slot.Id;
-        _search.Restore(copy, _activeId);
+        _search.SetSearchTabOwner(slot.Id);
         Changed?.Invoke();
-        return slot.Id;
     }
 
     internal bool Select(int id)
     {
         if (id == _activeId) return true;
-        Slot? target = Find(id);
-        if (target is null) return false;
+        if (Find(id) is not { } target) return false;
         Store();
-        _activeId = id;
-        _search.Restore(target.Snapshot, _activeId);
-        Changed?.Invoke();
+        Activate(target);
         return true;
     }
 
-    /// <summary>Closes an extra tab; closing the active one activates its left neighbour. The permanent tab is never closed.</summary>
     internal bool Close(int id)
     {
         int index = _slots.FindIndex(slot => slot.Id == id);
-        if (id == PrimaryId || index < 0) return false;
-        bool wasActive = id == _activeId;
+        if (index < 0) return false;
         _search.CancelBulk(id);
         _slots.RemoveAt(index);
-        if (wasActive)
-        {
-            Slot next = _slots[Math.Max(0, index - 1)];
-            _activeId = next.Id;
-            _search.Restore(next.Snapshot, _activeId);
-        }
-        Changed?.Invoke();
+        if (id == _activeId) Activate(_slots.Count == 0 ? null : _slots[Math.Max(0, index - 1)]);
+        else Changed?.Invoke();
         return true;
     }
 
-    /// <summary>The text of a tab: its search, else its post, else what is typed, else "new search" (the caller localizes the last two).</summary>
     internal static string Title(BooruSearchView? view, string blank, Func<string, string> post)
     {
-        if (view is null) return blank;
-        if (view.ExecutedQuery is { Length: > 0 } query) return query;
-        if (view.ExecutedPostId is { } postId) return post(postId);
-        return string.IsNullOrWhiteSpace(view.Input) ? blank : view.Input.Trim();
+        if (view?.ExecutedQuery is { Length: > 0 } query) return query;
+        if (view?.ExecutedPostId is { } postId) return post(postId);
+        return blank;
+    }
+
+    private void Activate(Slot? slot)
+    {
+        _activeId = slot?.Id;
+        _search.Restore(slot?.Snapshot, _activeId);
+        Changed?.Invoke();
     }
 
     private Slot? Find(int id) => _slots.Find(slot => slot.Id == id);
 
     private void Store()
     {
-        if (Find(_activeId) is { } active) active.Snapshot = _search.View;
+        if (_activeId is { } id && Find(id) is { } active) active.Snapshot = _search.View;
     }
 }

@@ -24,7 +24,7 @@ internal enum BooruBulkEnd
 internal sealed record BooruBulkView(BooruBulkPhase Phase, string? Query = null, int PagesRead = 0, int Found = 0, int Queued = 0,
     int AlreadyQueued = 0, int AlreadySaved = 0, int NoOriginal = 0, int Failed = 0, BooruBulkEnd End = BooruBulkEnd.None)
 {
-    internal int TabId { get; init; }
+    internal int? TabId { get; init; }
     internal BooruPagerLimits PagerLimits { get; init; } = BooruPagerLimits.Default;
     internal bool IsRunning => Phase == BooruBulkPhase.Running;
 }
@@ -34,7 +34,7 @@ internal sealed record BooruBulkView(BooruBulkPhase Phase, string? Query = null,
 // The watcher only takes posts that are new after its creation; this is the explicit one-time backfill.
 internal sealed partial class BooruSearchModel
 {
-    private int _activeSearchTabId = BooruSearchTabs.PrimaryId;
+    private int? _activeSearchTabId;
     private BooruBulkView _bulk = new(BooruBulkPhase.Idle);
     // The cancel action of the running collection (its token source is a local of DownloadAllAsync, so this class owns no extra disposable field).
     private Action? _cancelBulk;
@@ -50,7 +50,7 @@ internal sealed partial class BooruSearchModel
         }
     }
 
-    private bool CanDownloadAllLocked() => !_disposed && !_bulk.IsRunning && _view.ExecutedQuery is not null && !_view.IsPostResult
+    private bool CanDownloadAllLocked() => !_disposed && _activeSearchTabId.HasValue && !_bulk.IsRunning && _view.ExecutedQuery is not null && !_view.IsPostResult
         && _view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && PauseEnd(_view) is null;
 
     /// <summary>Stops the running collection; what was queued before stays queued.</summary>
@@ -97,7 +97,7 @@ internal sealed partial class BooruSearchModel
         BooruPagerLimits limits = state.PagerLimits;
         BooruBulkEnd end = BooruBulkEnd.None;
         HashSet<string> seen = new(StringComparer.Ordinal);
-        for (int page = 1; page <= limits.Pages && end == BooruBulkEnd.None; page++)
+        for (int page = 1; page <= limits.Pages && end == BooruBulkEnd.None && !token.IsCancellationRequested; page++)
         {
             BooruCallResult<BooruResultPage> result;
             try { result = await _search.SearchAsync(query, page, limits.PostsPerPage, token).ConfigureAwait(false); }
@@ -106,6 +106,7 @@ internal sealed partial class BooruSearchModel
             {
                 result = BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Failed, "exception");
             }
+            if (token.IsCancellationRequested) { end = BooruBulkEnd.Canceled; break; }
             if (result.Status != BooruCallStatus.Ok || result.Value is not { } value || value.Page != page
                 || !string.Equals(value.Query, query, StringComparison.Ordinal) || value.Posts.Length > limits.PostsPerPage)
             {
@@ -115,6 +116,7 @@ internal sealed partial class BooruSearchModel
             state = state with { PagesRead = page };
             foreach (BooruPostView post in value.Posts)
             {
+                if (token.IsCancellationRequested) { end = BooruBulkEnd.Canceled; break; }
                 if (!seen.Add(post.PostId)) continue;
                 state = state with { Found = state.Found + 1 };
                 if (post.OriginalAccess != BooruOriginalAccess.Available)
@@ -144,7 +146,7 @@ internal sealed partial class BooruSearchModel
             if (value.IsEnd || value.Posts.IsEmpty) end = BooruBulkEnd.SourceEnd;
             else if (page >= limits.Pages) end = BooruBulkEnd.PageLimit;
         }
-        return (state, end);
+        return (state, token.IsCancellationRequested ? BooruBulkEnd.Canceled : end);
     }
 
     private void Publish(BooruBulkView state)
