@@ -369,6 +369,7 @@ internal sealed class ReaderPostRows(ReaderPostProjection projection, Func<Reade
     : IReadOnlyList<ArchivePostRow>, IList
 {
     private readonly Dictionary<int, ArchivePostRow> _rows = new();
+    private readonly ConditionalWeakTable<ArchivePostRow, ReaderPostProjection> _evictedRows = new();
 
     public int Count => projection.Count;
     internal int BuiltCount { get; private set; }
@@ -401,6 +402,7 @@ internal sealed class ReaderPostRows(ReaderPostProjection projection, Func<Reade
         {
             if (keep(index, row)) continue;
             onEvicted(row);
+            _evictedRows.Add(row, projection);
             _rows.Remove(index);
         }
     }
@@ -412,7 +414,15 @@ internal sealed class ReaderPostRows(ReaderPostProjection projection, Func<Reade
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     object? IList.this[int index] { get => this[index]; set => throw new NotSupportedException(); }
-    int IList.IndexOf(object? item) => item is ArchivePostRow row ? IndexOf(row) : -1;
+    int IList.IndexOf(object? item)
+    {
+        if (item is not ArchivePostRow row) return -1;
+        // ScrollIntoView and ContainerFromItem resolve a logical post even when the caller's row
+        // has left the cache. Internal row work still requires the current materialized instance.
+        int index = IndexOf(row);
+        return index < 0 && _evictedRows.TryGetValue(row, out _)
+            ? projection.PositionOfThreadIndex(row.ThreadIndex) : index;
+    }
     bool IList.Contains(object? item) => ((IList)this).IndexOf(item) >= 0;
     bool IList.IsReadOnly => true;
     bool IList.IsFixedSize => true;

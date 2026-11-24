@@ -95,12 +95,15 @@ public sealed class ReaderPostProjectionTests
 
         rows.Trim((index, _) => index == 4_999, row => Assert.Same(first, row));
         Assert.Same(last, Assert.Single(rows.Materialized));
-        Assert.Equal(-1, source.IndexOf(first));
+        Assert.Equal(-1, rows.IndexOf(first));
+        Assert.Equal(0, source.IndexOf(first));
+        Assert.Equal(2, rows.BuiltCount);
         Assert.NotSame(first, rows[0]);
         Assert.Equal(3, rows.BuiltCount);
 
         ReaderPostRows replacement = new(projection, _ => throw new InvalidOperationException());
         Assert.Equal(-1, replacement.IndexOf(last));
+        Assert.Equal(-1, ((System.Collections.IList)replacement).IndexOf(first));
         Assert.Empty(replacement.Materialized);
     }
 
