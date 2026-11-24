@@ -79,7 +79,7 @@ public sealed class BooruMediaHostTests : IDisposable
         string assetId = await SeedAsync(temp.Path);
         FavoriteAssetKey? favorite = null;
 
-        await using (DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>()))
+        await using (DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>())))
         {
             await host.StartAsync();
             MediaLibrarySnapshot snapshot = await BuildAsync(host);
@@ -117,7 +117,7 @@ public sealed class BooruMediaHostTests : IDisposable
         using (ProfileLease lease = ProfileLease.Acquire(temp.Path))
             Assert.True(new BooruCatalogStore(temp.Path, lease).MarkWatcherRemoved("w1"));
 
-        await using (DesktopSessionHost restored = new(temp.Path, Array.Empty<IImageBoard>()))
+        await using (DesktopSessionHost restored = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>())))
         {
             await restored.StartAsync();
             MediaLibrarySnapshot snapshot = await BuildAsync(restored);
@@ -142,7 +142,7 @@ public sealed class BooruMediaHostTests : IDisposable
         using TempDirectory temp = new();
         new Config().SaveConfig(temp.Path);
         string assetId = await SeedAsync(temp.Path);
-        await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync();
         MediaLibrarySnapshot snapshot = await BuildAsync(host);
         GalleryEntry gallery = Assert.Single(await MediaLibraryGallery.ResolveAsync(snapshot.Entries, host.OpenArchiveReaderAsync,

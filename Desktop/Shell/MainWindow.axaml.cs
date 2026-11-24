@@ -140,6 +140,7 @@ public partial class MainWindow : Window
             // Section and rule-template registrations belong to pages built after the first frame
             // (EnsureDeferredWorkspacePages installs them there).
             RegisterTagAndFilterCommands();
+            RegisterMediaSidebarInfoCommands();
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             InitializeStatusColumnRedundancy();
