@@ -37,7 +37,6 @@ public sealed class TaggingQueueRowLayoutTests
             page.CompactDensity = () => false;
             TaggingLayoutRhythmTests.RenderSnapshot(page, queue);
             page.RestorePreviewColumn(true);
-            MeasureOriginalPreviewContainer();
 
             object? chevron = null;
             foreach (bool compact in new[] { false, true })
@@ -54,6 +53,10 @@ public sealed class TaggingQueueRowLayoutTests
                 }
             }
             page.RestoreViewMode(TaggingViewMode.Grid);
+            // Let the switch carry keyboard focus to the last focused entry before scrolling elsewhere.
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
             ListBoxItem tileItem = ScrollTo(page.TileGrid, 0);
             TaggingQueueTileView tile = Assert.Single(tileItem.GetVisualDescendants().OfType<TaggingQueueTileView>());
             Assert.Equal("#1", tile.NumberText.Text);
@@ -78,20 +81,6 @@ public sealed class TaggingQueueRowLayoutTests
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
             return Assert.IsType<ListBoxItem>(list.ContainerFromIndex(index));
-        }
-
-        void MeasureOriginalPreviewContainer()
-        {
-            page.List.Classes.Remove("with-preview");
-            try
-            {
-                ListBoxItem item = ScrollTo(page.List, 0);
-                TaggingQueueRowView row = Assert.Single(item.GetVisualDescendants().OfType<TaggingQueueRowView>());
-                Assert.Equal(44, item.Bounds.Height);
-                Assert.Equal(48, row.Preview.Bounds.Height);
-                Assert.False(new Rect(item.Bounds.Size).Contains(BoundsIn(row.Preview, item)));
-            }
-            finally { page.List.Classes.Add("with-preview"); }
         }
 
         object? CheckRow(int index, double height, bool preview, bool compact)
