@@ -1,12 +1,12 @@
 # Feather icons for MeowChan
 
-Unchanged SVG originals from [Feather Icons v4.29.2](https://github.com/feathericons/feather/releases/tag/v4.29.2),
+The upstream SVGs are unchanged originals from [Feather Icons v4.29.2](https://github.com/feathericons/feather/releases/tag/v4.29.2),
 commit [`1b002399e8758fb2bccea4d07312dc9e0f43dcb8`](https://github.com/feathericons/feather/tree/1b002399e8758fb2bccea4d07312dc9e0f43dcb8/icons).
 Copyright (c) 2013-2023 Cole Bemis. Distributed under the [MIT license](LICENSE);
 retain the copyright and license notice when redistributing these assets.
 
-The files in `masks/` are transparent 48 × 48 PNG raster derivatives, rendered
-with rsvg-convert 2.62.3 / Cairo 1.18.4. Use their alpha channel with the existing
+The files in `masks/` are transparent 48 × 48 PNG raster derivatives. The original
+batch used rsvg-convert 2.62.3 / Cairo 1.18.4. Use their alpha channel with the existing
 Avalonia `ImageBrush`/`OpacityMask` approach and a theme foreground color. They
 cover 16–24 logical pixels through 200% display scaling. Larger sizes need larger
 derivatives or vector rendering. The original SVGs remain unchanged.
@@ -15,6 +15,9 @@ with `fill="currentColor"` instead of `fill="none"`, for the marked favorite sta
 `skip-forward` (next frame) and `repeat` (A–B loop) of the video transport were added from the
 same release with the same renderer and size; `rotate-cw` (rotate 90°) likewise.
 `tag` (the tagging page in the footer) likewise.
+`film` (gallery filmstrip), `layers` (post overlay), `mouse-pointer` (wheel navigation)
+and `pause-circle` (pause on focus loss) are from the same pinned release.
+Their masks were rendered with `rsvg-convert -w 48 -h 48` (rsvg-convert 2.62.4 / Cairo 1.18.6).
 `shuffle` (another header tagline) is unchanged from the same pinned release,
 with a 48 × 48 mask rendered using `rsvg-convert` 2.62.4 / Cairo 1.18.6.
 `trending-up`/`trending-down` (download priority) and `maximize-2` (fit one
