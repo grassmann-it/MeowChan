@@ -24,9 +24,9 @@ public sealed class ReaderMediaPanelDecisionTests
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         int? rating = 3;
         bool favorite = false;
-        int edits = 0;
+        Control? editorAnchor = null;
         ReaderMediaSidebar sidebar = new() { Width = width, DecisionKeyContext = context,
-            OpenTagsAsync = (_, _) => { edits++; return Task.CompletedTask; } };
+            OpenTagsAsync = (anchor, _) => { editorAnchor = anchor; return Task.CompletedTask; } };
         sidebar.Describe("No. 42", "picture.png", "640×480", true, savedBytes: 4096);
         sidebar.ConfigureRating(() => true, () => rating, value => { rating = value; return Task.CompletedTask; });
         sidebar.ConfigureFavorite(() => true, () => favorite, () => { favorite = !favorite; return Task.CompletedTask; });
@@ -46,9 +46,23 @@ public sealed class ReaderMediaPanelDecisionTests
             Click(decision.StarButtons[4]);
             Assert.Equal(5, rating);
             Assert.Equal(5, decision.View.Rating);
-            Assert.Equal(width >= 320, decision.ClearButton.IsVisible);
-            if (decision.ClearButton.IsVisible) Click(decision.ClearButton);
-            else decision.RequestRating(null);
+            bool narrow = width < 320;
+            var edit = sidebar.GetVisualDescendants().OfType<Button>().Single(control =>
+                control.Name == (narrow ? "ReaderMediaSidebarMore" : "ReaderMediaSidebarEditTags"));
+            MenuItem OverflowAction(int index)
+            {
+                MenuFlyout menu = Assert.IsType<MenuFlyout>(edit.Flyout);
+                menu.ShowAt(edit);
+                window.UpdateLayout();
+                var items = menu.ItemsSource!.Cast<MenuItem>().ToArray();
+                Assert.Equal(2, items.Length);
+                Assert.NotNull(items[index].InputGesture);
+                menu.Hide();
+                return items[index];
+            }
+            Assert.Equal(!narrow, decision.ClearButton.IsEffectivelyVisible);
+            if (narrow) OverflowAction(0).Command!.Execute(null);
+            else Click(decision.ClearButton);
             Assert.Null(rating);
             Assert.False(decision.FavoriteButton.IsEffectivelyVisible);
             Click(sidebar.FavoriteButton);
@@ -57,13 +71,20 @@ public sealed class ReaderMediaPanelDecisionTests
             Control tags = sidebar.GetVisualDescendants().OfType<StackPanel>().Single(control => control.Name == "ReaderMediaSidebarTags");
             Assert.Contains(tags.GetVisualDescendants().OfType<TextBlock>(), block => block.Text == "sample");
             Assert.Empty(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
-            var edit = sidebar.GetVisualDescendants().OfType<Button>().Single(control =>
-                control.Name == (width < 320 ? "ReaderMediaSidebarMore" : "ReaderMediaSidebarEditTags"));
             Assert.True(edit.IsEffectivelyVisible);
             Assert.Equal(decision.TranslatePoint(default, sidebar)!.Value.Y, edit.TranslatePoint(default, sidebar)!.Value.Y, 0.5);
-            if (width < 320) BooruComponentDispatcher.Wait(sidebar.EditTagsAsync());
+            if (narrow) OverflowAction(1).Command!.Execute(null);
             else Click(edit);
-            Assert.Equal(1, edits);
+            Assert.Same(edit, editorAnchor);
+            if (narrow)
+            {
+                MenuItem stale = OverflowAction(1);
+                editorAnchor = null;
+                sidebar.Describe("No. 43", "other.png", "", true, mediumKey: "other");
+                Assert.False(stale.Command!.CanExecute(null));
+                stale.Command.Execute(null);
+                Assert.Null(editorAnchor);
+            }
             Assert.IsType<PanelCloseButton>(sidebar.Close);
             Assert.Equal(1, sidebar.Close.Opacity);
             Assert.Equal(32, sidebar.Close.Bounds.Width, 0.5);
