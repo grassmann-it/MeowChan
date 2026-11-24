@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Rendering;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -251,7 +252,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             sidebar.ShowPicture(preview, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
-            Assert.Equal(docked, sidebar.DecisionRow.IsEffectivelyVisible);
+            Assert.Equal(docked, sidebar.IsVisualAncestorOf(sidebar.DecisionRow) && sidebar.DecisionRow.IsEffectivelyVisible);
             Assert.Equal(true, sidebar.FavoriteButton.IsChecked);
             Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
             Assert.Equal(!docked, sidebar.Badges.Plan.Badges.Any(placed => placed.Badge.Id == MediaBadgeId.Rating));
