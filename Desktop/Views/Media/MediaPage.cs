@@ -201,7 +201,10 @@ public sealed partial class MediaPage : UserControl
         _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(_filterRetry); _headerBody.Children.Add(BuildQueryHint()); _headerBody.Children.Add(BuildStatusRow(_status));
         _headerBody.Children.Add(filterSurface);
         _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
-        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = _tileAppearance.CellHeight, ColumnWidth = _tileAppearance.CellWidth });
+        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel
+        {
+            ItemHeight = _tileAppearance.CellHeight, ColumnWidth = _tileAppearance.CellWidth, FillColumns = true
+        });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
             ThumbnailRelease = MediaTileThumbnails.Release, ThumbnailHandover = TakeHandedOverThumbnail, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, TagExclude = ExcludeTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
