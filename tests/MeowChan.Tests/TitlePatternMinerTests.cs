@@ -5,6 +5,8 @@ namespace MeowChan.Tests;
 public sealed class TitlePatternMinerTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 25, 12, 0, 0, TimeSpan.Zero);
+    private static readonly string[] ExpectedCounterAndPrefixRules = ["film camera club", "recent photo thread"];
+    private static readonly string[] ExpectedTiedRules = ["/a/", "/z/"];
 
     [Fact]
     public void SlashPatternKeepsTheOriginalExampleAndUsesDistinctFirstSightings()
@@ -31,7 +33,7 @@ public sealed class TitlePatternMinerTests
             Row(3, "RECENT PHOTO THREAD – 14", 4), Row(4, "Film Camera Club – Autumn edition", 3),
             Row(5, "Film Camera Club Winter", 2), Row(6, "Film Camera Club Summer topics", 1)];
 
-        Assert.Equal(new[] { "film camera club", "recent photo thread" },
+        Assert.Equal(ExpectedCounterAndPrefixRules,
             TitlePatternMiner.Mine(rows, "p", Now, 3, 12).Items.Select(item => item.RuleText));
     }
 
@@ -45,7 +47,7 @@ public sealed class TitlePatternMinerTests
             Row(14, "", 1), Row(15, "１５", 1), Row(16, " a ", 1)];
 
         var expected = TitlePatternMiner.Mine(rows, "p", Now, 3, 12);
-        Assert.Equal(new[] { "/a/", "/z/" }, expected.Items.Select(item => item.RuleText));
+        Assert.Equal(ExpectedTiedRules, expected.Items.Select(item => item.RuleText));
         Assert.Equal(expected.Items.ToArray(), TitlePatternMiner.Mine(rows.Reverse().ToArray(), "p", Now, 3, 12).Items.ToArray());
         Assert.Equal("/a/", Assert.Single(TitlePatternMiner.Mine(rows, "p", Now, 3, 1).Items).RuleText);
     }
