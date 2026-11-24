@@ -53,6 +53,7 @@ public partial class MainWindow : IAsyncDisposable
         _readingHistoryFlyout?.Dispose();
         _booruPage?.Dispose();
         _taggingPage?.Dispose();
+        _statisticsPage?.Dispose();
         _manualImportDialog?.Dispose();
         _manualImportDialog = null;
         foreach (IDisposable registration in _profileCommandRegistrations) registration.Dispose();
