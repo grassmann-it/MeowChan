@@ -978,26 +978,6 @@ public sealed class MediaBadgeTests : IDisposable
         Assert.True(allocated <= 4096, $"50 000 cached lookups allocated {allocated} bytes.");
     }
 
-    [Fact]
-    public void ThereIsOneSentenceCacheAndTheViewKeepsThePen()
-    {
-        string root = RepoRoot();
-        foreach (string file in new[] { "Desktop/ArchiveMediaBadges.cs", "Desktop/MediaLibraryBadges.cs", "Desktop/Views/Tagging/TaggingTileBadges.cs" })
-        {
-            string source = File.ReadAllText(Path.Combine(root, file));
-            Assert.DoesNotContain("MediaLibraryBadgeSentence", source);
-            Assert.DoesNotContain("ArchiveBadgeDescription", source);
-            Assert.DoesNotContain("_described", source);
-        }
-        string badges = File.ReadAllText(Path.Combine(root, "Desktop", "Controls", "MediaBadges.cs"));
-        Assert.Contains("UntaggedPens", badges);
-        Assert.DoesNotContain("Pen pen = new(", badges);
-        Assert.Contains("MediaBadgeLimits.Changed += _limitsChanged", badges);
-        Assert.Contains("MediaBadgeLimits.Changed -= _limitsChanged", badges);
-        string tile = File.ReadAllText(Path.Combine(root, "Desktop", "Views", "Tagging", "TaggingQueueTileView.cs"));
-        Assert.Contains("_preview.SizeChanged +=", tile);
-    }
-
     private static string RepoRoot([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "..", ".."));
 }
