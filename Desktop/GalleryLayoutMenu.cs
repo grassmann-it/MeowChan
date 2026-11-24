@@ -38,7 +38,7 @@ internal static class GalleryLayoutMenu
         new[] { FilmstripId, FilmstripTopId, FilmstripBottomId, ToolsId, InfoId, HintsId, ResetId });
 
     /// <summary>The command whose shortcut a row shows: the filmstrip's toggle for the filmstrip, the hide-tools switch (Shift+H, gallery key
-    /// scheme of revision 13) for the tools row, the row's own layout command otherwise (info Shift+I and hints Shift+N by the scheme).</summary>
+    /// scheme of revision 13) for the tools row, the row's own layout command otherwise (info Shift+Z and hints Shift+N by the scheme).</summary>
     internal static string CommandOf(string rowId) => rowId switch
     {
         FilmstripId => "gallery.filmstrip-toggle",

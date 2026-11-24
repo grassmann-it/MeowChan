@@ -48,7 +48,7 @@ public partial class MediaPage
         if (action == FavoriteKeyAction.None || CommandRouter.IsNativeInput(e.Source, e.Key) || _panelRow is not { } row) return false;
         e.Handled = true;
         if (FavoriteKeyIsRepeat(e)) return true;
-        if (PanelFavoriteAvailable()) FavoriteKeyTask = WriteFavoriteKeyAsync(action, new[] { row });
+        if (PanelFavoriteAvailable()) FavoriteKeyTask = WriteFavoriteKeyAsync(action, new[] { row }, displayedOccurrence: true);
         return true;
     }
 
@@ -66,16 +66,16 @@ public partial class MediaPage
     /// The favourite state of a tile as the keys see it: null when it cannot be written (group, not saved, unknown); otherwise the effective value, the
     /// pending target when <paramref name="pending"/> knows one, else the row's saved state (which is stale until the page refreshes).
     /// </summary>
-    internal static bool? FavoriteKeyState(MediaLibraryTileRow row, Func<MediaLibraryEntry, bool?>? pending = null)
+    internal static bool? FavoriteKeyState(MediaLibraryTileRow row, Func<MediaLibraryEntry, bool?>? pending = null, bool displayedOccurrence = false)
     {
-        bool? saved = row.Tile.IsGroup || row.Entry.Presence != MediaLibraryPresence.Present ? null
+        bool? saved = row.Tile.IsGroup && !displayedOccurrence || row.Entry.Presence != MediaLibraryPresence.Present ? null
             : row.State?.Favorite switch { MediaLibraryFlag.Yes => true, MediaLibraryFlag.No => false, _ => null };
         return saved == null ? null : pending?.Invoke(row.Entry) ?? saved;
     }
 
-    private async Task WriteFavoriteKeyAsync(FavoriteKeyAction action, IReadOnlyList<MediaLibraryTileRow> rows)
+    private async Task WriteFavoriteKeyAsync(FavoriteKeyAction action, IReadOnlyList<MediaLibraryTileRow> rows, bool displayedOccurrence = false)
     {
-        bool?[] effective = rows.Select(row => FavoriteKeyState(row, PendingFavorite)).ToArray();
+        bool?[] effective = rows.Select(row => FavoriteKeyState(row, PendingFavorite, displayedOccurrence)).ToArray();
         foreach ((int index, bool selected) in FavoriteKeys.Writes(action, effective))
         {
             if (_lifetime.IsCancellationRequested) return;
