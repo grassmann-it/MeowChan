@@ -235,7 +235,7 @@ public sealed class TrayStatsPresenterTests : IDisposable
     }
 
     [Fact]
-    public void TheLinesAreFilledWhenTheMenuOpensNotOnEverySample()
+    public void TheLinesFollowSamplesWithoutOpeningTheMenu()
     {
         using Harness h = new(shown: false);
         h.Presenter.Refresh(); // first fill
@@ -243,17 +243,40 @@ public sealed class TrayStatsPresenterTests : IDisposable
         h.Activity(3);
         h.Source.Add("4chan", net: 10 * MiB, diskWritten: 5 * MiB, diskRead: 10 * MiB);
         h.Clock.Advance(TimeSpan.FromSeconds(5));
-        // The tooltip moved on with the sample; the menu lines stay as they were until the menu opens.
-        Assert.Equal("Idle", h.Presenter.RatesItem.Header);
-        h.OpenMenu();
         Assert.Equal("Network ↓ 2 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
         Assert.Equal("Disk R 2 MiB/s W 1 MiB/s", h.Presenter.DiskItem.Header);
         Assert.Equal("3 downloads active · 4 waiting · Today ↓ 10.0 MiB", h.Presenter.DetailItem.Header);
+        h.Source.Add("4chan", net: 20 * MiB, diskWritten: 15 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(5));
+        Assert.Equal("Network ↓ 4 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Disk R 0 B/s W 3 MiB/s", h.Presenter.DiskItem.Header);
+        Assert.Equal("3 downloads active · 4 waiting · Today ↓ 30.0 MiB", h.Presenter.DetailItem.Header);
         Texts.SetLanguage("de");
         h.OpenMenu();
-        Assert.Equal("Netzwerk ↓ 2 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
-        Assert.Equal("Datenträger L 2 MiB/s S 1 MiB/s", h.Presenter.DiskItem.Header);
-        Assert.Equal("3 Downloads aktiv · 4 wartend · Heute ↓ 10,0 MiB", h.Presenter.DetailItem.Header);
+        Assert.Equal("Netzwerk ↓ 4 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Datenträger L 0 B/s S 3 MiB/s", h.Presenter.DiskItem.Header);
+        Assert.Equal("3 Downloads aktiv · 4 wartend · Heute ↓ 30,0 MiB", h.Presenter.DetailItem.Header);
+    }
+
+    [Fact]
+    public void AVisibleWindowRefreshesTheMenuAtTheThrottledCadenceWithTheTooltipOff()
+    {
+        using Harness h = new(tooltipOn: false);
+        using IoStatsSubscription window = h.Hub.Subscribe(IoStatsVisibility.Window);
+        h.Activity(3);
+        h.Presenter.Refresh();
+        h.Source.Add("4chan", net: 10 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(1));
+        h.Presenter.Refresh();
+        Assert.Equal("Network ↓ 10 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+
+        int reads = h.Source.Reads;
+        h.Presenter.Refresh();
+        Assert.Equal(reads, h.Source.Reads);
+        h.Source.Add("4chan", net: 5 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(1));
+        h.Presenter.Refresh();
+        Assert.Equal("Network ↓ 5 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
     }
 
     [Fact]
