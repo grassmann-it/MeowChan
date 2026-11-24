@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -14,6 +15,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Theming;
 
 namespace MeowChan.DesktopTests;
@@ -87,7 +89,7 @@ public sealed class MediaFirstSidebarTests
         crop.Arrange(bounds);
         picture.Render(crop);
         Control? tagAnchor = null;
-        ReaderMediaSidebar panel = new() { BorderThickness = new Thickness(1), DecisionKeyContext = "reader",
+        ReaderMediaSidebar panel = new() { BorderThickness = new Thickness(1, 0), DecisionKeyContext = portrait ? "reader" : "media",
             OpenTagsAsync = (anchor, _) => { tagAnchor = anchor; return Task.CompletedTask; } };
         int? rating = 3;
         panel.Describe("No. 22490087", "evening.jpg", $"{pixels.Width}×{pixels.Height}", true, new(2, 64, false), 2300000);
@@ -100,6 +102,7 @@ public sealed class MediaFirstSidebarTests
         try
         {
             window.Show();
+            window.Activate();
             void Settle() { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
             Settle();
             var details = panel.GetVisualDescendants().OfType<ScrollViewer>().Single(c => c.Name == "ReaderMediaSidebarDetails");
@@ -112,13 +115,24 @@ public sealed class MediaFirstSidebarTests
                 result.Render(panel);
                 result.Save(Path.Combine(dir, $"112-mf-reader-{orientation}-{layout}-{width}.png"), PngBitmapEncoderOptions.Default);
             }
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN")))
+            {
+                foreach (string mode in new[] { "Off", "Overlay", "Auto", "Always" })
+                {
+                    panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = mode });
+                    window.MouseMove(new Point(width / 2, 150));
+                    Settle();
+                    Capture(mode.ToLowerInvariant());
+                }
+                panel.ConfigureInfo(ReaderMediaPreferences.Default);
+                Settle();
+            }
             SidePanelDesignTests.AssertCompactHeader(panel);
             Rect full = In(panel.Card), image = In(panel.Picture);
             Assert.True(full.Height >= 0.92 * panel.Bounds.Height);
             Assert.False(details.IsVisible);
             Assert.False(overlay.IsVisible);
-            Assert.False(panel.DecisionRow.IsEffectivelyVisible);
-            Capture("off");
+            Assert.DoesNotContain(panel.GetVisualDescendants(), c => c is GalleryDecisionRow or MediaFactGrid && c.IsEffectivelyVisible);
             BooruComponentDispatcher.Wait(panel.EditTagsAsync());
             Assert.Same(panel.InfoToggle, tagAnchor);
             Assert.True(panel.DecisionRow.RequestRating(4));
@@ -150,14 +164,25 @@ public sealed class MediaFirstSidebarTests
                 Assert.True(ContrastRules.Contrast(ColorOf("Workspace.Favorite"), surface) >= 3);
                 Assert.True(ContrastRules.Contrast(ColorOf("Workspace.Accent"), surface) >= 3);
             }
-            Capture("overlay");
+            Assert.True(panel.FavoriteButton.Focus(NavigationMethod.Tab));
+            var ratingBar = overlay.GetVisualDescendants().OfType<GalleryDecisionRow>().Single();
+            var overlayActions = overlay.GetVisualDescendants().OfType<Button>()
+                .Where(button => !button.GetVisualAncestors().Contains(ratingBar)).ToArray();
+            Assert.Equal(2, overlayActions.Length);
+            foreach (Control next in new Control[] { panel.InfoToggle, panel.Open, panel.Frame, ratingBar.FocusStar,
+                overlayActions[0], overlayActions[1], panel.Close })
+            {
+                window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
+                window.KeyRelease(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
+                Settle();
+                Assert.Same(next, window.FocusManager!.GetFocusedElement());
+            }
 
             panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Auto" });
             Settle();
             Assert.Equal(!portrait || width == 320, details.IsVisible);
             Assert.Equal(image.Size, In(panel.Picture).Size);
             if (details.IsVisible) Assert.Equal(In(panel.Card).Bottom + 8, In(details).Top, 0.5);
-            Capture("auto");
 
             panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always" });
             Settle();
@@ -167,13 +192,14 @@ public sealed class MediaFirstSidebarTests
             Assert.True(panel.Card.Bounds.Height >= 900 * 0.55);
             Assert.Equal(image.Top, In(panel.Picture).Top, 0.5);
             Assert.False(overlay.IsVisible);
-            Capture("always");
 
             panel.InfoToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             panel.Describe("No. 42", "next.jpg", "", true);
             Assert.False(details.IsVisible);
             panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
-            panel.ToggleDetails();
+            var infoKey = new KeyEventArgs { Key = Key.I, KeyModifiers = KeyModifiers.Shift, Source = panel.InfoToggle };
+            Assert.True(panel.RouteInfoKey(infoKey));
+            Assert.True(infoKey.Handled);
             Assert.True(details.IsVisible);
             window.PlatformImpl!.Resize(new Size(width, 380), WindowResizeReason.User);
             Settle();

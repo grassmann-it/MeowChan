@@ -169,6 +169,10 @@ public sealed class SidePanelDesignTests
             else
             {
                 Rect previous = In(actions[i - 1], frame);
+                if (i == 1 && (width >= 320 || frame is ReaderMediaSidebar && width >= 280))
+                    Near(previous.Top, button.Top);
+                if (i == 1 && frame is not ReaderMediaSidebar && width == 240)
+                    Near(previous.Bottom + 8, button.Top);
                 if (button.Top == previous.Top) Near(previous.Right + 8, button.Left);
                 else { Near(left, button.Left); Near(previous.Bottom + 8, button.Top); }
             }
@@ -214,6 +218,7 @@ public sealed class SidePanelDesignTests
                     frame.Width = width;
                     frame.IsVisible = true;
                     Settle(window);
+                    Capture(frame, (queue ? "tagging-gallery-" : "gallery-") + (tags ? "tags" : "post"), width);
                     Assert.Equal(tags, viewer.IsTagPanelOpen);
                     Control leading = (Control)panel.PostButton.Parent!;
                     GalleryMeasuredGeometryTests.AssertSidebarHeader(panel, leading, panel.Position, panel.CloseButton);
@@ -252,7 +257,6 @@ public sealed class SidePanelDesignTests
                     Assert.Equal(geometry[3], In(row.RatingGroup, frame));
                     panel.Position.Show(new(1, 3, false, queue));
                     Settle(window);
-                    Capture(frame, (queue ? "tagging-gallery-" : "gallery-") + (tags ? "tags" : "post"), width);
                 }
             }
             viewer.ShowTagPanel(owner);
@@ -305,6 +309,7 @@ public sealed class SidePanelDesignTests
             {
                 panel.Width = width;
                 Settle(window);
+                Capture(panel, media ? "media" : "reader", width);
                 AssertCompactHeader(panel);
                 Assert.Contains("workspace-panel-title", panel.Title.Classes);
                 Near(8, In(panel.HeaderRow, panel).Top);
@@ -313,7 +318,6 @@ public sealed class SidePanelDesignTests
                 double left = panel.Padding.Left, right = width - panel.Padding.Right;
                 Rating(window, panel.DecisionRow, panel, left, right, false);
                 Sections(Assert.Single(panel.GetVisualDescendants().OfType<MediaPanelSections>()), panel, left, right, width);
-                Capture(panel, media ? "media" : "reader", width);
             }
         }
         finally { window.Close(); }
@@ -410,6 +414,8 @@ public sealed class SidePanelDesignTests
                         row.Show(view);
                         Settle(window);
                         string caption = GalleryDecisionText.Caption(view);
+                        if (!popover && (width >= 360 || width >= 320 && language is "en" or "de") &&
+                            row.FavoriteButton.Bounds.Width <= 32) failures.Add($"{language}, {width}, favorite label");
                         if (!Equals(ToolTip.GetTip(row.RatingBar), caption) ||
                             Avalonia.Automation.AutomationProperties.GetName(row.RatingBar) != caption ||
                             row.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible && t.Text == caption))

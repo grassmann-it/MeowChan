@@ -15,7 +15,7 @@ using MeowChan.Desktop.Motion;
 namespace MeowChan.DesktopTests;
 
 // Shared "Rate and tag…" decision row: five equal star cells and the remove button, with the favourite
-// and rating caption on the second row. Hover previews, one tab stop, the label of a partly favourite
+// on the same row. Hover previews, one tab stop, the label of a partly favourite
 // selection, and the full help sentence stay intact. Controls without an application have no theme, so geometry is checked on the grid and
 // the real layout of the cells at the popover width and the narrow width belongs to the captures run centrally.
 [Collection("Localization")]

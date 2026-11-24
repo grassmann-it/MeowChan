@@ -273,7 +273,7 @@ public sealed class ReaderMediaSidebarLayoutTests
     [InlineData(8, 512, 360, 720)]
     [InlineData(512, 8, 360, 720)]
     [InlineData(64, 64, 480, 900)]
-    public void FileFactsStayInTheBodyAndTheCardFillsTheRemainingHeight(int pixelWidth, int pixelHeight, int width, int height) => BooruComponentDispatcher.Run(() =>
+    public void CompactMetadataKeepsSizeAndDimensionsAndTheCardFillsTheRemainingHeight(int pixelWidth, int pixelHeight, int width, int height) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ReaderMediaSidebar view = new();
@@ -306,10 +306,11 @@ public sealed class ReaderMediaSidebarLayoutTests
             SidePanelDesignTests.AssertCompactHeader(view);
             TextBlock metadata = ((MediaCompactHeader)view.HeaderRow).Meta;
             Assert.Contains(new string('x', 500) + ".png", ToolTip.GetTip(metadata)?.ToString());
-            Assert.EndsWith(".png · 100 MiB · 50000×100", metadata.Text);
+            Assert.EndsWith("100 MiB · 50000×100", metadata.Text);
+            if (!view.PositionPill.IsVisible) Assert.StartsWith(view.PositionPill.Bare + " · ", metadata.Text);
             Assert.Equal(positionText, ToolTip.GetTip(view.PositionPill));
             Assert.True(view.Open.IsEffectivelyVisible);
-            Assert.False(view.DecisionRow.IsEffectivelyVisible);
+            Assert.DoesNotContain(view.GetVisualDescendants(), c => c is GalleryDecisionRow or MediaFactGrid && c.IsEffectivelyVisible);
             Rect header = view.HeaderRow.Bounds;
             Rect card = view.Card.Bounds;
             Assert.Equal(view.Card.Bounds.Height - 2, view.Frame.Bounds.Height);
