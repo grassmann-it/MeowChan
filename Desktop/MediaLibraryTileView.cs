@@ -190,6 +190,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
     {
         MaxWidth = _appearance.CellWidth; Height = _appearance.CellHeight;
         _favoriteToggle.Focusable = false;
+        AutomationProperties.SetAutomationId(_favoriteToggle, "MediaTileFavoriteToggle");
         _favoriteToggle.IsTabStop = false;
         // The toggle shares the favourite badge's top-left corner in Media.
         MediaTileView grid = _tile = new(_placeholder, _favoriteToggle, _badges, "MediaTileSelected",
@@ -233,6 +234,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
             DockPanel content = new() { Children = { mark, label } };
             DockPanel.SetDock(mark, Dock.Left);
             Button chip = _tagChips[index] = WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button { Name = "MediaTileTag", IsVisible = false, Content = content }, compact: true));
+            AutomationProperties.SetAutomationId(chip, "MediaTileTag" + index);
             chip.Focusable = false;
             chip.IsTabStop = false;
             // Shift turns the click into an exclusion.
