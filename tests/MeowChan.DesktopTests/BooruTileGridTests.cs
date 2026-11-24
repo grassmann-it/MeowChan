@@ -7,12 +7,10 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
-using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
-using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
@@ -360,46 +358,6 @@ public sealed class BooruTileGridTests
     private static List<Border> Cards(BooruWorkbenchView view) =>
         ((StackPanel)typeof(BooruWorkbenchView).GetField("_results", Private)!.GetValue(view)!).Children.OfType<Border>().ToList();
 
-    // One actual Avalonia dispatcher owns creation, awaited continuations and assertions (as in BooruHitKeyboardTests).
-    private static void OnDispatcher(Func<Task> test)
-    {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
-        object? previousDispatcher = primary.GetValue(null);
-        SynchronizationContext? previousContext = SynchronizationContext.Current;
-        string language = Texts.Language;
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
-        try
-        {
-            primary.SetValue(null, owner);
-            SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
-            Texts.Initialize();
-            Texts.SetLanguage("en");
-            Task pending = test();
-            DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-            while (!pending.IsCompleted)
-            {
-                owner.RunJobs();
-                if (DateTime.UtcNow >= deadline) throw new TimeoutException("Booru tile test dispatcher did not finish.");
-                if (!pending.IsCompleted) Thread.Sleep(1);
-            }
-            pending.GetAwaiter().GetResult();
-        }
-        finally
-        {
-            Texts.SetLanguage(language);
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-            primary.SetValue(null, previousDispatcher);
-        }
-    }
-
-    private sealed class ActionContext(Dispatcher owner) : SynchronizationContext
-    {
-        public override void Post(SendOrPostCallback callback, object? state) => owner.Post(() =>
-        {
-            SynchronizationContext? previous = Current;
-            SetSynchronizationContext(this);
-            try { callback(state); }
-            finally { SetSynchronizationContext(previous); }
-        });
-    }
+    private static void OnDispatcher(Func<Task> test) =>
+        BooruComponentDispatcher.Run(test, timeout: TimeSpan.FromSeconds(10));
 }
