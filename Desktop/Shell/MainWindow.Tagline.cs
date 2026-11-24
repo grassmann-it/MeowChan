@@ -7,6 +7,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -48,7 +49,8 @@ public partial class MainWindow
         WorkspaceSubtitle.PropertyChanged += OnTaglineTypographyChanged;
         ScalingChanged += OnTaglineScalingChanged;
         WorkspaceSubtitle.Focusable = true;
-        ContextMenuHost.Install(WorkspaceSubtitle, ComposeTaglineMenu);
+        WorkspaceSubtitle.AttachedToVisualTree += OnTaglineAttached;
+        if (WorkspaceSubtitle.IsAttachedToVisualTree()) ContextMenuHost.Install(WorkspaceSubtitle, ComposeTaglineMenu);
         ChooseHeaderTagline(atStart: true);
         UpdateHeaderTagline();
         RefreshTaglineRotation();
@@ -61,9 +63,13 @@ public partial class MainWindow
         WorkspaceSubtitle.PropertyChanged -= OnTaglineTypographyChanged;
         ScalingChanged -= OnTaglineScalingChanged;
         StopTaglineRotation();
+        WorkspaceSubtitle.AttachedToVisualTree -= OnTaglineAttached;
         ContextMenuHost.Uninstall(WorkspaceSubtitle);
         _taglineStarted = false;
     }
+
+    private void OnTaglineAttached(object? sender, VisualTreeAttachmentEventArgs e) =>
+        ContextMenuHost.Install(WorkspaceSubtitle, ComposeTaglineMenu);
 
     // SizeChanged fires only for a real change of the column, so the text is measured (or served from the cache) once per resize step.
     private void OnTaglineHostSizeChanged(object? sender, SizeChangedEventArgs e)
