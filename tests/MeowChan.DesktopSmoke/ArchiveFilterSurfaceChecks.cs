@@ -63,12 +63,13 @@ internal static class ArchiveFilterSurfaceChecks
         host.RequestedThemeVariant = theme;
         Texts.SetLanguage(code);
         host.Width = width; host.Height = height;
-        Avalonia.Controls.Primitives.ToggleButton filters = page.FindControl<Avalonia.Controls.Primitives.ToggleButton>("ArchiveFilters")!;
+        ToggleButton filters = page.GetVisualDescendants().OfType<ToggleButton>()
+            .Single(button => Avalonia.Automation.AutomationProperties.GetAutomationId(button) == "ArchiveFilters");
         Border surface = page.FindControl<Border>("ArchiveFilterSurface")!;
         Border results = page.FindControl<Border>("ArchiveResultsSurface")!;
         Grid listPane = page.FindControl<Grid>("ArchiveListPane")!;
         TextBox search = page.FindControl<TextBox>("ArchiveSearchText")!;
-        Button apply = page.FindControl<Button>("ArchiveFilterApply")!, close = page.FindControl<Button>("ArchiveFilterClose")!;
+        Button apply = page.FindControl<Button>("ArchiveFilterApply")!, close = page.FindControl<Button>("ArchiveFilterSurfaceClose")!;
         await Program.WaitUntilAsync(() =>
         {
             host.UpdateLayout();
@@ -91,12 +92,12 @@ internal static class ArchiveFilterSurfaceChecks
 
         Require(filters.IsChecked != true && !surface.IsEffectivelyVisible, state + ": filter surface is open before the toggle.");
         Rect resultsClosed = Bounds(results);
-        Avalonia.Controls.Primitives.ToggleButton toggle = filters; // S2: the filter toggle is the ToggleButton itself
         Require(Bounds(filters).Height <= 48, state + ": the collapsed filter toggle still reserves field height.");
 
-        // Deliberate open from the toggle moves focus into the surface.
-        toggle.Focus(NavigationMethod.Tab);
+        // Toggle audit, Archives: the opener stays out of keyboard focus and the header cross remains.
+        Require(!filters.Focusable, state + ": the filter opener takes focus.");
         filters.IsChecked = true;
+        SmokeActionClick.Execute(filters);
         await Program.WaitUntilAsync(() => { host.UpdateLayout(); return surface.IsEffectivelyVisible && FocusIn(surface); });
         Rect area = Bounds(surface), list = Bounds(listPane);
         ScrollViewer scroll = page.FindControl<ScrollViewer>("ArchiveFilterSurfaceScroll")!;
@@ -138,7 +139,7 @@ internal static class ArchiveFilterSurfaceChecks
             state + ": the tag picker has no visible label or is not named \"Add tag…\".");
         Program.CaptureWindow(host, $"smoke-archive-filter-surface-{(int)width}-{code}-{theme.ToString().ToLowerInvariant()}.png");
 
-        // Tab stays inside the open surface; Escape closes it and returns to the toggle.
+        // Tab stays inside the open surface; Escape closes it and returns to results.
         close.Focus(NavigationMethod.Tab);
         Key(Avalonia.Input.Key.Tab);
         await Program.WaitUntilAsync(() => FocusIn(surface) && !ReferenceEquals(Focused(), close));
@@ -151,7 +152,7 @@ internal static class ArchiveFilterSurfaceChecks
         Require(filters.IsChecked == true, state + ": Escape on an open dropdown closed the whole filter surface.");
         sort.Focus(NavigationMethod.Tab);
         Key(Avalonia.Input.Key.Escape);
-        await Program.WaitUntilAsync(() => filters.IsChecked != true && !surface.IsEffectivelyVisible && FocusIn(filters));
+        await Program.WaitUntilAsync(() => filters.IsChecked != true && !surface.IsEffectivelyVisible && FocusIn(page.ThreadListFocusTarget));
 
         // A programmatic open (command, invalid-draft reveal) keeps the current focus.
         search.Focus(NavigationMethod.Tab);
@@ -176,7 +177,7 @@ internal static class ArchiveFilterSurfaceChecks
         apply.Focus(NavigationMethod.Tab);
         SmokeActionClick.Execute(apply);
         await Program.WaitUntilAsync(() => !page.IsBusy && filters.IsChecked != true && page.AppliedSearchSpec?.Sort == target);
-        await Program.WaitUntilAsync(() => FocusIn(filters));
+        await Program.WaitUntilAsync(() => FocusIn(page.ThreadListFocusTarget));
         Require(Same(Bounds(results), resultsClosed), state + ": applying from the filter surface left the list layout shifted.");
 
         // S2/S7: the badge counts one per applied chip (ArchivePage.UpdateArchiveFilterToggle), the search text's chip included: before
