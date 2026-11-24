@@ -8,15 +8,10 @@ using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml.Styling;
-using Avalonia.Platform;
-using Avalonia.Threading;
-using System.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Interfaces;
-using MeowChan.Persistence;
-using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 
 namespace MeowChan.DesktopTests;
 
@@ -30,9 +25,11 @@ public sealed class ReaderBackgroundNavigationTests
     [Fact]
     public async Task LegacyPagingShortcutsLeavePostsAndSavedMediaInPlace()
     {
-        ArchivedThreadView view = await SeedAndReadAsync();
-        BooruComponentDispatcher.Run(() => WithPage(view, page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAndReadAsync(archive);
+        archive.Run(page =>
         {
+            ReaderArchiveTestFixture.Load(page, view);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             ListBox media = page.FindControl<ListBox>("ArchiveMediaTiles")!;
@@ -48,56 +45,42 @@ public sealed class ReaderBackgroundNavigationTests
             Assert.Equal("p000", page.CurrentReaderPostId);
             Assert.Same(items, posts.ItemsSource);
             Assert.Same(mediaItems, media.ItemsSource);
-        }));
+        });
     }
 
     [Fact]
     public async Task RefreshWithMediaTabOpenPreservesTheScrolledPostAndIntentionalSelection()
     {
-        ArchivedThreadView view = await SeedAndReadAsync();
-        BooruComponentDispatcher.Run(() =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAndReadAsync(archive);
+        archive.Run(page =>
         {
-            using IDisposable scope = AvaloniaLocator.EnterScope();
-            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-            TokenApplication app = new();
-            AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(app);
-            app.Initialize();
-            MeowChan.ArchivePage page = new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
-            try
-            {
-                page.IsReadable = true;
-                page.LoadThreadAsync(view.Summary.Id, true, view).GetAwaiter().GetResult();
-                ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-                TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
-                RealizeCards(posts, scrolledPast: 50);
-                var anchor = page.CurrentReaderAnchor;
-                Assert.Equal("p050", anchor?.PostId);
-                ArchivePostRow selected = (ArchivePostRow)posts.Items[60]!;
-                posts.SelectedItem = selected;
-                tabs.SelectedIndex = 1;
-                Task refresh = page.LoadThreadAsync(view.Summary.Id, resetPage: false, preparedThread: view);
-                for (int pass = 0; pass < 200 && !refresh.IsCompleted; pass++)
-                {
-                    Dispatcher.UIThread.RunJobs();
-                    System.Threading.Thread.Yield();
-                }
-                refresh.GetAwaiter().GetResult();
+            ReaderArchiveTestFixture.Load(page, view);
+            ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+            TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+            RealizeCards(posts, scrolledPast: 50);
+            var anchor = page.CurrentReaderAnchor;
+            Assert.Equal("p050", anchor?.PostId);
+            ArchivePostRow selected = (ArchivePostRow)posts.Items[60]!;
+            posts.SelectedItem = selected;
+            tabs.SelectedIndex = 1;
+            ReaderArchiveTestFixture.Load(page, view, resetPage: false);
 
-                Assert.Equal(anchor, page.CurrentReaderAnchor);
-                Assert.Equal(1, tabs.SelectedIndex);
-                Assert.Equal(Posts, posts.ItemCount);
-                Assert.Equal(selected.Id, (posts.SelectedItem as ArchivePostRow)?.Id);
-            }
-            finally { page.EndLifetime(); }
+            Assert.Equal(anchor, page.CurrentReaderAnchor);
+            Assert.Equal(1, tabs.SelectedIndex);
+            Assert.Equal(Posts, posts.ItemCount);
+            Assert.Equal(selected.Id, (posts.SelectedItem as ArchivePostRow)?.Id);
         });
     }
 
     [Fact]
     public async Task TheLargeReaderStepsAcrossFormerPageBreaksBehindTheMediaTab()
     {
-        ArchivedThreadView view = await SeedAndReadAsync();
-        BooruComponentDispatcher.Run(() => WithPage(view, page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAndReadAsync(archive);
+        archive.Run(page =>
         {
+            ReaderArchiveTestFixture.Load(page, view);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             Control frame = page.DetachReader();
@@ -105,35 +88,36 @@ public sealed class ReaderBackgroundNavigationTests
             Assert.Equal("p000", page.CurrentReaderPostId);
 
             // Post down: the next post becomes the current and the selected one, the tab stays.
-            Task step = page.NavigateReaderAsync(1, 0);
-            Assert.True(step.IsCompletedSuccessfully);
+            BooruComponentDispatcher.Wait(page.NavigateReaderAsync(1, 0));
             Assert.Equal(1, tabs.SelectedIndex);
             Assert.Equal("p001", (posts.SelectedItem as ArchivePostRow)?.Id);
             Assert.Equal("p001", page.CurrentReaderPostId);
-            Assert.True(page.NavigateReaderAsync(1, 0).IsCompletedSuccessfully);
+            BooruComponentDispatcher.Wait(page.NavigateReaderAsync(1, 0));
             Assert.Equal("p002", (posts.SelectedItem as ArchivePostRow)?.Id);
-            Assert.True(page.NavigateReaderAsync(-1, 0).IsCompletedSuccessfully);
+            BooruComponentDispatcher.Wait(page.NavigateReaderAsync(-1, 0));
             Assert.Equal("p001", (posts.SelectedItem as ArchivePostRow)?.Id);
             Assert.Equal(1, tabs.SelectedIndex);
 
             object? items = posts.ItemsSource;
             posts.SelectedIndex = 49;
-            Assert.True(page.NavigateReaderAsync(1, 0).IsCompletedSuccessfully);
+            BooruComponentDispatcher.Wait(page.NavigateReaderAsync(1, 0));
             Assert.Equal("p050", page.CurrentReaderPostId);
-            Assert.True(page.NavigateReaderAsync(-1, 0).IsCompletedSuccessfully);
+            BooruComponentDispatcher.Wait(page.NavigateReaderAsync(-1, 0));
             Assert.Equal("p049", page.CurrentReaderPostId);
             Assert.Same(items, posts.ItemsSource);
             Assert.Equal(1, tabs.SelectedIndex);
             page.AttachReader(frame);
-        }));
+        });
     }
 
     [Fact]
     public async Task TheDetachedPaneRunsItsKeysInTheReaderContextAndLeavesNoneBehind()
     {
-        ArchivedThreadView view = await SeedAndReadAsync();
-        BooruComponentDispatcher.Run(() => WithPage(view, page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAndReadAsync(archive);
+        archive.Run(page =>
         {
+            ReaderArchiveTestFixture.Load(page, view);
             Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
             Border inside = new();
             pane.Children.Add(inside);
@@ -149,7 +133,7 @@ public sealed class ReaderBackgroundNavigationTests
             // Back inside the page the pane's host is gone (the page's host serves it again); whatever was still open is ended with it.
             page.AttachReader(frame);
             Assert.Null(KeyContextHost.Current);
-        }));
+        });
     }
 
     [Theory]
@@ -157,9 +141,11 @@ public sealed class ReaderBackgroundNavigationTests
     [InlineData(2)] // References
     public async Task TheAnchorBehindAnotherTabIsTheVisibleCardWhileNothingMovedInTheBackground(int tab)
     {
-        ArchivedThreadView view = await SeedAndReadAsync();
-        BooruComponentDispatcher.Run(() => WithPage(view, page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAndReadAsync(archive);
+        archive.Run(page =>
         {
+            ReaderArchiveTestFixture.Load(page, view);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             RealizeCards(posts, scrolledPast: 5); // the user scrolled the list: p005 is the first card in view, p003 and p004 are above
@@ -167,27 +153,29 @@ public sealed class ReaderBackgroundNavigationTests
             Assert.Equal("p005", onPosts?.PostId);
             tabs.SelectedIndex = tab;
             Assert.Equal(onPosts, page.CurrentReaderAnchor); // as in 1.0.x: a refresh or a quote-back returns to the scroll position, not to the selected post
-        }));
+        });
     }
 
     [Fact]
     public async Task TheAnchorAfterABackgroundStepIsTheCurrentPost()
     {
-        ArchivedThreadView view = await SeedAndReadAsync();
-        BooruComponentDispatcher.Run(() => WithPage(view, page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAndReadAsync(archive);
+        archive.Run(page =>
         {
+            ReaderArchiveTestFixture.Load(page, view);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             Control frame = page.DetachReader();
             RealizeCards(posts, scrolledPast: 5);
             tabs.SelectedIndex = 1;
-            Assert.True(page.NavigateReaderAsync(1, 0).IsCompletedSuccessfully); // a background step waits for alignment: the realized cards are stale
+            BooruComponentDispatcher.Wait(page.NavigateReaderAsync(1, 0)); // a background step waits for alignment: the realized cards are stale
             Assert.Equal(("p001", 0d), page.CurrentReaderAnchor);
-            Assert.True(page.NavigateReaderAsync(1, 0).IsCompletedSuccessfully);
+            BooruComponentDispatcher.Wait(page.NavigateReaderAsync(1, 0));
             Assert.Equal(("p002", 0d), page.CurrentReaderAnchor);
             Assert.Equal(Posts, posts.ItemCount);
             page.AttachReader(frame);
-        }));
+        });
     }
 
     [Theory]
@@ -196,9 +184,11 @@ public sealed class ReaderBackgroundNavigationTests
     [InlineData("posts")]
     public async Task AltPageKeysFromListItemsKeepThePostCollectionAndSelectedTab(string from)
     {
-        ArchivedThreadView view = await SeedAndReadAsync();
-        BooruComponentDispatcher.Run(() => WithPage(view, page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAndReadAsync(archive);
+        archive.Run(page =>
         {
+            ReaderArchiveTestFixture.Load(page, view);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
@@ -225,15 +215,17 @@ public sealed class ReaderBackgroundNavigationTests
             Assert.Same(mediaItems, tiles.ItemsSource);
             Assert.Same(mediaItems, grid.ItemsSource);
             if (from != "posts") Assert.Equal("p000", page.CurrentReaderPostId);
-        }));
+        });
     }
 
     [Fact]
     public async Task MediaSortAndTileKeysDoNotMoveThePostNavigator()
     {
-        ArchivedThreadView view = await SeedAndReadAsync();
-        BooruComponentDispatcher.Run(() => WithPage(view, page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAndReadAsync(archive);
+        archive.Run(page =>
         {
+            ReaderArchiveTestFixture.Load(page, view);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
@@ -254,7 +246,7 @@ public sealed class ReaderBackgroundNavigationTests
             Press(tile, Key.PageDown, KeyModifiers.Alt);
             Assert.Equal("p000", page.CurrentReaderPostId);
             Assert.Equal(Posts, posts.ItemCount);
-        }));
+        });
     }
 
     // ---- helpers ----
@@ -298,36 +290,10 @@ public sealed class ReaderBackgroundNavigationTests
 
     private static string? FirstRow(ListBox posts) => (posts.ItemsSource as IEnumerable<ArchivePostRow>)?.FirstOrDefault()?.Id;
 
-    private static void WithPage(ArchivedThreadView view, Action<MeowChan.ArchivePage> test)
+    private static Task<ArchivedThreadView> SeedAndReadAsync(ReaderArchiveTestFixture archive)
     {
-        using IDisposable scope = AvaloniaLocator.EnterScope();
-        AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication.Bind();
-        MeowChan.ArchivePage page = new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
-        try
-        {
-            page.IsReadable = true;
-            // The thread is handed over prepared: the inline reader renders it without any await, so the load completes in this turn.
-            Task load = page.LoadThreadAsync(view.Summary.Id, true, view);
-            Assert.True(load.IsCompletedSuccessfully);
-            Assert.Equal(Posts, page.CurrentThread?.PostCount);
-            test(page);
-        }
-        finally { (page as IDisposable)?.Dispose(); }
-    }
-
-    private static async Task<ArchivedThreadView> SeedAndReadAsync()
-    {
-        using TempDirectory temp = new();
-        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
-        await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease))
-        {
-            CapturedPost[] posts = Enumerable.Range(0, Posts).Select(i => new CapturedPost(
-                "p" + i.ToString("D3"), i, PostFieldPresence.All, Html: "synthetic stored text " + i)).ToArray();
-            await catalog.CaptureAsync(new(Thread, "https://example.invalid/not-acquired", "Synthetic background navigation",
-                ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, Path.Combine(temp.Path, "uncreated-media"), posts));
-        }
-        await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
-        return (await reader.ReadThreadAsync(Thread))!;
+        CapturedPost[] posts = Enumerable.Range(0, Posts).Select(i => new CapturedPost(
+            "p" + i.ToString("D3"), i, PostFieldPresence.All, Html: "synthetic stored text " + i)).ToArray();
+        return archive.CaptureAsync(Thread, "Synthetic background navigation", posts);
     }
 }
