@@ -188,8 +188,11 @@ public sealed class SidePanelDesignTests
             Near(32, button.Height);
             if (actions[i].GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Classes.Contains("panel-action-label")) is { } label)
             {
-                if (width >= 280)
+                bool paired = actions[i].Parent is PanelActionStack { KeepPairOnOneLine: true };
+                if (width >= 320 || width >= 280 && !paired)
                     Assert.DoesNotContain(label.TextLayout.TextLines, line => line.HasCollapsed);
+                else if (actions[i] == actions[i].FindAncestorOfType<QuickTagSurface>()?.AdvancedButton)
+                    Assert.Equal(Texts.T("tags.quick.advancedName"), ToolTip.GetTip(actions[i]));
                 else Assert.StartsWith(label.Text!, ToolTip.GetTip(actions[i])?.ToString());
             }
             if (i == 0) Near(left, button.Left);
@@ -328,7 +331,7 @@ public sealed class SidePanelDesignTests
         panel.ConfigureFavorite(() => true, () => false, () => Task.CompletedTask);
         panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, "sample", picture.PixelSize);
         panel.SetSourceFacts("Thread · Evening sky", "Alex", "25.11.2026", 2300000, null, null);
-        Window window = new() { Width = 740, Height = 900, Content = panel, Classes = { "motion-off" } };
+        Window window = new() { Width = InfoBarWidths[0], Height = 900, Content = panel, Classes = { "motion-off" } };
         try
         {
             window.Show();
@@ -341,7 +344,7 @@ public sealed class SidePanelDesignTests
                 Texts.SetLanguage(language);
                 foreach (int width in InfoBarWidths)
                 {
-                    panel.Width = width;
+                    BooruReviewTestPlatform.Resize(window, width);
                     foreach (bool tagged in Segments)
                     {
                         panel.SetTags(tagged ? ["sky", "autumn", "clouds", "evening", "stargazing", "blue hour", "landscape"] : [], null);
@@ -381,7 +384,7 @@ public sealed class SidePanelDesignTests
                     }
                 }
             }
-            panel.Width = 320;
+            BooruReviewTestPlatform.Resize(window, 320);
             panel.SetTags(Enumerable.Range(1, 40).Select(i => "tag " + i).ToArray(), null);
             Settle(window);
             var chips = Find<Panel>("ReaderMediaSidebarTags");
