@@ -326,10 +326,10 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
     /// <summary>Why the star is off while <see cref="FavoriteAvailable"/> says no (still scanning, favorites unreadable); null: no specific reason.</summary>
     public Func<FavoriteStarHold>? FavoriteHold { get; set; }
     public string Name => Asset.OriginalFileName ?? System.IO.Path.GetFileName(Asset.Path);
-    public string Size => SizeText.Format(Asset.Length).Replace(' ', '\u00A0');
+    public string Size => SizeText.Format(Asset.Length);
     public string ExactSize => MediaProvenanceText.FactSize(Asset.Length);
     private string Revision => Texts.T(Asset.IsCurrent ? "archive.media.revision.current" : "archive.media.revision.earlier");
-    public string TileSummary => Size + " · " + Revision;
+    public string TileSummary => Size.Replace(' ', '\u00A0') + " · " + Revision;
     public string Version => string.IsNullOrEmpty(Asset.Sha256) ? Revision
         : Revision + " · " + Asset.Sha256[..Math.Min(12, Asset.Sha256.Length)];
     public string VersionDetail => string.IsNullOrEmpty(Asset.Sha256) ? Revision

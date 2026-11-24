@@ -1035,10 +1035,11 @@ public partial class ArchivePage : UserControl
         UpdateLayoutMode();
     }
     private bool CanShowArchivePreviewBesideList => Bounds.Width >= (_archiveLayout == "Table" ? 1450 : 1000);
-    private void OnArchiveFavoritesFilterClick(object? sender, RoutedEventArgs e)
+    private void OnArchiveFavoritesFilterChanged(object? sender, RoutedEventArgs e)
     {
-        _archiveFavoritesOnly = !_archiveFavoritesOnly;
-        ArchiveFavoritesFilter.IsChecked = _archiveFavoritesOnly;
+        bool favoritesOnly = ArchiveFavoritesFilter.IsChecked == true;
+        if (_archiveFavoritesOnly == favoritesOnly) return;
+        _archiveFavoritesOnly = favoritesOnly;
         RenderMedia();
     }
     private async void OnArchiveLayoutClick(object? sender, RoutedEventArgs e)

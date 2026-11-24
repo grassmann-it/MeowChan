@@ -16,6 +16,7 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Storage;
 using MeowChan.Gallery;
 using Semi.Avalonia.DataGrid;
@@ -75,6 +76,7 @@ public sealed class SavedMediaReaderTests
     [InlineData("ru", false)]
     public void FooterSharesALineAndTheFavoriteToggleKeepsItsLabel(string language, bool grid) => Run((page, window) =>
     {
+        page.ArchiveColumnModePreference = WorkViewSetting.AdvancedName;
         window.SetRenderScaling(1.5);
         Assert.Equal(1.5, window.RenderScaling);
         Texts.SetLanguage(language);
@@ -90,25 +92,32 @@ public sealed class SavedMediaReaderTests
         Assert.Equal(Texts.T("archive.favoritesOnly"), favorites.Content);
         Assert.Equal(ToggleState.On, toggle.ToggleState);
         Assert.True(Assert.Single(ShownRows(page, grid)).Asset.IsCurrent);
-        CommandBindings.InvokeAction(favorites);
+        toggle.Toggle();
+        Layout(window);
         Assert.Equal(Texts.T("archive.favoritesOnly"), favorites.Content);
         Assert.Equal(ToggleState.Off, toggle.ToggleState);
         Assert.Equal(2, ShownRows(page, grid).Length);
 
         TextBlock total = page.FindControl<TextBlock>("ArchiveThreadMediaTotal")!;
-        Button preview = page.FindControl<Button>("PreviewArchiveMediaButton")!;
         Assert.True(total.IsEffectivelyVisible);
-        Assert.True(preview.IsEffectivelyVisible);
         Assert.Equal(Texts.T("thread.media.total", 1), total.Text);
-        Assert.InRange(Math.Abs(total.TranslatePoint(new Point(0, total.Bounds.Height / 2), window)!.Value.Y
-            - preview.TranslatePoint(new Point(0, preview.Bounds.Height / 2), window)!.Value.Y), 0, 1);
-        Assert.True(total.TranslatePoint(new Point(total.Bounds.Width, 0), window)!.Value.X
-            <= preview.TranslatePoint(default, window)!.Value.X);
+        foreach (string name in new[] { "ArchiveEditRatingButton", "PreviewArchiveMediaButton", "ArchiveManageRatingsButton" })
+        {
+            Button action = page.FindControl<Button>(name)!;
+            Assert.True(action.IsEffectivelyVisible);
+            SameFooterLine(action);
+            Assert.True(total.TranslatePoint(new Point(total.Bounds.Width, 0), window)!.Value.X
+                <= action.TranslatePoint(default, window)!.Value.X);
+        }
         BooruReviewTestPlatform.Resize(window, 760);
         Layout(window);
-        ActionToolBar actions = page.FindControl<ActionToolBar>("ReaderMediaActions")!;
-        Assert.InRange(Math.Abs(total.TranslatePoint(new Point(0, total.Bounds.Height / 2), window)!.Value.Y
-            - actions.TranslatePoint(new Point(0, actions.Bounds.Height / 2), window)!.Value.Y), 0, 1);
+        SameFooterLine(page.FindControl<ActionToolBar>("ReaderMediaActions")!);
+
+        void SameFooterLine(Control action)
+        {
+            double CenterY(Control control) => control.TranslatePoint(new Point(0, control.Bounds.Height / 2), window)!.Value.Y;
+            Assert.InRange(Math.Abs(CenterY(total) - CenterY(action)), 0, 1);
+        }
 
         page.ReaderNavigationMode = Config.ReaderNavigationModeAlways;
         Assert.False(page.ReaderNavigationShown);
@@ -178,7 +187,7 @@ public sealed class SavedMediaReaderTests
         }
         Assert.StartsWith("Current", row.Version);
         Assert.StartsWith("Earlier", ShownRows(page, false).Single(asset => !asset.Asset.IsCurrent).Version);
-        Assert.Contains("\u00A0KiB", row.Size);
+        Assert.Contains("\u00A0KiB", row.TileSummary);
         Assert.Equal(Texts.T("media.fact.byteSize", row.Asset.Length, SizeText.Format(row.Asset.Length)), row.ExactSize);
         page.MediaTilesPreference = true;
         page.MediaTilesPreference = false;
@@ -197,7 +206,7 @@ public sealed class SavedMediaReaderTests
             MediaLibraryEntry[] entries = [MediaTagCountsTests.Entry(1), MediaTagCountsTests.Entry(2)];
             typeof(MediaPage).GetField("_snapshot", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .SetValue(page, new MediaLibrarySnapshot(entries, [], [], complete: true));
-            page.SubmitQuery();
+            page.ResetFilters();
             page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
             window.Show();
             Layout(window);
