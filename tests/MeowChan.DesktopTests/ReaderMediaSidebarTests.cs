@@ -43,14 +43,17 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     [Fact]
     public void CloneAndBothCopiesKeepEverySidebarValue()
     {
-        Config source = new() { ReaderMediaSidebar = true, ReaderMediaSidebarScope = "Always", ReaderMediaSidebarSide = "Right", ReaderMediaSidebarWidth = 700, ReaderMediaSidebarMinimumWidth = 1600 };
+        Config source = new() { MediaSidebarInfo = " auto ", MediaSidebarInfoMinimumFree = 200, MediaSidebarInfoMaximumShare = 50, ReaderMediaSidebar = true, ReaderMediaSidebarScope = "Always", ReaderMediaSidebarSide = "Right", ReaderMediaSidebarWidth = 700, ReaderMediaSidebarMinimumWidth = 1600 };
         Config clone = source.Clone(), copy = new(), settings = new();
         copy.CopyFrom(source);
         settings.CopySettingsFieldsFrom(source);
-        foreach (Config config in new[] { clone, copy, settings })
+        foreach (Config config in new[] { clone, copy, settings, SettingsTransfer.CreatePortableSnapshot(source), JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(source))! })
         {
             ReaderMediaPreferences media = ReaderMediaPreferences.From(config);
             Assert.True(media.Sidebar);
+            Assert.Equal("Auto", media.MediaSidebarInfo);
+            Assert.Equal(200, media.MediaSidebarInfoMinimumFree);
+            Assert.Equal(50, media.MediaSidebarInfoMaximumShare);
             Assert.True(media.SidebarRight);
             Assert.True(media.SidebarAlways);
             Assert.Equal(700, media.SidebarWidth);
@@ -252,7 +255,7 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     [Fact]
     public void TheThreeCommandsAreReaderCommandsWithYieldingDefaults()
     {
-        foreach ((string id, string gesture) in new[] { ("reader.sidebar.toggle", "Primary+Shift+M"),
+        foreach ((string id, string gesture) in new[] { ("media.sidebar.info", "Shift+I"), ("reader.sidebar.toggle", "Primary+Shift+M"),
             ("reader.sidebar.previous-media", "Alt+Shift+Left"), ("reader.sidebar.next-media", "Alt+Shift+Right") })
         {
             CommandDefinition command = CommandCatalog.Get(id);
@@ -271,7 +274,7 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     {
         // UX-LEDGER-27 keeps the same stable title line, now inside the full-height sidebar.
         // Host geometry and independence from neighbouring chrome are measured in MediaPagePanelLayoutTests.
-        Assert.Equal(32, ReaderMediaSidebar.HeaderLineHeight);
-        Assert.Equal(16, ReaderMediaSidebar.HeaderTopInset);
+        Assert.Equal(48, ReaderMediaSidebar.HeaderLineHeight);
+        Assert.Equal(8, ReaderMediaSidebar.HeaderTopInset);
     }
 }

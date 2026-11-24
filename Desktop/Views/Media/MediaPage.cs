@@ -947,6 +947,7 @@ public sealed partial class MediaPage : UserControl
     internal async Task EditTagsByShortcutAsync()
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
+        if (_panel is { IsKeyboardFocusWithin: true } panel && _panelShown) { await panel.EditTagsAsync(); return; }
         if (_grid.Selection.Count > 1) { await TagSelectionAsync(initialFocus: QuickTagInitialFocus.TagInput); return; }
         if (SelectedRow is not { } row) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
@@ -1086,8 +1087,9 @@ public sealed partial class MediaPage : UserControl
     // Toolbar/sidebar focus uses the selection, not the panel's displayed medium.
     private void OnPageRateAndTagKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _lifetime.IsCancellationRequested || ShortcutService.IsCapturing || e.Source is not Visual source
-            || CommandRouter.IsNativeInput(e.Source, e.Key) || !IsPageMediaShortcut(e)) return;
+        if (e.Handled || _lifetime.IsCancellationRequested || ShortcutService.IsCapturing || e.Source is not Visual source) return;
+        if (_panelShown && _panel?.RouteInfoKey(e) == true) return;
+        if (CommandRouter.IsNativeInput(e.Source, e.Key) || !IsPageMediaShortcut(e)) return;
         Visual[] ancestors = source.GetSelfAndVisualAncestors().ToArray();
         if (!ancestors.Contains(this) || ancestors.Any(visual => ReferenceEquals(visual, _grid)
             || _panel != null && ReferenceEquals(visual, _panel))) return;

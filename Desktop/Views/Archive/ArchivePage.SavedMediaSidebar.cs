@@ -118,7 +118,7 @@ public partial class ArchivePage
         string key = SavedSidebarKey(thread, row);
         (double Width, double Height) target = MediaSidebarTarget(sidebar);
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(key, target);
-        sidebar.Describe(row.Version, row.Name, ticket.SameMedium ? _sidebarShownDetail : string.Empty, OpenMediaGallery != null);
+        sidebar.Describe(row.Version, row.Name, ticket.SameMedium ? _sidebarShownDetail : string.Empty, OpenMediaGallery != null, mediumKey: key);
         sidebar.SetSourceFacts($"{entry.Key.Thread.Source} /{entry.Key.Thread.Board}/ · {entry.Key.Thread.Thread}",
             null, null, row.Asset.Length, null, null);
         sidebar.SetTags(null, MediaMenuReasons.TagsUnknown);

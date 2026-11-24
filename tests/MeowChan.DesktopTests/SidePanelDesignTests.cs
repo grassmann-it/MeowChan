@@ -26,7 +26,7 @@ public sealed class SidePanelDesignTests
 {
     private static readonly bool[] Segments = [false, true];
     private static readonly string[] BuiltInLanguages = ["en", "de"];
-    private static readonly int[] Widths = [240, 280, 360, 480];
+    private static readonly int[] Widths = [240, 280, 320, 360, 480];
 
     private static void Run(Action test) => BooruComponentDispatcher.Run(() =>
     {
@@ -49,12 +49,12 @@ public sealed class SidePanelDesignTests
     private static void Capture(Control frame, string variant, int width)
     {
         string? capture = Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN");
-        if (width is not (280 or 480) || string.IsNullOrEmpty(capture)) return;
+        if (string.IsNullOrEmpty(capture)) return;
         frame.UpdateLayout();
         using RenderTargetBitmap bitmap = new(new PixelSize((int)frame.Bounds.Width, (int)frame.Bounds.Height));
         bitmap.Render(frame);
         string directory = capture == "1" ? Path.GetTempPath() : capture;
-        bitmap.Save(Path.Combine(directory, $"112-design-{variant}-{width}.png"), PngBitmapEncoderOptions.Default);
+        bitmap.Save(Path.Combine(directory, $"112-mf-{variant}-{width}.png"), PngBitmapEncoderOptions.Default);
     }
 
     private static void Rating(Window window, GalleryDecisionRow row, Control frame, double left, double right, bool popover)
@@ -62,8 +62,8 @@ public sealed class SidePanelDesignTests
         int cell = popover ? (right - left < 336 ? 32 : 40) : 24;
         int glyph = popover ? 24 : 20;
         Rect Star(int index) => In(row.StarButtons[index], frame);
-        Rect favorite = In(row.FavoriteButton, frame), clear = In(row.ClearButton, frame), summary = In(row.Summary, frame);
-        Near(left, favorite.Left);
+        Rect favorite = In(row.FavoriteButton, frame), clear = In(row.ClearButton, frame);
+        Near(clear.Right + 8, favorite.Left);
         Near(left, In((Control)row.StarButtons[0].Content!, frame).Left);
         for (int i = 0; i < 5; ++i)
         {
@@ -77,24 +77,27 @@ public sealed class SidePanelDesignTests
         Near(left + 5 * cell + 8, clear.Left);
         Near(Star(0).Center.Y, clear.Center.Y);
         Near(32, favorite.Height);
-        Near(Star(0).Bottom + 8, favorite.Top);
-        Assert.InRange(favorite.Width, 1, Math.Min(5 * cell, right - left - 40));
-        Near(clear.Left + 8, summary.Left);
-        Near(favorite.Center.Y, summary.Center.Y);
-        Assert.True(summary.Right <= right + 0.5);
-        Rect group = In(row.RatingGroup, frame);
-        Near(Math.Max(clear.Right, summary.Right), group.Right);
-        Assert.Equal(TextAlignment.Left, row.Summary.TextAlignment);
-        Control[] controls = [..row.StarButtons, row.ClearButton, row.FavoriteButton, row.Summary];
+        Near(Star(0).Center.Y, favorite.Center.Y);
+        Near(Math.Max(32, cell), In(row.RatingGroup, frame).Height);
+        // The narrowest popover has less than the specified 240 DIP minimum for its icon form.
+        if (right - left >= (popover ? 240 : 200)) Assert.True(favorite.Right <= right + 0.5);
+        if (!popover && right - left <= 246) Near(32, favorite.Width);
+        if (!popover && right - left >= 286) Assert.True(favorite.Width > 32);
+        Control[] controls = [..row.StarButtons, row.ClearButton, row.FavoriteButton];
         Rect[] before = controls.Select(control => In(control, frame)).ToArray();
+        Matrix? StarTransform() => ((Control)row.StarButtons[0].Content!).RenderTransform?.Value;
+        Matrix? initialTransform = StarTransform();
         GalleryDecisionView original = row.View;
         foreach (GalleryDecisionCoverage coverage in Enum.GetValues<GalleryDecisionCoverage>())
         {
             row.Show(original with { Favorite = coverage });
+            Assert.Equal(initialTransform, StarTransform());
             row.FocusRating();
             row.Preview(4);
+            Assert.Equal(initialTransform, StarTransform());
             Settle(window);
             Assert.Equal(before, controls.Select(control => In(control, frame)));
+            Near(left, In((Control)row.StarButtons[0].Content!, frame).Left);
         }
         row.Preview(null);
         row.Show(original);
@@ -110,21 +113,33 @@ public sealed class SidePanelDesignTests
         rendered.Save(png, PngBitmapEncoderOptions.Default);
         png.Position = 0;
         using SKBitmap pixels = SKBitmap.Decode(png);
-        Rect caption = In(row.Summary, frame);
-        int left = (int)caption.Left, top = (int)caption.Top;
-        SKColor surface = pixels.GetPixel(left - 4, top);
-        bool hasInk = false;
-        for (int y = top; y < caption.Bottom; y++)
+        Rect bar = In(row.RatingBar, frame);
+        SKColor surface = pixels.GetPixel((int)bar.Left - 2, (int)bar.Top);
+        static bool Between(byte sample, byte background, byte foreground) =>
+            sample >= Math.Min(background, foreground) - 1 && sample <= Math.Max(background, foreground) + 1;
+
+        for (int i = 0; i < row.StarButtons.Count; i++)
         {
-            for (int x = left; x < caption.Right; x++)
+            Rect cell = In(row.StarButtons[i], frame);
+            string token = i < row.View.Rating.GetValueOrDefault() ? "Workspace.Favorite" : "Workspace.Muted";
+            Color color = Assert.IsAssignableFrom<ISolidColorBrush>(frame.FindResource(frame.ActualThemeVariant, token)).Color;
+            SKColor ink = new(color.R, color.G, color.B, color.A);
+            bool hasSurface = false, hasInk = false;
+            for (int y = (int)cell.Top; y < cell.Bottom; y++)
             {
-                SKColor sample = pixels.GetPixel(x, y);
-                Assert.True(sample.Red + 1 >= surface.Red && sample.Green + 1 >= surface.Green && sample.Blue + 1 >= surface.Blue,
-                    $"Rating pixel ({x}, {y}) is {sample} over {surface}.");
-                hasInk |= sample.Red > surface.Red + 20;
+                for (int x = (int)cell.Left; x < cell.Right; x++)
+                {
+                    SKColor pixel = pixels.GetPixel(x, y);
+                    // Antialiasing blends each channel toward the glyph; gold lowers the blue channel.
+                    Assert.True(Between(pixel.Red, surface.Red, ink.Red) && Between(pixel.Green, surface.Green, ink.Green)
+                        && Between(pixel.Blue, surface.Blue, ink.Blue) && Between(pixel.Alpha, surface.Alpha, ink.Alpha),
+                        $"Star {i + 1} pixel ({x}, {y}) is {pixel} over {surface} with ink {ink}.");
+                    hasSurface |= pixel == surface;
+                    hasInk |= pixel == ink;
+                }
             }
+            Assert.True(hasSurface && hasInk, $"Star {i + 1} must show both the panel and its {token} glyph.");
         }
-        Assert.True(hasInk);
     }
 
     private static void Sections(MediaPanelSections sections, Control frame, double left, double right, int width)
@@ -155,7 +170,7 @@ public sealed class SidePanelDesignTests
             Assert.Equal(FontWeight.Normal, value.FontWeight);
             Assert.Equal(frame.FindResource(frame.ActualThemeVariant, "Workspace.Muted"), label.Foreground);
             Assert.Equal(frame.FindResource(frame.ActualThemeVariant, "Workspace.Text"), value.Foreground);
-            if (width == 240) Near(label.Bounds.Left, value.Bounds.Left);
+            if (right - left < WorkspaceMetrics.MediaFactStackWidth) Near(label.Bounds.Left, value.Bounds.Left);
             else Assert.True(value.Bounds.Left > label.Bounds.Right);
         }
         Button[] actions = sections.Actions!.GetVisualDescendants().OfType<Button>()
@@ -164,10 +179,25 @@ public sealed class SidePanelDesignTests
         for (int i = 0; i < actions.Length; ++i)
         {
             Rect button = In(actions[i], frame);
-            Near(left, button.Left);
-            Near(right, button.Right);
+            Assert.True(button.Left >= left - 0.5 && button.Right <= right + 0.5);
+            Near(actions[i].DesiredSize.Width, button.Width);
             Near(32, button.Height);
-            if (i > 0) Near(In(actions[i - 1], frame).Bottom + 8, button.Top);
+            if (actions[i].GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Classes.Contains("panel-action-label")) is { } label)
+            {
+                if (width >= 280)
+                    Assert.DoesNotContain(label.TextLayout.TextLines, line => line.HasCollapsed);
+                else Assert.StartsWith(label.Text!, ToolTip.GetTip(actions[i])?.ToString());
+            }
+            if (i == 0) Near(left, button.Left);
+            else
+            {
+                Rect previous = In(actions[i - 1], frame);
+                if (i == 1 && actions[i].Parent == actions[i - 1].Parent
+                    && actions[i].Parent is PanelActionStack { KeepPairOnOneLine: true })
+                    Near(previous.Top, button.Top);
+                if (button.Top == previous.Top) Near(previous.Right + 8, button.Left);
+                else { Near(left, button.Left); Near(previous.Bottom + 8, button.Top); }
+            }
         }
     }
 
@@ -210,6 +240,7 @@ public sealed class SidePanelDesignTests
                     frame.Width = width;
                     frame.IsVisible = true;
                     Settle(window);
+                    Capture(frame, (queue ? "tagging-gallery-" : "gallery-") + (tags ? "tags" : "post"), width);
                     Assert.Equal(tags, viewer.IsTagPanelOpen);
                     Control leading = (Control)panel.PostButton.Parent!;
                     GalleryMeasuredGeometryTests.AssertSidebarHeader(panel, leading, panel.Position, panel.CloseButton);
@@ -248,7 +279,6 @@ public sealed class SidePanelDesignTests
                     Assert.Equal(geometry[3], In(row.RatingGroup, frame));
                     panel.Position.Show(new(1, 3, false, queue));
                     Settle(window);
-                    Capture(frame, (queue ? "tagging-gallery-" : "gallery-") + (tags ? "tags" : "post"), width);
                 }
             }
             viewer.ShowTagPanel(owner);
@@ -286,6 +316,7 @@ public sealed class SidePanelDesignTests
     {
         ReaderMediaSidebar panel = new() { DecisionKeyContext = media ? "media" : "reader", OpenTagsAsync = (_, _) => Task.CompletedTask };
         panel.Describe(media ? "No. 200" : "No. 1051", "evening.jpg", "640×480", true, new(1, 55, false), 2048);
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always" });
         panel.SetSourceFacts("Archive /g/ · 42", null, null, 2048, media ? null : 2048, null);
         panel.SetTags(["landscape"], null);
         panel.ConfigureRating(() => true, () => 3, _ => Task.CompletedTask);
@@ -300,21 +331,73 @@ public sealed class SidePanelDesignTests
             {
                 panel.Width = width;
                 Settle(window);
-                GalleryMeasuredGeometryTests.AssertSidebarHeader(panel.HeaderRow, panel.Title, panel.PositionPill, panel.Close);
-                Assert.Empty(panel.HeaderRow.GetVisualDescendants().OfType<ToggleButton>());
+                Capture(panel, media ? "media" : "reader", width);
+                AssertCompactHeader(panel);
                 Assert.Contains("workspace-panel-title", panel.Title.Classes);
-                Near(16, In(panel.HeaderRow, panel).Top);
-                Near(In(panel.HeaderRow, panel).Bottom + 12, In(panel.Card, panel).Top);
-                Near(In(panel.Card, panel).Bottom + 12, In(panel.DecisionRow, panel).Top);
-                Near(panel.PositionPill.Label.DesiredSize.Width + 18, panel.PositionPill.Bounds.Width);
+                Near(8, In(panel.HeaderRow, panel).Top);
+                Near(In(panel.HeaderRow, panel).Bottom + 8, In(panel.Card, panel).Top);
+                Near(In(panel.Card, panel).Bottom + 8, In(panel.DecisionRow, panel).Top);
                 double left = panel.Padding.Left, right = width - panel.Padding.Right;
                 Rating(window, panel.DecisionRow, panel, left, right, false);
                 Sections(Assert.Single(panel.GetVisualDescendants().OfType<MediaPanelSections>()), panel, left, right, width);
-                Capture(panel, media ? "media" : "reader", width);
             }
         }
         finally { window.Close(); }
     });
+
+    [Fact]
+    public void NarrowHeaderKeepsPositionAndFileFactsOnOneLineInEveryLanguage() => Run(() =>
+    {
+        const string filename = "a-long-filename-that-needs-to-be-shortened-in-the-middle.jpg";
+        ReaderMediaSidebar panel = new();
+        panel.Describe("No. 22490087", filename, "1080×1920", true, new(2, 64, false), 2 * 1024 * 1024);
+        Window window = new() { Width = 240, Height = 640, Content = panel };
+        try
+        {
+            window.Show();
+            MediaCompactHeader header = Assert.IsType<MediaCompactHeader>(panel.HeaderRow);
+            foreach (string language in BuiltInLanguages.Concat(Texts.BundledPackCodes()))
+            {
+                Texts.SetLanguage(language);
+                Settle(window);
+                AssertCompactHeader(panel);
+                Assert.False(panel.PositionPill.IsVisible);
+                Assert.StartsWith("2 / 64 · ", header.Meta.Text);
+                Assert.Contains(".jpg", header.Meta.Text);
+                Assert.EndsWith(SizeText.Format(2 * 1024 * 1024) + " · 1080×1920", header.Meta.Text);
+                Assert.Contains(filename, ToolTip.GetTip(header.Meta)?.ToString());
+                Assert.Single(header.Meta.TextLayout.TextLines);
+                Assert.True(panel.Card.Bounds.Height >= 0.88 * panel.Bounds.Height);
+            }
+        }
+        finally { window.Close(); }
+    });
+
+    internal static void AssertCompactHeader(ReaderMediaSidebar panel)
+    {
+        MediaCompactHeader header = Assert.IsType<MediaCompactHeader>(panel.HeaderRow);
+        Near(48, header.Bounds.Height);
+        Near(16, header.Meta.Bounds.Height);
+        Rect? previous = null;
+        foreach (Button button in new Button[] { panel.FavoriteButton, panel.InfoToggle, panel.Open, panel.Close })
+        {
+            Rect rect = In(button, header);
+            Near(32, rect.Width); Near(32, rect.Height);
+            if (previous.HasValue) Near(previous.Value.Right + 4, rect.Left);
+            previous = rect;
+        }
+        Assert.True(panel.Close.IsVisible);
+        Near(1, panel.Close.Opacity);
+        Near(header.Bounds.Width, In(panel.Close, header).Right);
+        if (panel.PositionPill.IsVisible)
+        {
+            double center = (In(panel.Title, header).Right + In(panel.FavoriteButton, header).Left) / 2;
+            Near(center, In(panel.PositionPill, header).Center.X);
+            Near(panel.PositionPill.Label.DesiredSize.Width + 18, panel.PositionPill.Bounds.Width);
+        }
+        else if (panel.PositionPill.HasPosition)
+            Assert.StartsWith(panel.PositionPill.Bare + " · ", header.Meta.Text);
+    }
 
     private static string SamplePicture([CallerFilePath] string path = "") => Path.Combine(Path.GetDirectoryName(path)!,
         "../../samples/MeowChan.ImageViewerComparison/fixtures/nasa-PIA18033.jpg");
@@ -361,7 +444,7 @@ public sealed class SidePanelDesignTests
     });
 
     [Theory, InlineData(false), InlineData(true)]
-    public void AllTwelveLanguagesShowEveryCharacterOfEveryRating(bool popover) => Run(() =>
+    public void EveryRatingIsAccessibleWithoutVisibleCaptionInAllTwelveLanguages(bool popover) => Run(() =>
     {
         GalleryDecisionRow row = new("LocalizedDecision", compact: !popover);
         row[!Panel.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel");
@@ -381,17 +464,13 @@ public sealed class SidePanelDesignTests
                         GalleryDecisionView view = new(1, GalleryDecisionCoverage.None, rating is > 0 and < 6 ? rating : null, rating == 6, true);
                         row.Show(view);
                         Settle(window);
-                        RatingCaption caption = row.Summary;
-                        var lines = caption.TextLayout.TextLines;
-                        if (language == "de" && rating == 6 && width == 280)
-                            Capture(row, popover ? "popover-mixed-de" : "panel-mixed-de", width);
-                        string message = $"{language}, {width}, popover={popover}, {caption.Text}, {caption.Bounds}, {lines.Count} line(s), runs={string.Join("|", lines.SelectMany(l => l.TextRuns).Select(r => r.Text.ToString()))}";
-                        bool complete = string.Concat(lines.SelectMany(l => l.TextRuns).Select(r => r.Text.ToString())) == caption.Text;
-                        if (caption.Text != GalleryDecisionText.Caption(view) || !complete
-                            || lines.Any(l => l.HasCollapsed || l.Width * caption.HorizontalScale > caption.Bounds.Width + 0.5)
-                            || caption.TextLayout.Height > caption.Bounds.Height + 0.5 || lines.Count > 2
-                            || rating != 6 && width >= 280 && lines.Count != 1)
-                            failures.Add(message);
+                        string caption = GalleryDecisionText.Caption(view);
+                        if (!popover && (width >= 360 || width >= 320 && language is "en" or "de") &&
+                            row.FavoriteButton.Bounds.Width <= 32) failures.Add($"{language}, {width}, favorite label");
+                        if (!Equals(ToolTip.GetTip(row.RatingBar), caption) ||
+                            Avalonia.Automation.AutomationProperties.GetName(row.RatingBar) != caption ||
+                            row.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible && t.Text == caption))
+                            failures.Add($"{language}, {width}, {caption}");
                     }
                 }
             }
