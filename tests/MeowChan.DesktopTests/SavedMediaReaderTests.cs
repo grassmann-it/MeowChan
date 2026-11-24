@@ -419,8 +419,9 @@ public sealed class SavedMediaReaderTests
         return editor;
     }
 
-    private static T ById<T>(Visual root, string id) where T : Control =>
-        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
+    private static T ById<T>(Visual root, string id, ArchiveAssetRow? row = null) where T : Control =>
+        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id
+            && (row == null || ReferenceEquals(control.DataContext, row)));
 
     private static Control FocusSidebarFrame(ReaderMediaSidebar sidebar)
     {
@@ -430,11 +431,11 @@ public sealed class SavedMediaReaderTests
         return frame;
     }
 
-    private static void Click(TopLevel root, Control control)
+    private static void Click(TopLevel root, Control control, RawInputModifiers modifiers = RawInputModifiers.None, Point? local = null)
     {
-        Point point = HitPoint(root, control);
-        root.MouseDown(point, MouseButton.Left, RawInputModifiers.None);
-        root.MouseUp(point, MouseButton.Left, RawInputModifiers.None);
+        Point point = HitPoint(root, control, local);
+        root.MouseDown(point, MouseButton.Left, modifiers);
+        root.MouseUp(point, MouseButton.Left, modifiers);
         Layout(root);
     }
 
@@ -463,46 +464,55 @@ public sealed class SavedMediaReaderTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ArrowKeysMakeTheOpenSidebarFollowTheExactRevision(bool grid) => Run((page, window) =>
+    public void ClicksArrowsAndMultiSelectionMakeTheOpenSidebarFollowTheExactRevision(bool grid) => Run((page, window) =>
     {
-        page.MediaTilesPreference = grid;
-        Layout(window);
-        ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
-        DataGrid table = page.FindControl<DataGrid>("ArchiveMediaGrid")!;
+        ListBox tiles = ById<ListBox>(window, "ArchiveMediaTiles");
+        DataGrid table = ById<DataGrid>(window, "ArchiveMediaGrid");
+        Assert.Equal(grid, tiles.IsEffectivelyVisible);
+        Assert.Equal(!grid, table.IsEffectivelyVisible);
         ArchiveAssetRow[] rows = (grid ? tiles.ItemsSource : table.ItemsSource)!.Cast<ArchiveAssetRow>().ToArray();
         Assert.Equal(rows[0].Name, rows[1].Name);
-
-        if (grid)
-        {
-            tiles.SelectedIndex = 0;
-            Layout(window);
-            Assert.True(((Control)tiles.ContainerFromIndex(0)!).Focus(NavigationMethod.Tab));
-        }
-        else SelectTableRow(window, table, rows[0]);
         ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+        TextBlock heading = ById<TextBlock>(window, "ReaderMediaSidebarHeading");
+        Control Target(ArchiveAssetRow row) => grid ? ById<ListBoxItem>(tiles, "ArchiveMediaTile", row)
+            : ById<DataGridRow>(table, "ArchiveMediaTableRow", row);
+        void AssertShown(int index, PixelSize size) => WaitUntil(() => heading.IsEffectivelyVisible
+            && heading.Text == rows[index].Version && sidebar.Load.ShownSource == size);
+
         Assert.True(page.IsMediaSidebarShown);
-        WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
-            && sidebar.Load.ShownSource == new PixelSize(17, 11));
+        Control first = Target(rows[0]);
+        Point rowPoint = new(16, grid ? 32 : first.Bounds.Height / 2);
+        Click(window, first, local: rowPoint);
+        Assert.Equal(0, grid ? tiles.SelectedIndex : table.SelectedIndex);
+        AssertShown(0, new(17, 11));
         PressKey(window, grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown);
         Assert.Equal(1, grid ? tiles.SelectedIndex : table.SelectedIndex);
-        WaitUntil(() => sidebar.HeaderLine.Contains(rows[1].Version, StringComparison.Ordinal)
-            && sidebar.Load.ShownSource == new PixelSize(19, 13));
+        AssertShown(1, new(19, 13));
+
+        RawInputModifiers toggle = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+        Click(window, Target(rows[0]), toggle, rowPoint);
+        Assert.Equal(rows, page.SelectedMediaRows());
+        if (grid) Assert.True(ById<Border>(Target(rows[0]), "ArchiveMediaSelected").IsEffectivelyVisible);
+        AssertShown(0, new(17, 11));
+
+        if (grid) Click(window, ById<Border>(Target(rows[1]), "ArchiveMediaSelected"));
+        else Click(window, Target(rows[1]), local: rowPoint);
+        Assert.Same(rows[1], grid ? tiles.SelectedItem : table.SelectedItem);
+        AssertShown(1, new(19, 13));
         PressKey(window, grid ? PhysicalKey.ArrowLeft : PhysicalKey.ArrowUp);
         Assert.Equal(0, grid ? tiles.SelectedIndex : table.SelectedIndex);
-        WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
-            && sidebar.Load.ShownSource == new PixelSize(17, 11));
+        AssertShown(0, new(17, 11));
 
         if (!grid)
         {
-            DataGridRow row = table.GetVisualDescendants().OfType<DataGridRow>()
-                .Single(item => ReferenceEquals(item.DataContext, rows[0]));
+            DataGridRow row = ById<DataGridRow>(table, "ArchiveMediaTableRow", rows[0]);
             Border background = row.GetVisualDescendants().OfType<Border>().Single(item => item.Name == "BackgroundBorder");
             Assert.Equal(new Thickness(3, 1, 1, 1), background.BorderThickness);
             Visual[] outlines = row.GetVisualDescendants().Where(item => item is Control { Name: "CurrencyVisual" or "FocusVisual" }).ToArray();
             Assert.NotEmpty(outlines);
             Assert.All(outlines, outline => Assert.Equal(0, outline.Opacity));
         }
-    });
+    }, gridPreference: grid);
 
     [Theory]
     [InlineData("de", false)]
@@ -721,7 +731,7 @@ public sealed class SavedMediaReaderTests
         (grid ? page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource : page.FindControl<DataGrid>("ArchiveMediaGrid")!.ItemsSource)!
         .Cast<ArchiveAssetRow>().ToArray();
 
-    private static void Run(Action<ArchivePage, Window> test, Action<string>? openFolder = null) => BooruComponentDispatcher.Run(() =>
+    private static void Run(Action<ArchivePage, Window> test, Action<string>? openFolder = null, bool? gridPreference = null) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
@@ -733,6 +743,7 @@ public sealed class SavedMediaReaderTests
             IsAvailable = true,
             IsArchiveFavorite = entry => entry.Asset.IsCurrent
         };
+        if (gridPreference is bool grid) page.MediaTilesPreference = grid;
         Window window = new() { Width = 1440, Height = 840 };
         try
         {
