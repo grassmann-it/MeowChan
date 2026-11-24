@@ -17,8 +17,13 @@ public sealed partial class ArchiveReader : IAsyncDisposable
     private int _disposed;
     private readonly object _readGate = new();
     private readonly HashSet<Task> _reads = new();
-    private ArchiveReader(string path) { DatabasePath = path; }
+    private ArchiveReader(string path, bool hasIndexedBacklinks)
+    {
+        DatabasePath = path;
+        HasIndexedBacklinks = hasIndexedBacklinks;
+    }
     public string DatabasePath { get; }
+    internal bool HasIndexedBacklinks { get; }
 
     public static Task<ArchiveReader> OpenAsync(string profileDirectory, CancellationToken cancellationToken = default)
     {
@@ -31,9 +36,10 @@ public sealed partial class ArchiveReader : IAsyncDisposable
             using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadOnly);
             using SqliteTransaction validation = connection.BeginTransaction(deferred: true);
             ArchiveSql.ValidateSchema(connection, validation);
+            bool hasIndexedBacklinks = ArchiveSql.GetPragma(connection, "user_version", validation) > 1;
             validation.Commit();
             cancellationToken.ThrowIfCancellationRequested();
-            return new ArchiveReader(path);
+            return new ArchiveReader(path, hasIndexedBacklinks);
         }, cancellationToken);
     }
 

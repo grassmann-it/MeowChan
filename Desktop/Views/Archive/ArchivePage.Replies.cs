@@ -18,7 +18,17 @@ public partial class ArchivePage
     private CancellationTokenSource? _inlineRepliesCancellation;
     private bool _loadingReplyCounts;
     private ReaderPreviewReservation.PostWindow _inlineReplyWindow;
-    internal Func<CancellationToken, Task>? BeforeInlineReplyCountsPublicationAsync { get; set; }
+    private ArchivedThreadView? _replyCountSnapshot;
+    private IReadOnlyDictionary<string, int>? _legacyReplyCounts;
+    internal Task InlineReplyCountsTask { get; private set; } = Task.CompletedTask;
+    internal Func<ResourceId, IReadOnlyList<string>, CancellationToken, Task>? BeforeInlineReplyCountsPublicationAsync { get; set; }
+
+    private void SwitchReplyCountSnapshot()
+    {
+        if (ReferenceEquals(_replyCountSnapshot, _thread)) return;
+        _replyCountSnapshot = _thread;
+        _legacyReplyCounts = null;
+    }
 
     private void BeginInlineReplies(ReaderPostRows? rows)
     {
@@ -38,7 +48,7 @@ public partial class ArchivePage
     private void RequestInlineReplyCounts(ReaderPostRows source, ReaderPreviewReservation.PostWindow window)
     {
         _inlineReplyWindow = window;
-        if (_loadingReplyCounts || _inlineRepliesCancellation is not { } loading || _thread == null) return;
+        if (_loadingReplyCounts || _inlineRepliesCancellation is not { } loading || _thread is not { } snapshot) return;
         List<ArchivePostRow> pending = new();
         // GetBacklinkCountsAsync accepts at most 500 IDs per read. A larger viewport is picked up in the next pass.
         for (int index = window.Start; index < window.End && pending.Count < 500; index++)
@@ -49,7 +59,7 @@ public partial class ArchivePage
         }
         if (pending.Count == 0) return;
         _loadingReplyCounts = true;
-        _ = LoadInlineReplyCountsAsync(source, pending, _thread.Summary.Id, loading.Token);
+        InlineReplyCountsTask = LoadInlineReplyCountsAsync(source, pending, snapshot.Summary.Id, loading.Token);
     }
 
     private async Task LoadInlineReplyCountsAsync(ReaderPostRows source, List<ArchivePostRow> pending, ResourceId thread,
@@ -58,10 +68,21 @@ public partial class ArchivePage
         bool InWindow(ArchivePostRow row) => _inlineReplyWindow.Contains(source.IndexOf(row));
         try
         {
-            await using ArchiveReader reader = await _openReader!(token);
-            IReadOnlyDictionary<string, int> counts = await reader.GetBacklinkCountsAsync(thread, pending.Select(row => row.Id).ToArray(), token);
+            string[] ids = pending.Select(row => row.Id).ToArray();
+            IReadOnlyDictionary<string, int> counts;
+            if (_legacyReplyCounts is { } cached) counts = cached;
+            else
+            {
+                await using ArchiveReader reader = await _openReader!(token);
+                counts = reader.HasIndexedBacklinks
+                    ? await reader.GetBacklinkCountsAsync(thread, ids, token)
+                    : await reader.GetThreadBacklinkCountsAsync(thread, token);
+                if (!InlineReplyRowsCurrent(source, token)) return;
+                // Schema 1 scans the archive. Later viewport windows reuse the counts for this reader generation.
+                if (!reader.HasIndexedBacklinks) _legacyReplyCounts = counts;
+            }
             if (!InlineReplyRowsCurrent(source, token)) return;
-            if (BeforeInlineReplyCountsPublicationAsync is { } beforePublication) await beforePublication(token);
+            if (BeforeInlineReplyCountsPublicationAsync is { } beforePublication) await beforePublication(thread, ids, token);
             if (!InlineReplyRowsCurrent(source, token)) return;
             ArchivePostRow[] applicable = pending.Where(InWindow).ToArray();
             if (applicable.Length == 0) return;

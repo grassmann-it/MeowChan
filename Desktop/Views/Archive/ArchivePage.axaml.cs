@@ -231,7 +231,7 @@ public partial class ArchivePage : UserControl
         _runningList = pending;
         CancelArchiveMediaCounts();
         _retryList = null;
-        CancelReferences(); CancelInlineReplies();
+        CancelReferences();
         int generation = ++_contentRequest;
         _contentCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, applicationToken);
@@ -359,7 +359,6 @@ public partial class ArchivePage : UserControl
         LocalReadingPosition? initialReadingPosition = resetPage && _selectedThread != id && _largeReader
             ? ReadingPlaceFor?.Invoke(id) : null;
         CancelReferences();
-        CancelInlineReplies();
         int request = ++_contentRequest;
         focusIntent?.BeginContent(request);
         _contentCancellation?.Cancel();
@@ -566,7 +565,9 @@ public partial class ArchivePage : UserControl
         if (_ended) _retainedMediaPosition = null;
     }
 
-    private void RenderThread()
+    private void RenderThread() => RenderThreadWithReplies(null);
+
+    private void RenderThreadWithReplies(InlineRepliesSnapshot? replies)
     {
         CloseQuotePreview();
         if (_thread == null) CancelProjectionBuild();
@@ -590,8 +591,8 @@ public partial class ArchivePage : UserControl
         ReaderPostProjection? projection = _thread != null ? ResolveProjection(out _) : null;
         ArchiveReaderStatus.Text = status + ReaderViewStatus(projection);
         CancelInlineReplies();
-        _replyAutoExpand.SwitchThread(threadId);
-        _postInteraction = new();
+        SwitchReplyCountSnapshot();
+        BeginPostInteraction(threadId, replies);
         CancelPreviewWork();
         if (_thread != null)
         {
@@ -801,7 +802,6 @@ public partial class ArchivePage : UserControl
         ResourceId id = _thread.Summary.Id;
         bool enabled = !_thread.Summary.CaptureEnabled;
         CancelReferences();
-        CancelInlineReplies();
         int request = ++_contentRequest;
         _busy = true;
         try

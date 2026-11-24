@@ -21,8 +21,8 @@ public partial class ArchivePage
     private ArchiveSearchSpec _query = new ArchiveSearchSpec();
     private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
         int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error, bool AutoExpanded = false);
-    private sealed record ReaderHistoryEntry(ArchivedThreadView View, ReaderAnchor? Anchor,
-        IReadOnlyList<InlineReplyState> Replies);
+    private sealed record InlineRepliesSnapshot(InlineReplyState[] Pages, string[] CollapsedPosts);
+    private sealed record ReaderHistoryEntry(ArchivedThreadView View, ReaderAnchor? Anchor, InlineRepliesSnapshot Replies);
 
     private sealed class PostInteraction
     {
@@ -31,6 +31,7 @@ public partial class ArchivePage
     }
 
     private PostInteraction _postInteraction = new();
+    private ArchivedThreadView? _postInteractionThread;
 
     private static InlineReplyState ReplyState(ArchivePostRow row) => new(row.Id, row.RepliesExpanded, row.RepliesLoaded,
         row.BacklinkCount, row.RepliesOffset, row.Replies, row.RepliesError, row.RepliesAutoExpanded);
@@ -43,21 +44,31 @@ public partial class ArchivePage
             _postInteraction.Replies[row.Id] = ReplyState(row);
     }
 
-    private InlineReplyState[] CaptureInlineReplyState() => ArchivePosts.ItemsSource is ReaderPostRows rows
-        ? _postInteraction.Replies.Values.Concat(rows.Materialized
-            .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError).Select(ReplyState)).ToArray()
-        : Array.Empty<InlineReplyState>();
-
-    private void RestoreInlineReplyState(IReadOnlyList<InlineReplyState> states)
+    private InlineRepliesSnapshot CaptureInlineReplyState()
     {
-        if (ArchivePosts.ItemsSource is not ReaderPostRows rows) return;
-        foreach (InlineReplyState state in states) _postInteraction.Replies[state.PostId] = state;
-        foreach (ArchivePostRow row in rows.Materialized.ToArray()) RestorePostInteraction(row, _postInteraction);
+        IEnumerable<InlineReplyState> pages = _postInteraction.Replies.Values;
+        if (ArchivePosts.ItemsSource is ReaderPostRows rows)
+            pages = pages.Concat(rows.Materialized
+                .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError).Select(ReplyState));
+        return new(pages.ToArray(), _replyAutoExpand.CaptureCollapsedPosts());
+    }
+
+    private void BeginPostInteraction(ResourceId? threadId, InlineRepliesSnapshot? restored)
+    {
+        _replyAutoExpand.SwitchThread(threadId);
+        // A pending projection has no rows yet. Keep its seeded reply pages until the first rows are built.
+        if (restored != null || !ReferenceEquals(_postInteractionThread, _thread) || ArchivePosts.ItemsSource != null)
+            _postInteraction = new();
+        _postInteractionThread = _thread;
+        if (restored == null) return;
+        _replyAutoExpand.RestoreCollapsedPosts(restored.CollapsedPosts);
+        foreach (InlineReplyState state in restored.Pages) _postInteraction.Replies[state.PostId] = state;
     }
 
     private void RestorePostInteraction(ArchivePostRow row, PostInteraction interaction)
     {
         if (interaction.Spoilers.Remove(row.ThreadIndex)) row.SpoilersRevealed = true;
+        if (row.IsStub || row.SuppressReplyToggle) return;
         if (!interaction.Replies.Remove(row.Id, out InlineReplyState? state)) return;
         // Restore loaded pages before expanding, including when an origin is realized after returning from a quote.
         if (state.Loaded) row.SetReplies(state.Replies, state.Count ?? state.Replies.Count, state.Offset);
@@ -230,7 +241,9 @@ public partial class ArchivePage
         return LoadThreadAsync(id, resetPage: kept == null, preparedThread, null, entryAnchor: kept);
     }
 
-    private void ShowCapturedView(ArchivedThreadView view, string? postId)
+    private void ShowCapturedView(ArchivedThreadView view, string? postId) => ShowCapturedViewWithReplies(view, postId, null);
+
+    private void ShowCapturedViewWithReplies(ArchivedThreadView view, string? postId, InlineRepliesSnapshot? replies)
     {
         InvalidateFilenameSearch();
         if (_unreadMark?.Thread != view.Summary.Id) _unreadMark = null;
@@ -248,7 +261,7 @@ public partial class ArchivePage
         _postsAnchorOnShow = null;
         _assets = Array.Empty<ArchiveAssetRow>();
         _showReader = true;
-        RenderThread();
+        RenderThreadWithReplies(replies);
         UpdateLayoutMode();
         ArchiveContentTabs.SelectedIndex = 0;
         Message(string.Empty);
@@ -283,8 +296,7 @@ public partial class ArchivePage
         ReaderHistoryEntry previous = _history.Last.Value;
         _history.RemoveLast();
         CancelReferences();
-        ShowCapturedView(previous.View, previous.Anchor?.SelectedPostId ?? previous.Anchor?.PostId);
-        RestoreInlineReplyState(previous.Replies);
+        ShowCapturedViewWithReplies(previous.View, previous.Anchor?.SelectedPostId ?? previous.Anchor?.PostId, previous.Replies);
         if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
         ReaderPositionChanged(deliberate: true);
     }
