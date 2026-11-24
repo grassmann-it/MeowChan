@@ -329,7 +329,10 @@ public sealed partial class MenuIconLayoutTests
     private static void OnUi(Action test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
-        test();
+        string language = Texts.Language;
+        Texts.Initialize();
+        try { test(); }
+        finally { Texts.SetLanguage(language); }
     });
 
     private static void WithWindow(Control content, Action<Window> test)

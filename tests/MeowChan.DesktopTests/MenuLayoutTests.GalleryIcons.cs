@@ -1,11 +1,12 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
-using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -39,6 +40,7 @@ public sealed partial class MenuIconLayoutTests
         Texts.SetLanguage("de");
         WithWindow(viewer, window =>
         {
+            window.RequestedThemeVariant = ThemeVariant.Dark;
             window.SetRenderScaling(1.5);
             BooruReviewTestPlatform.Resize(window, 760);
             Assert.True(viewer.IsCompactToolbar);
@@ -93,6 +95,7 @@ public sealed partial class MenuIconLayoutTests
             ToggleButton pause = Toggle("gallery.slideshow-pause-on-focus-loss");
             Assert.True(pause.Focus(NavigationMethod.Directional));
             var wheel = Assert.IsType<GalleryViewer.OverflowItem>(viewer.WheelBrowseToggle.Tag);
+            Assert.Equal(12, Texts.Languages.Count);
             foreach (var language in Texts.Languages)
             {
                 Texts.SetLanguage(language.Code);

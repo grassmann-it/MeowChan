@@ -137,7 +137,7 @@ internal sealed partial class GalleryViewer
         ApplyOverflowButtonText();
     }
 
-    private Control OverflowGlyph()
+    private Border OverflowGlyph()
     {
         Border icon = (Border)CommandBindings.Icon("plugins.actions", 16);
         icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
