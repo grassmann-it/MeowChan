@@ -117,9 +117,11 @@ public partial class MainWindow
             if (reason != QuickTagPopoverCloseReason.Advanced && !_isClosing)
             {
                 bool changed = session?.Changed == true || decision?.HasChanged?.Invoke() == true;
+                // A sidebar button survives the grid rebuild. The popover already returned focus to that button.
+                Func<bool> restoreMenuFocus = sidebar ? static () => false : presentationCurrent;
                 // The rebuild would detach the new popover's anchor: it waits until that one closed.
-                if (changed && QuickTagPopover.Current is { } next) next.WhenClosed(() => { if (!_isClosing) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent); });
-                else if (changed) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
+                if (changed && QuickTagPopover.Current is { } next) next.WhenClosed(() => { if (!_isClosing) RefreshMediaPageAfterMenuAction(origin, hostCurrent, restoreMenuFocus); });
+                else if (changed) RefreshMediaPageAfterMenuAction(origin, hostCurrent, restoreMenuFocus);
                 else if (!sidebar && QuickTagPopover.Current == null)
                     _mediaPage?.RestoreMediaMenuActionFocus(origin, () => hostCurrent() && QuickTagPopover.Current == null && !OwnedWindows.Any(window => window.IsVisible));
             }
