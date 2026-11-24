@@ -239,6 +239,9 @@ internal static class DownloadSearchStartupTruthChecks
             RawKeyboardInput.Press(window, Key.Tab, RawInputModifiers.Shift);
             Require(input.IsKeyboardFocusWithin, "Shift+Tab could not return to the pending search field.");
             Program.CaptureWindow(window, "smoke-download-search-restoring.png");
+            // Set the selection to preserve after Tab may have selected the entire query.
+            input.SelectionStart = 0;
+            input.SelectionEnd = 1;
         }
         readable.Release.TrySetResult();
         await Read<Task>(window, "_restoreTask").WaitAsync(Deadline);
