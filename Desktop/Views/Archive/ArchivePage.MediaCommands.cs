@@ -191,7 +191,7 @@ public partial class ArchivePage
     private void OnSidebarPointerReleased(object? sender, PointerReleasedEventArgs e) => _sidebarPointerContext.Released(e.InitialPressMouseButton);
 
     private static bool SidebarChildOwnsContext(Control source, ReaderMediaSidebar sidebar) =>
-        MediaMenuPresenter.IsNativeTextSource(source)
+        MediaMenuPresenter.IsNativeTextSource(source) || sidebar.IsInfoMenuSource(source)
         || ItemActivation.IsOwnedByInteractivePart(source, sidebar) && !sidebar.FrameArea.IsVisualAncestorOf(source);
 
     private void InvalidateSidebarMediaMenu()

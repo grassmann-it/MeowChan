@@ -158,6 +158,25 @@ public sealed class MediaTileEnterTests
     });
 
     [Fact]
+    public void TheFocusedPanelFrameOnlyOpensItsMediumThroughTheGalleryBinding() => Run(fixture =>
+    {
+        fixture.ShowPanelOn(Fixture.LocalIndex);
+        Control frame = fixture.PanelView!.Frame;
+        var original = ShortcutService.CurrentSection;
+        try
+        {
+            ShortcutService.Publish(new ShortcutBindingsSection().Set("gallery.open", [ShortcutGesture.Parse("Alt+O")]));
+            fixture.Press(frame, Key.Enter);
+            fixture.Press(frame, Key.Enter, KeyModifiers.Control);
+            Assert.Empty(fixture.Opened);
+            fixture.Press(frame, Key.O, KeyModifiers.Alt);
+            (IReadOnlyList<MediaLibraryEntry> entries, int start) = Assert.Single(fixture.Opened);
+            Assert.Same(fixture.Entries[Fixture.LocalIndex], entries[start]);
+        }
+        finally { ShortcutService.Publish(original); }
+    });
+
+    [Fact]
     public void EnterOnATileWhoseFileIsNotSavedSaysSoInsteadOfDoingNothing() => Run(fixture =>
     {
         fixture.Grid.SelectedIndex = Fixture.MissingIndex;

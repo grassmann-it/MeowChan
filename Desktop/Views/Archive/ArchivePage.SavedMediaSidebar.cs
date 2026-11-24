@@ -56,7 +56,7 @@ public partial class ArchivePage
         sidebar.ConfigureRating(() => Current() && !row.RatingUnavailable && _mediaRatingError == null
             && GetMediaRating != null && SetMediaRatingAsync != null && CanChangeMediaRating?.Invoke(key) == true,
             () => row.Rating, value => Current() ? SetMediaRatingAsync?.Invoke(key, value) ?? Task.CompletedTask : Task.CompletedTask);
-        _ = RefreshSavedMediaSidebarTagsAsync(sidebar, thread, row, Current);
+        OpenActions.Start(() => RefreshSavedMediaSidebarTagsAsync(sidebar, thread, row, Current), "archive.savedMedia.sidebarTags");
     }
 
     private async Task RefreshSavedMediaSidebarTagsAsync(ReaderMediaSidebar sidebar, ArchivedThreadView thread, ArchiveAssetRow row, Func<bool> current)
@@ -116,7 +116,7 @@ public partial class ArchivePage
         string key = SavedSidebarKey(thread, row);
         (double Width, double Height) target = MediaSidebarTarget(sidebar);
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(key, target);
-        sidebar.Describe(row.Version, row.Name, ticket.SameMedium ? _sidebarShownDetail : string.Empty, OpenMediaGallery != null);
+        sidebar.Describe(row.Version, row.Name, ticket.SameMedium ? _sidebarShownDetail : string.Empty, OpenMediaGallery != null, mediumKey: key);
         sidebar.SetSourceFacts($"{entry.Key.Thread.Source} /{entry.Key.Thread.Board}/ · {entry.Key.Thread.Thread}",
             null, null, row.Asset.Length, null, null, hash: row.Asset.Sha256);
         sidebar.SetTags(null, MediaMenuReasons.TagsUnknown);

@@ -193,6 +193,12 @@ public partial class ArchivePage
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
+        sidebar.SaveInfoMode = mode =>
+        {
+            ApplyReaderMediaPreferences(ReaderMedia with { MediaSidebarInfo = mode });
+            if (SaveReaderMediaSwitches is { } save)
+                OpenActions.Start(() => save(config => config.MediaSidebarInfo = mode, [SettingsFieldId.MediaSidebarInfo]), "media.sidebar.info");
+        };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
@@ -384,6 +390,7 @@ public partial class ArchivePage
             force = true;
         }
         if (_mediaSidebar is not { } sidebar || _mediaSidebarSplitter is not { } splitter) return;
+        sidebar.ConfigureInfo(media);
         double gaps = large ? 0 : 2 * ReaderMediaSidebarRules.ArchiveViewGap;
         double width = ReaderMediaSidebarRules.EffectiveWidth(media.SidebarWidth, readerWidth, gaps);
         if (!force && shown == _mediaSidebarShown && media.SidebarRight == _mediaSidebarRight && (!shown || width == _mediaSidebarAppliedWidth)) return;
@@ -475,13 +482,15 @@ public partial class ArchivePage
         _sidebarShownDetail = string.Empty;
         _savedMediaSidebarRow = null;
         _savedSidebarTags = null;
+        _mediaSidebar?.ResetInfoOverride();
         _mediaSidebar?.ShowEmpty();
     }
 
     private void SaveMediaSidebarWidth()
     {
-        if (_ended || !_mediaSidebarShown || _mediaSidebarHost is not { } host) return;
-        double actual = host.ColumnDefinitions[_mediaSidebarRight ? 2 : 0].ActualWidth;
+        if (_ended || !_mediaSidebarShown || _mediaSidebarHost is not { } host || _mediaSidebar is not { } sidebar) return;
+        // A grid track's actual width can include the gap beside the splitter.
+        double actual = sidebar.Bounds.Width;
         if (actual <= 0) return;
         int width = ReaderMediaSidebarRules.ClampWidth(actual);
         if (width == ReaderMedia.SidebarWidth) return;
@@ -489,7 +498,8 @@ public partial class ArchivePage
         _readerDisplayPreferences.Media = ReaderMedia with { SidebarWidth = width };
         double gaps = ReferenceEquals(host, ArchiveReaderPane) ? 2 * ReaderMediaSidebarRules.ArchiveViewGap : 0;
         _mediaSidebarAppliedWidth = ReaderMediaSidebarRules.EffectiveWidth(width, host.Bounds.Width, gaps);
-        if (SaveReaderMediaSwitches is { } save) _ = SaveMediaSwitchAsync(save(config => config.ReaderMediaSidebarWidth = width));
+        if (SaveReaderMediaSwitches is { } save)
+            _ = SaveMediaSwitchAsync(save(config => config.ReaderMediaSidebarWidth = width, [SettingsFieldId.ReaderMediaSidebarWidth]));
     }
 
     // ---- switch and commands -------------------------------------------------------------------------------------------------
@@ -548,7 +558,7 @@ public partial class ArchivePage
             {
                 config.ReaderMediaSidebar = next.Sidebar;
                 config.ReaderMediaSidebarScope = next.SidebarAlways ? Config.ReaderMediaSidebarScopeAlways : Config.ReaderMediaSidebarScopeLargeReader;
-            }));
+            }, [SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope]));
     }
 
     /// <summary>The × of the sidebar: turns it off for this view (and stores the choice), the focus goes back to the selected post. Escape only moves the focus (RD-01).</summary>
@@ -581,9 +591,11 @@ public partial class ArchivePage
     private void OnMediaSidebarStepKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || _ended || _busy || _obscuredByGallery || IsReaderDialogOpen
-            || ArchiveMediaTab.IsSelected || !_mediaSidebarShown || sender is not Control owner || e.Source is not Visual source
+            || !_mediaSidebarShown || sender is not Control owner || e.Source is not Visual source
             || !source.GetSelfAndVisualAncestors().Contains(owner)
             || !CommandRouter.IsRoutingContextActive(owner, source)) return;
+        if (CanToggleMediaSidebar && _mediaSidebar?.RouteInfoKey(e) == true) return;
+        if (ArchiveMediaTab.IsSelected) return;
         int direction = ReaderSidebarStepKeys.Direction(e, ArchivePosts, _mediaSidebar?.Strip,
             id => ShortcutService.Current.Matches(e, id));
         if (direction == 0) return;
@@ -817,7 +829,7 @@ public partial class ArchivePage
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
         GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
         SetDisplayedSidebarMedium(_thread, post, row);
-        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, position);
+        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, position, mediumKey: mediumKey);
         if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);
         RefreshMediaSidebarDecisions();

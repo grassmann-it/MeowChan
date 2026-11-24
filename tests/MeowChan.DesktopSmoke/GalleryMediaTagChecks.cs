@@ -161,7 +161,7 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey && marking.Input.IsEffectivelyEnabled);
             MeowChan.Desktop.Controls.GalleryDecisionRow decisions = viewer.DecisionRow ?? throw new InvalidOperationException("The tag panel has no favorite and rating row.");
             Require(decisions.StarButtons.Count == 5 && decisions.FavoriteButton.IsEffectivelyVisible && decisions.View is { Available: true, Rating: null },
-                "The row does not show an unrated medium: " + decisions.Summary.Text);
+                "The row does not show an unrated medium: " + ToolTip.GetTip(decisions.RatingBar));
             CheckDecisionAlignment(decisions);
             marking.FocusField();
             await UntilAsync(() => marking.Input.IsKeyboardFocusWithin);
@@ -346,16 +346,9 @@ internal static class GalleryMediaTagChecks
 
     private static void CheckDecisionAlignment(GalleryDecisionRow row)
     {
-        Control firstStar = row.StarButtons[0];
-        Control lastStar = row.StarButtons[^1];
-        Require(row.FavoriteButton.Bounds.Width > 0 && row.FavoriteButton.Bounds.Width < row.Bounds.Width
-            && Math.Abs(row.FavoriteButton.Bounds.Left - firstStar.Bounds.Left) <= 1
-            && row.FavoriteButton.Bounds.Top >= firstStar.Bounds.Bottom
-            && row.FavoriteButton.Bounds.Right <= lastStar.Bounds.Right + 1,
-            "Favorite must fit below the stars.");
-        Require(row.Summary.Bounds.Width > 0 && Math.Abs(row.Summary.Bounds.Left - row.ClearButton.Bounds.Left - 8) <= 1
-            && row.Summary.Bounds.Top >= row.ClearButton.Bounds.Bottom,
-            "The rating caption must sit below the clear button.");
+        Require(Math.Abs(row.FavoriteButton.Bounds.Left - row.ClearButton.Bounds.Right - 8) <= 0.5
+            && Math.Abs(row.FavoriteButton.Bounds.Center.Y - row.ClearButton.Bounds.Center.Y) <= 0.5
+            && ToolTip.GetTip(row.RatingBar) is string, "The rating controls must share one row with an accessible value.");
     }
 
     // Same dialog through the real archive menu and MainWindow wiring, without

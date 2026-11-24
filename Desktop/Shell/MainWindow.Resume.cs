@@ -165,7 +165,7 @@ public partial class MainWindow
         _resumeReadingMenu.Click += (_, _) => ActivateReadingResume(keyboard: false);
         // First entry of the menu, in front of Import files (MenuToolsAnchor).
         WorkspaceMenuItem.Items.Insert(MenuToolsAnchor + 1, _resumeReadingMenu);
-        ContinueReadingButton.Click += (_, _) => _ = ResumeLastReadingAsync();
+        ContinueReadingButton.Click += (_, _) => OpenActions.Start(ResumeLastReadingAsync, "navigation.continue-reading");
         // The header display makes room for the book icon and its arrow (HeaderMonitorShown).
         ContinueReadingGroup.PropertyChanged += (_, change) => { if (change.Property == IsVisibleProperty) ApplyHeaderMonitorVisibility(); };
         InitializeReadingHistoryMenus();

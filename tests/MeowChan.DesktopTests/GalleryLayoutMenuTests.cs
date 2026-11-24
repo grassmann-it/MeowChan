@@ -312,6 +312,7 @@ public sealed class GalleryLayoutMenuTests : IDisposable
         ContextMenuEntry[] entries = model.Entries.ToArray();
         Assert.Equal(ContextMenuEntryKind.Note, entries[0].Kind); // the title names the mode
         Assert.Equal(menu.Title, entries[0].Label);
+        Assert.Null(entries[0].Icon);
         ContextMenuEntry[] rows = entries.Where(entry => entry.Kind != ContextMenuEntryKind.Note).ToArray();
         Assert.Equal(menu.Interactive.Select(row => row.Id), rows.Select(entry => entry.Id));
         foreach (LayoutMenuRow row in menu.Interactive)
@@ -320,6 +321,7 @@ public sealed class GalleryLayoutMenuTests : IDisposable
             Assert.Equal(row.Label, entry.Label);
             Assert.Equal(row.Enabled, entry.Available);
             Assert.Equal(row.DisabledReason, entry.Reason);
+            Assert.Equal(row.ActionIcon, entry.Icon);
             Assert.Equal(row.Kind switch
             {
                 LayoutMenuRowKind.Toggle => ContextMenuEntryKind.Check,
@@ -335,7 +337,6 @@ public sealed class GalleryLayoutMenuTests : IDisposable
         rows.Single(entry => entry.Id == "gallery.layout.tools").Invoke!();
         rows.Single(entry => entry.Id == "gallery.layout.reset").Invoke!();
         Assert.Equal(["gallery.layout.tools", "gallery.layout.reset"], chosen);
-        Assert.NotNull(LayoutMenuBuilder.ToContextMenu(menu, _ => { }, "Layout").Build());
     }
 
     [Fact]

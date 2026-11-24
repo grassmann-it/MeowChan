@@ -795,14 +795,14 @@ internal static class TaggingPageChecks
         MediaLibrarySnapshot library = await MediaLibraryIndexBuilder.BuildAsync(session.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync);
         TagQueueItem a = TagQueueItem.From(library.Entries.Single(entry => entry.PostId == "100"), DateTimeOffset.UtcNow)!;
         TagQueueItem b = TagQueueItem.From(library.Entries.Single(entry => entry.PostId == "200"), DateTimeOffset.UtcNow)!;
-        await session.EnqueueTagQueueAsync([Item(1), a, b, .. Enumerable.Range(4, 198).Select(Item)]);
-        await session.SetTagQueueCursorAsync(1);
-        await Program.WaitUntilAsync(() => tagging.Queue.Count == 201 && tagging.Queue.Cursor == 1 && tagging.StartButton.IsEffectivelyEnabled);
         ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
         KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
-        Exception? failureBeforeCleanup = null;
+        Exception? primaryFailure = null;
         try
         {
+            await session.EnqueueTagQueueAsync([Item(1), a, b, .. Enumerable.Range(4, 198).Select(Item)]);
+            await session.SetTagQueueCursorAsync(1);
+            await Program.WaitUntilAsync(() => tagging.Queue.Count == 201 && tagging.Queue.Cursor == 1 && tagging.StartButton.IsEffectivelyEnabled);
             CheckProgress(tagging, open: 201, finished: 0);
             GalleryViewer viewer = await StartWalkAsync();
             CheckPosition(viewer, a, 2, 201);
@@ -861,20 +861,20 @@ internal static class TaggingPageChecks
             CheckProgress(tagging, open: 199, finished: 1, skipped: 1);
             await session.DeleteTagQueueGroupAsync(groupId);
         }
-        catch (Exception failure)
+        catch (Exception error)
         {
-            failureBeforeCleanup = failure;
+            primaryFailure = error;
             throw;
         }
         finally
         {
-            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            await SmokeCleanup.RunAsync(primaryFailure, async () =>
             {
                 Texts.SetLanguage("en");
                 tagging.Filter = TaggingQueueFilter.All;
                 await session.ClearTagQueueAsync();
                 await Program.WaitUntilAsync(() => tagging.Queue.Count == 0);
-            }, failure => Console.Error.WriteLine("SMOKE tagging queue walk cleanup: " + failure));
+            }, error => Console.Error.WriteLine("SMOKE tagging queue walk cleanup: " + error));
         }
 
         TagQueueState? State(TagQueueItem item) =>

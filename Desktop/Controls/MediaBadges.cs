@@ -549,14 +549,13 @@ internal static class MediaBadgeIconBitmaps
 /// </summary>
 internal sealed partial class MediaBadgeView : Control
 {
+    private static readonly Avalonia.Media.Immutable.ImmutablePen Ring = new(VideoPlayMark.RingColor.ToUInt32(), 1);
     // Avalonia pens and geometries belong to the dispatcher that creates them.
-    [ThreadStatic] private static Pen? s_ring;
     [ThreadStatic] private static Geometry? s_triangle;
     [ThreadStatic] private static Geometry? s_untagged;
     // The strokes of the "no tags" mark are shared by tiles on the same dispatcher.
     [ThreadStatic] private static Dictionary<double, Pen>? s_untaggedPens;
     private const int UntaggedPenLimit = 8;
-    private static Pen Ring => s_ring ??= new(VideoPlayMark.RingBrush, 1);
 
     private MediaBadgeState _state;
     private Size _picture, _slot;
@@ -585,6 +584,9 @@ internal sealed partial class MediaBadgeView : Control
     /// clear of, may be another): the owner places what depends on <see cref="Plan"/> anew.
     /// </summary>
     internal event Action? PlanRefreshed;
+
+    /// <summary>Raised when the plan changes with the state, available space or badge limits.</summary>
+    internal event Action? PlanChanged;
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -654,6 +656,7 @@ internal sealed partial class MediaBadgeView : Control
         Height = usable ? area.Height : 0;
         IsVisible = _plan.Badges.Length > 0;
         InvalidateVisual();
+        PlanChanged?.Invoke();
     }
 
     /// <summary>Takes the badges off (a recycled tile with no medium).</summary>

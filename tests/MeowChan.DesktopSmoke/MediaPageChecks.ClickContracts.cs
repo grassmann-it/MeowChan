@@ -7,6 +7,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
+using MeowChan.Tests.Shared;
 using MeowChan.Testing;
 
 namespace MeowChan.DesktopSmoke;
@@ -89,6 +90,10 @@ internal static partial class MediaPageChecks
                 Console.WriteLine("SMOKE focus-click-contracts: Media grid single/double/right clicks; outside-selection replacement, inside-selection preservation, menu target focus after close; sidebar single-click stays preview with Gallery preference, double-click opens gallery. Managed pointer input only.");
             }
             finally { page.EndLifetime(); window.Close(); }
+
+            using CancellationTokenSource scrollDeadline = new(Deadline);
+            await MediaTileScrollScenario.RunAsync(Path.Combine(profile, "scrolled-media"), scrollDeadline.Token, owner);
+            Console.WriteLine("SMOKE focus-click-contracts: Enter, double-click and context-menu Gallery each opened the exact scrolled media tile once.");
         }
         finally { Texts.SetLanguage(language); }
     }
