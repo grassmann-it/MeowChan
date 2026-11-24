@@ -23,6 +23,7 @@ namespace MeowChan;
 
 public sealed partial class TaggingPage
 {
+    internal const string StampCommandId = "tagging.stamp";
     private const int StampPreviewCount = 2;
     private readonly Button _stampButton = new TaggingActivationButton() { Name = "TaggingStamp", Classes = { "bar-button" } };
     private readonly TextBlock _stampSummary = new() { Name = "TaggingStampSummary", VerticalAlignment = VerticalAlignment.Center };
@@ -106,6 +107,16 @@ public sealed partial class TaggingPage
         {
             if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
                 e.Handled = DismissStampByEscape();
+            else if (!e.Handled && !StampInputIsComposing())
+            {
+                using var context = EffectiveShortcutBindings.EnterKeyContext("tagging");
+                if (!ShortcutService.IsCapturing && CommandBindings.IsTextSafeChord(e)
+                    && ShortcutService.Current.Matches(e, StampCommandId))
+                {
+                    CloseStamp(restoreFocus: true);
+                    e.Handled = true;
+                }
+            }
         };
         _stampFlyout.Content = body;
         return _stampButton;
@@ -116,6 +127,14 @@ public sealed partial class TaggingPage
 
     private void InitializeStamp()
     {
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Handled || !_stampButton.IsEffectivelyVisible || !_stampButton.IsEffectivelyEnabled
+                || !CommandBindings.Matches(e, StampCommandId)) return;
+            if (StampOpen) CloseStamp(restoreFocus: true);
+            else _stampFlyout.ShowAt(_stampButton);
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
         _stampFlyout.Opened += (_, _) =>
         {
             int visit = _stampVisit;
@@ -156,7 +175,7 @@ public sealed partial class TaggingPage
         if (!StampOpen) return;
         _stampHelp.Popover.Hide();
         _stampFlyout.Hide();
-        if (restoreFocus && _stampButton.IsEffectivelyVisible) _stampButton.Focus(NavigationMethod.Tab);
+        if (restoreFocus) FocusContent();
     }
 
     private void LocalizeStamp()
@@ -203,7 +222,8 @@ public sealed partial class TaggingPage
             ? Texts.T("tagging.page.stamp.editor.group", group.Name) : Texts.T("tagging.page.stamp.window");
         string description = Texts.T("tagging.page.stamp.describe", _stampHeading.Text, names.Count);
         AutomationProperties.SetName(_stampButton, description);
-        string tip = names.Count == 0 ? description : description + "\n" + string.Join(Texts.Culture.TextInfo.ListSeparator + " ", names);
+        string tip = CommandBindings.Tooltip(StampCommandId, visibleLabel: description);
+        if (names.Count > 0) tip += "\n" + string.Join(Texts.Culture.TextInfo.ListSeparator + " ", names);
         ToolTip.SetTip(_stampButton, tip);
         AutomationProperties.SetHelpText(_stampButton, tip);
 

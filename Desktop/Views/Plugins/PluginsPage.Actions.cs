@@ -453,9 +453,9 @@ public partial class PluginsPage : IDisposable
         ShortcutService.Changed += WrapLabels;
         menu.AddHandler(KeyDownEvent, (_, args) =>
         {
-            if (args.Handled || ShortcutService.IsCapturing) return;
+            if (!PopupToggle.CanToggleMenuFromKey(menu, args)) return;
             using var context = EffectiveShortcutBindings.EnterKeyContext("plugins");
-            if (CommandBindings.Matches(args, command))
+            if (ShortcutService.Current.Matches(args, command))
             {
                 args.Handled = true;
                 ClosePluginActionMenu(restoreFocus: true);

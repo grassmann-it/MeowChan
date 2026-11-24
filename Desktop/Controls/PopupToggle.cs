@@ -1,10 +1,12 @@
 using Avalonia;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Controls;
@@ -41,6 +43,9 @@ internal static class PopupToggle
         menu.Close();
         return true;
     }
+
+    internal static bool CanToggleMenuFromKey(ContextMenu menu, KeyEventArgs e) => !e.Handled && !ShortcutService.IsCapturing
+        && !menu.Items.OfType<MenuItem>().Any(item => item.IsSubMenuOpen);
 
     internal static void Track(Button button, ContextMenu menu)
     {

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Threading;
@@ -96,17 +97,24 @@ public sealed class WorkspacePopupToggleTests
             Click(window, filters, y: 12);
             Assert.False(filters.IsExpanded);
 
-            Press(window, Key.F, RawInputModifiers.Control);
+            PressCommand(window, "input.focus-diagnostics-search");
             TextBox query = Find<TextBox>(window, "DiagnosticTextFilter");
             Assert.True(query.IsKeyboardFocusWithin);
             query.Text = "fixture";
-            Press(window, Key.F, RawInputModifiers.Control);
+            PressCommand(window, "input.focus-diagnostics-search");
             Assert.False(filters.IsExpanded);
             Assert.Equal("fixture", query.Text);
             Assert.True(Find<DataGrid>(window, "DiagnosticsGrid").IsKeyboardFocusWithin);
 
-            Press(window, Key.F, RawInputModifiers.Control);
+            PressCommand(window, "input.focus-diagnostics-search");
             Assert.True(filters.IsExpanded);
+            TextPresenter presenter = Assert.Single(query.GetVisualDescendants().OfType<TextPresenter>());
+            presenter.SetCurrentValue(TextPresenter.PreeditTextProperty, "candidate");
+            PressCommand(window, "input.focus-diagnostics-search");
+            PressAtFocus(window, Key.Escape);
+            Assert.True(filters.IsExpanded && query.IsKeyboardFocusWithin);
+            Assert.Equal("fixture", query.Text);
+            presenter.SetCurrentValue(TextPresenter.PreeditTextProperty, null);
             Press(window, Key.Escape);
             Assert.False(filters.IsExpanded);
             Assert.Equal("fixture", query.Text);
@@ -120,7 +128,7 @@ public sealed class WorkspacePopupToggleTests
     {
         SettingsEditor editor = new(new Config());
         ShortcutBindingsSection before = ShortcutService.CurrentSection;
-        ShortcutService.Publish(before.Set("sections.open-navigation", [ShortcutGesture.Parse("Primary+Alt+J")]));
+        ShortcutService.Publish(before.Set("sections.open-navigation", [ShortcutGesture.Parse("Primary+Shift+J")]));
         Window window = Show(editor, 740);
         try
         {
@@ -130,9 +138,9 @@ public sealed class WorkspacePopupToggleTests
             Click(window, sections, y: 12);
             Assert.False(sections.IsExpanded);
             sections.Focus();
-            Press(window, Key.J, RawInputModifiers.Control | RawInputModifiers.Alt);
+            PressCommand(window, "sections.open-navigation");
             Assert.True(sections.IsExpanded);
-            PressAtFocus(window, Key.J, RawInputModifiers.Control | RawInputModifiers.Alt);
+            PressCommand(window, "sections.open-navigation");
             Assert.False(sections.IsExpanded);
             editor.OpenSectionNavigation();
             Press(window, Key.Escape);
@@ -144,6 +152,42 @@ public sealed class WorkspacePopupToggleTests
             editor.EndLifetime();
             ShortcutService.Publish(before);
         }
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public void SettingsMoreShortcutReachesExportAndResetAndTheConfirmationReturnsFocusToSettings() => OnUi(() =>
+    {
+        SettingsEditor editor = new(new Config());
+        Window window = Show(editor);
+        try
+        {
+            Button opener = Find<Button>(window, "SettingsMoreButton");
+            Assert.False(opener.Focusable);
+            editor.FocusSearch();
+            PressCommand(window, SettingsEditor.MoreActionsCommandId);
+            ContextMenu menu = Assert.IsType<ContextMenu>(MenuFor(window, opener));
+            MenuItem export = Find<MenuItem>(menu, "settings.transfer.export");
+            Assert.True(export.IsFocused && export.IsEnabled);
+            PressCommand(window, SettingsEditor.MoreActionsCommandId);
+            Assert.False(menu.IsOpen);
+
+            PressCommand(window, SettingsEditor.MoreActionsCommandId);
+            menu = Assert.IsType<ContextMenu>(MenuFor(window, opener));
+            MenuItem reset = Find<MenuItem>(menu, "settings.reset.all");
+            Assert.True(reset.Focus());
+            PressAtFocus(window, Key.Enter);
+            Assert.False(menu.IsOpen);
+            Button cancel = Assert.Single(window.OpenedPopups.SelectMany(popup =>
+                    popup.GetVisualDescendants().OfType<Button>()),
+                button => AutomationProperties.GetAutomationId(button) == "settings.reset.cancel");
+            Assert.True(cancel.IsFocused);
+            PressAtFocus(window, Key.Enter);
+            Assert.False(cancel.IsEffectivelyVisible);
+            Assert.True(editor.IsKeyboardFocusWithin);
+            Assert.False(opener.IsKeyboardFocusWithin);
+        }
+        finally { window.Close(); editor.EndLifetime(); }
         return Task.CompletedTask;
     });
 
@@ -161,8 +205,14 @@ public sealed class WorkspacePopupToggleTests
         {
             await page.ActivateAsync();
             Layout(window);
-            Button groups = Find<Button>(window, "TaggingGroupManage");
-            VerifyPopup(window, groups, () => groups.ContextMenu?.IsOpen == true);
+            ComboBox groups = Find<ComboBox>(window, "TaggingGroup");
+            Assert.True(groups.Focus());
+            PressCommand(window, "menu.context-open");
+            ContextMenu menu = Assert.Single(window.OpenedPopups.Select(popup => popup.Child).OfType<ContextMenu>());
+            MenuItem create = Find<MenuItem>(menu, "tagging.group.new");
+            Assert.True(create.Focus());
+            PressCommand(window, "menu.context-open");
+            Assert.False(menu.IsOpen);
             foreach (string id in new[] { "TaggingStamp", "TaggingEmptyHow", "TaggingHelp" })
             {
                 Button opener = Find<Button>(window, id);
@@ -176,7 +226,7 @@ public sealed class WorkspacePopupToggleTests
     public void GalleryLayoutAndOverflowCloseAtTheirOpenerAndLayoutAcceptsItsRebinding() => OnUi(async () =>
     {
         ShortcutBindingsSection before = ShortcutService.CurrentSection;
-        ShortcutService.Publish(before.Set(GalleryLayoutMenu.OpenCommandId, [ShortcutGesture.Parse("Primary+Alt+J")]));
+        ShortcutService.Publish(before.Set(GalleryLayoutMenu.OpenCommandId, [ShortcutGesture.Parse("Primary+Shift+J")]));
         await using GalleryViewer viewer = new();
         viewer.ApplyWorkView(WorkView.Advanced);
         viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayControls: false, AutoHideControls: false));
@@ -192,9 +242,9 @@ public sealed class WorkspacePopupToggleTests
             VerifyPopup(window, layout, () => viewer.IsLayoutMenuOpen);
             VerifyPopup(window, more, () => viewer.IsOverflowOpen);
             viewer.Focus();
-            Press(window, Key.J, RawInputModifiers.Control | RawInputModifiers.Alt);
+            PressCommand(window, GalleryLayoutMenu.OpenCommandId);
             Assert.True(viewer.IsLayoutMenuOpen);
-            PressAtFocus(window, Key.J, RawInputModifiers.Control | RawInputModifiers.Alt);
+            PressCommand(window, GalleryLayoutMenu.OpenCommandId);
             Assert.False(viewer.IsLayoutMenuOpen);
         }
         finally
@@ -222,10 +272,10 @@ public sealed class WorkspacePopupToggleTests
             Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
             Click(window, opener);
             Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(opener));
-            Press(window, Key.T, RawInputModifiers.Control);
+            PressCommand(window, "tags.quick.thread-section");
             Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
             viewer.TagSurface!.FocusField();
-            Press(window, Key.T, RawInputModifiers.Control);
+            PressCommand(window, "tags.quick.thread-section");
             Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(opener));
             Click(window, opener);
             Press(window, Key.Escape);
@@ -251,6 +301,12 @@ public sealed class WorkspacePopupToggleTests
         {
             Button more = Find<Button>(window, "TestQuickTagMore");
             IdentitySuggestionBox input = Find<IdentitySuggestionBox>(window, "TestQuickTagInput");
+            Assert.True(more.IsEffectivelyVisible && !more.Focusable);
+            Assert.Empty(surface.Shown);
+            surface.FocusField();
+            Assert.True(input.IsKeyboardFocusWithin);
+            PressAtFocus(window, Key.Tab);
+            Assert.False(input.IsKeyboardFocusWithin);
             TaskCompletionSource<IdentitySuggestion[]> pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
             input.Candidates = (_, _) => pending.Task;
             Click(window, more);
@@ -378,6 +434,12 @@ public sealed class WorkspacePopupToggleTests
             ? TopLevel.GetTopLevel(focused) ?? window : window;
         Press(root, key, modifiers);
         Layout(window);
+    }
+
+    private static void PressCommand(Window window, string commandId)
+    {
+        KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture(commandId));
+        PressAtFocus(window, gesture.Key, (RawInputModifiers)gesture.KeyModifiers);
     }
 
     private static void Press(TopLevel root, Key key, RawInputModifiers modifiers = RawInputModifiers.None)

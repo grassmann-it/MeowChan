@@ -69,8 +69,10 @@ public sealed partial class TaggingPage
             Render();
         };
         PopupToggle.Prepare(_groupManage);
-        _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent(),
-            resolveOrigin: () => _groupManage.IsAttachedToVisualTree() ? _groupManage : _actions.More ?? (Control)_groupManage, toggle: true);
+        AutomationProperties.SetAutomationId(_group, _group.Name);
+        _groupManageHost = new ContextMenuHost(_group, ComposeGroupManageMenu, fallbackFocus: () => FocusContent(),
+            resolveOrigin: () => _groupManage.IsEffectivelyVisible ? _groupManage : _group,
+            acceptSource: _ => !_group.IsDropDownOpen, toggle: true);
         _groupManage.Click += (_, _) => _groupManageHost?.Activate();
         RenderGroups();
     }

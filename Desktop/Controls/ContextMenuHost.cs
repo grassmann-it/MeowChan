@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.MediaActions;
 
 namespace MeowChan.Desktop.Controls;
@@ -126,7 +127,10 @@ internal sealed class ContextMenuHost : IDisposable
             if (origin is Button button) PopupToggle.Track(button, menu);
             menu.AddHandler(InputElement.KeyDownEvent, (_, e) =>
             {
-                if (e.Handled || !MediaMenuPresenter.IsContextKey(e)) return;
+                if (!PopupToggle.CanToggleMenuFromKey(menu, e)) return;
+                if (!(e.Key == Key.Apps && e.KeyModifiers == KeyModifiers.None
+                    || e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift
+                    || ShortcutService.Current.Matches(e, "menu.context-open"))) return;
                 _lastKeyOpen = DateTime.UtcNow;
                 e.Handled = true;
                 Close();

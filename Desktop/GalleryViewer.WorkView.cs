@@ -158,7 +158,7 @@ internal sealed partial class GalleryViewer
         ApplyChrome(force: true); // G1: the view is the first layer of the chrome plan; the mode and the width follow in the same pass
         UpdateFilmstripPlacement();
         RefreshLayoutMenu(); // GL3: an open layout menu follows the new view's defaults
-        if (focusInMenu) _overflowFlyout.Hide(); // The rows changed under an open menu: close it, focus goes back to "More".
+        if (focusInMenu) _overflowFlyout.Hide();
     }
 
     private void PlaceToolOnBar(ToolSlot slot)
@@ -211,7 +211,7 @@ internal sealed partial class GalleryViewer
         if (anchor >= 0) slot.MenuHost.Children.Insert(anchor, control); else slot.MenuHost.Children.Add(control);
         if (slot.Caption != null) slot.Caption.IsVisible = true;
         if (control is Button) UpdateTagsButton(); // the row's label follows the live tag count again
-        if (hadFocus && _overflowButton.IsEffectivelyVisible) _overflowButton.Focus(NavigationMethod.Tab);
+        if (hadFocus) FocusGallerySurface();
     }
 
     // Icon with label (or the icon alone on a narrow viewer) for the buttons now on the bar; the name, tooltip and shortcut stay.
@@ -229,14 +229,12 @@ internal sealed partial class GalleryViewer
     }
 
     /// <summary>
-    /// A19: where focus goes when the dialog of <paramref name="commandId"/> closes. An action the view keeps under "More" returns
-    /// to "More" of the toolbar, never to the closed menu's hidden row; otherwise the origin stays (it may be null or hidden:
-    /// the caller then focuses the gallery surface).
+    /// A19: a dialog can return to its visible, focusable origin or to the gallery surface.
     /// </summary>
-    internal Control? FocusReturnTarget(Control? origin, string commandId)
+    internal Control FocusReturnTarget(Control? origin, string commandId)
     {
         bool reduced = WorkViewPolicy.GalleryCommandReduced(commandId, _workView);
-        if (reduced && _overflowButton is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }) return _overflowButton;
-        return origin;
+        if (!reduced && origin is { Focusable: true, IsEffectivelyVisible: true, IsEffectivelyEnabled: true }) return origin;
+        return _nativeOverlayActive ? _nativeVideoOverlay : this;
     }
 }

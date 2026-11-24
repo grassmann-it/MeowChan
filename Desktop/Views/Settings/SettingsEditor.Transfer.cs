@@ -8,8 +8,10 @@ using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -19,17 +21,22 @@ namespace MeowChan;
 
 public partial class SettingsEditor
 {
+    internal const string MoreActionsCommandId = "settings.more";
     private ContextMenu? _settingsMore;
     private CancellationTokenSource? _settingsExportCancellation;
     internal Task SettingsExportTask { get; private set; } = Task.CompletedTask;
     public string SettingsMoreLabel => Texts.T("settings.transfer.more");
 
-    private void OnSettingsMoreClick(object? sender, RoutedEventArgs e)
+    private void OnSettingsMoreClick(object? sender, RoutedEventArgs e) => ToggleSettingsMore();
+
+    internal void ToggleSettingsMore()
     {
-        if (_isClosed || !IsEditable || sender is not Button origin) return;
+        Button origin = SettingsMoreButton;
+        if (_isClosed || !IsEditable || !origin.IsEffectivelyVisible) return;
         if (PopupToggle.Close(origin)) return;
         // The two entries of the head's More button: the export (a download) and the rare, destructive "Reset all", set apart by a separator.
         var export = new MenuItem { Header = Texts.T("settings.transfer.export"), Icon = CommandBindings.NamedIcon("download") };
+        AutomationProperties.SetAutomationId(export, "settings.transfer.export");
         AutomationProperties.SetName(export, Texts.T("settings.transfer.export"));
         export.Click += (_, _) =>
         {
@@ -37,15 +44,26 @@ public partial class SettingsEditor
             SettingsExportTask = ExportSavedSettingsAsync();
         };
         var resetAll = new MenuItem { Header = ResetAllLabel, Icon = CommandBindings.NamedIcon("rotate-ccw") };
+        AutomationProperties.SetAutomationId(resetAll, "settings.reset.all");
         AutomationProperties.SetName(resetAll, ResetAllLabel);
         resetAll.Click += (_, _) =>
         {
             _settingsMore?.Close();
             OpenResetConfirmation(origin, SettingsResetScope.All);
         };
-        _settingsMore = new ContextMenu { Placement = PlacementMode.BottomEdgeAlignedRight, Items = { export, new Separator(), resetAll } };
-        PopupToggle.Track(origin, _settingsMore);
-        _settingsMore.Open(origin);
+        ContextMenu menu = new() { Placement = PlacementMode.BottomEdgeAlignedRight, Items = { export, new Separator(), resetAll } };
+        _settingsMore = menu;
+        menu.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!PopupToggle.CanToggleMenuFromKey(menu, e)) return;
+            using var context = EffectiveShortcutBindings.EnterKeyContext("settings");
+            if (!ShortcutService.Current.Matches(e, MoreActionsCommandId)) return;
+            e.Handled = true;
+            menu.Close();
+        }, RoutingStrategies.Tunnel);
+        PopupToggle.Track(origin, menu);
+        menu.Open(origin);
+        Dispatcher.UIThread.Post(() => { if (menu.IsOpen) export.Focus(NavigationMethod.Tab); }, DispatcherPriority.Loaded);
     }
 
     internal async Task ExportSavedSettingsAsync(IStorageProvider? storageProvider = null)
