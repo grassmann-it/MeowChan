@@ -244,17 +244,8 @@ public sealed class TileSizeTests : IDisposable
     }
 
     [Fact]
-    public void TheTileViewKeepsItsBadgesStarAndSelectionCheckOnTheSlotAtEverySize()
+    public void TheArchivePageKeepsItsTileSizeAndRestoresThePanelAnchor()
     {
-        string tile = Read("Desktop/ArchiveMediaTileView.cs");
-        // The badges, the star and the check are arranged on the slot's corners (MarksOnSlot), not on the picture; a size only changes the cell, the slot
-        // and the longest side of the picture, so they stay where they were at every size.
-        Assert.Contains("preview.MarksOnSlot = true;", tile);
-        Assert.Contains("_preview.Height = appearance.PreviewHeight;", tile);
-        Assert.Contains("_preview.MaxWidth = appearance.PictureWidth;", tile);
-        Assert.Contains("_image.MaxHeight = appearance.PreviewHeight;", tile);
-        Assert.Contains("_cell.RowDefinitions = new RowDefinitions(", tile);
-        Assert.DoesNotContain("preview.Height = 125", tile);
         string page = Read("Desktop/Views/Archive/ArchivePage.TileSize.cs");
         Assert.Contains("panel.ColumnWidth = appearance.CellWidth;", page);
         Assert.Contains("panel.ItemHeight = appearance.CellHeight;", page);

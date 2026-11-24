@@ -586,6 +586,9 @@ internal sealed partial class MediaBadgeView : Control
     /// </summary>
     internal event Action? PlanRefreshed;
 
+    /// <summary>Raised when the plan changes with the state, available space or badge limits.</summary>
+    internal event Action? PlanChanged;
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
@@ -654,6 +657,7 @@ internal sealed partial class MediaBadgeView : Control
         Height = usable ? area.Height : 0;
         IsVisible = _plan.Badges.Length > 0;
         InvalidateVisual();
+        PlanChanged?.Invoke();
     }
 
     /// <summary>Takes the badges off (a recycled tile with no medium).</summary>

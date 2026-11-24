@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
@@ -31,6 +32,7 @@ public sealed class MediaTileEnterTests
     {
         fixture.Grid.SelectedIndex = 1;
         fixture.Opened.Clear();
+        Assert.Single(fixture.Container(1).GetVisualDescendants().OfType<MediaTileView>());
 
         fixture.Press(fixture.Container(1), Key.Enter);
 

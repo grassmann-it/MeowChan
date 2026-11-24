@@ -293,12 +293,13 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
     }
 
     [Fact]
-    public void TheTileHandsItsSlotToTheBadgesAndMeasuresTheCheckOnIt() => OnPlatform(() =>
+    public void TheTileHandsItsSlotToTheBadgesAndKeepsTheCheckBesideAMissingFileBadge() => OnPlatform(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ArchiveMediaTileView tile = new() { DataContext = AssetRow("still.png", status: MediaManifestStatus.Missing) };
         ArchiveAttachmentView attachment = new() { DataContext = AttachmentRow("still.png") };
-        StackPanel content = new() { Children = { tile, attachment } };
+        ListBoxItem container = new() { Content = tile, IsSelected = true };
+        StackPanel content = new() { Children = { container, attachment } };
         Window window = new() { Width = 650, Height = 700, Content = content };
         try
         {
@@ -310,27 +311,24 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
             Assert.Equal(tile.Badges.Bounds.Size, tile.Badges.GetVisualParent()!.Bounds.Size);
             PlacedBadge missing = Assert.Single(tile.Badges.Plan.Badges, badge => badge.Badge.Id == MediaBadgeId.Missing);
             Assert.Equal(MediaBadgeCorner.TopRight, missing.Badge.Corner);
+            Border check = Assert.Single(tile.GetVisualDescendants().OfType<Border>(), mark => mark.Name == "ArchiveMediaSelected");
+            Assert.True(check.IsVisible);
+            Assert.True(check.Bounds.Right < missing.Bounds.Left);
+            foreach (MediaTileSize size in Enum.GetValues<MediaTileSize>())
+            {
+                ArchiveMediaTileView.SetTileSize(container, size);
+                window.UpdateLayout();
+                Assert.Equal(ArchiveTileMetrics.For(size).PreviewHeight, tile.Badges.Bounds.Height);
+                missing = Assert.Single(tile.Badges.Plan.Badges, badge => badge.Badge.Id == MediaBadgeId.Missing);
+                Assert.True(check.Bounds.Right < missing.Bounds.Left);
+            }
+            double insetWithBadge = check.Bounds.Right;
+            tile.DataContext = AssetRow("rebound.png");
+            window.UpdateLayout();
+            Assert.True(check.Bounds.Right > insetWithBadge);
         }
         finally { window.Close(); }
     });
-
-    // ---- the selection check keeps clear of a badge in its corner ----
-
-    [Fact]
-    public void TheSelectionCheckMovesBesideAMissingFileBadgeAndSitsInTheCornerOtherwise()
-    {
-        Size picture = new(170, 125);
-        MediaBadgePlan none = MediaBadgeLayout.Plan(new MediaBadgeState(Favorite: true, Kind: MediaBadgeKind.Video), picture, Archive);
-        Assert.Equal(0, ArchiveMediaTileView.TopRightExtent(none, picture.Width));
-        MediaBadgePlan missing = MediaBadgeLayout.Plan(new MediaBadgeState(Favorite: true, Missing: true), picture, Archive);
-        PlacedBadge flag = missing.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Missing);
-        Assert.Equal(MediaBadgeCorner.TopRight, flag.Badge.Corner);
-        double extent = ArchiveMediaTileView.TopRightExtent(missing, picture.Width);
-        Assert.Equal(picture.Width - flag.Bounds.Left + ArchiveMediaTileView.CornerGap, extent, 6);
-        // The check (about 20 dip wide, 2 from the edge plus the extent) ends left of the flag.
-        Assert.True(picture.Width - ArchiveMediaTileView.CornerInset - extent <= flag.Bounds.Left);
-        Assert.Equal(0, ArchiveMediaTileView.TopRightExtent(MediaBadgePlan.Empty, 100));
-    }
 
     // ---- the quiet toggle: the badge shows the favourite at rest, the toggle only while pointed at ----
 
