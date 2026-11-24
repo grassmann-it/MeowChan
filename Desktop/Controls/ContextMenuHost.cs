@@ -18,8 +18,7 @@ namespace MeowChan.Desktop.Controls;
 /// </summary>
 internal sealed class ContextMenuHost : IDisposable
 {
-    // Avalonia may follow a handled key or press with a positionless ContextRequested of its own; it is consumed, not opened again.
-    private static readonly TimeSpan PairedRequestWindow = TimeSpan.FromMilliseconds(400);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, ContextMenuHost> Installed = new();
 
     private readonly Control _origin;
     private readonly Func<ContextMenuBuilder?> _compose;
@@ -27,7 +26,6 @@ internal sealed class ContextMenuHost : IDisposable
     private Control? _openOn;
     private readonly Action? _fallbackFocus;
     private ContextMenu? _menu;
-    private DateTime _lastKeyOpen = DateTime.MinValue;
     private bool _disposed;
 
     /// <param name="origin">The control the menu belongs to; focus returns to it.</param>
@@ -55,15 +53,33 @@ internal sealed class ContextMenuHost : IDisposable
     /// <summary>The menu that is open now, if any.</summary>
     internal ContextMenu? OpenMenu => _menu is { IsOpen: true } ? _menu : null;
 
+    internal static void Install(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null)
+    {
+        Uninstall(origin);
+        Installed.Add(origin, new ContextMenuHost(origin, compose, fallbackFocus));
+        origin.DetachedFromVisualTree += UninstallOnDetach;
+    }
+
+    internal static void Uninstall(Control origin)
+    {
+        origin.DetachedFromVisualTree -= UninstallOnDetach;
+        if (Installed.TryGetValue(origin, out ContextMenuHost? host)) host.Dispose();
+        Installed.Remove(origin);
+    }
+
+    private static void UninstallOnDetach(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is Control origin) Uninstall(origin);
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (_disposed || !ContextClick.IsKey(e)) return;
         // In the tunnel phase an interactive part of a row (a nested button or text field) keeps the key.
         if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
-        _lastKeyOpen = DateTime.UtcNow;
         e.Handled = true;
         Show(atPointer: false);
-        ContextClick.ConsumeOpeningKeyRelease(OpenMenu, e.Key);
+        ContextClick.ConsumeOpeningKeyRelease(OpenMenu, e.Key, _origin);
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -79,7 +95,7 @@ internal sealed class ContextMenuHost : IDisposable
         if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         bool positioned = e.TryGetPosition(_origin, out _);
         e.Handled = true;
-        if (!positioned && DateTime.UtcNow - _lastKeyOpen < PairedRequestWindow) return;
+        if (!positioned && OpenMenu != null) return;
         Show(atPointer: positioned);
     }
 

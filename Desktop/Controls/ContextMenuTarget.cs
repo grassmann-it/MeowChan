@@ -30,6 +30,14 @@ internal sealed class ContextMenuTarget
         origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
+    internal void Detach()
+    {
+        _origin.RemoveHandler(InputElement.PointerPressedEvent, OnPointerPressed);
+        _origin.RemoveHandler(InputElement.ContextRequestedEvent, OnContextRequested);
+        _origin.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
+        _pointer = null;
+    }
+
     /// <summary>The control the menu is for: the last right-clicked control, else the focused one; null when there is neither.</summary>
     internal Visual? Source
     {

@@ -22,7 +22,7 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan;
 
-public partial class PluginsPage : UserControl
+public partial class PluginsPage : UserControl, IDisposable
 {
     private PluginManagementServices? _services;
     private PluginCatalogSnapshot? _catalog;
@@ -80,6 +80,7 @@ public partial class PluginsPage : UserControl
     private long _operationGeneration;
     private CancellationTokenSource? _operation;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly IDisposable _keyContextHost;
     internal Func<PluginEditorOptions>? GetEditorOptions { get; set; }
     internal Func<PluginEditorOptions, Task>? SaveEditorOptionsAsync { get; set; }
     internal Action<string>? OpenSourceWatches { get; set; }
@@ -92,7 +93,7 @@ public partial class PluginsPage : UserControl
     {
         // Every key of the plugin management runs in the "plugins" context (S3 P2-4): a default that a saved binding took away only elsewhere (a partial
         // yield) stays active here (EffectiveShortcutBindings.EnterKeyContext). Inside the Sources page this host is the nearer one and wins.
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "plugins");
+        _keyContextHost = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "plugins");
         InitializeComponent();
         InitializePluginDetails();
         InitializePluginActions();
@@ -722,6 +723,28 @@ public partial class PluginsPage : UserControl
         try { await RefreshAsync(); } finally { _statusReadPending = false; }
     }
     internal void Deactivate() { CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _statusTimer.Stop(); ++_refreshGeneration; CancelOperation(); if (!_ended) RenderDetails(); }
-    internal void EndLifetime()
-    { if (_ended) return; CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _ended = true; IsEnabled = false; _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose(); }
+    internal void EndLifetime() => Dispose();
+
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || _ended) return;
+        CloseBundledRepairPreview();
+        ClosePluginActionMenu();
+        CancelDiscardConfirmation();
+        _ended = true;
+        IsEnabled = false;
+        _statusTimer.Stop();
+        _statusTimer.Tick -= OnStatusTick;
+        Texts.Changed -= OnLanguageChanged;
+        _keyContextHost.Dispose();
+        _lifetime.Cancel();
+        CancelOperation();
+        _lifetime.Dispose();
+    }
 }

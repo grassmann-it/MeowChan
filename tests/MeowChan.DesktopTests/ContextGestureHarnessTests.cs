@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -28,7 +29,7 @@ public sealed class ContextGestureHarnessTests
         Assert.Same(fixture.Second, fixture.Selected);
         Assert.Same(fixture.Second, Assert.Single(fixture.Compositions));
         Assert.Equal(1, fixture.PositionedRequests);
-        CaptureMenu(fixture, useGrid);
+        CaptureMenu(fixture.Host.OpenMenu!, useGrid, "right-click");
         AssertMenuAndActivate(fixture, fixture.Second);
     });
 
@@ -70,7 +71,20 @@ public sealed class ContextGestureHarnessTests
 
         Control focus = fixture.FocusableRowPart(fixture.Second);
         if (shiftF10) ContextGestures.ShiftF10(focus);
-        else ContextGestures.MenuKey(focus);
+        else
+        {
+            Assert.True(focus.Focus());
+            fixture.Window.KeyPress(Key.Apps, RawInputModifiers.None, PhysicalKey.ContextMenu, null);
+            ContextGestures.Settle(fixture.Window);
+            ContextMenu opened = Assert.IsType<ContextMenu>(fixture.Host.OpenMenu);
+            TopLevel popup = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(opened));
+            MenuItem first = opened.Items.OfType<MenuItem>().First();
+            Assert.True(first.Focus());
+            popup.KeyRelease(Key.Apps, RawInputModifiers.None, PhysicalKey.ContextMenu, null);
+            ContextGestures.Settle(popup);
+            Assert.Same(opened, fixture.Host.OpenMenu);
+            CaptureMenu(opened, useGrid, "apps");
+        }
 
         Assert.Equal(new[] { fixture.First, fixture.Second }, fixture.Compositions);
         Assert.Equal(PlacementMode.BottomEdgeAlignedLeft, fixture.Host.OpenMenu?.Placement);
@@ -94,8 +108,11 @@ public sealed class ContextGestureHarnessTests
         ContextClick.MacOSForTests = true;
         try
         {
+            AvaloniaLocator.CurrentMutable.Bind<PlatformHotkeyConfiguration>().ToConstant(
+                new PlatformHotkeyConfiguration(KeyModifiers.Meta) { SelectionModifiers = KeyModifiers.Meta });
             ContextGestures.Click(fixture.RowHit(fixture.Second), modifiers: RawInputModifiers.Meta);
             Assert.Empty(fixture.Compositions);
+            Assert.Equal(new[] { fixture.First, fixture.Second }, fixture.Selection);
             ContextGestures.ControlClick(fixture.RowHit(fixture.Second));
             Assert.Same(fixture.Second, Assert.Single(fixture.Compositions));
             AssertMenuAndActivate(fixture, fixture.Second);
@@ -201,16 +218,15 @@ public sealed class ContextGestureHarnessTests
         Assert.Equal((entries[0].Id, target), Assert.Single(fixture.MenuActions));
     }
 
-    private static void CaptureMenu(Fixture fixture, bool useGrid)
+    private static void CaptureMenu(ContextMenu menu, bool useGrid, string gesture)
     {
         if (Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_CONTEXT_GESTURES") is not { Length: > 0 } directory) return;
-        ContextMenu menu = Assert.IsType<ContextMenu>(fixture.Host.OpenMenu);
         TopLevel root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(menu));
         ContextGestures.Settle(root);
         using WriteableBitmap frame = Assert.IsType<WriteableBitmap>(root.CaptureRenderedFrame());
         Directory.CreateDirectory(directory);
         string surface = useGrid ? "datagrid" : "listbox";
-        frame.Save(Path.Combine(directory, $"context-gestures-{surface}.png"), PngBitmapEncoderOptions.Default);
+        frame.Save(Path.Combine(directory, $"context-gestures-{surface}-{gesture}.png"), PngBitmapEncoderOptions.Default);
     }
 
     private static void Run(bool useGrid, Action<Fixture> test, bool openOnPress = false) => BooruComponentDispatcher.Run(() =>
@@ -240,6 +256,7 @@ public sealed class ContextGestureHarnessTests
         internal Row Second { get; } = new("Second row");
         internal ContextMenuHost Host { get; }
         internal PressOpenedContextGate Gate { get; } = new();
+        internal Window Window => _window;
         internal List<Row> Compositions { get; } = [];
         internal List<(string Id, Row Row)> MenuActions { get; } = [];
         internal List<Row> MiddleActions { get; } = [];
@@ -250,6 +267,7 @@ public sealed class ContextGestureHarnessTests
         internal Row? RightReleaseHit { get; private set; }
         internal KeyModifiers LastPressModifiers { get; private set; }
         internal KeyModifiers LastReleaseModifiers { get; private set; }
+        internal IEnumerable<Row> Selection => (_surface is DataGrid grid ? grid.SelectedItems : ((ListBox)_surface).SelectedItems!).Cast<Row>();
 
         internal Row? Selected
         {
@@ -268,7 +286,8 @@ public sealed class ContextGestureHarnessTests
             Row[] rows = [First, Second];
             if (useGrid)
             {
-                DataGrid grid = new() { AutoGenerateColumns = false, IsReadOnly = true, ItemsSource = rows, HeadersVisibility = DataGridHeadersVisibility.None };
+                DataGrid grid = new() { AutoGenerateColumns = false, IsReadOnly = true, ItemsSource = rows,
+                    HeadersVisibility = DataGridHeadersVisibility.None, SelectionMode = DataGridSelectionMode.Extended };
                 grid.Columns.Add(new DataGridTemplateColumn { CellTemplate = template, Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
                 grid.DoubleTapped += (_, e) =>
                 {
@@ -278,7 +297,7 @@ public sealed class ContextGestureHarnessTests
             }
             else
             {
-                ListBox list = new() { ItemsSource = rows, ItemTemplate = template };
+                ListBox list = new() { ItemsSource = rows, ItemTemplate = template, SelectionMode = SelectionMode.Multiple };
                 ListRowActions.OnDoubleClick(list, () => PrimaryActions.Add(Assert.IsType<Row>(Selected)));
                 _surface = list;
             }
@@ -345,7 +364,7 @@ public sealed class ContextGestureHarnessTests
             if (row == null || !e.GetCurrentPoint(_surface).Properties.IsRightButtonPressed) return;
             Selected = row;
             if (!_openOnPress) return;
-            Gate.MenuOpenedByPress();
+            Gate.MenuOpenedByPress(ContextClick.Button(e, _surface));
             Host.Show(atPointer: true);
             e.Handled = true;
         }

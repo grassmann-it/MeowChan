@@ -43,7 +43,7 @@ internal sealed class MediaTagSidebar : UserControl
     private MediaTagCountResult? _counts;
     private IReadOnlyList<MediaFilterTerm> _terms = Array.Empty<MediaFilterTerm>();
     private IReadOnlyList<MediaTagListItem> _items = Array.Empty<MediaTagListItem>();
-    private readonly ContextMenuTarget _menuTarget;
+    private ContextMenuTarget? _menuTarget;
     private ContextMenuHost? _menuHost;
     private bool _localizing;
 
@@ -108,9 +108,19 @@ internal sealed class MediaTagSidebar : UserControl
         _search.QueryChanged += (_, _) => Rebuild();
         _list.AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble);
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
-        _menuTarget = new ContextMenuTarget(_list);
-        AttachedToVisualTree += (_, _) => _menuHost ??= WorkspaceChips.AttachMenu(_list, ComposeMenu, () => _list.Focus(NavigationMethod.Tab));
-        DetachedFromVisualTree += (_, _) => { _menuHost?.Dispose(); _menuHost = null; };
+        AttachedToVisualTree += (_, _) =>
+        {
+            _menuHost = WorkspaceChips.AttachMenu(_list, ComposeMenu, () => _list.Focus(NavigationMethod.Tab));
+            // Tunnel handlers on this control run newest first. Capture before the host handles a key or a Ctrl+press.
+            _menuTarget = new ContextMenuTarget(_list);
+        };
+        DetachedFromVisualTree += (_, _) =>
+        {
+            _menuTarget?.Detach();
+            _menuTarget = null;
+            _menuHost?.Dispose();
+            _menuHost = null;
+        };
         Localize();
     }
 
@@ -258,8 +268,8 @@ internal sealed class MediaTagSidebar : UserControl
     // The menu of a tag row: the row under the pointer of a right-click, else the selected one (the Menu key, Shift+F10).
     private ContextMenuBuilder? ComposeMenu()
     {
-        MediaTagListItem? row = RowAt(_menuTarget.Source);
-        if (!_menuTarget.IsPointer) row ??= _list.SelectedItem as MediaTagListItem;
+        MediaTagListItem? row = RowAt(_menuTarget?.Source);
+        if (_menuTarget?.IsPointer != true) row ??= _list.SelectedItem as MediaTagListItem;
         if (row is not { Kind: MediaTagListKind.Tag, Term: { } term }) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(row.AccessibleName);
         if (row.Polarity <= 0) menu.Command("tags.filter-include", () => Changed?.Invoke(term, MediaTagListChange.Include));

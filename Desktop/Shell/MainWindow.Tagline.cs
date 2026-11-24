@@ -33,7 +33,6 @@ public partial class MainWindow
     // The "New every N minutes" mode: one timer of the window, started only in that mode, stopped when the mode changes and at shutdown.
     private DispatcherTimer? _taglineRotationTimer;
     private int _appliedTaglineMinutes;
-    private ContextMenuHost? _taglineMenu;
 
     /// <summary>The form of the tagline currently shown (None while it is hidden or switched off); read by the smokes.</summary>
     internal HeaderTaglineStage TaglineStage { get; private set; } = HeaderTaglineStage.None;
@@ -49,7 +48,7 @@ public partial class MainWindow
         WorkspaceSubtitle.PropertyChanged += OnTaglineTypographyChanged;
         ScalingChanged += OnTaglineScalingChanged;
         WorkspaceSubtitle.Focusable = true;
-        _taglineMenu = new ContextMenuHost(WorkspaceSubtitle, ComposeTaglineMenu);
+        ContextMenuHost.Install(WorkspaceSubtitle, ComposeTaglineMenu);
         ChooseHeaderTagline(atStart: true);
         UpdateHeaderTagline();
         RefreshTaglineRotation();
@@ -62,8 +61,7 @@ public partial class MainWindow
         WorkspaceSubtitle.PropertyChanged -= OnTaglineTypographyChanged;
         ScalingChanged -= OnTaglineScalingChanged;
         StopTaglineRotation();
-        _taglineMenu?.Dispose();
-        _taglineMenu = null;
+        ContextMenuHost.Uninstall(WorkspaceSubtitle);
         _taglineStarted = false;
     }
 
@@ -149,7 +147,7 @@ public partial class MainWindow
             if (same != null) _tagline = same;
             else if (_tagline != null) ChooseHeaderTagline(atStart: false);
         }
-        _taglineMenu?.Close();
+        WorkspaceSubtitle.ContextMenu?.Close();
         UpdateHeaderTagline();
     }
 
@@ -201,7 +199,7 @@ public partial class MainWindow
         {
             if (WorkspaceSubtitle.IsVisible) WorkspaceSubtitle.IsVisible = false;
             ToolTip.SetTip(WorkspaceSubtitle, null);
-            _taglineMenu?.Close();
+            WorkspaceSubtitle.ContextMenu?.Close();
             return;
         }
         string shown = stage == HeaderTaglineStage.Full ? full : quipForm;

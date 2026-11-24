@@ -1707,15 +1707,15 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         // (sweep S2 F4). With the focus on another control of the dock (a tool, the info line; not the filmstrip or the video bar) they open the
         // layout menu, as a right-click on free dock area does (GL3). The handled key's key-up is consumed (ConsumeContextKey): no second menu.
         if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && ContextKeyOwner(e.Source) is { } menuOwner && OpenOwnContextMenu(menuOwner))
-        { ContextClick.ConsumeOpeningKeyRelease(menuOwner.ContextMenu, e.Key); ConsumeContextKey(e); return; }
+        { ConsumeContextKey(e, menuOwner.ContextMenu); return; }
         if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && IsLayoutMenuKeySource(e.Source) && ShowLayoutContextMenu())
-        { ConsumeContextKey(e); return; }
+        { ConsumeContextKey(e, LayoutContextMenu); return; }
         if (_entry != null && ContextClick.IsKey(e))
         {
             Control? panel = e.Source is Visual source && _contextPanel.IsVisualAncestorOf(source) ? _contextPanel : null;
             if (panel != null && ItemActivation.IsOwnedByInteractivePart(e.Source, panel)) return;
             ShowMediaMenu(anchor: panel, keyboard: true);
-            ConsumeContextKey(e);
+            ConsumeContextKey(e, _mediaMenuPresenter.Menu);
             return;
         }
         if (RouteDecisionRowKey(e)) return; // the stars of the panel rove with the arrows and Esc returns to the picture

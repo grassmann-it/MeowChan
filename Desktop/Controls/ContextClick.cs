@@ -24,7 +24,7 @@ internal static class ContextClick
     internal static MouseButton Button(PointerPressedEventArgs e, Visual origin) =>
         IsMacControlPress(e, origin) ? MouseButton.Left : MouseButton.Right;
 
-    internal static bool IsKey(KeyEventArgs e) => !e.Handled && !CommandRouter.IsNativeInput(e.Source, e.Key)
+    internal static bool IsKey(KeyEventArgs e) => !e.Handled && !ShortcutService.IsCapturing && !CommandRouter.IsNativeInput(e.Source, e.Key)
         && (e.Key == Key.Apps && e.KeyModifiers == KeyModifiers.None
             || e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift
             || CommandBindings.Matches(e, "menu.context-open"));
@@ -37,10 +37,11 @@ internal static class ContextClick
         e.Handled = request.Handled;
     }
 
-    internal static void ConsumeOpeningKeyRelease(ContextMenu? menu, Key key)
+    internal static void ConsumeOpeningKeyRelease(ContextMenu? menu, Key key, Control? origin = null)
     {
         if (menu is not { IsOpen: true }) return;
         menu.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
+        origin?.AddHandler(InputElement.KeyUpEvent, OnKeyUp, RoutingStrategies.Tunnel);
         menu.Closed += OnClosed;
 
         void OnKeyUp(object? sender, KeyEventArgs e)
@@ -55,6 +56,7 @@ internal static class ContextClick
         void Detach()
         {
             menu.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
+            origin?.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
             menu.Closed -= OnClosed;
         }
     }
