@@ -85,12 +85,16 @@ public sealed class SidePanelDesignTests
         if (!popover && right - left >= 286) Assert.True(favorite.Width > 32);
         Control[] controls = [..row.StarButtons, row.ClearButton, row.FavoriteButton];
         Rect[] before = controls.Select(control => In(control, frame)).ToArray();
+        Matrix? StarTransform() => ((Control)row.StarButtons[0].Content!).RenderTransform?.Value;
+        Matrix? initialTransform = StarTransform();
         GalleryDecisionView original = row.View;
         foreach (GalleryDecisionCoverage coverage in Enum.GetValues<GalleryDecisionCoverage>())
         {
             row.Show(original with { Favorite = coverage });
+            Assert.Equal(initialTransform, StarTransform());
             row.FocusRating();
             row.Preview(4);
+            Assert.Equal(initialTransform, StarTransform());
             Settle(window);
             Assert.Equal(before, controls.Select(control => In(control, frame)));
             Near(left, In((Control)row.StarButtons[0].Content!, frame).Left);
