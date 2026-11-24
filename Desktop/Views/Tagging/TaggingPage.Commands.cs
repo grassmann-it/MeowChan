@@ -196,14 +196,6 @@ public sealed partial class TaggingPage
         }, RoutingStrategies.Tunnel);
     }
 
-    /// <summary>"Show in folder" for one entry, with the rules of the menu entry for a selection of just that entry; refused silently when it does not apply.</summary>
-    internal Task ShowInFolderOfAsync(TaggingQueueRow row)
-    {
-        if (_queueWork.Ended) return Task.CompletedTask;
-        TaggingCommandContext context = new(_queueWork.Queue, Filter, new[] { row }, row, Capabilities, _effectiveScope);
-        return TaggingRowCommands.Evaluate(TaggingCommands.ShowInFolder, context).Available ? Leaving(ShowInFolder, row.Item) : Task.CompletedTask;
-    }
-
     /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>
     private ContextMenuBuilder? ComposeFocusedRowMenu()
     {
