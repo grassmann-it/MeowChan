@@ -32,7 +32,7 @@ internal static class BooruListCatalog
         ("booru.ui.result.short.idle", "Not downloaded", "Nicht geladen"),
         ("booru.ui.result.short.score", "Score {0}", "Punkte {0}"),
         ("booru.ui.result.short.favorites", "Favs {0}", "Favs {0}"),
-        ("booru.ui.tags.clickHint", "Click to add. Alt- or Shift-click to exclude.", "Klick zum Hinzufügen. Alt- oder Umschalt-Klick zum Ausschließen."),
+        ("booru.ui.tags.clickHint", "Click to add. Hold {0} or Shift while clicking to exclude.", "Klick zum Hinzufügen. Beim Klicken {0} oder Umschalt gedrückt halten, um auszuschließen."),
         ("booru.ui.tags.less", "Fewer tags", "Weniger"),
     ];
 }

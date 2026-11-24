@@ -45,6 +45,8 @@ public sealed class BooruListLayoutTests
     public void RealPageFitsTheThreeViewportBandsInEveryLanguage(string language) => Run(() =>
     {
         Texts.SetLanguage(language);
+        Assert.Contains("⌥", Texts.T("booru.ui.tags.clickHint", PlatformKeyNames.Alt(ShortcutPlatform.MacOS)));
+        Assert.Contains("Alt", Texts.T("booru.ui.tags.clickHint", PlatformKeyNames.Alt(ShortcutPlatform.Linux)));
         using Fixture fixture = new();
         foreach ((int width, double frameWidth, double frameHeight, double budget) in new[]
         {
@@ -129,22 +131,24 @@ public sealed class BooruListLayoutTests
         Assert.Single(fixture.Harness.Search.Searches);
     });
 
-    // Tom's 20:30 decision moves stored 12 to fit-to-space. Fable B keeps category priority
-    // and the remaining chips as tab stops, with keyboard access to folding in the card menu.
+    // Fable B keeps category priority and the visible chips as tab stops, with keyboard
+    // access to folding in the card menu. Astra W112-69 B §4 preserves a new explicit 12.
     [Theory]
+    [InlineData(-1)]
     [InlineData(0)]
     [InlineData(12)]
     [InlineData(200)]
-    public void TagFoldAccountsForEveryOmittedTagAndReturnsFocusToTheSameHit(int legacyLimit) => Run(() =>
+    public void TagFoldAccountsForEveryOmittedTagAndReturnsFocusToTheSameHit(int tagLimit) => Run(() =>
     {
-        using Fixture fixture = new(tagCount: 200, tagLimit: legacyLimit);
+        using Fixture fixture = new(tagCount: 200, tagLimit: tagLimit);
         fixture.ResizeViewport(800);
         Border card = fixture.Card("101");
         Button[] visible = ShownTags(card);
-        if (legacyLimit == 0) Assert.Empty(visible);
+        if (tagLimit == 0) Assert.Empty(visible);
         else
         {
-            Assert.InRange(visible.Length, 13, 199);
+            if (tagLimit == 12) Assert.Equal(12, visible.Length);
+            else Assert.InRange(visible.Length, 13, 199);
             Button longChip = visible[0];
             Assert.Contains(new string('n', 300), AutomationProperties.GetName(longChip));
             Assert.InRange(longChip.Bounds.Width, 1, 240);
@@ -179,7 +183,7 @@ public sealed class BooruListLayoutTests
     [InlineData(29)]
     public void AllTagsFitWithoutAFoldButtonAtWideWidth(int tagCount) => Run(() =>
     {
-        using Fixture fixture = new(tagCount: tagCount, tagLimit: 12);
+        using Fixture fixture = new(tagCount: tagCount);
         fixture.ResizeViewport(1920);
         Border card = fixture.Card("101");
         Assert.Equal(tagCount, ShownTags(card).Length);
@@ -233,6 +237,69 @@ public sealed class BooruListLayoutTests
     });
 
     [Fact]
+    public void FoldTooltipNamesOnlyTheProfileLimitButCountsEveryHiddenTag() => Run(() =>
+    {
+        using Fixture fixture = new(tagCount: 200,
+            config: new Config { BooruResultTagsShown = 0, BooruHiddenTagTooltipLimit = 2 });
+        Button more = Toggle(fixture.Card("101"), "101");
+        Assert.Equal(Texts.T("booru.ui.tags.more", 200), more.Content);
+        string hint = Texts.T("booru.ui.tags.showAll", new string('n', 300) + ", iron_road…");
+        Assert.Equal(hint, ToolTip.GetTip(more));
+        Assert.Equal(hint, AutomationProperties.GetHelpText(more));
+    });
+
+    [Fact]
+    public void ResizingClosesTheFoldedChipsMenuAndEscapeLeavesFocusOnTheHit() => Run(() =>
+    {
+        using Fixture fixture = new(tagCount: 200, singleCategory: true);
+        fixture.ResizeViewport(1920);
+        Border card = fixture.Card("101");
+        Button chip = ShownTags(card)[^1];
+        Assert.True(chip.Focus());
+        fixture.Window.KeyPressQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
+        fixture.Window.KeyReleaseQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
+        fixture.Settle();
+        ContextMenu menu = Assert.IsType<ContextMenu>(chip.ContextMenu);
+        Assert.True(menu.IsOpen);
+
+        fixture.ResizeViewport(800);
+        Assert.DoesNotContain(chip, ShownTags(card));
+        Assert.False(menu.IsOpen);
+        Assert.Null(chip.ContextMenu);
+        Assert.False(chip.Focus());
+        Press(fixture.Window, PhysicalKey.Escape);
+        fixture.Settle();
+        Assert.Same(card, fixture.Window.FocusManager!.GetFocusedElement());
+        Assert.Equal("1boy", fixture.Model.Search.View.Input);
+        Assert.Single(fixture.Harness.Search.Searches);
+    });
+
+    [Fact]
+    public void TabDuringFoldKeepsTheNewFocus() => Run(() =>
+    {
+        using Fixture fixture = new(tagCount: 200, singleCategory: true);
+        fixture.ResizeViewport(1920);
+        Border card = fixture.Card("101");
+        Button chip = ShownTags(card)[^1];
+        Assert.True(chip.Focus());
+        fixture.ResizeViewport(800, afterLayout: () =>
+        {
+            Assert.DoesNotContain(chip, ShownTags(card));
+            Assert.True(FindById<CheckBox>(fixture.Card("102"), "BooruSelect:102").Focus());
+            Press(fixture.Window, PhysicalKey.Tab);
+            IInputElement? moved = fixture.Window.FocusManager!.GetFocusedElement();
+            Assert.NotNull(moved);
+            Assert.NotSame(chip, moved);
+            Assert.NotSame(card, moved);
+            Assert.NotSame(FindById<CheckBox>(fixture.Card("102"), "BooruSelect:102"), moved);
+            fixture.Settle();
+            Assert.Same(moved, fixture.Window.FocusManager.GetFocusedElement());
+        });
+        Assert.False(chip.Focus());
+        Assert.Equal("1boy", fixture.Model.Search.View.Input);
+    });
+
+    [Fact]
     public void EmptyTagsAndLargeTextStayReachableAndResizeKeepsTheCheckboxFocused() => Run(() =>
     {
         using Fixture fixture = new(tagCount: 0);
@@ -272,8 +339,17 @@ public sealed class BooruListLayoutTests
         Assert.DoesNotContain(Texts.T("booru.ui.post.field.score"), AutomationProperties.GetName(details));
         CheckAction(local, BooruWorkbenchView.ShowInMediaPrefix + "101", "101");
         CheckAction(retry, BooruWorkbenchView.RetryLoadPrefix + "102", "102");
-        Assert.Equal(Texts.T("booru.ui.result.short.again"), Find<Button>(local, BooruWorkbenchView.LoadPrefix + "101").Content);
-        Assert.Equal(Texts.T("booru.ui.result.short.again"), Find<Button>(retry, BooruWorkbenchView.RetryLoadPrefix + "102").Content);
+        // Astra W112-69 B §5: the disabled original action keeps its regular label and explains the local state.
+        Button localLoad = FindById<Button>(local, BooruWorkbenchView.LoadPrefix + "101");
+        Assert.Equal(Texts.T("booru.ui.result.short.load"), localLoad.Content);
+        Assert.False(localLoad.IsEffectivelyEnabled);
+        Assert.Equal(BooruText.Load(fixture.Model.Search.View.Rows[0]), AutomationProperties.GetHelpText(localLoad));
+        Button showInMedia = FindById<Button>(local, BooruWorkbenchView.ShowInMediaPrefix + "101");
+        Assert.Equal(Texts.T("booru.ui.result.short.media"), showInMedia.Content);
+        Assert.True(showInMedia.IsEffectivelyEnabled);
+        Button retryLoad = FindById<Button>(retry, BooruWorkbenchView.RetryLoadPrefix + "102");
+        Assert.Equal(Texts.T("booru.ui.result.short.again"), retryLoad.Content);
+        Assert.True(retryLoad.IsEffectivelyEnabled);
         Assert.Contains("KiB", Find<TextBlock>(local, "BooruListStatus:101").Text);
         Assert.True(Find<Border>(local, "BooruResultLocal:101").IsVisible);
         Border withdrawn = fixture.Card("104");
@@ -283,6 +359,8 @@ public sealed class BooruListLayoutTests
         Assert.True(local.Focus());
         Press(fixture.Window, PhysicalKey.Enter);
         Assert.Equal("101", Assert.Single(fixture.ShownLocally));
+        BooruResultActionsTests.Click(showInMedia);
+        Assert.Equal(new[] { "101", "101" }, fixture.ShownLocally);
 
         foreach (MediaTileSize size in Enum.GetValues<MediaTileSize>())
         {
@@ -310,9 +388,63 @@ public sealed class BooruListLayoutTests
     });
 
     [Fact]
+    public void SavingARefusalKeepsTheSameActionTierAndAlignmentAsAnIdleNeighbor() => Run(() =>
+    {
+        Texts.SetLanguage("de");
+        using Fixture fixture = new(refusalPending: true);
+        Border idle = fixture.Card("101");
+        Border refusal = fixture.Card("102");
+        Assert.Equal(BooruRowLoad.RefusalPending, fixture.Model.Search.View.Rows[1].Load);
+        Button idleOpen = FindById<Button>(idle, BooruWorkbenchView.OpenPostPrefix + "101");
+        Button refusalOpen = FindById<Button>(refusal, BooruWorkbenchView.OpenPostPrefix + "102");
+
+        int narrow = 460, wide = 800;
+        fixture.ResizeViewport(narrow);
+        Assert.False(HasLabel(idleOpen));
+        fixture.ResizeViewport(wide);
+        Assert.True(HasLabel(idleOpen));
+        while (wide - narrow > 1)
+        {
+            int middle = (narrow + wide) / 2;
+            fixture.ResizeViewport(middle);
+            if (HasLabel(idleOpen)) wide = middle;
+            else narrow = middle;
+        }
+
+        foreach (int width in new[] { narrow, wide })
+        {
+            fixture.ResizeViewport(width);
+            Assert.Equal(width == wide, HasLabel(idleOpen));
+            Assert.Equal(width == wide, HasLabel(refusalOpen));
+            foreach (string prefix in ActionPrefixes.Skip(1))
+            {
+                Button first = FindById<Button>(idle, prefix + "101");
+                Button second = FindById<Button>(refusal, prefix + "102");
+                Assert.True(first.IsHitTestVisible && second.IsHitTestVisible);
+                Near(Bounds(first, idle).Left, Bounds(second, refusal).Left);
+                Near(first.Bounds.Width, second.Bounds.Width);
+            }
+        }
+
+        Button saveRefusal = FindById<Button>(refusal, BooruWorkbenchView.RetryLoadPrefix + "102");
+        Assert.Equal(Texts.T("booru.ui.load.saveRefusal"), saveRefusal.Content);
+        Assert.True(saveRefusal.IsEffectivelyEnabled);
+
+        static bool HasLabel(Button button) => button.Opacity > 0 && button.GetVisualDescendants().OfType<TextBlock>()
+            .Any(text => text.IsEffectivelyVisible && text.Text == (string?)button.Content);
+    });
+
+    [Fact]
     public void ProfileDefaultsLimitsTransferAndEditorResetsRoundTrip() => Run(() =>
     {
-        Config old = JsonSerializer.Deserialize("""{"BooruResultTagsShown":12}""", ConfigJsonContext.Default.Config)!;
+        Config old = JsonSerializer.Deserialize("""{"PreferenceDefaultsRevision":1,"BooruResultTagsShown":12}""", ConfigJsonContext.Default.Config)!;
+        Assert.Equal(Config.BooruResultTagsShownAutomatic, old.BooruResultTagsShown);
+        Assert.Equal(Config.BooruResultTagsShownAutomatic, new Config().BooruResultTagsShown);
+        using (Fixture legacy = new(config: old))
+        {
+            legacy.ResizeViewport(1920);
+            Assert.Equal(29, ShownTags(legacy.Card("101")).Length);
+        }
         Assert.Equal(BooruListLayoutSettings.Default, old.BooruListLayout);
         Assert.Equal(0, old.BooruListTagLines);
         old.BooruListTagLines = -1;
@@ -333,7 +465,8 @@ public sealed class BooruListLayoutTests
         old.BooruListWideRowHeight = 167;
         Assert.Throws<ArgumentOutOfRangeException>(old.Validate);
 
-        Config config = new() { BooruListPreviewWidth = 256, BooruListWideAbove = 1360, BooruListWideRowHeight = 196, BooruListTagLines = 2 };
+        Config config = new() { BooruListPreviewWidth = 256, BooruListWideAbove = 1360, BooruListWideRowHeight = 196, BooruListTagLines = 2,
+            BooruResultTagsShown = 20, BooruHiddenTagTooltipLimit = 8 };
         config.Validate();
         Config restarted = JsonSerializer.Deserialize(JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config),
             ConfigJsonContext.Default.Config)!;
@@ -341,6 +474,8 @@ public sealed class BooruListLayoutTests
         Assert.Equal(config.BooruListLayout, config.Clone().BooruListLayout);
         Config imported = SettingsTransfer.Export(config).Deserialize(ConfigJsonContext.Default.Config)!;
         Assert.Equal(config.BooruListLayout, imported.BooruListLayout);
+        Assert.Equal(8, imported.BooruHiddenTagTooltipLimit);
+        Assert.Equal(8, config.Clone().BooruHiddenTagTooltipLimit);
         using Fixture custom = new(separate: true, config: restarted);
         custom.ResizeViewport(1152);
         Near(256, custom.Frame("101").Bounds.Width);
@@ -362,7 +497,16 @@ public sealed class BooruListLayoutTests
             Assert.Equal(0, tagLines.Value);
             editor.ComposeRowMenu(input)!.ToModel().Entries.Single(entry => entry.CommandId == "settings.reset-default").Invoke!();
             Assert.Equal(192, input.Value);
+            NumericUpDown tagLimit = Assert.Single(editor.GetLogicalDescendants().OfType<NumericUpDown>(),
+                control => AutomationProperties.GetAutomationId(control) == "BooruResultTagsShownInput");
+            NumericUpDown tooltipLimit = Assert.Single(editor.GetLogicalDescendants().OfType<NumericUpDown>(),
+                control => AutomationProperties.GetAutomationId(control) == "BooruHiddenTagTooltipLimitInput");
+            Assert.Equal(20, tagLimit.Value);
+            Assert.Equal(8, tooltipLimit.Value);
             editor.ResetDraft(SettingsEditor.SettingsResetScope.WorkerBudgets);
+            Assert.Equal(Config.BooruResultTagsShownAutomatic, tagLimit.Value);
+            Assert.Equal(60, tooltipLimit.Value);
+            tagLimit.Value = 12;
             NumericUpDown advanced = Assert.Single(editor.GetLogicalDescendants().OfType<NumericUpDown>(),
                 control => control.Name == "BooruListWideAboveInput");
             Assert.Equal(1400, advanced.Value);
@@ -381,6 +525,14 @@ public sealed class BooruListLayoutTests
             Assert.False(editor.HasError, editor.ErrorMessage);
             Assert.Equal(300, saved!.BooruListPreviewWidth);
             Assert.Equal(0, saved.BooruListTagLines);
+            Assert.Equal(12, saved.BooruResultTagsShown);
+            Config reopened = JsonSerializer.Deserialize(JsonSerializer.Serialize(saved, ConfigJsonContext.Default.Config),
+                ConfigJsonContext.Default.Config)!;
+            Assert.Equal(12, reopened.BooruResultTagsShown);
+            Assert.Equal(12, SettingsTransfer.Export(saved).Deserialize(ConfigJsonContext.Default.Config)!.BooruResultTagsShown);
+            using Fixture explicitLimit = new(config: reopened);
+            explicitLimit.ResizeViewport(1920);
+            Assert.Equal(12, ShownTags(explicitLimit.Card("101")).Length);
         }
         finally { editor.EndLifetime(); }
     });
@@ -427,6 +579,8 @@ public sealed class BooruListLayoutTests
             Assert.Contains(WorkspaceChips.Source, outline.Classes);
             Assert.Contains(WorkspaceChips.Compact, outline.Classes);
             Assert.True(chip.IsTabStop);
+            Assert.True(chip.Focusable);
+            Assert.Equal(Texts.T("booru.ui.tags.clickHint", PlatformKeyNames.Alt()), AutomationProperties.GetHelpText(chip));
             Assert.True(tags.Contains(Bounds(chip, first)));
         });
     }
@@ -454,12 +608,17 @@ public sealed class BooruListLayoutTests
     }
 
     private static Button[] ShownTags(Control card) => card.GetVisualDescendants().OfType<Button>()
-        .Where(button => button.Name?.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal) == true && button.IsTabStop)
+        .Where(button => AutomationProperties.GetAutomationId(button)?.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal) == true
+            && button.IsEffectivelyVisible && button.Opacity > 0 && button.Bounds.Width > 0
+            && button.GetVisualAncestors().TakeWhile(ancestor => !ReferenceEquals(ancestor, card)).All(ancestor => ancestor.Opacity > 0))
         .ToArray();
 
     private static Button Toggle(Border card, string id) => Find<Button>(card, BooruWorkbenchView.MoreTagsPrefix + id);
     private static T Find<T>(Visual root, string name) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => control.Name == name);
+
+    private static T FindById<T>(Visual root, string id) where T : Control =>
+        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
     private static Rect Bounds(Control control, Visual ancestor) =>
         new(control.TranslatePoint(default, ancestor) ?? throw new InvalidOperationException(control.Name), control.Bounds.Size);
@@ -489,7 +648,8 @@ public sealed class BooruListLayoutTests
         internal Panel Results => Find<Panel>(Window, BooruWorkbenchView.ResultsName);
         private ScrollViewer Scroll => Find<ScrollViewer>(Window, "BooruResultScroll");
 
-        internal Fixture(bool separate = false, int tagCount = 29, int tagLimit = 12, bool states = false, Config? config = null, bool singleCategory = false)
+        internal Fixture(bool separate = false, int tagCount = 29, int tagLimit = Config.BooruResultTagsShownAutomatic, bool states = false,
+            Config? config = null, bool singleCategory = false, bool refusalPending = false)
         {
             config ??= new Config { BooruResultTagsShown = tagLimit };
             BooruPostView[] posts = Enumerable.Range(101, 4).Select(id => Post(id, tagCount, states, singleCategory)).ToArray();
@@ -503,6 +663,7 @@ public sealed class BooruListLayoutTests
                 Harness.Queue.States["101"] = BooruLocalState.Loaded;
                 Harness.Queue.States["102"] = BooruLocalState.DownloadFailed;
             }
+            if (refusalPending) Harness.Queue.States["102"] = BooruLocalState.RefusalPending;
             if (separate)
             {
                 BooruWorkbenchWindow workbench = new(Harness.Services);
@@ -546,7 +707,7 @@ public sealed class BooruListLayoutTests
             Window.UpdateLayout();
         }
 
-        internal void ResizeViewport(int width, int height = 820)
+        internal void ResizeViewport(int width, int height = 820, Action? afterLayout = null)
         {
             for (int attempt = 0; attempt < 6; attempt++)
             {
@@ -554,6 +715,11 @@ public sealed class BooruListLayoutTests
                 if (Math.Abs(viewport.Width - width) <= 0.1 && Math.Abs(viewport.Height - height) <= 0.1) break;
                 Window.PlatformImpl!.Resize(new Size(Window.ClientSize.Width + width - viewport.Width,
                     Window.ClientSize.Height + height - viewport.Height), WindowResizeReason.User);
+                if (attempt == 0 && afterLayout != null)
+                {
+                    Window.UpdateLayout();
+                    afterLayout();
+                }
                 Settle();
             }
             Near(width, Scroll.Viewport.Width);

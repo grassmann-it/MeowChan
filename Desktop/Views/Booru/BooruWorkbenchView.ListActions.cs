@@ -29,7 +29,7 @@ internal sealed partial class BooruWorkbenchView
         {
             string label = command.Action switch
             {
-                ResultAction.Load => BooruResultActionRow.ShortLabel(row.Load == BooruRowLoad.AlreadyLoaded ? "again" : "load"),
+                ResultAction.Load => BooruResultActionRow.ShortLabel("load"),
                 ResultAction.Retry when row.Load == BooruRowLoad.RefusalPending => command.Label,
                 ResultAction.Retry => BooruResultActionRow.ShortLabel("again"),
                 ResultAction.Cancel => BooruResultActionRow.ShortLabel("cancel"),
@@ -44,6 +44,7 @@ internal sealed partial class BooruWorkbenchView
                 Name = command.Prefix + postId, Classes = { primary ? "primary" : "ghost" },
                 IsEnabled = result.IsAvailable(command.Action, row)
             };
+            AutomationProperties.SetAutomationId(button, button.Name);
             AutomationProperties.SetName(button, command.Name);
             ToolTip.SetTip(button, command.Tip);
             ToolTip.SetShowOnDisabled(button, true);
@@ -66,6 +67,7 @@ internal sealed partial class BooruWorkbenchView
         {
             BooruRowLoad.AlreadyLoaded when row.Post.Original?.ExpectedSize is { } bytes =>
                 Texts.T("booru.ui.tile.local") + " · " + Size(bytes),
+            BooruRowLoad.AlreadyLoaded => Texts.T("booru.ui.tile.local"),
             BooruRowLoad.Idle when row.Post.IsDeleted || row.Post.IsBanned || row.Post.OriginalAccess != BooruOriginalAccess.Available =>
                 BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned),
             _ => BooruText.Load(row) ?? BooruResultActionRow.ShortLabel("idle")
@@ -82,6 +84,7 @@ internal sealed partial class BooruWorkbenchView
             BooruRowLoad.Idle or BooruRowLoad.Handing => "workspace-meta",
             _ => "workspace-warning"
         });
+        AutomationProperties.SetAutomationId(status, status.Name);
         ToolTip.SetTip(status, text);
         AutomationProperties.SetName(status, text);
         return status;
@@ -127,6 +130,7 @@ internal sealed class BooruResultActionRow : Panel
                 _style = style;
                 _widths.Clear();
                 Primary = Math.Max(Width("load", _style.Primary), Math.Max(Width("again", _style.Primary), Width("cancel", _style.Primary)));
+                Primary = Math.Max(Primary, Measure(Texts.T("booru.ui.load.saveRefusal"), _style.Primary));
                 _all = Primary + Width("open", _style.Secondary) + Width("copy", _style.Secondary)
                     + Measure(Texts.T("booru.gallery.name"), _style.Secondary) + 3 * Gap;
             }
@@ -156,9 +160,11 @@ internal sealed class BooruResultActionRow : Panel
     internal BooruResultActionRow(string postId, LabelWidths labels, TextBlock status, Action returnFocus)
     {
         Name = "BooruResultActions:" + postId;
+        AutomationProperties.SetAutomationId(this, Name);
         _labels = labels;
         _status = status;
         _more = new Button { Name = Name + ".More", Classes = { "ghost" }, Content = string.Empty };
+        AutomationProperties.SetAutomationId(_more, _more.Name);
         PrepareButton(_more);
         ShowIcon(_more, "more-horizontal");
         _more.Click += (_, _) => ToggleOverflow(returnFocus);

@@ -72,6 +72,9 @@ internal sealed partial class BooruWorkbenchView
         Button gallery = (Button)viewerActions.Children[0];
         CheckBox select = (CheckBox)viewerActions.Children[1];
         viewerActions.Children.Clear();
+        AutomationProperties.SetAutomationId(gallery, gallery.Name);
+        AutomationProperties.SetAutomationId(select, select.Name);
+        AutomationProperties.SetAutomationId(frame, frame.Name);
         select.Classes.Add("booru-tile-select");
         select.HorizontalAlignment = HorizontalAlignment.Right;
         select.VerticalAlignment = VerticalAlignment.Top;
@@ -183,6 +186,7 @@ internal sealed partial class BooruWorkbenchView
             Text = string.Join(" · ", values), TextWrapping = TextWrapping.Wrap, IsVisible = values.Count > 0
         };
         string accessible = string.Join(Environment.NewLine, descriptions);
+        AutomationProperties.SetAutomationId(details, details.Name);
         AutomationProperties.SetName(details, accessible);
         ToolTip.SetTip(details, accessible);
         WorkViewElement.SetId(details, "booru.result.details");

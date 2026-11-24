@@ -10,6 +10,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -31,16 +32,15 @@ internal sealed partial class BooruWorkbenchView
     {
         BooruTag[] ordered = ListTagOrder.SelectMany(category => post.Tags.Where(tag => tag.Category == category)).ToArray();
         int savedLimit = TagsShown();
-        // Profiles used to serialize 12 for every user. Treat that value as automatic in the list.
-        int limit = savedLimit == Config.BooruResultTagsShownDefault ? ordered.Length : savedLimit;
-        BooruListTagFlow tags = new(post.PostId, ordered, limit, ListLayout.TagLines, _expandedTagPosts.Contains(post.PostId),
+        int limit = savedLimit == Config.BooruResultTagsShownAutomatic ? ordered.Length : savedLimit;
+        BooruListTagFlow tags = new(post.PostId, ordered, limit, ListLayout.TagLines, HiddenTagTooltipLimit, _expandedTagPosts.Contains(post.PostId),
             CreateItem, expanded =>
             {
                 if (!result.IsCurrent()) return false;
                 if (expanded) _expandedTagPosts.Add(post.PostId);
                 else _expandedTagPosts.Remove(post.PostId);
                 return true;
-            }, () => card.Focus(NavigationMethod.Tab));
+            }, RestoreFoldedChipFocus);
 
         tags.Styles.Add(new Style(selector => selector.OfType<Button>().Class(WorkspaceChips.SourceButton).Class(":pointerover")
             .Descendant().OfType<ChipOutline>())
@@ -53,7 +53,20 @@ internal sealed partial class BooruWorkbenchView
         });
         return tags;
 
-        (Control Item, Button Chip) CreateItem(int index)
+        void FocusCard()
+        {
+            if (result.IsCurrent() && card.IsAttachedToVisualTree() && card.IsEffectivelyVisible)
+                card.Focus(NavigationMethod.Tab);
+        }
+
+        void RestoreFoldedChipFocus(Button chip)
+        {
+            if (chip.Focusable || TopLevel.GetTopLevel(card)?.FocusManager is not { } manager) return;
+            if (manager.GetFocusedElement() is not { } focused || ReferenceEquals(focused, chip))
+                FocusCard();
+        }
+
+        (Control Item, Button Chip, ContextMenuHost Menu) CreateItem(int index)
         {
             BooruTag tag = ordered[index];
             string label = BooruText.TagCategory(tag.Category);
@@ -64,25 +77,24 @@ internal sealed partial class BooruWorkbenchView
                 Content = outline, Cursor = new Cursor(StandardCursorType.Hand),
                 Classes = { WorkspaceChips.SourceButton }, MaxWidth = 240
             };
-            string hint = Texts.T("booru.ui.tags.clickHint");
+            AutomationProperties.SetAutomationId(chip, chip.Name);
+            string hint = Texts.T("booru.ui.tags.clickHint", PlatformKeyNames.Alt());
             AutomationProperties.SetHelpText(chip, hint);
             ToolTip.AddToolTipOpeningHandler(chip, (_, _) => ToolTip.SetTip(chip,
                 Texts.T("media.breakdown.summary", label, tag.Name) + Environment.NewLine + hint));
             chip.Click += (_, _) =>
             {
-                if (result.IsCurrent())
+                if (chip.Focusable && result.IsCurrent())
                     EditTagDraft(tag.Name, chip.ExcludeOnClick ? BooruTagDraftAction.Exclude : BooruTagDraftAction.Include,
                         CaptureResultLink(result.Target));
             };
             _resultTagChips.Add((chip, outline, tag, label));
-            _resultTagMenus.Add(new ContextMenuHost(chip, () => ComposeTagMenu(tag.Name, result.Target), () =>
-            {
-                if (chip.IsTabStop) chip.Focus(NavigationMethod.Tab);
-                else card.Focus(NavigationMethod.Tab);
-            }));
+            ContextMenuHost menu = new(chip,
+                () => chip.Focusable ? ComposeTagMenu(tag.Name, result.Target) : null, FocusCard);
+            _resultTagMenus.Add(menu);
             QueueListTagDraftRefresh();
 
-            if (index > 0 && ordered[index - 1].Category == tag.Category) return (chip, chip);
+            if (index > 0 && ordered[index - 1].Category == tag.Category) return (chip, chip, menu);
             TextBlock category = new()
             {
                 Text = label + ":", VerticalAlignment = VerticalAlignment.Center, Classes = { "workspace-meta" },
@@ -95,7 +107,7 @@ internal sealed partial class BooruWorkbenchView
             Grid group = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 4 };
             Grid.SetColumn(chip, 1);
             group.Children.AddRange([category, chip]);
-            return (group, chip);
+            return (group, chip, menu);
         }
     }
 
@@ -119,7 +131,6 @@ internal sealed class BooruListTagFlow : Panel
     private const double Gap = 4;
     private const double CategoryGap = 12;
     private const double ChipRowHeight = 20;
-    private const int MaximumHiddenTagsNamed = 60;
 
     private static readonly BooruTagCategory[] FoldOrder =
     [
@@ -136,11 +147,12 @@ internal sealed class BooruListTagFlow : Panel
     private readonly Group[] _groups;
     private readonly int _minimumHidden;
     private readonly int _lineLimit;
-    private readonly Func<int, (Control Item, Button Chip)> _createItem;
+    private readonly int _hiddenTagTooltipLimit;
+    private readonly Func<int, (Control Item, Button Chip, ContextMenuHost Menu)> _createItem;
     private readonly Func<bool, bool> _setExpanded;
-    private readonly Action _restoreFocus;
+    private readonly Action<Button> _restoreFocus;
     private readonly List<int> _realizedOrder = [];
-    private readonly Dictionary<int, (Control Item, Button Chip)> _realized = new();
+    private readonly Dictionary<int, (Control Item, Button Chip, ContextMenuHost Menu)> _realized = new();
     private readonly Dictionary<int, Rect> _slots = new();
     private readonly Button _toggle;
     private readonly TextBlock? _empty;
@@ -149,15 +161,17 @@ internal sealed class BooruListTagFlow : Panel
     private bool _showToggle;
     private double _heightBudget;
 
-    internal BooruListTagFlow(string postId, BooruTag[] tags, int limit, int lineLimit, bool expanded,
-        Func<int, (Control Item, Button Chip)> createItem, Func<bool, bool> setExpanded, Action restoreFocus)
+    internal BooruListTagFlow(string postId, BooruTag[] tags, int limit, int lineLimit, int hiddenTagTooltipLimit, bool expanded,
+        Func<int, (Control Item, Button Chip, ContextMenuHost Menu)> createItem, Func<bool, bool> setExpanded, Action<Button> restoreFocus)
     {
         Name = "BooruListTags:" + postId;
+        AutomationProperties.SetAutomationId(this, Name);
         AutomationProperties.SetName(this, Texts.T("booru.ui.tags.label"));
         AutomationProperties.SetControlTypeOverride(this, Avalonia.Automation.Peers.AutomationControlType.Group);
         _tags = tags;
         _minimumHidden = Math.Max(0, tags.Length - limit);
         _lineLimit = lineLimit;
+        _hiddenTagTooltipLimit = hiddenTagTooltipLimit;
         _createItem = createItem;
         _setExpanded = setExpanded;
         _restoreFocus = restoreFocus;
@@ -169,6 +183,7 @@ internal sealed class BooruListTagFlow : Panel
             Focusable = false, IsTabStop = false, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0),
             HorizontalAlignment = HorizontalAlignment.Left
         };
+        AutomationProperties.SetAutomationId(_toggle, _toggle.Name);
         if (tags.Length == 0)
         {
             _empty = new TextBlock { Text = Texts.T("booru.ui.tags.none"), Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
@@ -348,15 +363,16 @@ internal sealed class BooruListTagFlow : Panel
             return finalSize;
         }
 
-        bool focusedChipFolded = false;
-        foreach (var (index, (item, chip)) in _realized)
+        foreach (var (index, (item, chip, menu)) in _realized)
         {
             bool show = _slots.TryGetValue(index, out Rect slot);
-            focusedChipFolded |= !show && chip.IsFocused;
+            bool lostFocus = !show && chip.Focusable && chip.IsFocused;
             SetDisplayed(item, chip, show, slot);
+            if (show) continue;
+            menu.Close();
+            if (lostFocus) Dispatcher.UIThread.Post(() => _restoreFocus(chip), DispatcherPriority.Loaded);
         }
         SetDisplayed(_toggle, _toggle, _showToggle, _slots.GetValueOrDefault(_tags.Length));
-        if (focusedChipFolded) Dispatcher.UIThread.Post(_restoreFocus, DispatcherPriority.Loaded);
         return finalSize;
     }
 
@@ -365,7 +381,9 @@ internal sealed class BooruListTagFlow : Panel
         // A folded chip can be measured again when the window or font changes.
         item.Opacity = visible ? 1 : 0;
         item.IsHitTestVisible = visible;
-        button.IsTabStop = visible && button != _toggle;
+        bool focusable = visible && button != _toggle;
+        button.Focusable = focusable;
+        button.IsTabStop = focusable;
         AutomationProperties.SetAccessibilityView(button, visible ? AccessibilityView.Content : AccessibilityView.Raw);
         item.Arrange(slot);
     }
@@ -384,8 +402,8 @@ internal sealed class BooruListTagFlow : Panel
             {
                 int count = group.Hidden(hidden);
                 return _tags.Skip(group.Start + group.Count - count).Take(count);
-            }).Take(MaximumHiddenTagsNamed).Select(tag => tag.Name);
-            tip = Texts.T("booru.ui.tags.showAll", string.Join(", ", names) + (hidden > MaximumHiddenTagsNamed ? "…" : string.Empty));
+            }).Take(_hiddenTagTooltipLimit).Select(tag => tag.Name);
+            tip = Texts.T("booru.ui.tags.showAll", string.Join(", ", names) + (hidden > _hiddenTagTooltipLimit ? "…" : string.Empty));
         }
         ToolTip.SetTip(_toggle, tip);
         AutomationProperties.SetHelpText(_toggle, tip);
