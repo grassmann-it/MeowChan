@@ -255,9 +255,10 @@ internal sealed partial class ReaderMediaSidebar
         GotFocus += (_, _) => RevealBars();
         AttachedToVisualTree += (_, _) => RevealBars();
         DetachedFromVisualTree += (_, _) => _pressedPointers.Clear();
-        IsEffectivelyVisibleChanged += (_, _) =>
+        PropertyChanged += (_, change) =>
         {
-            if (IsEffectivelyVisible) RevealBars();
+            if (change.Property != IsVisibleProperty) return;
+            if (IsVisible) RevealBars();
             else
             {
                 _hideOverlay.Stop();
