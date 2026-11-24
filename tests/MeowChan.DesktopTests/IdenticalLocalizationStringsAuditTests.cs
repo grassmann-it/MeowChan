@@ -28,7 +28,7 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
     // Spanish and Brazilian Portuguese use "bytes" with the same punctuation.
     private static readonly string[] SharedHintFormat = ["cs", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru"];
 
-    private static string[] AllowedMediaFacts(string code)
+    internal static string[] AllowedMediaFacts(string code)
     {
         List<string> keys = [];
         if (SharedHintFormat.Contains(code, StringComparer.Ordinal)) keys.Add("media.fact.sizeHint");
