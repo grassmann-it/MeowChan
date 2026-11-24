@@ -250,7 +250,11 @@ internal static class ReaderViewChecks
         Program.CaptureWindow(fixture.Window, "smoke-reader-10000-last.png");
         ArchivePostRow tail = (ArchivePostRow)list.SelectedItem!;
         await page.SetRepliesExpandedAsync(tail, true);
-        Require(tail.Replies is [{ Quote.Origin.PostId: "10498" }], "The distant reply did not open after capture and refresh failures.");
+        // The arriving count may already have started the automatic first page. The toggle does not await a load that is on its way.
+        await Program.WaitUntilAsync(() => tail is { RepliesLoaded: true, RepliesLoading: false },
+            () => $"Tail replies loaded {tail.RepliesLoaded}, loading {tail.RepliesLoading}, expanded {tail.RepliesExpanded}, error {tail.RepliesError}.");
+        Require(tail.Replies is [{ Quote.Origin.PostId: "10498" }], "The distant reply did not open after capture and refresh failures. "
+            + $"Expanded {tail.RepliesExpanded}, automatic {tail.RepliesAutoExpanded}, replies {tail.Replies.Count}, error {tail.RepliesError}.");
         await page.SetRepliesExpandedAsync(tail, false);
         Console.WriteLine("SMOKE capture and refresh failures left the distant reply count and reply card usable.");
 
@@ -350,6 +354,12 @@ internal static class ReaderViewChecks
         ListBox list = fixture.List;
         await ToggleAsync(fixture, "reader.view.media-only");
         page.InlineReplyPageSize = ReaderDisplayLimits.ReplyStepMinimum;
+        // Continue reading is a jump that renders the thread anew, so the place is taken before the reply pages are loaded.
+        LocalReadingPosition place = new("4chan", "g", ThreadId, anchor, -16, selection);
+        await page.ResumeReadingPositionAsync(place);
+        await Program.WaitUntilAsync(() => !page.IsProjectionPending && Selected(fixture) == selection
+            && page.CurrentReaderAnchor is { } position && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2,
+            () => $"Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.");
         ArchivePostRow Parent() => (ArchivePostRow)list.Items[page.Projection!.PositionOf(anchor)]!;
         ArchivePostRow parent = Parent();
         await page.SetRepliesExpandedAsync(parent, true);
@@ -365,11 +375,9 @@ internal static class ReaderViewChecks
         page.ReaderExpandRepliesPreference = true;
         ArchiveQuoteRow jump = new(new ArchiveQuote(new ArchivePostId(fixture.Id, anchor),
             new ArchivePostId(replacement, selection), ">>" + selection, null));
-        LocalReadingPosition place = new("4chan", "g", ThreadId, anchor, -16, selection);
         foreach (bool expanded in new[] { true, false })
         {
             await page.SetRepliesExpandedAsync(Parent(), expanded);
-            await page.ResumeReadingPositionAsync(place);
             await page.NavigateQuoteAsync(jump);
             Require(page.CurrentThread?.Summary.Id == replacement && page.CanGoHistoryBack, "The quote did not reach the other thread.");
             page.GoHistoryBackByShortcut();
@@ -378,7 +386,9 @@ internal static class ReaderViewChecks
                 && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2);
             ArchivePostRow returned = Parent();
             Require(returned.RepliesExpanded == expanded && returned.Replies.SequenceEqual(loaded) && returned.RepliesOffset == 1,
-                "Back lost loaded reply pages or changed their expanded state.");
+                $"Back lost loaded reply pages or changed their expanded state. Wanted expanded {expanded}; row expanded {returned.RepliesExpanded}, "
+                + $"automatic {returned.RepliesAutoExpanded}, loaded {returned.RepliesLoaded}, loading {returned.RepliesLoading}, count {returned.BacklinkCount}, "
+                + $"offset {returned.RepliesOffset}, replies {string.Join(",", returned.Replies.Select(reply => reply.Quote.Origin.PostId))}, error {returned.RepliesError}.");
         }
 
         Action galleryReturn = page.CaptureGalleryOrigin();
