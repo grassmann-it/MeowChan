@@ -411,12 +411,11 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
-    internal bool CanRequestCheck(DiagnosticTarget target)
-    {
-        DesktopSessionProjection frame = Projection;
-        return frame.View.State == DesktopSessionState.Ready && !frame.IsPaused
-            && !frame.IsStale && frame.CheckableTargets.Contains(target);
-    }
+    internal bool CanRequestCheck(DiagnosticTarget target) => CanRequestCheck(Projection, target);
+
+    internal static bool CanRequestCheck(DesktopSessionProjection frame, DiagnosticTarget target) =>
+        frame.View.State == DesktopSessionState.Ready && !frame.IsPaused
+        && !frame.IsStale && frame.CheckableTargets.Contains(target);
 
     internal Task<CheckRequestStatus> RequestCheckAsync(DiagnosticTarget target)
         => RunInteractiveAsync(nameof(RequestCheckAsync), target.ToString(), () => RequestCheckAdmittedCoreAsync(target));
@@ -448,9 +447,13 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         DesktopSessionProjection frame = Projection;
         return frame.View.State == DesktopSessionState.Ready && !frame.IsStale
-            && frame.View.Threads.FirstOrDefault(entry => entry.WatchId == watchId)?.Snapshot.Work
-                is ThreadWorkSnapshot work && WorkStatusFormatter.Format(work).CanRetry;
+            && HasRetriableMedia(frame.View.Threads.FirstOrDefault(entry => entry.WatchId == watchId)?.Snapshot.Work);
     }
+
+    internal static bool HasRetriableMedia(ThreadWorkSnapshot? work, string? mediaIdentifier = null) =>
+        work != null && work.Intent != WorkIntent.Suppressed && work.Media.Any(media =>
+            (mediaIdentifier == null || media.MediaIdentifier == mediaIdentifier) && !media.ManualAttempt
+            && media.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded));
 
     internal Task<int> RetryMissingMediaAsync(long watchId, string? mediaIdentifier = null)
         => RunInteractiveWithAdmissionAsync(nameof(RetryMissingMediaAsync), watchId.ToString(), admission => RetryMissingMediaAdmittedCoreAsync(watchId, mediaIdentifier, admission));
@@ -466,9 +469,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             if (thread == null || Projection.IsStale || thread.Board.ImageBoard is PluginSourceImageBoard { Enabled: false }) return 0;
             // Recheck live work after command admission, never trust a visible row predicate.
             ThreadWorkSnapshot? work = _registry.GetWorkSnapshots().FirstOrDefault(item => item.Url == thread.Url);
-            if (work == null || work.Intent == WorkIntent.Suppressed || !work.Media.Any(media =>
-                (mediaIdentifier == null || media.MediaIdentifier == mediaIdentifier) && !media.ManualAttempt
-                && media.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded))) return 0;
+            if (!HasRetriableMedia(work, mediaIdentifier)) return 0;
             // Registry/queue retain lifetime, cooldown, cleanup fences and final manual-attempt authority.
             // A manual retry may record intent while globally paused; it never unpauses transfer.
             return _registry.RetryMissingMediaAdmitted(thread, mediaIdentifier, admission);

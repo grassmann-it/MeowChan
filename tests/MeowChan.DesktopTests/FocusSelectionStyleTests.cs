@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
@@ -124,17 +126,42 @@ public sealed class FocusSelectionStyleTests
         Assert.Null(ToolTip.GetTip(check));
     }
 
-    [Fact]
-    public void BothTilesUseTheSharedCheckAndSubscribeToTheirListItem()
+    [Theory]
+    [InlineData(true, "ArchiveMediaSelected")]
+    [InlineData(false, "MediaTileSelected")]
+    public void TheTileCheckFollowsTheCurrentContainerAfterReattachment(bool archive, string checkName) => BooruComponentDispatcher.Run(() =>
     {
-        string archive = File.ReadAllText(Root("Desktop/ArchiveMediaTileView.cs"));
-        Assert.Contains("WorkspaceChips.CreateSelectionCheck(\"ArchiveMediaSelected\")", archive);
-        Assert.Contains("WorkspaceChips.ObserveSelection(this, _selectedMark)", archive);
-        string library = File.ReadAllText(Root("Desktop/MediaLibraryTileView.cs"));
-        Assert.Contains("WorkspaceChips.CreateSelectionCheck(\"MediaTileSelected\")", library);
-        Assert.Contains("WorkspaceChips.ObserveSelection(this, _selectedMark)", library);
-        Assert.DoesNotContain("✓", library);
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Control tile = archive ? new ArchiveMediaTileView() : new MediaLibraryTileView();
+        ListBoxItem first = new() { Content = tile, IsSelected = true };
+        ListBoxItem second = new();
+        Window window = new() { Width = 500, Height = 500, Content = new StackPanel { Children = { first, second } } };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            MediaTileView frame = Assert.Single(tile.GetVisualDescendants().OfType<MediaTileView>());
+            Border check = Assert.Single(frame.GetVisualDescendants().OfType<Border>(), border => border.Name == checkName);
+            Assert.True(check.IsVisible);
+            first.IsSelected = false;
+            Assert.False(check.IsVisible);
+            first.IsSelected = true;
+            Assert.True(check.IsVisible);
+
+            first.Content = null;
+            window.UpdateLayout();
+            Assert.False(check.IsVisible);
+            second.Content = tile;
+            window.UpdateLayout();
+            Assert.Same(frame, Assert.Single(tile.GetVisualDescendants().OfType<MediaTileView>()));
+            first.IsSelected = false;
+            first.IsSelected = true;
+            Assert.False(check.IsVisible);
+            second.IsSelected = true;
+            Assert.True(check.IsVisible);
+        }
+        finally { window.Close(); }
+    });
 
     private static double Contrast(string theme, string foreground, string background)
     {

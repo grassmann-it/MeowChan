@@ -226,7 +226,9 @@ public sealed class BooruTileGridTests
         Assert.Empty(savedSizes);
 
         await BooruTestSupport.SearchAsync(model.Search, "cat");
-        await BooruTestSupport.WaitAsync(() => view.TilePanel?.Children.Count == 3, "the tiles");
+        await BooruTestSupport.WaitAsync(() => view.TilePanel is { Children.Count: 3 } tilePanel
+            && tilePanel.Children.OfType<Border>().Any(tile => tile.Name == "BooruResult:101" && Local(tile).IsVisible),
+            "three result tiles and the local mark for post 101");
         BooruTilePanel panel = view.TilePanel!;
         Assert.Equal(150, panel.ColumnWidth);
         Assert.Equal(AutomationControlType.List, AutomationProperties.GetControlTypeOverride(panel));
