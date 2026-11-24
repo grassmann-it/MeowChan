@@ -22,61 +22,12 @@ using MeowChan.Storage;
 
 namespace MeowChan.Desktop.Booru;
 
-internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
-{
-    private readonly BooruResultViewer _content;
-    internal (Size Size, PixelPoint Position)? NormalBounds { get; private set; }
-    internal string CurrentPostId => _content.CurrentPostId;
-    internal Task Cleanup => _content.Cleanup;
-
-    internal BooruResultViewerWindow(BooruSearchModel search, string postId, HashSet<string> selected, Action selectionChanged,
-        BooruPreviewDecoder? decoder = null, Action<string>? openPost = null, Func<BooruGallerySampleLimits>? sampleSettings = null,
-        Func<string, ContextMenuBuilder?>? composeMenu = null)
-    {
-        Name = "BooruResultViewer";
-        DialogWindow.Configure(this, DialogSize.XL, modal: false);
-        _content = new(search, postId, selected, selectionChanged, Close, decoder, openPost, sampleSettings,
-            composeMenu, title => Title = title);
-        DialogWindow.Frame(this, _content, modal: false);
-        PositionChanged += (_, _) => CaptureNormalBounds();
-        Resized += (_, _) => CaptureNormalBounds();
-        Closing += (_, _) => CaptureNormalBounds();
-        Opened += (_, _) => _content.FocusStage();
-        Closed += (_, _) => OpenActions.Start(() => DisposeAsync().AsTask(), "booru.viewer.dispose");
-    }
-
-    public ValueTask DisposeAsync() => _content.DisposeAsync();
-
-    internal static GalleryEntry CreatePreviewEntry(BooruResultRowView row) => BooruResultViewer.CreatePreviewEntry(row);
-
-    internal void RestoreNormalBounds(Window owner, (Size Size, PixelPoint Position) bounds)
-    {
-        var screen = owner.Screens.ScreenFromPoint(bounds.Position) ?? owner.Screens.ScreenFromWindow(owner);
-        if (screen is null) return;
-        WindowStartupFit fit = DialogFit.Compute(bounds.Size, null, new Size(MinWidth, MinHeight),
-            screen.WorkingArea, screen.Scaling, bounds.Position);
-        WindowStartupLocation = WindowStartupLocation.Manual;
-        MinWidth = fit.Minimum.Width;
-        MinHeight = fit.Minimum.Height;
-        Width = fit.Client.Width;
-        Height = fit.Client.Height;
-        Position = fit.Position;
-    }
-
-    private void CaptureNormalBounds()
-    {
-        if (IsVisible && WindowState == WindowState.Normal && ClientSize.Width > 0 && ClientSize.Height > 0)
-            NormalBounds = (ClientSize, Position);
-    }
-
-}
-
 /// <summary>
 /// A Booru-only composition of the existing gallery image surface. It starts with the preview
 /// already fetched by Search and loads a bounded sample for the active post.
 /// The synthetic entries below are display identities, never published assets or library entries.
 /// </summary>
-internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
+internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 {
     private readonly BooruSearchModel _search;
     private readonly string[] _ids;
@@ -94,19 +45,14 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
     private BooruPreviewState? _shownPreview;
     private string? _shownId;
     private bool _ended;
-    private readonly Action _close;
-    private readonly Action<string>? _titleChanged;
-    private readonly ContextMenuHost? _contextHost;
-    private readonly BooruResultRevision _revision;
 
+    internal (Size Size, PixelPoint Position)? NormalBounds { get; private set; }
     internal string CurrentPostId => _ids[_index];
     internal Task Cleanup { get; private set; } = Task.CompletedTask;
     private BooruResultRowView? Row => _search.View.Rows.FirstOrDefault(row => row.Post.PostId == CurrentPostId);
 
-    internal BooruResultViewer(BooruSearchModel search, string postId, HashSet<string> selected, Action selectionChanged,
-        Action close, BooruPreviewDecoder? decoder = null, Action<string>? openPost = null,
-        Func<BooruGallerySampleLimits>? sampleSettings = null, Func<string, ContextMenuBuilder?>? composeMenu = null,
-        Action<string>? titleChanged = null)
+    internal BooruResultViewerWindow(BooruSearchModel search, string postId, HashSet<string> selected, Action selectionChanged,
+        BooruPreviewDecoder? decoder = null, Action<string>? openPost = null, Func<BooruGallerySampleLimits>? sampleSettings = null)
     {
         _search = search;
         _sampleSettings = sampleSettings;
@@ -115,11 +61,8 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
         if (_index < 0) throw new ArgumentException("The post is not in this result page.", nameof(postId));
         _selected = selected;
         _selectionChanged = selectionChanged;
-        _close = close;
-        _titleChanged = titleChanged;
-        _revision = search.View.ResultRevision;
-        Name = "BooruResultGallery";
-        KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
+        Name = "BooruResultViewer";
+        DialogWindow.Configure(this, DialogSize.XL, modal: false);
         _viewer.Configure(false, false, false, true, 0);
         decoder ??= new BooruPreviewDecoder();
         _viewer.DecodeImageAsync = (entry, request, token) =>
@@ -135,15 +78,8 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
         // A higher-priority presentation value keeps the gallery's own layout refresh from exposing
         // local-file actions on an unsaved provider preview. No controls are detached or reparented.
         _viewer.TemplateApplied += (_, _) => SuppressGalleryChrome();
-        if (composeMenu != null)
-            _contextHost = new ContextMenuHost(_viewer, () => composeMenu(CurrentPostId), FocusStage);
-        _viewer.AddHandler(ContextRequestedEvent, (sender, e) =>
-        {
-            if (e.Handled || ItemActivation.IsOwnedByInteractivePart(e.Source, _viewer)) return;
-            _contextHost?.Show(e.TryGetPosition(_viewer, out _));
-            e.Handled = true;
-        }, RoutingStrategies.Tunnel);
-        _viewer.CloseRequested += close;
+        _viewer.AddHandler(ContextRequestedEvent, (_, e) => e.Handled = true, RoutingStrategies.Tunnel);
+        _viewer.CloseRequested += Close;
         _viewer.MoveRequested += Move;
 
         _toolbar.Move = Move;
@@ -154,7 +90,7 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
         {
             if (Row is { } row && BooruPostLinks.TryCanonical(row.Post, out string url)) openPost?.Invoke(url);
         };
-        _toolbar.Close = close;
+        _toolbar.Close = Close;
 
         Grid stage = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Children = { _viewer, _tags } };
         Grid.SetColumn(_tags, 1);
@@ -165,24 +101,25 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
         };
         Grid.SetRow(stage, 1);
         Grid.SetRow(_caption, 2);
-        Border frame = new() { Child = root };
-        frame[!Border.BackgroundProperty] = new DynamicResourceExtension(BooruGalleryPanel.StageBackground);
-        Content = frame;
+        DialogWindow.Frame(this, root, modal: false);
         AutomationProperties.SetLiveSetting(_caption, AutomationLiveSetting.Polite);
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
-        AttachedToVisualTree += (_, _) =>
+        PositionChanged += (_, _) => CaptureNormalBounds();
+        Resized += (_, _) => CaptureNormalBounds();
+        Closing += (_, _) => CaptureNormalBounds();
+        Opened += (_, _) =>
         {
             _viewer.ApplyTemplate();
             SuppressGalleryChrome();
+            CaptureNormalBounds();
             Refresh();
-            FocusStage();
+            _viewer.Focus();
         };
         _search.Changed += OnChanged;
         Texts.Changed += OnLanguageChanged;
         ShortcutService.Changed += OnChanged;
+        Closed += (_, _) => OpenActions.Start(() => DisposeAsync().AsTask(), "booru.viewer.dispose");
     }
-
-    internal void FocusStage() => _viewer.Focus();
 
     public ValueTask DisposeAsync()
     {
@@ -190,7 +127,6 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
         {
             _ended = true;
             _sample.Pause();
-            _contextHost?.Dispose();
             _search.Changed -= OnChanged;
             Texts.Changed -= OnLanguageChanged;
             ShortcutService.Changed -= OnChanged;
@@ -216,12 +152,31 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
     private void OnChanged() => Dispatcher.UIThread.Post(() => { if (!_ended) Refresh(); });
     private void OnLanguageChanged(object? sender, EventArgs e) => OnChanged();
 
+    internal void RestoreNormalBounds(Window owner, (Size Size, PixelPoint Position) bounds)
+    {
+        var screen = owner.Screens.ScreenFromPoint(bounds.Position) ?? owner.Screens.ScreenFromWindow(owner);
+        if (screen is null) return;
+        WindowStartupFit fit = DialogFit.Compute(bounds.Size, null, new Size(MinWidth, MinHeight),
+            screen.WorkingArea, screen.Scaling, bounds.Position);
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        MinWidth = fit.Minimum.Width;
+        MinHeight = fit.Minimum.Height;
+        Width = fit.Client.Width;
+        Height = fit.Client.Height;
+        Position = fit.Position;
+    }
+
+    private void CaptureNormalBounds()
+    {
+        if (IsVisible && WindowState == WindowState.Normal && ClientSize.Width > 0 && ClientSize.Height > 0)
+            NormalBounds = (ClientSize, Position);
+    }
+
     private void Move(int delta) => MoveTo(Math.Clamp(_index + delta, 0, _ids.Length - 1));
 
     private void MoveTo(int index)
     {
         if (_index == index) return;
-        _contextHost?.Close();
         _index = index;
         Refresh();
     }
@@ -246,13 +201,6 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || BooruGalleryToolbar.ChildOwnsKeys(e)) return;
-        if (_contextHost != null && ContextClick.IsKey(e))
-        {
-            _contextHost.Show();
-            ContextClick.ConsumeOpeningKeyRelease(_contextHost.OpenMenu, e.Key, this);
-            e.Handled = true;
-            return;
-        }
         _toolbar.RouteKey(e, _viewer);
         if (e.Handled || e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter) return;
         using var context = EffectiveShortcutBindings.EnterKeyContext("gallery");
@@ -265,9 +213,9 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
 
     private void Refresh()
     {
-        if (_search.View.ResultRevision != _revision || Row is not { } row)
-        { _close(); return; }
-        _titleChanged?.Invoke(Texts.T("booru.ui.post.title", CurrentPostId));
+        if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.PostId)) || Row is not { } row)
+        { Close(); return; }
+        Title = Texts.T("booru.ui.post.title", CurrentPostId);
         _toolbar.Present(row, _index, _ids.Length, _selected.Contains(CurrentPostId));
         _tags.Present(row.Post);
         if (!_toolbar.Previous.IsEnabled && _toolbar.Previous.IsFocused || !_toolbar.Next.IsEnabled && _toolbar.Next.IsFocused)

@@ -7,7 +7,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -138,51 +137,50 @@ public sealed class BooruHitKeyboardTests
     });
 
     [Fact]
-    public void EnterAndDoubleClickOpenTheGalleryForSavedAndRemoteHits() => BooruComponentDispatcher.Run(() =>
+    public void EnterOnALocallySavedHitShowsItInMediaAndEnterWithoutACopyLoadsNothing() => OnDispatcher(async () =>
     {
-        using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
-        using (model)
-        using (view)
+        using (model) using (view)
         {
             harness.Queue.States["101"] = BooruLocalState.Loaded;
             List<string> shown = new();
             view.ShowInMedia = id => { shown.Add(id); return Task.FromResult(true); };
-            Window window = new() { Width = 1100, Height = 850, Content = view };
-            try
-            {
-                window.Show();
-                BooruComponentDispatcher.Wait(SearchAsync(harness, model, view));
-                ContextGestures.Settle(window);
-                ContextGestures.KeyStroke(Cards(view)[0], Key.Enter, PhysicalKey.Enter);
-                AssertGallery("101");
-                CloseGallery();
-                ContextGestures.KeyStroke(Cards(view)[1], Key.Enter, PhysicalKey.Enter);
-                AssertGallery("102");
-                CloseGallery();
+            List<Border> cards = await SearchAsync(harness, model, view);
 
-                ContextGestures.DoubleClick(Cards(view)[1], new Point(12, 12));
-                AssertGallery("102");
-                CloseGallery();
-                Assert.Empty(harness.Queue.Loads);
-                Assert.Equal(0, harness.ProviderRequests - harness.Search.Requests);
-                Assert.Empty(shown);
-            }
-            finally { window.Close(); }
+            TextBlock savedTitle = cards[0].GetLogicalDescendants().OfType<TextBlock>().First();
+            KeyEventArgs enter = Press(Avalonia.Input.Key.Enter, savedTitle);
+            Raise(savedTitle, enter);
+            Assert.True(enter.Handled);
+            await BooruTestSupport.WaitAsync(() => shown.Count == 1, "the Show in Media action");
+            Assert.Equal("101", shown[0]);
 
-            void AssertGallery(string postId)
-            {
-                BooruResultViewer gallery = Assert.Single(window.GetVisualDescendants().OfType<BooruResultViewer>());
-                Assert.Same(window, TopLevel.GetTopLevel(gallery));
-                Assert.Equal(postId, gallery.CurrentPostId);
-            }
+            // No local copy: Enter and a double click open the inline gallery on the hit (F13a), in particular no download (decision 95).
+            TextBlock title = cards[1].GetLogicalDescendants().OfType<TextBlock>().First();
+            KeyEventArgs without = Press(Avalonia.Input.Key.Enter, title);
+            Raise(title, without);
+            Assert.True(without.Handled);
+            Assert.Equal(BooruResultView.Gallery, view.ResultView);
+            Assert.Equal("102", view.Gallery.CurrentPostId);
+            view.SetResultView(BooruResultView.List, save: false);
+            TappedEventArgs doubleTap = DoubleTap(cards[1], cards[1]);
+            Raise(cards[1], doubleTap);
+            Assert.True(doubleTap.Handled);
+            Assert.Equal(BooruResultView.Gallery, view.ResultView);
+            view.SetResultView(BooruResultView.List, save: false);
+            await Task.Delay(20);
+            Assert.Empty(harness.Queue.Loads);
+            Assert.Equal(0, harness.ProviderRequests - harness.Search.Requests);
+            Assert.Single(shown);
 
-            void CloseGallery()
-            {
-                Control focus = Assert.IsAssignableFrom<Control>(window.FocusManager?.GetFocusedElement());
-                ContextGestures.KeyStroke(focus, Key.Escape, PhysicalKey.Escape);
-                Assert.Empty(window.GetVisualDescendants().OfType<BooruResultViewer>());
-            }
+            // A double click on the saved hit is the same action; on its button it is not.
+            Button showButton = Button(cards[0], BooruWorkbenchView.ShowInMediaPrefix + "101");
+            TappedEventArgs onShow = DoubleTap(cards[0], showButton);
+            Raise(showButton, onShow);
+            Assert.False(onShow.Handled);
+            TappedEventArgs onCard = DoubleTap(cards[0], cards[0]);
+            Raise(cards[0], onCard);
+            Assert.True(onCard.Handled);
+            await BooruTestSupport.WaitAsync(() => shown.Count == 2, "the double click action");
         }
     });
 

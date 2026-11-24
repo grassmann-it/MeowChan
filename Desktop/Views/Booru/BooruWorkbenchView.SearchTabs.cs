@@ -88,7 +88,6 @@ internal sealed partial class BooruWorkbenchView
         };
         _tabs.SizeChanged += (_, e) => { if (e.WidthChanged) QueueActiveTabReveal(); };
         _watcherHeader = MakeClosableHeader(_watchersTab, CloseWatchers, CloseWatchersName);
-        InstallSearchTabMenu(_searchTab, BooruSearchTabs.PrimaryId);
         _tabItems = new List<TabItem> { _searchTab };
         _searchTabs.Changed += SyncSearchTabs;
         _tabs.SelectionChanged += OnTabsSelectionChanged;
@@ -235,15 +234,13 @@ internal sealed partial class BooruWorkbenchView
         return true;
     }
 
-    private bool OpenSearchTab(bool copyCurrent, int? sourceTab = null)
+    private bool OpenSearchTab(bool copyCurrent)
     {
         if (_closed || _searchTabs is not { } tabs) return false;
-        string? copiedCursor = !copyCurrent ? null
-            : sourceTab is { } source && source != tabs.ActiveId ? _tabResults.GetValueOrDefault(source)?.Cursor
-            : _hostedGallery?.CurrentPostId ?? _resultViewer?.CurrentPostId ?? _cursorPostId;
+        string? copiedCursor = copyCurrent ? _resultViewer?.CurrentPostId ?? _cursorPostId : null;
         int id;
         _selectNewTab = true;
-        try { id = tabs.Add(copyCurrent, sourceTab); }
+        try { id = tabs.Add(copyCurrent); }
         finally { _selectNewTab = false; }
         if (id < 0)
         {
@@ -302,7 +299,6 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_syncingTabs || _closed || e.Source != _tabs) return;
         if (_tabs.SelectedItem is not TabItem item) return;
-        CloseHostedGallery(restoreFocus: false);
         _resultMiddleClick.Cancel();
         _more.ContextMenu?.Close();
         ClearTabLimitNotice();
@@ -328,7 +324,6 @@ internal sealed partial class BooruWorkbenchView
         if (_closed || _searchTabs is not { } tabs || _tabItems is not { } items) return;
         if (_renderedSearchTab != tabs.ActiveId)
         {
-            CloseHostedGallery(restoreFocus: false);
             _tabResults[_renderedSearchTab] = new TabResults(_resultViewer?.CurrentPostId ?? _cursorPostId, _selectedResults);
             _renderedSearchTab = tabs.ActiveId;
             DismissResultViewer();
@@ -341,16 +336,6 @@ internal sealed partial class BooruWorkbenchView
         _syncingTabs = true;
         try
         {
-            if (tabs.Ids.Contains(BooruSearchTabs.PrimaryId))
-            {
-                if (!items.Contains(_searchTab)) items.Insert(0, _searchTab);
-            }
-            else
-            {
-                if (ReferenceEquals(_searchTab.Content, _searchContent)) _searchTab.Content = null;
-                items.Remove(_searchTab);
-                _tabResults.Remove(BooruSearchTabs.PrimaryId);
-            }
             HashSet<int> wanted = tabs.Ids.Where(id => id != BooruSearchTabs.PrimaryId).ToHashSet();
             foreach (int id in _tabResults.Keys.Where(id => id != BooruSearchTabs.PrimaryId && !wanted.Contains(id)).ToArray())
                 _tabResults.Remove(id);
@@ -368,7 +353,6 @@ internal sealed partial class BooruWorkbenchView
                 if (_extraTabs.ContainsKey(id)) continue;
                 TabItem item = new() { Tag = id };
                 _extraTabs[id] = (item, MakeClosableHeader(item, () => CloseSearchTab(id)));
-                InstallSearchTabMenu(item, id);
                 items.Add(item);
             }
             object? previous = _tabs.SelectedItem;
@@ -383,35 +367,6 @@ internal sealed partial class BooruWorkbenchView
         QueueActiveTabReveal();
     }
 
-    private void InstallSearchTabMenu(TabItem item, int id)
-    {
-        item.AttachedToVisualTree += (_, _) => ContextMenuHost.Install(item, () => ComposeSearchTabMenu(id));
-    }
-
-    private ContextMenuBuilder? ComposeSearchTabMenu(int id)
-    {
-        if (_closed || !SearchTabs.Ids.Contains(id)) return null;
-        int[] otherTabs = SearchTabs.Ids.Where(tab => tab != id).ToArray();
-        int[] rightTabs = SearchTabs.Ids.SkipWhile(tab => tab != id).Skip(1).ToArray();
-        return new ContextMenuBuilder()
-            .Item("booru.tab.duplicate", Texts.T("booru.tabs.duplicate"), () => OpenSearchTab(copyCurrent: true, sourceTab: id),
-                availableWhen: () => SearchTabs.CanAdd && SearchTabs.Ids.Contains(id), icon: "copy")
-            .Item("booru.tab.close", Texts.T("booru.tabs.close"), () => CloseSearchTab(id),
-                availableWhen: () => SearchTabs.Ids.Count > 1 && SearchTabs.Ids.Contains(id), icon: "x")
-            .Item("booru.tab.close-others", Texts.T("booru.tabs.closeOthers"), () => CloseTabs(otherTabs),
-                availableWhen: () => otherTabs.Length > 0 && SearchTabs.Ids.Contains(id), icon: "x")
-            .Item("booru.tab.close-right", Texts.T("booru.tabs.closeRight"), () => CloseTabs(rightTabs),
-                availableWhen: () => rightTabs.Length > 0 && SearchTabs.Ids.Contains(id), icon: "x");
-
-        void CloseTabs(int[] ids)
-        {
-            if (!SearchTabs.Ids.Contains(id)) return;
-            foreach (int tab in ids.Reverse()) SearchTabs.Close(tab);
-            ClearTabLimitNotice();
-            if (IsSearchItem(_tabs.SelectedItem)) FocusSearchInput();
-        }
-    }
-
     private TabHeader MakeClosableHeader(TabItem item, Action closeTab, string? closeName = null)
     {
         item.Classes.Add("booru-tab");
@@ -422,19 +377,16 @@ internal sealed partial class BooruWorkbenchView
         StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { title, close } };
         item.Header = header;
         item.SizeChanged += (_, e) => { if (e.WidthChanged && item.IsSelected) QueueActiveTabReveal(); };
-        if (!IsSearchItem(item)) return new TabHeader(title, close);
         MiddleClickTracker middle = new();
         // A middle click on the tab closes it (press and release on the same tab); the close button keeps its own click.
         header.AddHandler(InputElement.PointerPressedEvent, (object? _, PointerPressedEventArgs e) =>
         {
             if (!MiddleClickTracker.IsPress(e, header)) { middle.Cancel(); return; }
-            middle.Pressed(ItemActivation.IsOwnedByInteractivePart(e.Source, header) ? null : header);
+            middle.Pressed(ReferenceEquals(e.Source, close) ? null : header);
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         header.AddHandler(InputElement.PointerReleasedEvent, (object? _, PointerReleasedEventArgs e) =>
         {
-            if (_closed || !MiddleClickTracker.IsRelease(e) || !middle.Released(MiddleClickTracker.HitAt(e, header) is { } hit
-                && !ItemActivation.IsOwnedByInteractivePart(hit, header) ? header : null)) return;
-            if (!close.IsEnabled) return;
+            if (_closed || !MiddleClickTracker.IsRelease(e) || !middle.Released(ReferenceEquals(e.Source, close) ? null : header)) return;
             e.Handled = true;
             closeTab();
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
@@ -473,11 +425,8 @@ internal sealed partial class BooruWorkbenchView
         RenderBottomStatus(view);
         RenderViewToggleLabels();
         foreach (var (id, tab) in _extraTabs)
-        {
             RenderTabHeader(tab.Item, tab.Header,
                 BooruSearchTabs.Title(tabs.ViewOf(id), Texts.T("booru.tabs.blank"), id => Texts.T("booru.tabs.post", id)));
-            tab.Header.Close.IsEnabled = tabs.Ids.Count > 1;
-        }
         if (_watcherHeader is { } header)
             RenderTabHeader(_watchersTab, header, Texts.Count("booru.ui.tab.watchers", _model.Watchers.Count));
         int activeWatchers = watchers.Rows.Count(row => row.Watcher.Status is not (BooruWatcherStatus.Paused or BooruWatcherStatus.Removed));

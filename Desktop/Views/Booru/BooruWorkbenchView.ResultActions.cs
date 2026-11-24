@@ -26,7 +26,7 @@ internal sealed partial class BooruWorkbenchView
         !_closed && ReferenceEquals(scope.Tab, _tabs.SelectedItem) && _model.Search.ResultRow(scope.Target) != null;
 
     /// <summary>One binding shared by the tile or list row and every surface that acts on it.</summary>
-    private sealed class ResultActions(BooruWorkbenchView owner, BooruResultTarget target, Func<bool>? isShown = null)
+    private sealed class ResultActions(BooruWorkbenchView owner, BooruResultTarget target)
     {
         private readonly string? _url = BooruPostLinks.TryCanonical(target.Post, out string url) ? url : null;
 
@@ -106,7 +106,7 @@ internal sealed partial class BooruWorkbenchView
                 Texts.T("booru.ui.post.copy") + Environment.NewLine + _url, "booru.result.copy-link");
         }
 
-        internal BooruResultRowView? CurrentRow() => owner._closed || isShown?.Invoke() == false ? null : owner._model.Search.ResultRow(target);
+        internal BooruResultRowView? CurrentRow() => owner._closed ? null : owner._model.Search.ResultRow(target);
     }
 
     private ResultActions BindResult(BooruSearchView view, BooruResultRowView row)

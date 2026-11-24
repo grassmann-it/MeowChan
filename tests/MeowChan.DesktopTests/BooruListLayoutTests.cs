@@ -241,10 +241,7 @@ public sealed class BooruListLayoutTests
         Assert.Contains(withdrawn.GetVisualDescendants().OfType<TextBlock>(), text => text.Classes.Contains("workspace-warning"));
         Assert.True(local.Focus());
         Press(fixture.Window, PhysicalKey.Enter);
-        Assert.Equal("101", Assert.Single(fixture.Window.GetVisualDescendants().OfType<BooruResultViewer>()).CurrentPostId);
-        Press(fixture.Window, PhysicalKey.Escape);
-        fixture.Settle();
-        Assert.Empty(fixture.ShownLocally);
+        Assert.Equal("101", Assert.Single(fixture.ShownLocally));
 
         foreach (MediaTileSize size in Enum.GetValues<MediaTileSize>())
         {
@@ -265,9 +262,9 @@ public sealed class BooruListLayoutTests
         Assert.True(fixture.Card("103").Focus());
         Press(fixture.Window, PhysicalKey.Enter);
         fixture.Settle();
-        BooruResultViewer gallery = Assert.Single(fixture.Window.GetVisualDescendants().OfType<BooruResultViewer>());
-        Assert.Equal("103", gallery.CurrentPostId);
-        Assert.True(gallery.Bounds.Height >= 320);
+        Assert.Equal(BooruResultView.Gallery, fixture.View.ResultView);
+        Assert.Equal("103", fixture.View.Gallery.CurrentPostId);
+        Assert.True(fixture.View.Gallery.Stage.Bounds.Height >= 320);
         Assert.Empty(fixture.Harness.Queue.Loads);
     });
 

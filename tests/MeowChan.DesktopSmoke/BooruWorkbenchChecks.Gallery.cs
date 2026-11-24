@@ -83,7 +83,7 @@ internal static partial class BooruWorkbenchChecks
 
     private static async Task CheckGalleryToolbarAsync(MainWindow owner, BooruPage page, string shots)
     {
-        Require(page.View.OpenGallery("101"), "The inline gallery did not open.");
+        Click(Find<Button>(page, "BooruView:101"));
         BooruGalleryPanel gallery = page.View.Gallery;
         Border resultLine = Find<Border>(page, "BooruResultsLine");
         var pager = (Grid)Find<Button>(page, BooruWorkbenchView.PreviousName).Parent!;

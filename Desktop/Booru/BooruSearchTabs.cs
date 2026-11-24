@@ -5,7 +5,8 @@ using System.Linq;
 namespace MeowChan.Desktop.Booru;
 
 /// <summary>
-/// The search tab strip always keeps at least one tab. The tabs share the one <see cref="BooruSearchModel"/>: leaving a tab stores
+/// The extra tabs next to the permanent search. Slot 0 is the permanent Search tab (it cannot be closed and does not count
+/// against the limit); every other slot is one opened search. The tabs share the one <see cref="BooruSearchModel"/>: leaving a tab stores
 /// the model's immutable view in it, entering a tab puts that view back (never sending a request).
 /// </summary>
 internal sealed class BooruSearchTabs
@@ -34,7 +35,7 @@ internal sealed class BooruSearchTabs
     internal event Action? Changed;
 
     internal int ActiveId => _activeId;
-    /// <summary>The ids in strip order.</summary>
+    /// <summary>The ids in strip order, the permanent Search tab first.</summary>
     internal IReadOnlyList<int> Ids { get { List<int> ids = new(_slots.Count); foreach (Slot slot in _slots) ids.Add(slot.Id); return ids; } }
 
     /// <summary>How many extra tabs may be open (the setting, clamped to its range; read at each use).</summary>
@@ -42,7 +43,7 @@ internal sealed class BooruSearchTabs
     internal int ExtraCount => _slots.Count - 1;
     internal bool CanAdd => ExtraCount < Limit;
 
-    /// <summary>Keep the first and active tabs when trimming, without changing their order.</summary>
+    /// <summary>Keep the permanent and active tabs when trimming, without changing their order.</summary>
     internal static int[] RetainedIndices(int count, int activeIndex, int limit)
     {
         if (activeIndex < limit) return Enumerable.Range(0, Math.Min(count, limit)).ToArray();
@@ -79,11 +80,11 @@ internal sealed class BooruSearchTabs
 
     /// <summary>Opens a new tab and makes it the active one. <paramref name="copyCurrent"/> starts it with the current search and its results.</summary>
     /// <returns>The new tab's id, or -1 when the limit is reached.</returns>
-    internal int Add(bool copyCurrent, int? sourceTab = null)
+    internal int Add(bool copyCurrent)
     {
         if (!CanAdd) return -1;
         Slot slot = new(_nextId++);
-        BooruSearchView? copy = copyCurrent ? ViewOf(sourceTab ?? _activeId) : null;
+        BooruSearchView? copy = copyCurrent ? _search.View : null;
         Store();
         _slots.Add(slot);
         _activeId = slot.Id;
@@ -104,11 +105,11 @@ internal sealed class BooruSearchTabs
         return true;
     }
 
-    /// <summary>Closes a tab when another can remain. Closing the active one activates its nearest remaining neighbour.</summary>
+    /// <summary>Closes an extra tab; closing the active one activates its left neighbour. The permanent tab is never closed.</summary>
     internal bool Close(int id)
     {
         int index = _slots.FindIndex(slot => slot.Id == id);
-        if (_slots.Count <= 1 || index < 0) return false;
+        if (id == PrimaryId || index < 0) return false;
         bool wasActive = id == _activeId;
         _search.CancelBulk(id);
         _slots.RemoveAt(index);

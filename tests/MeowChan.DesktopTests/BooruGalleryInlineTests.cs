@@ -116,15 +116,18 @@ public sealed class BooruGalleryInlineTests
                 };
                 List<BooruResultView> saved = new();
                 view.SaveResultView = saved.Add;
-                await SearchAsync(harness, model, view);
+                List<Border> cards = await SearchAsync(harness, model, view);
 
                 // Nothing is fetched for a page ahead: the list and the grid never ask for a sample.
                 view.SetResultView(BooruResultView.Grid, save: false);
                 view.SetResultView(BooruResultView.List, save: false);
                 Assert.Empty(harness.Previews.SampleRequests);
 
-                // Open the inline view at a hit. The preview is on the stage at once.
-                Assert.True(view.OpenGallery("101"));
+                // Enter on a hit that is not saved opens the gallery on it (not saved as the person's choice); the preview is on the stage at once.
+                cards = Cards(view);
+                KeyEventArgs enter = Press(Key.Enter, cards[0]);
+                cards[0].RaiseEvent(enter);
+                Assert.True(enter.Handled);
                 Assert.Equal(BooruResultView.Gallery, view.ResultView);
                 Assert.Empty(saved);
                 BooruGalleryPanel gallery = view.Gallery;
@@ -288,9 +291,8 @@ public sealed class BooruGalleryInlineTests
             using SKData bytes = pixels.Encode(SKEncodedImageFormat.Png, 100);
             byte[] sampleBytes = bytes.ToArray();
             // The popout now expects another preview identity while the viewer still has the old one.
-            BooruResultViewer content = Assert.Single(popup.GetVisualDescendants().OfType<BooruResultViewer>());
-            typeof(BooruResultViewer).GetField("_shownEntry", Private)!
-                .SetValue(content, BooruResultViewerWindow.CreatePreviewEntry(model.Search.View.Rows[0]));
+            typeof(BooruResultViewerWindow).GetField("_shownEntry", Private)!
+                .SetValue(popup, BooruResultViewerWindow.CreatePreviewEntry(model.Search.View.Rows[0]));
             firstSample.SetResult(sampleBytes);
             await wait.UntilAsync(() => !caption.Text!.Contains(Texts.T("booru.gallery.sample.loading")), "the rejected sample to finish");
             Assert.Same(preview, image.Source);

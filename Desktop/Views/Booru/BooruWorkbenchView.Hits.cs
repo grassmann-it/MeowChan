@@ -115,7 +115,9 @@ internal sealed partial class BooruWorkbenchView
         {
             if (result.IsCurrent()) FocusHit(postId);
         });
-        bool Activate() => result.IsCurrent() && OpenHostedGallery(postId);
+        // Saved originals keep their Show in Media route. Unsaved hits open the inline gallery
+        // (preview and sample only); neither Enter nor double-click implicitly downloads an original.
+        bool Activate() => result.IsCurrent() && (result.Run(ResultAction.ShowInMedia) || OpenGallery(postId));
         card.DoubleTapped += (_, e) =>
         {
             if (ItemActivation.IsCardDoubleClick(e, card)) e.Handled = Activate();
@@ -156,7 +158,7 @@ internal sealed partial class BooruWorkbenchView
         card.AddHandler(InputElement.PointerReleasedEvent, (object? _, PointerReleasedEventArgs e) =>
         {
             if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-            bool onHit = MiddleClickTracker.HitAt(e, card) is { } hit && !ItemActivation.IsOwnedByInteractivePart(hit, card);
+            bool onHit = new Rect(card.Bounds.Size).Contains(e.GetPosition(card)) && !ItemActivation.IsOwnedByInteractivePart(e.Source, card);
             if (_resultMiddleClick.Released(onHit ? result : null) && card.IsAttachedToVisualTree() && result.IsCurrent())
                 e.Handled = result.Run(ResultAction.Open);
         }, RoutingStrategies.Tunnel);

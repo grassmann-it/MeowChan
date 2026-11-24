@@ -91,7 +91,7 @@ internal static class BooruResultViewerChecks
             Require(viewer.CurrentPostId == "703", "Next wrapped past the last result.");
             await SmokeDispatcher.SettleAsync();
             Require(Find<Image>(viewer, "GalleryImage").Source == null, "Missing preview retained the previous image.");
-            Send(image, Key.Escape);
+            Send(viewer, Key.Escape);
             await viewer.Cleanup;
             await SmokeDispatcher.SettleAsync();
             Require(!viewer.IsVisible && Find<CheckBox>(view, "BooruSelect:701").IsChecked == true
@@ -101,12 +101,7 @@ internal static class BooruResultViewerChecks
                 "Closing did not restore focus to the browsed result.");
             var remembered = viewer.NormalBounds;
             Send(Find<Border>(view, "BooruResult:701"), Key.Enter);
-            await SmokeDispatcher.SettleAsync();
-            BooruResultViewer hosted = host.GetVisualDescendants().OfType<BooruResultViewer>().Single();
-            Require(hosted.CurrentPostId == "701" && ReferenceEquals(TopLevel.GetTopLevel(hosted), host),
-                "Card Enter did not open the gallery in the current window.");
-            Send(Find<Image>(hosted, "GalleryImage"), Key.Escape);
-            Require(view.OpenGallery("701"), "The inline gallery did not open.");
+            Require(view.ResultView == BooruResultView.Gallery && view.Gallery.CurrentPostId == "701", "Card Enter did not open the inline gallery.");
             Click(Find<Button>(view, "BooruGalleryOpenWindow"));
             viewer = host.OwnedWindows.OfType<BooruResultViewerWindow>().Single();
             await SmokeDispatcher.SettleAsync();
