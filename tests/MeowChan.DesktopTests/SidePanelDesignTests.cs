@@ -188,7 +188,15 @@ public sealed class SidePanelDesignTests
             Near(32, button.Height);
             if (actions[i].GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Classes.Contains("panel-action-label")) is { } label)
             {
-                if (width >= 280)
+                if (!label.IsEffectivelyVisible)
+                {
+                    Near(32, button.Width);
+                    var icon = Assert.Single(actions[i].GetVisualDescendants().OfType<Border>(), b => b.OpacityMask is ImageBrush);
+                    Assert.True(icon.IsEffectivelyVisible);
+                    Near(16, icon.Bounds.Width);
+                    Assert.Equal(label.Text, AutomationProperties.GetName(actions[i]));
+                }
+                else if (width >= 280)
                     Assert.DoesNotContain(label.TextLayout.TextLines, line => line.HasCollapsed);
                 else Assert.StartsWith(label.Text!, ToolTip.GetTip(actions[i])?.ToString());
             }
