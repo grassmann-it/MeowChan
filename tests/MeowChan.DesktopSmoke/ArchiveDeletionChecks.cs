@@ -34,8 +34,8 @@ internal static class ArchiveDeletionChecks
             table.RaiseEvent(key);
             Require(key.Handled, "Archive did not handle Shift+Delete.");
         }
-        ArchivePermanentDeletionPlan plan = await window.SessionHost.PrepareArchiveDeletionAsync(rows.Select(row => row.Summary.Id).ToArray());
-        string preview = CountPhrases.ArchiveDeletionSummary(2, plan.Files.OwnedFileCount, plan.Files.OwnedBytes);
+        string[] owned = directories.SelectMany(path => new[] { Path.Combine(path, "reader.png"), Path.Combine(path, ".meowchan-manifest.json") }).ToArray();
+        string preview = CountPhrases.ArchiveDeletionSummary(rows.Length, owned.Length, owned.Sum(path => new FileInfo(path).Length));
         foreach (Key key in new[] { Key.Escape, Key.Enter })
         {
             Open();
@@ -50,13 +50,15 @@ internal static class ArchiveDeletionChecks
             Require(cancel.TranslatePoint(default, confirm) is { X: < 0 }, "Cancel is not left of the destructive action.");
             Require(question.GetVisualDescendants().OfType<TextBlock>().Any(block => block.Text == preview),
                 "Confirmation omitted the preview's counts or size.");
-            Require(Find<TextBox>(question, "ArchivePermanentDeleteDetails").Text!.Contains("unrelated.txt"),
-                "Confirmation omitted retained files.");
+            string details = Find<TextBox>(question, "ArchivePermanentDeleteDetails").Text!;
+            Require(details.Contains("Retained: unrelated.txt", StringComparison.Ordinal) &&
+                details.Contains(Texts.T("bookmarks.retained"), StringComparison.Ordinal),
+                "Confirmation omitted retained files or bookmarks.");
             await Program.WaitUntilAsync(() => cancel.IsFocused);
             if (key == Key.Escape) Program.CaptureWindow(question, "smoke-archive-delete-confirmation.png");
             RawKeyboardInput.Press(question, key);
             await Program.WaitUntilAsync(() => Dialog() == null);
-            Require(directories.All(path => File.Exists(Path.Combine(path, "reader.png"))), key + " deleted local media.");
+            Require(owned.All(File.Exists), key + " deleted local files.");
             await using ArchiveReader reader = await window.SessionHost.OpenArchiveReaderAsync(CancellationToken.None);
             foreach (ArchiveThreadRow row in rows)
                 Require(await reader.ReadThreadAsync(row.Summary.Id) != null, key + " deleted archive records.");
@@ -66,7 +68,7 @@ internal static class ArchiveDeletionChecks
         Window dialog = Dialog()!;
         Click(Find<Button>(dialog, "ArchivePermanentDeleteConfirm"));
         await Program.WaitUntilAsync(() => Find<Button>(dialog, "ArchivePermanentDeleteCancel").IsEnabled);
-        Require(directories.All(path => !File.Exists(Path.Combine(path, "reader.png")) && !File.Exists(Path.Combine(path, ".meowchan-manifest.json"))), "Confirmed deletion retained owned media.");
+        Require(!owned.Any(File.Exists), "Confirmed deletion retained owned files.");
         Require(directories.All(path => File.Exists(Path.Combine(path, "unrelated.txt"))) && File.Exists(Path.Combine(export, "index.html")), "Deletion removed unrelated files or exports.");
         await using (ArchiveReader reader = await window.SessionHost.OpenArchiveReaderAsync(CancellationToken.None))
         {

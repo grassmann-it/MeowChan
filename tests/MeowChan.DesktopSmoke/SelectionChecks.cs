@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
@@ -25,6 +26,8 @@ internal static class SelectionChecks
         await Program.WaitUntilAsync(() => window.UrlList.Count == 5 && window.VisibleThreads.Count == 5
             && !window.SessionRowsApplying);
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
+        Button inspectorRemove = window.FindControl<Button>("InspectorRemoveButton")!;
+        Require(AutomationProperties.GetName(inspectorRemove) == "Stop watching", "The inspector does not name the watch action.");
         ThreadRow[] rows = window.UrlList.OrderBy(row => row.ThreadId).ToArray();
         await WaitRow(grid, rows[4]);
         await PressAsync(window, Row(grid, rows[0]));
@@ -82,6 +85,7 @@ internal static class SelectionChecks
         long[] selectedIds = grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().ToArray();
         Texts.SetLanguage("de");
         await Task.Delay(50);
+        Require(AutomationProperties.GetName(inspectorRemove) == "Beobachtung beenden", "The inspector watch label did not refresh.");
         await PresentationChecks.SwitchModeAsync(window, "Barebones");
         Require(grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().SequenceEqual(selectedIds), "Language or mode lost selected watch identities.");
         window.Width = 640; window.Height = 480;
