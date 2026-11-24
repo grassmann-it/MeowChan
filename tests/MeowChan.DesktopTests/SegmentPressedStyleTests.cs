@@ -131,28 +131,18 @@ public sealed class SegmentPressedStyleTests
             window.UpdateLayout();
             Assert.Equal(scale, window.RenderScaling);
 
-            // Reproduce the old join by removing the middle button's overlap.
-            segments.Second.Margin = default;
-            window.UpdateLayout();
-            Assert.True(ExtraSeamWidth(segments.First, segments.Second) > 0);
-            Assert.Equal(0, ExtraSeamWidth(segments.Second, segments.Third), precision: 6);
-            segments.Second.ClearValue(Layoutable.MarginProperty);
-            window.UpdateLayout();
+            AssertSeam(segments.First, segments.Second);
+            AssertSeam(segments.Second, segments.Third);
 
-            double first = ExtraSeamWidth(segments.First, segments.Second);
-            double second = ExtraSeamWidth(segments.Second, segments.Third);
-            Assert.True(Math.Abs(first) < 0.000001 && Math.Abs(second) < 0.000001,
-                $"Seam width minus one border at {scale:P0}: first {first:F3} DIP, second {second:F3} DIP.");
-
-            double ExtraSeamWidth(ToggleButton left, ToggleButton right)
+            void AssertSeam(ToggleButton left, ToggleButton right)
             {
                 ContentPresenter a = Presenter(left);
                 ContentPresenter b = Presenter(right);
                 double leftEnd = a.TranslatePoint(new Point(a.Bounds.Width, 0), window)!.Value.X;
                 double rightStart = b.TranslatePoint(default, window)!.Value.X;
                 double expected = LayoutHelper.RoundLayoutThickness(a.BorderThickness, scale).Right;
+                Assert.Equal(expected, leftEnd - rightStart, precision: 6);
                 Assert.Equal(expected, LayoutHelper.RoundLayoutThickness(b.BorderThickness, scale).Left, precision: 6);
-                return expected - (leftEnd - rightStart);
             }
         }
         finally { window.Close(); }

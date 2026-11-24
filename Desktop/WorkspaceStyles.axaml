@@ -1253,9 +1253,7 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="ToggleButton.segment-first"><Setter Property="CornerRadius" Value="5,0,0,5" /></Style>
-    <Style Selector="ToggleButton.segment-last"><Setter Property="CornerRadius" Value="0,5,5,0" /></Style>
-    <!-- The following segment overlaps one outline. The selected segment's edge stays on top. -->
-    <Style Selector="ToggleButton.segment-middle, ToggleButton.segment-last"><Setter Property="Margin" Value="-1,0,0,0" /></Style>
+    <Style Selector="ToggleButton.segment-last"><Setter Property="CornerRadius" Value="0,5,5,0" /><Setter Property="Margin" Value="-1,0,0,0" /></Style>
     <Style Selector="ToggleButton.segment:checked"><Setter Property="ZIndex" Value="1" /></Style>
     <Style Selector="ToggleButton.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
