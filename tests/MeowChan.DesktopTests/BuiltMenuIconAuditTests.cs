@@ -1,10 +1,8 @@
 using System.Reflection;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -49,6 +47,34 @@ public sealed class BuiltMenuIconAuditTests
         Assert.Contains("test", failure.Message);
         Assert.Contains(kind == "stale" ? "old-row" : "row", failure.Message);
         Assert.Contains(message, failure.Message);
+    });
+
+    [Fact]
+    public void AShownFlyoutRequiresTheActionMaskEvenWithAnUncheckedMark() => Run(() =>
+    {
+        string? key = null;
+        bool isChecked = false;
+        var panel = new LayoutMenuPanel("FixtureLayout",
+            () => new("", [new(LayoutMenuRowKind.Toggle, "overlay", "Overlay") { Checked = isChecked, IconKey = key }]),
+            _ => isChecked = !isChecked);
+        var flyout = new Flyout { Content = panel };
+        var anchor = new Button { Content = "Layout", Flyout = flyout };
+        using var window = new HostWindow(anchor);
+        panel.Refresh();
+        flyout.ShowAt(anchor);
+        Dispatcher.UIThread.RunJobs();
+        var failure = Assert.ThrowsAny<XunitException>(() => MenuIconAudit.Verify("fixture-layout", panel.Buttons));
+        Assert.Contains("fixture-layout/overlay", failure.Message);
+
+        key = "columns";
+        foreach (bool value in new[] { false, true })
+        {
+            isChecked = value;
+            panel.Refresh();
+            Dispatcher.UIThread.RunJobs();
+            MenuIconAudit.Verify("fixture-layout", panel.Buttons);
+        }
+        flyout.Hide();
     });
 
     [Fact]
