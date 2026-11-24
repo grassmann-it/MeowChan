@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -68,6 +69,7 @@ public sealed class FolderSourceDesktopTests : IDisposable
                 Press(key, physicalKey);
                 Assert.Null(Find("FolderSourceRemoveConfirm"));
                 Assert.Empty(removed);
+                Assert.Same(Find(openName), window.FocusManager!.GetFocusedElement());
             }
             Ask();
             Press(Key.Tab, PhysicalKey.Tab);
@@ -88,10 +90,11 @@ public sealed class FolderSourceDesktopTests : IDisposable
                 Assert.InRange(-endOfKeep.X, 7, 9);
                 Assert.Same(keep, window.FocusManager!.GetFocusedElement());
                 Assert.Contains("Second", panel.GetVisualDescendants().OfType<TextBlock>()
-                    .Single(block => block.Name == "FolderSourceRemoveAsk").Text);
+                    .Single(block => AutomationProperties.GetAutomationId(block) == "FolderSourceRemoveAsk").Text);
             }
 
-            Button? Find(string name) => panel.GetVisualDescendants().OfType<Button>().SingleOrDefault(button => button.Name == name);
+            Button? Find(string id) => panel.GetVisualDescendants().OfType<Button>()
+                .SingleOrDefault(button => AutomationProperties.GetAutomationId(button) == id);
             void Press(Key key, PhysicalKey physicalKey)
             {
                 window.KeyPress(key, RawInputModifiers.None, physicalKey, null);

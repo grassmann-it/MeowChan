@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -28,15 +29,32 @@ public sealed class InlineConfirmationFullscreenTests
         Assert.True(window.ShowTaggingPage());
         await BooruTestSupport.WaitAsync(() => window.TaggingPage is { IsBusy: false, Queue.Count: 1 }, "the tagging queue");
         TaggingPage page = window.TaggingPage!;
-        Assert.True(page.ClearButton.Command!.CanExecute(null));
-        page.ClearButton.Command.Execute(null);
+        Button clear = FindButton(page, "tagging.clear")!;
+        Assert.True(clear.Command!.CanExecute(null));
+        clear.Command.Execute(null);
         window.UpdateLayout();
         Assert.True(page.ClearQuestionOpen);
-        Assert.True(FindButton(page, "TaggingClearNo")!.IsFocused);
+        Assert.True(FindButton(page, "tagging.clear-cancel")!.IsFocused);
+
+        Button stamp = FindButton(page, "tagging.stamp")!;
+        Flyout flyout = Assert.IsType<Flyout>(stamp.Flyout);
+        flyout.ShowAt(stamp);
+        TextBox editor = Assert.IsAssignableFrom<Control>(flyout.Content).GetVisualDescendants().OfType<TextBox>()
+            .Single(control => AutomationProperties.GetAutomationId(control) == "tagging.stamp-input");
+        await BooruTestSupport.WaitAsync(() => flyout.IsOpen && editor.IsFocused, "focus in the open stamp editor");
+
+        PressEscape(window);
+
+        Assert.False(flyout.IsOpen);
+        Assert.True(stamp.IsFocused);
+        Assert.True(page.ClearQuestionOpen);
+        Assert.Equal(WindowState.FullScreen, window.WindowState);
+        Assert.Equal(before, await File.ReadAllBytesAsync(path));
 
         PressEscape(window);
 
         Assert.False(page.ClearQuestionOpen);
+        Assert.True(clear.IsFocused);
         Assert.Equal(WindowState.FullScreen, window.WindowState);
         Assert.Equal(before, await File.ReadAllBytesAsync(path));
         Assert.Single(host.GetTagQueue()!.Items);
@@ -65,12 +83,13 @@ public sealed class InlineConfirmationFullscreenTests
         PressEscape(window);
 
         Assert.Null(FindButton(panel, "FolderSourceRemoveConfirm"));
+        Assert.True(FindButton(panel, removeName)!.IsFocused);
         Assert.Equal(WindowState.FullScreen, window.WindowState);
         Assert.Equal(source.Id, Assert.Single(host.ListFolderSources()).Root.Id);
     });
 
-    private static Button? FindButton(Control root, string name) => root.GetVisualDescendants().OfType<Button>()
-        .SingleOrDefault(button => button.Name == name);
+    private static Button? FindButton(Control root, string id) => root.GetVisualDescendants().OfType<Button>()
+        .SingleOrDefault(button => AutomationProperties.GetAutomationId(button) == id);
 
     private static void PressEscape(MainWindow window)
     {
