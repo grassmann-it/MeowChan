@@ -10,6 +10,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
+using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
 
