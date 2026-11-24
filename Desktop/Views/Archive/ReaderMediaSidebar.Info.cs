@@ -76,7 +76,7 @@ internal sealed partial class ReaderMediaSidebar
     private readonly Border _dockedExpansion = new();
     private readonly Border _hoverSurface = new() { [!BackgroundProperty] = new DynamicResourceExtension("Workspace.Card") };
     private readonly Popup _hoverPopup = new() { Placement = PlacementMode.TopEdgeAlignedLeft, IsLightDismissEnabled = false };
-    private ContextMenu? _settingsMenu;
+    private readonly MenuFlyout _settingsMenu = new() { Placement = PlacementMode.BottomEdgeAlignedRight };
     private bool _hovered;
     private bool Pinned => _infoPreferences.MediaSidebarPinned;
     private bool FactsVisible => _infoPreferences.MediaSidebarInfo != "Off" && _infoPreferences.MediaSidebarFacts;
@@ -143,25 +143,21 @@ internal sealed partial class ReaderMediaSidebar
 
     internal void ResetInfoOverride() => UpdateInfoLayout();
 
-    private void ToggleSettingsMenu()
+    private void InitializeSettingsMenu()
     {
-        if (_settingsMenu is { IsOpen: true } opened)
+        SettingsButton.Flyout = _settingsMenu;
+        _settingsMenu.OverlayInputPassThroughElement = SettingsButton;
+        _settingsMenu.Opening += (_, _) =>
         {
-            opened.Close();
-            return;
-        }
-        var menu = new ContextMenuBuilder()
-            .Check("autoHide", CommandBindings.Tooltip("media.sidebar.autohide", keyContext: _decision.KeyContext), _infoPreferences.MediaSidebarAutoHide, ToggleAutoHide)
-            .Check("facts", CommandBindings.Tooltip("media.sidebar.info", keyContext: _decision.KeyContext), FactsVisible, ToggleDetails);
-        ContextMenu settings = _settingsMenu = menu.Build()!;
-        settings.Placement = PlacementMode.BottomEdgeAlignedRight;
-        settings.Closed += (_, _) =>
-        {
-            _settingsMenu = null;
-            SettingsButton.IsChecked = false;
+            var menu = new ContextMenuBuilder()
+                .Check("autoHide", CommandBindings.Tooltip("media.sidebar.autohide", keyContext: _decision.KeyContext),
+                    _infoPreferences.MediaSidebarAutoHide, ToggleAutoHide)
+                .Check("facts", CommandBindings.Tooltip("media.sidebar.info", keyContext: _decision.KeyContext),
+                    FactsVisible, ToggleDetails);
+            _settingsMenu.ItemsSource = ContextMenuBuilder.BuildItems(menu.ToModel());
         };
-        SettingsButton.IsChecked = true;
-        settings.Open(SettingsButton);
+        _settingsMenu.Opened += (_, _) => SettingsButton.IsChecked = true;
+        _settingsMenu.Closed += (_, _) => SettingsButton.IsChecked = false;
     }
 
     internal bool RouteInfoKey(KeyEventArgs e)
@@ -228,7 +224,7 @@ internal sealed partial class ReaderMediaSidebar
         _closeFace.Child = DarkScope(Close);
         _frame.Children.Add(_overlayLayer);
         _layout.Children.Add(_dockedHead);
-        SettingsButton.Click += (_, _) => ToggleSettingsMenu();
+        InitializeSettingsMenu();
         InfoToggle.ContextRequested += (_, e) =>
         {
             new ContextMenuBuilder().Check("facts", CommandCatalog.Label("media.sidebar.info"), FactsVisible, ToggleDetails)

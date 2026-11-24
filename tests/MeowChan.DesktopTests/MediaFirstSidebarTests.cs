@@ -400,10 +400,13 @@ public sealed class MediaFirstSidebarTests
             Settle(window);
             ToggleButton gear = SidePanelDesignTests.ById<ToggleButton>(sidebar, "ReaderMediaSidebarSettings");
             // M7: the gear contains only auto-hide and facts in every host.
-            (ContextMenu Menu, MenuItem[] Items) Open()
+            (MenuFlyout Menu, MenuItem[] Items) Open()
             {
                 Click(window, Center(gear, window));
-                ContextMenu menu = Assert.Single(window.OpenedPopups.Select(p => p.Child).OfType<ContextMenu>());
+                // Fable §12 requires a second pointer click on the open gear to dismiss its menu.
+                MenuFlyout menu = Assert.IsType<MenuFlyout>(gear.Flyout);
+                Assert.True(menu.IsOpen);
+                Assert.Single(window.OpenedPopups, popup => popup.PlacementTarget == gear);
                 MenuItem[] items = menu.Items.Cast<MenuItem>().ToArray();
                 Assert.Equal(GearEntries, items.Select(item => Assert.IsType<string>(item.Tag)));
                 return (menu, items);
@@ -418,7 +421,7 @@ public sealed class MediaFirstSidebarTests
             Assert.False(first.Items[0].IsChecked);
             Assert.True(first.Items[1].IsChecked);
             first.Items[1].Command!.Execute(null);
-            first.Menu.Close();
+            first.Menu.Hide();
             Assert.False(saved.MediaSidebarFacts);
             Assert.True(sidebar.DecisionRow.IsEffectivelyVisible);
             Assert.True(sidebar.RouteInfoKey(new KeyEventArgs { Key = Key.A, KeyModifiers = KeyModifiers.Shift, Source = sidebar.Frame }));
@@ -427,7 +430,7 @@ public sealed class MediaFirstSidebarTests
             var second = Open();
             Assert.True(second.Items[0].IsChecked);
             Assert.False(second.Items[1].IsChecked);
-            second.Menu.Close();
+            second.Menu.Hide();
         }
         finally { window.Close(); }
     });

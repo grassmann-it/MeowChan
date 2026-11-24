@@ -120,7 +120,9 @@ internal sealed class MediaCompactHeader : Grid
                 else
                 {
                     string command = i == 1 ? "media.sidebar.info" : "gallery.open";
-                    if (fits) CommandBindings.ApplyLabeled(_labeled[i], command, _captions[i]);
+                    if (fits && i == 1) CommandBindings.ApplyLabeled(_labeled[i], command, _captions[i],
+                        _ => CommandBindings.Tooltip("media.sidebar.info"));
+                    else if (fits) CommandBindings.ApplyLabeled(_labeled[i], command, _captions[i]);
                     else CommandBindings.Apply(_labeled[i], command, iconOnly: true);
                 }
             }
