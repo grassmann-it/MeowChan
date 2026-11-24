@@ -574,17 +574,13 @@ public partial class PluginsPage : UserControl
     private void ApplyPaneVisibility()
     {
         bool hasSelection = Selected != null && Included(Selected);
-        C<Grid>("PluginListPane").IsVisible = !_narrow || !_showDetails || !hasSelection;
-        C<ScrollViewer>("PluginDetailsPane").IsVisible = hasSelection && (!_narrow || _showDetails);
         bool sources = SourceContent != null && Filter == SourcesPluginsFilter.Sources;
+        C<Grid>("PluginListPane").IsVisible = !sources && (!_narrow || !_showDetails || !hasSelection);
         C<ContentControl>("SourceContentHost").IsVisible = sources && !ShowingSourcePluginDetails;
-        if (sources)
-        {
-            C<Grid>("PluginListPane").IsVisible = false;
-            C<ScrollViewer>("PluginDetailsPane").IsVisible = hasSelection && ShowingSourcePluginDetails;
-        }
-        Grid.SetColumn(C<ScrollViewer>("PluginDetailsPane"), sources ? 0 : 1);
-        Grid.SetColumnSpan(C<ScrollViewer>("PluginDetailsPane"), sources ? 2 : 1);
+        Border detail = C<Border>("PluginDetailCard");
+        detail.IsVisible = hasSelection && (sources ? ShowingSourcePluginDetails : !_narrow || _showDetails);
+        Grid.SetColumn(detail, sources ? 0 : 1);
+        Grid.SetColumnSpan(detail, sources ? 2 : 1);
         C<Button>("PluginBack").IsVisible = _narrow || ShowingSourcePluginDetails;
         if (ShowingSourcePluginDetails) CommandBindings.ApplyLabeled(C<Button>("PluginBack"), "sources.back", Texts.T("sources.backToSource"));
         else CommandBindings.ApplyLabeled(C<Button>("PluginBack"), "plugins.back", Texts.T("plugins.back"));
@@ -595,7 +591,7 @@ public partial class PluginsPage : UserControl
         bool ContainsFocus(Control pane) => focused != null &&
             (ReferenceEquals(focused, pane) || focused.GetVisualAncestors().Contains(pane));
         bool listHadFocus = ContainsFocus(C<Grid>("PluginListPane"));
-        bool detailsHadFocus = ContainsFocus(C<ScrollViewer>("PluginDetailsPane"));
+        bool detailsHadFocus = ContainsFocus(C<Border>("PluginDetailCard"));
         // The Sources page's switch point: the detail needs 520 DIP beside the 280 DIP list, gutters and panel padding.
         bool narrow = Bounds.Width - 40 - 280 - 14 - 32 < 520;
         if (narrow && !_narrow)
@@ -614,7 +610,7 @@ public partial class PluginsPage : UserControl
         // panes, and only if its current control became unavailable.
         if ((listHadFocus || detailsHadFocus) && focused?.IsEffectivelyVisible != true)
         {
-            if (C<ScrollViewer>("PluginDetailsPane").IsVisible)
+            if (C<Border>("PluginDetailCard").IsVisible)
             {
                 if (_narrow) C<Button>("PluginBack").Focus();
                 else
