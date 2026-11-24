@@ -54,6 +54,21 @@ public sealed class BooruTileGridTests
     public void TheColumnCountIsWhatFitsAndNeverBelowOne(double width, double cell, int expected) =>
         Assert.Equal(expected, BooruTileMetrics.Columns(width, cell));
 
+    [Theory]
+    [InlineData(BooruRating.General, "G")]
+    [InlineData(BooruRating.Sensitive, "S")]
+    [InlineData(BooruRating.Questionable, "Q")]
+    [InlineData(BooruRating.Explicit, "E")]
+    [InlineData(BooruRating.Unknown, "?")]
+    public void ProviderRatingHasPlainTextAndKeepsZeroScore(BooruRating rating, string code)
+    {
+        BooruPostView post = BooruUiFixtures.Post("42", rating: rating, score: 0);
+        Assert.Equal("#42 · " + code + " · 0", BooruTileMetrics.Line(post.PostId, post.Rating, post.Score));
+        Assert.Contains(BooruText.Rating(rating), BooruText.ProviderRatingAndScore(post));
+        Assert.Contains("0", BooruText.ProviderRatingAndScore(post));
+        Assert.Equal("#42 · " + code, BooruTileMetrics.Line(post.PostId, post.Rating, null));
+    }
+
     [Fact]
     public void TheLineUnderATileIsIdRatingCodeAndScoreAndLeavesOutAMissingScore()
     {
