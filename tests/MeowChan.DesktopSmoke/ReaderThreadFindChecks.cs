@@ -170,12 +170,35 @@ internal static class ReaderThreadFindChecks
             {
                 window.Width = 760;
                 await UntilAsync(() => Math.Abs(window.ClientSize.Width - 760) <= 1);
+                TextBlock position = C<TextBlock>("ReaderFindPosition"), status = C<TextBlock>("ReaderFindStatus");
+                TaskCompletionSource obsoleteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                TaskCompletionSource releaseObsolete = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 page.ThreadFindIndexFactory = (thread, draft, token) =>
-                    ReaderThreadFindIndex.Create(thread, draft, new(MaxHits: 1), token);
-                query.Text = LongNeedle;
+                {
+                    if (draft != Needle) return ReaderThreadFindIndex.Create(thread, draft, new(MaxHits: 1), token);
+                    obsoleteStarted.TrySetResult();
+                    releaseObsolete.Task.WaitAsync(Deadline, CancellationToken.None).GetAwaiter().GetResult();
+                    // Return an old result even after cancellation to exercise the publication guard.
+                    return ReaderThreadFindIndex.Create(thread, draft, cancellationToken: CancellationToken.None);
+                };
+                query.Text = Needle;
+                await SmokeDispatcher.SettleAsync();
                 Click("ReaderFindOpen");
-                await page.ThreadFindTask.WaitAsync(Deadline);
-                Dispatch(Key.Enter);
+                Task obsolete = page.ThreadFindTask;
+                try
+                {
+                    await obsoleteStarted.Task.WaitAsync(Deadline);
+                    query.Text = LongNeedle;
+                    await UntilAsync(() => position.Text == Texts.T("reader.sidebar.position", 0, 1)
+                        && status.Text == Texts.T("readerFind.truncated"));
+                    Require(!obsolete.IsCompleted, "The obsolete search must still be blocked when the capped result is accepted.");
+                    Dispatch(Key.Enter);
+                }
+                finally
+                {
+                    releaseObsolete.TrySetResult();
+                    await obsolete.WaitAsync(Deadline);
+                }
                 await SmokeDispatcher.SettleAsync();
 
                 Status(1, 1);
@@ -183,8 +206,7 @@ internal static class ReaderThreadFindChecks
                     && posts.SelectedItem is ArchivePostRow { Id: "1647" },
                     "Capped navigation lost the query, focus, or target post.");
                 Button back = C<Button>("ReaderFindPrevious"), next = C<Button>("ReaderFindNext");
-                TextBlock position = C<TextBlock>("ReaderFindPosition"), status = C<TextBlock>("ReaderFindStatus"),
-                    excerpt = C<TextBlock>("ReaderFindExcerpt");
+                TextBlock excerpt = C<TextBlock>("ReaderFindExcerpt");
                 Rect backBounds = BoundsInWindow(back), positionBounds = BoundsInWindow(position), nextBounds = BoundsInWindow(next);
                 Rect statusBounds = BoundsInWindow(status), excerptBounds = BoundsInWindow(excerpt);
                 Require(backBounds.Right <= positionBounds.X && positionBounds.Right <= nextBounds.X
@@ -202,6 +224,7 @@ internal static class ReaderThreadFindChecks
                     && excerpt.TextLayout.TextLines.Count > 2
                     && excerpt.Inlines!.OfType<Run>().Any(run => run.Text == LongNeedle && run.FontWeight == FontWeight.SemiBold),
                     "The capped-search warning or the wrapped, highlighted excerpt is missing or clipped at 760 DIP.");
+                Program.CaptureWindow(window, $"smoke-reader-find-capped-{language}.png");
 
                 Click("ReaderFindOpen");
                 page.ThreadFindIndexFactory = null;
@@ -404,9 +427,9 @@ internal static class ReaderThreadFindChecks
                 "https://boards.4chan.org/g/thread/3000", "Offline shell routing",
                 ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, profile, data));
         }
-        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         MainWindow? shell = null;
         Exception? failureBeforeCleanup = null;
+        DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         try
         {
             await using MainWindow ownedShell = new(host);
@@ -585,16 +608,27 @@ internal static class ReaderThreadFindChecks
         catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            try
             {
-                if (shell != null)
+                await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
                 {
-                    shell.Close();
-                    await UntilAsync(() => !shell.IsVisible);
-                    await shell.GalleryCleanupTask.WaitAsync(Deadline); await shell.DisposeAsync();
+                    if (shell != null)
+                    {
+                        shell.Close();
+                        await UntilAsync(() => !shell.IsVisible);
+                        await shell.GalleryCleanupTask.WaitAsync(Deadline);
+                        await shell.DisposeAsync();
+                    }
+                }, exception => Console.Error.WriteLine("SMOKE window cleanup failed in ReaderThreadFindChecks: " + exception));
+            }
+            finally
+            {
+                try { await host.DisposeAsync(); }
+                catch (Exception cleanupFailure) when (failureBeforeCleanup != null)
+                {
+                    Console.Error.WriteLine("SMOKE session cleanup failed in ReaderThreadFindChecks: " + cleanupFailure);
                 }
-                await host.DisposeAsync();
-            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderThreadFindChecks: " + exception));
+            }
         }
     }
 

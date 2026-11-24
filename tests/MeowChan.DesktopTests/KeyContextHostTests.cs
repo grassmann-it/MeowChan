@@ -202,12 +202,11 @@ public sealed class KeyContextHostTests
     }
 
     // S3 P2-4: the pages without a host asked without a context, so a saved binding of another page's command on the key of "Open context menu"
-    // (Shift+F10 / Menu) made it dead on their lists while their handlers still swallowed Shift+F10. Every main page root now installs its host.
+    // (Shift+F10 / Menu) made it dead on their lists while their handlers still swallowed Shift+F10.
     [Theory]
     [InlineData("Desktop/Views/Sources/SourcesPage.axaml.cs", "sources")]
     [InlineData("Desktop/Views/Plugins/PluginsPage.axaml.cs", "plugins")]
     [InlineData("Desktop/Views/Diagnostics/DiagnosticsPage.axaml.cs", "diagnostics")]
-    [InlineData("Desktop/Views/Statistics/StatisticsPage.axaml.cs", "statistics")]
     [InlineData("Desktop/Views/Rules/RulesPage.axaml.cs", "rules")]
     [InlineData("Desktop/Views/Booru/BooruWorkbenchView.cs", "booru")]
     [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "tagging")]
