@@ -13,6 +13,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -33,13 +34,15 @@ internal sealed partial class GalleryViewer
     internal const double MinimumPictureWidth = 300;
 
     // A menu entry: the row content and the parts that change with language, shortcut and state.
-    private sealed class OverflowItem(string id, Grid root, TextBlock label, TextBlock gesture, Control? check, bool keepOpen)
+    internal sealed class OverflowItem(string id, Grid root, TextBlock label, TextBlock gesture, Control? check, ContentControl icon, bool keepOpen)
     {
         internal string Id { get; } = id;
         internal Grid Root { get; } = root;
         internal TextBlock Label { get; } = label;
         internal TextBlock Gesture { get; } = gesture;
         internal Control? Check { get; } = check;
+        internal ContentControl Icon { get; } = icon;
+        internal string? IconKey => MenuIcons.KeyOf(Icon.Content as Control);
         internal bool KeepOpen { get; } = keepOpen;
         internal Func<string>? LabelSource { get; init; }
     }
@@ -49,7 +52,7 @@ internal sealed partial class GalleryViewer
     private readonly Flyout _overflowFlyout = new() { Placement = PlacementMode.TopEdgeAlignedRight };
     private readonly List<Button> _overflowButtons = new();
     // One layout for every row of the menu (the context-menu layout, CM1): a row is 16 dip in from the edge (Workspace.Inset.MenuItem 15,6 plus
-    // the 1-px row edge) with the lead column (20) at that edge, so the choice boxes and captions between the rows start and end where
+    // the 1-px row edge) with the check and icon columns starting there, so the choice boxes and captions between the rows start and end where
     // the lead marks and shortcuts do. A caption has Space.8 above it and sits Space.4 (2 panel spacing + 2) over its box; a box leaves
     // Space.4 under it; a separator has Space.8 at the sides and Space.4 above and below.
     internal const double RowInset = 16;
@@ -147,52 +150,30 @@ internal sealed partial class GalleryViewer
         ToolTip.SetTip(_overflowButton, name + " · " + help);
     }
 
-    /// <summary>Gives an existing control the look of a menu row (lead mark, label, shortcut) and adds it to the "⋯" menu.</summary>
+    /// <summary>Gives an existing control the look of a menu row (check, icon, label, shortcut) and adds it to the "⋯" menu.</summary>
     private T AddOverflowItem<T>(T button, string id, bool check = false, bool keepOpen = false, Func<string>? label = null,
-        Panel? host = null) where T : Button
+        Panel? host = null, string? iconKey = null) where T : Button
     {
-        Control lead;
-        Control? mark = null;
-        if (check)
+        Control? mark = check ? WorkspaceIcons.Create(WorkspaceIcons.Check) : null;
+        if (mark != null) mark.Opacity = (button as ToggleButton)?.IsChecked == true ? 1 : 0;
+        ContentControl icon = new();
+        MenuLayout.SetFlyoutIcon(icon, iconKey ?? (CommandCatalog.TryGet(id, out var command) ? command?.Icon : null));
+        TextBlock text = new()
         {
-            // A drawn check (P6: not the font's tick), shown while the toggle is on; it follows the row's foreground.
-            mark = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Check);
-            mark.Opacity = 0;
-            mark.HorizontalAlignment = HorizontalAlignment.Center; // the check and the icons share the lead column's centre
-            lead = mark;
-        }
-        else
-        {
-            Border icon = (Border)CommandBindings.Icon(id, 16);
-            icon.HorizontalAlignment = HorizontalAlignment.Center;
-            icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
-            lead = icon;
-        }
-        TextBlock text = new() { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        TextBlock gesture = new() { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7, IsHitTestVisible = false };
-        gesture.Classes.Add("workspace-meta");
-        Grid root = new() { ColumnDefinitions = new ColumnDefinitions("20,*,Auto"), ColumnSpacing = 8 };
-        root.Children.Add(lead);
-        root.Children.Add(text); Grid.SetColumn(text, 1);
-        root.Children.Add(gesture); Grid.SetColumn(gesture, 2);
-        OverflowItem item = new(id, root, text, gesture, mark, keepOpen) { LabelSource = label };
+            Text = label?.Invoke() ?? button.Content as string ?? AutomationProperties.GetName(button) ?? string.Empty,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        TextBlock gesture = new();
+        Grid root = MenuLayout.CreateFlyoutRow(mark, icon, text, gesture);
+        OverflowItem item = new(id, root, text, gesture, mark, icon, keepOpen) { LabelSource = label };
         button.Tag = item;
         StyleAsOverflowRow(button, true);
         button.Content = root;
-        text.Text = label?.Invoke() ?? button.Content as string ?? AutomationProperties.GetName(button) ?? string.Empty;
-        SetGesture(gesture, CommandCatalog.ShortcutDisplay(id));
+        MenuLayout.SetFlyoutShortcut(gesture, CommandCatalog.ShortcutDisplay(id));
         _overflowButtons.Add(button);
         (host ?? _overflowPanel).Children.Add(button);
         return button;
-    }
-
-    // The shortcut is the right-aligned last column of every row; a row with one keeps the menu's minimum room before it (24 dip with the
-    // column spacing), a row without one gives that room to its label.
-    private static void SetGesture(TextBlock gesture, string? shortcut)
-    {
-        gesture.Text = shortcut ?? string.Empty;
-        gesture.HorizontalAlignment = HorizontalAlignment.Right;
-        gesture.Margin = string.IsNullOrEmpty(shortcut) ? default : new Thickness(MeowChan.Desktop.Controls.MenuLayout.MinimumShortcutGap - 8, 0, 0, 0);
     }
 
     private static void StyleAsOverflowRow(Button button, bool row)
@@ -215,7 +196,7 @@ internal sealed partial class GalleryViewer
         {
             if (button.Tag is not OverflowItem item) continue;
             if (item.LabelSource != null) item.Label.Text = item.LabelSource();
-            SetGesture(item.Gesture, CommandCatalog.ShortcutDisplay(item.Id));
+            MenuLayout.SetFlyoutShortcut(item.Gesture, CommandCatalog.ShortcutDisplay(item.Id));
             if (item.Check != null) item.Check.Opacity = (button as ToggleButton)?.IsChecked == true ? 1 : 0;
             // A command presenter (shortcut or language change) may have replaced the row with plain text.
             if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root;

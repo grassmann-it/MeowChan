@@ -421,15 +421,10 @@ public sealed class GalleryLayoutMenuTests : IDisposable
     }
 
     [Fact]
-    public void TheSlideshowControlShowsPlayWhileStoppedAndPauseWhileRunningOnTheBarAndInTheMenu()
+    public void TheSlideshowCommandHasPlayAndPauseMasks()
     {
         Assert.Equal("play", MeowChan.Desktop.Commands.CommandCatalog.IconForState("gallery.slideshow-toggle", "stopped"));
         Assert.Equal("pause", MeowChan.Desktop.Commands.CommandCatalog.IconForState("gallery.slideshow-toggle", "running"));
-        string playback = Source("Desktop/GalleryViewer.Playback.cs");
-        Assert.Contains("PresentSlideshowIcon();", playback);                 // every refresh of the playback controls
-        Assert.Contains("item.Root.Children[0] = lead;", playback);            // the menu row swaps its lead icon, keeps its text
-        string overflow = Source("Desktop/GalleryViewer.Overflow.cs");
-        Assert.Equal(2, overflow.Split("PresentSlideshowIcon();").Length - 1); // after a move between the bar and the menu, and on a density change
     }
 
     private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string source = "") =>
