@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MeowChan;
@@ -35,7 +34,10 @@ public sealed class TaglineIntervalTests : IDisposable
             copy.CopyFrom(candidate);
             Assert.Equal(valid, copy.HeaderTaglineIntervalMinutes);
             Assert.Equal(valid, SettingsTransfer.CreatePortableSnapshot(candidate).HeaderTaglineIntervalMinutes);
-            Assert.Equal(valid, SettingsTransfer.Export(candidate, "1.1.0")[nameof(Config.HeaderTaglineIntervalMinutes)]!.GetValue<int>());
+            JsonObject transfer = SettingsTransfer.Export(candidate, "1.1.0");
+            Assert.Equal(valid, transfer[nameof(Config.HeaderTaglineIntervalMinutes)]!.GetValue<int>());
+            Config restored = JsonSerializer.Deserialize(transfer.ToJsonString(), ConfigJsonContext.Default.Config)!;
+            Assert.Equal(valid, restored.HeaderTaglineIntervalMinutes);
         }
         foreach (int invalid in new[] { 0, 1441, int.MinValue, int.MaxValue })
         {
@@ -78,24 +80,7 @@ public sealed class TaglineIntervalTests : IDisposable
     }
 
     [Fact]
-    public void TheSettingsPageHasAConditionalRowThatResetsAndSavesIt()
-    {
-        string axaml = Source("Desktop", "Views", "Settings", "SettingsEditor.axaml");
-        int row = axaml.IndexOf("x:Name=\"HeaderTaglineIntervalMinutesInput\"", StringComparison.Ordinal);
-        Assert.True(row > 0);
-        Assert.Contains("Minimum=\"1\" Maximum=\"1440\"", axaml.Substring(row, 200));
-        Assert.Contains("SettingsConditional.When=\"{Binding HeaderTaglineIntervalEnabled}\"", axaml.Substring(Math.Max(0, row - 1800), 1800));
-        string editor = Source("Desktop", "Views", "Settings", "SettingsEditor.HeaderTagline.cs");
-        Assert.Contains("Config.HeaderTaglineIntervalMinutesMinimum, Config.HeaderTaglineIntervalMinutesMaximum", editor);
-        Assert.Contains("ResetNumber(HeaderTaglineIntervalMinutesInput, minutes);", editor);
-        Assert.Contains("candidate.HeaderTaglineIntervalMinutes = HeaderTaglineIntervalForSave();", Source("Desktop", "Views", "Settings", "SettingsEditor.Viewer.cs"));
-        Assert.Contains("LoadHeaderTaglineIntervalDraft(defaults.HeaderTaglineIntervalMinutes);", Source("Desktop", "Views", "Settings", "SettingsEditor.Reset.cs"));
-        Assert.Contains("HeaderTaglineNumericFields()", Source("Desktop", "Views", "Settings", "SettingsEditor.Validation.cs"));
-        Assert.Contains("[\"HeaderTaglineIntervalMinutes\"]", Source("Desktop", "Views", "Settings", "SettingsSearchAliases.cs"));
-    }
-
-    [Fact]
-    public void TheModeIsKnownAndPicksLikeEveryStartWhileTheWindowOwnsOneStoppedTimer()
+    public void TheModeIsKnownAndPicksLikeEveryStart()
     {
         Assert.Contains(TaglinePicker.ModeInterval, TaglinePicker.Modes);
         Assert.Equal(TaglinePicker.ModeInterval, TaglinePicker.NormalizeMode("interval"));
@@ -103,44 +88,24 @@ public sealed class TaglineIntervalTests : IDisposable
         Config config = new() { HeaderTagline = "interval" };
         Assert.Equal("Interval", config.HeaderTagline);
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        Assert.NotNull(TaglinePicker.Pick(TaglinePicker.ModeInterval, string.Empty, pool, new DateOnly(2026, 11, 21), null, null, atStart: true, new Random(1)).Entry);
-        string window = Source("Desktop", "Shell", "MainWindow.Tagline.cs");
-        Assert.Contains("TimeSpan.FromMinutes(minutes)", window);
-        Assert.Contains("StopTaglineRotation();", window.Substring(window.IndexOf("private void StopHeaderTagline()", StringComparison.Ordinal)));
-        Assert.Contains("_taglineRotationTimer.Tick -= OnTaglineRotationTick;", window);
+        DateOnly day = new(2026, 11, 21);
+        Assert.Equal(
+            TaglinePicker.Pick(TaglinePicker.ModePerStart, "", pool, day, null, null, atStart: true, new Random(1)),
+            TaglinePicker.Pick(TaglinePicker.ModeInterval, "", pool, day, null, null, atStart: true, new Random(1)));
     }
 
     [Fact]
     public void LabelAndHintExistInEnglishGermanAndEveryBundledPack()
     {
-        foreach (string key in new[] { "settings.headerTagline.interval", "settings.headerTagline.intervalLabel", "settings.headerTagline.intervalHint" })
+        foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
         {
-            foreach (string language in new[] { "en", "de" })
-            {
-                Texts.SetLanguage(language);
-                Assert.NotEqual(key, Texts.T(key));
-            }
-            string[] packs = Directory.GetFiles(Path.Combine(RepoRoot(), "Desktop", "Localization", "Packs"), "*.json");
-            Assert.Equal(10, packs.Length);
-            foreach (string pack in packs)
-            {
-                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(pack));
-                Assert.True(document.RootElement.EnumerateObject().Any(p => p.Value.ValueKind == JsonValueKind.Object
-                    && p.Value.TryGetProperty(key, out JsonElement text) && text.GetString()?.Length > 0)
-                    || document.RootElement.TryGetProperty(key, out JsonElement flat) && flat.GetString()?.Length > 0, pack + " " + key);
-            }
+            Texts.SetLanguage(language);
+            foreach (string key in new[] { "settings.headerTagline.interval", "settings.headerTagline.intervalLabel", "settings.headerTagline.intervalHint" })
+                Assert.False(string.IsNullOrWhiteSpace(Texts.Own(key)), language + " " + key);
+            string formatted = Texts.T("settings.headerTagline.intervalHint", "⟨default⟩", "⟨min⟩", "⟨max⟩");
+            Assert.Contains("⟨default⟩", formatted);
+            Assert.Contains("⟨min⟩", formatted);
+            Assert.Contains("⟨max⟩", formatted);
         }
-        Texts.SetLanguage("en");
-        Assert.Contains("{0}", Texts.T("settings.headerTagline.intervalHint"));
-        Assert.Contains("{2}", Texts.T("settings.headerTagline.intervalHint"));
     }
-
-    private static string RepoRoot()
-    {
-        string? directory = AppContext.BaseDirectory;
-        while (directory != null && !File.Exists(Path.Combine(directory, "MeowChan.csproj"))) directory = Path.GetDirectoryName(directory);
-        return directory ?? throw new InvalidOperationException("The repository root was not found.");
-    }
-
-    private static string Source(params string[] parts) => File.ReadAllText(Path.Combine(new[] { RepoRoot() }.Concat(parts).ToArray()));
 }

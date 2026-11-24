@@ -454,9 +454,10 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             }
         }
         finally { _rendering = false; }
-        var count = TaggingQueueView.ProgressCount(queue, _selectedGroupId, _ungroupedSelected, Scope);
-        _progressText.Text = count.Text;
-        AutomationProperties.SetName(_progressText, count.Description);
+        string count = TaggingQueueView.ProgressCount(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        string progressName = Texts.T("tagging.page.progressName");
+        _progressText.Text = count;
+        AutomationProperties.SetName(_progressText, progressName + " · " + count);
         // The short sentence says how far the queue is; the open / finished / skipped breakdown is its tooltip and help text.
         string breakdown = TaggingQueueView.ProgressText(queue, _selectedGroupId, _ungroupedSelected, Scope);
         ToolTip.SetTip(_progressText, breakdown);
@@ -464,8 +465,8 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _bar.Value = TaggingQueueView.Share(queue, _selectedGroupId, _ungroupedSelected, Scope) * 100;
         string percent = TaggingQueueView.PercentText(queue, _selectedGroupId, _ungroupedSelected, Scope);
         ToolTip.SetTip(_bar, percent + " · " + breakdown);
-        AutomationProperties.SetName(_bar, Texts.T("tagging.page.progressName"));
-        AutomationProperties.SetHelpText(_bar, count.Description + " · " + percent + " · " + breakdown);
+        AutomationProperties.SetName(_bar, progressName);
+        AutomationProperties.SetHelpText(_bar, count + " · " + percent + " · " + breakdown);
         string filter = TaggingQueueView.FilterText(Filter);
         ToolTip.SetTip(_filter, filter);
         AutomationProperties.SetHelpText(_filter, filter);
