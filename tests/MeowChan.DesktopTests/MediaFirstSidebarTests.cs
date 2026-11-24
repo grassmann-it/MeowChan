@@ -356,6 +356,47 @@ public sealed class MediaFirstSidebarTests
         finally { window.Close(); }
     });
 
+    [Fact]
+    public void HoverRevealsAllTagsAndTheChevronKeepsThemOpenAfterLeaving() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ReaderMediaSidebar sidebar = new();
+        sidebar.Describe("No. 42", "fixture.webm", "640 × 360", true, savedBytes: 4096);
+        sidebar.SetSourceFacts("Board", "Reviewer", "25.11.", 4096, 8192, null);
+        sidebar.SetTags(Enumerable.Range(1, 20).Select(i => $"tag {i}").ToArray(), null);
+        sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { HoverDelayMs = ReaderDisplayPreferences.HoverEnlargeDelayMinimum });
+        Window window = new() { Width = 320, Height = 800, Content = sidebar };
+        try
+        {
+            window.Show();
+            Settle(window);
+            var more = SidePanelDesignTests.ById<ScrollViewer>(sidebar, "ReaderMediaSidebarExpanded");
+            var chevron = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarExpand");
+            Point leave = Center(sidebar.Frame, window);
+            window.MouseMove(leave);
+            Settle(window);
+            Assert.False(more.IsEffectivelyVisible);
+            double compact = sidebar.Details.Bounds.Height;
+            window.MouseMove(Center(chevron, window));
+            BooruComponentDispatcher.WaitUntil(() => more.IsEffectivelyVisible, "hover expands the info bar");
+            Settle(window);
+            Assert.True(sidebar.Details.Bounds.Height > compact);
+            Assert.Contains(more.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "tag 20");
+            Assert.Contains(more.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == Texts.T("media.fact.source"));
+            window.MouseMove(leave);
+            BooruComponentDispatcher.WaitUntil(() => !more.IsEffectivelyVisible, "leaving releases the hover expansion");
+            Click(window, Center(chevron, window));
+            window.MouseMove(leave);
+            Settle(window);
+            Assert.True(more.IsEffectivelyVisible);
+            Click(window, Center(chevron, window));
+            window.MouseMove(leave);
+            BooruComponentDispatcher.WaitUntil(() => !more.IsEffectivelyVisible, "click releases the pinned expansion");
+            Assert.True(sidebar.DecisionRow.IsEffectivelyVisible);
+        }
+        finally { window.Close(); }
+    });
+
     private static Point Center(Control control, Window window) =>
         control.TranslatePoint(new Rect(control.Bounds.Size).Center, window)!.Value;
 

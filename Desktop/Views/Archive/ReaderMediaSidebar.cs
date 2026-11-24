@@ -458,7 +458,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             }
         };
         _info.Children.Add(_facts);
-        _info.Children.Add(_provenanceNote);
+        _extraFacts.Children.Add(_provenanceNote);
         _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor);
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
         _decision.RatingRequested += value =>
@@ -742,6 +742,12 @@ internal sealed partial class ReaderMediaSidebar : Border
         if (_videoDuration is { } duration)
             dimensions = ReaderMediaSidebarRules.HeaderText("", dimensions, GalleryVideoPlayer.FormatVideoTime((long)duration.TotalMilliseconds));
         _facts.Show(_location ?? "", _author, _posted, _fileName, compactSize, dimensions, sizeDescription);
+        _extraGrid.Children.Clear();
+        _extraGrid.Add(Texts.T("media.fact.file"), _fileName, fileName: true);
+        if (_savedBytes is long saved) _extraGrid.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(saved));
+        if (_sourceBytes is long source) _extraGrid.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(source));
+        if (_sourceHint is { } hint) _extraGrid.Add(Texts.T("media.fact.sourceHint"),
+            Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
         _provenanceNote.Text = string.Join(Environment.NewLine, new[] { _provenance, _historical ? Texts.T("gallery.viewer8") : null }
             .Where(text => !string.IsNullOrEmpty(text)));
         _provenanceNote.IsVisible = _provenanceNote.Text.Length > 0;
@@ -817,6 +823,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private void RefreshTags()
     {
         _infoBar.SetTags(_tags, _tagsBlocked, OpenTagsAsync != null);
+        if (_expandedRows.IsVisible) PopulateExpandedTags();
     }
 
     internal void RefreshFavorite() { RefreshDecisions(); UpdateBadges(); }

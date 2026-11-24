@@ -20,7 +20,9 @@ internal sealed class MediaInfoBar : Grid
     private readonly ToggleButton _toggle = new() { Name = "ReaderMediaSidebarTagsToggle" };
     private readonly Button _empty = new() { Name = "ReaderMediaSidebarTagsEmpty" };
     private readonly TextBlock _count = new();
-    private readonly Control _toggleArrow = Chevron();
+    internal ToggleButton Expand { get; } = new() { Name = "ReaderMediaSidebarExpand", Width = 32, Height = 32, MinWidth = 0,
+        Padding = new Thickness(0), Focusable = false, IsTabStop = false, Classes = { WorkspaceIcons.SquareClass } };
+    private readonly Control _expansionArrow = Chevron();
     private readonly TagLine _chips;
     private readonly Grid _actions;
     private readonly StackPanel _editContent;
@@ -46,7 +48,8 @@ internal sealed class MediaInfoBar : Grid
         _editContent = Horizontal(CommandBindings.IconFromKey(CommandCatalog.Get("media.tags.edit").Icon, 16), _editLabel);
         _edit.Content = _editContent;
         _edit.Click += (_, _) => edit(_edit);
-        _toggle.Content = Horizontal(CommandBindings.IconFromKey("tag", 16), _count, _toggleArrow);
+        Expand.Content = _expansionArrow;
+        _toggle.Content = Horizontal(CommandBindings.IconFromKey("tag", 16), _count);
         _empty.Content = Horizontal(CommandBindings.IconFromKey("tag", 16), new TextBlock { Text = "0" });
         foreach (Button button in new Button[] { _toggle, _empty })
         {
@@ -67,7 +70,7 @@ internal sealed class MediaInfoBar : Grid
             UpdateTagState();
         };
         _empty.Click += (_, _) => edit(_empty);
-        _actions = CreateActionGrid(rating, new Grid { Children = { _toggle, _empty } }, _edit);
+        _actions = CreateActionGrid(rating, new Grid { Children = { _toggle, _empty } }, Horizontal(_edit, Expand));
         Children.Add(_actions);
         SetRow(_chips, 1);
         Children.Add(_chips);
@@ -97,6 +100,15 @@ internal sealed class MediaInfoBar : Grid
         UpdateTagState();
     }
 
+    internal void ShowExpansion(bool open, bool pinned)
+    {
+        Expand.IsChecked = pinned;
+        _expansionArrow.RenderTransform = new RotateTransform(open ? 0 : 180);
+        string label = Texts.T(pinned ? "media.sidebar.unpin" : "media.sidebar.pin");
+        ToolTip.SetTip(Expand, label);
+        AutomationProperties.SetName(Expand, label);
+    }
+
     internal void Localize()
     {
         _editLabel.Text = CommandCatalog.Label("media.tags.edit");
@@ -118,7 +130,7 @@ internal sealed class MediaInfoBar : Grid
         _toggle.IsVisible = _tagCount > 0 && !_inline;
         _empty.IsVisible = _tagCount == 0;
         _toggle.IsChecked = _expanded;
-        _toggleArrow.RenderTransform = new RotateTransform(_expanded ? 180 : 0);
+
         _chips.IsVisible = _tagCount > 0 && (_expanded || _inline);
         foreach (Button button in new Button[] { _toggle, _empty })
         {
@@ -139,7 +151,7 @@ internal sealed class MediaInfoBar : Grid
         Button count = _tagCount == 0 ? _empty : _toggle;
         double countInset = width < 232 ? 0 : 8;
         _toggle.Padding = _empty.Padding = new Thickness(countInset, 0);
-        _toggleArrow.IsVisible = width >= 232;
+        width = Math.Max(0, width - 36);
         count.Measure(Size.Infinity);
         var text = new FormattedText(_editLabel.Text ?? "", Texts.Culture, FlowDirection,
             new Typeface(_editLabel.FontFamily, _editLabel.FontStyle, _editLabel.FontWeight), _editLabel.FontSize, _editLabel.Foreground);
@@ -156,7 +168,7 @@ internal sealed class MediaInfoBar : Grid
         _chips.IsVisible = _tagCount > 0 && (_expanded || _inline);
         _actions.Margin = new Thickness(inset, 4);
         SetRow(_chips, _inline ? 0 : 1);
-        _chips.Margin = _inline ? new Thickness(inset + stars + gap, 0, inset + _edit.Width + gap, 0)
+        _chips.Margin = _inline ? new Thickness(inset + stars + gap, 0, inset + _edit.Width + gap + 36, 0)
             : new Thickness(inset, 0, inset, 4);
         return base.MeasureOverride(availableSize);
     }
