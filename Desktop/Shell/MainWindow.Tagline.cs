@@ -218,7 +218,7 @@ public partial class MainWindow
         builder.Item("tagline.hide", Texts.T("shell.tagline.menuHide"),
             () => OnTaglineHideClick(null, new RoutedEventArgs()), icon: "eye-off");
         builder.Section().Command("navigation.settings", () => NavigateWorkspace(WorkspacePage.Settings),
-            entryId: "tagline.settings", showShortcut: false);
+            entryId: "tagline.settings", showShortcut: false, labelWhen: () => CommandCatalog.Label("navigation.settings"));
         ContextMenu menu = builder.Build()!;
         _taglineAnotherItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.another"));
         _taglineHideItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.hide"));
