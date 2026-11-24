@@ -76,9 +76,13 @@ internal static partial class QuickTagNativeTypingChecks
         editor.Input.Dismiss();
         await input.KeyAsync(MediaNativeInput.Enter);
         await Program.WaitUntilAsync(() => window.SessionHost.GetPublishedPrivateTagSnapshot().Snapshot!
-            .TagsOf(visible).Any(definition => definition.Name.Display == tag), () => "Enter did not tag the visible medium.");
+            .TagsOf(visible).Any(definition => definition.Name.Display == tag),
+            () => $"Enter did not tag the visible medium (draft '{editor.Input.Text}', status {editor.Session.Status}).");
         var snapshot = window.SessionHost.GetPublishedPrivateTagSnapshot().Snapshot!;
-        Check(snapshot.TagsOf(prior).All(definition => definition.Name.Display != tag), "The previously visible medium received the tag.");
+        TagId tagId = snapshot.Tags.Single(definition => definition.Name.Display == tag).Id;
+        PrivateMediaTagTarget target = ((MediaTagSubject.Bound)visible).Target;
+        Check(snapshot.MediaAssignments.Where(assignment => assignment.TagId == tagId).Select(assignment => assignment.Target).SequenceEqual([target])
+            && snapshot.TagsOf(prior).All(definition => definition.Name.Display != tag), "The tag was written to an unexpected attachment revision.");
         editor.Input.Dismiss();
         await input.KeyAsync(MediaNativeInput.Escape);
         await Program.WaitUntilAsync(() => QuickTagPopover.Current == null && origin.IsFocused);
@@ -90,9 +94,13 @@ internal static partial class QuickTagNativeTypingChecks
         ListBox posts = Named<ListBox>(window, "ArchivePosts");
         ArchivePostRow a = posts.Items.OfType<ArchivePostRow>().Single(row => row.Id == "482");
         ArchivePostRow b = posts.Items.OfType<ArchivePostRow>().Single(row => row.Id == PicturePost);
-        GalleryEntry savedA = (await a.Attachments[1].ResolveEntry!(CancellationToken.None))!;
+        GalleryEntry file = (await a.Attachments[1].ResolveEntry!(CancellationToken.None))!;
+        GalleryEntry[] bindings = GallerySelection.Build(page.CurrentThread!, [file.Manifest], allSavedVersions: true, includeOtherMedia: true)
+            .Entries.ToArray();
+        GalleryEntry savedA = bindings.Single(entry => entry.EntryKey.PostId == a.Id && entry.EntryKey.AttachmentPosition == 1);
+        GalleryEntry savedB = bindings.Single(entry => entry.EntryKey.PostId == b.Id && entry.EntryKey.AttachmentPosition == 0);
         MediaTagSubject subjectA = MediaTagSubjects.Of(savedA)!;
-        MediaTagSubject subjectB = MediaTagSubjects.Of(await b.Attachments[0].ResolveEntry!(CancellationToken.None))!;
+        MediaTagSubject subjectB = MediaTagSubjects.Of(savedB)!;
         var open = page.TagPopoverAsync!;
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource returned = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -128,7 +136,7 @@ internal static partial class QuickTagNativeTypingChecks
             release.SetResult();
             await returned.Task;
             Check(ReferenceEquals(shown, QuickTagPopover.Current), "Reader resolution replaced the new editor with the retired attachment.");
-            await WriteSidebarTagAsync(window, input, edit, subjectA, subjectB, "reader sidebar race");
+            await WriteSidebarTagAsync(window, input, edit, subjectA, subjectB, "readersidebarrace");
             Console.WriteLine("SMOKE Reader sidebar tags: delayed 482 attachment 2, visible 481 attachment 1, Enter, exact write, Escape focus.");
         }
         finally
@@ -172,7 +180,7 @@ internal static partial class QuickTagNativeTypingChecks
             release.SetResult();
             await Settle(window);
             Check(ReferenceEquals(shown, QuickTagPopover.Current), "Media resolution replaced the new editor with the retired medium.");
-            await WriteSidebarTagAsync(window, input, edit, subjectA, subjectB, "media sidebar race");
+            await WriteSidebarTagAsync(window, input, edit, subjectA, subjectB, "mediasidebarrace");
 
             resolved = new(TaskCreationOptions.RunContinuationsAsynchronously);
             release = new(TaskCreationOptions.RunContinuationsAsynchronously);
