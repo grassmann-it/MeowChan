@@ -69,7 +69,7 @@ public sealed class FolderSourceDesktopTests : IDisposable
                 Press(key, physicalKey);
                 Assert.Null(Find("FolderSourceRemoveConfirm"));
                 Assert.Empty(removed);
-                Assert.Same(Find(openName), window.FocusManager!.GetFocusedElement());
+                Assert.True(Find(openName) is { IsFocused: true });
             }
             Ask();
             Press(Key.Tab, PhysicalKey.Tab);

@@ -29,7 +29,7 @@ public sealed class InlineConfirmationFullscreenTests
         Assert.True(window.ShowTaggingPage());
         await BooruTestSupport.WaitAsync(() => window.TaggingPage is { IsBusy: false, Queue.Count: 1 }, "the tagging queue");
         TaggingPage page = window.TaggingPage!;
-        Button clear = FindButton(page, "tagging.clear")!;
+        Button clear = page.Actions.Items.OfType<Button>().Single(button => AutomationProperties.GetAutomationId(button) == "tagging.clear");
         Assert.True(clear.Command!.CanExecute(null));
         clear.Command.Execute(null);
         window.UpdateLayout();
@@ -54,7 +54,7 @@ public sealed class InlineConfirmationFullscreenTests
         PressEscape(window);
 
         Assert.False(page.ClearQuestionOpen);
-        Assert.True(clear.IsFocused);
+        Assert.True(page.ShownList.IsKeyboardFocusWithin);
         Assert.Equal(WindowState.FullScreen, window.WindowState);
         Assert.Equal(before, await File.ReadAllBytesAsync(path));
         Assert.Single(host.GetTagQueue()!.Items);

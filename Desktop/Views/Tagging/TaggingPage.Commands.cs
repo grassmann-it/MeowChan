@@ -419,8 +419,7 @@ public sealed partial class TaggingPage
     {
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: false);
         if (!focusClear) return;
-        if (_clear.IsEffectivelyVisible) _clear.Focus();
-        else FocusContent();
+        if (!_clear.IsEffectivelyVisible || !_clear.Focus()) FocusContent();
     }
 
     internal bool TryDismissClearQuestion()

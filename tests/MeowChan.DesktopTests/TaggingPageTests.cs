@@ -496,7 +496,9 @@ public sealed class TaggingPageTests : IDisposable
                 Dispatcher.UIThread.RunJobs();
                 Assert.Equal(new[] { "reviewed" }, Assert.Single(page.Queue.Groups).Stamp);
                 Assert.Equal(new[] { "general" }, page.Queue.Stamp);
-                Find<Button>("tagging.clear").Command!.Execute(null);
+                Button clear = page.Actions.Items.OfType<Button>().Single(button => AutomationProperties.GetAutomationId(button) == "tagging.clear");
+                Assert.True(clear.Command!.CanExecute(null));
+                clear.Command.Execute(null);
                 window.UpdateLayout();
                 Button confirm = Find<Button>("tagging.clear-confirm-action");
                 Button cancel = Find<Button>("tagging.clear-cancel");
