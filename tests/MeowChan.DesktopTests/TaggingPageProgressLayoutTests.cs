@@ -31,6 +31,7 @@ public sealed class TaggingPageProgressLayoutTests
     public void TheHostedProgressFitsAndFollowsTheLanguage(double scale) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
+        TransientPopupPolicy.Install();
         AvaloniaLocator.CurrentMutable.Bind<FontManagerOptions>().ToConstant(ReaderFonts.ManagerOptions());
         using TempDirectory profile = new();
         new Config
@@ -50,6 +51,7 @@ public sealed class TaggingPageProgressLayoutTests
                 KeyValuePair.Create(items[1].Key, TagQueueState.Skipped)]);
             await using MainWindow window = new(session) { Height = 640, Classes = { MotionPolicy.OffClass } };
             window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
             window.SetRenderScaling(scale);
             Assert.Equal(scale, window.RenderScaling);
             Button footer = window.FindControl<Button>("TaggingNavigationButton")!;
@@ -60,6 +62,7 @@ public sealed class TaggingPageProgressLayoutTests
             TaggingPage page = window.TaggingPage!;
             TaggingHeader header = page.Header;
             ProgressBar bar = header.GetVisualDescendants().OfType<ProgressBar>().Single();
+            ToolTip.SetShowDelay(bar, 0);
             TextBlock count = page.ProgressText;
             string[] languages = ["en", "de", .. Texts.BundledPackCodes()];
             Assert.Equal(12, languages.Distinct().Count());
@@ -70,10 +73,16 @@ public sealed class TaggingPageProgressLayoutTests
                 Assert.InRange(window.Bounds.Width, width - 1 / scale, width + 1 / scale);
                 page.StartButton.Focus(NavigationMethod.Tab);
                 Assert.True(page.StartButton.IsFocused);
-                ToolTip.SetIsOpen(bar, true);
-                Assert.True(ToolTip.GetIsOpen(bar));
                 foreach (string language in languages)
                 {
+                    // A language change can move the track. Enter its current position for each change.
+                    window.MouseMove(new Point(1, 1));
+                    window.MouseMove(BoundsIn(bar, window).Center);
+                    Assert.True(bar.IsPointerOver);
+                    Assert.True(ToolTip.GetIsOpen(bar));
+                    Popup popup = Assert.Single(window.OpenedPopups, popup => ReferenceEquals(popup.PlacementTarget, bar));
+                    ToolTip openTip = Assert.IsType<ToolTip>(popup.Child);
+
                     ReaderFonts.Apply(Application.Current!, language);
                     Texts.SetLanguage(language);
                     Dispatcher.UIThread.RunJobs();
@@ -94,8 +103,7 @@ public sealed class TaggingPageProgressLayoutTests
                     Assert.Equal(percent + " · " + breakdown, ToolTip.GetTip(bar));
                     Assert.Equal(label + " · " + percent + " · " + breakdown, AutomationProperties.GetHelpText(bar));
                     Assert.Equal(200d / 201, bar.Value, 8);
-                    Popup popup = Assert.Single(window.OpenedPopups, popup => popup.Child is ToolTip);
-                    Assert.Equal(percent + " · " + breakdown, Assert.IsType<ToolTip>(popup.Child).Content);
+                    Assert.Equal(percent + " · " + breakdown, openTip.Content);
 
                     CheckGeometry(header, bar, count, page.StartButton, $"{language}/{width}/{scale}");
                     if (width == 760)
@@ -106,9 +114,10 @@ public sealed class TaggingPageProgressLayoutTests
                         window.UpdateLayout();
                         CheckGeometry(header, bar, count, page.StartButton, $"{language}/{width}/{scale} (queue limit)");
                         count.Text = label;
+                        window.UpdateLayout();
                     }
                 }
-                ToolTip.SetIsOpen(bar, false);
+                window.MouseMove(new Point(1, 1));
             }
         }
     });
