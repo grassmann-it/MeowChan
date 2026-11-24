@@ -18,7 +18,7 @@ public sealed class DefaultShortcutInvariantTests
         "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.filmstrip-toggle",
         "media.details", "media.rating.edit", "viewer.shortcut-help",
         // The media page's focus mode: Shift+F (the F alone is the favourite); a typed capital in a text field is left to the field.
-        "media.focus-mode",
+        "media.focus-mode", "media.sidebar.info",
         // Gallery video (key scheme of revision 13): M mute, S frame snapshot, [ ] speed, A the A–B loop, Shift+. the next frame, "," and "."
         // seek by the step setting, L repeats the video, D the slideshow. Revision 14: X slower and C faster next to [ and ] (AltGr on DE/FR).
         "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step",

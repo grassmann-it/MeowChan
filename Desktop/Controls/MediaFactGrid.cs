@@ -99,7 +99,7 @@ internal sealed class MediaFactGrid : Grid
 
     internal static string FitFileName(string fullName, Func<string, bool> fits)
     {
-        if (fits(fullName)) return fullName;
+        if (fullName.Length == 0 || fits(fullName)) return fullName;
         int[] elements = StringInfo.ParseCombiningCharacters(fullName);
         int dot = fullName.LastIndexOf('.');
         int extension = dot > 0 ? Array.BinarySearch(elements, dot) : -1;

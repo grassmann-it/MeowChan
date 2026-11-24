@@ -579,6 +579,7 @@ public partial class ArchivePage
             || !_mediaSidebarShown || sender is not Control owner || e.Source is not Visual source
             || !source.GetSelfAndVisualAncestors().Contains(owner)
             || !CommandRouter.IsRoutingContextActive(owner, source)) return;
+        if (CanToggleMediaSidebar && _mediaSidebar?.RouteInfoKey(e) == true) return;
         int direction = ReaderSidebarStepKeys.Direction(e, ArchivePosts, _mediaSidebar?.Strip,
             id => ShortcutService.Current.Matches(e, id));
         if (direction == 0) return;

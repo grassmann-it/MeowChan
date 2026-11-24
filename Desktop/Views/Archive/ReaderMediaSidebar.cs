@@ -580,9 +580,11 @@ internal sealed partial class ReaderMediaSidebar : Border
     /// </summary>
     internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null)
     {
-        if (_postLine != postLine || _fileName != fileLine || _threadPosition != threadPosition)
+        if (_postLine != postLine || _fileName != fileLine || _threadPosition?.Number != threadPosition?.Number)
         {
             _decisionFailure = null;
+            _tags = null;
+            _tagsBlocked = null;
             _sourcePixels = null;
             _wasDocked = false;
         }
@@ -722,6 +724,8 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         if (string.Equals(_tagsBlocked, blocked, StringComparison.Ordinal)
             && (ReferenceEquals(_tags, names) || _tags != null && names != null && _tags.SequenceEqual(names))) return;
+        if (_tags != null && names != null && !_tags.SequenceEqual(names))
+            _live.Text = ReaderMediaSidebarRules.HeaderText(_postLine, Texts.T("tags.media.buttonCount", names.Count), string.Join(", ", names));
         _tags = names;
         _tagsBlocked = blocked;
         RefreshTags();

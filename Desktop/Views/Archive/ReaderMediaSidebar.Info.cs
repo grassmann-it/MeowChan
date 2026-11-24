@@ -19,6 +19,10 @@ internal readonly record struct SidebarInfoLayout(bool Docked, double CardHeight
 
 internal static partial class ReaderMediaSidebarRules
 {
+    internal const double MinimumPictureHeight = 240;
+    internal const double DockHysteresis = 24;
+    internal const double OverlayHeight = 40;
+
     // Inner panel size excludes padding and the host's border. The picture has a one-DIP edge.
     internal static SidebarInfoLayout InfoLayout(ReaderMediaPreferences preferences, bool? detailsOverride, Size inner,
         PixelSize? source, double rows, bool wasDocked, double maximumImageHeight, double panelHeight)
@@ -27,14 +31,14 @@ internal static partial class ReaderMediaSidebarRules
         double picture = Math.Max(0, card - rows - 2);
         if (detailsOverride ?? preferences.MediaSidebarInfo == "Always")
         {
-            double limit = Math.Min(panelHeight * preferences.MediaSidebarInfoMaximumShare / 100, picture - 240 - 8);
+            double limit = Math.Min(panelHeight * preferences.MediaSidebarInfoMaximumShare / 100, picture - MinimumPictureHeight - 8);
             return new(limit >= 96, double.NaN, Math.Max(0, limit), limit < 96);
         }
         if (detailsOverride == false || preferences.MediaSidebarInfo != "Auto" || source is not { Width: > 0, Height: > 0 } px)
             return default;
         double height = Math.Min(picture, Math.Min(maximumImageHeight, Math.Max(0, inner.Width - 2) * px.Height / px.Width));
         double free = picture - height;
-        bool dock = free >= preferences.MediaSidebarInfoMinimumFree - (wasDocked ? 24 : 0);
+        bool dock = free >= preferences.MediaSidebarInfoMinimumFree - (wasDocked ? DockHysteresis : 0);
         return new(dock, height + rows + 2, Math.Max(0, free - 8), false);
     }
 }
@@ -51,7 +55,7 @@ internal sealed partial class ReaderMediaSidebar
     };
     private readonly Border _overlay = new()
     {
-        Name = "ReaderMediaSidebarOverlay", Height = 40, Padding = new Thickness(8, 4),
+        Name = "ReaderMediaSidebarOverlay", Height = ReaderMediaSidebarRules.OverlayHeight, Padding = new Thickness(8, 4),
         VerticalAlignment = VerticalAlignment.Top, IsVisible = false, Classes = { "media-sidebar-overlay" },
         [!BackgroundProperty] = new DynamicResourceExtension("Workspace.MediaScrim")
     };
@@ -84,6 +88,18 @@ internal sealed partial class ReaderMediaSidebar
     {
         _detailsOverride = !_details.IsVisible;
         UpdateInfoLayout();
+        _live.Text = ReaderMediaSidebarRules.HeaderText(_postLine, CommandCatalog.Label("media.sidebar.info"),
+            Texts.T(_details.IsVisible ? "workview.column.on" : "settings.reader.mediaSidebarInfo.off"));
+    }
+
+    internal bool RouteInfoKey(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key) ||
+            !ShortcutService.Current.Matches(e, "media.sidebar.info", _decision.KeyContext) ||
+            !CommandRouter.IsRoutingContextActive(this, e.Source)) return false;
+        ToggleDetails();
+        e.Handled = true;
+        return true;
     }
 
     internal bool IsInfoMenuSource(object? source) =>
