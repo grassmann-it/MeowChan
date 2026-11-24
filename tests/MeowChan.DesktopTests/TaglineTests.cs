@@ -15,10 +15,12 @@ public sealed class TaglineTests : IDisposable
     public TaglineTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
-    private static TaglineEntry Quip(string id, string since = "1.0.0", string? text = null, TaglineTone tone = TaglineTone.Playful) =>
-        new(id, Version.Parse(since), tone, text ?? "text " + id);
+    private static TaglineEntry Quip(string id, string since = "1.0.0", string? text = null, TaglineTone tone = TaglineTone.Playful,
+        TaglineCategory category = TaglineCategory.General) =>
+        new(id, Version.Parse(since), tone, text ?? "text " + id, category);
 
-    private static TaglineEntry[] Pool(params (string Id, string Since)[] entries) => entries.Select(e => Quip(e.Id, e.Since)).ToArray();
+    private static TaglineEntry[] Pool(params (string Id, string Since)[] entries) =>
+        entries.Select(e => Quip(e.Id, e.Since, category: TaglineCategory.Release)).ToArray();
 
     // ---- fit -------------------------------------------------------------------------------------------------------------------------
 
@@ -115,7 +117,7 @@ public sealed class TaglineTests : IDisposable
     {
         TaglineEntry[] pool = Pool(("cats", "1.0.0"), ("plain", "1.0.0"), ("booru", "1.1.0"), ("flashbang", "1.1.0"), ("future", "1.2.0"));
         Version current = new(1, 1, 0);
-        foreach (string mode in new[] { "PerStart", "Daily" })
+        foreach (string mode in new[] { "PerStart", "Daily", "Interval" })
         {
             TaglinePick first = TaglinePicker.Pick(mode, "cats", pool, Day, current, new Version(1, 0, 0), true, new Random(3));
             Assert.True(first.ReleaseHighlight);
@@ -126,6 +128,25 @@ public sealed class TaglineTests : IDisposable
         }
         // A quip of a version newer than the running one is never "the release".
         Assert.DoesNotContain(TaglinePicker.ReleaseCandidates(pool, current, new Version(1, 0, 0)), entry => entry.Id == "future");
+    }
+
+    [Fact]
+    public void OnlyReleaseQuipsCanHighlightAnUpdateInAnyLanguage()
+    {
+        Version baseline = new(1, 0, 0), previous = new(1, 1, 1), current = new(1, 1, 2);
+        foreach (string language in AllLanguages)
+        {
+            Texts.SetLanguage(language);
+            IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
+            Assert.Equal(["booru", "flashbang", "pink", "tags", "vibetested", "workflow", "workviews"],
+                TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 0), baseline).Select(entry => entry.Id));
+            Assert.Equal(["boorutabs", "downloadall", "taglinesfeature", "tagquickfix", "threadswitch"],
+                TaglinePicker.ReleaseCandidates(pool, previous, baseline).Select(entry => entry.Id));
+            Assert.Equal("sortedquips", Assert.Single(TaglinePicker.ReleaseCandidates(pool, current, previous)).Id);
+            Assert.Empty(TaglinePicker.ReleaseCandidates(pool, baseline, null));
+            Assert.Equal(TaglineCategory.General, pool.Single(entry => entry.Id == "tabsbreed").Category);
+            Assert.Equal(["snowed", "trickorthread"], pool.Where(entry => entry.Category == TaglineCategory.Seasonal).Select(entry => entry.Id));
+        }
     }
 
     [Fact]
@@ -243,6 +264,7 @@ public sealed class TaglineTests : IDisposable
     [Fact]
     public void EveryLanguageHasTheLeadAndEveryQuipAndTheLeadPlusTheCatQuipIsTheAboutSentence()
     {
+        string? dailyId = null;
         foreach (string language in AllLanguages)
         {
             Texts.SetLanguage(language);
@@ -250,6 +272,9 @@ public sealed class TaglineTests : IDisposable
             IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
             Assert.Equal(BuiltInTaglineProvider.Ids.Order(StringComparer.Ordinal).ToArray(), pool.Select(entry => entry.Id).ToArray());
             Assert.Equal(pool.Count, pool.Select(entry => entry.Text).Distinct(StringComparer.Ordinal).Count());
+            string selectedId = TaglinePicker.Pick("Daily", "", pool, Day, null, null, true, new Random(1)).Entry!.Id;
+            dailyId ??= selectedId;
+            Assert.Equal(dailyId, selectedId);
             foreach (TaglineEntry entry in pool)
             {
                 Assert.True(entry.Text.Length is > 3 and <= TaglineCatalog.MaximumTextLength, language + " " + entry.Id);
@@ -306,7 +331,8 @@ public sealed class TaglineTests : IDisposable
         string[] keys = { "shell.tagline.menuAnother", "shell.tagline.menuHide", "settings.headerTagline.label", "settings.headerTagline.hint",
             "settings.headerTagline.off", "settings.headerTagline.fixed", "settings.headerTagline.daily", "settings.headerTagline.perStart",
             "settings.headerTagline.fixedLabel", "settings.headerTagline.fixedHint", "settings.headerTagline.interval",
-            "settings.headerTagline.intervalLabel", "settings.headerTagline.intervalHint" };
+            "settings.headerTagline.intervalLabel", "settings.headerTagline.intervalHint", "settings.headerTagline.category.general",
+            "settings.headerTagline.category.release", "settings.headerTagline.category.seasonal" };
         foreach (string language in AllLanguages)
         {
             Texts.SetLanguage(language);
