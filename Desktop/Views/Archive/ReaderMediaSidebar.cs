@@ -250,7 +250,7 @@ internal sealed class ReaderMediaSidebar : Border
     private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 8 };
     private readonly MediaFactGrid _facts = new("ReaderMediaSidebarFacts");
     private readonly PanelActionStack _actions = new("ReaderMediaSidebarActions");
-    private string? _location, _author, _posted, _provenance;
+    private string? _location, _author, _posted, _provenance, _hash;
     private long? _savedBytes, _sourceBytes;
     private MediaProviderSizeHint? _sourceHint;
     private bool _historical;
@@ -577,7 +577,7 @@ internal sealed class ReaderMediaSidebar : Border
         if (_postLine != postLine || _fileName != fileLine || _threadPosition != threadPosition) _decisionFailure = null;
         _postLine = postLine; _fileName = fileLine; _detail = detailLine;
         _savedBytes = savedBytes;
-        _location = _author = _posted = _provenance = null;
+        _location = _author = _posted = _provenance = _hash = null;
         _sourceBytes = null;
         _sourceHint = null;
         _historical = false;
@@ -645,13 +645,14 @@ internal sealed class ReaderMediaSidebar : Border
         _heading.Text = _postLine.Length > 0 ? _postLine : _fileName.Length > 0 ? _fileName : ShowEmptyTitle ? Texts.T(TitleKey) : string.Empty;
         ToolTip.SetTip(_heading, _heading.Text);
         _facts.Children.Clear();
-        _facts.Add(Texts.T("media.fact.location"), _location);
+        _facts.Add(Texts.T("media.fact.location"), _location, "ReaderMediaSidebarLocation");
         _facts.Add(Texts.T("media.fact.author"), _author);
         _facts.Add(Texts.T("media.fact.posted"), _posted);
         _facts.Add(Texts.T("media.fact.file"), _fileName, "ReaderMediaSidebarFile", fileName: true);
         if (_savedBytes is long bytes) _facts.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(bytes));
         if (_sourceBytes is long source) _facts.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(source));
         if (_sourceHint is { } hint) _facts.Add(Texts.T("media.fact.sourceHint"), Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
+        _facts.Add("SHA-256", _hash, "ReaderMediaSidebarHash");
         _facts.Add(Texts.T("media.fact.dimensions"), _detail);
         _provenanceNote.Text = string.Join(Environment.NewLine, new[] { _provenance, _historical ? Texts.T("gallery.viewer8") : null }
             .Where(text => !string.IsNullOrEmpty(text)));
@@ -660,7 +661,7 @@ internal sealed class ReaderMediaSidebar : Border
     }
 
     internal void SetSourceFacts(string location, string? author, string? posted, long? savedBytes, long? sourceBytes,
-        MediaProviderSizeHint? sourceHint, string? provenance = null, bool historical = false)
+        MediaProviderSizeHint? sourceHint, string? provenance = null, bool historical = false, string? hash = null)
     {
         _location = location;
         _author = author;
@@ -670,6 +671,7 @@ internal sealed class ReaderMediaSidebar : Border
         _sourceHint = sourceHint;
         _provenance = provenance;
         _historical = historical;
+        _hash = hash;
         RefreshFacts();
     }
 

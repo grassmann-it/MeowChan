@@ -4,7 +4,8 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Input.Platform;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using MeowChan.Desktop.Localization;
 
@@ -32,7 +33,26 @@ internal sealed class MediaFactGrid : Grid
         };
         text.Name = name;
         text.TextAlignment = TextAlignment.Left;
+        text.Focusable = true;
+        text.IsTabStop = true;
+        AutomationProperties.SetName(text, value);
         ToolTip.SetTip(text, value);
+        ContextMenu menu = new ContextMenuBuilder().Named(label)
+            .Item("panel.copy-value", Texts.T("diagnostics.copy"),
+                () => OpenActions.Start(() => MenuClipboard.CopyAsync(text, value), "panel.copy-value"), icon: "copy").Build()!;
+        if (menu.Items[0] is MenuItem item) item.Name = "MediaFactCopy";
+        text.ContextMenu = menu;
+        text.DetachedFromVisualTree += (_, _) => menu.Close();
+        text.AddHandler(InputElement.PointerPressedEvent, (_, e) => ContextClick.RequestOnMacControlPress(e, text), RoutingStrategies.Tunnel);
+        text.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+        {
+            if (!ContextClick.IsKey(e)) return;
+            menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+            menu.Open(text);
+            ContextClick.ConsumeOpeningKeyRelease(menu, e.Key);
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        menu.Closed += (_, _) => menu.Placement = PlacementMode.Pointer;
         Children.Add(key);
         Children.Add(text);
         InvalidateMeasure();
@@ -75,15 +95,6 @@ internal sealed class MediaFactGrid : Grid
             TextWrapping = TextWrapping.NoWrap;
             TextTrimming = TextTrimming.CharacterEllipsis;
             MaxLines = 1;
-            AutomationProperties.SetName(this, fullName);
-            MenuItem copy = new() { Header = Texts.T("diagnostics.copy"), Name = "MediaFactCopy" };
-            copy.Click += (_, _) => OpenActions.Start(CopyAsync, "diagnostics.copy");
-            ContextMenu = new ContextMenu { Items = { copy } };
-        }
-
-        private async System.Threading.Tasks.Task CopyAsync()
-        {
-            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(_fullName);
         }
 
         protected override Size MeasureOverride(Size availableSize)

@@ -79,6 +79,16 @@ public partial class MainWindow
         _gallery.ShowTagPanel(_galleryTagPanelOwner ??= new GalleryTagPanelOwner(this));
     }
 
+    private async Task ShowGalleryTagInMediaAsync(TagId tag)
+    {
+        if (_isClosing) return;
+        CloseGallery(restoreOrigin: false);
+        if (!NavigateWorkspace(WorkspacePage.Media) || _mediaPage is not { } page) return;
+        await page.ActivateAsync();
+        if (!_isClosing && _selectedPage == WorkspacePage.Media && ReferenceEquals(page, _mediaPage))
+            page.FilterToTag(tag.Value);
+    }
+
     // What the gallery tag panel needs from the window: the frozen targets, the list, limits and the full dialog.
     private sealed class GalleryTagPanelOwner(MainWindow window) : IGalleryTagPanelOwner, IGalleryDecisionOwner, ITaggingCardsOwner
     {

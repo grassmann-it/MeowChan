@@ -1232,7 +1232,7 @@ public sealed partial class MediaPage : UserControl
         return row;
     }
 
-    private void OpenSharedMediaMenu(MediaLibraryTileRow? row, Control origin, ReaderInlineVideoSlot? playback = null)
+    private void OpenSharedMediaMenu(MediaLibraryTileRow? row, Control origin, ReaderInlineVideoSlot? playback = null, bool keyboard = false)
     {
         if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible) return;
         long revision = _mediaMenuRevision;
@@ -1374,6 +1374,7 @@ public sealed partial class MediaPage : UserControl
         List<Control>? leading = ReaderPlaybackMenu.MenuItems(playback, session, Run);
         if (_building != null) (leading ??= new()).Insert(0, MediaMenuBuilder.Note(Texts.T("media.selection.reason.building")));
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, leading);
+        if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
 

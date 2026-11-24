@@ -86,7 +86,7 @@ internal sealed partial class GalleryViewer
     /// same composed actions on its entry, without the favorite (it reads the shown medium's own state) and without a playback group; its
     /// "Rate and tag…" opens the popover on the filmstrip for that tile's medium. It stays valid until the next navigation, like the shown medium's.
     /// </summary>
-    private void ShowMediaMenu(GalleryEntry? tile = null)
+    private void ShowMediaMenu(GalleryEntry? tile = null, Control? anchor = null, bool keyboard = false)
     {
         HoldSlideshowAdvance();
         RevealOverlayControls();
@@ -99,7 +99,7 @@ internal sealed partial class GalleryViewer
                 : item with { Available = RateAndTagTileRequested != null, Reason = RateAndTagTileRequested != null ? null : MediaMenuReasons.Unavailable }).ToArray() };
         MediaMenuSession session = new(model.Surface, model.Target, () => !_terminalRetirement && navigation == _navigationId
             && (!shown || _entry is { } current && MediaMenuTarget.Of(current) == model.Target));
-        Control owner = !shown ? _filmstrip : _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
+        Control owner = anchor ?? (!shown ? _filmstrip : _nativeOverlayActive ? _nativeVideoOverlay : _viewport);
         string? fileName = MediaFileActions.FileName(entry.Asset.OriginalFileName, entry.Asset.Path);
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
@@ -129,6 +129,7 @@ internal sealed partial class GalleryViewer
                 () => !_terminalRetirement && PostBookmarkRequested != null, run) };
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
             text => MenuExplanationRequested?.Invoke(text), playback);
+        if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();
         _mediaMenuPresenter.Show(menu, session, owner, attachToOrigin: true, fallbackFocus: FocusGallerySurface);

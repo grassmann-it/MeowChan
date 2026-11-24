@@ -153,7 +153,8 @@ public partial class ArchivePage
     private void OnArchiveMediaContextKey(object? sender, KeyEventArgs e)
     {
         _sidebarPointerContext.Reset(); // a key ends a pointer gesture whose release never came
-        if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
+        if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)
+            || _mediaSidebar is { } sidebar && IsMediaSidebarSource(source) && SidebarChildOwnsContext(source, sidebar)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
             && SidebarMediaContext(path) == null && SidebarStripContext(path) == null
@@ -175,7 +176,7 @@ public partial class ArchivePage
     {
         _sidebarPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _ended || !_available || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || e.Source is not Control source
-            || !ContextClick.IsPress(e, sidebar) || MediaMenuPresenter.IsNativeTextSource(source)) return;
+            || !ContextClick.IsPress(e, sidebar) || SidebarChildOwnsContext(source, sidebar)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;
         ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
@@ -189,11 +190,22 @@ public partial class ArchivePage
     // (only the right button: e.InitialPressMouseButton != MouseButton.Right leaves it open).
     private void OnSidebarPointerReleased(object? sender, PointerReleasedEventArgs e) => _sidebarPointerContext.Released(e.InitialPressMouseButton);
 
+    private static bool SidebarChildOwnsContext(Control source, ReaderMediaSidebar sidebar) =>
+        MediaMenuPresenter.IsNativeTextSource(source)
+        || ItemActivation.IsOwnedByInteractivePart(source, sidebar) && !sidebar.FrameArea.IsVisualAncestorOf(source);
+
+    private void InvalidateSidebarMediaMenu()
+    {
+        if (_mediaSidebar is { } sidebar && ReferenceEquals(_mediaMenuPresenter.Origin, sidebar.FrameArea))
+            _mediaMenuPresenter.Invalidate();
+    }
+
     private void OnArchiveMediaContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (e.Handled || _ended || !_available || e.Source is not Control source) return;
         // Text inputs and selectable text keep their own native menu.
         if (MediaMenuPresenter.IsNativeTextSource(source)) return;
+        if (_mediaSidebar is { } sidebar && IsMediaSidebarSource(source) && SidebarChildOwnsContext(source, sidebar)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (_sidebarPointerContext.IsPending && _mediaSidebar != null && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
             && _sidebarPointerContext.TryConsume()) // the menu opened with the press
@@ -251,6 +263,7 @@ public partial class ArchivePage
         }
         (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment),
             SeveralSelectedWith(asset, attachment), playback);
+        if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _mediaMenuPresenter.Show(menu, session, origin);
     }
 
@@ -693,8 +706,12 @@ public partial class ArchivePage
         MediaMenuModel model = MediaMenuComposition.Compose(facts);
         // The guard is the page state the menu was opened on. A different thread, a reloaded thread, a closed page or an
         // open filename search retires it; a mere filter change keeps the frozen visible sequence it was built from.
+        bool sidebarMenu = _mediaSidebar is { } sidebar && ReferenceEquals(sidebar.FrameArea, origin);
+        var shownSidebar = _displayedSidebarMedium;
+        ArchiveAssetRow? shownSaved = SavedMediaSidebarRow;
         MediaMenuSession session = new(surface, model.Target, () => !_ended && _available && !IsFilenameSearchOpen
-            && ReferenceEquals(_thread, thread) && _selectedThread == threadId);
+            && ReferenceEquals(_thread, thread) && _selectedThread == threadId
+            && (!sidebarMenu || _mediaSidebarShown && _displayedSidebarMedium == shownSidebar && ReferenceEquals(SavedMediaSidebarRow, shownSaved)));
         // The popover outlives the menu session (a tag write invalidates the menu on purpose); it lives while this thread is on screen.
         Task Run(Func<Task> action) => RunArchiveMenuActionAsync(action, session, reportError);
         Func<Task> When(MediaMenuAction action, Func<bool> ready, Func<Task> run) => MediaMenuHandlers.When(surface, action, ready, run);

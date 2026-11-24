@@ -364,7 +364,11 @@ public sealed partial class MediaPage
     {
         bool changed = !SamePanelTagTarget(_panelRow?.Entry, row?.Entry);
         _panelRow = row;
-        if (changed) _panel?.InvalidateTagEditor();
+        if (changed)
+        {
+            if (_mediaMenuPresenter.Origin == _panel?.Frame) _mediaMenuPresenter.Invalidate();
+            _panel?.InvalidateTagEditor();
+        }
     }
 
     private void DescribePanel(ReaderMediaSidebar panel, MediaLibraryTileRow row)
@@ -381,7 +385,7 @@ public sealed partial class MediaPage
         panel.ConfigureRating(() => Current() && !_selectionBusy && ExecuteMediaMenuActionAsync != null && row.State?.RatingKnown == true,
             () => _panelRow?.State?.UserRating, value => ExecuteMediaActionAsync(value is int rating ? "media.rating.set-" + rating : "media.rating.clear", entry, Current));
         panel.SetTags(row.State?.CanEditMediaTags == true ? row.State.MediaTags : null, TagsBlockedReason(entry, row.State));
-        panel.SetSourceFacts(row.ThreadLabel, null, entry.PostedAt?.ToString("g", Texts.Culture), entry.Length, null, null);
+        panel.SetSourceFacts(row.ThreadLabel, null, entry.PostedAt?.ToString("g", Texts.Culture), entry.Length, null, null, hash: entry.Sha256);
     }
 
     private bool PanelFavoriteAvailable() => !_lifetime.IsCancellationRequested && ExecuteMediaMenuActionAsync != null
@@ -550,8 +554,19 @@ public sealed partial class MediaPage
     private void OnPanelKeyDown(object? sender, KeyEventArgs e)
     {
         _panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came
+        if (_panel is { } panel && _panelRow is { } row && ContextClick.IsKey(e) && OwnsPanelMenu(e.Source, panel))
+        {
+            OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard: true);
+            ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
+            e.Handled = true;
+            return;
+        }
         if (!TryDismissPanelTagEditor(e) && !TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
     }
+
+    private static bool OwnsPanelMenu(object? source, ReaderMediaSidebar panel) => !IsNativeContextSource(source)
+        && (!ItemActivation.IsOwnedByInteractivePart(source, panel)
+            || source is Visual visual && panel.Frame.IsVisualAncestorOf(visual));
 
     private bool TryRoutePanelKey(KeyEventArgs e, bool fromPanel)
     {
@@ -578,12 +593,11 @@ public sealed partial class MediaPage
     private void OnPanelPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         _panelPointerContext.BeginPress(); // each press starts its own gesture
-        if (e.Handled || _lifetime.IsCancellationRequested || IsNativeContextSource(e.Source) || _panel is not { } panel
-            || !ContextClick.IsPress(e, panel) || _panelRow == null) return;
-        if (!_grid.Selection.SelectedItems.Contains(_panelRow)) _grid.SelectedItem = _panelRow;
+        if (e.Handled || _lifetime.IsCancellationRequested || _panel is not { } panel || !OwnsPanelMenu(e.Source, panel)
+            || !ContextClick.IsPress(e, panel) || _panelRow is not { } row) return;
         panel.Frame.Focusable = true;
         panel.Frame.Focus();
-        OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
+        OpenSharedMediaMenu(row, panel.Frame, _panelVideo);
         _panelPointerContext.MenuOpenedByPress(ContextClick.Button(e, panel));
         e.Handled = true;
     }
@@ -596,16 +610,16 @@ public sealed partial class MediaPage
 
     private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (e.Handled || IsNativeContextSource(e.Source) || _panel is not { } panel) return;
+        if (e.Handled || _panel is not { } panel || !OwnsPanelMenu(e.Source, panel)) return;
         if (_panelPointerContext.TryConsume()) { e.Handled = true; return; }
-        if (_panelRow == null) return;
-        if (e.TryGetPosition(panel, out _))
+        if (_panelRow is not { } row) return;
+        bool keyboard = !e.TryGetPosition(panel, out _);
+        if (!keyboard)
         {
-            if (!_grid.Selection.SelectedItems.Contains(_panelRow)) _grid.SelectedItem = _panelRow;
             panel.Frame.Focusable = true;
             panel.Frame.Focus();
         }
-        OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
+        OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard);
         e.Handled = true;
     }
 }

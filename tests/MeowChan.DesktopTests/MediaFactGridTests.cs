@@ -1,7 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Automation;
 using Avalonia.Input.Platform;
-using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -56,9 +56,11 @@ public sealed class MediaFactGridTests
                 Assert.Contains("…", values[0].Text);
                 Assert.EndsWith(".png", values[0].Text);
                 Assert.Equal(longName, ToolTip.GetTip(values[0]));
-                MenuItem copy = Assert.IsType<MenuItem>(Assert.Single(values[0].ContextMenu!.Items));
-                Assert.Equal(Texts.T("diagnostics.copy"), copy.Header);
-                copy.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                ContextGestures.RightClick(values[0]);
+                ContextMenu menu = Assert.IsType<ContextMenu>(values[0].ContextMenu);
+                Assert.True(menu.IsOpen);
+                Assert.Equal(Texts.T("diagnostics.copy"), Assert.IsType<MenuItem>(Assert.Single(menu.Items)).Header);
+                Assert.Single(MenuProbe.Entries(menu)).Activate();
                 Assert.Equal(longName, BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync()));
             }
             finally
@@ -67,4 +69,38 @@ public sealed class MediaFactGridTests
                 Texts.SetLanguage("en");
             }
         });
+
+    [Fact]
+    public void TheFullLocationAndHashAreReachableFromTheKeyboardAndMacControlClick() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        const string location = "日本語 /研究/ · 123 · #456 ― 保存された投稿の保存場所";
+        string hash = new('a', 64);
+        MediaFactGrid facts = new("Facts") { Width = 206 };
+        facts.Add(Texts.T("media.fact.location"), location);
+        facts.Add("SHA-256", hash);
+        Window window = new() { Width = 480, Height = 320, Content = facts };
+        ContextClick.MacOSForTests = true;
+        try
+        {
+            window.Show();
+            ContextGestures.Settle(window);
+            SelectableTextBlock[] values = facts.Children.OfType<SelectableTextBlock>().ToArray();
+            VerifyCopy(values[0], location, ContextGestures.ShiftF10);
+            VerifyCopy(values[1], hash, target => ContextGestures.ControlClick(target));
+        }
+        finally { ContextClick.MacOSForTests = null; window.Close(); }
+
+        void VerifyCopy(SelectableTextBlock value, string expected, Action<Control> open)
+        {
+            Assert.Equal(expected, AutomationProperties.GetName(value));
+            open(value);
+            ContextMenu menu = Assert.IsType<ContextMenu>(value.ContextMenu);
+            Assert.True(menu.IsOpen);
+            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == "panel.copy-value").Activate();
+            Assert.Equal(expected, BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync()));
+            menu.Close();
+            ContextGestures.Settle(window);
+        }
+    });
 }

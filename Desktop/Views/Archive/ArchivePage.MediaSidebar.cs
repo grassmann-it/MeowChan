@@ -748,7 +748,7 @@ public partial class ArchivePage
         sidebar.SetTags(tags, blocked ?? (subject == null ? MediaMenuReasons.NotSaved : null));
         sidebar.SetSourceFacts(resource.Source + " /" + resource.Board + "/ · " + resource.Thread, post.Author, post.Posted,
             saved?.Asset.Length, row.Attachment.ExpectedSize, row.Attachment.ProviderSizeHint,
-            MediaProvenanceText.Summary(resolved?.Binding), saved?.Asset.IsCurrent == false);
+            MediaProvenanceText.Summary(resolved?.Binding), saved?.Asset.IsCurrent == false, hash: saved?.Asset.Sha256);
     }
 
     private void RefreshMediaSidebar()
@@ -868,6 +868,7 @@ public partial class ArchivePage
             ? (thread, post, attachment) : null;
         if (_displayedSidebarMedium == next) return;
         _displayedSidebarMedium = next;
+        InvalidateSidebarMediaMenu();
         _mediaSidebar?.InvalidateTagEditor();
     }
 

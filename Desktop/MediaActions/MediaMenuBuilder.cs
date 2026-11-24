@@ -245,6 +245,7 @@ internal sealed class MediaMenuPresenter
 
     internal ContextMenu? Menu { get; private set; }
     internal MediaMenuSession? Session => _session;
+    internal Control? Origin => _owner;
 
     /// <summary>Opens <paramref name="menu"/> on <paramref name="origin"/> for <paramref name="session"/>.</summary>
     /// <param name="attachToOrigin">Also sets the origin's ContextMenu for the lifetime of the open menu.</param>

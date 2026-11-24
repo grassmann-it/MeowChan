@@ -99,7 +99,9 @@ public partial class ArchivePage
 
     private void RefreshSavedMediaSidebar(ReaderMediaSidebar sidebar)
     {
-        _savedMediaSidebarRow = _shownMediaThread == _selectedThread ? SelectedMediaRow() : null;
+        ArchiveAssetRow? next = _shownMediaThread == _selectedThread ? SelectedMediaRow() : null;
+        if (!ReferenceEquals(_savedMediaSidebarRow, next)) InvalidateSidebarMediaMenu();
+        _savedMediaSidebarRow = next;
         CancelSidebarStripLoad();
         sidebar.ClearStrip();
         if (_thread is not { } thread || _savedMediaSidebarRow is not { } row)
@@ -116,7 +118,7 @@ public partial class ArchivePage
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(key, target);
         sidebar.Describe(row.Version, row.Name, ticket.SameMedium ? _sidebarShownDetail : string.Empty, OpenMediaGallery != null);
         sidebar.SetSourceFacts($"{entry.Key.Thread.Source} /{entry.Key.Thread.Board}/ · {entry.Key.Thread.Thread}",
-            null, null, row.Asset.Length, null, null);
+            null, null, row.Asset.Length, null, null, hash: row.Asset.Sha256);
         sidebar.SetTags(null, MediaMenuReasons.TagsUnknown);
         ConfigureSavedMediaSidebarDecisions(sidebar, thread, row);
         OfferSavedSidebarVideo(entry, key);
