@@ -144,7 +144,8 @@ public partial class ArchivePage
         if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
-            && SidebarMediaContext(path) == null && SidebarStripContext(path) == null) return;
+            && SidebarMediaContext(path) == null && SidebarStripContext(path) == null
+            && (SavedMediaSidebarRow == null || !IsMediaSidebarSource(source))) return;
         ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
         e.Handled = request.Handled;
@@ -203,7 +204,11 @@ public partial class ArchivePage
         string? postId = ancestors.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
         // The medium of the media sidebar: the same menu as the attachment it shows in its post (right-click, Menu key, Shift+F10).
         ReaderInlineVideoSlot? playback = attachmentView?.InlineVideoForKeys();
-        if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
+        if (attachment == null && asset == null && SavedMediaSidebarRow is { } saved && IsMediaSidebarSource(source))
+        {
+            asset = saved; origin = _mediaSidebar?.FrameArea; playback = _sidebarVideo;
+        }
+        else if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
         {
             attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
         }
@@ -310,6 +315,9 @@ public partial class ArchivePage
 
     private Task OpenSidebarTagsAsync(Control anchor)
     {
+        if (SavedMediaSidebarRow is { } saved && _thread != null)
+            return OpenRateAndTagAsync(ResolveArchiveMediaSubject(saved, null, null), anchor, null,
+                QuickTagInitialFocus.TagInput, current: () => ReferenceEquals(SavedMediaSidebarRow, saved));
         if (_mediaSidebar is not { } sidebar || SidebarMediaContext([sidebar]) is not { } shown
             || _thread == null || _selectedThread is not { } thread) return Task.CompletedTask;
         ArchiveAssetRow? asset = FindMatchingAsset(thread, shown.PostId, shown.Attachment.Attachment, _assets);
@@ -533,6 +541,11 @@ public partial class ArchivePage
             asset = SelectedMediaRow();
             origin = list;
         }
+        else if (asset == null && SavedMediaSidebarRow is { } saved && IsMediaSidebarSource(source))
+        {
+            asset = saved;
+            origin = _mediaSidebar?.FrameArea;
+        }
         else if (asset == null && (SidebarStripContext(parents) is { } thumbnail ? (thumbnail.Attachment, thumbnail.PostId, thumbnail.Origin)
                      : SidebarMediaContext(parents) is { } shown ? (shown.Attachment, shown.PostId, shown.Origin)
                      : selectedPost ? SelectedPostMedium(parents, source) : null) is { } medium)
@@ -678,7 +691,7 @@ public partial class ArchivePage
             {
                 string details = target == null ? attachment?.Label + Environment.NewLine + MediaMenuReasons.NotSaved
                     : (target.Asset.OriginalFileName ?? target.Asset.Path) + Environment.NewLine + target.Asset.Path + Environment.NewLine
-                        + MediaProvenanceText.LocalSize(target.Asset.Length) + Environment.NewLine + "SHA-256: " + target.Asset.Sha256
+                        + MediaProvenanceText.LocalSize(target.Asset.Length) + Environment.NewLine + Texts.T("archive.media.sha256", target.Asset.Sha256)
                         + Environment.NewLine + (severalPosts ? string.Empty : MediaProvenanceText.Details(target.AttachmentResolution?.Binding) + Environment.NewLine)
                         + threadId.Source + " /" + threadId.Board + "/ " + threadId.Thread
                         + Environment.NewLine + (severalPosts ? Texts.T("media.menu.details.posts", string.Join(", ", postIds))
@@ -693,6 +706,9 @@ public partial class ArchivePage
             })
         };
         List<Control> context = new();
+        if (surface is MediaMenuSurface.ArchiveTiles or MediaMenuSurface.ArchiveTable && asset?.Asset.Sha256 is { Length: 64 } hash)
+            context.Add(MediaMenuBuilder.ContextItem(session, "archive.media.copySha256",
+                () => MenuClipboard.CopyAsync(origin, hash, reportError), () => true, Run, icon: "copy"));
         if (postId != null && EditPostBookmark != null)
             context.Add(CreatePostBookmarkMenuItem(new MeowChan.Persistence.PostBookmarkKey(threadId, postId), origin));
         if (selection is { Length: > 1 })

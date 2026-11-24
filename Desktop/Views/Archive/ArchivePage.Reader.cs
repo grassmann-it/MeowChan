@@ -288,7 +288,14 @@ public partial class ArchivePage
         {
             if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
         };
-        ArchiveContentTabs.SelectionChanged += (_, _) => { CancelReaderMediaActivation(); AlignPostsOnShow(); };
+        ArchiveContentTabs.SelectionChanged += (_, e) =>
+        {
+            if (!ReferenceEquals(e.Source, ArchiveContentTabs)) return;
+            CancelReaderMediaActivation();
+            AlignPostsOnShow();
+            UpdateReaderNavigation();
+            OnMediaSidebarSelectionChanged();
+        };
         // M / U / F on the selected post's medium (the shared resolver) first, then the media menu's other keys.
         // These are page-owned shortcuts, not list type-ahead: enter the route before a ListBoxItem can consume a letter.
         // Each resolver keeps native editors, text selection, popups and foreign top-levels out of the route.
@@ -730,8 +737,13 @@ public partial class ArchivePage
             && (!_readerGroupScope || ReaderGroupTargetIndex(1) < _readerThreads.Count);
         UpdateReaderNavigationTexts(post, thread);
         bool barWasVisible = ReaderNavigation.IsVisible;
-        ReaderNavigation.IsVisible = _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff;
-        if (ReaderNavigation.IsVisible && !barWasVisible) ShowReaderNavigation();
+        ReaderNavigation.IsVisible = CanShowReaderNavigation;
+        if (!ReaderNavigation.IsVisible)
+        {
+            _readerNavigationIdleTimer?.Stop();
+            _readerNavigationActive = _readerNavigationPointerOver = false;
+        }
+        else if (!barWasVisible) ShowReaderNavigation();
         UpdateReaderNavigationLayout();
     }
 
@@ -834,7 +846,10 @@ public partial class ArchivePage
     internal bool IsLargeReader => _largeReader;
     internal string ReaderNavigationDebugState => $"large={_largeReader};mode={_readerNavigationMode};active={_readerNavigationActive};pointerOver={_readerNavigationPointerOver};visible={ReaderNavigation.IsVisible};focus={ReaderNavigation.IsKeyboardFocusWithin}";
 
-    internal bool ReaderNavigationShown => _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff
+    private bool CanShowReaderNavigation => _largeReader && !ArchiveMediaTab.IsSelected
+        && _readerNavigationMode != Config.ReaderNavigationModeOff;
+
+    internal bool ReaderNavigationShown => CanShowReaderNavigation
         && (_readerNavigationMode == Config.ReaderNavigationModeAlways || _readerNavigationActive || _readerNavigationPointerOver
         || ReaderNavigation.IsKeyboardFocusWithin || PointerNearReaderNavigation())
         && (_readerNavigationMode == Config.ReaderNavigationModeAlways || TransientHover.WindowUsable(ReaderContentSurface));
@@ -868,7 +883,7 @@ public partial class ArchivePage
     // elapsed time, so a stream of pointer moves costs one timestamp each. "Always" and "Off" need no timer.
     internal void ShowReaderNavigation(bool fromPointer = false)
     {
-        if (!_largeReader || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;
+        if (!CanShowReaderNavigation || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;
         _readerNavigationLastActivity = Environment.TickCount64;
         _readerNavigationActivityFromPointer = fromPointer;
         _readerNavigationActive = true;

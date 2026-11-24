@@ -119,6 +119,7 @@ public partial class ArchivePage : UserControl
                 ArchiveMediaColumnsButton.IsVisible = !value;
                 SyncMediaLayoutSwitch();
                 if (position != null) RestoreMediaPosition(position);
+                FollowSavedMediaSelection();
             }
             else SyncMediaLayoutHighlight();
         }
@@ -724,6 +725,7 @@ public partial class ArchivePage : UserControl
         ArchiveThreadMediaTotal.IsVisible = total > 0;
         if (total > 0) ArchiveThreadMediaTotal.Text = Texts.T("thread.media.total", total);
         UpdateActions();
+        FollowSavedMediaSelection();
     }
 
     private IReadOnlyList<ArchiveAssetRow> VisibleAssets()
@@ -1026,6 +1028,7 @@ public partial class ArchivePage : UserControl
         // Only the list that is shown is read; switching between list and tiles carries the selection over (RestoreMediaPosition).
         if (sender is DataGrid && _mediaTiles || sender is ListBox && !_mediaTiles) return;
         UpdateActions();
+        FollowSavedMediaSelection();
     }
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
