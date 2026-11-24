@@ -249,8 +249,8 @@ public partial class ArchivePage
     {
         ReaderFindOpen.Content = Texts.T("readerFind.open");
         ReaderFindQuery.PlaceholderText = Texts.T("readerFind.query");
-        ReaderFindPrevious.Content = Texts.T("readerFind.previous");
-        ReaderFindNext.Content = Texts.T("readerFind.next");
+        WorkspaceIcons.MakeSquare(ReaderFindPrevious, WorkspaceIcons.ChevronUp, Texts.T("readerFind.previous"));
+        WorkspaceIcons.MakeSquare(ReaderFindNext, WorkspaceIcons.ChevronDown, Texts.T("readerFind.next"));
         UpdateThreadToolsRow();
         ReaderFindRetry.Content = Texts.T("readerFind.retry");
         ReaderFindRetry.IsVisible = _threadFindStatus == "readerFind.failed";
@@ -258,9 +258,11 @@ public partial class ArchivePage
         bool hits = result?.Hits.Count > 0;
         ReaderFindPrevious.IsEnabled = hits;
         ReaderFindNext.IsEnabled = hits;
+        ReaderFindPosition.IsVisible = result != null;
+        ReaderFindPosition.Text = result == null ? null
+            : Texts.T("reader.sidebar.position", _threadFindCursor + 1, result.Hits.Count);
         ReaderFindStatus.Text = result == null ? Texts.T(_threadFindStatus)
-            : Texts.Count("readerFind.count", result.Hits.Count, _threadFindCursor + 1, result.Hits.Count)
-                + (result.Truncation == ReaderFindTruncation.None ? "" : " · " + Texts.T("readerFind.truncated"));
+            : result.Truncation == ReaderFindTruncation.None ? null : Texts.T("readerFind.truncated");
         TextBlock excerpt = ReaderFindExcerpt;
         excerpt.Inlines!.Clear();
         if (result != null && _threadFindCursor >= 0)
