@@ -107,8 +107,12 @@ internal sealed partial class GalleryViewer
         _layoutSection.Children.Add(_layoutSectionPanel);
         _overflowPanel.Children.Add(_layoutSection);
         _overflowFlyout.Opening += (_, _) => { if (_layoutSection.IsVisible) _layoutSectionPanel.Refresh(); };
-        _layoutButton.Flyout = _layoutFlyout; // a click, Enter or Space opens it; an open flyout is a popup (HasGalleryPopup)
-        _layoutPanel.AddHandler(KeyDownEvent, (_, e) => OnMenuKeyDown(e, _layoutPanel, _layoutFlyout), RoutingStrategies.Tunnel);
+        PopupToggle.BindFlyout(_layoutButton, _layoutFlyout);
+        _layoutPanel.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!e.Handled && TryToggleLayoutFromMenu(e, _layoutFlyout)) return;
+            OnMenuKeyDown(e, _layoutPanel, _layoutFlyout);
+        }, RoutingStrategies.Tunnel);
         _layoutPanel.GotFocus += (_, _) => _layoutMenuHadFocus = true;
         _layoutFlyout.Opening += (_, _) =>
         {
@@ -131,9 +135,7 @@ internal sealed partial class GalleryViewer
             RevealOverlayControls();
             if (!_layoutMenuHadFocus || _terminalRetirement || !_layoutButton.IsEffectivelyVisible) return;
             _layoutMenuHadFocus = false;
-            // A keyboard user returns to the button the menu came from, never to a block that may have left the screen; a menu opened with the pointer hands the keys to the picture.
-            if (_keyboardInteraction) _layoutButton.Focus(NavigationMethod.Tab);
-            else ReclaimGallerySurface();
+            ReclaimGallerySurface();
         };
         // The same rows on a right click of free dock area; the host also opens them for the Menu key and Shift+F10 on the button.
         _layoutContextHost = new ContextMenuHost(_layoutButton,
@@ -246,6 +248,17 @@ internal sealed partial class GalleryViewer
     }
 
     // ---- the keyboard commands ----
+
+    private static bool TryToggleLayoutFromMenu(KeyEventArgs e, FlyoutBase flyout)
+    {
+        if (ShortcutService.IsCapturing || e.Source is Visual source && source.GetSelfAndVisualAncestors()
+            .OfType<ComboBox>().Any(box => box.IsDropDownOpen)) return false;
+        using var context = EffectiveShortcutBindings.EnterKeyContext("gallery");
+        if (!CommandBindings.Matches(e, GalleryLayoutMenu.OpenCommandId)) return false;
+        flyout.Hide();
+        e.Handled = true;
+        return true;
+    }
 
     // The unbound layout commands (gallery.layout-menu opens the menu; the others change one block or the filmstrip's position).
     private bool HandleLayoutKey(KeyEventArgs e)

@@ -23,6 +23,7 @@ internal sealed partial class GalleryViewer
     private GalleryTagPanelController? _tagController;
     private QuickTagSurface? _tagSurface;
     private GalleryThreadTagSection? _threadSection;
+    private Button? _threadSectionButton;
     private StackPanel? _tagExtra;
     private TextBlock? _tagReason;
     // Favorite and rating of the panel's targets (PT6): the row above the field; null when the owner offers none.
@@ -75,6 +76,11 @@ internal sealed partial class GalleryViewer
         _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-meta" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
         _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };
         _tagExtra.Children.Add(_tagReason);
+        _threadSectionButton = new Button { Name = "GalleryThreadTagsToggle", Classes = { "subtle" } };
+        CommandBindings.ApplyLabeled(_threadSectionButton, QuickTagCommands.ThreadSection, CommandCatalog.Label(QuickTagCommands.ThreadSection));
+        PopupToggle.Prepare(_threadSectionButton);
+        _threadSectionButton.Click += (_, _) => OnTagThreadSectionRequested();
+        _tagExtra.Children.Add(_threadSectionButton);
         _tagExtra.Children.Add(_threadSection);
         surface.ExtraContent = _tagExtra;
         surface.CloseRequested += CloseTagPanel;
@@ -154,7 +160,8 @@ internal sealed partial class GalleryViewer
         _threadSection?.Dispose();
         surface?.Dispose();
         controller?.Dispose();
-        _threadSection = null; _tagExtra = null; _tagReason = null;
+        _threadSection = null;
+        _threadSectionButton = null; _tagExtra = null; _tagReason = null;
         ApplyChrome(); // the row is gone: the info line shows the rating again (QW5)
         // The post context was not kept current meanwhile.
         _contextDirty = true;
@@ -335,23 +342,34 @@ internal sealed partial class GalleryViewer
         _tagSurface is { Input.IsKeyboardFocusWithin: true } surface
         && (surface.Input.IsComposing || QuickTagKeys.FieldOwnsCharacter(e, ShortcutService.Current.Platform));
 
-    // Ctrl+T: opens the thread tags section and focuses its field; again, with the focus inside it, collapses it back to the field.
+    // The button and the effective shortcut toggle the section independently of which field has focus.
     private void OnTagThreadSectionRequested()
     {
         if (_threadSection is not { } section || _tagSurface is not { } surface || _tagController is not { } controller) return;
-        if (section.IsVisible && section.IsKeyboardFocusWithin)
-        {
-            section.IsVisible = false;
-            surface.FocusField();
-            return;
-        }
-        if (!section.IsVisible)
-        {
-            section.Model = controller.UnavailableReason == null ? controller.OpenThreadTags() : null;
-            section.IsVisible = true;
-        }
+        if (section.IsVisible) { CloseThreadTagSection(section, surface); return; }
+        section.Model = controller.UnavailableReason == null ? controller.OpenThreadTags() : null;
+        section.IsVisible = true;
+        if (_threadSectionButton is { } button) PopupToggle.Present(button, true);
         section.BringIntoView();
         section.FocusInput();
+    }
+
+    private void CloseThreadTagSection(GalleryThreadTagSection section, QuickTagSurface surface)
+    {
+        section.Input.Dismiss();
+        section.IsVisible = false;
+        if (_threadSectionButton is { } button) PopupToggle.Present(button, false);
+        surface.FocusField();
+    }
+
+    private bool TryDismissThreadTagSection()
+    {
+        if (_threadSection is not { IsVisible: true } section || _tagSurface is not { } surface
+            || surface.FieldHasComposition || section.Input.IsComposing) return false;
+        if (section.Input.HasSuggestionList) section.Input.Dismiss();
+        else if (surface.Input.HasSuggestionList) surface.Input.Dismiss();
+        else CloseThreadTagSection(section, surface);
+        return true;
     }
 
     // The strip is asked again once a warm-up or the neighbour mapping finished (worker thread).
@@ -369,13 +387,10 @@ internal sealed partial class GalleryViewer
     private bool RouteTagPanelKey(KeyEventArgs e)
     {
         if (!_tagPanelOpen || _tagSurface is not { } surface || e.Handled) return false;
-        // Escape closes an open suggestion list of the thread field before it closes the panel.
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _threadSection is { Input: { IsDropDownOpen: true } input } && input.IsKeyboardFocusWithin)
-        {
-            input.Dismiss();
-            e.Handled = true;
-            return true;
-        }
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && TryDismissThreadTagSection())
+        { e.Handled = true; return true; }
+        if (_threadSection?.Input.IsComposing != true && CommandBindings.Matches(e, QuickTagCommands.ThreadSection))
+        { OnTagThreadSectionRequested(); e.Handled = true; return true; }
         // The command that opened the panel closes it again, also from inside the field.
         if (CommandBindings.Matches(e, "media.tags.edit")) { CloseTagPanel(); e.Handled = true; return true; }
         foreach (string id in GalleryTagPanelCommands.Handled)

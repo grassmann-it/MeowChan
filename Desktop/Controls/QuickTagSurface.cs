@@ -428,7 +428,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _undo.Click += OnUndo;
         _stamp.Click += OnStamp;
         _advanced.Click += OnAdvanced;
+        PopupToggle.Prepare(_more);
+        AutomationProperties.SetAutomationId(_input, _input.Name);
         _more.Click += OnMore;
+        _input.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == IdentitySuggestionBox.IsDropDownOpenProperty) PopupToggle.Present(_more, _input.IsDropDownOpen);
+        };
         _decorated = new QuickTagStampSource(_source, _session.Stamp);
         TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, _session.OnAll, () => OpenActions.Start(() => AddTypedAsync(), "tags.quick.add.key"), _sourceTags);
         // Rate-and-tag opens with the rating row focused for R.  Some Avalonia/Ursa templates do not
@@ -1259,7 +1265,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void OnAdvanced(object? sender, RoutedEventArgs e) => AdvancedRequested?.Invoke();
     private void OnClose(object? sender, RoutedEventArgs e) => CloseRequested?.Invoke();
-    private void OnMore(object? sender, RoutedEventArgs e) => _input.OpenExplicitList();
+    private void OnMore(object? sender, RoutedEventArgs e) => _input.ToggleExplicitList();
 
     private async Task Guard(Func<Task> action, string context)
     {
@@ -1281,7 +1287,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private void OnKey(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || FieldHasComposition) return;
-        QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.IsDropDownOpen,
+        QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.HasSuggestionList,
             string.IsNullOrEmpty(_input.Text), NavigationEnabled, ShortcutService.Current);
         if (Execute(route)) e.Handled = true;
     }

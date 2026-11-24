@@ -77,6 +77,8 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
     private bool _publishing;
     private bool _ended;
     private bool _suppressed;
+    private bool _explicitListPending;
+    internal bool HasSuggestionList => IsDropDownOpen || _explicitListPending;
     protected override Type StyleKeyOverride => typeof(Ursa.Controls.AutoCompleteBox);
     public IdentitySuggestionBox()
     {
@@ -147,7 +149,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
         TextChanged += (_, _) =>
         {
             if (_publishing) return;
-            AcceptedCandidate = null; _suppressed = false;
+            AcceptedCandidate = null; _suppressed = false; _explicitListPending = false;
             // The base control raises TextChanged before it records the new search text. Clearing the list
             // here would drop a list selection, which makes the base control write the OLD search text back
             // into the editor (and mutates the list inside a selection update). Close now, repopulate right
@@ -325,7 +327,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
         }
         if (e.Key == Key.Escape)
         {
-            bool listWasOpen = IsDropDownOpen;
+            bool listWasOpen = HasSuggestionList;
             Dismiss();
             if (listWasOpen || !ReleaseEscape) e.Handled = true;
             return;
@@ -373,7 +375,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
     }
     internal void Dismiss()
     {
-        ++_revision; _suppressed = true; _preselected = null;
+        ++_revision; _suppressed = true; _preselected = null; _explicitListPending = false;
         CancelPointerGesture();
         _request?.Cancel(); _request?.Dispose(); _request = null;
         IsDropDownOpen = false;
@@ -389,13 +391,17 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
     /// Focuses the editor and opens the list as Up/Down would: an explicit request, so an empty field lists what the provider
     /// offers for browsing (the tag fields: the most used names). Used by "More…" of the quick tag surface.
     /// </summary>
-    internal void OpenExplicitList()
+    internal void ToggleExplicitList()
     {
-        if (_ended || Candidates == null) return;
+        if (_ended || Candidates == null || IsComposing) return;
+        if (HasSuggestionList) { Dismiss(); return; }
         Focus();
+        _explicitListPending = true;
+        int revision = _revision;
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            if (_ended || Candidates == null || !IsKeyboardFocusWithin) return;
+            if (_ended || !_explicitListPending || revision != _revision) return;
+            if (Candidates == null || !IsKeyboardFocusWithin) { _explicitListPending = false; return; }
             _suppressed = false;
             IsExplicitRequest = true;
             try { StartPopulate(); } finally { IsExplicitRequest = false; }
@@ -448,7 +454,11 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
                 Avalonia.Threading.DispatcherPriority.Input);
             return;
         }
-        if (_ended || _suppressed || !IsKeyboardFocusWithin || Candidates == null) return;
+        if (_ended || _suppressed || !IsKeyboardFocusWithin || Candidates == null)
+        {
+            _explicitListPending = false;
+            return;
+        }
         string text = Text ?? "";
         (int caretStart, int caretEnd) = EditorSelection;
         _populatedToken = CaretToken?.Invoke(text, caretStart, caretEnd);
@@ -474,6 +484,10 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
         catch (Exception error)
         {
             if (!_ended && revision == _revision && !token.IsCancellationRequested) LoadCompleted?.Invoke(error);
+        }
+        finally
+        {
+            if (revision == _revision) _explicitListPending = false;
         }
     }
 }
