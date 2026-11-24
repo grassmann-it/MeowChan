@@ -90,9 +90,10 @@ Use the footer view selector to switch.
 The footer groups destinations as **Work** (Downloads, Archive, Media, Tagging, Booru), **Set up**
 (Rules, Plugins) and **Observe** (Status), followed by
 **More** (German: **Mehr**) and **Settings**. The current work view and available
-width decide which destinations stay directly in the footer. **More** contains
-only destinations moved out of the footer; it does not duplicate Downloads or
-Settings. Booru has a footer button by default in Simple and Advanced when there
+width decide which destinations stay directly in the footer. **More** lists the
+destinations moved out of the footer. When the current page is in **More**, the
+button's tooltip and accessible name identify it and the menu marks its entry.
+Booru has a footer button by default in Simple and Advanced when there
 is room. Barebones and narrow windows can move it under **More**. The ⋯ app menu
 includes **Danbooru search and watchers…** while Booru is available. You can also
 open it from **Media → More → Open Booru** or with its shortcut. **Tagging** (German: **Taggen**) is a numbered footer page right
@@ -103,13 +104,14 @@ In German the destination order is
 **Mehr** and **Einstellungen**. The display switch is described under
 [Booru page and display switch](#booru-page-and-display-switch).
 
-**Continue reading** (German: **Weiterlesen**) is a book icon immediately left
-of Pause in the header, with a labelled entry in the app menu. The icon appears
-when the feature is enabled and a saved reading position or history entry is known;
-it remains visible while the reader or gallery is open. Outside an open thread,
-left-click jumps to the newest saved place. Inside the reader or gallery, left-click
-opens the history list so choosing another place does not replace the current view
-accidentally; the arrow, right-click and Menu key always open that list.
+**Continue reading** (German: **Weiterlesen**) is the book button beside the
+history arrow in the header. The pair appears when the feature is enabled and a
+saved reading position or history entry is known. It remains visible while the
+reader or gallery is open. The book opens the newest saved place. The arrow opens
+the history list, which you can also open with right-click or the Menu key. Tab
+to either button and press Enter to use it. The app menu's **Continue reading**
+entry and its shortcut open the history when a thread is open and resume the
+newest saved place elsewhere.
 
 ### Toolbar layout
 
@@ -752,7 +754,7 @@ More defaults that are easy to miss (F1 lists every key of the current area):
 | Key | Action |
 | --- | --- |
 | Ctrl+Shift+I | **Import files…** |
-| Ctrl+Shift+R | **Continue reading** |
+| Ctrl+Shift+R (macOS ⇧⌘R) | **Continue reading** |
 | Ctrl+Shift+N / Ctrl+Shift+L | Reader: **Show new posts** / **Show new posts automatically** |
 | Ctrl+Shift+M | Show or hide the media sidebar (Reader and Media page) |
 | Ctrl+Plus / Ctrl+Minus / Ctrl+0 | Larger / smaller / medium tiles on the Media page, the Tagging grid and the Archive's media tiles; in the reader the same keys change the reading font size |
@@ -1667,11 +1669,11 @@ gallery uses the saved **Start videos muted** preference, not the last manual mu
 **Local reading continuation** is off by default. In Settings → Reading & media,
 enable **Remember the last reading position locally** and Save. MeowChan then
 keeps the last deliberately opened reader position and a local history with one
-place per thread for this profile. Right-click **Continue reading** to choose a
-recent thread. **Reading history entries** sets how many thread places the history
+place per thread for this profile. Use the arrow beside **Continue reading** to
+choose a recent thread. **Reading history entries** sets how many thread places the history
 keeps (default 50, 10–500); **Threads in the Continue reading menu** separately
 sets how many recent places the menu lists (default 10, 3–25). After restarting,
-choose the **Continue reading** book icon left of Pause in the header, or the
+choose the **Continue reading** book button in the header, or the
 labelled **Continue reading** entry in the app menu. The app keeps its normal
 start page until you choose that action. Only locally captured posts are read; no
 source request or download is started.
