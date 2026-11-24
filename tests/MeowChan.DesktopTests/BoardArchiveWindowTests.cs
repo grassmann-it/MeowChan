@@ -133,18 +133,21 @@ public sealed class BoardArchiveWindowTests
         });
 
     [Fact]
-    public void TheDownloadsBoardsMenuAndUrlFieldOpenTheSameArchiveDialog()
-        => BooruComponentDispatcher.Run(() =>
+    public async Task TheDownloadsBoardsMenuAndUrlFieldOpenTheSameArchiveDialog()
+    {
+        using TempDirectory profile = new();
+        using BoardArchiveHostTests.ArchiveTransport transport = new() { EmptyLiveCatalog = true };
+        BoardArchiveHostTests.Configure(profile.Path);
+        await using DesktopSessionHost session = OwnedUiDispatcher.CreateHost(() => BoardArchiveHostTests.CreateHost(profile.Path, transport));
+        await session.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
+        Assert.True(session.State == DesktopSessionState.Ready, session.StartupError);
+        BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
-            using TempDirectory profile = new();
-            using BoardArchiveHostTests.ArchiveTransport transport = new() { EmptyLiveCatalog = true };
-            BoardArchiveHostTests.Configure(profile.Path);
             BooruComponentDispatcher.Wait(Exercise());
 
             async Task Exercise()
             {
-                await using DesktopSessionHost session = BoardArchiveHostTests.CreateHost(profile.Path, transport);
                 await using MainWindow window = new(session) { Width = 1000, Height = 700, Classes = { MotionPolicy.OffClass } };
                 window.Show();
                 window.PlatformImpl!.Activated?.Invoke();
@@ -192,6 +195,7 @@ public sealed class BoardArchiveWindowTests
                     transport.Requests.Where(call => call.Path == "/g/archive.json").Select(call => call.Modified));
             }
         });
+    }
 
     private static Task WaitForArchive(BoardArchiveWindow dialog) => BooruTestSupport.WaitAsync(() =>
     {
