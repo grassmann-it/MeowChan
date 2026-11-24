@@ -38,11 +38,11 @@ public sealed class TrayStatsPresenterTests : IDisposable
             Shown = shown; TooltipOn = tooltipOn; MenuOn = menuOn;
             Hub = new IoStatsHub(Source, Clock, new IoStatsOptions { Persist = false, BackgroundIntervalMs = backgroundMs, TrayTooltip = tooltipOn });
             Attachment = Hub.Attach(null, () => new IoActivity(Active, Active > 0 ? 4 : 0, 0));
-            // The existing tray entries stay behind the three new ones.
             Menu.Items.Add(new NativeMenuItem { Header = "Open" });
             Presenter = new TrayStatsPresenter(Hub, Menu, new TrayStatsHost(
                 () => TooltipOn, () => MenuOn, () => Shown, () => Closing, () => (Paused, Paused ? 0 : Active),
                 tip => { Tooltip = tip; TooltipSets++; }, () => Opened++, action => action()), Clock);
+            Menu.Items.Add(new NativeMenuItem { Header = "Pause" });
         }
 
         internal void Activity(int active) { Active = active; Hub.NotifyActivityChanged(); }
@@ -219,20 +219,23 @@ public sealed class TrayStatsPresenterTests : IDisposable
     // --- the menu lines ---------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheMenuStartsWithThreeEnabledLinesAndASeparatorAndTheOldEntriesFollow()
+    public void ThreeEnabledLinesSitBetweenTheOpenEntryAndTheActions()
     {
         using Harness h = new();
-        Assert.Same(h.Presenter.RatesItem, h.Menu.Items[0]);
-        Assert.Same(h.Presenter.DiskItem, h.Menu.Items[1]);
-        Assert.Same(h.Presenter.DetailItem, h.Menu.Items[2]);
-        Assert.Same(h.Presenter.Separator, h.Menu.Items[3]);
-        Assert.Equal("Open", ((NativeMenuItem)h.Menu.Items[4]).Header);
+        Assert.Collection(h.Menu.Items,
+            item => Assert.Equal("Open", Assert.IsType<NativeMenuItem>(item).Header),
+            item => Assert.IsType<NativeMenuItemSeparator>(item),
+            item => Assert.Same(h.Presenter.RatesItem, item),
+            item => Assert.Same(h.Presenter.DiskItem, item),
+            item => Assert.Same(h.Presenter.DetailItem, item),
+            item => Assert.IsType<NativeMenuItemSeparator>(item),
+            item => Assert.Equal("Pause", Assert.IsType<NativeMenuItem>(item).Header));
         Assert.True(h.Presenter.RatesItem.IsEnabled && h.Presenter.DiskItem.IsEnabled && h.Presenter.DetailItem.IsEnabled);
-        Assert.True(h.Presenter.RatesItem.IsVisible && h.Presenter.DiskItem.IsVisible && h.Presenter.DetailItem.IsVisible && h.Presenter.Separator.IsVisible);
+        Assert.All(h.Menu.Items.OfType<NativeMenuItem>(), item => Assert.True(item.IsVisible));
     }
 
     [Fact]
-    public void TheLinesAreFilledWhenTheMenuOpensNotOnEverySample()
+    public void TheLinesFollowSamplesWithoutOpeningTheMenu()
     {
         using Harness h = new(shown: false);
         h.Presenter.Refresh(); // first fill
@@ -240,17 +243,40 @@ public sealed class TrayStatsPresenterTests : IDisposable
         h.Activity(3);
         h.Source.Add("4chan", net: 10 * MiB, diskWritten: 5 * MiB, diskRead: 10 * MiB);
         h.Clock.Advance(TimeSpan.FromSeconds(5));
-        // The tooltip moved on with the sample; the menu lines stay as they were until the menu opens.
-        Assert.Equal("Idle", h.Presenter.RatesItem.Header);
-        h.OpenMenu();
         Assert.Equal("Network ↓ 2 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
         Assert.Equal("Disk R 2 MiB/s W 1 MiB/s", h.Presenter.DiskItem.Header);
         Assert.Equal("3 downloads active · 4 waiting · Today ↓ 10.0 MiB", h.Presenter.DetailItem.Header);
+        h.Source.Add("4chan", net: 20 * MiB, diskWritten: 15 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(5));
+        Assert.Equal("Network ↓ 4 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Disk R 0 B/s W 3 MiB/s", h.Presenter.DiskItem.Header);
+        Assert.Equal("3 downloads active · 4 waiting · Today ↓ 30.0 MiB", h.Presenter.DetailItem.Header);
         Texts.SetLanguage("de");
         h.OpenMenu();
-        Assert.Equal("Netzwerk ↓ 2 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
-        Assert.Equal("Datenträger L 2 MiB/s S 1 MiB/s", h.Presenter.DiskItem.Header);
-        Assert.Equal("3 Downloads aktiv · 4 wartend · Heute ↓ 10,0 MiB", h.Presenter.DetailItem.Header);
+        Assert.Equal("Netzwerk ↓ 4 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Datenträger L 0 B/s S 3 MiB/s", h.Presenter.DiskItem.Header);
+        Assert.Equal("3 Downloads aktiv · 4 wartend · Heute ↓ 30,0 MiB", h.Presenter.DetailItem.Header);
+    }
+
+    [Fact]
+    public void AVisibleWindowRefreshesTheMenuAtTheThrottledCadenceWithTheTooltipOff()
+    {
+        using Harness h = new(tooltipOn: false);
+        using IoStatsSubscription window = h.Hub.Subscribe(IoStatsVisibility.Window);
+        h.Activity(3);
+        h.Presenter.Refresh();
+        h.Source.Add("4chan", net: 10 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(1));
+        h.Presenter.Refresh();
+        Assert.Equal("Network ↓ 10 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+
+        int reads = h.Source.Reads;
+        h.Presenter.Refresh();
+        Assert.Equal(reads, h.Source.Reads);
+        h.Source.Add("4chan", net: 5 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(1));
+        h.Presenter.Refresh();
+        Assert.Equal("Network ↓ 5 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
     }
 
     [Fact]
@@ -266,22 +292,44 @@ public sealed class TrayStatsPresenterTests : IDisposable
     }
 
     [Fact]
+    public void DownloadStateAndLanguageChangesRefreshTheLinesWithoutAnOpenEvent()
+    {
+        using Harness h = new(tooltipOn: false);
+        h.Presenter.Refresh();
+        Assert.Equal("Idle", h.Presenter.RatesItem.Header);
+        h.Active = 2;
+        h.Presenter.Refresh();
+        Assert.StartsWith("2 downloads active", Assert.IsType<string>(h.Presenter.RatesItem.Header));
+        h.Paused = true;
+        h.Presenter.Refresh();
+        Assert.Equal("Paused", h.Presenter.RatesItem.Header);
+        Texts.SetLanguage("de");
+        h.Presenter.Refresh();
+        Assert.Equal("Pausiert", h.Presenter.RatesItem.Header);
+    }
+
+    [Fact]
     public void TheMenuSettingHidesAndShowsTheLinesWithoutRestartAndTheTooltipSettingIsIndependent()
     {
         using Harness h = new(shown: false, menuOn: false, tooltipOn: false);
-        Assert.False(h.Presenter.RatesItem.IsVisible);
-        Assert.False(h.Presenter.Separator.IsVisible);
+        NativeMenuItemBase[] actions = h.Menu.Items.ToArray();
+        Assert.Equal(2, actions.Length);
         h.Source.Add("4chan", net: MiB);
         h.OpenMenu();
         Assert.Null(h.Presenter.RatesItem.Header); // hidden lines are not computed
-        Assert.Equal("MeowChan - Image Downloader", h.Tooltip);
+        Assert.Equal("MeowChan · Image Downloader", h.Tooltip);
         h.MenuOn = true;
         h.Presenter.Refresh();
-        Assert.True(h.Presenter.RatesItem.IsVisible && h.Presenter.DetailItem.IsVisible && h.Presenter.Separator.IsVisible);
+        Assert.Equal(7, h.Menu.Items.Count);
+        Assert.Same(actions[0], h.Menu.Items[0]);
+        Assert.Same(actions[1], h.Menu.Items[^1]);
         Assert.Equal("Idle", h.Presenter.RatesItem.Header);
         Assert.Equal("Today ↓ 1.0 MiB", h.Presenter.DiskItem.Header);
         Assert.Equal("Disk: 0 B written", h.Presenter.DetailItem.Header);
-        Assert.Equal("MeowChan - Image Downloader", h.Tooltip); // tooltip setting still off: the legacy text
+        Assert.Equal("MeowChan · Image Downloader", h.Tooltip);
+        h.MenuOn = false;
+        h.Presenter.Refresh();
+        Assert.Equal(actions, h.Menu.Items);
     }
 
     [Fact]

@@ -80,7 +80,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly bool _ownsModel;
     private readonly Dictionary<(string PostId, int DecodeWidth), CachedBitmap> _bitmaps = new();
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly List<ContextMenuHost> _resultTagMenus = new();
     private readonly IDisposable _keyContextHost;
 
     private readonly TextBlock _title = new() { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap };
@@ -156,6 +155,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _ownsModel = ownsModel;
         Name = "BooruWorkbenchView";
+        InstallTagDraftStyles();
         // Every key of the workbench, on the Danbooru page and in its window, runs in the "booru" context (S3 P2-4): a default that a saved binding took
         // away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
         _keyContextHost = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "booru");
@@ -633,6 +633,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             _renderedResultRevision = view.ResultRevision;
             PruneBitmaps(view.Rows);
         }
+        RenderTagDraft(view);
     }
 
     private void RenderWatchers(BooruWatcherListView view, bool force)
@@ -913,12 +914,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         return () => Interlocked.CompareExchange(ref _linkActionRevision, unchecked(revision + 1), revision);
     }
 
-    private void SetLinkNote((string Key, string Argument, bool Problem)? state)
-    {
-        if (!TryBeginLinkAction(out long revision)) return;
-        SetLinkNote(state, revision);
-    }
-
     private void SetLinkNote((string Key, string Argument, bool Problem)? state, long revision, ResultLinkScope? scope = null)
     {
         if (!IsCurrentLinkAction(revision) || (scope is { } bound && !IsCurrentResultLink(bound))) return;
@@ -994,61 +989,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     }
 
     private static string Size(long bytes) => SizeText.Format(bytes);
-
-    /// <summary>
-    /// I8: a source tag chip of a result adds its tag to the search field (tag search) up to the parser's limit. Only the field
-    /// changes; nothing is requested until Search. The outcome is said in the polite link note line.
-    /// </summary>
-    internal void AddTagToSearch(string tag, bool exclude = false)
-    {
-        if (_closed) return;
-        string current = _model.Search.View.Mode == BooruInputMode.Tags ? _input.Text ?? string.Empty : string.Empty;
-        string[] terms = current.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        // An exclusion is the provider's "-tag" term. It replaces the same tag's inclusion (and the other way round): both would never match anything.
-        string term = exclude ? "-" + tag : tag, opposite = exclude ? tag : "-" + tag;
-        if (terms.Contains(term, StringComparer.Ordinal)) { SetLinkNote(("booru.ui.tags.alreadyInSearch", term, false)); return; }
-        if (!BooruSourceTagSearch.Plan(new[] { tag }).IsValid) { SetLinkNote(("booru.ui.tags.unusable", tag, true)); return; }
-        bool replaces = terms.Contains(opposite, StringComparer.Ordinal);
-        if (!replaces && terms.Length >= BooruSourceTagSearch.MaximumTags)
-        {
-            SetLinkNote(("booru.ui.tags.searchFull", BooruSourceTagSearch.MaximumTags.ToString(Texts.Culture), true));
-            return;
-        }
-        string query = string.Join(' ', replaces ? terms.Select(existing => existing == opposite ? term : existing) : terms.Append(term));
-        // The parser has the last word (an exclusion alone is not a search of its own on every provider).
-        if (exclude && BooruInput.Parse(BooruInputMode.Tags, query).Kind != BooruInputKind.Tags) { SetLinkNote(("booru.ui.tags.unusable", term, true)); return; }
-        _model.Search.SetMode(BooruInputMode.Tags);
-        _input.Text = query;
-        _model.Search.SetInput(query);
-        SetLinkNote(("booru.ui.tags.addedToSearch", term, false));
-    }
-
-    /// <summary>The menu of a source-tag chip: add it to the search, exclude it from the search, copy its name.</summary>
-    internal ContextMenuBuilder? ComposeTagMenu(string tag, BooruResultTarget? target = null)
-    {
-        ResultLinkScope? scope = CaptureResultLink(target);
-        bool Available() => !_closed && (scope is not { } bound || IsCurrentResultLink(bound));
-        if (!Available()) return null;
-        return new ContextMenuBuilder().Named(tag)
-            .Item(MenuTagAdd, Texts.T("booru.ui.tags.menuAdd"), () => AddTagToSearch(tag), availableWhen: Available, icon: "plus")
-            .Item(MenuTagExclude, Texts.T("booru.ui.tags.menuExclude"), () => AddTagToSearch(tag, exclude: true), availableWhen: Available, icon: "minus")
-            .Section()
-            .Command("tags.copy-name", () => OpenActions.Start(() => CopyTagNameAsync(tag, target), "booru.tags.copy"), availableWhen: Available);
-    }
-
-    private async Task CopyTagNameAsync(string tag, BooruResultTarget? target)
-    {
-        if (!TryBeginLinkAction(out long revision)) return;
-        ResultLinkScope? scope = CaptureResultLink(target);
-        if (await MenuClipboard.CopyAsync(this, tag, _ => SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true), revision, scope)))
-            SetLinkNote(("booru.ui.tags.copied", tag, false), revision, scope);
-    }
-
-    private void DisposeResultTagMenus()
-    {
-        foreach (ContextMenuHost menu in _resultTagMenus) menu.Dispose();
-        _resultTagMenus.Clear();
-    }
 
     private Bitmap? PreviewBitmap(BooruResultRowView row, int decodeWidth)
     {

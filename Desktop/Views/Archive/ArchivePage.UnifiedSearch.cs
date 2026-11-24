@@ -228,8 +228,7 @@ public partial class ArchivePage
         ReaderFilenameQuery.IsVisible = reader == SearchScope.FileName;
         ReaderHashQuery.IsVisible = reader == SearchScope.Sha256;
         ReaderScopedBox.ScopeChip = ReaderFindScope;
-        ReaderFindPrevious.IsVisible = text;
-        ReaderFindNext.IsVisible = text;
+        ReaderFindNavigation.IsVisible = text;
         ReaderFindSearch.IsVisible = !text;
         ReaderFindSearch.IsEnabled = !text && CanRunReaderScope;
         if (!text)
@@ -240,6 +239,7 @@ public partial class ArchivePage
             ReaderFindExcerpt.Inlines?.Clear();
         }
         else ReaderFindStatus.Classes.Set("workspace-error", false);
+        ReaderFindStatus.IsVisible = !string.IsNullOrEmpty(ReaderFindStatus.Text);
     }
 
     private void OnArchiveScopedKeyDown(object? sender, KeyEventArgs e)

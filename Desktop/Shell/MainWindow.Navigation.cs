@@ -209,7 +209,12 @@ public partial class MainWindow
             threadMedia: _archivePage.ThreadMediaForGallery(entries));
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
         // The shell hides the host, not the page, when another page is shown (as for the media page host): inline and sidebar reader videos pause then.
-        ArchivePageHost.PropertyChanged += (_, e) => { if (e.Property == Avalonia.Visual.IsVisibleProperty && e.NewValue is false) _ = _archivePage?.PauseInlineVideos(); };
+        ArchivePageHost.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Avalonia.Visual.IsVisibleProperty || e.NewValue is not false) return;
+            _archivePage?.MediaSidebar?.InvalidateTagEditor();
+            _ = _archivePage?.PauseInlineVideos();
+        };
         ArchivePageHost.Content = _archivePage;
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "archive-done");
         InitializeMediaPage();
@@ -668,24 +673,41 @@ public partial class MainWindow
 
             bool hasOverflow = NeedsMore();
             tools.IsVisible = hasOverflow;
-            // The static More entry has no destination record when Booru is unavailable; clear it before
-            // the normal destination loop so stale availability cannot leave a clickable target behind.
-            BooruMoreMenuItem.IsVisible = false;
-            tools.Classes.Set("selected", destinations.Where((destination, index) => destination.Available && !direct[index])
-                .Any(destination => destination.Page == _selectedPage));
+            string? currentOverflowId = null;
             for (int index = 0; index < destinations.Length; index++)
             {
                 var destination = destinations[index];
+                bool current = destination.Page == _selectedPage;
                 destination.Button.IsVisible = direct[index];
-                destination.Button.Classes.Set("selected", destination.Page == _selectedPage);
-                if (tools.Flyout is MenuFlyout menu)
-                    foreach (MenuItem item in menu.Items.OfType<MenuItem>())
-                        if (item.Tag as string == destination.Tag) item.IsVisible = destination.Available && !direct[index];
+                destination.Button.Classes.Set("selected", current);
+                if (current && destination.Available && !direct[index]) currentOverflowId = destination.Id;
+            }
+            tools.Classes.Set("selected", currentOverflowId != null);
+            if (currentOverflowId is string overflowId)
+            {
+                void DescribeCurrentPage()
+                {
+                    string name = Texts.T("nav.more.currentPage", CommandCatalog.Label(overflowId));
+                    ToolTip.SetTip(tools, name);
+                    AutomationProperties.SetName(tools, name);
+                    AutomationProperties.SetHelpText(tools, name);
+                }
+                DescribeCurrentPage();
+                CommandBindings.ObservePresentation(tools, DescribeCurrentPage);
             }
             bool[] separatorFlags = SeparatorFlags(direct);
             for (int index = 0; index < destinations.Length; index++) separatorAfter[destinations[index].Id].IsVisible = separatorFlags[index];
             if (tools.Flyout is MenuFlyout flyout)
             {
+                foreach (MenuItem item in flyout.Items.OfType<MenuItem>())
+                {
+                    int index = Array.FindIndex(destinations, destination => destination.Tag == item.Tag as string);
+                    item.IsVisible = index >= 0 && destinations[index].Available && !direct[index];
+                    bool current = item.IsVisible && destinations[index].Id == currentOverflowId;
+                    // The checked indicator describes the committed page. Clicking an inactive row must not check it before navigation succeeds.
+                    item.ToggleType = current ? MenuItemToggleType.Radio : MenuItemToggleType.None;
+                    item.IsChecked = current;
+                }
                 // The flyout lists only the pages that left the footer, in the groups of the base order; its separators follow the same rule.
                 bool GroupInFlyout(int group) => destinations.Where((destination, index) => groups[index] == group && destination.Available && !direct[index]).Any();
                 int groupCount = MainPageOrder.Groups.Count;
@@ -806,7 +828,7 @@ public partial class MainWindow
         DisposeUpdates();
         DisposeMacMenu();
         _pluginsPage?.EndLifetime();
-        _statisticsPage?.EndLifetime();
+        _statisticsPage?.Dispose();
         _diagnosticsPage?.EndLifetime();
         DisposeStatusPage();
         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }

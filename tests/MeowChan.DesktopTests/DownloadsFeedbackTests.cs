@@ -254,9 +254,9 @@ public sealed class DownloadsFeedbackTests
     // ---- tray (D-05) --------------------------------------------------------------------------------------
 
     [Theory]
-    [InlineData("en", false, "Pause downloads and checks", "pause", "MeowChan - Image Downloader")]
+    [InlineData("en", false, "Pause downloads and checks", "pause", "MeowChan · Image Downloader")]
     [InlineData("en", true, "Resume downloads and checks", "play", "MeowChan · paused")]
-    [InlineData("de", false, "Downloads und Prüfungen pausieren", "pause", "MeowChan - Image Downloader")]
+    [InlineData("de", false, "Downloads und Prüfungen pausieren", "pause", "MeowChan · Image Downloader")]
     [InlineData("de", true, "Downloads und Prüfungen fortsetzen", "play", "MeowChan · pausiert")]
     public void TrayPauseEntryNamesTheActionItWillPerformAndTheTooltipSaysWhenPaused(string language, bool paused, string header, string icon, string tooltip)
     {
@@ -265,7 +265,7 @@ public sealed class DownloadsFeedbackTests
         {
             Texts.SetLanguage(language);
             Assert.Equal(header, TrayMenuModel.PauseHeader(paused));
-            Assert.Equal(header + "  Ctrl+Shift+P", TrayMenuModel.PauseHeader(paused, "Ctrl+Shift+P"));
+            Assert.Equal(header + " · Ctrl+Shift+P", TrayMenuModel.PauseHeader(paused, "Ctrl+Shift+P"));
             Assert.Equal(icon, TrayMenuModel.PauseIcon(paused));
             Assert.Equal(tooltip, TrayMenuModel.Tooltip(paused, activeDownloads: 0));
             if (paused) Assert.Equal(tooltip, TrayMenuModel.Tooltip(paused, 5));

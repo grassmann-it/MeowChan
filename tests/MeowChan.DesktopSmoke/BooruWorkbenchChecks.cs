@@ -127,20 +127,26 @@ internal static partial class BooruWorkbenchChecks
             Grid details = Find<Grid>(page, BooruWorkbenchView.DetailsPrefix + "101");
             string[] detailNames = details.Children.OfType<TextBlock>().Select(block => AutomationProperties.GetName(block) ?? string.Empty).ToArray();
             Require(detailNames.Any(name => name.StartsWith("Danbooru rating: General", StringComparison.Ordinal)) && detailNames.Contains("Danbooru score: 12")
-                && details.ColumnDefinitions.Count == 4,
+                && details.ColumnDefinitions.Count == 2,
                 "The post facts are not a definition list: " + string.Join(" | ", detailNames));
             Require(!text.Contains("https://danbooru.donmai.us/posts/101"), "The post address is still shown as a text line.");
             Button[] chips101 = page.View.GetVisualDescendants().OfType<Button>().Where(button => button.Name?.StartsWith(BooruWorkbenchView.ResultTagPrefix + "101:", StringComparison.Ordinal) == true).ToArray();
             Require(chips101.Select(button => button.Name![(BooruWorkbenchView.ResultTagPrefix.Length + 4)..]).SequenceEqual(new[] { "sky", "cat", "blue_eyes" })
-                && chips101.All(button => button.Focusable && button.IsTabStop && button.Classes.Contains("chip-source-button")
-                    && button.Content is ChipOutline { IsDashed: true })
+                && chips101.All(button => button.Focusable && button.IsTabStop && button.Classes.Contains("chip-source-button"))
+                && chips101[0].Content is ChipOutline { IsDashed: true }
+                && chips101.Skip(1).All(button => button.Content is ChipOutline { IsDashed: false }
+                    && AutomationProperties.GetName(button)?.EndsWith("is already in the search.", StringComparison.Ordinal) == true)
                 && AutomationProperties.GetName(chips101[0]) == "Add source tag sky (Artist) to the search",
-                "The source tag chips are not in Danbooru order or not named actions: " + string.Join(",", chips101.Select(button => button.Name)));
+                "The source tag chips have the wrong order, draft state, or accessible name: " + string.Join(",", chips101.Select(button => button.Name)));
             WrapPanel actionRow = Find<WrapPanel>(page, "BooruResultActions:101");
             Button gallery = Find<Button>(page, "BooruView:101");
+            owner.UpdateLayout();
+            Rect previewBounds = SearchLayoutBounds(Find<Border>(page, "BooruPreviewFrame:101"), owner);
+            Rect actionBounds = SearchLayoutBounds(actionRow, owner);
             Require(actionRow.Children.OfType<Button>().Select(button => button.Name).SequenceEqual(new[]
                     { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
-                && gallery.Parent is WrapPanel galleryActions && galleryActions.Classes.Contains("workspace-toolbar")
+                && gallery.Parent is WrapPanel galleryActions && ReferenceEquals(galleryActions.Parent, actionRow)
+                && actionBounds.Top >= previewBounds.Bottom - 1 && actionBounds.Width > 0 && actionBounds.Height > 0
                 && Find<Button>(page, BooruWorkbenchView.LoadPrefix + "101").Content as string == "Download original",
                 "The result-card actions are not compact, grouped, or clearly named.");
             Require(Find<Button>(page, BooruWorkbenchView.PreviousName).IsVisible == false

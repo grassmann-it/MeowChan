@@ -81,6 +81,8 @@ public partial class MainWindow
         }
         Add("thread.details", () => OpenFrozenDetails(frozen));
         if (frozen.Boards) Add("board.filters", async () => { if (frozen.Board != null) await OpenBoardAdmissionAsync(frozen.Board); });
+        if (frozen.Boards && _session.FindBoardArchive(frozen.Url, fromBoard: true) is { } archive)
+            Add("board.browse-archive", () => OpenActions.Start(() => OpenBoardArchiveAsync(archive, grid), "board.browse-archive"));
         builder.Section();
         if (!frozen.Boards) Add("export.open-html-dialog", async () => await ExportFrozenThreadsAsync(frozen.Threads, grid), count: frozen.Threads.Length);
         Add("selection.copy-links", async () => await CopyUrlsAsync(frozen.Urls), count: frozen.Urls.Length);

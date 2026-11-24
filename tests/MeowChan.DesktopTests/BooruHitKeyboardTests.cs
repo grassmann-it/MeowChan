@@ -284,7 +284,7 @@ public sealed class BooruHitKeyboardTests
     // ---- dead-affordance review 15.11.: source-tag chips, "+N more", middle click, watcher keyboard ------------------------------
 
     [Fact]
-    public void ASourceTagChipHasItsOwnMenuToAddExcludeAndCopyTheTag() => OnDispatcher(async () =>
+    public void ASourceTagChipHasItsOwnMenuToEditAndCopyTheTag() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
@@ -295,7 +295,8 @@ public sealed class BooruHitKeyboardTests
             model.Search.SetInput(string.Empty);
 
             ContextMenuModel menu = TagMenu(view, "cat");
-            Assert.Equal(new[] { BooruWorkbenchView.MenuTagAdd, BooruWorkbenchView.MenuTagExclude, FilterChipMenu.CopyName }, menu.Entries.Select(entry => entry.Id));
+            Assert.Equal(new[] { BooruWorkbenchView.MenuTagAdd, BooruWorkbenchView.MenuTagExclude, BooruWorkbenchView.MenuTagRemove,
+                FilterChipMenu.CopyName }, menu.Entries.Select(entry => entry.Id));
             Assert.All(menu.Entries, entry => Assert.True(entry.Available));
             Assert.Equal("Add to search", Entries(menu)[0].Label);
             Assert.Equal("Exclude from search", Entries(menu)[1].Label);

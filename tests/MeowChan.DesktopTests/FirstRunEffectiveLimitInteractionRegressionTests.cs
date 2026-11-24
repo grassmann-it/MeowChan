@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -174,6 +175,45 @@ public sealed class FirstRunEffectiveLimitInteractionRegressionTests : IDisposab
         Assert.False(fixture.LimitsError.IsVisible);
     }
 
+    [Fact]
+    public void CheckingAValidFolderKeepsTheUnchangedParallelLimitErrorVisible() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory directory = new();
+        DownloadDestinationValidator validator = new(1, (path, _) => new(DownloadDestinationStatus.Ready, path));
+        int commits = 0;
+        FirstRunSetupWindow window = new(new Config { DownloadPath = directory.Path }, _ =>
+        {
+            commits++;
+            return Task.FromResult(new FirstRunSetupCommitResult(true));
+        }, validator);
+        try
+        {
+            window.Show();
+            TextBox parallel = window.FindControl<TextBox>("SetupParallelInput")!;
+            TextBlock limitsError = window.FindControl<TextBlock>("SetupLimitsError")!;
+            TextBlock folderStatus = window.FindControl<TextBlock>("SetupFolderStatus")!;
+            parallel.Text = "0";
+            window.FindControl<Button>("SetupAcceptButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(limitsError.IsEffectivelyVisible);
+
+            string readyText = Texts.T("destination.Ready");
+            TaskCompletionSource checkedFolder = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            folderStatus.PropertyChanged += (_, change) =>
+            {
+                if (change.Property == TextBlock.TextProperty && folderStatus.Text == readyText) checkedFolder.TrySetResult();
+            };
+            window.FindControl<Button>("SetupCheckButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            BooruComponentDispatcher.Wait(checkedFolder.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(readyText, folderStatus.Text);
+            Assert.True(limitsError.IsEffectivelyVisible);
+            Assert.Equal(Texts.T("setup.positiveLimits"), limitsError.Text);
+            Assert.Equal("0", parallel.Text);
+            Assert.Equal(0, commits);
+        }
+        finally { window.Close(); }
+    });
+
     private static string Expected(string key, params object[] args)
     {
         var entry = FirstRunLimitCatalog.Entries.Single(entry => entry.Key == key);
@@ -210,6 +250,7 @@ public sealed class FirstRunEffectiveLimitInteractionRegressionTests : IDisposab
             Set(Window, "SetupParallelInput", Parallel);
             Set(Window, "SetupEffectiveParallelLimit", Summary);
             Set(Window, "SetupNormalizedPath", new TextBlock());
+            Set(Window, "SetupFolderStatus", new TextBlock());
             Set(Window, "SetupPathError", new TextBlock());
             Set(Window, "SetupLimitsError", LimitsError);
             Set(Window, "SetupError", new TextBlock());

@@ -285,7 +285,7 @@ internal static partial class MediaPageChecks
             await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
                 foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
-                shell.Close();
+                await shell.DisposeAsync();
                 await UntilAsync(() => !shell.IsVisible);
                 await shell.GalleryCleanupTask;
                 owner.Activate();

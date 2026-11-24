@@ -1,10 +1,11 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
@@ -62,7 +63,7 @@ internal static class ArchiveMediaCountsChecks
             DataGrid table = page.FindControl<DataGrid>("ArchiveThreadTable")!;
             table.SelectedItem = Row(a);
             await page.LoadThreadAsync(a); await page.MediaLoadTask;
-            page.FindControl<Button>("ArchiveFavoritesFilter")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveFavoritesFilter")!);
             Require(!page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource!.Cast<ArchiveAssetRow>().Any(), "Right-side media filter did not alter its visible subset.");
             page.FindControl<ComboBox>("ArchiveVersionScope")!.SelectedIndex = 0;
             Require(Row(a).CompactMedia == "2", "Right-side favorites/version filters changed the thread's total saved count.");

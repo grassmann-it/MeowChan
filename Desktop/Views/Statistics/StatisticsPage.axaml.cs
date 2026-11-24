@@ -22,9 +22,10 @@ namespace MeowChan;
 /// what the window hands it through <see cref="Apply"/>; it owns no sampling timer and holds no claim on the hub, so a page nobody
 /// looks at costs nothing.
 /// </summary>
-public partial class StatisticsPage : UserControl
+public partial class StatisticsPage : UserControl, IDisposable
 {
     private readonly ObservableCollection<StatisticsRow> _rows = [];
+    private readonly IDisposable _pageKeyContext;
     private IoStatsHub? _hub;
     private Func<string, string?>? _sourceName;
     private IoStatsSnapshot? _last;
@@ -39,9 +40,8 @@ public partial class StatisticsPage : UserControl
 
     public StatisticsPage()
     {
-        // Every key of the Status page's statistics segment runs in the "statistics" context (S3 P2-4): a default that a saved binding took away only
-        // elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "statistics");
+        // Keep defaults active here when a saved binding only displaces them in another context.
+        _pageKeyContext = KeyContextHost.Install(this, _ => "statistics");
         InitializeComponent();
         _pageMargin = StatisticsContent.Margin;
         StatisticsGrid.ItemsSource = _rows;
@@ -52,6 +52,7 @@ public partial class StatisticsPage : UserControl
         AddHandler(Button.ClickEvent, OnErrorLinkClick);
         InitializeRowMenus();
         ApplyLanguage();
+        ApplyCurrentRates(null);
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
     }
@@ -76,10 +77,19 @@ public partial class StatisticsPage : UserControl
         _sourceName = sourceName;
     }
 
-    internal void EndLifetime()
+    public void Dispose()
     {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || _ended) return;
         _ended = true;
-        DisposeRowMenus();
+        _pageKeyContext.Dispose();
+        _gridMenu?.Dispose();
+        _compactMenu?.Dispose();
         _statusHide?.Dispose();
         ResetConfirmation.Hide();
         Texts.Changed -= OnLanguageChanged;
@@ -116,10 +126,12 @@ public partial class StatisticsPage : UserControl
         foreach (TextBlock end in new[] { HistoryEnd, WriteHistoryEnd, ReadHistoryEnd }) end.Text = Texts.T("stats.now");
         HistoryEmpty.Text = Texts.T("stats.sources.empty");
         if (_resetStatusKey != null) StatisticsStatus.Text = Texts.T(_resetStatusKey);
-        NetCaption.Text = Texts.T("stats.metric.net");
-        DiskWriteCaption.Text = Texts.T("stats.metric.diskWrite");
-        DiskReadCaption.Text = Texts.T("stats.metric.diskRead");
-        NetUpCaption.Text = Texts.T("stats.metric.netUp");
+        NetworkRatesTitle.Text = IoStatsDisplay.NetworkTitle();
+        NetCaption.Text = Texts.T("stats.header.down");
+        NetUpCaption.Text = Texts.T("stats.header.up");
+        DiskRatesTitle.Text = IoStatsDisplay.DiskTitle();
+        DiskReadCaption.Text = Texts.T("stats.header.read");
+        DiskWriteCaption.Text = Texts.T("stats.header.write");
         RequestsCaption.Text = Texts.T("stats.metric.requests");
         NetTitle.Text = Texts.T("stats.metric.net");
         DiskWriteTitle.Text = Texts.T("stats.metric.diskWrite");
@@ -177,11 +189,7 @@ public partial class StatisticsPage : UserControl
         _last = snapshot;
         if (retentionChanged) SetRetainedHeader(snapshot.RetentionDays);
 
-        NetValue.Text = ByteUnits.Rate(snapshot.Rate.NetDown);
-        NetUpValue.Text = ByteUnits.Rate(snapshot.Rate.NetUp);
-        DiskWriteValue.Text = ByteUnits.Rate(snapshot.Rate.DiskWrite);
-        DiskReadValue.Text = ByteUnits.Rate(snapshot.Rate.DiskRead);
-        RequestsValue.Text = Texts.T("stats.requestsRate", IoStatsDisplay.RequestRate(snapshot.Rate.Requests));
+        ApplyCurrentRates(snapshot.HasFreshSample ? snapshot.Rate : null);
 
         int interval = _hub?.Options.SampleIntervalMs ?? Config.StatsSampleIntervalMsDefault;
         int seconds = IoStatsDisplay.HistorySeconds(snapshot.Series.Capacity, interval);
@@ -210,6 +218,21 @@ public partial class StatisticsPage : UserControl
         SourcesEmpty.IsVisible = snapshot.Sources.Count == 0;
         ShowNotice(LoadNoticePanel, LoadNoticeText, _hub?.LoadNotice is { Length: > 0 } notice ? Texts.T("stats.notice", notice) : null);
         ShowNotice(PersistErrorPanel, PersistErrorText, _hub?.LastPersistError is { Length: > 0 } error ? Texts.T("stats.persistError", error) : null);
+    }
+
+    private void ApplyCurrentRates(IoRates? rates)
+    {
+        if (rates is not { } current)
+        {
+            NetValue.Text = NetUpValue.Text = DiskReadValue.Text = DiskWriteValue.Text = RequestsValue.Text = "\u2014";
+            return;
+        }
+
+        NetValue.Text = ByteUnits.Rate(current.NetDown);
+        NetUpValue.Text = ByteUnits.Rate(current.NetUp);
+        DiskReadValue.Text = ByteUnits.Rate(current.DiskRead);
+        DiskWriteValue.Text = ByteUnits.Rate(current.DiskWrite);
+        RequestsValue.Text = Texts.T("stats.requestsRate", IoStatsDisplay.RequestRate(current.Requests));
     }
 
     // The vertical axis of a graph: the scale at the top and half of it, only while the graph shows traffic (an idle graph has no scale to read).

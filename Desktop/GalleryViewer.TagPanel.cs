@@ -130,7 +130,7 @@ internal sealed partial class GalleryViewer
         _filmstrip.SetTaggingViewOpen(false);
         QuickTagSurface? surface = _tagSurface;
         GalleryTagPanelController? controller = _tagController;
-        _tagSurface = null; _tagController = null; _tagOwner = null;
+        _tagSurface = null; _tagController = null;
         if (surface != null)
         {
             UncoupleTaggingPanel(surface);
@@ -177,7 +177,7 @@ internal sealed partial class GalleryViewer
     /// </summary>
     internal void RetargetTagPanel(GalleryEntry entry)
     {
-        if (!_tagPanelOpen || _tagController is not { } controller || _tagSurface is not { } surface || _tagOwner is not { } owner) return;
+        if (!_tagPanelOpen || _tagController is not { } controller || _tagSurface is not { } surface) return;
         bool sameMedium = controller.Entry.EntryKey == entry.EntryKey;
         if (sameMedium)
         {

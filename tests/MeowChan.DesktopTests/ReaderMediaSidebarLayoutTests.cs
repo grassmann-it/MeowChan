@@ -248,7 +248,7 @@ public sealed class ReaderMediaSidebarLayoutTests
         Texts.SetLanguage("en");
         ReaderMediaSidebar sidebar = new()
         {
-            OpenTagsAsync = _ => Task.CompletedTask
+            OpenTagsAsync = (_, _) => Task.CompletedTask
         };
         sidebar.Describe("No. 123", "example.png", "100 KiB", true, new(16, 23, false));
         Window window = new() { Content = sidebar, Width = width, Height = 480 };

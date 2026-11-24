@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -144,7 +145,8 @@ public partial class ArchivePage
         if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
-            && SidebarMediaContext(path) == null && SidebarStripContext(path) == null) return;
+            && SidebarMediaContext(path) == null && SidebarStripContext(path) == null
+            && (SavedMediaSidebarRow == null || !IsMediaSidebarSource(source))) return;
         ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
         e.Handled = request.Handled;
@@ -203,7 +205,11 @@ public partial class ArchivePage
         string? postId = ancestors.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
         // The medium of the media sidebar: the same menu as the attachment it shows in its post (right-click, Menu key, Shift+F10).
         ReaderInlineVideoSlot? playback = attachmentView?.InlineVideoForKeys();
-        if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
+        if (attachment == null && asset == null && SavedMediaSidebarRow is { } saved && IsMediaSidebarSource(source))
+        {
+            asset = saved; origin = _mediaSidebar?.FrameArea; playback = _sidebarVideo;
+        }
+        else if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
         {
             attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
         }
@@ -229,6 +235,7 @@ public partial class ArchivePage
             if (cell != null) cell.Focusable = true;
             if (cell?.Focus(NavigationMethod.Pointer) != true) item?.Focus();
             UpdateActions();
+            FollowSavedMediaSelection();
         }
         (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment),
             SeveralSelectedWith(asset, attachment), playback);
@@ -256,6 +263,12 @@ public partial class ArchivePage
         string[] ids = { "favorites.toggle", "media.tags.edit", "media.queue.add", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
         if (!ids.Any(id => CommandBindings.Matches(e, id))) return false;
         Control[] ancestors = (e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<Control>().ToArray() ?? Array.Empty<Control>();
+        if (CommandBindings.Matches(e, "media.tags.edit") && IsMediaSidebarSource(e.Source) && _mediaSidebar is { } sidebar)
+        {
+            e.Handled = true;
+            OpenActions.Start(sidebar.EditTagsAsync, "media.tags.edit");
+            return true;
+        }
         // The same medium R and M / U / F act on (ReaderMediumAt). With the post card focused, only the tag key and Q reach the post's medium: the other
         // gestures are the post's own there (copy link, export, folder, T, I).
         bool queue = CommandBindings.Matches(e, "media.queue.add");
@@ -302,27 +315,34 @@ public partial class ArchivePage
     // Menu key, Shift+F10) any focus inside the sidebar stands for it, its strip included.
     private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors, bool keyboard = true)
     {
+        if (ArchiveMediaTab.IsSelected) return null;
         if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
             || !keyboard && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))) return null;
-        return ArchivePosts.SelectedItem is ArchivePostRow post && CurrentSidebarAttachment() is { } current
-            ? (current, post.Id, _mediaSidebar.FrameArea) : null;
+        return _displayedSidebarMedium is { } shown && ReferenceEquals(_thread, shown.Thread)
+            ? (shown.Attachment, shown.Post.Id, _mediaSidebar.FrameArea) : null;
     }
 
-    private Task OpenSidebarTagsAsync(Control anchor)
+    private Task OpenSidebarTagsAsync(Control anchor, CancellationToken token)
     {
-        if (_mediaSidebar is not { } sidebar || SidebarMediaContext([sidebar]) is not { } shown
-            || _thread == null || _selectedThread is not { } thread) return Task.CompletedTask;
-        ArchiveAssetRow? asset = FindMatchingAsset(thread, shown.PostId, shown.Attachment.Attachment, _assets);
-        ArchiveMediaSubject subject = ResolveArchiveMediaSubject(asset, shown.Attachment, shown.PostId);
-        return OpenRateAndTagAsync(subject, anchor, null, QuickTagInitialFocus.TagInput, shown.Attachment.Label,
-            () => _mediaSidebarShown && ReferenceEquals(shown.Attachment, CurrentSidebarAttachment()));
+        if (SavedMediaSidebarRow is { } saved && _thread != null)
+            return OpenRateAndTagAsync(ResolveArchiveMediaSubject(saved, null, null), anchor, null, QuickTagInitialFocus.TagInput,
+                current: () => !token.IsCancellationRequested && ReferenceEquals(SavedMediaSidebarRow, saved), sidebarToken: token);
+        if (_displayedSidebarMedium is not { } shown) return Task.CompletedTask;
+        bool Current() => !token.IsCancellationRequested && _mediaSidebarShown && anchor.IsEffectivelyVisible
+            && !_obscuredByGallery && !IsReaderDialogOpen && ReferenceEquals(_thread, shown.Thread) && _selectedThread == shown.Thread.Summary.Id
+            && _displayedSidebarMedium == shown;
+        if (!Current()) return Task.CompletedTask;
+        string postId = shown.Post.Id;
+        ArchiveAssetRow? asset = FindMatchingAsset(shown.Thread.Summary.Id, postId, shown.Attachment.Attachment, _assets);
+        ArchiveMediaSubject subject = ResolveArchiveMediaSubject(asset, shown.Attachment, postId);
+        return OpenRateAndTagAsync(subject, anchor, null, QuickTagInitialFocus.TagInput, shown.Attachment.Label, Current, token);
     }
 
     // A thumbnail of the sidebar's strip stands for its own file of the focused post: its attachment, post and the thumbnail as menu origin. From the keyboard the
     // strip itself is the source, and the menu is the focused (the selected, i.e. shown) thumbnail's. Shown tells whether that file is the one the sidebar shows.
     private (ArchiveAttachmentRow Attachment, string PostId, Control Origin, bool Shown)? SidebarStripContext(Control[] ancestors)
     {
-        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))
+        if (ArchiveMediaTab.IsSelected || _mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))
             || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } post) return null;
         ListBoxItem? item = ancestors.OfType<ListBoxItem>().FirstOrDefault(candidate => candidate.Tag is int)
             ?? _mediaSidebar.Strip.SelectedItem as ListBoxItem;
@@ -379,7 +399,7 @@ public partial class ArchivePage
     /// A file that cannot be tagged gets the stars and the reason as text, with focus on its stars.
     /// </summary>
     private async Task OpenRateAndTagAsync(ArchiveMediaSubject subject, Control origin, ArchiveAssetRow[]? selection, QuickTagInitialFocus initialFocus,
-        string? label = null, Func<bool>? current = null)
+        string? label = null, Func<bool>? current = null, CancellationToken sidebarToken = default)
     {
         var thread = subject.Thread;
         ResourceId threadId = subject.ThreadId;
@@ -400,7 +420,7 @@ public partial class ArchivePage
         }
         if (TagPopoverAsync != null)
             await TagPopoverAsync(subject.TagEntry ?? target, origin, QuickTagPopoverContext.ContextOf(subject.TagEntry ?? target, subject.GalleryEntries, thread.Summary.Title),
-                PopoverCurrent, new RateAndTagRequest(initialFocus, subject.TagsBlocked, FocusAfterRateAndTag));
+                PopoverCurrent, new RateAndTagRequest(initialFocus, subject.TagsBlocked, FocusAfterRateAndTag, sidebarToken));
         else if (subject.TagEntry != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(subject.TagEntry);
         else QuickTagPopover.OpenBlocked(origin, target.Asset.OriginalFileName ?? string.Empty, subject.TagsBlocked ?? MediaMenuReasons.Unavailable,
             new QuickTagPopoverOptions { IsCurrent = PopoverCurrent, FocusFallback = FocusAfterRateAndTag });
@@ -441,6 +461,11 @@ public partial class ArchivePage
     internal async Task RateAndTagByKeyAsync()
     {
         if (_ended || !_available || _thread is not { } thread) return;
+        if (_mediaSidebar is { IsKeyboardFocusWithin: true } sidebar)
+        {
+            await sidebar.EditTagsAsync();
+            return;
+        }
         SelectPostOfFocusedText();
         if (!HasRateAndTagKeyTarget() && !_mediaReady.Task.IsCompleted)
         {
@@ -532,6 +557,11 @@ public partial class ArchivePage
         {
             asset = SelectedMediaRow();
             origin = list;
+        }
+        else if (asset == null && SavedMediaSidebarRow is { } saved && IsMediaSidebarSource(source))
+        {
+            asset = saved;
+            origin = _mediaSidebar?.FrameArea;
         }
         else if (asset == null && (SidebarStripContext(parents) is { } thumbnail ? (thumbnail.Attachment, thumbnail.PostId, thumbnail.Origin)
                      : SidebarMediaContext(parents) is { } shown ? (shown.Attachment, shown.PostId, shown.Origin)
@@ -678,7 +708,7 @@ public partial class ArchivePage
             {
                 string details = target == null ? attachment?.Label + Environment.NewLine + MediaMenuReasons.NotSaved
                     : (target.Asset.OriginalFileName ?? target.Asset.Path) + Environment.NewLine + target.Asset.Path + Environment.NewLine
-                        + MediaProvenanceText.LocalSize(target.Asset.Length) + Environment.NewLine + "SHA-256: " + target.Asset.Sha256
+                        + MediaProvenanceText.LocalSize(target.Asset.Length) + Environment.NewLine + Texts.T("archive.media.sha256", target.Asset.Sha256)
                         + Environment.NewLine + (severalPosts ? string.Empty : MediaProvenanceText.Details(target.AttachmentResolution?.Binding) + Environment.NewLine)
                         + threadId.Source + " /" + threadId.Board + "/ " + threadId.Thread
                         + Environment.NewLine + (severalPosts ? Texts.T("media.menu.details.posts", string.Join(", ", postIds))
@@ -693,6 +723,9 @@ public partial class ArchivePage
             })
         };
         List<Control> context = new();
+        if (surface is MediaMenuSurface.ArchiveTiles or MediaMenuSurface.ArchiveTable && asset?.Asset.Sha256 is { Length: 64 } hash)
+            context.Add(MediaMenuBuilder.ContextItem(session, "archive.media.copySha256",
+                () => MenuClipboard.CopyAsync(origin, hash, reportError), () => true, Run, icon: "copy"));
         if (postId != null && EditPostBookmark != null)
             context.Add(CreatePostBookmarkMenuItem(new MeowChan.Persistence.PostBookmarkKey(threadId, postId), origin));
         if (selection is { Length: > 1 })

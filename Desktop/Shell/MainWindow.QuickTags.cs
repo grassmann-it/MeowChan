@@ -24,6 +24,7 @@ public partial class MainWindow
 {
     internal QuickTagPopover? MediaPageTagPopover { get; private set; }
     internal QuickTagPopover? ArchiveTagPopover { get; private set; }
+    internal Func<GalleryEntry?, Task>? AfterMediaTagResolutionForTests { get; set; }
 
     /// <summary>The saved quick tag limits (TP5) and the panel's ranking adapter over <paramref name="context"/>, for every popover host.</summary>
     internal QuickTagPopoverOptions TagPopoverDefaults(TagContext context) => QuickTagSettings.PopoverOptions(_config, context, QuickTagRecent, QuickTagStampSet);
@@ -42,7 +43,10 @@ public partial class MainWindow
         Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
         bool Current() => hostCurrent() && presentationCurrent();
         if (!Current() || _mediaTagDialogOpen) return;
-        _mediaTagDialogOpen = true;
+        // Sidebar requests can be replaced while resolving. Only the one that reaches the UI owns the open flag.
+        bool sidebar = request.SidebarToken.CanBeCanceled;
+        bool ownsDialog = !sidebar;
+        if (ownsDialog) _mediaTagDialogOpen = true;
         Control? origin = FocusManager?.GetFocusedElement() as Control;
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         GalleryEntry? match = null;
@@ -56,25 +60,27 @@ public partial class MainWindow
         {
             if (released) return;
             released = true;
-            if (shown == null || ReferenceEquals(MediaPageTagPopover, shown)) MediaPageTagPopover = null;
-            _mediaTagDialogOpen = false;
+            if (shown != null && ReferenceEquals(MediaPageTagPopover, shown)) MediaPageTagPopover = null;
+            if (ownsDialog) _mediaTagDialogOpen = false;
         }
         try
         {
             match = await MediaMenuIdentity.ResolveAsync(indexed, _session.OpenArchiveReaderAsync, Storage.MediaAssetReader.OpenAsync, Current,
-                System.Threading.CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog);
-            if (!Current()) return;
+                request.SidebarToken, _session.ReadBooruCatalog, _session.ReadManualImportCatalog);
+            if (AfterMediaTagResolutionForTests is { } afterResolve) await afterResolve(match);
+            if (!Current() || sidebar && _mediaTagDialogOpen) return;
             if (match == null)
             {
                 ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "media.tags");
                 return;
             }
+            ownsDialog = _mediaTagDialogOpen = true;
             GalleryMediaTagUnavailable unavailable = GalleryMediaTagUnavailable.InvalidIdentity;
             MediaTagSubject? target = request.TagsBlocked == null ? MediaTagSubjects.Of(match, out unavailable) : null;
             string label = match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path);
             decision = DecisionFor(new[] { match }, request.InitialFocus);
             // The popover gives the keyboard back at once (↑/↓ and R work right after Esc); the page places it again after it rebuilt its tiles.
-            QuickTagPopoverOptions options = PopoverOptions(context, hostCurrent, restoreFocus: true, "MediaTagPopover") with
+            QuickTagPopoverOptions options = PopoverOptions(context, sidebar ? Current : hostCurrent, restoreFocus: true, "MediaTagPopover") with
             {
                 Decision = decision, TooltipKeyContext = "media", FocusFallback = request.FocusFallback
             };
@@ -87,7 +93,7 @@ public partial class MainWindow
             }
             else
             {
-                session = new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
+                session = NewPopoverTagSession(target, Current, request.SidebarToken);
                 popover = QuickTagPopover.Open(anchor, options.NewSession(QuickTagTarget.For(session)), label, options);
             }
             origin = popover.Origin ?? origin;
@@ -96,6 +102,7 @@ public partial class MainWindow
             popover.WhenClosed(Release);
             reason = await popover.Result;
         }
+        catch (OperationCanceledException) when (request.SidebarToken.IsCancellationRequested) { }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
             or Microsoft.Data.Sqlite.SqliteException)
         {
@@ -110,15 +117,17 @@ public partial class MainWindow
             if (reason != QuickTagPopoverCloseReason.Advanced && !_isClosing)
             {
                 bool changed = session?.Changed == true || decision?.HasChanged?.Invoke() == true;
+                // A sidebar button survives the grid rebuild. The popover already returned focus to that button.
+                Func<bool> restoreMenuFocus = sidebar ? static () => false : presentationCurrent;
                 // The rebuild would detach the new popover's anchor: it waits until that one closed.
-                if (changed && QuickTagPopover.Current is { } next) next.WhenClosed(() => { if (!_isClosing) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent); });
-                else if (changed) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
-                else if (QuickTagPopover.Current == null)
+                if (changed && QuickTagPopover.Current is { } next) next.WhenClosed(() => { if (!_isClosing) RefreshMediaPageAfterMenuAction(origin, hostCurrent, restoreMenuFocus); });
+                else if (changed) RefreshMediaPageAfterMenuAction(origin, hostCurrent, restoreMenuFocus);
+                else if (!sidebar && QuickTagPopover.Current == null)
                     _mediaPage?.RestoreMediaMenuActionFocus(origin, () => hostCurrent() && QuickTagPopover.Current == null && !OwnedWindows.Any(window => window.IsVisible));
             }
         }
         if (reason == QuickTagPopoverCloseReason.Advanced && !_isClosing && match != null)
-            await EditMediaLibraryTagsForMenuAsync(indexed, () => true, match, origin);
+            await EditMediaLibraryTagsForMenuAsync(indexed, sidebar ? Current : () => true, match, origin);
     }
 
     private async Task OpenArchiveMediaTagPopoverAsync(GalleryEntry entry, Control anchor, TagContext context, Func<bool> isCurrent,
@@ -152,7 +161,7 @@ public partial class MainWindow
         }
         try
         {
-            MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
+            MediaTagSession session = NewPopoverTagSession(target, isCurrent, request.SidebarToken);
             QuickTagPopoverOptions options = PopoverOptions(context, isCurrent, restoreFocus: true, "ArchiveTagPopover") with
             {
                 Decision = decision, TooltipKeyContext = "reader", FocusFallback = request.FocusFallback
@@ -165,7 +174,23 @@ public partial class MainWindow
             reason = await popover.Result;
         }
         finally { Release(); }
-        if (reason == QuickTagPopoverCloseReason.Advanced && !_isClosing) await EditGalleryMediaTagsAsync(entry, origin);
+        if (reason == QuickTagPopoverCloseReason.Advanced && !_isClosing && isCurrent()) await EditGalleryMediaTagsAsync(entry, origin);
+    }
+
+    private MediaTagSession NewPopoverTagSession(MediaTagSubject target, Func<bool> current, CancellationToken sidebarToken)
+    {
+        if (!sidebarToken.CanBeCanceled)
+            return new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
+
+        async Task<PrivateTagCommit> WriteAsync(CancellationToken token, Func<CancellationToken, Task<PrivateTagCommit>> write)
+        {
+            if (!current()) throw new OperationCanceledException();
+            using CancellationTokenSource writeLifetime = CancellationTokenSource.CreateLinkedTokenSource(token, sidebarToken);
+            return await write(writeLifetime.Token);
+        }
+        return new(target, _session.GetPublishedPrivateTagSnapshot,
+            (name, subject, token) => WriteAsync(token, ct => _session.DefineAndSetMediaSubjectTagAsync(name, subject, ct)),
+            (tag, subject, assigned, token) => WriteAsync(token, ct => _session.SetMediaSubjectTagAsync(tag, subject, assigned, ct)));
     }
 
     // The popover of a filmstrip tile's "Rate and tag…" in the gallery: the same popover as the archive's, on the filmstrip, for that tile's medium.

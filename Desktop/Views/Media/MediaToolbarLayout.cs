@@ -39,8 +39,9 @@ internal static class MediaToolbarLayout
     /// </summary>
     internal const double GroupGap = 24;
 
-    /// <summary>The narrowest row the page gives the toolbar: the 640 dip window minimum less the 2 x 12 dip page margin. The Compact stage must fit it.</summary>
-    internal const double NarrowestRowWidth = 616;
+    internal const double HorizontalMargin = 12;
+    /// <summary>The narrowest row the page gives the toolbar: the 640 dip window minimum less both horizontal margins. The Compact stage must fit it.</summary>
+    internal const double NarrowestRowWidth = 640 - 2 * HorizontalMargin;
 
     internal enum Level { Wide, Reduced, Compact }
 

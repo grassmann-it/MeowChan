@@ -373,7 +373,7 @@ internal static partial class MediaPageChecks
 
         // Fields still filter live from the surface; the toggle marks the active filter while closed.
         name.Text = "r-60";
-        await UntilAsync(() => page.Tiles.Count == 10 && status.Text == Texts.T("media.filter.count", 10, ReturnThreads + 2));
+        await UntilAsync(() => page.Tiles.Count == 10 && status.Text == CountPhrases.MediaFilterSummary(10, ReturnThreads + 2));
         name.Text = string.Empty;
         await UntilAsync(() => page.Tiles.Count == SurfaceTagged + 1);
         Require(filters.IsChecked == true && Bounds(grid).Top >= Bounds(surface).Bottom - 1, state + ": live filtering closed the section or put the grid under it.");

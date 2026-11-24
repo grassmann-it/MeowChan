@@ -303,19 +303,28 @@ public static class CommandBindings
     }
 
     /// <summary>The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon.</summary>
-    internal static Control IconFromKey(string icon, int size = 16)
+    internal static Control IconFromKey(string icon, int size = 16, bool deferMask = false)
     {
+        var mask = new ImageBrush { Stretch = Stretch.Uniform };
         var visual = new Border
         {
             Width = size,
             Height = size,
             [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Text"),
-            OpacityMask = new ImageBrush
-            {
-                Source = IconMask(icon),
-                Stretch = Stretch.Uniform
-            }
+            OpacityMask = mask
         };
+        if (deferMask)
+        {
+            // Menu items can reserve the icon column before the rendering platform is available.
+            visual.AttachedToVisualTree += LoadMask;
+
+            void LoadMask(object? sender, VisualTreeAttachmentEventArgs e)
+            {
+                mask.Source = IconMask(icon);
+                visual.AttachedToVisualTree -= LoadMask;
+            }
+        }
+        else mask.Source = IconMask(icon);
         MenuIcons.Record(visual, icon);
         return visual;
     }

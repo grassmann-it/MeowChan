@@ -35,7 +35,11 @@ public partial class ArchivePage
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
         // Escape inside the media sidebar only leaves it (R8): the focus goes back to the selected post, before any reader-wide dismissal. Whether the
         // sidebar is on is a stored layout choice that the × button, the View menu and Primary+Shift+M change; Escape never switches it off (RD-01).
-        if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source)) { FocusSelectedPostOrList(); return true; }
+        if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source))
+        {
+            if (_mediaSidebar?.InvalidateTagEditor() != true) FocusSelectedPostOrList();
+            return true;
+        }
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
         if (IsReaderDialogOpen)
         {
@@ -288,7 +292,14 @@ public partial class ArchivePage
         {
             if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
         };
-        ArchiveContentTabs.SelectionChanged += (_, _) => { CancelReaderMediaActivation(); AlignPostsOnShow(); };
+        ArchiveContentTabs.SelectionChanged += (_, e) =>
+        {
+            if (!ReferenceEquals(e.Source, ArchiveContentTabs)) return;
+            CancelReaderMediaActivation();
+            AlignPostsOnShow();
+            UpdateReaderNavigation();
+            OnMediaSidebarSelectionChanged();
+        };
         // M / U / F on the selected post's medium (the shared resolver) first, then the media menu's other keys.
         // These are page-owned shortcuts, not list type-ahead: enter the route before a ListBoxItem can consume a letter.
         // Each resolver keeps native editors, text selection, popups and foreign top-levels out of the route.
@@ -730,8 +741,13 @@ public partial class ArchivePage
             && (!_readerGroupScope || ReaderGroupTargetIndex(1) < _readerThreads.Count);
         UpdateReaderNavigationTexts(post, thread);
         bool barWasVisible = ReaderNavigation.IsVisible;
-        ReaderNavigation.IsVisible = _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff;
-        if (ReaderNavigation.IsVisible && !barWasVisible) ShowReaderNavigation();
+        ReaderNavigation.IsVisible = CanShowReaderNavigation;
+        if (!ReaderNavigation.IsVisible)
+        {
+            _readerNavigationIdleTimer?.Stop();
+            _readerNavigationActive = _readerNavigationPointerOver = false;
+        }
+        else if (!barWasVisible) ShowReaderNavigation();
         UpdateReaderNavigationLayout();
     }
 
@@ -834,7 +850,10 @@ public partial class ArchivePage
     internal bool IsLargeReader => _largeReader;
     internal string ReaderNavigationDebugState => $"large={_largeReader};mode={_readerNavigationMode};active={_readerNavigationActive};pointerOver={_readerNavigationPointerOver};visible={ReaderNavigation.IsVisible};focus={ReaderNavigation.IsKeyboardFocusWithin}";
 
-    internal bool ReaderNavigationShown => _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff
+    private bool CanShowReaderNavigation => _largeReader && !ArchiveMediaTab.IsSelected
+        && _readerNavigationMode != Config.ReaderNavigationModeOff;
+
+    internal bool ReaderNavigationShown => CanShowReaderNavigation
         && (_readerNavigationMode == Config.ReaderNavigationModeAlways || _readerNavigationActive || _readerNavigationPointerOver
         || ReaderNavigation.IsKeyboardFocusWithin || PointerNearReaderNavigation())
         && (_readerNavigationMode == Config.ReaderNavigationModeAlways || TransientHover.WindowUsable(ReaderContentSurface));
@@ -868,7 +887,7 @@ public partial class ArchivePage
     // elapsed time, so a stream of pointer moves costs one timestamp each. "Always" and "Off" need no timer.
     internal void ShowReaderNavigation(bool fromPointer = false)
     {
-        if (!_largeReader || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;
+        if (!CanShowReaderNavigation || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;
         _readerNavigationLastActivity = Environment.TickCount64;
         _readerNavigationActivityFromPointer = fromPointer;
         _readerNavigationActive = true;

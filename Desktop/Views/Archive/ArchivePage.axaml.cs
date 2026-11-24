@@ -119,6 +119,7 @@ public partial class ArchivePage : UserControl
                 ArchiveMediaColumnsButton.IsVisible = !value;
                 SyncMediaLayoutSwitch();
                 if (position != null) RestoreMediaPosition(position);
+                FollowSavedMediaSelection();
             }
             else SyncMediaLayoutHighlight();
         }
@@ -724,6 +725,7 @@ public partial class ArchivePage : UserControl
         ArchiveThreadMediaTotal.IsVisible = total > 0;
         if (total > 0) ArchiveThreadMediaTotal.Text = Texts.T("thread.media.total", total);
         UpdateActions();
+        FollowSavedMediaSelection();
     }
 
     private IReadOnlyList<ArchiveAssetRow> VisibleAssets()
@@ -1026,17 +1028,18 @@ public partial class ArchivePage : UserControl
         // Only the list that is shown is read; switching between list and tiles carries the selection over (RestoreMediaPosition).
         if (sender is DataGrid && _mediaTiles || sender is ListBox && !_mediaTiles) return;
         UpdateActions();
+        FollowSavedMediaSelection();
     }
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdateLayoutMode();
     }
     private bool CanShowArchivePreviewBesideList => Bounds.Width >= (_archiveLayout == "Table" ? 1450 : 1000);
-    private void OnArchiveFavoritesFilterClick(object? sender, RoutedEventArgs e)
+    private void OnArchiveFavoritesFilterChanged(object? sender, RoutedEventArgs e)
     {
-        _archiveFavoritesOnly = !_archiveFavoritesOnly;
-        ArchiveFavoritesFilter.Content = Texts.T(
-            _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
+        bool favoritesOnly = ArchiveFavoritesFilter.IsChecked == true;
+        if (_archiveFavoritesOnly == favoritesOnly) return;
+        _archiveFavoritesOnly = favoritesOnly;
         RenderMedia();
     }
     private async void OnArchiveLayoutClick(object? sender, RoutedEventArgs e)
@@ -1215,8 +1218,7 @@ public partial class ArchivePage : UserControl
         ArchivePostsTab.Header = Texts.T("archive.posts");
         ArchiveMediaTab.Header = Texts.T("archive.media");
         LocalizeMediaLayoutSwitch();
-        ArchiveFavoritesFilter.Content = Texts.T(
-            _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
+        ArchiveFavoritesFilter.Content = Texts.T("archive.favoritesOnly");
         // Replacing translated labels clears selection synchronously; it is not a new user choice.
         _localizingMediaChoices = true;
         try
@@ -1230,8 +1232,6 @@ public partial class ArchivePage : UserControl
         LocalizeMediaRatings();
         LocalizeMediaSelection();
         UpdateReaderNavigation();
-        DataGrid media = ArchiveMediaGrid;
-        media.Columns[0].Header = Texts.T("archive.name"); media.Columns[1].Header = Texts.T("archive.size"); media.Columns[2].Header = Texts.T("archive.version");
         UpdateActions();
         RefreshMediaSidebarToggle();
     }

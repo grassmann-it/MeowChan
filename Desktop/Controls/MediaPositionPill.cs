@@ -21,7 +21,7 @@ internal sealed class MediaPositionPill : Border
 
     protected override System.Type StyleKeyOverride => typeof(Border);
 
-    internal MediaPositionPill(string name)
+    internal MediaPositionPill(string name, bool announce = true)
     {
         Name = name;
         Height = 24;
@@ -37,8 +37,8 @@ internal sealed class MediaPositionPill : Border
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Center;
         IsVisible = false;
-        AutomationProperties.SetLiveSetting(this, AutomationLiveSetting.Polite);
-        AutomationProperties.SetLiveSetting(Label, AutomationLiveSetting.Polite);
+        if (announce) AutomationProperties.SetLiveSetting(this, AutomationLiveSetting.Polite);
+        AutomationProperties.SetAccessibilityView(Label, AccessibilityView.Raw);
     }
 
     internal void Show(GalleryTagPanelPosition? position, bool marked = false)

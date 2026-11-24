@@ -177,8 +177,8 @@ public partial class ArchivePage
             ? MeowChan.Desktop.MediaRatingText.Label : Texts.T("archive.columns." + key), header, FontWeight.SemiBold);
         double contentWidth = ColumnFit.Widest(texts, text => measurer.Measure(text, body));
         if (headerWidth <= 0 && contentWidth <= 0) return null;
-        // The media grid's generated text columns draw their text with a further margin inside the cell.
-        double padding = grid.Name == ThreadTableName ? ColumnFit.CellPadding : ColumnFit.CellPadding + ColumnFit.TextColumnExtraPadding;
+        double padding = grid.Columns[index] is DataGridTextColumn
+            ? ColumnFit.CellPadding + ColumnFit.TextColumnExtraPadding : ColumnFit.CellPadding;
         return ColumnFit.Width(headerWidth, contentWidth, grid.Columns[index].MinWidth, FitMaxContent, padding,
             sortable: grid.CanUserSortColumns);
     }

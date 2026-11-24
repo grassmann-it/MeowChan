@@ -30,7 +30,7 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     /// <summary>The space the tag list keeps from the page edge (the sidebar's own margin); the column is this much wider than the list.</summary>
-    private const double SidebarMargin = 12;
+    internal const double SidebarMargin = 12;
     /// <summary>The width of the drag handle between the tag list and the grid.</summary>
     internal const double HandleWidth = 6;
 
@@ -142,8 +142,9 @@ public sealed partial class MediaPage
         ToolTip.SetTip(_tagHandle, resize);
     }
 
-    // The Layout menu's panel row says why a chosen panel is not on screen: the page is narrower than the setting.
-    private string? PanelHint() => _panelCollapsed ? Texts.T("media.layout.panel.collapsed", MediaPanelColumns.MinimumBodyWidth(_layout, PanelMinimumPageWidth)) : null;
+    // The Layout menu's panel row reports the width needed to show the panel.
+    private string? PanelHint() => _panelCollapsed && _plan is { } plan
+        ? Texts.T("media.layout.panel.collapsed", MediaPanelColumns.MinimumBodyWidth(_layout, PanelMinimumPageWidth, plan.Toolbar)) : null;
 
     // The page host: tag list, handle and content column. The content column owns header and grid rows;
     // the media sidebar and its handle span both rows, on either side of the grid/filter column.
@@ -263,9 +264,9 @@ public sealed partial class MediaPage
     {
         if (_bodyRow is not { } row || _bodySurface is not { } surface || _contentGrid is not { } content) return;
         double bodyWidth = row.Bounds.Width;
-        MediaPanelColumns panelColumns = MediaPanelColumns.Of(_layout, bodyWidth, PanelMinimumPageWidth);
+        MediaPanelColumns panelColumns = MediaPanelColumns.Of(_layout, bodyWidth, PanelMinimumPageWidth, plan.Toolbar);
 
-        bool right = plan.TagListSide == MediaTagListSide.Right, shown = MediaPanelColumns.TagListShown(_layout, bodyWidth, panelColumns);
+        bool right = plan.TagListSide == MediaTagListSide.Right, shown = MediaPanelColumns.TagListShown(_layout, bodyWidth, panelColumns, plan.Toolbar);
         bool tagFocusLost = !shown && _tagSidebar.IsKeyboardFocusWithin;
         int listColumn = right ? 2 : 0, contentColumn = right ? 0 : 2;
         Avalonia.Controls.Grid.SetColumn(_tagSidebar, listColumn);
@@ -275,7 +276,7 @@ public sealed partial class MediaPage
         _appliedTagListWidth = width;
         ColumnDefinitions columns = row.ColumnDefinitions;
         columns[listColumn].MinWidth = shown ? Math.Min(MeowChan.Config.MediaTagListWidthMinimum, width) + SidebarMargin : 0;
-        columns[listColumn].MaxWidth = shown ? MediaPanelColumns.MaximumTagListWidth(bodyWidth, panelColumns.PanelShown && _tiles.Count > 0, panelColumns.PanelWidth) + SidebarMargin : double.PositiveInfinity;
+        columns[listColumn].MaxWidth = shown ? MediaPanelColumns.MaximumTagListWidth(bodyWidth, panelColumns.PanelShown && _tiles.Count > 0, panelColumns.PanelWidth, plan.Toolbar) + SidebarMargin : double.PositiveInfinity;
         columns[listColumn].Width = new GridLength(shown ? width + SidebarMargin : 0);
         columns[1].Width = new GridLength(shown ? HandleWidth : 0);
         columns[contentColumn].MinWidth = 0;
@@ -297,7 +298,7 @@ public sealed partial class MediaPage
         Avalonia.Controls.Grid.SetColumn(surface, surfaceColumn);
         Avalonia.Controls.Grid.SetColumn(_panelHandle, 1);
         inner[panelColumn].MinWidth = panelShown ? Math.Min(MeowChan.Config.MediaPanelWidthMinimum, panelColumns.PanelWidth) + edge : 0;
-        inner[panelColumn].MaxWidth = panelShown ? MediaPanelColumns.MaximumPanelWidth(_layout, bodyWidth) + edge : double.PositiveInfinity;
+        inner[panelColumn].MaxWidth = panelShown ? MediaPanelColumns.MaximumPanelWidth(bodyWidth, shown ? width : 0, plan.Toolbar) + edge : double.PositiveInfinity;
         inner[panelColumn].Width = new GridLength(panelShown ? panelColumns.PanelWidth + edge : 0);
         inner[1].Width = new GridLength(panelShown ? HandleWidth : 0);
         inner[surfaceColumn].MinWidth = 0;

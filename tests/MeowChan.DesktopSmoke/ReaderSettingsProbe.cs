@@ -61,8 +61,8 @@ internal static class ReaderSettingsProbe
             window.MinWidth = 0;
             foreach ((string view, double width, bool overflow) in new[]
             {
-                // The large reader hides its Read button, so Simple still fits at 760.
-                ("Advanced", 1600d, false), ("Simple", 760d, false),
+                // Simple keeps its gear on the wide toolbar and moves it under More when the row runs out of room.
+                ("Advanced", 1600d, false), ("Simple", 1600d, false), ("Simple", 760d, true),
                 ("Barebones", 1600d, true), ("Barebones", 760d, true)
             })
             {
