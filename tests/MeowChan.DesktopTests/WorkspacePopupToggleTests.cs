@@ -75,7 +75,7 @@ public sealed class WorkspacePopupToggleTests
                 MenuItem templates = Assert.Single(menu.Items.OfType<MenuItem>(),
                     item => AutomationProperties.GetAutomationId(item) == "rules.templates");
                 Assert.Equal(wasOpen, templates.IsChecked);
-                Click(Assert.IsAssignableFrom<TopLevel>(templates.GetVisualRoot()), templates);
+                Click(Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(templates)), templates);
             }
         }
         finally { window.Close(); }
@@ -243,7 +243,7 @@ public sealed class WorkspacePopupToggleTests
         PrivateTagStore store = new(temp.Path, lease);
         MediaLibraryEntry entry = QuickTagSurfaceTests.Entry("a", 'a');
         Assert.True(PrivateTagName.TryCreate("fixture", out PrivateTagName? name, out _));
-        store.DefineAndSetMediaSubjects(name!, [new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(entry)!)], null, CancellationToken.None);
+        store.DefineAndSetMediaSubjects(name!.Display, [new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(entry)!)], null, CancellationToken.None);
         using QuickTagSession session = new(QuickTagTarget.For(QuickTagSurfaceTests.Single(store, entry)));
         using QuickTagSurface surface = new(session, name: "TestQuickTag") { FocusOnAttach = false };
         Window window = Show(surface);
