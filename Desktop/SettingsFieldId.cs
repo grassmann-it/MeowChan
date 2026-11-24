@@ -28,7 +28,6 @@ internal static class SettingsFieldId
     internal const string ReaderMediaSidebarScope = nameof(ReaderMediaSidebarScope);
     internal const string MediaSidebarInfo = nameof(MediaSidebarInfo);
     internal const string MediaSidebarInfoMinimumFree = nameof(MediaSidebarInfoMinimumFree);
-    internal const string MediaSidebarInfoMaximumShare = nameof(MediaSidebarInfoMaximumShare);
     internal const string ReaderMediaSidebarSide = nameof(ReaderMediaSidebarSide);
     internal const string ReaderMediaSidebarWidth = nameof(ReaderMediaSidebarWidth);
     internal const string ReaderMediaSidebarMinimumWidth = nameof(ReaderMediaSidebarMinimumWidth);
