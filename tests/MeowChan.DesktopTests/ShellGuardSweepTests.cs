@@ -134,7 +134,7 @@ public sealed class ShellGuardSweepTests
             finally { session.Config.BeforeAdmittedSaveMutationForTests = null; }
 
             Assert.True(urlInput.IsEffectivelyEnabled);
-            Assert.True(urlInput.IsKeyboardFocused);
+            Assert.True(urlInput.IsFocused);
 
             await Apply();
             Assert.Equal(candidate.Language, session.Config.Language);
