@@ -140,6 +140,7 @@ internal static class BooruComponentDispatcher
             // Rendering and transitions must resolve services owned by this dispatcher.
             AvaloniaLocator.Current = AvaloniaLocator.CurrentMutable = new AvaloniaLocator();
             AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
             SkiaPlatform.Initialize(); // Compiled bitmap icons, without native windows.
             BooruReviewTestPlatform.BindTextShaper();
             owner.Invoke(() =>
