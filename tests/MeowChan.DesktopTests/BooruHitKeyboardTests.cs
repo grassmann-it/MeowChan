@@ -121,15 +121,17 @@ public sealed class BooruHitKeyboardTests
                 Assert.Equal(AutomationProperties.GetSizeOfSet(card), 3);
             }
             Assert.Equal(new[] { 1, 2, 3 }, cards.Select(AutomationProperties.GetPositionInSet));
-            Assert.Equal("BooruResult:101", AutomationProperties.GetName(cards[0]));
-            Assert.Equal("BooruResult:102", AutomationProperties.GetName(cards[1]));
+            Assert.Equal("BooruResult:101", AutomationProperties.GetAutomationId(cards[0]));
+            Assert.Equal("BooruResult:102", AutomationProperties.GetAutomationId(cards[1]));
+            Assert.Contains("General", AutomationProperties.GetName(cards[0]));
             Assert.Equal("Post #101, rating General, local copy: yes", AutomationProperties.GetHelpText(cards[0]));
             Assert.Equal("Post #102, rating General, local copy: no", AutomationProperties.GetHelpText(cards[1]));
             Texts.SetLanguage("de");
             try
             {
                 await Task.Delay(30); // the view renders the language change on a posted callback
-                Assert.Equal("BooruResult:102", AutomationProperties.GetName(Cards(view)[1]));
+                Assert.Equal("BooruResult:102", AutomationProperties.GetAutomationId(Cards(view)[1]));
+                Assert.Contains("Allgemein", AutomationProperties.GetName(Cards(view)[1]));
                 Assert.Equal("Post #102, Einstufung Allgemein, lokale Kopie: nein", AutomationProperties.GetHelpText(Cards(view)[1]));
             }
             finally { Texts.SetLanguage("en"); }
