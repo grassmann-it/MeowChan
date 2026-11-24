@@ -52,21 +52,39 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 };
                 ReaderSettingsPreferences.Apply(page, config);
                 window.Content = page.DetachReader();
-                BooruComponentDispatcher.Wait(page.LoadThreadAsync(ThreadId));
-                BooruComponentDispatcher.Wait(page.MediaLoadTask);
                 window.Show();
                 window.PlatformImpl!.Activated?.Invoke();
-                ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-                BooruComponentDispatcher.WaitUntil(() =>
-                {
-                    window.UpdateLayout();
-                    return posts.ContainerFromIndex(0) is ListBoxItem { DataContext: ArchivePostRow row } card
-                        && row.BacklinkCount == ReplyCount
-                        && VisibleReplyCards(card) == (autoOpenReplies ? ReplyCount : 0)
-                        && Picture(card) is { Bounds.Width: > 0, Bounds.Height: > 0 };
-                }, "the archived picture and reply cards to be laid out");
+                BooruComponentDispatcher.Wait(page.LoadThreadAsync(ThreadId));
+                BooruComponentDispatcher.Wait(page.MediaLoadTask);
+                ArchivedThreadView thread = Assert.IsType<ArchivedThreadView>(page.CurrentThread);
+                CapturedAttachment attachment = Assert.Single(thread.Posts[0].Attachments!);
+                Assert.NotNull(MediaAttachmentResolver.Resolve(media, ThreadId, ThreadId.Thread, attachment));
 
-                ListBoxItem focused = Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromIndex(0));
+                ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+                ListBoxItem? focused = null;
+                string layout = string.Empty;
+                try
+                {
+                    BooruComponentDispatcher.WaitUntil(() =>
+                    {
+                        window.UpdateLayout();
+                        focused = posts.ContainerFromIndex(0) as ListBoxItem;
+                        ArchivePostRow? row = posts.Items.OfType<ArchivePostRow>().FirstOrDefault();
+                        Image? picture = focused == null ? null : Picture(focused);
+                        int? replies = focused == null ? null : VisibleReplyCards(focused);
+                        layout = $"List {posts.Bounds.Size}, card {focused?.Bounds.Size}, backlinks {row?.BacklinkCount}, " +
+                            $"visible replies {replies}, picture {picture?.Bounds.Size}, reply error {row?.RepliesError}";
+                        return focused is { IsArrangeValid: true, Bounds.Width: > 0, Bounds.Height: > 0 }
+                            && row?.BacklinkCount == ReplyCount && replies == (autoOpenReplies ? ReplyCount : 0)
+                            && picture is { IsArrangeValid: true, Bounds.Width: > 0, Bounds.Height: > 0 };
+                    }, "the archived picture and reply cards to be laid out");
+                }
+                catch (TimeoutException error)
+                {
+                    throw new TimeoutException($"{error.Message}. {layout}", error);
+                }
+
+                Assert.NotNull(focused);
                 Assert.True(focused.Focus());
                 Assert.Equal(ThreadId.Thread, page.CurrentReaderPostId);
                 ScrollContentPresenter viewport = posts.GetVisualDescendants().OfType<ScrollContentPresenter>().First();
