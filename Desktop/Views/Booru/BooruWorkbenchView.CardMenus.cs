@@ -50,12 +50,6 @@ internal sealed partial class BooruWorkbenchView
             menu.Command("thread.show-in-media", () => result.Run(ResultAction.ShowInMedia), entryId: MenuShowInMedia,
                 showShortcut: false, availableWhen: () => result.IsCurrent() && result.CanRun(ResultAction.ShowInMedia));
         menu.Command("gallery.open", () => OpenGallery(result.PostId), showShortcut: false, availableWhen: result.IsCurrent);
-        menu.Section().Check("booru.menu.selection", Texts.T("media.tile.selected"), _selectedResults.Contains(result.PostId), () =>
-        {
-            if (!result.IsCurrent()) return;
-            if (!_selectedResults.Add(result.PostId)) _selectedResults.Remove(result.PostId);
-            Render(force: true);
-        });
         menu.Section();
         foreach (ResultCommand link in commands.Where(command => command.Action is ResultAction.Open or ResultAction.Copy))
             AddResultItem(menu, result, link, link.Action == ResultAction.Open ? MenuOpenPost : MenuCopyLink);
@@ -64,6 +58,12 @@ internal sealed partial class BooruWorkbenchView
             menu.Item("booru.menu.copy-tags", Texts.T("booru.menu.copyTags"),
                 () => OpenActions.Start(() => MenuClipboard.CopyAsync(this, tags), "booru.menu.copy-tags"),
                 availableWhen: result.IsCurrent, icon: "copy");
+        menu.Section().Check("booru.menu.selection", Texts.T("media.tile.selected"), _selectedResults.Contains(result.PostId), () =>
+        {
+            if (!result.IsCurrent()) return;
+            if (!_selectedResults.Add(result.PostId)) _selectedResults.Remove(result.PostId);
+            Render(force: true);
+        });
         return menu;
     }
 

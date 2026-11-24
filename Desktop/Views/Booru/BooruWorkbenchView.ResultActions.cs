@@ -32,7 +32,7 @@ internal sealed partial class BooruWorkbenchView
 
         internal BooruResultTarget Target => target;
         internal string PostId => target.Post.PostId;
-        internal bool IsCurrent() => IsSearchItem(owner._tabs.SelectedItem) && CurrentRow() != null && isShown?.Invoke() != false;
+        internal bool IsCurrent() => IsSearchItem(owner._tabs.SelectedItem) && CurrentRow() != null;
 
         internal bool CanRun(ResultAction action) => CurrentRow() is { } row && IsAvailable(action, row);
 
@@ -106,7 +106,7 @@ internal sealed partial class BooruWorkbenchView
                 Texts.T("booru.ui.post.copy") + Environment.NewLine + _url, "booru.result.copy-link");
         }
 
-        internal BooruResultRowView? CurrentRow() => owner._closed ? null : owner._model.Search.ResultRow(target);
+        internal BooruResultRowView? CurrentRow() => owner._closed || isShown?.Invoke() == false ? null : owner._model.Search.ResultRow(target);
     }
 
     private ResultActions BindResult(BooruSearchView view, BooruResultRowView row)

@@ -377,6 +377,7 @@ internal sealed partial class BooruWorkbenchView
         StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { title, close } };
         item.Header = header;
         item.SizeChanged += (_, e) => { if (e.WidthChanged && item.IsSelected) QueueActiveTabReveal(); };
+        if (!IsSearchItem(item)) return new TabHeader(title, close);
         MiddleClickTracker middle = new();
         // A middle click on the tab closes it (press and release on the same tab); the close button keeps its own click.
         header.AddHandler(InputElement.PointerPressedEvent, (object? _, PointerPressedEventArgs e) =>
