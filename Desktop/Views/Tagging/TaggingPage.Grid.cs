@@ -74,7 +74,7 @@ public sealed partial class TaggingPage
             TaggingQueueRow? row = e.Container.DataContext as TaggingQueueRow ?? (e.Index >= 0 && e.Index < _rows.Count ? _rows[e.Index] : null);
             if (e.Container is ListBoxItem item && row != null) AutomationProperties.SetName(item, row.TileName(TagCountOf(row.Item)));
         };
-        _gridMenuHost = new ContextMenuHost(_grid, ComposeRowMenu, fallbackFocus: () => FocusContent());
+        _gridMenuHost = new ContextMenuHost(_grid, ComposeFocusedRowMenu, fallbackFocus: () => FocusContent());
         _grid.AddHandler(ContextRequestedEvent, OnRowContextRequested, RoutingStrategies.Tunnel);
         _grid.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         // Like the list: a double-click that cannot continue says why (ExecuteRowCommandAsync explains) instead of doing nothing.

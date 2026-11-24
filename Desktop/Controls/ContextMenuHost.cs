@@ -75,7 +75,8 @@ internal sealed class ContextMenuHost : IDisposable
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (_disposed || e.Handled) return;
+        if (_disposed || e.Handled || MediaMenuPresenter.IsNativeTextSource(e.Source)) return;
+        if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         bool positioned = e.TryGetPosition(_origin, out _);
         e.Handled = true;
         if (!positioned && DateTime.UtcNow - _lastKeyOpen < PairedRequestWindow) return;

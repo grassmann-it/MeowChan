@@ -87,7 +87,7 @@ public sealed partial class TaggingPage
         _clearNo.Click += (_, _) => CloseClearQuestion(focusClear: true);
         _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseClearQuestion(focusClear: true); } };
 
-        _menuHost = new ContextMenuHost(_list, ComposeRowMenu, fallbackFocus: () => FocusContent());
+        _menuHost = new ContextMenuHost(_list, ComposeFocusedRowMenu, fallbackFocus: () => FocusContent());
         _list.AddHandler(ContextRequestedEvent, OnRowContextRequested, RoutingStrategies.Tunnel);
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyUpEvent, OnResultSpaceUp, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -123,11 +123,22 @@ public sealed partial class TaggingPage
 
     private void OnRowContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (sender is not ListBox surface || !e.TryGetPosition(surface, out _)
+        if (sender is not ListBox surface || !e.TryGetPosition(surface, out Point position)
             || !MainWindow.IsListCommandSource(e.Source, surface)) return;
-        ListBoxItem? item = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+        ListBoxItem? item = (surface.InputHitTest(position) as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
             .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), surface));
-        if (item?.DataContext is not TaggingQueueRow row) return;
+        if (item?.DataContext is not TaggingQueueRow row)
+        {
+            ActiveMenuHost?.Close();
+            e.Handled = true;
+            return;
+        }
+        SetContextLead(surface, row);
+        item.Focus();
+    }
+
+    private static void SetContextLead(ListBox surface, TaggingQueueRow row)
+    {
         TaggingQueueRow[] selected = surface.SelectedItems?.OfType<TaggingQueueRow>().ToArray() ?? Array.Empty<TaggingQueueRow>();
         if (!selected.Contains(row)) surface.SelectedItem = row;
         else if (!ReferenceEquals(surface.SelectedItem, row))
@@ -135,7 +146,6 @@ public sealed partial class TaggingPage
             surface.SelectedItem = row;
             foreach (TaggingQueueRow kept in selected.Where(kept => !ReferenceEquals(kept, row))) surface.SelectedItems?.Add(kept);
         }
-        item.Focus();
     }
 
     private void InstallMiddleClick(ListBox surface)
@@ -164,8 +174,16 @@ public sealed partial class TaggingPage
     }
 
     /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>
-    private ContextMenuBuilder? ComposeRowMenu() =>
-        Lead == null ? null : TaggingQueueMenu.Compose(CommandContext(), id => () => OpenActions.Start(() => ExecuteRowCommandAsync(id), "tagging.menu"));
+    private ContextMenuBuilder? ComposeFocusedRowMenu()
+    {
+        ListBox surface = ActiveList;
+        if (ItemActivation.ItemAt<TaggingQueueRow>(TopLevel.GetTopLevel(surface)?.FocusManager?.GetFocusedElement(), surface) is { } row)
+            SetContextLead(surface, row);
+        return ComposeRowMenu();
+    }
+
+    private ContextMenuBuilder? ComposeRowMenu() => Lead == null ? null
+        : TaggingQueueMenu.Compose(CommandContext(), id => () => OpenActions.Start(() => ExecuteRowCommandAsync(id), "tagging.menu"));
 
     /// <summary>The menu as plain data (smoke and test seam); null without a selection.</summary>
     internal ContextMenuModel? ListMenuModel() => ComposeRowMenu()?.ToModel();

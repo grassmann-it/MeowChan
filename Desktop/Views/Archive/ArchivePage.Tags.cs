@@ -309,13 +309,15 @@ public partial class ArchivePage
         bool canFilter = CanFilterArchiveByTag;
         bool canManage = CanOpenTagManager;
         return new MeowChan.Desktop.Controls.ContextMenuBuilder().Named(display)
-            .Item("reader.tag.remove", Texts.T("tags.remove", display), () => PrivateTagTask = RemoveThreadTagAsync(tag), canEdit, editReason, icon: "x")
             .Item("reader.tag.filter", Texts.T("tags.filter.includeHint"), () => _ = FilterArchiveByTagAsync(tag), canFilter,
                 canFilter ? null : Texts.T("menu.unavailable.target"), icon: "filter")
             .Section()
             .Item("reader.tag.copy-name", CommandCatalog.Label("tags.copy-name"), () => _ = CopyChipTextAsync(this, display), icon: "copy")
             .Item("reader.tag.manage", Texts.T("tags.manage.open"), () => TagManagerTask = OpenTagManagerAsync(ReaderTagChips), canManage,
-                canManage ? null : Texts.T("menu.unavailable.target"), icon: "tag");
+                canManage ? null : Texts.T("menu.unavailable.target"), icon: "tag")
+            .Section()
+            .Item("reader.tag.remove", Texts.T("tags.remove", display), () => PrivateTagTask = RemoveThreadTagAsync(tag), canEdit, editReason,
+                icon: "x", dangerous: true);
     }
 
     private bool CanFilterArchiveByTag => _available && !_ended && !_busy && CanRead && !IsFilenameSearchOpen && !IsReaderDialogOpen;

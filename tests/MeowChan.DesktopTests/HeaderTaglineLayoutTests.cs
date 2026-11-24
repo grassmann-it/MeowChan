@@ -22,6 +22,40 @@ public sealed class HeaderTaglineLayoutTests
 {
     private static readonly double[] WindowWidths = [760, 900, 1100, 1400, 1800];
 
+    [Fact]
+    public void TheVisibleTaglineKeepsItsMenuOpenForBothKeysAndRestoresFocus() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        new Config { DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1, HeaderTagline = "PerStart" }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            await using DesktopSessionHost session = new(profile.Path, [],
+                updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            await using MainWindow window = new(session) { Height = 600, Classes = { MotionPolicy.OffClass } };
+            window.Show();
+            await window.StartupTimingRestoreTask;
+            BooruReviewTestPlatform.Resize(window, 1800);
+            TextBlock subtitle = window.FindControl<TextBlock>("WorkspaceSubtitle")!;
+            Assert.True(subtitle.Focus(NavigationMethod.Tab));
+            foreach (Action<Control> open in new Action<Control>[] { ContextGestures.MenuKey, ContextGestures.ShiftF10 })
+            {
+                open(subtitle);
+                ContextMenu menu = Assert.IsType<ContextMenu>(subtitle.ContextMenu);
+                Assert.True(menu.IsOpen);
+                Assert.Equal(new[] { "tagline.another", "tagline.hide", "tagline.settings" }, MenuProbe.Entries(menu).Select(item => item.Id));
+                TopLevel popup = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(menu));
+                popup.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+                popup.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+                ContextGestures.Settle(window);
+                Assert.False(menu.IsOpen);
+                Assert.Same(subtitle, window.FocusManager?.GetFocusedElement());
+            }
+        }
+    });
+
     [Theory]
     [InlineData("Off", true)]
     [InlineData("Daily", false)]
