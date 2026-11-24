@@ -637,9 +637,9 @@ namespace MeowChan
         }
         internal static string NormalizeSidebarInfo(string? value) => value?.Trim().ToUpperInvariant() switch
         {
-            "OVERLAY" => "Overlay", "AUTO" => "Auto", "ALWAYS" => "Always", _ => "Off"
+            "OFF" => "Off", "OVERLAY" => "Overlay", "ALWAYS" => "Always", _ => "Auto"
         };
-        private string _mediaSidebarInfo = "Off";
+        private string _mediaSidebarInfo = "Auto";
         public string MediaSidebarInfo { get => _mediaSidebarInfo; set => _mediaSidebarInfo = NormalizeSidebarInfo(value); }
 
         internal const int MediaSidebarInfoMinimumFreeMinimum = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeMinimum;

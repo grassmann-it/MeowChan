@@ -46,7 +46,6 @@ internal static class ReaderQuickSettings
         Choice(SettingsFieldId.ReaderMediaSidebarSide, "settings.reader.mediaSidebarSide", "settings.reader.mediaSidebarSide.hint", Options((Config.ReaderMediaSidebarSideLeft, "settings.reader.mediaSidebarSide.left"), (Config.ReaderMediaSidebarSideRight, "settings.reader.mediaSidebarSide.right")), c => c.ReaderMediaSidebarSide, (c, v) => c.ReaderMediaSidebarSide = v),
         Integer(SettingsFieldId.ReaderMediaSidebarWidth, "settings.reader.mediaSidebarWidth", "settings.reader.mediaSidebarWidth.hint", Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum, 40, c => c.ReaderMediaSidebarWidth, (c, v) => c.ReaderMediaSidebarWidth = v),
         Integer(SettingsFieldId.MediaSidebarInfoMinimumFree, "settings.reader.mediaSidebarInfoMinimumFree", "settings.reader.mediaSidebarInfoMinimumFree.hint", Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum, 8, c => c.MediaSidebarInfoMinimumFree, (c, v) => c.MediaSidebarInfoMinimumFree = v),
-        Integer(SettingsFieldId.MediaSidebarInfoMaximumShare, "settings.reader.mediaSidebarInfoMaximumShare", "settings.reader.mediaSidebarInfoMaximumShare.hint", Config.MediaSidebarInfoMaximumShareMinimum, Config.MediaSidebarInfoMaximumShareMaximum, 1, c => c.MediaSidebarInfoMaximumShare, (c, v) => c.MediaSidebarInfoMaximumShare = v),
         Integer(SettingsFieldId.ReaderMediaSidebarMinimumWidth, "settings.reader.mediaSidebarMinimumWidth", "settings.reader.mediaSidebarMinimumWidth.hint", Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, 80, c => c.ReaderMediaSidebarMinimumWidth, (c, v) => c.ReaderMediaSidebarMinimumWidth = v),
         // R10: the players of the reader (in the sidebar and in posts).
         Toggle(SettingsFieldId.ReaderInlineVideoAutoplayMuted, "settings.reader.inlineVideoAutoplay", "settings.reader.inlineVideoAutoplay.hint", c => c.ReaderInlineVideoAutoplayMuted, (c, v) => c.ReaderInlineVideoAutoplayMuted = v),
@@ -90,7 +89,6 @@ internal static class ReaderQuickSettings
         Row(SettingsFieldId.ReaderMediaSidebarScope, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.MediaSidebarInfo, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.MediaSidebarInfoMinimumFree, when: SettingsFieldId.ReaderMediaSidebar),
-        Row(SettingsFieldId.MediaSidebarInfoMaximumShare, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.ReaderMediaSidebarSide, when: SettingsFieldId.ReaderMediaSidebar),
         Row(SettingsFieldId.ReaderTextlessLargeImages, shortcut: "reader.view.textless-large"),
         Row(SettingsFieldId.ReaderTextlessMediaWidth, when: SettingsFieldId.ReaderTextlessLargeImages),

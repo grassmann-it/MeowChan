@@ -55,11 +55,11 @@ public sealed class MediaFirstSidebarTests
     public void DefaultModeAndLimitsNormalizeAtTheProfileBoundary()
     {
         Config config = new();
-        Assert.Equal(("Off", 160, 40), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
+        Assert.Equal(("Auto", 104, 40), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
         config.MediaSidebarInfo = "unknown";
         config.MediaSidebarInfoMinimumFree = -1;
         config.MediaSidebarInfoMaximumShare = 120;
-        Assert.Equal(("Off", 96, 60), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
+        Assert.Equal(("Auto", 64, 60), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
         config.MediaSidebarInfoMinimumFree = 900;
         config.MediaSidebarInfoMaximumShare = 0;
         Assert.Equal((480, 20), (config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
