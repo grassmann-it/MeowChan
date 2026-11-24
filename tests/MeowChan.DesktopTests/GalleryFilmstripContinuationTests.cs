@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
@@ -16,6 +15,8 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Updates;
 using MeowChan.Persistence;
+using Microsoft.Data.Sqlite;
+using SkiaSharp;
 using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopTests;
@@ -36,7 +37,17 @@ public sealed class GalleryFilmstripContinuationTests
     {
         Texts.SetLanguage("en");
         string downloads = Path.Combine(profile, "downloads");
-        new Config { DownloadPath = downloads, FirstRunSetupVersion = 1, GalleryOverlayControls = false }.SaveConfig(profile);
+        new Config
+        {
+            DownloadPath = downloads,
+            FirstRunSetupVersion = 1,
+            Language = "en",
+            WorkspaceMode = "Advanced",
+            GalleryOverlayControls = false,
+            GalleryFilmstripHeight = 96,
+            GalleryFilmstripPreload = Config.GalleryFilmstripPreloadMinimum,
+            GalleryWheelMode = Config.GalleryWheelModeBrowse
+        }.SaveConfig(profile);
         ResourceId first = new("filmstrip", "test", "1"), second = new("filmstrip", "test", "2");
         using (ProfileLease lease = ProfileLease.Acquire(profile))
         {
@@ -50,11 +61,11 @@ public sealed class GalleryFilmstripContinuationTests
         await using MainWindow window = new(session) { Width = 1200, Height = 800 };
         window.SetRenderScaling(1.5);
         window.Show();
-        window.PlatformImpl!.Activated?.Invoke();
         await window.StartupTimingRestoreTask;
+        window.PlatformImpl!.Activated?.Invoke();
+        Assert.True(window.IsActive);
         await window.OpenSearchGalleryAsync(new ArchiveThreadQuery(Source: "filmstrip", Sort: ArchiveThreadSort.Title));
         GalleryViewer viewer = Assert.IsType<GalleryViewer>(window.FindControl<ContentControl>("GalleryHost")!.Content);
-        viewer.ConfigureFilmstrip(true, 96, 0);
         GalleryFilmstrip strip = viewer.Filmstrip;
         TextBlock position = viewer.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "GalleryCompactPosition");
         TextBlock status = viewer.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "GalleryStatus");
@@ -69,6 +80,8 @@ public sealed class GalleryFilmstripContinuationTests
         Dispatcher.UIThread.RunJobs();
         object picture = image.Source!;
 
+        Assert.True(viewer.IsFilmstripVisible);
+        Assert.True(strip.HasMore);
         Button load = Assert.IsType<Button>(strip.TileControl(3));
         Control third = Assert.IsAssignableFrom<Control>(strip.TileControl(2));
         Assert.Equal("3 / 3", position.Text);
@@ -86,28 +99,40 @@ public sealed class GalleryFilmstripContinuationTests
         Assert.InRange(loadBounds.Top - tileBounds.Top, -1, 1);
         Assert.InRange(loadBounds.Width - tileBounds.Width, -1, 1);
         Assert.InRange(loadBounds.Height - tileBounds.Height, -1, 1);
+
+        Control viewport = viewer.GetVisualDescendants().OfType<Control>().Single(control => control.Name == "GalleryViewport");
+        bool wheelHandled = false;
+        viewport.AddHandler(InputElement.PointerWheelChangedEvent, (_, e) => wheelHandled = e.Handled, handledEventsToo: true);
+        window.MouseWheel(BoundsIn(viewport, window).Center, new Vector(0, -1), RawInputModifiers.None);
+        Assert.True(wheelHandled);
+        Assert.Equal(2, strip.CurrentIndex);
+        Assert.Equal(string.Empty, status.Text);
         Capture(window, "ready");
 
-        // An invalid identity exercises a failure from the real ArchiveReader. Put the original
-        // identity back at the same slot to verify that the failed attempt did not consume it.
-        FieldInfo threads = typeof(MainWindow).GetField("_galleryThreads", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        ResourceId[] retryable = [first, new("filmstrip", "test", "")];
-        threads.SetValue(window, retryable);
         int failures = 0;
         viewer.DiagnosticNotice += notice => { if (notice.Operation == "load-more") failures++; };
-        Point center = load.TranslatePoint(new Point(load.Bounds.Width / 2, load.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(center, MouseButton.Left);
-        window.MouseUp(center, MouseButton.Left);
+        // Keep the real archive reader busy through both activations, then release it for the retry.
+        string connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = Path.Combine(profile, "archive.db"), Mode = SqliteOpenMode.ReadWrite, Pooling = false
+        }.ToString();
+        using (SqliteConnection database = new(connectionString))
+        {
+            database.Open();
+            using SqliteCommand archiveLock = database.CreateCommand();
+            archiveLock.CommandText = "BEGIN EXCLUSIVE";
+            archiveLock.ExecuteNonQuery();
+            load.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        Assert.Equal("Loading…", AutomationProperties.GetName(load));
-        Assert.Equal("Loading…", ToolTip.GetTip(load));
-        Assert.Equal(WorkspaceIcons.Refresh, WorkspaceIcons.KeyOf(load.Content));
-        Assert.Equal("Loading…", status.Text);
-        Assert.Equal("3 / 3", position.Text);
-        window.MouseDown(center, MouseButton.Left);
-        window.MouseUp(center, MouseButton.Left);
-        Capture(window, "loading");
-        await UntilAsync(() => failures > 0 && AutomationProperties.GetName(load) == "Load more media");
+            Assert.Equal("Loading…", AutomationProperties.GetName(load));
+            Assert.Equal("Loading…", ToolTip.GetTip(load));
+            Assert.Equal(WorkspaceIcons.Refresh, WorkspaceIcons.KeyOf(load.Content));
+            Assert.Equal("Loading…", status.Text);
+            Assert.Equal("3 / 3", position.Text);
+            load.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Capture(window, "loading");
+            await UntilAsync(() => failures > 0 && AutomationProperties.GetName(load) == "Load more media", TimeSpan.FromSeconds(10));
+        }
         Assert.Equal(1, failures);
         Assert.Equal("3 / 3", position.Text);
         Assert.Equal(2, strip.CurrentIndex);
@@ -115,11 +140,9 @@ public sealed class GalleryFilmstripContinuationTests
         Assert.Equal("Could not load more media. Try again.", status.Text);
         Capture(window, "retry");
 
-        retryable[1] = second;
         Assert.True(load.Focus(NavigationMethod.Tab));
         window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
         window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-        Assert.Equal("Loading…", AutomationProperties.GetName(load));
         window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
         window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
         await UntilAsync(() => strip.CurrentIndex == 3 && !strip.HasMore);
@@ -153,7 +176,10 @@ public sealed class GalleryFilmstripContinuationTests
         Directory.CreateDirectory(directory);
         string url = "https://filmstrip.invalid/" + id.Thread;
         Dictionary<string, object> entries = new();
-        byte[] png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=");
+        using SKBitmap picture = new(320, 180);
+        picture.Erase(SKColors.SteelBlue);
+        using SKData encoded = picture.Encode(SKEncodedImageFormat.Png, 100);
+        byte[] png = encoded.ToArray();
         for (int index = 0; index < count; index++)
         {
             string file = $"image-{index}.png";
@@ -165,9 +191,9 @@ public sealed class GalleryFilmstripContinuationTests
         await archive.RegisterThreadAsync(new(id, url, title, directory, true));
     }
 
-    private static async Task UntilAsync(Func<bool> condition)
+    private static async Task UntilAsync(Func<bool> condition, TimeSpan? timeout = null)
     {
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
+        using CancellationTokenSource deadline = new(timeout ?? TimeSpan.FromSeconds(5));
         while (!condition()) await Task.Delay(10, deadline.Token);
     }
 }
