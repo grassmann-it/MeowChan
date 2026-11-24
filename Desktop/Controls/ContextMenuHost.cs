@@ -60,7 +60,7 @@ internal sealed class ContextMenuHost : IDisposable
     internal static void Install(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null)
     {
         Uninstall(origin);
-        Installed.Add(origin, new ContextMenuHost(origin, compose, fallbackFocus));
+        Installed.GetValue(origin, control => new ContextMenuHost(control, compose, fallbackFocus));
         origin.DetachedFromVisualTree += UninstallOnDetach;
     }
 

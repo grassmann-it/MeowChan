@@ -137,7 +137,7 @@ internal sealed class BooruResultViewer : UserControl, IAsyncDisposable
         _viewer.TemplateApplied += (_, _) => SuppressGalleryChrome();
         if (composeMenu != null)
             _contextHost = new ContextMenuHost(_viewer, () => composeMenu(CurrentPostId), FocusStage);
-        _viewer.AddHandler(ContextRequestedEvent, (_, e) =>
+        _viewer.AddHandler(ContextRequestedEvent, (sender, e) =>
         {
             if (e.Handled || ItemActivation.IsOwnedByInteractivePart(e.Source, _viewer)) return;
             _contextHost?.Show(e.TryGetPosition(_viewer, out _));

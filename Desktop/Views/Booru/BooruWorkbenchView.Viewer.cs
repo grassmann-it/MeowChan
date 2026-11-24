@@ -53,10 +53,12 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
 
     private void CloseHostedGallery(bool restoreFocus)
     {
-        if (_hostedGallery is not { } gallery) return;
+        if (_hostedGallery == null) return;
+        BooruResultViewer gallery = _hostedGallery;
+        System.Threading.Tasks.Task cleanup = _hostedGallery.DisposeAsync().AsTask();
         _hostedGallery = null;
         if (gallery.Parent is Panel layer) layer.Children.Remove(gallery);
-        _hostedGalleryCleanup = System.Threading.Tasks.Task.WhenAll(_hostedGalleryCleanup, gallery.DisposeAsync().AsTask());
+        _hostedGalleryCleanup = System.Threading.Tasks.Task.WhenAll(_hostedGalleryCleanup, cleanup);
         OpenActions.Start(() => _hostedGalleryCleanup, "booru.gallery.dispose");
         _gallery.SuspendSamples(false);
         if (!restoreFocus || _closed || !_attached || !IsEffectivelyVisible || !IsSearchItem(_tabs.SelectedItem)) return;

@@ -95,8 +95,7 @@ public partial class MainWindow
 
     private ContextMenuBuilder BuildSidebarTagMenu(Control chip, string name)
     {
-        PrivateTagDefinition? definition = PrivateTagName.TryCreate(name, out var parsed, out _)
-            ? _session.GetPublishedPrivateTagSnapshot().Snapshot?.Find(parsed) : null;
+        PrivateTagDefinition? definition = _session.GetPublishedPrivateTagSnapshot().Snapshot?.Resolve(name, out _);
         ContextMenuBuilder menu = OwnTagChipMenu.IdentityActions(chip, name, definition?.Id, FilterFromOwnedTag);
         if (definition == null) return menu;
         QuickTagStamp stamp = QuickTagStampSet;

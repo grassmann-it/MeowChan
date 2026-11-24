@@ -30,6 +30,10 @@ internal sealed partial class BooruWorkbenchView
         Button cancel = new() { Content = Texts.T("action.cancel") };
         StackPanel choices = new() { Spacing = 8 };
         List<(string Name, CheckBox Chip)> terms = new();
+        CheckBox[] ratingOptions = new[] { "g", "s", "q", "e" }.Select(value => new CheckBox
+        {
+            Content = value.ToUpperInvariant(), Tag = value
+        }).ToArray();
         int preselected = 0;
         foreach (var category in tags.GroupBy(tag => tag.Category)
             .OrderBy(group => group.Key == BooruTagCategory.Artist ? 0 : group.Key == BooruTagCategory.Character ? 1 : 2))
@@ -56,10 +60,6 @@ internal sealed partial class BooruWorkbenchView
             choices.Children.Add(chips);
         }
         WrapPanel ratings = new() { ItemSpacing = 8, LineSpacing = 4 };
-        CheckBox[] ratingOptions = new[] { "g", "s", "q", "e" }.Select(value => new CheckBox
-        {
-            Content = value.ToUpperInvariant(), Tag = value
-        }).ToArray();
         foreach (CheckBox rating in ratingOptions)
         {
             rating.IsCheckedChanged += (_, _) => Refresh();
