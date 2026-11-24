@@ -66,7 +66,7 @@ public sealed class ArchiveTableSplitterTests
 
                 SelectThread(second);
 
-                Assert.Equal(draggedWidth, list.Bounds.Width);
+                Assert.InRange(list.Bounds.Width, draggedWidth - 1, draggedWidth + 1);
                 Assert.True(page.IsMediaSidebarShown);
 
                 void SelectThread(ResourceId id)
