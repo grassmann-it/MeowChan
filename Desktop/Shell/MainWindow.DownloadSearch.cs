@@ -81,6 +81,25 @@ public partial class MainWindow
         DownloadSearchInput.Text = string.Empty;
         if (_downloadSearchOpen) DownloadSearchInput.Focus();
     }
+
+    private void OnDownloadSearchEmptyAction(object? sender, RoutedEventArgs e)
+    {
+        if (!CanFocusDownloadSearch || !DownloadResultsCurrent || VisibleResultCount != 0
+            || string.IsNullOrWhiteSpace(DownloadSearchText)) return;
+
+        bool boards = DownloadsTabs.SelectedIndex == 1;
+        if ((boards ? VisibleThreads.Count : VisibleBoards.Count) > 0)
+        {
+            DownloadsTabs.SelectedIndex = boards ? 0 : 1;
+            if (!DownloadList(!boards).Focus()) FocusDownloadSearch();
+        }
+        else
+        {
+            FocusDownloadSearch();
+            OnDownloadSearchClear(sender, e);
+        }
+    }
+
     private void OnDownloadSearchChanged(object? sender, TextChangedEventArgs e)
     {
         if (!_workspaceInitialized) return;
@@ -150,7 +169,6 @@ public partial class MainWindow
                 _appliedThreadSearchReconciliation = _threadSearchReconciliation;
                 _appliedBoardSearchReconciliation = _boardSearchReconciliation;
                 _threadSearchReconciliation = null; _boardSearchReconciliation = null;
-                RefreshDownloadSearchPresentation();
                 return true;
             }
             _restoreDownloadSelection.Current();
@@ -215,9 +233,22 @@ public partial class MainWindow
         BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
         BoardsEmptyPanel.IsVisible = BoardsEmptyState.IsVisible;
         BoardsEmptyImportButton.IsVisible = BoardsEmptyState.IsVisible && current && !active;
+        UpdateDownloadSearchEmptyAction(ThreadsEmptySearchButton, !boards && current && active && VisibleThreads.Count == 0,
+            "downloads.searchShowBoards", VisibleBoards.Count);
+        UpdateDownloadSearchEmptyAction(BoardsEmptySearchButton, boards && current && active && VisibleBoards.Count == 0,
+            "downloads.searchShowThreads", VisibleThreads.Count);
         RefreshDownloadsToolbarEmptiness(active);
         TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");
         AutomationProperties.SetName(input, Texts.T("downloads.searchPlaceholder"));
+    }
+
+    private static void UpdateDownloadSearchEmptyAction(Button button, bool show, string targetKey, int count)
+    {
+        button.IsVisible = show;
+        if (!show) return;
+        string label = count > 0 ? Texts.Count(targetKey, count) : Texts.T("downloads.searchClearQuery");
+        button.Content = label;
+        AutomationProperties.SetName(button, label);
     }
 }

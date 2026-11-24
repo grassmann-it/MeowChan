@@ -374,12 +374,13 @@
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </controls:RowFocusDataGrid>
-                                    <!-- The text never takes input; only the next-step button below it does. -->
                                     <controls:WorkspaceEmptyState x:Name="ThreadsEmptyPanel">
                                         <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized workspace-empty-text"
                                                    IsHitTestVisible="False" />
                                         <Button x:Name="ThreadsEmptyImportButton" Classes="primary" HorizontalAlignment="Center"
                                                 Click="OnEmptyStateImportClick" />
+                                        <Button x:Name="ThreadsEmptySearchButton" Classes="primary" HorizontalAlignment="Center"
+                                                IsVisible="False" Click="OnDownloadSearchEmptyAction" />
                                     </controls:WorkspaceEmptyState>
                                 </Grid>
                                 <Grid x:Name="BoardsResultPanel" Grid.Row="2" IsVisible="False">
@@ -419,12 +420,13 @@
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
                     </controls:RowFocusDataGrid>
-                                    <!-- Same next step as the Threads state: the URL on the clipboard is imported (a board URL discovers its threads). -->
                                     <controls:WorkspaceEmptyState x:Name="BoardsEmptyPanel">
                                         <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized workspace-empty-text"
                                                    IsHitTestVisible="False" />
                                         <Button x:Name="BoardsEmptyImportButton" Classes="primary" HorizontalAlignment="Center"
                                                 Click="OnEmptyStateImportClick" />
+                                        <Button x:Name="BoardsEmptySearchButton" Classes="primary" HorizontalAlignment="Center"
+                                                IsVisible="False" Click="OnDownloadSearchEmptyAction" />
                                     </controls:WorkspaceEmptyState>
                                 </Grid>
                         <!-- The inline search row keeps its close at the right edge (HeaderBar end slot, Tom's item 35 of 14.11.): no back gap, no separator; only pages and overlays put their way back at the left. DL-07: it is a labelled "Close" with the collapse chevron, not a second ×: the field's own clear button is the only cross in the row. -->
