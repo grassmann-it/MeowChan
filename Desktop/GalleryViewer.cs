@@ -1586,7 +1586,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             }
             Button show = command(actions, "GalleryReadPost", Texts.T("gallery.viewer10"),
                 () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
-            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon, compactLabel: true);
+            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon, compactLabel: true, allowIconOnly: true);
         }
         else
         {
