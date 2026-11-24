@@ -185,7 +185,7 @@ public sealed class ToolbarVisualIconAuditTests
         RulesPage rules = new() { IsAvailable = true };
         SettingsEditor settings = new() { IsAvailable = true };
         StatusPage status = new();
-        StatisticsPage statistics = new();
+        using StatisticsPage statistics = new();
         DiagnosticsPage diagnostics = new();
         diagnostics.FindControl<SearchBox>("DiagnosticTextFilter")!.ShowSearchIcon = false;
         foreach (SearchBox input in settings.GetLogicalDescendants().OfType<SearchBox>()) input.ShowSearchIcon = false;
@@ -231,7 +231,6 @@ public sealed class ToolbarVisualIconAuditTests
             plugins.EndLifetime();
             rules.EndLifetime();
             status.EndLifetime();
-            statistics.EndLifetime();
             diagnostics.EndLifetime();
             settings.EndLifetime();
         }
