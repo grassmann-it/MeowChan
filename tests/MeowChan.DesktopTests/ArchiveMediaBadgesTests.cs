@@ -1,9 +1,12 @@
-using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.LogicalTree;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -290,15 +293,26 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
     }
 
     [Fact]
-    public void TheTileHandsItsSlotToTheBadgesAndMeasuresTheCheckOnIt()
+    public void TheTileHandsItsSlotToTheBadgesAndMeasuresTheCheckOnIt() => OnPlatform(() =>
     {
-        string source = File.ReadAllText(Path.Combine(RepoRoot(), "Desktop/ArchiveMediaTileView.cs"));
-        Assert.Contains("Options = MediaBadgeOptions.ArchiveTile", source);
-        Assert.Contains("preview.MarksOnSlot = true", source);
-        Assert.Contains("_preview.PictureBounds.Size, _preview.Bounds.Size", source);
-        Assert.Contains("TopRightExtent(_badges.Plan, _preview.MarksBounds.Width)", source);
-        Assert.Contains("MediaBadgeOptions.Archive }", File.ReadAllText(Path.Combine(RepoRoot(), "Desktop/ArchiveAttachmentView.cs")));
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ArchiveMediaTileView tile = new() { DataContext = AssetRow("still.png", status: MediaManifestStatus.Missing) };
+        ArchiveAttachmentView attachment = new() { DataContext = AttachmentRow("still.png") };
+        StackPanel content = new() { Children = { tile, attachment } };
+        Window window = new() { Width = 650, Height = 700, Content = content };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            Assert.True(tile.Badges.Bounds.Width > 0);
+            Assert.Equal(MediaBadgeAnchor.Slot, tile.Badges.Options.Anchor);
+            Assert.Equal(MediaBadgeAnchor.Picture, attachment.Badges.Options.Anchor);
+            Assert.Equal(tile.Badges.Bounds.Size, tile.Badges.GetVisualParent()!.Bounds.Size);
+            PlacedBadge missing = Assert.Single(tile.Badges.Plan.Badges, badge => badge.Badge.Id == MediaBadgeId.Missing);
+            Assert.Equal(MediaBadgeCorner.TopRight, missing.Badge.Corner);
+        }
+        finally { window.Close(); }
+    });
 
     // ---- the selection check keeps clear of a badge in its corner ----
 
@@ -321,27 +335,34 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
     // ---- the quiet toggle: the badge shows the favourite at rest, the toggle only while pointed at ----
 
     [Fact]
-    public void TheArchiveTilesFavouriteToggleIsOnlyShownWhilePointedAtBecauseTheBadgeShowsTheState() => OnPlatform(() =>
+    public void TheArchiveTilesFavouriteToggleAppearsOnHoverOrFocusBecauseTheBadgeShowsTheState() => OnPlatform(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        TransientPopupPolicy.Install();
         ArchiveMediaTileView tile = new() { DataContext = AssetRow("still.png", favorite: true) };
-        ToggleButton star = tile.GetLogicalDescendants().OfType<ToggleButton>().Single(button => button.Name == "ArchiveMediaFavorite");
-        Assert.Contains("tile-favorite", star.Classes);
-        Assert.Contains(ArchiveMediaTileView.QuietFavoriteClass, star.Classes);
-        Assert.Equal("tile-favorite-quiet", ArchiveMediaTileView.QuietFavoriteClass);
+        ListBoxItem container = new() { Content = tile };
+        Window window = new() { Width = 500, Height = 400, Content = container };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+            ToggleButton star = Assert.Single(tile.GetVisualDescendants().OfType<ArchiveFavoriteButton>());
+            Assert.True(tile.Badges.State.Favorite);
+            Assert.True(star.IsChecked);
+            Assert.Equal(0, star.Opacity);
 
-        XDocument styles = XDocument.Load(Path.Combine(RepoRoot(), "Desktop", "WorkspaceStyles.axaml"));
-        XNamespace a = "https://github.com/avaloniaui";
-        string Setting(string selector) => styles.Descendants(a + "Style").Single(style => (string?)style.Attribute("Selector") == selector)
-            .Elements(a + "Setter").Single(setter => (string?)setter.Attribute("Property") == "Opacity").Attribute("Value")!.Value;
-        // Set (":checked") hides it at rest; hover, keyboard focus and a focused tile show it. The shared rules stay as they are.
-        Assert.Equal("0", Setting("ToggleButton.tile-favorite.tile-favorite-quiet:checked"));
-        foreach (string shown in new[] { "ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible", "ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet",
-            "ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet" })
-            Assert.Equal("1", Setting(shown));
-        Assert.Equal("1", Setting("ToggleButton.tile-favorite:checked"));
-        // The quiet rules come after the shared ones: the last matching style wins.
-        string[] order = styles.Descendants(a + "Style").Select(style => (string?)style.Attribute("Selector") ?? "").ToArray();
-        Assert.True(Array.IndexOf(order, "ToggleButton.tile-favorite.tile-favorite-quiet:checked") > Array.IndexOf(order, "ListBoxItem:focus-within ToggleButton.tile-favorite"));
+            Point at = star.TranslatePoint(new Point(star.Bounds.Width / 2, star.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(at);
+            BooruComponentDispatcher.WaitUntil(() => star.Opacity == 1, "the hovered tile to reveal its star");
+
+            window.MouseMove(new Point(-1, -1));
+            BooruComponentDispatcher.WaitUntil(() => star.Opacity == 0, "the tile to hide its star after the pointer leaves");
+            Assert.True(star.Focus(NavigationMethod.Tab));
+            Assert.Equal(1, star.Opacity);
+        }
+        finally { window.Close(); }
     });
 
     // ---- budget: recycled rows ----
@@ -390,6 +411,4 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
         Assert.Equal(ArchiveMediaBadges.ForAsset(rows[(10_000 - 1) % rows.Length]), tile.Badges.State);
     });
 
-    private static string RepoRoot([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "..", ".."));
 }

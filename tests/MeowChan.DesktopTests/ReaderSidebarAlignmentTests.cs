@@ -53,9 +53,9 @@ public sealed class ReaderSidebarAlignmentTests
                 Assert.Equal(Grid.GetColumn(posts), Grid.GetColumn(postsHeader));
                 Assert.Equal(1, Grid.GetColumnSpan(postsHeader));
                 Assert.Equal(1, Grid.GetColumn(splitter));
-                sidebar.ShowEmpty();
-                LayoutAt(720);
-                Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
+                BooruComponentDispatcher.WaitUntil(
+                    () => AutomationProperties.GetName(sidebar) == Texts.T("reader.sidebar.regionEmpty"),
+                    "the empty sidebar announcement");
                 Assert.False(sidebar.PositionPill.IsVisible);
                 Assert.Empty(sidebar.Title.Text!);
                 double emptyHeight = sidebar.HeaderRow.Bounds.Height;
