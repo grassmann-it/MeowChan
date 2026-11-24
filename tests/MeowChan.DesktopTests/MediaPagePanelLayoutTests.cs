@@ -90,12 +90,13 @@ public sealed class MediaPagePanelLayoutTests
                 Assert.Equal(0, panel.Margin.Top);
                 Assert.Equal(0, panel.Margin.Bottom);
                 Assert.False(page.IsPanelHeaderLifted);
-                Assert.Equal(48, panel.HeaderRow.Bounds.Height);
-                Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
-                Assert.Equal(16 + panel.HeaderRow.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y);
+                // Tom 19:55: “Der Kopf ist einzeilig, solange es passt.”
+                Assert.Equal(((MediaCompactHeader)panel.HeaderRow).UsesSingleRow ? 32 : 48, panel.HeaderRow.Bounds.Height);
+                // Fable §2.1: “Höhe 40 DIP (4 + 32 + 4)” (56 DIP with a second line).
+                Assert.Equal(12, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(24 + panel.HeaderRow.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y);
                 Assert.True(panel.Card.Bounds.Height > 0);
-                ScrollViewer details = panel.GetVisualDescendants().OfType<ScrollViewer>()
-                    .Single(scroller => scroller.Name == "ReaderMediaSidebarDetails");
+                Control details = panel.Details;
                 Control last = details.IsVisible ? details : panel.Card;
                 Assert.Equal(panel.Bounds.Height - 8, last.TranslatePoint(default, panel)!.Value.Y + last.Bounds.Height, 0.5);
             }
@@ -117,7 +118,9 @@ public sealed class MediaPagePanelLayoutTests
             panel.Describe("No. 123", "media.png", "10 MiB", canOpen: true, threadPosition: new(1234567890, 1234567891, false));
             ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));
             SidePanelDesignTests.AssertCompactHeader(panel);
-            Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+            // Fable §2.1: the 32 DIP action row has 4 DIP padding inside the 8 DIP sidebar inset.
+            Control header = SidePanelDesignTests.ById<MediaCompactHeader>(panel, "ReaderMediaSidebarHeaderRow");
+            Assert.Equal(12, header.TranslatePoint(default, panel)!.Value.Y);
 
             page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
             ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));

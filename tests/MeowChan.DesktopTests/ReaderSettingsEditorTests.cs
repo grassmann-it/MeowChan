@@ -35,7 +35,6 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderHoverEnlargeSize), "settings.reader.hoverSize", nameof(SettingsEditor.ReaderHoverEnlargeSizeMinimum), nameof(SettingsEditor.ReaderHoverEnlargeSizeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderHoverEnlargeDelayMs), "settings.reader.hoverDelay", nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMinimum), nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.MediaSidebarInfoMinimumFree), "settings.reader.mediaSidebarInfoMinimumFree", nameof(SettingsEditor.MediaSidebarInfoMinimumFreeMinimum), nameof(SettingsEditor.MediaSidebarInfoMinimumFreeMaximum), "SettingsReadingMediaPage"),
-        (nameof(Config.MediaSidebarInfoMaximumShare), "settings.reader.mediaSidebarInfoMaximumShare", nameof(SettingsEditor.MediaSidebarInfoMaximumShareMinimum), nameof(SettingsEditor.MediaSidebarInfoMaximumShareMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaSidebarWidth), "settings.reader.mediaSidebarWidth", nameof(SettingsEditor.ReaderMediaSidebarWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaSidebarMinimumWidth), "settings.reader.mediaSidebarMinimumWidth", nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderInlineVideoMaxPlayers), "settings.reader.inlineVideoPlayers", nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMinimum), nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMaximum), "SettingsReadingMediaPage"),
@@ -415,8 +414,6 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         saved.ReaderMediaSidebarWidth = 320;
         editor.MediaSidebarInfoMinimumFree = 200;
         GetInput(editor, nameof(Config.MediaSidebarInfoMinimumFree)).Value = 200;
-        editor.MediaSidebarInfoMaximumShare = 50;
-        GetInput(editor, nameof(Config.MediaSidebarInfoMaximumShare)).Value = 50;
         editor.SelectedMediaSidebarInfo = new SettingsChoice("Always", "Always");
         ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
         try
@@ -440,7 +437,6 @@ public sealed class ReaderSettingsEditorTests : IDisposable
             Assert.Equal(380, saved.ReaderMediaSidebarWidth);
             Assert.Equal(380m, editor.ReaderMediaSidebarWidth);
             Assert.Equal(200m, GetInput(editor, nameof(Config.MediaSidebarInfoMinimumFree)).Value);
-            Assert.Equal(50m, GetInput(editor, nameof(Config.MediaSidebarInfoMaximumShare)).Value);
             Assert.Equal("Always", editor.SelectedMediaSidebarInfo!.Value);
         }
         finally { page.EndLifetime(); }

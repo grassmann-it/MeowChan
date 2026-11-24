@@ -85,10 +85,12 @@ public partial class MainWindow
             SavePanelWidth = ChooseSharedPanelWidth,
             SavePanelEnabled = enabled => OpenActions.Start(
                 () => _session.SaveViewPreferencesAsync(config => config.TaggingPagePanel = enabled), "tagging.panel"),
-            SavePanelInfoMode = mode => OpenActions.Start(async () =>
+            SavePanelSetting = update => OpenActions.Start(async () =>
             {
-                await SaveQuickSettingsAsync(config => config.MediaSidebarInfo = mode);
-                _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
+                bool previous = _config.SidebarFactsVisible;
+                await SaveQuickSettingsAsync(update);
+                if (previous != _config.SidebarFactsVisible)
+                    _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
             }, "media.sidebar.info"),
             ExecutePanelDecisionAsync = ExecuteTaggingPanelDecisionAsync
         };
@@ -110,8 +112,9 @@ public partial class MainWindow
         bool Active() => _selectedPage == WorkspacePage.Tagging && TaggingEntryCurrent() && !_largeReaderOpen && !HasBlockingPageDecision();
         _shortcutRouter?.RegisterOwned(new CommandRegistration(MediaPanelKeys.ToggleCommandId, page,
             Active, () => true, page.TogglePanel, Priority: 100));
-        _shortcutRouter?.RegisterOwned(new CommandRegistration("media.sidebar.info", page,
-            Active, () => page.IsPanelShown, page.TogglePanelInfo, Priority: 100));
+        foreach (string id in new[] { "media.sidebar.info", "media.sidebar.autohide" })
+            _shortcutRouter?.RegisterOwned(new CommandRegistration(id, page,
+                Active, () => page.IsPanelShown, () => page.RunPanelBarCommand(id), Priority: 100));
     }
 
     private Task ExecuteTaggingPanelDecisionAsync(string id, MediaLibraryEntry entry, Func<bool> presentationCurrent)

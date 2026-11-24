@@ -625,6 +625,13 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _queueWork.End();
         _keyContext.Dispose();
         EndTagging();
+        // The page owns both token sources; a waiting follow or load sees the cancellation and leaves them alone.
+        _panelFollowDelay?.Cancel();
+        _panelFollowDelay?.Dispose();
+        _panelFollowDelay = null;
+        _panelLoading?.Cancel();
+        _panelLoading?.Dispose();
+        _panelLoading = null;
         StopPanel();
         _menuHost?.Dispose();
         _gridMenuHost?.Dispose();

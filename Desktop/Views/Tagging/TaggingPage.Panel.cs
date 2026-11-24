@@ -57,7 +57,7 @@ public sealed partial class TaggingPage
     internal Func<MediaPageLayout>? ReadPanelLayout { get; set; }
     internal Action<int>? SavePanelWidth { get; set; }
     internal Action<bool>? SavePanelEnabled { get; set; }
-    internal Action<string>? SavePanelInfoMode { get; set; }
+    internal Action<Action<Config>>? SavePanelSetting { get; set; }
     internal Func<string, MediaLibraryEntry, Func<bool>, Task>? ExecutePanelDecisionAsync { get; set; }
     internal bool IsPanelShown => !_queueWork.Ended && _taggingPanel is { IsEffectivelyVisible: true };
 
@@ -80,9 +80,9 @@ public sealed partial class TaggingPage
         SavePanelEnabled?.Invoke(_panelEnabled);
     }
 
-    internal void TogglePanelInfo()
+    internal void RunPanelBarCommand(string id)
     {
-        if (IsPanelShown && !_tagBusy) _taggingPanel?.ToggleDetails();
+        if (IsPanelShown && !_tagBusy) _taggingPanel?.RunBarCommand(id, wasShown: true);
     }
 
     private void InitializePanel()
@@ -205,10 +205,10 @@ public sealed partial class TaggingPage
         panel[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.CardEdge");
         panel.Styles.Add(new Style(selector => selector.OfType<Button>()) { Setters = { new Setter(FocusableProperty, false) } });
         panel.ConfigureInfo(_panelInfo);
-        panel.SaveInfoMode = mode =>
+        panel.SaveSidebarSetting = update =>
         {
-            _panelInfo = _panelInfo with { MediaSidebarInfo = mode };
-            SavePanelInfoMode?.Invoke(mode);
+            _panelInfo = panel.CopyBarSettingsTo(_panelInfo);
+            SavePanelSetting?.Invoke(update);
         };
         AutomationProperties.SetAutomationId(panel, "TaggingPanel");
         AutomationProperties.SetAutomationId(panel.Frame, "ReaderMediaSidebarFrame");
@@ -299,18 +299,24 @@ public sealed partial class TaggingPage
 
     private async Task FollowPanelAfterDelayAsync(long milliseconds)
     {
-        using CancellationTokenSource delay = new();
+        // Owned by the field: whoever takes it out of the field (here, a cancel or Dispose) disposes it.
+        CancellationTokenSource delay = new();
+        CancellationToken stopped = delay.Token;
         _panelFollowDelay = delay;
         try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(milliseconds), PanelClock, delay.Token);
+            await Task.Delay(TimeSpan.FromMilliseconds(milliseconds), PanelClock, stopped);
             if (!ReferenceEquals(_panelFollowDelay, delay) || _tagBusy || !IsPanelShown) return;
             if (_panelThrottle.Tick(PanelMilliseconds())) SetPanelTarget(_panelWanted);
         }
-        catch (OperationCanceledException) when (delay.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stopped.IsCancellationRequested) { }
         finally
         {
-            if (ReferenceEquals(_panelFollowDelay, delay)) _panelFollowDelay = null;
+            if (ReferenceEquals(_panelFollowDelay, delay))
+            {
+                _panelFollowDelay = null;
+                delay.Dispose();
+            }
         }
     }
 
@@ -319,6 +325,7 @@ public sealed partial class TaggingPage
         CancellationTokenSource? delay = _panelFollowDelay;
         _panelFollowDelay = null;
         delay?.Cancel();
+        delay?.Dispose();
     }
 
     private static DispatcherTimer PanelTimer(Action action)
@@ -346,8 +353,15 @@ public sealed partial class TaggingPage
     private void CancelPanelLoad()
     {
         _taggingPanel?.Load.Cancel();
-        _panelLoading?.Cancel();
+        CancelPanelLoadSource();
+    }
+
+    private void CancelPanelLoadSource()
+    {
+        CancellationTokenSource? loading = _panelLoading;
         _panelLoading = null;
+        loading?.Cancel();
+        loading?.Dispose();
     }
 
     private void SetPanelTarget(TaggingQueueRow? row)
@@ -407,10 +421,12 @@ public sealed partial class TaggingPage
     private async Task LoadTaggingPanelAsync(ReaderMediaSidebar panel, MediaLibraryEntry entry, string key, ReaderMediaLoadTicket ticket,
         (double Width, double Height) target)
     {
-        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        // The field holds the newest load for cancelling; each load disposes its own source when it ends.
+        CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        CancellationToken stopped = loading.Token;
         _panelLoading = loading;
         bool Current() => IsPanelShown && panel.Load.IsCurrent(ticket.Request);
-        ReaderMediaSidebarImageLoad request = new(panel, key, ticket, ReaderSettingsPreferences.Gallery(_host.Config), Current, loading.Token);
+        ReaderMediaSidebarImageLoad request = new(panel, key, ticket, ReaderSettingsPreferences.Gallery(_host.Config), Current, stopped);
         try
         {
             await request.RunAsync(async token =>
@@ -445,7 +461,11 @@ public sealed partial class TaggingPage
                 if (picture.Source is { } size) panel.SetDetail($"{size.Width}×{size.Height}");
             });
         }
-        finally { if (ReferenceEquals(_panelLoading, loading)) _panelLoading = null; }
+        finally
+        {
+            if (ReferenceEquals(_panelLoading, loading)) _panelLoading = null;
+            loading.Dispose();
+        }
     }
 
     private void AnnouncePanel(string text)

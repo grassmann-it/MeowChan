@@ -1048,6 +1048,7 @@ internal static class TaggingPageChecks
                 await Program.WaitUntilAsync(() => PanelControl<Control>(media, "MediaPanel").IsEffectivelyVisible == false);
                 Require(session.Config.TaggingPagePanel, "The Media shortcut changed the Tagging panel preference.");
                 await ReopenAsync(window, tagging);
+                await CheckSharedSidebarSettingsAsync(media, panel);
 
                 foreach (string variant in new[] { "Light", "Dark" })
                 {
@@ -1096,13 +1097,15 @@ internal static class TaggingPageChecks
                     ReaderMediaPreferences preferences = ReaderMediaPreferences.From(session.Config);
                     foreach (string mode in new[] { "Auto", "Always", "Off" })
                     {
-                        tagging.ConfigurePanelInfo(preferences with { MediaSidebarInfo = mode });
+                        tagging.ConfigurePanelInfo(preferences with { MediaSidebarInfo = mode, MediaSidebarFacts = true });
                         await WaitForPictureAsync(images[0]);
-                        await Program.WaitUntilAsync(() => InfoArea().IsEffectivelyVisible == (mode != "Off"));
+                        // Variant A: "Off" folds the facts only; the bar with stars and tags stays.
+                        await Program.WaitUntilAsync(() => FactArea().IsEffectivelyVisible == (mode != "Off")
+                            && PanelControl<Control>(tagging, "ReaderMediaSidebarInfoBar").IsEffectivelyVisible);
                         Program.CaptureWindow(window, $"info-{mode.ToLowerInvariant()}.png", folder);
                     }
 
-                    tagging.ConfigurePanelInfo(preferences with { MediaSidebarInfo = "Always" });
+                    tagging.ConfigurePanelInfo(preferences with { MediaSidebarInfo = "Always", MediaSidebarFacts = true });
                     Button editor = PanelControl<Button>(panel, "ReaderMediaSidebarEditTags");
                     await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.IsEffectivelyEnabled);
                     await input.ClickButtonAsync(editor);
@@ -1151,7 +1154,12 @@ internal static class TaggingPageChecks
         }
         finally
         {
-            await session.SaveViewPreferencesAsync(config => config.TaggingPagePanel = before.TaggingPagePanel);
+            await session.SaveViewPreferencesAsync(config =>
+            {
+                config.TaggingPagePanel = before.TaggingPagePanel;
+                config.MediaSidebarFacts = before.MediaSidebarFacts;
+                config.MediaSidebarAutoHide = before.MediaSidebarAutoHide;
+            });
             tagging.RestorePanelEnabled(before.TaggingPagePanel);
             tagging.ConfigurePanelInfo(ReaderMediaPreferences.From(before));
             tagging.SetViewMode(oldView, save: false);
@@ -1159,6 +1167,48 @@ internal static class TaggingPageChecks
             await FooterNavigationChecks.PersistLanguageAsync(window, language);
             await ReopenAsync(window, tagging);
             if (double.IsFinite(oldWidth)) await ResizeAsync(window, oldWidth);
+        }
+
+        async Task CheckSharedSidebarSettingsAsync(MediaPage media, Control panel)
+        {
+            await ShowEntryAsync(1, images[0]);
+            bool facts = !session.Config.MediaSidebarFacts;
+            bool autohide = !session.Config.MediaSidebarAutoHide;
+            await input.ChordAsync('i', MediaNativeInput.ShiftLeft);
+            await Program.WaitUntilAsync(() => session.Config.MediaSidebarFacts == facts,
+                () => "Shift+I did not persist the Tagging sidebar facts.");
+            Button settings = PanelControl<Button>(panel, "ReaderMediaSidebarSettings");
+            await input.ClickButtonAsync(settings);
+            MenuItem? autohideChoice = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                autohideChoice = window.OpenedPopups.SelectMany(popup =>
+                    popup.Child?.GetSelfAndVisualDescendants().OfType<MenuItem>() ?? [])
+                    .FirstOrDefault(item => item.IsEffectivelyVisible && Equals(item.Tag, "autoHide"));
+                return autohideChoice != null;
+            });
+            await input.ClickAsync(autohideChoice!);
+            await Program.WaitUntilAsync(() => session.Config.MediaSidebarAutoHide == autohide,
+                () => "The Tagging sidebar gear did not persist Autohide.");
+
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Media);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Media);
+            media.ApplyLayout(media.PageLayout with { Panel = true }, save: false);
+            await media.FocusExactEntryAsync(entry => entry.AssetId == images[0].AssetId, "Sidebar fixture missing");
+            await Program.WaitUntilAsync(() => PanelControlOrDefault<ToggleButton>(media, "ReaderMediaSidebarInfoToggle")
+                is { IsEffectivelyVisible: true } info && info.IsChecked == facts);
+            Control mediaPanel = PanelControl<Control>(media, "MediaPanel");
+            Button mediaSettings = PanelControl<Button>(mediaPanel, "ReaderMediaSidebarSettings");
+            await input.ClickButtonAsync(mediaSettings);
+            await Program.WaitUntilAsync(() => window.OpenedPopups.SelectMany(popup =>
+                    popup.Child?.GetSelfAndVisualDescendants().OfType<MenuItem>() ?? [])
+                .Any(item => Equals(item.Tag, "autoHide") && item.IsChecked == autohide));
+            await input.KeyAsync(MediaNativeInput.Escape);
+
+            Config reopened = Config.LoadConfig(session.ProfileDirectory);
+            Require(reopened.MediaSidebarFacts == facts && reopened.MediaSidebarAutoHide == autohide,
+                "The Tagging sidebar settings did not survive reopening the saved profile.");
+            await ReopenAsync(window, tagging);
         }
 
         async Task ReplaceQueueAsync(TagQueueItem[] entries)
@@ -1187,8 +1237,7 @@ internal static class TaggingPageChecks
         });
 
         Control? Popup() => PanelControlOrDefault<Control>(window, "TaggingTagPopoverFrame");
-        Control InfoArea() => PanelControlOrDefault<Control>(tagging, "ReaderMediaSidebarInfoBar")
-            ?? PanelControl<Control>(tagging, "ReaderMediaSidebarDetails");
+        Control FactArea() => PanelControl<Control>(tagging, "ReaderMediaSidebarFacts");
     }
 
     private static T PanelControl<T>(Control root, string id) where T : Control =>
