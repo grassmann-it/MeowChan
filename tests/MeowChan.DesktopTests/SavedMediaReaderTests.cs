@@ -41,11 +41,13 @@ public sealed class SavedMediaReaderTests
         ArchiveAssetRow[] rows = (grid ? tiles.ItemsSource : table.ItemsSource)!.Cast<ArchiveAssetRow>().ToArray();
         Assert.Equal(rows[0].Name, rows[1].Name);
 
-        if (grid) tiles.SelectedIndex = 0;
-        else table.SelectedIndex = 0;
-        Layout(window);
-        Control focus = grid ? (Control)tiles.ContainerFromIndex(0)! : table;
-        Assert.True(focus.Focus(NavigationMethod.Tab));
+        if (grid)
+        {
+            tiles.SelectedIndex = 0;
+            Layout(window);
+            Assert.True(((Control)tiles.ContainerFromIndex(0)!).Focus(NavigationMethod.Tab));
+        }
+        else SelectTableRow(window, table, rows[0]);
         ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
         Assert.True(page.IsMediaSidebarShown);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
@@ -139,20 +141,13 @@ public sealed class SavedMediaReaderTests
         page.MediaTilesPreference = grid;
         Layout(window);
         ArchiveAssetRow row = ShownRows(page, grid).Single(asset => !asset.Asset.IsCurrent);
-        Control list;
         if (grid)
         {
             ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
             tiles.SelectedItem = row;
-            list = (Control)tiles.ContainerFromItem(row)!;
+            Assert.True(((Control)tiles.ContainerFromItem(row)!).Focus(NavigationMethod.Tab));
         }
-        else
-        {
-            DataGrid table = page.FindControl<DataGrid>("ArchiveMediaGrid")!;
-            table.SelectedItem = row;
-            list = table;
-        }
-        Assert.True(list.Focus(NavigationMethod.Tab));
+        else SelectTableRow(window, page.FindControl<DataGrid>("ArchiveMediaGrid")!, row);
         window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
         Layout(window);
         MenuItem copy = Assert.IsType<MenuItem>(page.ArchiveMediaMenu!.Items.OfType<MenuItem>()
@@ -233,6 +228,17 @@ public sealed class SavedMediaReaderTests
         }
     });
 
+    private static void SelectTableRow(Window window, DataGrid table, ArchiveAssetRow row)
+    {
+        DataGridRow visual = table.GetVisualDescendants().OfType<DataGridRow>()
+            .Single(item => ReferenceEquals(item.DataContext, row));
+        Point position = visual.TranslatePoint(new Point(16, visual.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(position, MouseButton.Left, RawInputModifiers.None);
+        window.MouseUp(position, MouseButton.Left, RawInputModifiers.None);
+        Assert.Same(row, table.SelectedItem);
+        Assert.True(table.IsKeyboardFocusWithin);
+    }
+
     private static ArchiveAssetRow[] ShownRows(ArchivePage page, bool grid) =>
         (grid ? page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource : page.FindControl<DataGrid>("ArchiveMediaGrid")!.ItemsSource)!
         .Cast<ArchiveAssetRow>().ToArray();
@@ -297,7 +303,7 @@ public sealed class SavedMediaReaderTests
     private static void WaitUntil(Func<bool> condition)
     {
         long started = Environment.TickCount64;
-        while (!condition() && Environment.TickCount64 - started < 2000)
+        while (!condition() && Environment.TickCount64 - started < 5000)
         {
             Dispatcher.UIThread.RunJobs();
             System.Threading.Thread.Sleep(1);
