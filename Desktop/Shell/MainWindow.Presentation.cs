@@ -292,7 +292,11 @@ public partial class MainWindow
         {
             DataGrid grid = WorkspaceControl<DataGrid>(gridName);
             if (grid.ContextMenu is ContextMenu menu)
+            {
                 foreach (Control control in menu.GetLogicalDescendants().OfType<Control>()) LocalizeWorkspaceControl(control);
+                foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(item => item.Tag is "watch.check" or "watch.retry-media"))
+                    CommandBindings.Refresh(item);
+            }
             foreach (DataGridColumn column in grid.Columns)
             {
                 string? key = column.SortMemberPath switch
@@ -333,12 +337,13 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(InspectorOpenFolderButton, "location.open-folder", Texts.T("action.openFolder"));
         CommandBindings.ApplyLabeled(InspectorOpenBrowserButton, "location.open-source", Texts.T("action.openBrowser"));
         CommandBindings.ApplyLabeled(InspectorMediaRetryButton, "watch.retry-media", Texts.T("work.retry"));
-        CommandBindings.ApplyLabeled(InspectorCopyUrlButton, "selection.copy-links", Texts.T("action.copyUrl"));
         CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", Texts.T("action.remove"));
         // Offers and notices of the shell that carried a word only: the same catalog icons as the rest of the page.
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionAccept, "plus");
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionDismiss, "x");
         CommandBindings.EnsureIconBeforeText(DownloadSearchClear, "x");
+        CommandBindings.EnsureIconBeforeText(InspectorCopyUrlButton, "copy");
+        CommandBindings.EnsureIconBeforeText(InspectorCopyDirectoryButton, "copy");
         CommandBindings.EnsureIconBeforeText(WorkViewNoticeAdvanced, "eye");
         CommandBindings.EnsureIconBeforeText(WorkViewNoticeDismiss, "check");
         LocalizeShellFeedbackAction();
@@ -471,13 +476,6 @@ public partial class MainWindow
         return thread != null && UrlList.Contains(thread) ? thread : null;
     }
 
-    private string? GetInspectorUrl() => GetWorkspaceSelection() switch
-    {
-        ThreadRow thread => thread.Url,
-        BoardRow board => board.Url,
-        _ => null
-    };
-
     private void RefreshWorkspaceInspector()
     {
         if (_sessionRowsApplying) return;
@@ -486,7 +484,11 @@ public partial class MainWindow
         bool hasSelection = selected != null;
         InspectorEmptyState.IsVisible = !hasSelection;
         InspectorSelection.IsVisible = hasSelection;
-        if (selected == null) return;
+        if (selected == null)
+        {
+            BindInspectorCopyValues(null, null, null);
+            return;
+        }
 
         bool isThread = selected is ThreadRow;
         string title;
@@ -525,8 +527,7 @@ public partial class MainWindow
         InspectorTitle.Text = title;
         InspectorSource.Text = source;
         InspectorStatus.Text = status;
-        InspectorUrl.Text = url;
-        InspectorDirectory.Text = directory;
+        BindInspectorCopyValues(selected, url, directory);
         InspectorMediaSection.IsVisible = isThread;
         SelectableTextBlock workContext = InspectorContext;
         workContext.Text = context;
@@ -542,7 +543,7 @@ public partial class MainWindow
         InspectorNextStep.Text = needsRetry ? WorkNextStep.Text(CommandCatalog.Label("watch.retry-media"),
             CommandCatalog.ShortcutDisplay("watch.retry-media")) : string.Empty;
         InspectorRemoveHint.Text = Texts.T(isThread ? "detail.removeHint" : "detail.boardRemoveHint");
-        foreach (string name in new[] { "InspectorOpenFolderButton", "InspectorOpenBrowserButton", "InspectorCopyUrlButton" })
+        foreach (string name in new[] { "InspectorOpenFolderButton", "InspectorOpenBrowserButton" })
             WorkspaceControl<Button>(name).IsEnabled = !_isClosing;
         InspectorRemoveButton.IsEnabled = _restoreCompleted && !_isClosing;
         DiagnosticTarget target = selected is ThreadRow selectedThread
