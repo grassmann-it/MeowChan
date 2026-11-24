@@ -21,7 +21,7 @@ internal sealed class ThreeWayToggle : StackPanel
     private readonly ToggleButton[] _buttons =
     {
         new() { Classes = { "segment", "segment-first" } },
-        new() { Classes = { "segment" } },
+        new() { Classes = { "segment", "segment-middle" } },
         new() { Classes = { "segment", "segment-last" } }
     };
     private int _selected;

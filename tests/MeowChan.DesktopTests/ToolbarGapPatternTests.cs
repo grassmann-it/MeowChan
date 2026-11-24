@@ -163,7 +163,7 @@ public sealed class ToolbarGapPatternTests
 
             var segmentState = (IPseudoClasses)segment.Classes;
             segmentState.Set(":pressed", true);
-            Assert.Equal(Colors.Magenta, ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.SegmentPressed"), ColorOf(Presenter(segment).Background));
             segment.IsEnabled = false;
             Assert.Equal(Colors.Transparent, ColorOf(Presenter(segment).Background));
             Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(segment).Foreground));

@@ -187,6 +187,7 @@ public static class ContrastRules
         Add("Workspace.OnAccent", "Workspace.Accent", 4.5);
         Add("Workspace.OnAccent", "Workspace.AccentHover", 4.5);
         Add("ButtonSolidPrimaryPressedForeground", "ButtonSolidPrimaryPressedBackground", 4.5);
+        Add("Workspace.Text", "Workspace.SegmentPressed", 4.5);
         Add("Workspace.AccentHover", "Workspace.AccentSurface", 3.0); // graphic, not text
 
         foreach (string status in new[] { "Error", "Warning", "Success" })

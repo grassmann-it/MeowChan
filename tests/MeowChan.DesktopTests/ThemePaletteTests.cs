@@ -91,9 +91,9 @@ public sealed class ThemePaletteTests
 
         Assert.Equal("#662E7D32", ThemePalette.Hex(after.Colors["GridSplitterPreviewBackground"]));
         Assert.Equal("#662E7D32", ThemePalette.Hex(after.Colors["DataGridDropLocationIndicatorBackground"]));
-        // Dark presses back to the accent; Light presses one step (× 0.8) darker: 0x2E·0.8 = 36.8, 0x7D·0.8 = 100, 0x32·0.8 = 40.
+        // Primary buttons press one step (× 0.8) darker in both themes.
         string pressed = theme == ThemeTokenTheme.Dark ? "#2E7D32" : "#256428";
-        Assert.Equal(pressed, ThemePalette.Hex(after.Colors["ButtonSolidPrimaryPressedBackground"]));
+        Assert.Equal("#256428", ThemePalette.Hex(after.Colors["ButtonSolidPrimaryPressedBackground"]));
         Assert.Equal(pressed, ThemePalette.Hex(after.Colors["SliderThumbPressedBorderBrush"]));
         if (theme == ThemeTokenTheme.Light)
         {

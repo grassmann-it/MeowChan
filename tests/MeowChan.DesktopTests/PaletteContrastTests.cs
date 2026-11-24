@@ -432,8 +432,8 @@ public sealed class PaletteContrastTests
         Same(theme, "Workspace.OnAccent", "TextBoxSelectionForeground", "TextBlockSelectionForeground", "CheckBoxGlyphFill", "RadioButtonCheckGlyphFill", "BadgeForeground");
         Same(theme, "Workspace.ControlBorder", "CheckBoxDefaultBorderBrush", "RadioButtonUncheckIconDefaultBorderBrush", "TextBoxBorderedPointeroverBorderBrush",
             "ComboBoxSelectorBorderedPointeroverBorderBrush");
-        // Pressed: the pressed accent of the buttons in Light, the accent itself in Dark (buttons keep their own pressed keys).
-        string pressed = Color(theme, "ButtonSolidPrimaryPressedBackground");
+        // Checked inputs use the accent itself in Dark and the darker pressed tone in Light.
+        string pressed = Color(theme, theme == "Dark" ? "Workspace.Accent" : "ButtonSolidPrimaryPressedBackground");
         foreach (string key in new[] { "CheckBoxCheckedPressedBackground", "CheckBoxCheckedPressedBorderBrush", "RadioButtonCheckIconPressedBackground",
                      "RadioButtonCheckIconPressedBorderBrush", "SliderThumbPressedBorderBrush" })
             Assert.True(pressed == Color(theme, key), $"{theme}: {key} is {Color(theme, key)}, expected the pressed accent {pressed}");
