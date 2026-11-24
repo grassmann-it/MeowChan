@@ -640,15 +640,30 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     internal Task EditTagsAsync() => EditTagsAsync(_details.IsVisible ? _infoBar.EditorAnchor : InfoToggle);
 
-    private async Task EditTagsAsync(Control anchor)
+    internal Task EditTagsFromShortcutAsync() => EditTagsAsync(null);
+
+    private async Task EditTagsAsync(Control? origin)
     {
         if (!IsEffectivelyVisible || _fileName.Length == 0 || OpenTagsAsync is not { } openTags || _cancelTagEditor != null) return;
         using CancellationTokenSource request = new();
         Action cancel = request.Cancel;
         _cancelTagEditor = cancel;
-        _tagEditorAnchor = anchor;
         try
         {
+            if (origin == null && !_details.IsVisible)
+            {
+                _infoBar.PinEditorAnchor(true);
+                UpdateInfoLayout();
+                TopLevel.GetTopLevel(this)?.UpdateLayout();
+            }
+            Control anchor = origin ?? _infoBar.EditorAnchor;
+            if (origin == null)
+            {
+                anchor.BringIntoView();
+                TopLevel.GetTopLevel(this)?.UpdateLayout();
+            }
+            if (request.IsCancellationRequested) return;
+            _tagEditorAnchor = anchor;
             await openTags(anchor, request.Token);
             // Blocked editors can be opened synchronously by the host.
             if (ReferenceEquals(_cancelTagEditor, cancel) && QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor))
@@ -660,6 +675,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             {
                 _cancelTagEditor = null;
                 _tagEditorAnchor = null;
+                RestoreDetailsAfterTagEditor();
             }
         }
     }
@@ -682,6 +698,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         cancel();
         if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor))
             popover.Close(QuickTagPopoverCloseReason.Stale);
+        if (_cancelTagEditor == null) RestoreDetailsAfterTagEditor();
         return true;
     }
 

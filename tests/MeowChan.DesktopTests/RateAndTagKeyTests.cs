@@ -525,12 +525,14 @@ public sealed class RateAndTagPopoverCloseTests : IDisposable
 [Collection("Booru exact navigation")]
 public sealed class RateAndTagMediaPageKeyTests
 {
+    private static readonly int[] ThirdTile = [2];
+    private static readonly int[] FirstTwoTiles = [0, 1];
     private sealed record Opened(MediaLibraryEntry Entry, Control Anchor, RateAndTagRequest Request);
 
-    private static List<Opened> RecordPopovers(MediaTileEnterTests.Fixture fixture)
+    private static List<Opened> RecordPopovers(MediaTileEnterTests.Fixture fixture, Task? untilClosed = null)
     {
         List<Opened> opened = new();
-        fixture.Page.TagPopoverAsync = (entry, anchor, _, _, request) => { opened.Add(new(entry, anchor, request)); return Task.CompletedTask; };
+        fixture.Page.TagPopoverAsync = (entry, anchor, _, _, request) => { opened.Add(new(entry, anchor, request)); return untilClosed ?? Task.CompletedTask; };
         return opened;
     }
 
@@ -547,7 +549,7 @@ public sealed class RateAndTagMediaPageKeyTests
         Assert.Same(fixture.Entries[2], open.Entry);
         Assert.Equal(QuickTagInitialFocus.TagInput, open.Request.InitialFocus);
         Assert.NotNull(open.Request.FocusFallback); // the grid takes the keyboard when the tile is gone after the close
-        Assert.Equal(new[] { 2 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
+        Assert.Equal(ThirdTile, fixture.Grid.Selection.SelectedIndexes.ToArray());
     });
 
     [Fact]
@@ -567,18 +569,31 @@ public sealed class RateAndTagMediaPageKeyTests
     [InlineData("media.tags.edit")]
     public void PanelEntryFocusesTheTagInputAndKeepsItsOwnTargetDespiteGridSelection(string command) => MediaTileEnterTests.Run(fixture =>
     {
-        List<Opened> opened = RecordPopovers(fixture);
+        TaskCompletionSource closed = new();
+        List<Opened> opened = RecordPopovers(fixture, closed.Task);
         fixture.Grid.Selection.SelectRange(0, 1);
         Control origin = fixture.ShowPanelOn(2);
+        ReaderMediaSidebar panel = fixture.PanelView!;
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
+        List<string> savedModes = [];
+        panel.SaveInfoMode = savedModes.Add;
+        Assert.Equal(0, panel.Bounds.Height);
+        Assert.False(panel.Details.IsVisible);
         KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture(command));
         fixture.Press(origin, gesture.Key, gesture.KeyModifiers);
 
         Assert.True(fixture.LastHandled);
         Opened open = Assert.Single(opened);
         Assert.Same(fixture.Entries[2], open.Entry);
-        Assert.Same(fixture.PanelView!.InfoToggle, open.Anchor);
+        Assert.Equal("ReaderMediaSidebarEditTags", open.Anchor.Name);
+        Assert.True(open.Anchor.IsEffectivelyVisible);
+        Assert.True(panel.Details.IsVisible);
         Assert.Equal(QuickTagInitialFocus.TagInput, open.Request.InitialFocus);
-        Assert.Equal(new[] { 0, 1 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
+        Assert.Equal(FirstTwoTiles, fixture.Grid.Selection.SelectedIndexes.ToArray());
+        closed.SetResult();
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(panel.Details.IsVisible);
+        Assert.Empty(savedModes);
     });
 
     [Fact]

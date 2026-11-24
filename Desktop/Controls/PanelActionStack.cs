@@ -15,19 +15,22 @@ internal sealed class PanelActionStack : MinLineWrapPanel
         ItemSpacing = LineSpacing = 8;
     }
 
-    internal static void SizeButton(Button button)
+    internal static void SizeButton(Button button, bool compactSpacing = false)
     {
         button.Classes.Set("panel-action", true);
         button.HorizontalAlignment = HorizontalAlignment.Left;
-        button.Padding = new Thickness(12, 0);
+        button.Padding = new Thickness(compactSpacing ? 8 : 12, 0);
         button.MinWidth = 96;
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.Height = WorkspaceMetrics.InputHeight;
     }
 
-    internal static void Present(Button button, string icon, bool compactLabel = false, bool allowIconOnly = false)
+    internal static void Present(Button button, string icon, bool compactLabel = false, bool compactSpacing = false,
+        bool allowIconOnly = false)
     {
-        SizeButton(button);
+        SizeButton(button, compactSpacing);
+        double labelPadding = button.Padding.Left + button.Padding.Right;
+        double gap = compactSpacing ? 4 : 8;
         if (allowIconOnly)
         {
             button.MinWidth = WorkspaceMetrics.InputHeight;
@@ -44,8 +47,8 @@ internal sealed class PanelActionStack : MinLineWrapPanel
             Grid.SetColumn(text, 1);
             Border mark = (Border)CommandBindings.IconFromKey(icon, 16);
             mark.Bind(Border.BackgroundProperty, text.GetObservable(TextBlock.ForegroundProperty));
-            if (allowIconOnly) return new FittingAction(mark, text);
-            return new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, Children = { mark, text } };
+            if (allowIconOnly) return new FittingAction(mark, text, gap, labelPadding);
+            return new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = gap, Children = { mark, text } };
         });
         ToolTip.SetTip(button, ToolTip.GetTip(button) ?? button.Content);
     }
@@ -55,12 +58,14 @@ internal sealed class PanelActionStack : MinLineWrapPanel
         private readonly Control _icon;
         private readonly TextBlock _label;
         private readonly Border _caption;
+        private readonly double _labelPadding;
 
-        internal FittingAction(Control icon, TextBlock label)
+        internal FittingAction(Control icon, TextBlock label, double gap, double labelPadding)
         {
             _icon = icon;
             _label = label;
-            _caption = new Border { Child = label, Margin = new Thickness(8, 0, 0, 0) };
+            _caption = new Border { Child = label, Margin = new Thickness(gap, 0, 0, 0) };
+            _labelPadding = labelPadding;
             Child = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center,
                 Children = { icon, _caption } };
         }
@@ -70,7 +75,7 @@ internal sealed class PanelActionStack : MinLineWrapPanel
             // The label stays measurable inside its collapsed caption, including after resizing or changing language.
             _icon.Measure(Size.Infinity);
             _label.Measure(Size.Infinity);
-            double fullWidth = Math.Max(96 - 2, _icon.DesiredSize.Width + 8 + _label.DesiredSize.Width + 24);
+            double fullWidth = Math.Max(96 - 2, _icon.DesiredSize.Width + _caption.Margin.Left + _label.DesiredSize.Width + _labelPadding);
             _caption.IsVisible = fullWidth <= availableSize.Width;
             Size content = base.MeasureOverride(availableSize);
             return content.WithWidth(_caption.IsVisible ? fullWidth : content.Width);

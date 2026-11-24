@@ -134,6 +134,20 @@ internal sealed class MediaInfoBar : Grid
 
     internal Control EditorAnchor => _more.IsVisible ? _more : _edit;
 
+    internal bool EditorAnchorPinned { get; private set; }
+
+    internal void PinEditorAnchor(bool pinned)
+    {
+        EditorAnchorPinned = pinned;
+        if (pinned)
+        {
+            // The shortcut can open before the first measure, or after a narrow layout hid Edit.
+            _more.IsVisible = false;
+            _edit.IsVisible = true;
+        }
+        InvalidateMeasure();
+    }
+
     internal void CloseFlyouts()
     {
         _revision++;
@@ -214,13 +228,14 @@ internal sealed class MediaInfoBar : Grid
     {
         double width = availableSize.Width;
         bool tight = width < 268;
-        bool focusMore = tight && (_rating.ClearButton.IsFocused || _edit.IsFocused);
-        bool focusEdit = !tight && _more.IsFocused;
+        bool overflow = tight && !EditorAnchorPinned;
+        bool focusMore = overflow && (_rating.ClearButton.IsFocused || _edit.IsFocused);
+        bool focusEdit = !overflow && _more.IsFocused;
         _rating.ClearButton.IsVisible = !tight;
         _rating.ClearGap = tight ? 0 : 8;
         _toggleArrow.IsVisible = !tight;
-        _more.IsVisible = tight;
-        _edit.IsVisible = !tight;
+        _more.IsVisible = overflow;
+        _edit.IsVisible = !overflow;
         Button tagButton = _tagCount == 0 ? _empty : _toggle;
         if (focusMore) _more.Focus(NavigationMethod.Tab);
         if (focusEdit) (_edit.IsEnabled ? _edit : tagButton).Focus(NavigationMethod.Tab);

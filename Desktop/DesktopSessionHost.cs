@@ -93,6 +93,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             ApplyArchivePersistenceLimits();
             _boardAdmission = OpenBoardAdmissionStore();
             _confirmedConfig = Config.Clone();
+            Commands.ShortcutService.Publish(Config.ShortcutBindings);
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "config-done");
             ExportHistory = new ExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);

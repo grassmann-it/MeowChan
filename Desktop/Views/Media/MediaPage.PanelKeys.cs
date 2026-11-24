@@ -51,14 +51,14 @@ public sealed partial class MediaPage
         if (CommandBindings.Matches(e, "media.tags.edit"))
         {
             e.Handled = true;
-            OpenActions.Start(panel.EditTagsAsync, "media.panel.tags");
+            OpenActions.Start(panel.EditTagsFromShortcutAsync, "media.panel.tags");
             return true;
         }
         foreach (string id in MediaShortcutCommands)
         {
             if (!CommandBindings.Matches(e, id)) continue;
             e.Handled = true;
-            if (id == "media.rating.edit") OpenActions.Start(panel.EditTagsAsync, "media.panel.tags");
+            if (id == "media.rating.edit") OpenActions.Start(panel.EditTagsFromShortcutAsync, "media.panel.tags");
             else OpenActions.Start(() => RunMediaCommandOnPanelAsync(id, row), "media.panel.key");
             return true;
         }
@@ -81,7 +81,7 @@ public sealed partial class MediaPage
         if (_building != null) { ShowSelectionNote(Texts.T("media.selection.reason.building")); return Task.CompletedTask; }
         if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return Task.CompletedTask; }
         bool Current() => !token.IsCancellationRequested && !_lifetime.IsCancellationRequested && _building == null
-            && _panelShown && !_panelObscured && IsEffectivelyVisible && SamePanelTagTarget(row.Entry, _panelRow?.Entry);
+            && _panelShown && !_panelObscured && IsEffectivelyVisible && anchor.IsEffectivelyVisible && SamePanelTagTarget(row.Entry, _panelRow?.Entry);
         return OpenRateAndTagAsync(row.Entry, row, anchor, Current, QuickTagInitialFocus.TagInput, sidebarToken: token);
     }
 

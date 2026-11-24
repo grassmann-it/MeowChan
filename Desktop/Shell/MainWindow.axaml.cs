@@ -86,7 +86,6 @@ public partial class MainWindow : Window
         InitializeStartupWindowSize();
         try
         {
-            ShortcutService.Publish(_config.ShortcutBindings);
             AttachStartupTiming();
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.texts-init")) Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
             Texts.SetLanguage(_config.Language);

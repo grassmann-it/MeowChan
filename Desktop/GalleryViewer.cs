@@ -1517,7 +1517,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             {
                 Button edit = ContextCommand(parts.Actions, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"),
                     () => OnSidePanelSegmentRequested(GallerySidePanelSegment.Tags, focusContent: true));
-                PanelActionStack.Present(edit, CommandCatalog.Get("media.tags.edit").Icon, compactLabel: true);
+                PanelActionStack.Present(edit, CommandCatalog.Get("media.tags.edit").Icon, compactLabel: true, compactSpacing: true);
             }
             _context.Actions = parts.Actions.Children.Count > 0 ? parts.Actions : null;
         }
@@ -1586,7 +1586,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             }
             Button show = command(actions, "GalleryReadPost", Texts.T("gallery.viewer10"),
                 () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
-            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon, compactLabel: true, allowIconOnly: true);
+            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon,
+                compactLabel: true, compactSpacing: true, allowIconOnly: true);
         }
         else
         {

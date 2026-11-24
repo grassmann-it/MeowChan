@@ -100,6 +100,13 @@ internal sealed partial class ReaderMediaSidebar
         UpdateInfoLayout();
     }
 
+    private void RestoreDetailsAfterTagEditor()
+    {
+        if (!_infoBar.EditorAnchorPinned) return;
+        _infoBar.PinEditorAnchor(false);
+        UpdateInfoLayout();
+    }
+
     internal bool RouteInfoKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key) ||
@@ -232,23 +239,26 @@ internal sealed partial class ReaderMediaSidebar
         double rows = (_stripRow.IsVisible ? _stripRow.DesiredSize.Height : 0) + (_videoRow.IsVisible ? _videoRow.DesiredSize.Height : 0);
         PixelSize? source = _mediumKey == Load.ShownKey ? Load.ShownSource : null;
         SidebarInfoLayout layout = default;
-        bool canDock = _detailsOverride ?? (_infoPreferences.MediaSidebarInfo == "Always" ||
+        bool? detailsOverride = _infoBar.EditorAnchorPinned ? true : _detailsOverride;
+        bool canDock = detailsOverride ?? (_infoPreferences.MediaSidebarInfo == "Always" ||
             _infoPreferences.MediaSidebarInfo == "Auto" && source.HasValue);
         if (canDock && inner.Width > 0 && inner.Height > 0 && _fileName.Length > 0)
         {
             Size unconstrained = new(inner.Width, double.PositiveInfinity);
             _infoBar.Measure(unconstrained);
             _decisionError.Measure(unconstrained);
-            layout = ReaderMediaSidebarRules.InfoLayout(_infoPreferences, _detailsOverride, inner, source, rows,
+            layout = ReaderMediaSidebarRules.InfoLayout(_infoPreferences, detailsOverride, inner, source, rows,
                 _wasDocked, _image.MaxHeight, _infoBar.DesiredSize.Height + _decisionError.DesiredSize.Height);
         }
-        _wasDocked = layout.Docked;
-        bool showOverlay = !_wasDocked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
+        // The shortcut owns the row until its editor closes, including before the first layout.
+        bool docked = layout.Docked || (_infoBar.EditorAnchorPinned && _fileName.Length > 0);
+        if (!_infoBar.EditorAnchorPinned) _wasDocked = docked;
+        bool showOverlay = !docked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
             _infoPreferences.MediaSidebarInfo is "Auto" or "Overlay";
-        if ((!_wasDocked && _details.IsKeyboardFocusWithin) || (!showOverlay && _overlay.IsKeyboardFocusWithin))
+        if ((!docked && _details.IsKeyboardFocusWithin) || (!showOverlay && _overlay.IsKeyboardFocusWithin))
             InfoToggle.Focus(NavigationMethod.Tab);
-        _details.IsVisible = _wasDocked;
-        bool auto = _wasDocked && double.IsFinite(layout.CardHeight);
+        _details.IsVisible = docked;
+        bool auto = layout.Docked && double.IsFinite(layout.CardHeight);
         if (Child is Grid grid)
         {
             double scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
@@ -259,7 +269,7 @@ internal sealed partial class ReaderMediaSidebar
             // Keep unused Auto-mode height below the bar so rounding preserves each measured row.
             grid.RowDefinitions[4].Height = auto ? GridLength.Star : GridLength.Auto;
         }
-        InfoToggle.IsChecked = _wasDocked;
+        InfoToggle.IsChecked = docked;
         string tip = CommandBindings.Tooltip("media.sidebar.info");
         ToolTip.SetTip(InfoToggle, layout.TooShort ? tip + " · " + Texts.T("settings.reader.mediaSidebarInfo.shortHeight") : tip);
         _overlay.IsVisible = showOverlay;
