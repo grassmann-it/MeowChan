@@ -11,6 +11,7 @@ using Microsoft.Data.Sqlite;
 namespace MeowChan.DesktopTests;
 
 /// <summary>Independent counterexamples at the real host boundary; all data is disposable.</summary>
+[Collection("Avalonia global state")]
 public sealed class ArchiveCleanupAcceptanceHostTests
 {
     private static ResourceId Id(string thread, string board = "g") => new("4chan", board, thread);
@@ -112,10 +113,12 @@ public sealed class ArchiveCleanupAcceptanceHostTests
         var preview = await first.PrepareArchiveCleanupAsync([]);
         Assert.False((await second.PrepareArchiveCleanupExecutionAsync(preview, [Id("100")])).CanExecute);
         var foreign = await first.PrepareArchiveCleanupExecutionAsync(preview, [Id("100")]);
-        Assert.True(foreign.CanExecute);
+        Assert.True(foreign.CanExecute, string.Join("; ", foreign.Reasons));
         var foreignResult = await second.ExecuteArchiveCleanupAsync(foreign);
         Assert.Empty(foreignResult.DeletedThreads); Assert.Equal(0, foreignResult.DeletedFileCount); Assert.NotEmpty(foreignResult.Errors);
+        Assert.True(foreignResult.RequiresNewPreview);
         var canceledPlan = await first.PrepareArchiveCleanupExecutionAsync(preview, [Id("100")]);
+        Assert.True(canceledPlan.CanExecute, string.Join("; ", canceledPlan.Reasons));
         using CancellationTokenSource canceled = new(); canceled.Cancel();
         var result = await first.ExecuteArchiveCleanupAsync(canceledPlan, canceled.Token);
         Assert.True(result.Canceled); Assert.True(result.RequiresNewPreview); Assert.Empty(result.DeletedThreads);
@@ -385,7 +388,11 @@ public sealed class ArchiveCleanupAcceptanceHostTests
             }
         }
         public async Task<DesktopSessionHost> StartAsync()
-        { DesktopSessionHost host = new(Profile, Array.Empty<IImageBoard>()); await host.StartAsync(); return host; }
+        {
+            DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(Profile, Array.Empty<IImageBoard>()));
+            await host.StartAsync();
+            return host;
+        }
         public Dictionary<string, byte[]> ProtectedFiles()
         {
             var files = Directory.EnumerateFiles(Profile).Where(path =>

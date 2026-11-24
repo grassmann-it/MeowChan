@@ -194,6 +194,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         Activator.AddHandler(InputElement.KeyDownEvent, (_, e) =>
         {
             if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || _openGallery == null) return;
+            if (_activatorWhenIdle && !ShortcutService.Current.Matches(e, "gallery.open", ShortcutContext)) return;
             e.Handled = true;
             _openGallery();
         }, RoutingStrategies.Tunnel);
@@ -402,7 +403,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         // Enter opens the offered medium; Space controls playback. Buttons retain their native activation.
         if (e.Source is not Button)
         {
-            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && _openGallery != null)
+            if (!_activatorWhenIdle && e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && _openGallery != null)
             {
                 e.Handled = true;
                 _openGallery();

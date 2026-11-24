@@ -18,6 +18,7 @@ internal sealed partial class GalleryViewer
     private string _wheelMode = Config.GalleryWheelModeZoom;
     private readonly WheelSteps _browseWheel = new();
     private readonly WheelBrowseQueue _browseQueue = new();
+    private int? _mediaAhead;
     private readonly ToggleButton _wheelBrowseToggle = new() { Name = "GalleryWheelBrowseToggle" };
 
     /// <summary>The mouse wheel setting the viewer works with ("Zoom" or "Browse").</summary>
@@ -39,20 +40,25 @@ internal sealed partial class GalleryViewer
     // The menu row sits with the other view choices (after the filmstrip row, before "Full screen").
     private void InitializeWheelMode()
     {
-        AddOverflowItem(_wheelBrowseToggle, "gallery.wheel-browse", check: true, keepOpen: true, label: () => Texts.T("gallery.wheelBrowse"));
+        AddOverflowItem(_wheelBrowseToggle, "gallery.wheel-browse", check: true, keepOpen: true,
+            label: () => Texts.T("gallery.wheelBrowse"), iconKey: "mouse-pointer");
         _overflowPanel.Children.Remove(_wheelBrowseToggle);
         int anchor = _overflowPanel.Children.IndexOf(_filmstripToggle);
         _overflowPanel.Children.Insert(anchor >= 0 ? anchor + 1 : _overflowPanel.Children.Count, _wheelBrowseToggle);
-        string help = Texts.T("gallery.wheelBrowse.help");
-        ToolTip.SetTip(_wheelBrowseToggle, help);
-        AutomationProperties.SetName(_wheelBrowseToggle, Texts.T("gallery.wheelBrowse"));
-        AutomationProperties.SetHelpText(_wheelBrowseToggle, help);
+        RefreshWheelBrowseHelp();
         _wheelBrowseToggle.IsChecked = GalleryWheel.IsBrowse(_wheelMode);
         _wheelBrowseToggle.Click += (_, _) =>
         {
             _wheelMode = _wheelBrowseToggle.IsChecked == true ? Config.GalleryWheelModeBrowse : Config.GalleryWheelModeZoom;
             WheelModeChanged?.Invoke(_wheelMode);
         };
+    }
+
+    private void RefreshWheelBrowseHelp()
+    {
+        string help = Texts.T("gallery.wheelBrowse.help");
+        ToolTip.SetTip(_wheelBrowseToggle, help);
+        AutomationProperties.SetHelpText(_wheelBrowseToggle, help);
     }
 
     /// <summary>The action of a wheel turn over the picture with these modifiers (the setting, inverted by Ctrl).</summary>
@@ -69,7 +75,7 @@ internal sealed partial class GalleryViewer
         int direction = GalleryWheel.BrowseDelta(_browseWheel.Add(deltaY, now));
         if (direction == 0) return;
         if (_navigationPending) _browseQueue.Add(direction, now);
-        else Move(direction);
+        else MoveByWheel(direction);
     }
 
     // The navigation has landed (BeginSlideshowMedia): the steps collected meanwhile go as one move, after the current show has run through.
@@ -78,11 +84,17 @@ internal sealed partial class GalleryViewer
         if (_browseQueue.HasSteps) Dispatcher.UIThread.Post(MoveQueuedBrowse, DispatcherPriority.Input);
     }
 
-    /// <summary>Sends the collected wheel steps as one move (the shell clamps it at the ends); nothing while another navigation is pending.</summary>
+    /// <summary>Sends the collected wheel steps as one move once the current navigation has landed.</summary>
     internal void MoveQueuedBrowse()
     {
         if (_navigationPending || _terminalRetirement || _viewerInteractionStopped || !_interactionAvailable) return;
-        int steps = _browseQueue.Take();
+        MoveByWheel(_browseQueue.Take());
+    }
+
+    private void MoveByWheel(int steps)
+    {
+        // The next arrow can load another thread. Wheel browsing only moves within the loaded media.
+        if (steps > 0 && _mediaAhead is int mediaAhead) steps = Math.Min(steps, mediaAhead);
         if (steps != 0) Move(steps);
     }
 }

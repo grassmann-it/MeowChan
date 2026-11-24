@@ -174,13 +174,13 @@ public sealed class QuickTagPopoverTests : IDisposable
         using QuickTagSession ownedSession5 = fixture.Session();
         QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession5, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
-        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(popover.DecisionRow!.Summary));
+        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(popover.DecisionRow!.RatingBar));
         popover.Close();
         QuickTagPopover blocked = QuickTagPopover.CreateBlocked(new Border(), "p.jpg", "reason", new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
-        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(blocked.DecisionRow!.Summary));
+        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(blocked.DecisionRow!.RatingBar));
         blocked.Close();
         // The gallery panel announces through its own status line: its row has no live caption.
-        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Off, Avalonia.Automation.AutomationProperties.GetLiveSetting(new GalleryDecisionRow("PanelRow").Summary));
+        Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Off, Avalonia.Automation.AutomationProperties.GetLiveSetting(new GalleryDecisionRow("PanelRow").RatingBar));
     }
 
     [Fact]

@@ -7,7 +7,9 @@ internal static class GalleryFilmstripCatalog
     {
         ("gallery.filmstrip.name", "Filmstrip, number of media: {0}", "Filmstreifen, Anzahl der Medien: {0}"),
         ("gallery.filmstrip.tile", "{0} of {1}, {2}, {3}", "{0} von {1}, {2}, {3}"),
-        ("gallery.filmstrip.more", "More media are being loaded", "Weitere Medien werden geladen"),
+        ("gallery.filmstrip.loadMore", "Load more media", "Weitere Medien laden"),
+        ("gallery.filmstrip.loadFailed", "Could not load more media. Try again.", "Weitere Medien konnten nicht geladen werden. Versuche es erneut."),
+        ("gallery.filmstrip.more", "Loading…", "Wird geladen …"),
         ("gallery.filmstrip.kind.image", "image", "Bild"),
         ("gallery.filmstrip.kind.video", "video", "Video"),
         ("gallery.filmstrip.kind.gif", "animated image", "Animiertes Bild"),
