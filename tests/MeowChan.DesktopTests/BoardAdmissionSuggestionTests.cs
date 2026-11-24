@@ -17,18 +17,20 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Persistence;
+using Xunit.Abstractions;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Avalonia global state")]
-public sealed class BoardAdmissionSuggestionTests
+public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
 {
     private const string Board = BoardArchiveHostTests.BoardUrl;
     private const string Rpt = "/rpt/";
     private static readonly DateTimeOffset Now = new(2026, 11, 25, 12, 0, 0, TimeSpan.Zero);
     private static readonly ThreadTextRule Manual = new(ThreadTextField.Title, ThreadTextAction.Exclude, "spam");
     private static readonly ThreadTextRule Suggested = new(ThreadTextField.Title, ThreadTextAction.Include, Rpt);
+    private static readonly string[] ExpectedLiteralRules = ["lens advice crew", "recent photo thread"];
 
     [Fact]
     public void ToggleAndEditUpdateTheExistingPreviewAndApplyReturnsOnlyTheDraft() => Run(() =>
@@ -179,8 +181,8 @@ public sealed class BoardAdmissionSuggestionTests
     {
         using var dialog = new BoardAdmissionWindow([Board], _ => BoardAdmissionPolicy.All,
             (_, _) => Task.FromResult(Preview(BoardAdmissionPolicy.All)), true,
-            suggest: (_, _) => Task.FromResult(TitlePatternMiner.Mine(
-                Enumerable.Range(1, titles).Select(i => Row(i, "/rpt/ #" + i, i)).ToArray(), "g", Now, 3, 12)));
+            suggest: (_, token) => Task.FromResult(TitlePatternMiner.Mine(
+                Enumerable.Range(1, titles).Select(i => Row(i, "/rpt/ #" + i, i)).ToArray(), "g", Now, 3, 12, token)));
         dialog.Show();
         try
         {
@@ -201,7 +203,7 @@ public sealed class BoardAdmissionSuggestionTests
             Row(10, "A fourth THREAD title", 1), Row(11, "A fifth Thread title", 1),
             Row(12, "Ｆｕｌｌｗｉｄｔｈ #1", 1), Row(13, "Ｆｕｌｌｗｉｄｔｈ #2", 1), Row(14, "Ｆｕｌｌｗｉｄｔｈ #3", 1)];
         var expected = TitlePatternMiner.Mine(rows, "g", Now, 3, 12);
-        Assert.Equal(new[] { "lens advice crew", "recent photo thread" }, expected.Items.Select(item => item.RuleText));
+        Assert.Equal(ExpectedLiteralRules, expected.Items.Select(item => item.RuleText));
         Assert.Equal(expected.Items.ToArray(), TitlePatternMiner.Mine(rows.Reverse().ToArray(), "g", Now, 3, 12).Items.ToArray());
     }
 
@@ -230,7 +232,10 @@ public sealed class BoardAdmissionSuggestionTests
                     Layout(dialog);
                     return Controls<CheckBox>(dialog, "BoardAdmissionSuggestion." + Rpt).Any();
                 }, "proposal from 5000 local archive titles");
-                Assert.True(elapsed!.Elapsed < TimeSpan.FromMilliseconds(200), $"Suggestion displayed after {elapsed.Elapsed.TotalMilliseconds:F0} ms");
+                TimeSpan timeToShowSuggestion = elapsed!.Elapsed;
+                output.WriteLine($"Suggestion from 5,000 local archive titles displayed after {timeToShowSuggestion.TotalMilliseconds:F1} ms.");
+                Assert.True(timeToShowSuggestion < TimeSpan.FromMilliseconds(200),
+                    $"Suggestion displayed after {timeToShowSuggestion.TotalMilliseconds:F1} ms");
                 Assert.Equal("5,000 saved threads analysed", Find<TextBlock>(dialog, "BoardAdmissionSuggestionsScanned").Text);
             }
             finally { dialog.Close(); }
@@ -312,8 +317,8 @@ public sealed class BoardAdmissionSuggestionTests
     private static BoardAdmissionWindow NewDialog(Func<string, BoardAdmissionPolicy> policy,
         Func<string, CancellationToken, Task<BoardAdmissionPreview>> preview, WorkView view = WorkView.Simple,
         bool existing = false, Func<string, CancellationToken, Task<BoardTitleSuggestions>>? suggest = null) =>
-        new([Board], policy, preview, true, view, suggest ?? ((_, _) => Task.FromResult(TitlePatternMiner.Mine(
-            Enumerable.Range(1, 5).Select(i => Row(i, "/rpt/ #" + i, 13 - 2 * i)).ToArray(), "g", Now, 3, 12))), existing);
+        new([Board], policy, preview, true, view, suggest ?? ((_, token) => Task.FromResult(TitlePatternMiner.Mine(
+            Enumerable.Range(1, 5).Select(i => Row(i, "/rpt/ #" + i, 13 - 2 * i)).ToArray(), "g", Now, 3, 12, token))), existing);
 
     private static BoardTitleHistory Row(int id, string title, int age) => new(id.ToString(CultureInfo.InvariantCulture), title, Now.AddDays(-age), Now);
     private static BoardAdmissionPreview Preview(BoardAdmissionPolicy policy) => new(Board, "/g/", policy,
