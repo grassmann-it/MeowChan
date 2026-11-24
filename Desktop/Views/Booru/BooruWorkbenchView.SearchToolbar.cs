@@ -31,6 +31,8 @@ internal sealed partial class BooruWorkbenchView
                 => view.Parsed.Canonical,
             BooruInputKind.Post when view.Parsed.PostId != view.ExecutedPostId => "#" + view.Parsed.PostId,
             BooruInputKind.Invalid => view.Input.Trim(),
+            BooruInputKind.Empty when view.ExecutedQuery != null || view.ExecutedPostId != null =>
+                Texts.T("booru.ui.query.draftEmpty"),
             _ => null
         };
         return string.IsNullOrEmpty(draft) ? null : Texts.T("booru.ui.query.draft", draft);
