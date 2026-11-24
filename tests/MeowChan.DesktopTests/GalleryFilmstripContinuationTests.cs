@@ -14,9 +14,9 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
-using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Updates;
 using MeowChan.Persistence;
+using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopTests;
 
