@@ -99,9 +99,11 @@ internal static class MediaMenuSurfacesChecks
             "Right-clicking the bound tile while another tile is selected did not freeze the clicked occurrence.");
         // MD-01/PT-01: the clicked tile outside the selection becomes the selection, so every entry acts on it (as Archive and Downloads do).
         Require(ReferenceEquals(page.Grid.SelectedItem, bound) && page.Grid.Selection.Count == 1, "A right-click outside the selection must select the clicked tile alone.");
+        RequireOrder(menu);
+        MenuItem openExternal = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "media.open-external"));
+        await UntilAsync(() => openExternal.IsEnabled);
         string[] boundSnapshot = Snapshot(menu);
         Console.WriteLine("SMOKE media menu media page (bound): " + string.Join(" | ", boundSnapshot));
-        RequireOrder(menu);
         RequireContextSectionLast(menu);
         Require(menu.Items.OfType<MenuItem>().Any(item => item.Tag as string == "media.filter.onlyThread"),
             "The media page lost its own context-specific section.");
@@ -128,7 +130,7 @@ internal static class MediaMenuSurfacesChecks
         string several = Texts.T("media.menu.reason.severalSelected");
         Require(page.Grid.Selection.Count == 2 && inside.Items.OfType<MenuItem>().Any(item => item.Tag as string == "media.menu.note"),
             "A right-click inside the selection must keep it and say that the actions apply to it: selected " + page.Grid.Selection.Count);
-        foreach (string single in new[] { "media.open", "gallery.show-in-thread", "media.show-in-folder", "media.copy-path", "media.details" })
+        foreach (string single in new[] { "media.open", "gallery.show-in-thread", "media.show-in-folder", "media.copy-path", "media.open-external", "media.details" })
             Require(Entry(single).Command?.CanExecute(null) != true && (AutomationProperties.GetHelpText(Entry(single)) ?? string.Empty).Contains(several),
                 "Inside a multi-selection the one-file entry " + single + " must say that it needs a single item: " + AutomationProperties.GetHelpText(Entry(single)));
         foreach (string whole in new[] { "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original" })
