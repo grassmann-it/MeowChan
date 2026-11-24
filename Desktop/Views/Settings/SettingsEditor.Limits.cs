@@ -14,7 +14,7 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private sealed record LimitRow(SettingsNumberInput Input, TextBlock Label, TextBlock Hint, TextBlock Error,
-        string Key, int Default, Func<Config, int> Read, Action<Config, int> Write);
+        string Key, int Default, int Minimum, int Maximum, Func<Config, int> Read, Action<Config, int> Write);
     private readonly List<LimitRow> _catalogLimitRows = [];
 
     private void InitializeCatalogLimitRows()
@@ -44,7 +44,7 @@ public partial class SettingsEditor
         StackPanel editor = new() { Spacing = 4, Children = { input, error } };
         Controls rows = SettingsLimitsBody.Children;
         rows.Insert(rows.IndexOf(LimitsQuickTagHeading), SettingsRowFactory.Create([label, hint], editor));
-        _catalogLimitRows.Add(new(input, label, hint, error, key, defaultValue, read, write));
+        _catalogLimitRows.Add(new(input, label, hint, error, key, defaultValue, minimum, maximum, read, write));
     }
 
     private void UpdateCatalogLimitTexts()
@@ -52,7 +52,7 @@ public partial class SettingsEditor
         foreach (LimitRow row in _catalogLimitRows)
         {
             row.Label.Text = Texts.T(row.Key);
-            row.Hint.Text = Texts.T(row.Key + "Hint", row.Default, row.Input.Minimum, row.Input.Maximum);
+            row.Hint.Text = Texts.T(row.Key + "Hint", row.Default, row.Minimum, row.Maximum);
             AutomationProperties.SetName(row.Input, row.Label.Text);
         }
         UpdateCatalogLimitHelp();
@@ -160,7 +160,7 @@ public partial class SettingsEditor
     private void ApplyLimitsDraft(Config candidate)
     {
         foreach (LimitRow row in _catalogLimitRows)
-            row.Write(candidate, GetInteger(row.Input.Value, row.Label.Text!, row.Input.Minimum, row.Input.Maximum));
+            row.Write(candidate, GetInteger(row.Input.Value, row.Label.Text!, row.Minimum, row.Maximum));
         candidate.ArchiveTagFilterTagsPerList = GetInteger(ArchiveTagFilterTagsPerList, ArchiveTagFilterTagsPerListLabel, Config.ArchiveTagFilterTagsPerListMinimum, Config.ArchiveTagFilterTagsPerListMaximum);
         candidate.UrlTextExportLimitMiB = GetInteger(UrlTextExportLimitMiB, UrlTextExportLimitMiBLabel, Config.UrlTextExportLimitMiBMinimum, Config.UrlTextExportLimitMiBMaximum);
         candidate.ExportHistorySizeMiB = GetInteger(ExportHistorySizeMiB, ExportHistorySizeMiBLabel, Config.ExportHistorySizeMiBMinimum, Config.ExportHistorySizeMiBMaximum);
@@ -174,7 +174,7 @@ public partial class SettingsEditor
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> LimitsNumericFields()
     {
         foreach (LimitRow row in _catalogLimitRows)
-            yield return (row.Input, row.Input.Value, row.Label.Text!, Texts.T("settings.unitCount"), row.Input.Minimum, row.Input.Maximum, true);
+            yield return (row.Input, row.Input.Value, row.Label.Text!, Texts.T("settings.unitCount"), row.Minimum, row.Maximum, true);
         yield return (ArchiveTagFilterTagsPerListInput, ArchiveTagFilterTagsPerList, ArchiveTagFilterTagsPerListLabel, Texts.T("settings.unitCount"), Config.ArchiveTagFilterTagsPerListMinimum, Config.ArchiveTagFilterTagsPerListMaximum, true);
         yield return (UrlTextExportLimitMiBInput, UrlTextExportLimitMiB, UrlTextExportLimitMiBLabel, Texts.T("settings.unitMiB"), Config.UrlTextExportLimitMiBMinimum, Config.UrlTextExportLimitMiBMaximum, true);
         yield return (ExportHistorySizeMiBInput, ExportHistorySizeMiB, ExportHistorySizeMiBLabel, Texts.T("settings.unitMiB"), Config.ExportHistorySizeMiBMinimum, Config.ExportHistorySizeMiBMaximum, true);
