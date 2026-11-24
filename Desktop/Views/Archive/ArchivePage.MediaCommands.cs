@@ -324,12 +324,19 @@ public partial class ArchivePage
 
     private Task OpenSidebarTagsAsync(Control anchor, CancellationToken token)
     {
-        if (SavedMediaSidebarRow is { } saved && _thread != null)
+        bool SidebarCurrent() => !token.IsCancellationRequested && _mediaSidebarShown && anchor.IsEffectivelyVisible
+            && !_obscuredByGallery && !IsReaderDialogOpen;
+        if (!SidebarCurrent()) return Task.CompletedTask;
+        if (ArchiveMediaTab.IsSelected)
+        {
+            if (ActionableSavedMediaSidebarRow is not { } saved || _thread is not { } thread) return Task.CompletedTask;
             return OpenRateAndTagAsync(ResolveArchiveMediaSubject(saved, null, null), anchor, null, QuickTagInitialFocus.TagInput,
-                current: () => !token.IsCancellationRequested && ReferenceEquals(SavedMediaSidebarRow, saved), sidebarToken: token);
+                current: () => SidebarCurrent() && ReferenceEquals(_thread, thread) && ReferenceEquals(ActionableSavedMediaSidebarRow, saved),
+                sidebarToken: token);
+        }
         if (_displayedSidebarMedium is not { } shown) return Task.CompletedTask;
-        bool Current() => !token.IsCancellationRequested && _mediaSidebarShown && anchor.IsEffectivelyVisible
-            && !_obscuredByGallery && !IsReaderDialogOpen && ReferenceEquals(_thread, shown.Thread) && _selectedThread == shown.Thread.Summary.Id
+        bool Current() => SidebarCurrent() && ArchivePostsTab.IsSelected
+            && ReferenceEquals(_thread, shown.Thread) && _selectedThread == shown.Thread.Summary.Id
             && _displayedSidebarMedium == shown;
         if (!Current()) return Task.CompletedTask;
         string postId = shown.Post.Id;
