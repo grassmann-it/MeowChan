@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.PluginHost.Sources;
@@ -156,16 +157,15 @@ public sealed class BoardArchiveWindowTests
                 DataGrid boards = window.FindControl<DataGrid>("BoardsDataGrid")!;
                 boards.SelectedIndex = 0;
                 Assert.True(boards.Focus());
+                EffectiveShortcutBindings mac = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
+                Assert.True(mac.Matches(new KeyEventArgs { Key = Key.F10, KeyModifiers = KeyModifiers.Shift }, "menu.context-open", "downloads"));
                 window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
                 Layout(window);
                 ContextMenu menu = Assert.IsType<ContextMenu>(boards.ContextMenu);
                 Assert.True(menu.IsOpen);
                 MenuItem browse = Assert.Single(menu.Items.OfType<MenuItem>(),
                     item => Equals(item.Header, Texts.T("boardArchive.browse")));
-                Assert.True(browse.Focus());
-                // Popup key routing belongs to the popup top level.
-                TopLevel popup = TopLevel.GetTopLevel(browse)!;
-                popup.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\r");
+                Click(TopLevel.GetTopLevel(browse)!, browse);
                 await BooruTestSupport.WaitAsync(() => window.OwnedWindows.OfType<BoardArchiveWindow>().Any(), "board archive from the board menu");
                 BoardArchiveWindow fromMenu = Assert.Single(window.OwnedWindows.OfType<BoardArchiveWindow>());
                 await WaitForArchive(fromMenu);
@@ -202,15 +202,16 @@ public sealed class BoardArchiveWindowTests
     private static T Control<T>(Visual root, string name) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => control.Name == name);
 
-    private static void Layout(Window window)
+    private static void Layout(TopLevel window)
     {
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
     }
 
-    private static void Click(Window window, Control control)
+    private static void Click(TopLevel window, Control control)
     {
+        window.UpdateLayout();
         Point center = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
         window.MouseDown(center, MouseButton.Left);
         window.MouseUp(center, MouseButton.Left);
