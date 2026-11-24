@@ -4761,6 +4761,8 @@
     "tagging.page.stamp.already": "«{0}» ya está en el sello.",
     "tagging.page.clear.ask": "¿Quitar todas las entradas ({0}) de la cola de etiquetado? Se conservan los archivos, las etiquetas, los favoritos y las valoraciones.",
     "tagging.page.clear.yes": "Vaciar la cola de etiquetado",
+    "tagging.page.reset.ask": "¿Restablecer la cola de etiquetado ilegible? Se desconoce el número de entradas. Al restablecerla, la cola y sus grupos y sellos se sustituyen por una cola vacía. Si el archivo está dañado, se guarda una copia de seguridad.",
+    "tagging.page.reset.yes": "Restablecer cola de etiquetado",
     "tagging.page.cleared": "La cola de etiquetado ya está vacía.",
     "tagging.page.clearedDone": "Entradas terminadas quitadas: {0}.",
     "tagging.page.removed": "Quitadas de la cola: {0}.",

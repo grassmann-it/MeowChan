@@ -4767,6 +4767,8 @@
     "tagging.page.stamp.already": "«{0}» è già nel timbro.",
     "tagging.page.clear.ask": "Rimuovere tutte le voci ({0}) dalla coda di tagging? File, tag, preferiti e valutazioni restano disponibili.",
     "tagging.page.clear.yes": "Svuota la coda di tagging",
+    "tagging.page.reset.ask": "Ripristinare la coda di tagging illeggibile? Il numero di voci è sconosciuto. Il ripristino sostituisce la coda, compresi i gruppi e i timbri, con una coda vuota. Se il file è danneggiato, ne viene conservata una copia di backup.",
+    "tagging.page.reset.yes": "Ripristina coda di tagging",
     "tagging.page.cleared": "Ora la coda di tagging è vuota.",
     "tagging.page.clearedDone": "Voci completate rimosse: {0}.",
     "tagging.page.removed": "Rimosse dalla coda: {0}.",

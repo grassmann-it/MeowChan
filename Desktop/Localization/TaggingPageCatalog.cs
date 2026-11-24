@@ -79,6 +79,8 @@ internal static class TaggingPageCatalog
         ("tagging.page.stamp.already", "“{0}” is already in the stamp.", "„{0}“ ist schon im Stempel."),
         ("tagging.page.clear.ask", "Clear the tagging queue? Entries to remove: {0}. Files, tags, favorites and ratings are kept.", "Tagging-Warteschlange leeren? Zu entfernende Einträge: {0}. Dateien, Tags, Favoriten und Bewertungen bleiben erhalten."),
         ("tagging.page.clear.yes", "Clear tagging queue", "Tagging-Warteschlange leeren"),
+        ("tagging.page.reset.ask", "Reset the unreadable tagging queue? The number of entries is unknown. This replaces the queue, including its groups and stamps, with an empty queue. If the file is damaged, a copy is kept as a backup.", "Die nicht lesbare Tagging-Warteschlange zurücksetzen? Die Anzahl der Einträge ist unbekannt. Die Warteschlange wird mitsamt Gruppen und Stempeln durch eine leere ersetzt. Ist die Datei beschädigt, bleibt eine Kopie als Sicherung erhalten."),
+        ("tagging.page.reset.yes", "Reset tagging queue", "Tagging-Warteschlange zurücksetzen"),
         ("tagging.page.cleared", "The tagging queue is empty now.", "Die Tagging-Warteschlange ist jetzt leer."),
         ("tagging.page.clearedDone", "Finished entries removed: {0}.", "Erledigte Einträge entfernt: {0}."),
         ("tagging.page.removed", "Removed from the queue: {0}.", "Aus der Warteschlange entfernt: {0}."),

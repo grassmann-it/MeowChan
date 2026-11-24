@@ -190,9 +190,7 @@ public sealed partial class TaggingPage
     private void LocalizeCommands()
     {
         ApplyToolbarIcons();
-        _clearYes.Content = Texts.T("tagging.page.clear.yes");
         _clearNo.Content = Texts.T("queue.ask.no");
-        if (_clearConfirm.IsVisible) _clearQuestion.Text = Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
         _help.Source = () =>
         {
             HelpContent content = HelpContent.FromKeys("help.taggingPage");
@@ -227,6 +225,7 @@ public sealed partial class TaggingPage
     {
         foreach (Button button in new[] { _add, _clearDone, _clear })
             if (button.Command is DelegateCommand command) { button.IsEnabled = command.CanExecute(null); command.RaiseCanExecuteChanged(); }
+        if (ClearQuestionOpen) RefreshClearQuestionText();
     }
 
     private TaggingQueueRow? Lead => ActiveList.SelectedItem as TaggingQueueRow
@@ -397,9 +396,17 @@ public sealed partial class TaggingPage
     private void AskClear()
     {
         if (_queueWork.Ended || _queueWork.Busy) return;
-        _clearQuestion.Text = Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
+        RefreshClearQuestionText();
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: true);
         _clearNo.Focus();
+    }
+
+    private void RefreshClearQuestionText()
+    {
+        bool reset = _queueWork.LoadError != null;
+        _clearQuestion.Text = reset ? Texts.T("tagging.page.reset.ask")
+            : Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
+        _clearYes.Content = Texts.T(reset ? "tagging.page.reset.yes" : "tagging.page.clear.yes");
     }
 
     private void CloseClearQuestion(bool focusClear)

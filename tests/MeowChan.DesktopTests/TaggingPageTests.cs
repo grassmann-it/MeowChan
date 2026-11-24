@@ -5,6 +5,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -329,31 +330,90 @@ public sealed class TaggingPageTests : IDisposable
         Assert.False(await work.RemoveStampAsync("surface"));
     }
 
-    [Fact]
-    public async Task ClearingEmptiesTheQueueAndRecoversAnUnreadableFile()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClearingEmptiesTheQueueAndRecoversAnUnreadableFile(bool hasPreviousSnapshot) => BooruComponentDispatcher.Run(() =>
     {
-        using TempDirectory temp = new();
-        await using DesktopSessionHost host = await StartAsync(temp.Path);
-        await host.EnqueueTagQueueAsync(new[] { Item(1), Item(2) });
-        TaggingQueueController work = new(host);
-        await work.LoadAsync();
-        Assert.True(await work.ClearAllAsync());
-        Assert.Equal(0, host.GetTagQueue()!.Count);
-        Assert.Equal("The tagging queue is empty now.", work.Status);
-        Assert.Null(TaggingQueueView.StartLabel(work.Queue));
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
 
-        // A damaged file is an error line, never emptied by reading; clearing keeps the damaged copy and starts empty.
-        await File.WriteAllTextAsync(Path.Combine(temp.Path, TagQueueStore.FileName), "{ not json");
-        TaggingQueueController damaged = new(host);
-        await damaged.LoadAsync();
-        Assert.NotNull(damaged.LoadError);
-        Assert.False(damaged.CanChange);
-        Assert.Equal(Texts.T("queue.error.unreadable"), damaged.ErrorText);
-        Assert.True(await damaged.ClearAllAsync());
-        Assert.Null(damaged.LoadError);
-        Assert.Equal(0, (await host.LoadTagQueueAsync()).Count);
-        Assert.NotEmpty(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
-    }
+        async Task ExerciseAsync()
+        {
+            using TempDirectory temp = new();
+            await using DesktopSessionHost host = await StartAsync(temp.Path);
+            TagQueueItem[] items = [Item(1), Item(2)];
+            await host.EnqueueTagQueueAsync(items);
+            TaggingQueueController work = new(host);
+            await work.LoadAsync();
+            Assert.True(await work.ClearAllAsync());
+            Assert.Equal(0, host.GetTagQueue()!.Count);
+            Assert.Equal("The tagging queue is empty now.", work.Status);
+            Assert.Null(TaggingQueueView.StartLabel(work.Queue));
+
+            await host.EnqueueTagQueueAsync(items);
+            TaggingPage page = new(host);
+            Window window = new() { Content = page, Width = 760, Height = 640 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                if (hasPreviousSnapshot) await page.ActivateAsync();
+
+                const string brokenJson = "{ not json";
+                string file = Path.Combine(temp.Path, TagQueueStore.FileName);
+                await File.WriteAllTextAsync(file, brokenJson);
+                await page.ActivateAsync();
+                Assert.Equal(hasPreviousSnapshot ? items.Length : 0, page.Queue.Count);
+                TaggingQueueController damaged = new(host);
+                await damaged.LoadAsync();
+                Assert.NotNull(damaged.LoadError);
+                Assert.False(damaged.CanChange);
+                Assert.Equal(Texts.T("queue.error.unreadable"), damaged.ErrorText);
+
+                Dispatcher.UIThread.RunJobs();
+                Border question = page.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "TaggingClearConfirm");
+                Button cancel = question.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "TaggingClearNo");
+                AskReset();
+                Assert.True(cancel.IsFocused);
+                cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.False(page.ClearQuestionOpen);
+                Assert.Equal(brokenJson, await File.ReadAllTextAsync(file));
+                Assert.Empty(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
+
+                AskReset();
+                page.ClearYesButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => !page.IsBusy && host.TagQueueError == null, "the confirmed queue reset");
+                Assert.True(damaged.Refresh());
+                Assert.Null(damaged.LoadError);
+                TagQueueSnapshot reset = await host.LoadTagQueueAsync();
+                Assert.Equal(0, reset.Count);
+                Assert.Empty(reset.Groups);
+                Assert.Empty(reset.Stamp);
+                Assert.Contains(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"),
+                    path => File.ReadAllText(path) == brokenJson);
+
+                void AskReset()
+                {
+                    Assert.True(page.ClearButton.Command!.CanExecute(null));
+                    page.ClearButton.Command.Execute(null);
+                    window.UpdateLayout();
+                    Assert.True(question.IsEffectivelyVisible);
+                    string prompt = Assert.Single(Assert.IsType<StackPanel>(question.Child).Children.OfType<TextBlock>()).Text!;
+                    Assert.Contains("The number of entries is unknown.", prompt);
+                    Assert.Contains("including its groups and stamps", prompt);
+                    Assert.Contains("a copy is kept as a backup", prompt);
+                    Assert.DoesNotContain("Entries to remove:", prompt);
+                    Assert.Equal("Reset tagging queue", page.ClearYesButton.Content);
+                }
+            }
+            finally
+            {
+                page.End();
+                window.Close();
+            }
+        }
+    });
 
     [Theory]
     [InlineData("en", 1.0, "Cancel", "Clear tagging queue")]

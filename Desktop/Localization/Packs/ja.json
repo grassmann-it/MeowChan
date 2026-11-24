@@ -4674,6 +4674,8 @@
     "tagging.page.stamp.already": "「{0}」はすでにスタンプにあります。",
     "tagging.page.clear.ask": "タグ付けキューの全項目（{0} 件）を外しますか？ファイル、タグ、お気に入り、評価は残ります。",
     "tagging.page.clear.yes": "タグ付けキューを空にする",
+    "tagging.page.reset.ask": "読み取れないタグ付けキューをリセットしますか？項目数は不明です。リセットすると、グループやスタンプを含むキューが空のキューに置き換わります。ファイルが破損している場合は、バックアップとしてコピーが保持されます。",
+    "tagging.page.reset.yes": "タグ付けキューをリセット",
     "tagging.page.cleared": "タグ付けキューは空になりました。",
     "tagging.page.clearedDone": "完了した項目を削除しました: {0}。",
     "tagging.page.removed": "キューから削除しました: {0}。",

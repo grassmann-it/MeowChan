@@ -4767,6 +4767,8 @@
     "tagging.page.stamp.already": "“{0}” já está no carimbo.",
     "tagging.page.clear.ask": "Remover todas as entradas ({0}) da fila de tags? Os arquivos, as tags, os favoritos e as avaliações serão mantidos.",
     "tagging.page.clear.yes": "Esvaziar a fila de tags",
+    "tagging.page.reset.ask": "Redefinir a fila de tags que não pôde ser lida? A quantidade de entradas é desconhecida. A redefinição substitui a fila, inclusive seus grupos e carimbos, por uma fila vazia. Se o arquivo estiver danificado, uma cópia será mantida como backup.",
+    "tagging.page.reset.yes": "Redefinir fila de tags",
     "tagging.page.cleared": "A fila de tags agora está vazia.",
     "tagging.page.clearedDone": "Entradas concluídas removidas: {0}.",
     "tagging.page.removed": "Removidas da fila: {0}.",

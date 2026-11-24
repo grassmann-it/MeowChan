@@ -4761,6 +4761,8 @@
     "tagging.page.stamp.already": "« {0} » est déjà dans le tampon.",
     "tagging.page.clear.ask": "Retirer toutes les entrées ({0}) de la file d’étiquetage ? Les fichiers, étiquettes, favoris et notes sont conservés.",
     "tagging.page.clear.yes": "Vider la file d’étiquetage",
+    "tagging.page.reset.ask": "Réinitialiser la file d’étiquetage illisible ? Le nombre d’entrées est inconnu. La réinitialisation remplace la file, ses groupes et ses tampons par une file vide. Si le fichier est endommagé, une copie est conservée comme sauvegarde.",
+    "tagging.page.reset.yes": "Réinitialiser la file d’étiquetage",
     "tagging.page.cleared": "La file d’étiquetage est maintenant vide.",
     "tagging.page.clearedDone": "Entrées terminées retirées : {0}.",
     "tagging.page.removed": "Retirées de la file : {0}.",

@@ -4674,6 +4674,8 @@
     "tagging.page.stamp.already": "“{0}”은(는) 이미 스탬프에 있습니다.",
     "tagging.page.clear.ask": "태그 지정 대기열의 모든 항목({0}개)을 제거할까요? 파일, 태그, 즐겨찾기, 평가는 유지됩니다.",
     "tagging.page.clear.yes": "태그 지정 대기열 비우기",
+    "tagging.page.reset.ask": "읽을 수 없는 태그 지정 대기열을 초기화할까요? 항목 수는 알 수 없습니다. 초기화하면 그룹과 스탬프를 포함한 대기열이 빈 대기열로 바뀝니다. 파일이 손상된 경우 복사본이 백업으로 보관됩니다.",
+    "tagging.page.reset.yes": "태그 지정 대기열 초기화",
     "tagging.page.cleared": "태그 지정 대기열이 이제 비어 있습니다.",
     "tagging.page.clearedDone": "완료된 항목을 제거했습니다: {0}.",
     "tagging.page.removed": "대기열에서 제거했습니다: {0}.",

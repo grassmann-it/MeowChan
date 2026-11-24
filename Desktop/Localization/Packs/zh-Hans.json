@@ -4674,6 +4674,8 @@
     "tagging.page.stamp.already": "“{0}”已在印章中。",
     "tagging.page.clear.ask": "要从标签队列中移除全部 {0} 个条目吗？文件、标签、收藏和评分将会保留。",
     "tagging.page.clear.yes": "清空标签队列",
+    "tagging.page.reset.ask": "要重置无法读取的标签队列吗？条目数未知。重置会将队列及其分组和印章替换为空队列。如果文件已损坏，将保留一份副本作为备份。",
+    "tagging.page.reset.yes": "重置标签队列",
     "tagging.page.cleared": "标签队列现在是空的。",
     "tagging.page.clearedDone": "已移除已完成的条目：{0}。",
     "tagging.page.removed": "已从队列中移除：{0}。",

@@ -4807,6 +4807,8 @@
     "tagging.page.stamp.already": "„{0}“ už v razítku je.",
     "tagging.page.clear.ask": "Odebrat všechny položky ({0}) z fronty štítkování? Soubory, štítky, oblíbené položky a hodnocení zůstanou.",
     "tagging.page.clear.yes": "Vyprázdnit frontu štítkování",
+    "tagging.page.reset.ask": "Obnovit nečitelnou frontu štítkování do prázdného stavu? Počet položek není znám. Obnovení nahradí frontu včetně skupin a razítek prázdnou frontou. Pokud je soubor poškozený, jeho kopie se uloží jako záloha.",
+    "tagging.page.reset.yes": "Obnovit frontu štítkování",
     "tagging.page.cleared": "Fronta štítkování je teď prázdná.",
     "tagging.page.clearedDone": "Odebrané hotové položky: {0}.",
     "tagging.page.removed": "Odebráno z fronty: {0}.",
