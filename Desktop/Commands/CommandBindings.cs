@@ -16,6 +16,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Platform;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using SkiaSharp;
@@ -40,24 +41,40 @@ public static class CommandBindings
     // invokes an entry after taking it out of its list, so an invoked holder counts as unregistered again, whatever the revision.
     private sealed class RefreshCallback
     {
+        private readonly Dispatcher _dispatcher;
         public Action Refresh;
         public readonly Action Invoke;
         public long RegisteredRevision = -1;
+
         public RefreshCallback(AvaloniaObject owner, Action refresh)
         {
+            _dispatcher = owner.Dispatcher;
             Refresh = refresh;
-            Invoke = () =>
-            {
-                if (!owner.CheckAccess())
-                {
-                    // Keep this presentation registered for a publish on its owning dispatcher.
-                    Observe(owner, Refresh);
-                    return;
-                }
+            Invoke = RefreshFromSnapshot;
+        }
 
-                RegisteredRevision = -1;
-                Refresh();
-            };
+        private void RefreshFromSnapshot()
+        {
+            if (_dispatcher.CheckAccess())
+            {
+                ApplySnapshot();
+                return;
+            }
+
+            // A window's presentation belongs to its own dispatcher. A queued refresh must not keep a closed window alive.
+            long revision = ShortcutService.Revision;
+            var pending = new WeakReference<RefreshCallback>(this);
+            _dispatcher.Post(() =>
+            {
+                if (pending.TryGetTarget(out RefreshCallback? callback) && callback.RegisteredRevision < revision)
+                    ShortcutService.RefreshObserver(callback.Invoke);
+            });
+        }
+
+        private void ApplySnapshot()
+        {
+            RegisteredRevision = -1;
+            Refresh();
         }
     }
     private static readonly ConditionalWeakTable<Control, ActionPresentation> Actions = new();
@@ -318,19 +335,28 @@ public static class CommandBindings
     }
 
     /// <summary>The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon.</summary>
-    internal static Control IconFromKey(string icon, int size = 16)
+    internal static Control IconFromKey(string icon, int size = 16, bool deferMask = false)
     {
+        var mask = new ImageBrush { Stretch = Stretch.Uniform };
         var visual = new Border
         {
             Width = size,
             Height = size,
             [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Text"),
-            OpacityMask = new ImageBrush
-            {
-                Source = IconMask(icon),
-                Stretch = Stretch.Uniform
-            }
+            OpacityMask = mask
         };
+        if (deferMask)
+        {
+            // Menu items can reserve the icon column before the rendering platform is available.
+            visual.AttachedToVisualTree += LoadMask;
+
+            void LoadMask(object? sender, VisualTreeAttachmentEventArgs e)
+            {
+                mask.Source = IconMask(icon);
+                visual.AttachedToVisualTree -= LoadMask;
+            }
+        }
+        else mask.Source = IconMask(icon);
         MenuIcons.Record(visual, icon);
         return visual;
     }

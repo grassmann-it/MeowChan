@@ -18,7 +18,7 @@ public partial class ArchivePage
     private bool _focusedMediaPresentedElsewhere;
 
     /// <summary>Persists the quick switches of the View menu (only the changed switches), through the profile's view-preference writer.</summary>
-    internal Func<Action<Config>, Task>? SaveReaderMediaSwitches { get; set; }
+    internal Func<Action<Config>, string[], Task>? SaveReaderMediaSwitches { get; set; }
 
     internal ReaderMediaPreferences ReaderMedia => _readerDisplayPreferences.Media;
 
@@ -75,29 +75,29 @@ public partial class ArchivePage
         UpdateReaderVisibleHeight();
         ArchivePosts.AddHandler(PointerWheelChangedEvent, (_, _) => _hoverEnlarge?.Close(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         ArchivePosts.DetachedFromVisualTree += (_, _) => _hoverEnlarge?.Close();
-        RegisterMediaSwitch("reader.view.textless-large", media => media.TextlessLarge,
+        RegisterMediaSwitch("reader.view.textless-large", SettingsFieldId.ReaderTextlessLargeImages, media => media.TextlessLarge,
             (media, on) => media with { TextlessLarge = on }, (config, on) => config.ReaderTextlessLargeImages = on);
-        RegisterMediaSwitch("reader.view.focused-enlarge", media => media.FocusedEnlarge,
+        RegisterMediaSwitch("reader.view.focused-enlarge", SettingsFieldId.ReaderFocusedMediaEnlarge, media => media.FocusedEnlarge,
             (media, on) => media with { FocusedEnlarge = on }, (config, on) => config.ReaderFocusedMediaEnlarge = on,
             sidebarNote: "reader.view.focusedEnlarge.inSidebar");
-        RegisterMediaSwitch("reader.view.hover-enlarge", media => media.HoverEnlarge,
+        RegisterMediaSwitch("reader.view.hover-enlarge", SettingsFieldId.ReaderHoverEnlarge, media => media.HoverEnlarge,
             (media, on) => media with { HoverEnlarge = on }, (config, on) => config.ReaderHoverEnlarge = on);
         InitializeMediaSidebar();
     }
 
-    private void RegisterMediaSwitch(string commandId, Func<ReaderMediaPreferences, bool> read,
+    private void RegisterMediaSwitch(string commandId, string fieldId, Func<ReaderMediaPreferences, bool> read,
         Func<ReaderMediaPreferences, bool, ReaderMediaPreferences> write, Action<Config, bool> store, string? sidebarNote = null) =>
-        RegisterViewOption(commandId, () => read(ReaderMedia), () => ToggleMediaSwitch(read, write, store, sidebarNote));
+        RegisterViewOption(commandId, () => read(ReaderMedia), () => ToggleMediaSwitch(fieldId, read, write, store, sidebarNote));
 
     // sidebarNote: a switch whose effect the media sidebar overrides while it is shown says so, instead of changing nothing in silence.
-    private void ToggleMediaSwitch(Func<ReaderMediaPreferences, bool> read,
+    private void ToggleMediaSwitch(string fieldId, Func<ReaderMediaPreferences, bool> read,
         Func<ReaderMediaPreferences, bool, ReaderMediaPreferences> write, Action<Config, bool> store, string? sidebarNote = null)
     {
         if (_ended) return;
         bool on = !read(ReaderMedia);
         ApplyReaderMediaPreferences(write(ReaderMedia, on));
         // Only the switch that was flipped is written: another setting changed meanwhile (a width in Settings) is not overwritten.
-        if (SaveReaderMediaSwitches is { } save) _ = SaveMediaSwitchAsync(save(config => store(config, on)));
+        if (SaveReaderMediaSwitches is { } save) _ = SaveMediaSwitchAsync(save(config => store(config, on), [fieldId]));
         if (sidebarNote != null && _focusedMediaPresentedElsewhere) Message(Texts.T(sidebarNote));
     }
 

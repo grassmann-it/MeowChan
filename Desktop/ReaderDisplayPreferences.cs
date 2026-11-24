@@ -27,6 +27,8 @@ internal sealed class ReaderDisplayPreferences
     internal const int HoverEnlargeDelayMaximum = 2000;
     // The media sidebar of the large reader (R8): its width (also dragged with the splitter) and the reader width below which it
     // gives way to the posts. In device-independent pixels.
+    internal const int MediaSidebarInfoMinimumFreeDefault = 160, MediaSidebarInfoMinimumFreeMinimum = 96, MediaSidebarInfoMinimumFreeMaximum = 480;
+    internal const int MediaSidebarInfoMaximumShareDefault = 40, MediaSidebarInfoMaximumShareMinimum = 20, MediaSidebarInfoMaximumShareMaximum = 60;
     internal const int MediaSidebarWidthDefault = 480;
     internal const int MediaSidebarWidthMinimum = 240;
     internal const int MediaSidebarWidthMaximum = 1200;
@@ -145,6 +147,9 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
     /// <summary>The switched-on sidebar shows also beside the posts of the archive view, not only in the large reader (Off / Large reader only / Always).</summary>
     internal bool SidebarAlways { get; init; }
     /// <summary>The sidebar sits right of the posts instead of left.</summary>
+    internal string MediaSidebarInfo { get; init; } = "Off";
+    internal int MediaSidebarInfoMinimumFree { get; init; } = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeDefault;
+    internal int MediaSidebarInfoMaximumShare { get; init; } = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareDefault;
     internal bool SidebarRight { get; init; }
     internal int SidebarWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarWidthDefault;
     /// <summary>Below this reader width the sidebar gives way to the posts (it stays chosen and returns when the reader is wider).</summary>
@@ -165,6 +170,9 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         Sidebar = config.ReaderMediaSidebar,
         SidebarAlways = config.ReaderMediaSidebarScope == Config.ReaderMediaSidebarScopeAlways,
         SidebarRight = config.ReaderMediaSidebarSide == Config.ReaderMediaSidebarSideRight,
+        MediaSidebarInfo = config.MediaSidebarInfo,
+        MediaSidebarInfoMinimumFree = config.MediaSidebarInfoMinimumFree,
+        MediaSidebarInfoMaximumShare = config.MediaSidebarInfoMaximumShare,
         SidebarWidth = config.ReaderMediaSidebarWidth,
         SidebarMinimumReaderWidth = config.ReaderMediaSidebarMinimumWidth,
         Video = ReaderInlineVideoOptions.From(config),
@@ -179,6 +187,9 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         FocusedScalePercent = Math.Clamp(FocusedScalePercent, ReaderDisplayPreferences.FocusedMediaScaleMinimum, ReaderDisplayPreferences.FocusedMediaScaleMaximum),
         HoverSize = Math.Clamp(HoverSize, ReaderDisplayPreferences.HoverEnlargeSizeMinimum, ReaderDisplayPreferences.HoverEnlargeSizeMaximum),
         HoverDelayMs = Math.Clamp(HoverDelayMs, ReaderDisplayPreferences.HoverEnlargeDelayMinimum, ReaderDisplayPreferences.HoverEnlargeDelayMaximum),
+        MediaSidebarInfo = Config.NormalizeSidebarInfo(MediaSidebarInfo),
+        MediaSidebarInfoMinimumFree = Math.Clamp(MediaSidebarInfoMinimumFree, Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum),
+        MediaSidebarInfoMaximumShare = Math.Clamp(MediaSidebarInfoMaximumShare, Config.MediaSidebarInfoMaximumShareMinimum, Config.MediaSidebarInfoMaximumShareMaximum),
         SidebarWidth = Math.Clamp(SidebarWidth, ReaderDisplayPreferences.MediaSidebarWidthMinimum, ReaderDisplayPreferences.MediaSidebarWidthMaximum),
         SidebarMinimumReaderWidth = Math.Clamp(SidebarMinimumReaderWidth, ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum,
             ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum),

@@ -73,6 +73,15 @@ public sealed partial class MediaPage
     /// <summary>The profile's timeline hover-preview cache (the gallery's own); the shell sets it. Videos started after it is set show the preview on their timeline.</summary>
     internal void ConfigureScrubPreviewCache(VideoScrubPreviewCache? cache) => _panelVideoController.ScrubCache = cache;
 
+    private ReaderMediaPreferences _panelPreferences = ReaderMediaPreferences.Default;
+    internal Action<string>? SavePanelInfoMode { get; set; }
+
+    internal void ConfigurePanelInfo(ReaderMediaPreferences preferences)
+    {
+        _panelPreferences = preferences;
+        _panel?.ConfigureInfo(preferences);
+    }
+
     /// <summary>
     /// The video options of the panel (the shell: the gallery's volume, start-muted choice and seek step, the reader's player and file limits; the panel
     /// always plays inline) and the gallery's fit limit, which the panel's picture follows. A change applies to what the panel shows now; the shell
@@ -102,6 +111,12 @@ public sealed partial class MediaPage
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
         // The full-height panel owns the header and card, with a horizontal inset from both edges.
+        panel.ConfigureInfo(_panelPreferences);
+        panel.SaveInfoMode = mode =>
+        {
+            _panelPreferences = _panelPreferences with { MediaSidebarInfo = mode };
+            SavePanelInfoMode?.Invoke(mode);
+        };
         panel.Localize();
         panel.ShowEmpty();
         // The drag handle's name and tip exist from the start, not only after the first language change.
@@ -118,7 +133,7 @@ public sealed partial class MediaPage
         // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
         ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true)
         {
-            OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
+            ShortcutContext = "media", OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
         };
         _panelVideoController.NavigationKeys = TryNavigateGridFromPanel;
         panel.VideoRow.Children.Add(slot.Below);
@@ -203,6 +218,7 @@ public sealed partial class MediaPage
         _panelRow = _panelWanted = null;
         _panelDimensions = string.Empty;
         OfferPanelVideo(null);
+        _panel?.ResetInfoOverride();
         _panel?.ShowEmpty();
         _ = ReleasePanelVideos();
     }
@@ -373,7 +389,7 @@ public sealed partial class MediaPage
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
             : row.IsProviderMedium ? Texts.T("reader.postNumber", entry.BooruPostId!) : string.Empty;
         panel.Describe(postLine, row.Name, _panelDimensions, OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
-            threadPosition: PanelPositionOf(row), savedBytes: entry.Length);
+            threadPosition: PanelPositionOf(row), savedBytes: entry.Length, mediumKey: PanelVideoKey(entry));
         // Each write freezes the panel row even when the grid refreshes its selection.
         panel.ConfigureFavorite(PanelFavoriteAvailable, () => row.State?.Favorite == MediaLibraryFlag.Yes,
             () => ToggleTileFavoriteAsync(entry));
@@ -453,7 +469,8 @@ public sealed partial class MediaPage
 
     // ---- the video -------------------------------------------------------------------------------------------------------------------
 
-    private static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Directory, entry.AssetId, entry.Sha256 ?? string.Empty, entry.Length);
+    private static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Thread, entry.Directory, entry.AssetId,
+        entry.MediaId, entry.Variant, entry.Sha256, entry.Length);
 
     /// <summary>The panel shows this tile (or none): a saved video offers inline playback in the panel; any other medium gives a player back.</summary>
     private void OfferPanelVideo(MediaLibraryTileRow? row)
@@ -579,7 +596,7 @@ public sealed partial class MediaPage
     {
         _panelPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _lifetime.IsCancellationRequested || IsNativeContextSource(e.Source) || _panel is not { } panel
-            || !e.GetCurrentPoint(panel).Properties.IsRightButtonPressed || _panelRow == null) return;
+            || panel.IsInfoMenuSource(e.Source) || !e.GetCurrentPoint(panel).Properties.IsRightButtonPressed || _panelRow == null) return;
         if (!_grid.Selection.SelectedItems.Contains(_panelRow)) _grid.SelectedItem = _panelRow;
         panel.Frame.Focusable = true;
         panel.Frame.Focus();
@@ -596,7 +613,7 @@ public sealed partial class MediaPage
 
     private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (e.Handled || IsNativeContextSource(e.Source) || _panel is not { } panel) return;
+        if (e.Handled || IsNativeContextSource(e.Source) || _panel is not { } panel || panel.IsInfoMenuSource(e.Source)) return;
         if (_panelPointerContext.TryConsume()) { e.Handled = true; return; }
         if (_panelRow == null) return;
         if (e.TryGetPosition(panel, out _))
