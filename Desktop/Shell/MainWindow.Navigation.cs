@@ -148,11 +148,11 @@ public partial class MainWindow
         _archivePage.MediaTileSizePreference = MediaTileSizes.Parse(_config.ArchiveMediaTileSize);
         _archivePage.SaveMediaTileSize = size => _session.SaveViewPreferencesAsync(current => current.ArchiveMediaTileSize = size.ToString());
         // The reader's quick media switches (View menu) write only the switch that was flipped; Settings shows the confirmed value again.
-        _archivePage.SaveReaderMediaSwitches = async change =>
+        _archivePage.SaveReaderMediaSwitches = async (change, fields) =>
         {
             await _session.SaveViewPreferencesAsync(change);
             _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
-            _settingsEditor?.RefreshConfirmedReaderMedia();
+            _settingsEditor?.RefreshConfirmedSettings(fields);
         };
         _archivePage.FullscreenRequested = ToggleFullscreen;
         _archivePage.ReadingFontSizePreference = ReadingFontSize();

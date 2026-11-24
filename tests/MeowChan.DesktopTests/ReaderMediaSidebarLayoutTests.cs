@@ -96,7 +96,13 @@ public sealed class ReaderMediaSidebarLayoutTests
         {
             large.SetValue(page, largeReader);
             page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(saved));
-            page.SaveReaderMediaSwitches = update => { update(saved); writes++; return Task.CompletedTask; };
+            page.SaveReaderMediaSwitches = (update, fields) =>
+            {
+                Assert.Equal(new[] { SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope }, fields);
+                update(saved);
+                writes++;
+                return Task.CompletedTask;
+            };
             ToggleButton button = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
             Assert.Equal("panel-right", IconButtons.KeyOf(button));
             bool initial = largeReader;

@@ -495,38 +495,6 @@ public partial class SettingsEditor
         RefreshMediaSidebarInfoChoices(config.MediaSidebarInfo);
     }
 
-    /// <summary>
-    /// The three reader media switches are also quick toggles of the reader's View menu. After one of them changed there, the draft shows
-    /// the confirmed value again (an unsaved edit of the same switch is replaced; every other field of the draft stays).
-    /// </summary>
-    internal void RefreshConfirmedReaderMedia()
-    {
-        if (_isClosed) return;
-        ReaderTextlessLargeImages = _config.ReaderTextlessLargeImages;
-        ReaderFocusedMediaEnlarge = _config.ReaderFocusedMediaEnlarge;
-        ReaderHoverEnlarge = _config.ReaderHoverEnlarge;
-        // The media sidebar's switch (View menu) and its dragged width (splitter in the reader).
-        ReaderMediaSidebar = _config.ReaderMediaSidebar;
-        // The archive view's switch chooses Always or Large reader only.
-        if (SelectedReaderMediaSidebarScope?.Value != _config.ReaderMediaSidebarScope) RefreshMediaSidebarScopeChoices(_config.ReaderMediaSidebarScope);
-        if (SelectedMediaSidebarInfo?.Value != _config.MediaSidebarInfo) RefreshMediaSidebarInfoChoices(_config.MediaSidebarInfo);
-        if (ReaderMediaSidebarWidth != _config.ReaderMediaSidebarWidth)
-        {
-            ReaderMediaSidebarWidth = _config.ReaderMediaSidebarWidth;
-            ResetNumber(ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth.Value);
-        }
-        if (MediaSidebarInfoMinimumFree != _config.MediaSidebarInfoMinimumFree)
-        {
-            MediaSidebarInfoMinimumFree = _config.MediaSidebarInfoMinimumFree;
-            ResetNumber(MediaSidebarInfoMinimumFreeInput, MediaSidebarInfoMinimumFree.Value);
-        }
-        if (MediaSidebarInfoMaximumShare != _config.MediaSidebarInfoMaximumShare)
-        {
-            MediaSidebarInfoMaximumShare = _config.MediaSidebarInfoMaximumShare;
-            ResetNumber(MediaSidebarInfoMaximumShareInput, MediaSidebarInfoMaximumShare.Value);
-        }
-    }
-
     private void ApplyReaderDraft(Config candidate)
     {
         candidate.ReaderThumbnailWidth = GetInteger(ReaderThumbnailWidth, ReaderThumbnailWidthLabel, Config.ReaderThumbnailWidthMinimum, Config.ReaderThumbnailWidthMaximum);

@@ -195,7 +195,7 @@ public partial class ArchivePage
         {
             ApplyReaderMediaPreferences(ReaderMedia with { MediaSidebarInfo = mode });
             if (SaveReaderMediaSwitches is { } save)
-                OpenActions.Start(() => save(config => config.MediaSidebarInfo = mode), "media.sidebar.info");
+                OpenActions.Start(() => save(config => config.MediaSidebarInfo = mode, [SettingsFieldId.MediaSidebarInfo]), "media.sidebar.info");
         };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
@@ -494,7 +494,8 @@ public partial class ArchivePage
         _readerDisplayPreferences.Media = ReaderMedia with { SidebarWidth = width };
         double gaps = ReferenceEquals(host, ArchiveReaderPane) ? 2 * ReaderMediaSidebarRules.ArchiveViewGap : 0;
         _mediaSidebarAppliedWidth = ReaderMediaSidebarRules.EffectiveWidth(width, host.Bounds.Width, gaps);
-        if (SaveReaderMediaSwitches is { } save) _ = SaveMediaSwitchAsync(save(config => config.ReaderMediaSidebarWidth = width));
+        if (SaveReaderMediaSwitches is { } save)
+            _ = SaveMediaSwitchAsync(save(config => config.ReaderMediaSidebarWidth = width, [SettingsFieldId.ReaderMediaSidebarWidth]));
     }
 
     // ---- switch and commands -------------------------------------------------------------------------------------------------
@@ -553,7 +554,7 @@ public partial class ArchivePage
             {
                 config.ReaderMediaSidebar = next.Sidebar;
                 config.ReaderMediaSidebarScope = next.SidebarAlways ? Config.ReaderMediaSidebarScopeAlways : Config.ReaderMediaSidebarScopeLargeReader;
-            }));
+            }, [SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope]));
     }
 
     /// <summary>The × of the sidebar: turns it off for this view (and stores the choice), the focus goes back to the selected post. Escape only moves the focus (RD-01).</summary>
