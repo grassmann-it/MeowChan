@@ -23,7 +23,7 @@ namespace MeowChan.Desktop;
 /// The rules of the reader's media sidebar (R8) that need no window: when it is shown, which medium of the focused post it presents,
 /// what it announces and how large it decodes. <see cref="ReaderMediaSidebar"/> is the view; <c>ArchivePage.MediaSidebar</c> drives it.
 /// </summary>
-internal static class ReaderMediaSidebarRules
+internal static partial class ReaderMediaSidebarRules
 {
     /// <summary>
     /// While ↑/↓ is held the sidebar follows at most once per this many milliseconds (the first change shows at once). A pacing
@@ -241,7 +241,7 @@ internal sealed class ReaderMediaFollowThrottle
 /// owns the decode, the lease and the timers. It holds at most one bitmap and gives it back through the release it was handed with it.
 /// Theme tokens only; the picture frame has the accent edge of <see cref="ReaderFocusedMedia.CreateFrameEdge"/>, as the enlarged card.
 /// </summary>
-internal sealed class ReaderMediaSidebar : Border
+internal sealed partial class ReaderMediaSidebar : Border
 {
     private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", Classes = { "workspace-panel-title" }, MinWidth = 64,
         VerticalAlignment = VerticalAlignment.Center, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -249,7 +249,7 @@ internal sealed class ReaderMediaSidebar : Border
     private readonly MediaPanelSections _sections = new() { Name = "ReaderMediaSidebarSections" };
     private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 8 };
     private readonly MediaFactGrid _facts = new("ReaderMediaSidebarFacts");
-    private readonly PanelActionStack _actions = new("ReaderMediaSidebarActions");
+    private readonly PanelActionStack _actions = new("ReaderMediaSidebarActions") { KeepPairOnOneLine = true };
     private string? _location, _author, _posted, _provenance;
     private long? _savedBytes, _sourceBytes;
     private MediaProviderSizeHint? _sourceHint;
@@ -259,7 +259,7 @@ internal sealed class ReaderMediaSidebar : Border
     private Action? _cancelTagEditor;
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
-    private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
     private readonly TextBlock _status = new TextBlock
     {
@@ -278,7 +278,7 @@ internal sealed class ReaderMediaSidebar : Border
     // The card (Tom, 15.11.2026): the medium with, inside the same edge, the strip of a post with several files and the video's controls.
     // The medium fills what the rows below it leave; nothing under the card keeps space, so a host can make it flush with a neighbour card.
     private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
-    private readonly Grid _header;
+    private readonly MediaCompactHeader _header;
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Classes = { "workspace-meta" }, Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly GalleryDecisionRow _decision = new("ReaderMediaSidebarDecision", compact: true);
@@ -297,6 +297,9 @@ internal sealed class ReaderMediaSidebar : Border
     private string? _tagsBlocked;
     private string? _decisionFailure;
     private bool _writingDecision;
+    private string? _mediumKey;
+    private int _mediumRevision;
+    private readonly Dictionary<IPointer, int> _decisionPresses = new();
     // R11: the thumbnail strip of a post with several files: a single tab stop, ← → move, the counter beside it.
     private readonly ListBox _strip = new()
     {
@@ -352,12 +355,12 @@ internal sealed class ReaderMediaSidebar : Border
     internal MediaPositionPill PositionPill => _positionPill;
     internal TextBlock Title => _heading;
     internal Func<Control, CancellationToken, Task>? OpenTagsAsync { get; set; }
-    internal string DecisionKeyContext { set => _decision.KeyContext = value; }
+    internal string DecisionKeyContext { set { _decision.KeyContext = _overlayRating.KeyContext = _headerFavorite.KeyContext = value; } }
     internal GalleryDecisionRow DecisionRow => _decision;
     /// <summary>Space above the header line, included in the vertical budget of the header and card.</summary>
-    internal const double HeaderTopInset = MediaSidebarHeader.TopInset;
+    internal const double HeaderTopInset = WorkspaceMetrics.MediaFirstInset;
     /// <summary>The height of the primary header row, shared with workspace controls.</summary>
-    internal const double HeaderLineHeight = WorkspaceMetrics.InputHeight;
+    internal const double HeaderLineHeight = 48;
     internal Image Picture => _image;
     internal Bitmap? Shown => _bitmap;
     /// <summary>
@@ -396,17 +399,27 @@ internal sealed class ReaderMediaSidebar : Border
     {
         _videoRow.IsVisible = _videoRow.Children.Any(child => child.IsVisible);
         _stripRow.Margin = new Thickness(8, 8, 8, _videoRow.IsVisible ? 0 : 8);
-        _videoRow.Margin = new Thickness(8, 8, 8, 8);
+        _videoRow.Margin = new Thickness(8);
+        UpdateInfoLayout();
     }
 
     internal ReaderMediaSidebar()
     {
         Name = "ReaderMediaSidebar";
-        Padding = new Thickness(WorkspaceMetrics.SectionInset);
+        Padding = new Thickness(WorkspaceMetrics.MediaFirstInset);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         _placeholder[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
         _placeholder[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
-        _image.SizeChanged += (_, e) => { _play.Diameter = VideoPlayMark.Diameter(e.NewSize); UpdateBadges(); };
+        _play.VerticalAlignment = VerticalAlignment.Top;
+        _image.SizeChanged += (_, e) =>
+        {
+            _play.Diameter = VideoPlayMark.Diameter(e.NewSize);
+            _play.Margin = new Thickness(0, Math.Max(0, (e.NewSize.Height - _play.Diameter) / 2), 0, 0);
+            UpdateBadges();
+            PositionOverlay();
+        };
+        _frame.Margin = _edge.BorderThickness;
+        _badges.VerticalAlignment = VerticalAlignment.Top;
         _edge.IsVisible = false;
         _frame.Children.Add(_placeholder);
         _frame.Children.Add(_image);
@@ -415,38 +428,54 @@ internal sealed class ReaderMediaSidebar : Border
         _frame.Children.Add(_status);
         _frame.PointerReleased += (_, e) =>
         {
-            if (e.InitialPressMouseButton != MouseButton.Left || _bitmap == null && !_status.IsVisible) return;
+            if (e.InitialPressMouseButton != MouseButton.Left || IsOverlaySource(e.Source) || _bitmap == null && !_status.IsVisible) return;
             e.Handled = true;
             PictureActivated?.Invoke(this, EventArgs.Empty);
         };
 
         _frame.DoubleTapped += (_, e) =>
         {
-            if (_bitmap == null && !_status.IsVisible) return;
+            if (IsOverlaySource(e.Source) || _bitmap == null && !_status.IsVisible) return;
             e.Handled = true;
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
 
         _info.Children.Add(_facts);
         _info.Children.Add(_provenanceNote);
-        _actions.Children.Add(Open);
+        _actions.Children.Add(_detailOpen);
         _actions.Children.Add(_editTags);
         _editTags.Click += (_, _) => OpenActions.Start(EditTagsAsync, "media.tags.edit");
         _rating.Children.Add(_decision);
         _rating.Children.Add(_decisionError);
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
         _decision.FavoriteRequested += _ => OpenActions.Start(() => WriteDecisionAsync(_toggleFavorite, _favoriteAvailable), "favorites.toggle");
-        _decision.RatingRequested += value =>
+        foreach (GalleryDecisionRow row in new[] { _decision, _overlayRating })
         {
-            if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
-        };
-        _decision.AddHandler(KeyDownEvent, (_, e) =>
+            foreach (Button button in row.StarButtons.Cast<Button>().Append(row.ClearButton).Append(row.FavoriteButton))
+                TrackDecisionPress(button);
+            row.RatingRequested += value =>
+            {
+                if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
+            };
+            row.AddHandler(KeyDownEvent, (_, e) =>
+            {
+                if (!e.Handled && row.RouteStarKey(e)) e.Handled = true;
+            }, RoutingStrategies.Tunnel);
+        }
+        TrackDecisionPress(_headerFavorite);
+        AddHandler(PointerReleasedEvent, (_, e) =>
         {
-            if (!e.Handled && _decision.RouteStarKey(e)) e.Handled = true;
-        }, RoutingStrategies.Tunnel);
+            if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonReleased
+                || !_decisionPresses.Remove(e.Pointer, out int revision)
+                || revision == _mediumRevision) return;
+            // A recycled decision button would otherwise click with the new medium's callbacks.
+            e.Handled = true;
+            e.Pointer.Capture(null);
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        DetachedFromVisualTree += (_, _) => _decisionPresses.Clear();
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
-        _header = new MediaSidebarHeader(_heading, _positionPill, Close) { Name = "ReaderMediaSidebarHeaderRow" };
-        _card.Margin = new Thickness(0, WorkspaceMetrics.MediaPanelSectionGap, 0, 0);
+        _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, Close) { Name = "ReaderMediaSidebarHeaderRow" };
+        _card.Margin = new Thickness(0, 8, 0, 0);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -483,29 +512,21 @@ internal sealed class ReaderMediaSidebar : Border
             UpdateCardRows();
         };
         UpdateCardRows();
-        ScrollViewer details = new()
-        {
-            Name = "ReaderMediaSidebarDetails", Content = _sections,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Margin = new Thickness(0, WorkspaceMetrics.MediaPanelSectionGap, 0, 0), Focusable = false
-        };
-        details.Bind(IsVisibleProperty, _sections.GetObservable(Panel.IsVisibleProperty));
-        details.AddHandler(GotFocusEvent, (_, e) => { if (e.Source is Control control) control.BringIntoView(); });
-        SizeChanged += (_, e) => details.MaxHeight = e.NewSize.Height * 0.55;
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        layout.Children.Add(_header);
         layout.Children.Add(_live);
         Grid.SetRow(_card, 1); layout.Children.Add(_card);
-        Grid.SetRow(details, 2); layout.Children.Add(details);
+        Grid.SetRow(_details, 2); layout.Children.Add(_details);
         // Header is visually first. Its close is the last element in the sidebar's tab order.
-        layout.Children.Add(_header);
         KeyboardNavigation.SetTabIndex(Close, 1);
         Child = layout;
+        InitializeInfo();
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
         DetachedFromVisualTree += (_, _) =>
         {
+            _hideOverlay.Stop();
             Texts.Changed -= OnLanguageChanged;
             InvalidateTagEditor();
         };
@@ -524,10 +545,11 @@ internal sealed class ReaderMediaSidebar : Border
         string title = Texts.T(TitleKey);
         AutomationProperties.SetName(this, title);
         RefreshFacts();
-        CommandBindings.Apply(Open, "gallery.open");
-        PanelActionStack.Present(Open, CommandCatalog.Get("gallery.open").Icon);
+        LocalizeInfo();
+        CommandBindings.Apply(_detailOpen, "gallery.open");
+        PanelActionStack.Present(_detailOpen, CommandCatalog.Get("gallery.open").Icon, compactLabel: true);
         CommandBindings.Apply(_editTags, "media.tags.edit");
-        PanelActionStack.Present(_editTags, CommandCatalog.Get("media.tags.edit").Icon);
+        PanelActionStack.Present(_editTags, CommandCatalog.Get("media.tags.edit").Icon, compactLabel: true);
         RefreshTags();
         RefreshDecisions();
         _positionPill.Show(_threadPosition);
@@ -572,9 +594,22 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen,
+        GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null, string? mediumKey = null)
     {
-        if (_postLine != postLine || _fileName != fileLine || _threadPosition != threadPosition) _decisionFailure = null;
+        bool newMedium = _mediumKey != mediumKey;
+        if (newMedium)
+        {
+            _mediumKey = mediumKey;
+            _mediumRevision++;
+            _wasDocked = false;
+        }
+        if (newMedium || _postLine != postLine || _fileName != fileLine)
+        {
+            _decisionFailure = null;
+            _tags = null;
+            _tagsBlocked = null;
+        }
         _postLine = postLine; _fileName = fileLine; _detail = detailLine;
         _savedBytes = savedBytes;
         _location = _author = _posted = _provenance = null;
@@ -583,13 +618,14 @@ internal sealed class ReaderMediaSidebar : Border
         _historical = false;
         SetThreadPosition(threadPosition);
         RefreshFacts();
-        Open.IsEnabled = canOpen;
-        Open.IsVisible = canOpen || fileLine.Length > 0;
+        Open.IsEnabled = _detailOpen.IsEnabled = canOpen;
+        _detailOpen.IsVisible = canOpen || fileLine.Length > 0;
         _sections.Rating = fileLine.Length > 0 ? _rating : null;
         _editTags.IsVisible = fileLine.Length > 0 && OpenTagsAsync != null;
-        _sections.Actions = Open.IsVisible || _editTags.IsVisible ? _actions : null;
+        _sections.Actions = _detailOpen.IsVisible || _editTags.IsVisible ? _actions : null;
         if (fileLine.Length == 0) ConfigureRating(null, null, null);
         RefreshTags();
+        UpdateInfoLayout();
         AutomationProperties.SetName(_image, fileLine);
         UpdateFrameCursor();
     }
@@ -600,7 +636,21 @@ internal sealed class ReaderMediaSidebar : Border
         _positionPill.Show(position);
     }
 
-    internal async Task EditTagsAsync()
+    private void TrackDecisionPress(Button button)
+    {
+        button.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(button).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+                _decisionPresses[e.Pointer] = _mediumRevision;
+        }, RoutingStrategies.Tunnel);
+        button.PointerCaptureLost += (_, e) => _decisionPresses.Remove(e.Pointer);
+    }
+
+    internal Task EditTagsAsync() => EditTagsAsync(revealDetails: false);
+
+    internal Task EditTagsFromShortcutAsync() => EditTagsAsync(revealDetails: true);
+
+    private async Task EditTagsAsync(bool revealDetails)
     {
         if (!IsEffectivelyVisible || !_editTags.IsVisible || OpenTagsAsync is not { } openTags) return;
         if (_cancelTagEditor != null) return;
@@ -609,14 +659,31 @@ internal sealed class ReaderMediaSidebar : Border
         _cancelTagEditor = cancel;
         try
         {
-            await openTags(_editTags, request.Token);
+            if (revealDetails && !_details.IsVisible)
+            {
+                _showDetailsForTagEditor = true;
+                UpdateInfoLayout();
+                if (_details.IsVisible) TopLevel.GetTopLevel(this)?.UpdateLayout();
+            }
+            Control anchor = _details.IsVisible && _editTags.IsEffectivelyVisible ? _editTags : InfoToggle;
+            if (revealDetails && ReferenceEquals(anchor, _editTags))
+            {
+                _editTags.BringIntoView();
+                TopLevel.GetTopLevel(this)?.UpdateLayout();
+            }
+            if (request.IsCancellationRequested) return;
+            await openTags(anchor, request.Token);
             // Blocked editors can be opened synchronously by the host.
-            if (ReferenceEquals(_cancelTagEditor, cancel) && QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, _editTags))
+            if (ReferenceEquals(_cancelTagEditor, cancel) && QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor))
                 await popover.Result;
         }
         finally
         {
-            if (ReferenceEquals(_cancelTagEditor, cancel)) _cancelTagEditor = null;
+            if (ReferenceEquals(_cancelTagEditor, cancel))
+            {
+                _cancelTagEditor = null;
+                RestoreDetailsAfterTagEditor();
+            }
         }
     }
 
@@ -625,8 +692,9 @@ internal sealed class ReaderMediaSidebar : Border
         if (_cancelTagEditor is not { } cancel) return false;
         _cancelTagEditor = null;
         cancel();
-        if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, _editTags))
+        if (QuickTagPopover.Current is { } popover && (ReferenceEquals(popover.Anchor, _editTags) || ReferenceEquals(popover.Anchor, InfoToggle)))
             popover.Close(QuickTagPopoverCloseReason.Stale);
+        if (_cancelTagEditor == null) RestoreDetailsAfterTagEditor();
         return true;
     }
 
@@ -644,6 +712,8 @@ internal sealed class ReaderMediaSidebar : Border
     {
         _heading.Text = _postLine.Length > 0 ? _postLine : _fileName.Length > 0 ? _fileName : ShowEmptyTitle ? Texts.T(TitleKey) : string.Empty;
         ToolTip.SetTip(_heading, _heading.Text);
+        string size = (_savedBytes ?? _sourceBytes) is long length ? SizeText.Format(length) : "";
+        _header.Describe(_fileName, ReaderMediaSidebarRules.HeaderText("", size, _detail));
         _facts.Children.Clear();
         _facts.Add(Texts.T("media.fact.location"), _location);
         _facts.Add(Texts.T("media.fact.author"), _author);
@@ -680,7 +750,7 @@ internal sealed class ReaderMediaSidebar : Border
         ConfigureFavorite(available, marked, toggle, error, () => row.FavoriteHold?.Invoke() ?? FavoriteStarHold.None);
     }
 
-    internal Avalonia.Controls.Primitives.ToggleButton FavoriteButton => _decision.FavoriteButton;
+    internal Avalonia.Controls.Primitives.ToggleButton FavoriteButton => _headerFavorite;
 
     internal void ConfigureFavorite(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle,
         Func<string?>? error = null, Func<FavoriteStarHold>? hold = null)
@@ -691,6 +761,7 @@ internal sealed class ReaderMediaSidebar : Border
         _toggleFavorite = toggle;
         _favoriteError = error;
         _favoriteHold = hold;
+        _headerFavorite.Configure(available, marked, () => WriteDecisionAsync(toggle, available), error, hold);
         RefreshFavorite();
     }
 
@@ -706,6 +777,8 @@ internal sealed class ReaderMediaSidebar : Border
     {
         if (string.Equals(_tagsBlocked, blocked, StringComparison.Ordinal)
             && (ReferenceEquals(_tags, names) || _tags != null && names != null && _tags.SequenceEqual(names))) return;
+        if (_tags != null && names != null && !_tags.SequenceEqual(names))
+            _live.Text = ReaderMediaSidebarRules.HeaderText(_postLine, Texts.T("tags.media.buttonCount", names.Count), string.Join(", ", names));
         _tags = names;
         _tagsBlocked = blocked;
         RefreshTags();
@@ -713,8 +786,10 @@ internal sealed class ReaderMediaSidebar : Border
 
     private void RefreshTags()
     {
+        RefreshOverlayTagCount();
         if (_fileName.Length == 0) { _sections.Tags = null; return; }
         int count = _tags?.Count ?? 0;
+        _tagCount.IsEnabled = OpenTagsAsync != null;
         StackPanel tags = new() { Name = "ReaderMediaSidebarTags", Spacing = 4 };
         tags.Children.Add(new TextBlock { Classes = { "workspace-meta" }, FontWeight = FontWeight.SemiBold,
             Text = count > 0 ? Texts.T("tags.media.buttonCount", count) : Texts.T("tags.media.button") });
@@ -735,8 +810,14 @@ internal sealed class ReaderMediaSidebar : Border
     {
         var favorite = ArchiveFavoriteButton.ReadState(_favoriteAvailable, _isFavorite, _favoriteError);
         bool canRate = _ratingAvailable?.Invoke() == true;
-        _decision.Show(new GalleryDecisionView(1, favorite.Marked ? GalleryDecisionCoverage.All : GalleryDecisionCoverage.None,
-            _readRating?.Invoke(), false, canRate), favorite.Available);
+        GalleryDecisionView updated = new(1, favorite.Marked ? GalleryDecisionCoverage.All : GalleryDecisionCoverage.None,
+            _readRating?.Invoke(), false, canRate);
+        if (_decision.View.Available && updated.Available && _decision.View != updated)
+            Announce(GalleryDecisionText.Summary(updated));
+        _decision.Show(updated, favorite.Available);
+        _overlayRating.Show(updated);
+        _headerFavorite.Refresh();
+        UpdateBadges();
         if (!favorite.Available && _favoriteHold != null)
         {
             ToolTip.SetTip(FavoriteButton, ArchiveFavoriteButton.HoldText(_favoriteHold()));
@@ -750,14 +831,14 @@ internal sealed class ReaderMediaSidebar : Border
     private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available)
     {
         if (_writingDecision || write == null || available?.Invoke() != true) return;
+        int revision = _mediumRevision;
         string name = _fileName;
-        GalleryTagPanelPosition? position = _threadPosition;
         _writingDecision = true;
         _decisionFailure = null;
         try { await write(); }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            if (_fileName == name && _threadPosition == position) _decisionFailure = error.Message;
+            if (_mediumRevision == revision && _fileName == name) _decisionFailure = error.Message;
         }
         finally
         {
@@ -773,7 +854,7 @@ internal sealed class ReaderMediaSidebar : Border
     {
         if (!_badgesOn || !_image.IsVisible) { _badges.Clear(); return; }
         // No Favorite here: the header's star toggle shows and changes the favourite, a second filled star on the picture only duplicated it.
-        _badges.Apply(new MediaBadgeState(Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
+        _badges.Apply(new MediaBadgeState(Rating: _details.IsVisible ? null : _decision.View.Rating, Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
     }
 
     internal void SetDetail(string detailLine)
@@ -790,6 +871,7 @@ internal sealed class ReaderMediaSidebar : Border
     internal void ShowPicture(Bitmap bitmap, Action<Bitmap> release, bool playable, double maximumWidth, double maximumHeight,
         string? mediumKey = null, PixelSize? source = null)
     {
+        if (mediumKey != Load.ShownKey) _wasDocked = false;
         ReleasePicture();
         _bitmap = bitmap;
         _release = release;
@@ -806,6 +888,7 @@ internal sealed class ReaderMediaSidebar : Border
         UpdateBadges();
         UpdateFrameCursor();
         Load.Showed(mediumKey, bitmap.PixelSize, source);
+        UpdateInfoLayout();
     }
 
     /// <summary>The largest logical size of the shown picture again (the gallery's fit limit changed while the picture itself still fits).</summary>
@@ -814,6 +897,7 @@ internal sealed class ReaderMediaSidebar : Border
         if (_bitmap == null) return;
         _image.MaxWidth = maximumWidth;
         _image.MaxHeight = maximumHeight;
+        UpdateInfoLayout();
     }
 
     /// <summary>
@@ -840,7 +924,7 @@ internal sealed class ReaderMediaSidebar : Border
         _status.Text = text;
         _status.IsVisible = text.Length > 0;
         _badgesOn = false;
-        UpdateBadges();
+        UpdateInfoLayout();
         UpdateFrameCursor();
     }
 
@@ -870,6 +954,7 @@ internal sealed class ReaderMediaSidebar : Border
         _status.Text = text;
         _status.IsVisible = text.Length > 0;
         UpdateFrameCursor();
+        UpdateInfoLayout();
         Load.Dimmed();
     }
 
