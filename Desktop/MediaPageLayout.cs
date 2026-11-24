@@ -306,8 +306,8 @@ internal sealed record MediaPageLayoutPlan(bool Title, bool Subtitle, bool Toolb
 
     /// <summary>The grid keeps at least this much room beside the tag list (about one tile), however wide the list is saved: a layout measure.</summary>
     internal const double MinimumGridWidth = 200;
-    /// <summary>The page margins, the handle and the list's own margin that sit beside the grid in the body row (a layout measure).</summary>
-    internal const double BodyChrome = 12 + 6 + 12;
+    /// <summary>Both toolbar margins plus the tag list's outer margin and splitter.</summary>
+    internal const double BodyChrome = 2 * MediaToolbarLayout.HorizontalMargin + MediaPage.SidebarMargin + MediaPage.HandleWidth;
 
     /// <summary>
     /// The widest the tag list may be in a body row of this width: its range's maximum, less where the grid would fall under
@@ -328,16 +328,19 @@ internal sealed record MediaPageLayoutPlan(bool Title, bool Subtitle, bool Toolb
 /// <summary>
 /// The widths of the body row with the media panel (pure, no control): what the tag list and the panel get beside the grid in a body row of
 /// this width, and whether the panel shows at all. The panel is chosen in the layout (default on) and hides by itself while the body row is
-/// narrower than the minimum page width setting, or when even its smallest width would leave the grid under <see cref="MediaPageLayoutPlan.MinimumGridWidth"/>;
+/// narrower than the minimum page width setting, or when even its smallest width would leave too little room for the toolbar;
 /// the choice stays, the panel returns when the page is wide again. The tag list and the panel can both be shown: the panel keeps its smallest width
-/// first, then the tag list takes what it needs, and the grid keeps the rest (never less than its minimum). An unknown width (not laid out yet)
+/// first, then the tag list takes what it needs, and the center keeps at least the minimum toolbar width. An unknown width (not laid out yet)
 /// counts as wide enough, so opening the page does not lay it out twice.
 /// </summary>
 internal readonly record struct MediaPanelColumns(bool PanelShown, bool CollapsedByWidth, double TagListWidth, double PanelWidth)
 {
-    /// <summary>What the panel's column adds beside the grid besides its width: its edge margin and the drag handle (a layout measure).</summary>
-    internal const double PanelChrome = 12 + 6 + 4;
-    internal const double MinimumCombinedContentWidth = 616;
+    /// <summary>The panel's outer margin and splitter. The actual margin can be smaller when both sidebars share a side.</summary>
+    internal const double PanelChrome = MediaPage.SidebarMargin + MediaPage.HandleWidth;
+    internal const double MinimumCombinedContentWidth = MediaToolbarLayout.NarrowestRowWidth;
+
+    private static double PanelFixedWidth(double tagListWidth) => MinimumCombinedContentWidth + PanelChrome
+        + (tagListWidth > 0 ? MediaPageLayoutPlan.BodyChrome + tagListWidth : 2 * MediaToolbarLayout.HorizontalMargin);
 
     internal static MediaPanelColumns Of(MediaPageLayout layout, double bodyWidth, int minimumPageWidth)
     {
@@ -347,18 +350,17 @@ internal readonly record struct MediaPanelColumns(bool PanelShown, bool Collapse
         int minimum = Math.Clamp(minimumPageWidth, MeowChan.Config.MediaPanelMinimumPageWidthMinimum, MeowChan.Config.MediaPanelMinimumPageWidthMaximum);
         bool collapsed = self.Panel && known && bodyWidth < minimum;
         bool wanted = self.Panel && !collapsed;
-        // The center column holds the toolbar: beside the tag list it keeps 616 DIP whether or not the panel shows (the panel folds first, the
+        // The center column holds the toolbar: beside either sidebar it keeps 616 DIP (the panel folds first, the
         // tag list narrows to its minimum, then it yields; see TagListShown).
-        double contentMinimum = self.TagList ? MinimumCombinedContentWidth : MediaPageLayoutPlan.MinimumGridWidth;
         double TagListFor(bool reservePanel) => !self.TagList ? 0 : !known ? self.TagListWidth : Math.Clamp(self.TagListWidth, MeowChan.Config.MediaTagListWidthMinimum,
             Math.Max(MeowChan.Config.MediaTagListWidthMinimum, Math.Min(MeowChan.Config.MediaTagListWidthMaximum,
-                bodyWidth - contentMinimum - MediaPageLayoutPlan.BodyChrome
+                bodyWidth - MinimumCombinedContentWidth - MediaPageLayoutPlan.BodyChrome
                 - (reservePanel ? MeowChan.Config.MediaPanelWidthMinimum + PanelChrome : 0))));
         double tagList = TagListFor(wanted);
         double panel = self.PanelWidth;
         if (known && wanted)
         {
-            double room = bodyWidth - contentMinimum - MediaPageLayoutPlan.BodyChrome - PanelChrome - tagList;
+            double room = bodyWidth - PanelFixedWidth(tagList);
             if (room < MeowChan.Config.MediaPanelWidthMinimum) { wanted = false; collapsed = true; tagList = TagListFor(false); }
             else panel = Math.Clamp(self.PanelWidth, MeowChan.Config.MediaPanelWidthMinimum, Math.Min(MeowChan.Config.MediaPanelWidthMaximum, room));
         }
@@ -383,9 +385,7 @@ internal readonly record struct MediaPanelColumns(bool PanelShown, bool Collapse
     {
         MediaPageLayout self = layout.Normalized();
         int setting = Math.Clamp(minimumPageWidth, MeowChan.Config.MediaPanelMinimumPageWidthMinimum, MeowChan.Config.MediaPanelMinimumPageWidthMaximum);
-        double contentMinimum = self.TagList ? MinimumCombinedContentWidth : MediaPageLayoutPlan.MinimumGridWidth;
-        double needed = contentMinimum + MediaPageLayoutPlan.BodyChrome + PanelChrome + MeowChan.Config.MediaPanelWidthMinimum
-            + (self.TagList ? MeowChan.Config.MediaTagListWidthMinimum : 0);
+        double needed = PanelFixedWidth(self.TagList ? MeowChan.Config.MediaTagListWidthMinimum : 0) + MeowChan.Config.MediaPanelWidthMinimum;
         return Math.Ceiling(Math.Max(setting, needed));
     }
 
@@ -403,14 +403,11 @@ internal readonly record struct MediaPanelColumns(bool PanelShown, bool Collapse
     }
 
     /// <summary>The widest the panel may be in a body row of this width with this layout (the drag handle's limit); its range's maximum when the width is unknown.</summary>
-    internal static double MaximumPanelWidth(MediaPageLayout layout, double bodyWidth)
+    internal static double MaximumPanelWidth(double bodyWidth, double tagListWidth)
     {
         double maximum = MeowChan.Config.MediaPanelWidthMaximum;
         if (!double.IsFinite(bodyWidth) || bodyWidth <= 0) return maximum;
-        MediaPageLayout self = layout.Normalized();
-        double tagList = self.TagList ? Math.Min(self.TagListWidth, MediaPageLayoutPlan.EffectiveTagListMaximum(bodyWidth)) : 0;
-        double contentMinimum = self.TagList ? MinimumCombinedContentWidth : MediaPageLayoutPlan.MinimumGridWidth;
-        double room = bodyWidth - contentMinimum - MediaPageLayoutPlan.BodyChrome - PanelChrome - tagList;
+        double room = bodyWidth - PanelFixedWidth(tagListWidth);
         return Math.Max(MeowChan.Config.MediaPanelWidthMinimum, Math.Min(maximum, room));
     }
 }
