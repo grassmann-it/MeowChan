@@ -68,11 +68,11 @@ public partial class MainWindow : Window
 
     public MainWindow() : this(null) { }
 
-    internal MainWindow(DesktopSessionHost? session) : this(session, null) { }
+    internal MainWindow(DesktopSessionHost? session) : this(session, static () => new DesktopSessionHost()) { }
 
     internal static MainWindow CreateWithSessionFactory(Func<DesktopSessionHost> createSession) => new(null, createSession);
 
-    private MainWindow(DesktopSessionHost? session, Func<DesktopSessionHost>? createSession)
+    private MainWindow(DesktopSessionHost? session, Func<DesktopSessionHost> createSession)
     {
         RecordStartupTiming(StartupTimingPoint.ConstructorBegin);
         // The quick tag popover swallows the repeats of the key that opened it (R held a little long), so it must know which keys are down.
@@ -85,7 +85,7 @@ public partial class MainWindow : Window
             throw;
         }
         InitializeGlyphIcons();
-        _session = session ?? createSession?.Invoke() ?? new DesktopSessionHost();
+        _session = session ?? createSession();
         _config = _session.Config;
         try
         {
