@@ -11,6 +11,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
+using MeowChan.Desktop.Updates;
 using MeowChan.PluginHost.Sources;
 using MeowChan.PluginSdk;
 
@@ -132,6 +133,109 @@ public sealed class BoardArchiveWindowTests
                 Layout(dialog);
             }
         });
+
+    [Fact]
+    public async Task ReturningToABoardAndThreadWaitsForTheCanceledReadAndShowsTheLatestResult()
+    {
+        using TempDirectory profile = new();
+        BoardArchiveHostTests.Configure(profile.Path);
+        DelayedRead<string[]> boardRead = new(["999"], ["123", "124"]);
+        DelayedRead<SourcePost[]> threadRead = new([Post("old opening")], [Post("latest opening")]);
+        await using var worker = new BoardArchiveHostTests.ArchiveWorker
+        {
+            ReadIds = (board, token) => board == "a" ? boardRead.RunAsync(token) : Task.FromResult<string[]>(["777"]),
+            ReadPosts = (thread, token) => thread == "123" ? threadRead.RunAsync(token) : Task.FromResult<SourcePost[]>([Post("other opening")])
+        };
+        using PluginSourceImageBoard source = worker.CreateSource();
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new DesktopSessionHost(profile.Path, [source],
+            updateSessionFactory: (directory, config) => new UpdateSession(directory, config, disableEnvironment: () => "1")));
+        await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
+        BoardArchiveLocation a = Assert.IsType<BoardArchiveLocation>(host.FindBoardArchive("https://archive.test/a/archive"));
+        BoardArchiveLocation b = Assert.IsType<BoardArchiveLocation>(host.FindBoardArchive("https://archive.test/b/archive"));
+
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            BooruComponentDispatcher.Wait(ExerciseAsync());
+        });
+
+        async Task ExerciseAsync()
+        {
+            using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(15));
+            BoardArchiveWindow dialog = new([a, b], host.ReadBoardArchiveAsync, host.ReadBoardArchiveThreadAsync,
+                _ => throw new InvalidOperationException("Unexpected watch"), _ => { });
+            dialog.Show();
+            try
+            {
+                ComboBox boards = Control<ComboBox>(dialog, "BoardArchiveBoards");
+                ListBox rows = Control<ListBox>(dialog, "BoardArchiveThreads");
+                TextBlock status = Control<TextBlock>(dialog, "BoardArchiveStatus");
+                Button retry = Control<Button>(dialog, "BoardArchiveRetry");
+                Button watch = Control<Button>(dialog, "BoardArchiveWatch");
+                await boardRead.Started.Task.WaitAsync(deadline.Token);
+                boards.SelectedIndex = 1;
+                await boardRead.Canceled.Task.WaitAsync(deadline.Token);
+                await BooruTestSupport.WaitAsync(() => rows.ItemCount == 1, "board B archive");
+                Assert.Equal("777", Assert.IsType<BoardArchiveThread>(rows.Items[0]).Id);
+
+                Task superseded = host.ReadBoardArchiveAsync(a, deadline.Token);
+                boards.SelectedIndex = 0;
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => superseded.WaitAsync(TimeSpan.FromSeconds(5)));
+                Assert.Equal(1, boardRead.Calls);
+                Assert.Equal(Texts.T("wizard.loading"), status.Text);
+                Assert.False(retry.IsVisible);
+                boardRead.Release.SetResult();
+                await BooruTestSupport.WaitAsync(() => rows.ItemCount == 2, "latest board A archive");
+                Assert.Equal(new[] { "123", "124" }, rows.Items.Cast<BoardArchiveThread>().Select(thread => thread.Id));
+                Assert.Equal(2, boardRead.Calls);
+
+                rows.SelectedIndex = 0;
+                await threadRead.Started.Task.WaitAsync(deadline.Token);
+                rows.SelectedIndex = 1;
+                await threadRead.Canceled.Task.WaitAsync(deadline.Token);
+                await BooruTestSupport.WaitAsync(() => watch.IsEnabled, "thread B preview");
+                rows.SelectedIndex = 0;
+                Assert.Equal(1, threadRead.Calls);
+                Assert.Equal(Texts.T("boardArchive.loadingThread"), status.Text);
+                Assert.False(watch.IsEnabled);
+                Assert.False(retry.IsVisible);
+                threadRead.Release.SetResult();
+                await BooruTestSupport.WaitAsync(() => watch.IsEnabled, "latest thread A preview");
+                Assert.Equal(2, threadRead.Calls);
+                Assert.Equal("123", Assert.IsType<BoardArchiveThread>(rows.SelectedItem).Id);
+                Assert.Equal(Texts.T("sources.archived"), status.Text);
+                Assert.Contains(dialog.GetVisualDescendants().OfType<TextBlock>(), text => text.IsVisible && text.Text == "latest opening");
+                Assert.False(retry.IsVisible);
+            }
+            finally
+            {
+                dialog.Close();
+                boardRead.Release.TrySetResult();
+                threadRead.Release.TrySetResult();
+            }
+        }
+
+        static SourcePost Post(string text) => new("123", 0, SourceFieldPresence.Text, Text: text, TextFormat: SourceTextFormat.PlainText);
+    }
+
+    private sealed class DelayedRead<T>(T first, T latest)
+    {
+        private int _calls;
+        internal int Calls => Volatile.Read(ref _calls);
+        internal TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Canceled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal async Task<T> RunAsync(CancellationToken token)
+        {
+            if (Interlocked.Increment(ref _calls) != 1) return latest;
+            using CancellationTokenRegistration registration = token.Register(() => Canceled.TrySetResult());
+            Started.SetResult();
+            await Release.Task.WaitAsync(TimeSpan.FromSeconds(20), CancellationToken.None);
+            return first;
+        }
+    }
 
     [Fact]
     public async Task TheDownloadsBoardsMenuAndUrlFieldOpenTheSameArchiveDialog()

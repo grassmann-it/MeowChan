@@ -18,6 +18,14 @@ internal sealed class BoardArchivePausedException : InvalidOperationException { 
 
 internal sealed partial class DesktopSessionHost
 {
+    private sealed class ArchiveReadLane(TaskCompletionSource active)
+    {
+        internal TaskCompletionSource Active { get; set; } = active;
+        internal TaskCompletionSource? Pending { get; set; }
+    }
+
+    private readonly Dictionary<(string Action, string Target), ArchiveReadLane> _archiveReads = new();
+
     internal BoardArchiveLocation? FindBoardArchive(string url, bool fromBoard = false)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
@@ -33,22 +41,70 @@ internal sealed partial class DesktopSessionHost
     }
 
     internal Task<IReadOnlyList<BoardArchiveThread>?> ReadBoardArchiveAsync(BoardArchiveLocation board, CancellationToken token)
-        => RunInteractiveAsync(nameof(ReadBoardArchiveAsync), board.Uri.AbsoluteUri, () =>
+        => RunArchiveReadAsync(nameof(ReadBoardArchiveAsync), board.Uri.AbsoluteUri, () =>
         {
             EnsureBoardArchiveReady();
             return ReadArchiveWhenAdmittedAsync(
                 cancellation => ArchiveSource(board.Uri).ReadBoardArchiveAsync(board.Uri, cancellation), token);
-        }, captureAfter: false);
+        }, token);
 
     internal Task<BoardArchiveThreadDetails?> ReadBoardArchiveThreadAsync(BoardArchiveThread thread, CancellationToken token)
-        => RunInteractiveAsync<BoardArchiveThreadDetails?>(nameof(ReadBoardArchiveThreadAsync), thread.Url, async () =>
+        => RunArchiveReadAsync<BoardArchiveThreadDetails?>(nameof(ReadBoardArchiveThreadAsync), thread.Url, async () =>
         {
             EnsureBoardArchiveReady();
             PluginSourceImageBoard source = ArchiveSource(new Uri(thread.Url));
             BoardArchiveThreadDetails? details = await ReadArchiveWhenAdmittedAsync(
                 cancellation => source.ReadBoardArchiveThreadAsync(thread.Url, cancellation), token).ConfigureAwait(false);
             return details == null ? null : details with { AlreadyWatching = _registry.ClassifyAdmission(thread.Url)?.AlreadyWatching == true };
-        }, captureAfter: false);
+        }, token);
+
+    private async Task<T> RunArchiveReadAsync<T>(string action, string target, Func<Task<T>> read, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var key = (action, target);
+        TaskCompletionSource turn = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ArchiveReadLane lane;
+        lock (_archiveReads)
+        {
+            if (_archiveReads.TryGetValue(key, out ArchiveReadLane? existing))
+            {
+                lane = existing;
+                lane.Pending?.SetCanceled();
+                lane.Pending = turn;
+            }
+            else
+            {
+                lane = new ArchiveReadLane(turn);
+                _archiveReads.Add(key, lane);
+                turn.SetResult();
+            }
+        }
+
+        try
+        {
+            await turn.Task.WaitAsync(token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            return await RunInteractiveAsync(action, target, read, captureAfter: false).ConfigureAwait(false);
+        }
+        finally
+        {
+            // The interactive command has released its admission before the next read can enter.
+            lock (_archiveReads)
+            {
+                if (ReferenceEquals(lane.Active, turn))
+                {
+                    if (lane.Pending is { } next)
+                    {
+                        lane.Active = next;
+                        lane.Pending = null;
+                        next.SetResult();
+                    }
+                    else _archiveReads.Remove(key);
+                }
+                else if (ReferenceEquals(lane.Pending, turn)) lane.Pending = null;
+            }
+        }
+    }
 
     private PluginSourceImageBoard ArchiveSource(Uri uri) => _registry.FindAdmissionProvider(uri) as PluginSourceImageBoard
         ?? throw new InvalidOperationException("The board archive source is unavailable.");

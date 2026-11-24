@@ -110,6 +110,61 @@ public sealed class BoardArchiveHostTests
         updateSessionFactory: (directory, config) => new UpdateSession(directory, config, disableEnvironment: () => "1"),
         pluginTransportFactory: transport.Client);
 
+    internal sealed class ArchiveWorker : IPluginWorkerClient
+    {
+        private const string Host = "archive.test";
+
+        internal ArchiveWorker(string sourceId = "archive-fixture", PostOrderKind order = PostOrderKind.StableOrdinal)
+        {
+            SettingsSchema settings = new("1", []);
+            SourceDescription source = new(sourceId, sourceId, new Uri($"https://{Host}/"),
+                SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog,
+                [new(SourceResourceKind.Board, Host, "/{board}/", IsCanonical: true),
+                 new(SourceResourceKind.BoardArchive, Host, "/{board}/archive", IsCanonical: true),
+                 new(SourceResourceKind.Thread, Host, "/{board}/thread/{thread}", IsCanonical: true)],
+                [new(Host, HttpHostPurpose.Metadata)], settings, order);
+            Description = new("test.board.archive", "Board archive fixture", "1.0.0", SdkContract.Version, "Offline archive fixture",
+                [source], [], settings, []);
+        }
+
+        public PluginDescription Description { get; }
+        public PluginWorkerIdentity Identity { get; } = new("test", "build", "config");
+        public PluginWorkerSnapshot Snapshot => new(Identity, "ready", null, null, null, []);
+        internal Func<string, CancellationToken, Task<string[]>> ReadIds { get; init; } = (_, _) => Task.FromResult<string[]>([]);
+        internal Func<string, CancellationToken, Task<SourcePost[]>> ReadPosts { get; init; } = (_, _) => Task.FromResult<SourcePost[]>([]);
+
+        internal PluginSourceImageBoard CreateSource() =>
+            new(Description, Description.Sources[0].SourceId, _ => Task.FromResult<IPluginWorkerClient>(this));
+
+        public async Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginOperationContext operation,
+            CancellationToken cancellationToken = default)
+        {
+            Assert.True(request.IsArchive);
+            string[] ids = await ReadIds(request.Board.BoardId, cancellationToken);
+            return new CatalogSnapshot(new SourceCatalogSnapshot(request.Board, ids.Select(id =>
+            {
+                SourceThreadId thread = new(request.Board.SourceId, request.Board.BoardId, id);
+                return new SourceThreadReference(thread, ThreadUri(thread));
+            }).ToArray(), IsComplete: true));
+        }
+
+        public async Task<ThreadReadResult> ReadThreadAsync(ThreadReadRequest request, PluginOperationContext operation,
+            CancellationToken cancellationToken = default)
+        {
+            SourcePost[] posts = await ReadPosts(request.Thread.ThreadId, cancellationToken);
+            return new PluginSdk.ThreadSnapshot(new SourceThreadSnapshot(request.Thread, ThreadUri(request.Thread),
+                $"Thread {request.Thread.ThreadId}", SourceThreadState.Archived, posts));
+        }
+
+        private static Uri ThreadUri(SourceThreadId id) => new($"https://{Host}/{id.BoardId}/thread/{id.ThreadId}");
+        public Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginOperationContext operation,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task RetryAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     internal sealed record Request(string Path, DateTimeOffset? Modified);
 
     internal sealed class ArchiveTransport : HttpMessageHandler
