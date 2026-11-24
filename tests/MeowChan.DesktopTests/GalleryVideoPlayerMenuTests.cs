@@ -240,7 +240,7 @@ public sealed class GalleryVideoPlayerMenuTests
         {
             player.PlayerMenu.Hide();
             window.Close();
-            BooruComponentDispatcher.Wait(player.DisposeAsync());
+            BooruComponentDispatcher.Wait(player.DisposeAsync().AsTask());
         }
     });
 
