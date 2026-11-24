@@ -13,10 +13,11 @@ namespace MeowChan.DesktopSmoke;
 
 internal static partial class PluginManagementChecks
 {
-    private static Task CheckFixedDraftFooterAsync(MainWindow window, PluginsPage page, PluginProfileStore profile) =>
+    private static Task CheckFixedDraftFooterAsync(MainWindow window, PluginsPage page, PluginProfileStore profile, string candidateId) =>
         AtBarebonesMinimumAsync(window, async () =>
         {
             using MediaNativeInput input = new(window);
+            page.Select(candidateId);
             ScrollViewer scroll = page.FindControl<ScrollViewer>("PluginDetailsPane")!;
             Border footer = page.FindControl<Border>("PluginDraftFooter")!;
             Button discard = page.FindControl<Button>("PluginDiscard")!;
@@ -32,6 +33,8 @@ internal static partial class PluginManagementChecks
                 Require(Texts.Language == language && VisibleFooter() && FullyVisibleWithin(status, footer) && FullyVisibleWithin(reasons, footer)
                     && reasons.Text?.Contains(Texts.T("plugins.reason.unchanged"), StringComparison.Ordinal) == true
                     && !save.IsEnabled, $"The unchanged draft reason or its actions are clipped or incorrect in {language}.");
+                if (language is "en" or "de")
+                    Program.CaptureWindow(window, $"smoke-plugin-draft-footer-unchanged-{language}.png");
             }
 
             PluginSettingsEditor editor = await PluginSettingsFormChecks.OpenManagedScopeAsync(page, SettingScope.Plugin);
@@ -46,6 +49,7 @@ internal static partial class PluginManagementChecks
             Require(scroll.Offset.Y > 1 && VisibleFooter() &&
                 Math.Abs(footer.TranslatePoint(default, page)!.Value.Y - initialFooter.Y) <= 1,
                 "The draft footer moved when scrolling to the last settings field.");
+            Program.CaptureWindow(window, "smoke-plugin-draft-footer-last-field-de.png");
 
             long revision = (await profile.ReadAsync()).Revision;
             Require(lastField.Focus(), "Could not focus the last settings field.");
@@ -57,6 +61,7 @@ internal static partial class PluginManagementChecks
             Require(VisibleFooter() && FullyVisibleWithin(error, page) && error.Text == Texts.T("plugins.error.fields")
                 && number.Text == "1.5" && (await profile.ReadAsync()).Revision == revision,
                 "An invalid save lost its message, footer, focused raw input or unchanged profile.");
+            Program.CaptureWindow(window, "smoke-plugin-draft-footer-invalid-de.png");
 
             number.Text = "4";
             await TabToDiscardAsync();

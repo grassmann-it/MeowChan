@@ -109,7 +109,12 @@ internal static partial class SmokeScenarios
         Nested("accessibility-numeric", "MEOWCHAN_ACCESSIBILITY_NUMERIC_ONLY", "--accessibility-probe"),
         Mode("window-geometry", "isolated native interactive resize; each edge/corner after pointer release and settled correction"),
         Mode("video-contrast", "real decoded video time, ended and corrupt-media error contrast in Light/Dark") with { NightlyEnvironment = [Video] },
-        Mode("plugins", NormalPass),
+        Mode("plugins", NormalPass) with
+        {
+            Pass = env => env("MEOWCHAN_PLUGIN_DRAFT_FOOTER_ONLY") == "1"
+                ? "plugin draft footer: minimum window, 12 languages, scrolling, keyboard save and discard, invalid-field focus"
+                : NormalPass
+        },
         Nested("plugin-reselection", "MEOWCHAN_PLUGIN_RESELECTION_ONLY", "--plugins"),
         Nested("plugin-change-review", "MEOWCHAN_PLUGIN_CHANGE_REVIEW_ONLY", "--plugins"),
         Nested("plugin-draft-footer", "MEOWCHAN_PLUGIN_DRAFT_FOOTER_ONLY", "--plugins"),

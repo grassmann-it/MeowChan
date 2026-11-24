@@ -97,8 +97,7 @@ internal static partial class PluginManagementChecks
                 page.FindControl<ComboBox>("PluginCategory")!, page.FindControl<Button>("PluginsRefresh")!);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_DRAFT_FOOTER_ONLY") == "1")
             {
-                page.Select(candidateId);
-                await CheckFixedDraftFooterAsync(window, page, profile);
+                await CheckFixedDraftFooterAsync(window, page, profile, candidateId);
                 return;
             }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_FORM_EFFECTIVE_DEFAULT_REVIEW") == "1")
