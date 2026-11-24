@@ -58,6 +58,7 @@ public sealed class MacShortcutDefaultsTests
     [InlineData("thread.details", "⌘I / ⌥↩", "Alt+Enter")]
     [InlineData("watch.check", "⌥⌘R / F5 (Fn)", "F5")]
     [InlineData("watch.retry-media", "⌥⇧⌘R / ⇧F5 (Fn)", "Shift+F5")]
+    [InlineData("navigation.continue-reading", "⇧⌘R", "Ctrl+Shift+R")]
     [InlineData("archive.previous-page", "⌥⌘← / ⌥⇞", "Alt+PageUp")]
     [InlineData("archive.next-page", "⌥⌘→ / ⌥⇟", "Alt+PageDown")]
     [InlineData("media.return", "⌘←", "Alt+Left")]
