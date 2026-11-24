@@ -141,8 +141,7 @@ public sealed class GalleryFilmstripContinuationTests
         Capture(window, "retry");
 
         Assert.True(load.Focus(NavigationMethod.Tab));
-        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-        window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        // Once the retry loads the tile, another Enter can activate that tile and return focus to the viewer.
         window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
         window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
         await UntilAsync(() => strip.CurrentIndex == 3 && !strip.HasMore);
