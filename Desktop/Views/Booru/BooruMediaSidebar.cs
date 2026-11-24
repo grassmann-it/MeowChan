@@ -14,6 +14,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.PluginSdk;
 using SkiaSharp;
 
 namespace MeowChan.Desktop.Booru;
@@ -167,7 +168,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     internal void RequestSample(IBooruSamplePort? port, BooruResultTarget target, Func<BooruGallerySampleLimits> limits,
         Func<bool> current, Action changed)
     {
-        if (_disposed || _target != target || !IsAttachedToVisualTree() || !IsEffectivelyVisible) return;
+        if (_disposed || _target != target || !this.IsAttachedToVisualTree() || !IsEffectivelyVisible) return;
         _sample.Start(port, target.Post, limits, BooruGallerySampleLoader.DefaultDelay,
             static (bytes, width, pixels) => BooruGalleryPanel.DecodeBitmap(bytes, width, pixels),
             image =>
