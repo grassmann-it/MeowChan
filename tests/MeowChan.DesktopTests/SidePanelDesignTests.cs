@@ -188,11 +188,8 @@ public sealed class SidePanelDesignTests
             Near(32, button.Height);
             if (actions[i].GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Classes.Contains("panel-action-label")) is { } label)
             {
-                bool paired = actions[i].Parent is PanelActionStack { KeepPairOnOneLine: true };
-                if (width >= 320 || width >= 280 && !paired)
+                if (width >= 280)
                     Assert.DoesNotContain(label.TextLayout.TextLines, line => line.HasCollapsed);
-                else if (actions[i] == actions[i].FindAncestorOfType<QuickTagSurface>()?.AdvancedButton)
-                    Assert.Equal(Texts.T("tags.quick.advancedName"), ToolTip.GetTip(actions[i]));
                 else Assert.StartsWith(label.Text!, ToolTip.GetTip(actions[i])?.ToString());
             }
             if (i == 0) Near(left, button.Left);
