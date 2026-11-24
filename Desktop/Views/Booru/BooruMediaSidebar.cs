@@ -1,21 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.PluginSdk;
 using SkiaSharp;
 
@@ -24,7 +24,8 @@ namespace MeowChan.Desktop.Booru;
 internal sealed class BooruMediaSidebar : Grid, IDisposable
 {
     private const double Inset = 8;
-    private const double TagRoom = 96;
+    private const double TagHeight = 128;
+    private const double FactsHeight = 112;
     private const int PreviewEdge = 512;
 
     private readonly TextBlock _title = new()
@@ -32,7 +33,10 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         Name = "BooruMediaTitle", Classes = { "card-title" }, VerticalAlignment = VerticalAlignment.Center,
         MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis
     };
-    private readonly MediaPositionPill _position = new("BooruMediaPosition") { Margin = new Thickness(Inset, 0) };
+    private readonly MediaPositionPill _position = new("BooruMediaPosition");
+    private readonly ArchiveFavoriteButton _favorite = new() { Name = "BooruMediaFavorite" };
+    private readonly GalleryDecisionRow _rating = new("BooruMediaDecision", compact: true, favorite: false, sidebar: true);
+    private readonly MediaInfoBar _localActions;
     private readonly MediaCompactHeader _header;
     private readonly Image _image = new() { Name = "BooruMediaPreview", Stretch = Stretch.Uniform };
     private readonly TextBlock _placeholder = new()
@@ -41,7 +45,11 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
     };
     private readonly Border _kind = WorkspaceChips.CreateCornerBadge("BooruMediaKind", HorizontalAlignment.Right, VerticalAlignment.Top);
-    private readonly Flyout _facts = new();
+    private readonly ScrollViewer _facts = new()
+    {
+        Name = "BooruMediaFacts", MaxHeight = FactsHeight, Margin = new Thickness(Inset, 0),
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+    };
     private readonly BooruGallerySampleLoader _sample = new();
     private readonly List<Visual> _visibilityAncestors = new();
     private readonly List<(Button Button, TextBlock Label)> _actionLabels = new();
@@ -57,16 +65,18 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     internal Task SampleLoad { get; private set; } = Task.CompletedTask;
 
     internal PanelCloseButton Close { get; } = new("BooruMediaClose") { Focusable = false, IsTabStop = false };
+    internal ToggleButton Info { get; } = new() { Name = "BooruMediaInfo", IsChecked = true };
     internal Button OpenGallery { get; } = new()
     {
         Name = "BooruMediaOpenGallery", Focusable = false, IsTabStop = false, Classes = { "ghost" },
         Padding = new Thickness(0), MinWidth = 0, MinHeight = 0, ClipToBounds = true,
-        HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch
+        HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
+        VerticalAlignment = VerticalAlignment.Center
     };
     internal PanelActionStack Actions { get; } = new("BooruMediaActions") { Margin = new Thickness(Inset, 0) };
     internal ScrollViewer Tags { get; } = new()
     {
-        Name = "BooruMediaTags", Margin = new Thickness(Inset, 0), Focusable = true, IsTabStop = true,
+        Name = "BooruMediaTags", MaxHeight = TagHeight, Margin = new Thickness(Inset, 0), Focusable = true, IsTabStop = true,
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
     };
 
@@ -75,28 +85,50 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         Name = "BooruMediaSidebar";
         IsVisible = false;
         Margin = new Thickness(Inset, 0, 0, 0);
-        RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*");
+        RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto,Auto");
         RowSpacing = Inset;
         ClipToBounds = true;
-        _header = new MediaCompactHeader(_title, _position, Close) { Margin = new Thickness(Inset, 0) };
+        _header = new MediaCompactHeader(_title, _position, _favorite, Info, open: null, settings: null, close: Close)
+        {
+            Margin = new Thickness(Inset, 4), FileNameReserve = 40
+        };
         _header.Meta.Name = "BooruMediaSummary";
-        _header.Meta.AddHandler(PointerReleasedEvent, ShowFacts);
+        _localActions = new MediaInfoBar(_rating, new Button { Name = "BooruMediaEditTags" }, _ => { })
+        {
+            Name = "BooruMediaLocalActions"
+        };
+        _localActions.Expand.IsVisible = false;
+        _rating.AttachedToVisualTree += (_, _) => ExplainUnavailableRating();
+        Info.Click += (_, _) => ShowFacts(Info.IsChecked == true);
         _kind.Margin = new Thickness(0, 4, 4, 0);
         OpenGallery.Content = new Panel { Children = { _image, _placeholder, _kind } };
         AutomationProperties.SetAccessibilityView(_image, AccessibilityView.Raw);
+        foreach (Control control in new Control[] { this, _title, _header.Meta, _favorite, Info, Close, OpenGallery, _image, Actions, _localActions, Tags, _facts })
+            AutomationProperties.SetAutomationId(control, control.Name);
+        AutomationProperties.SetAutomationId(_header.Position, _position.Name);
+        foreach (Button star in _rating.StarButtons) AutomationProperties.SetAutomationId(star, star.Name);
         SetRow(OpenGallery, 1);
         SetRow(Actions, 2);
-        SetRow(Tags, 3);
-        Children.AddRange([_header, OpenGallery, Actions, Tags]);
+        SetRow(_localActions, 3);
+        SetRow(Tags, 4);
+        SetRow(_facts, 5);
+        Children.AddRange([_header, OpenGallery, Actions, _localActions, Tags, _facts]);
         AutomationProperties.SetControlTypeOverride(this, Avalonia.Automation.Peers.AutomationControlType.Group);
         AttachedToVisualTree += (_, _) => ObserveVisibility();
         DetachedFromVisualTree += (_, _) => StopObservingVisibility();
     }
 
-    internal void PresentPosition(int index, int count, bool marked) =>
+    internal void PresentPosition(int index, int count, bool marked)
+    {
         _position.Show(new GalleryTagPanelPosition(index + 1, count, false), marked);
+        string? description = AutomationProperties.GetName(_position);
+        AutomationProperties.SetName(_header.Position, description);
+        ToolTip.SetTip(_header.Position, description);
+        _header.Position[!TextBlock.ForegroundProperty] = new DynamicResourceExtension(marked ? "Workspace.Accent" : "Workspace.Text");
+        _header.InvalidateMeasure();
+    }
 
-    internal void Present(BooruResultTarget target, BooruResultRowView row, int maximumPixels)
+    internal void Present(BooruResultTarget target, BooruResultRowView row, bool saved, int maximumPixels)
     {
         if (_target != target)
         {
@@ -117,6 +149,12 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
         BooruPostView post = row.Post;
         _title.Text = Texts.T("booru.ui.post.title", post.PostId);
+        _header.Localize();
+        _favorite.IsVisible = _localActions.IsVisible = !saved;
+        _favorite.Refresh();
+        _localActions.Localize();
+        _localActions.SetTags(null, MediaMenuReasons.NotSaved, canEdit: false);
+        ExplainUnavailableRating();
         AutomationProperties.SetName(this, Texts.T("media.layout.panel"));
         AutomationProperties.SetName(Tags, Texts.T("booru.tags.sourceLabel"));
         AutomationProperties.SetName(OpenGallery, CommandCatalog.Label("gallery.open") + " · " + _title.Text);
@@ -146,31 +184,50 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         string? rating = post.Rating == BooruRating.Unknown ? null : BooruText.Rating(post.Rating);
         string? score = post.Score?.ToString(Texts.Culture);
         string? favorites = post.FavoriteCount?.ToString(Texts.Culture);
-        string typeAndDimensions = string.Join(" ", new[] { extension, dimensions }.Where(part => !string.IsNullOrEmpty(part)));
-        string summary = string.Join(" · ", new[] { rating, score, favorites is null ? null : "♥ " + favorites, typeAndDimensions, bytesText }
-            .Where(part => !string.IsNullOrEmpty(part)));
-        _header.Describe(summary, "");
+        string file = post.Original?.Url is { IsAbsoluteUri: true } url
+            ? Uri.UnescapeDataString(Path.GetFileName(url.AbsolutePath)) : "";
+        _header.Describe(file.Length > 0 ? file : extension ?? "", bytesText ?? "", hasPostTitle: true);
 
-        MediaFactGrid facts = new("BooruMediaFacts") { Margin = new Thickness(Inset) };
-        facts.Add(Texts.T("booru.ui.post.field.rating"), rating, "BooruMediaRating");
-        facts.Add(Texts.T("booru.ui.post.field.score"), score, "BooruMediaScore");
+        MediaFactGrid facts = new("BooruMediaFactGrid");
+        AddFact("booru.ui.post.field.rating", rating, "BooruMediaRating");
+        AddFact("booru.ui.post.field.score", score, "BooruMediaScore");
         facts.Add(Texts.T("booru.ui.post.field.favorites"), favorites);
-        facts.Add(Texts.T("booru.ui.post.field.file"), extension);
         facts.Add(Texts.T("media.fact.dimensions"), dimensions);
-        facts.Add(Texts.T("media.fact.source"), bytesText);
         facts.Add(Texts.T("booru.ui.post.field.created"), post.CreatedAt?.ToLocalTime().ToString("g", Texts.Culture));
-        facts.Add(Texts.T("media.fact.saved"), BooruText.Load(row) ?? Texts.T("booru.ui.result.localNo"));
+        facts.Add(Texts.T("media.fact.saved"), saved ? Texts.T("booru.ui.result.localYes")
+            : BooruText.Load(row) ?? Texts.T("booru.ui.result.localNo"));
         facts.Add(Texts.T("booru.media.variants.heading"), _picture == BooruGalleryPicture.None
             ? null : Texts.T("booru.mediaRole." + _picture));
         _facts.Content = facts;
         InvalidateMeasure();
+
+        void AddFact(string label, string? value, string id)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            facts.Add(Texts.T(label), value, id);
+            AutomationProperties.SetAutomationId(facts.Children[^1], id);
+        }
     }
 
-    private void ShowFacts(object? sender, PointerReleasedEventArgs e)
+    private void ExplainUnavailableRating()
     {
-        if (_target is null || e.InitialPressMouseButton != MouseButton.Left || !IsEffectivelyVisible) return;
-        _facts.ShowAt(_header.Meta);
-        e.Handled = true;
+        string reason = MediaMenuReasons.NotSaved;
+        ToolTip.SetTip(_rating.RatingGroup, reason);
+        AutomationProperties.SetHelpText(_rating.RatingGroup, reason);
+        foreach (Button star in _rating.StarButtons)
+        {
+            ToolTip.SetShowOnDisabled(star, true);
+            ToolTip.SetTip(star, reason);
+            AutomationProperties.SetHelpText(star, reason);
+        }
+    }
+
+    internal void ToggleFacts() => ShowFacts(!_facts.IsVisible);
+
+    private void ShowFacts(bool visible)
+    {
+        _facts.IsVisible = visible;
+        Info.IsChecked = visible;
     }
 
     internal void RequestSample(IBooruSamplePort? port, BooruResultTarget target, Func<BooruGallerySampleLimits> limits,
@@ -241,10 +298,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         double width = Math.Min(Width, availableSize.Width);
         if (!double.IsFinite(width)) width = Config.MediaPanelWidthDefault;
         double room = Math.Max(0, width - 2 * Inset);
-        _header.Measure(new Size(width, double.PositiveInfinity));
-        double actionHeight = _actionLabels.Count == 0 ? 0 : WorkspaceMetrics.InputHeight;
-        double pictureRoom = Math.Max(0, availableSize.Height - _header.DesiredSize.Height - actionHeight - 3 * RowSpacing - TagRoom);
-        OpenGallery.Height = Math.Min(width / _aspect, pictureRoom);
+        OpenGallery.MaxHeight = width / _aspect;
         double extra = room - _actionLabels.Count * WorkspaceMetrics.InputHeight - Math.Max(0, _actionLabels.Count - 1) * Actions.ItemSpacing;
         foreach (var (button, label) in _actionLabels)
         {
@@ -279,11 +333,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     private void AncestorVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == IsVisibleProperty && !e.GetNewValue<bool>())
-        {
-            _facts.Hide();
-            _sample.Pause();
-        }
+        if (e.Property == IsVisibleProperty && !e.GetNewValue<bool>()) _sample.Pause();
     }
 
     internal void Release()
@@ -291,7 +341,6 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         if (_target is null) return;
         _sample.Reset(offered: false);
         SampleLoad = Task.CompletedTask;
-        _facts.Hide();
         _facts.Content = null;
         _target = null;
         _previewBytes = null;

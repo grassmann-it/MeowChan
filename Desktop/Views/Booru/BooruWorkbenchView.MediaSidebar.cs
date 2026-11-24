@@ -8,6 +8,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
@@ -18,7 +19,7 @@ internal sealed partial class BooruWorkbenchView
 {
     private const double SidebarGap = 8;
     private const double SidebarHitsMinimum = 480;
-    private const double SidebarPageMinimum = SidebarHitsMinimum + SidebarGap + Config.MediaPanelWidthMinimum;
+    private const double SidebarPageMinimum = SidebarHitsMinimum + SidebarGap + Config.MediaPanelWidthDefault;
 
     private readonly BooruMediaSidebar _mediaSidebar = new();
     private readonly ToggleButton _mediaToggle = new() { Name = "BooruMediaToggle", Focusable = false, IsTabStop = false };
@@ -44,6 +45,8 @@ internal sealed partial class BooruWorkbenchView
     {
         Grid.SetColumn(_mediaSidebar, 1);
         Grid.SetRow(_mediaSidebar, 1);
+        _mediaSidebar.Width = Config.MediaPanelWidthDefault;
+        AutomationProperties.SetAutomationId(_mediaToggle, _mediaToggle.Name);
         layout.Children.Add(_mediaSidebar);
         layout.SizeChanged += (_, e) =>
         {
@@ -62,6 +65,7 @@ internal sealed partial class BooruWorkbenchView
                 ToggleMediaSidebar, icon: "panel-right")
             : null, resolveOrigin: () => _viewToggle);
         _mediaSidebar.Close.Click += (_, _) => SetMediaSidebarOpen(open: false, returnFocus: true);
+        KeyDown += OnMediaSidebarKeyDown;
         _mediaSidebar.KeyDown += (_, e) =>
         {
             if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || ShortcutServiceCapturing()) return;
@@ -76,6 +80,15 @@ internal sealed partial class BooruWorkbenchView
             ResultActions result = new(this, BooruResultTarget.From(view, content.Row));
             if (SidebarResultIsCurrent(result)) OpenGallery(result.PostId);
         };
+    }
+
+    private void OnMediaSidebarKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || !_mediaSidebar.IsEffectivelyVisible || ShortcutServiceCapturing()
+            || !ShortcutService.Current.Matches(e, "media.sidebar.info", "media")
+            || CommandRouter.IsNativeInput(e.Source, e.Key) || !CommandRouter.IsRoutingContextActive(this, e.Source)) return;
+        e.Handled = true;
+        _mediaSidebar.ToggleFacts();
     }
 
     private void ToggleMediaSidebar()
@@ -113,7 +126,6 @@ internal sealed partial class BooruWorkbenchView
             return;
         }
 
-        _mediaSidebar.Width = Math.Min(Config.MediaPanelWidthDefault, _mediaSidebarPageWidth - SidebarHitsMinimum - SidebarGap);
         int cursor = view.Rows.IndexWhere(row => row.Post.PostId == _cursorPostId);
         int index = Math.Max(cursor, 0);
         BooruResultRowView row = view.Rows[index];
@@ -121,11 +133,12 @@ internal sealed partial class BooruWorkbenchView
         ResultActions result = new(this, target);
         _mediaSidebar.PresentPosition(index, view.Rows.Length, _selectedResults.Contains(result.PostId));
         int maximumPixels = ReadGallerySampleSettings().MaximumPixels;
-        var content = (view.ResultRevision, row, Texts.Language, result.IsAvailable(ResultAction.ShowInMedia, row), maximumPixels);
+        bool saved = result.IsAvailable(ResultAction.ShowInMedia, row);
+        var content = (view.ResultRevision, row, Texts.Language, saved, maximumPixels);
         if (_sidebarContent != content)
         {
             _sidebarContent = content;
-            _mediaSidebar.Present(target, row, maximumPixels);
+            _mediaSidebar.Present(target, row, saved, maximumPixels);
             BuildSidebarActions(row, result);
         }
         if (_sidebarTagContent != (target, Texts.Language))
@@ -140,7 +153,8 @@ internal sealed partial class BooruWorkbenchView
                 () => SidebarResultIsCurrent(result), () =>
                 {
                     if (SidebarResultIsCurrent(result) && result.CurrentRow() is { } current)
-                        _mediaSidebar.Present(target, current, ReadGallerySampleSettings().MaximumPixels);
+                        _mediaSidebar.Present(target, current, result.IsAvailable(ResultAction.ShowInMedia, current),
+                            ReadGallerySampleSettings().MaximumPixels);
                 });
     }
 
@@ -166,6 +180,7 @@ internal sealed partial class BooruWorkbenchView
                 Focusable = false, IsTabStop = false, IsEnabled = result.IsAvailable(command.Action, row)
             };
             button.Classes.Add(primary ? "primary" : "ghost");
+            AutomationProperties.SetAutomationId(button, button.Name);
             AutomationProperties.SetName(button, command.Name);
             AutomationProperties.SetHelpText(button, command.Reason);
             ToolTip.SetTip(button, command.Tip);
@@ -199,6 +214,7 @@ internal sealed partial class BooruWorkbenchView
                     Name = "BooruPanelTag:" + tag.Name, Content = outline, Focusable = false, IsTabStop = false,
                     Classes = { WorkspaceChips.SourceButton }, MaxWidth = 200
                 };
+                AutomationProperties.SetAutomationId(chip, chip.Name);
                 chip.Click += (_, _) =>
                 {
                     if (SidebarResultIsCurrent(result))
