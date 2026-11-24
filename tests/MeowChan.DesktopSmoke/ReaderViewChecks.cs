@@ -217,8 +217,9 @@ internal static class ReaderViewChecks
             ArchiveQuoteRow reference = new(new ArchiveQuote(new ArchivePostId(fixture.Id, ThreadId),
                 new ArchivePostId(fixture.Id, target), ">>" + target, null));
             page.RequestQuotePreview(reference, firstCard, default, immediate: false);
-            Require(ReferenceEquals(page.QuotePreviewRow, reference) && !page.IsQuoteHighlightVisible
-                && source.BuiltCount == beforeHover, "Hovering a distant quote built or highlighted a post outside the viewport.");
+            Require(page.IsQuotePreviewPending, $"The preview for distant quote {target} did not start its delay.");
+            Require(!page.IsQuoteHighlightVisible, $"Hovering distant quote {target} highlighted a post outside the viewport.");
+            Require(source.BuiltCount == beforeHover, $"Hovering distant quote {target} built {source.BuiltCount - beforeHover} rows.");
             page.CloseQuotePreview();
         }
         page.ReaderExpandRepliesPreference = true;
