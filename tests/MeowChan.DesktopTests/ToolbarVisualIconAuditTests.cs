@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -205,6 +206,14 @@ public sealed class ToolbarVisualIconAuditTests
             Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(media.FocusButton)));
             Assert.False(string.IsNullOrWhiteSpace(ToolTip.GetTip(media.FocusButton) as string));
 
+            bool wasShown = media.PageLayout.TagList;
+            media.LayoutFlyout.ShowAt(media.LayoutButton);
+            Settle(window);
+            Button wideTagList = Assert.IsAssignableFrom<Button>(media.LayoutMenuRows.ButtonOf(MediaLayoutMenu.TagListId));
+            wideTagList.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(!wasShown, media.PageLayout.TagList);
+            media.LayoutFlyout.Hide();
+
             BooruReviewTestPlatform.Resize(window, 760);
             Button more = Bar<Button>(media, "MediaMore");
             var flyout = Assert.IsAssignableFrom<MenuFlyout>(more.Flyout);
@@ -224,9 +233,8 @@ public sealed class ToolbarVisualIconAuditTests
             MenuItem focus = Assert.Single(rows, row => CommandBindings.ActionId(row) == "media.focus-mode");
             Assert.Equal(MenuIcons.KeyOf(focusIcon), MenuIcons.KeyOf(focus));
             MenuItem tagList = Assert.Single(layout.Items.OfType<MenuItem>(), row => Equals(row.Tag, MediaLayoutMenu.TagListId));
-            bool wasShown = media.PageLayout.TagList;
             tagList.Command!.Execute(null);
-            Assert.Equal(!wasShown, media.PageLayout.TagList);
+            Assert.Equal(wasShown, media.PageLayout.TagList);
             flyout.Hide();
 
             string? carried = null;
