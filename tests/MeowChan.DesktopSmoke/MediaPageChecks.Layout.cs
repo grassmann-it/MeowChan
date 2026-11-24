@@ -24,6 +24,7 @@ internal static partial class MediaPageChecks
     {
         MediaPageLayout saved = page.PageLayout;
         double width = window.Width;
+        Exception? failureBeforeCleanup = null;
         page.ApplyLayout(saved with { TagList = true, TagListSide = MediaTagListSide.Left }, save: false);
         try
         {
@@ -43,11 +44,19 @@ internal static partial class MediaPageChecks
             Console.WriteLine($"SMOKE media More at 832 DIP: toolbar {row.Bounds.Width:0.##}, More right {moreRight:0.##}.");
             Program.CaptureWindow(window, "smoke-media-more-832.png");
         }
+        catch (Exception failure)
+        {
+            failureBeforeCleanup = failure;
+            throw;
+        }
         finally
         {
-            window.Width = width;
-            page.ApplyLayout(saved, save: false);
-            await UntilAsync(() => Math.Abs(page.Bounds.Width - width) < 0.5);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                window.Width = width;
+                page.ApplyLayout(saved, save: false);
+                await UntilAsync(() => Math.Abs(page.Bounds.Width - width) < 0.5);
+            }, failure => Console.Error.WriteLine("SMOKE narrow Media toolbar cleanup: " + failure));
         }
     }
 

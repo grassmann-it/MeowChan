@@ -799,6 +799,7 @@ internal static class TaggingPageChecks
         await Program.WaitUntilAsync(() => tagging.Queue.Count == 201 && tagging.Queue.Cursor == 1 && tagging.StartButton.IsEffectivelyEnabled);
         ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
         KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        Exception? failureBeforeCleanup = null;
         try
         {
             CheckProgress(tagging, open: 201, finished: 0);
@@ -859,12 +860,20 @@ internal static class TaggingPageChecks
             CheckProgress(tagging, open: 199, finished: 1, skipped: 1);
             await session.DeleteTagQueueGroupAsync(groupId);
         }
+        catch (Exception failure)
+        {
+            failureBeforeCleanup = failure;
+            throw;
+        }
         finally
         {
-            Texts.SetLanguage("en");
-            tagging.Filter = TaggingQueueFilter.All;
-            await session.ClearTagQueueAsync();
-            await Program.WaitUntilAsync(() => tagging.Queue.Count == 0);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Texts.SetLanguage("en");
+                tagging.Filter = TaggingQueueFilter.All;
+                await session.ClearTagQueueAsync();
+                await Program.WaitUntilAsync(() => tagging.Queue.Count == 0);
+            }, failure => Console.Error.WriteLine("SMOKE tagging queue walk cleanup: " + failure));
         }
 
         TagQueueState? State(TagQueueItem item) =>
