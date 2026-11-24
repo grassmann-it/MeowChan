@@ -686,7 +686,7 @@ internal sealed partial class ReaderMediaSidebar : Border
                 anchor.BringIntoView();
                 TopLevel.GetTopLevel(this)?.UpdateLayout();
             }
-            if (request.IsCancellationRequested || !anchor.IsEffectivelyVisible || !anchor.IsAttachedToVisualTree()) return;
+            if (request.IsCancellationRequested || !anchor.IsEffectivelyVisible) return;
             _tagEditorAnchor = anchor;
             anchorPath = anchor.GetSelfAndVisualAncestors().ToArray();
             foreach (Visual visual in anchorPath) visual.PropertyChanged += OnAnchorVisibilityChanged;

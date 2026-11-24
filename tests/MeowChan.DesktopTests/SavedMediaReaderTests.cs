@@ -155,7 +155,7 @@ public sealed class SavedMediaReaderTests
         Assert.Empty(ReadTags(host).TagsOf(subjects['b']));
         editor.Close();
         Layout(window);
-        Assert.True(SidebarEditButton(window, sidebar).Focus());
+        FocusSidebarFrame(sidebar);
         long revision = (await host.LoadPostFiltersAsync()).Revision;
         PressKey(window, PhysicalKey.H);
         await page.PostFilterTask;
@@ -258,8 +258,8 @@ public sealed class SavedMediaReaderTests
         Assert.Same(selected, posts.SelectedItem);
         ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
         WaitUntil(() => sidebar.HeaderLine.Contains(saved.Version, StringComparison.Ordinal) && sidebar.Close.IsEffectivelyVisible);
-        Assert.True(sidebar.Close.Focus());
-        Assert.True(sidebar.Close.IsFocused);
+        Control frame = FocusSidebarFrame(sidebar);
+        Assert.True(frame.IsFocused);
         long before = store.Load().Revision;
         PressKey(window, PhysicalKey.H);
         BooruComponentDispatcher.Wait(page.PostFilterTask);
@@ -311,12 +311,12 @@ public sealed class SavedMediaReaderTests
             tiles.SelectedItem = first;
             page.TickMediaSidebarFollow();
             WaitUntil(() => sidebar.Load.ShownSource == new PixelSize(17, 11));
-            sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Overlay" });
-            Assert.True(sidebar.Close.Focus());
+            // W112-72 §§1,3: “Die Leisten nehmen im Overlay nie Layoutplatz”.
+            sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true });
+            Control frame = FocusSidebarFrame(sidebar);
             Layout(window);
-            Control frame = ById<Control>(sidebar, "ReaderMediaSidebarFrame");
             Control overlay = ById<Control>(sidebar, "ReaderMediaSidebarOverlay");
-            Point imagePoint = HitPoint(window, frame, new Point(frame.Bounds.Width / 2, 8));
+            Point imagePoint = HitPoint(window, frame);
             Point overlayPoint = HitPoint(window, overlay);
             Assert.False(overlay.IsVisualAncestorOf(Assert.IsAssignableFrom<Visual>(window.InputHitTest(imagePoint))));
             PressKey(window, PhysicalKey.M);
@@ -343,10 +343,10 @@ public sealed class SavedMediaReaderTests
             page.TickMediaSidebarFollow();
             WaitUntil(() => sidebar.Load.ShownSource == new PixelSize(19, 13));
             Layout(window);
-            Point secondImagePoint = HitPoint(window, frame, new Point(frame.Bounds.Width / 2, 8));
+            Point secondImagePoint = HitPoint(window, frame);
             window.MouseUp(secondImagePoint, MouseButton.Middle, RawInputModifiers.None);
             Assert.Single(folders);
-            Assert.True(sidebar.Close.Focus());
+            FocusSidebarFrame(sidebar);
             PressKey(window, PhysicalKey.U);
             BooruComponentDispatcher.Wait(page.FavoriteKeyTask);
             MiddleClick(secondImagePoint, secondImagePoint);
@@ -421,6 +421,14 @@ public sealed class SavedMediaReaderTests
 
     private static T ById<T>(Visual root, string id) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
+
+    private static Control FocusSidebarFrame(ReaderMediaSidebar sidebar)
+    {
+        // Kürzelschema §Vorrang: “Panelknöpfe nehmen in 1.1.2 keinen Fokus.”
+        Control frame = ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+        Assert.True(frame.Focus());
+        return frame;
+    }
 
     private static void Click(TopLevel root, Control control)
     {
@@ -757,12 +765,12 @@ public sealed class SavedMediaReaderTests
                 using TempDirectory profile = new();
                 string downloads = Path.Combine(profile.Path, "downloads");
                 string mediaDirectory = StorageLayout.GetThreadDirectory(downloads, ThreadId.Source, ThreadId.Board, ThreadId.Thread!);
-                (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(mediaDirectory, includePostAndReply: true);
                 new Config
                 {
                     DownloadPath = downloads, FirstRunSetupVersion = 1, DownloadsPaused = true,
                     WorkspaceMode = "Advanced", Language = "en", MediaSidebarInfo = "Always"
                 }.SaveConfig(profile.Path);
+                (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(mediaDirectory, includePostAndReply: true);
                 await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
                 using IDisposable manifests = VirtualMediaManifests.Register(Path.GetDirectoryName(mediaDirectory)!,
                     (directory, _, _) => Task.FromResult(directory == manifest.Directory ? manifest
