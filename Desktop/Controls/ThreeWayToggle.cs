@@ -53,6 +53,18 @@ internal sealed class ThreeWayToggle : StackPanel
     internal ToggleButton Second => _buttons[1];
     internal ToggleButton Third => _buttons[2];
 
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        double overlap = First.BorderThickness.Right;
+        if (UseLayoutRounding)
+            overlap = LayoutHelper.RoundLayoutValue(overlap, LayoutHelper.GetLayoutScale(this));
+        // The same rounded offset must feed the stack's measurements and each child's position.
+        Thickness join = new(-overlap, 0, 0, 0);
+        Second.Margin = join;
+        Third.Margin = join;
+        return base.MeasureOverride(availableSize);
+    }
+
     /// <summary>Sets the catalog icon, the accessible name and the hint (tooltip and help text) of the button at <paramref name="index"/>.</summary>
     internal void SetIconItem(int index, string icon, string text, string? hint)
     {
