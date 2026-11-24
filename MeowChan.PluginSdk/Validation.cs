@@ -163,8 +163,11 @@ public static class SdkValidation
         }
         checks.BoardId(request.Board, "request.board");
         checks.SameSource(request.Board?.SourceId, source.SourceId, "request.board.sourceId");
-        checks.RouteIdentity(source, SourceResourceKind.Board, request.Board?.BoardId, null, "request.board");
+        checks.RouteIdentity(source, request.IsArchive ? SourceResourceKind.BoardArchive : SourceResourceKind.Board,
+            request.Board?.BoardId, null, "request.board");
         checks.Page(request.Cursor, request.Page, "request");
+        if (request.IsArchive && source.Routes?.Any(route => route is { Kind: SourceResourceKind.BoardArchive, IsCanonical: true }) != true)
+            checks.Add("request.isArchive", "unsupported_archive", "The source did not declare a board archive.");
         checks.Validators(request.Validators, "request.validators");
         switch (result)
         {
@@ -683,10 +686,17 @@ public static class SdkValidation
             }, 64);
             foreach (SourceResourceKind kind in Enum.GetValues<SourceResourceKind>())
             {
-                bool supported = kind == SourceResourceKind.Thread ? source.Capabilities.HasFlag(SourceCapabilities.ThreadRead)
-                    : source.Capabilities.HasFlag(SourceCapabilities.BoardCatalog);
+                bool supported = kind switch
+                {
+                    SourceResourceKind.Thread => source.Capabilities.HasFlag(SourceCapabilities.ThreadRead),
+                    SourceResourceKind.Board => source.Capabilities.HasFlag(SourceCapabilities.BoardCatalog),
+                    _ => source.Routes?.Any(route => route?.Kind == kind) == true
+                };
                 int canonical = source.Routes?.Count(route => route is not null && route.Kind == kind && route.IsCanonical) ?? 0;
                 if (supported && canonical != 1) Add(path + ".routes", "canonical_route", "Every supported resource kind requires exactly one canonical route.");
+                if (kind == SourceResourceKind.BoardArchive && supported
+                    && !source.Capabilities.HasFlag(SourceCapabilities.BoardCatalog | SourceCapabilities.ThreadRead))
+                    Add(path + ".routes", "archive_requires_catalog", "A board archive requires catalog and thread reads.");
             }
             HashSet<string> hosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             List(source.HttpHosts, path + ".httpHosts", (host, itemPath) =>
