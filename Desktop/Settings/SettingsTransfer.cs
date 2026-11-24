@@ -288,6 +288,9 @@ public static class SettingsTransfer
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds,
             ShowBooruTools = source.ShowBooruTools,
             FooterPages = (string[])source.FooterPages.Clone(), // F1: the footer layout of the profile
+            ShowFooterNetwork = source.ShowFooterNetwork,
+            ShowFooterDisk = source.ShowFooterDisk,
+            ShowFooterStatus = source.ShowFooterStatus,
             ReaderPostWidth = source.ReaderPostWidth,
             VideoAutoplay = source.VideoAutoplay,
             VideoStartMuted = source.VideoStartMuted,

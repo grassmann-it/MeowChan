@@ -61,6 +61,7 @@ public partial class MainWindow
         if (_updateNotice != null)
         {
             _updateNotice.IsVisible = view.Update != null && !view.EnvironmentDisabled;
+            UpdateFooterStatusStrip();
             string label = view.Update == null ? string.Empty : Texts.T("updates.available", view.Update.Version);
             _updateNotice.Content = new TextBlock { Text = label, MaxWidth = 220, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis };
             AutomationProperties.SetName(_updateNotice, label);
