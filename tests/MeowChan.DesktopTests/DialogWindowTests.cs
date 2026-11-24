@@ -1,7 +1,10 @@
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 
@@ -9,6 +12,7 @@ namespace MeowChan.DesktopTests;
 
 // Modals plan MD1: the dialog factory's size steps, caption variant, Escape order, footer order and the optional frame
 // header. A Window needs a platform backend, so the shown windows are DesktopSmoke's dialog-frame and window-chrome runs.
+[Collection("Avalonia global state")]
 public sealed class DialogWindowTests
 {
     [Theory]
@@ -63,13 +67,54 @@ public sealed class DialogWindowTests
         Assert.Contains("WindowChrome.Frame(window, content, KindFor(modal), captionName)", source);
     }
 
-    [Fact]
-    public void SuggestionBoxLeavesEscapeToTheOwnerOnlyWhenAskedAndOnlyWithoutAnOpenList()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SuggestionBoxLeavesEscapeToItsOwnerOnlyWhenAllowedAndTheListIsClosed(bool releaseEscape)
     {
-        string source = File.ReadAllText(Source("Desktop/IdentitySuggestionBox.cs"));
-        Assert.Contains("internal bool ReleaseEscape { get; set; }", source);
-        Assert.Contains("bool listWasOpen = IsDropDownOpen;", source);
-        Assert.Contains("if (listWasOpen || !ReleaseEscape) e.Handled = true;", source);
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using IdentitySuggestionBox input = new() { ReleaseEscape = releaseEscape };
+            Window owner = new() { Width = 360, Height = 220, Content = input };
+            int escapes = 0;
+            owner.KeyDown += (_, e) => { if (e.Key == Key.Escape) escapes++; };
+            owner.Show();
+            owner.PlatformImpl!.Activated?.Invoke();
+            try
+            {
+                owner.UpdateLayout();
+                input.Focus();
+                input.Candidates = (_, _) => Task.FromResult<IdentitySuggestion[]>([new("fixture", null, "fixture")]);
+                input.ToggleExplicitList();
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(input.IsDropDownOpen);
+                Escape();
+                Assert.False(input.HasSuggestionList);
+                Assert.Equal(0, escapes);
+
+                TaskCompletionSource<IdentitySuggestion[]> pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                input.Candidates = (_, _) => pending.Task;
+                input.ToggleExplicitList();
+                Dispatcher.UIThread.RunJobs();
+                Assert.False(input.IsDropDownOpen);
+                Assert.True(input.HasSuggestionList);
+                Escape();
+                Assert.False(input.HasSuggestionList);
+                Assert.Equal(0, escapes);
+                pending.SetResult([]);
+
+                Escape();
+                Assert.Equal(releaseEscape ? 1 : 0, escapes);
+            }
+            finally { owner.Close(); }
+
+            void Escape()
+            {
+                owner.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.None, null);
+                owner.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.None, null);
+            }
+        });
     }
 
     [Fact]

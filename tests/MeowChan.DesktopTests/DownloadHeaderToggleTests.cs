@@ -1,10 +1,13 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Views.Shortcuts;
@@ -64,6 +67,83 @@ public sealed class DownloadHeaderToggleTests
         Assert.Equal(1L, Assert.Single(fixture.Threads.SelectedItems.OfType<ThreadRow>()).WatchId);
         Assert.True(fixture.Threads.IsKeyboardFocusWithin);
         Assert.True(fixture.Find<Button>("DownloadSearchClear").IsVisible);
+    });
+
+    [Fact]
+    public void EscapeDismissesOnlyTheFocusedAdmissionSurfaceBeforeTheSearch() => RunWithGrid(async fixture =>
+    {
+        MainWindow window = fixture.Window;
+        TextBox url = ById<TextBox>(window, "UrlInput");
+        url.Text = "https://admission.invalid/a/thread/123";
+        Click(fixture, ById<Button>(window, "AddUrlButton"));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
+        while (!window.GetVisualDescendants().OfType<Button>().Any(button =>
+            AutomationProperties.GetAutomationId(button) == "AdmissionResultsDismiss" && button.IsEffectivelyVisible))
+            await Task.Delay(10, deadline.Token);
+
+        Button repair = ById<Button>(window, "AdmissionRepairDismiss");
+        Button report = ById<Button>(window, "AdmissionResultsDismiss");
+        TextBox field = ById<TextBox>(window, "DownloadSearchInput");
+        window.FocusDownloadSearch();
+        fixture.Layout();
+        Assert.True(field.IsKeyboardFocusWithin);
+        Assert.True(repair.Focus());
+        Press(fixture, window, new KeyGesture(Key.Escape));
+        Assert.False(repair.IsEffectivelyVisible);
+        Assert.True(report.IsEffectivelyVisible && field.IsEffectivelyVisible && url.IsKeyboardFocusWithin);
+
+        Assert.True(report.Focus());
+        Press(fixture, window, new KeyGesture(Key.Escape));
+        Assert.False(report.IsEffectivelyVisible);
+        Assert.True(field.IsEffectivelyVisible && url.IsKeyboardFocusWithin);
+    });
+
+    [Fact]
+    public void DownloadsSearchLeavesItsTextAndFocusWithAnActiveComposition() => RunWithGrid(fixture =>
+    {
+        MainWindow window = fixture.Window;
+        window.FocusDownloadSearch();
+        fixture.Layout();
+        TextBox field = ById<TextBox>(window, "DownloadSearchInput");
+        field.Text = "fixture";
+        TextPresenter presenter = Assert.Single(field.GetVisualDescendants().OfType<TextPresenter>());
+        presenter.SetCurrentValue(TextPresenter.PreeditTextProperty, "candidate");
+        Press(fixture, window, CommandBindings.Gesture("input.focus-download-search")!);
+        Press(fixture, window, new KeyGesture(Key.Escape));
+        Assert.True(field.IsEffectivelyVisible && field.IsKeyboardFocusWithin);
+        Assert.Equal("fixture", field.Text);
+        presenter.SetCurrentValue(TextPresenter.PreeditTextProperty, null);
+        Press(fixture, window, new KeyGesture(Key.Escape));
+        Assert.False(field.IsEffectivelyVisible);
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public void SettingsSectionShortcutAlsoClosesNavigationFromTheShellFooter() => RunWithGrid(fixture =>
+    {
+        MainWindow window = fixture.Window;
+        window.Width = 740;
+        fixture.Layout();
+        Button footer = ById<Button>(window, "SettingsNavigationButton");
+        Click(fixture, footer);
+        Expander sections = ById<Expander>(window, "SettingsSections");
+        Assert.True(sections.IsEffectivelyVisible);
+
+        ShortcutBindingsSection before = ShortcutService.CurrentSection;
+        ShortcutService.Publish(before.Set("sections.open-navigation", [ShortcutGesture.Parse("Primary+Shift+J")]));
+        try
+        {
+            sections.IsExpanded = false;
+            KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture("sections.open-navigation"));
+            Assert.True(footer.Focus());
+            Press(fixture, window, gesture);
+            Assert.True(sections.IsExpanded);
+            Assert.True(footer.Focus());
+            Press(fixture, window, gesture);
+            Assert.False(sections.IsExpanded);
+        }
+        finally { ShortcutService.Publish(before); }
+        return Task.CompletedTask;
     });
 
     [Fact]
@@ -202,6 +282,9 @@ public sealed class DownloadHeaderToggleTests
 
     private static void RunWithGrid(Func<DownloadWindowFixture, Task> exercise) =>
         Run(exercise, () => Application.Current!.Styles.Insert(1, new DataGridSemiTheme()));
+
+    private static T ById<T>(Visual root, string id) where T : Control =>
+        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
     private static void Click(DownloadWindowFixture fixture, Control control)
     {
