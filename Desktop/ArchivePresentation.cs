@@ -327,8 +327,13 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
     public Func<FavoriteStarHold>? FavoriteHold { get; set; }
     public string Name => Asset.OriginalFileName ?? System.IO.Path.GetFileName(Asset.Path);
     public string Size => SizeText.Format(Asset.Length);
-    public string TileSummary => Size + " · " + Texts.T(Asset.IsCurrent ? "gallery.latestVersions" : "gallery.earlierVersion");
-    public string Version => Asset.Sha256[..Math.Min(12, Asset.Sha256.Length)];
+    public string ExactSize => MediaProvenanceText.FactSize(Asset.Length);
+    private string Revision => Texts.T(Asset.IsCurrent ? "archive.media.revision.current" : "archive.media.revision.earlier");
+    public string TileSummary => Size.Replace(' ', '\u00A0') + " · " + Revision;
+    public string Version => string.IsNullOrEmpty(Asset.Sha256) ? Revision
+        : Revision + " · " + Asset.Sha256[..Math.Min(12, Asset.Sha256.Length)];
+    public string VersionDetail => string.IsNullOrEmpty(Asset.Sha256) ? Revision
+        : Revision + Environment.NewLine + Texts.T("archive.media.sha256", Asset.Sha256);
     public string Path => Asset.Path;
 }
 

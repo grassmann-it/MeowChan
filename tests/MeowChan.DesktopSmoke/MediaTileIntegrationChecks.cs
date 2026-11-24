@@ -4,13 +4,14 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
@@ -132,10 +133,10 @@ internal static class MediaTileIntegrationChecks
             panel.RestoreAnchor(720, -17);
             await Settle(fixture);
             anchored = Key(Rows(tiles)[panel.CaptureAnchor()!.Value.Index]);
-            Click(page.FindControl<Button>("ArchiveMediaMode")!);
+            CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!);
             await Settle(fixture);
             Require(Key((ArchiveAssetRow)grid.SelectedItem!) == Key(chosen), "Tile-to-list toggle lost exact selected asset.");
-            Click(page.FindControl<Button>("ArchiveMediaMode")!);
+            CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!);
             await Settle(fixture);
             Require(Key((ArchiveAssetRow)tiles.SelectedItem!) == Key(chosen), "List-to-tile toggle lost exact selected asset.");
             Require(Key(Rows(tiles)[panel.CaptureAnchor()!.Value.Index]) == anchored, "List/tile roundtrip lost first visible identity.");
@@ -177,13 +178,13 @@ internal static class MediaTileIntegrationChecks
             string next = Key(before[first + panel.Columns]);
             var favorites = before.Skip(first + panel.Columns).Select(Key).ToHashSet();
             page.IsArchiveFavorite = entry => favorites.Contains(entry.Manifest.Directory + "|" + entry.Asset.AssetId);
-            Click(page.FindControl<Button>("ArchiveFavoritesFilter")!);
+            CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveFavoritesFilter")!);
             await Settle(fixture);
             Require(Key(Rows(tiles)[panel.CaptureAnchor()!.Value.Index]) == next, "Removed favorite anchor did not choose the next remaining old entry.");
             favorites.Clear(); Render(page);
             await Settle(fixture);
             Require(tiles.ItemCount == 0 && tiles.SelectedItem == null, "Empty favorites did not clear the sequence and selection.");
-            Click(page.FindControl<Button>("ArchiveFavoritesFilter")!);
+            CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveFavoritesFilter")!);
             await Settle(fixture);
             Require(panel.CaptureAnchor()!.Value.Index == 0, "Leaving an empty result did not start at the beginning.");
             await Program.WaitUntilAsync(() => tiles.GetVisualDescendants().OfType<Image>().Any(image => image.Source is Bitmap));
@@ -193,10 +194,10 @@ internal static class MediaTileIntegrationChecks
             await WaitForVisibleThumbnailsAsync(tiles);
             Program.CaptureWindow(fixture, "smoke-media-tiles-" + fixture.RenderScaling.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)
                 + "x-" + MeowChan.Desktop.Localization.Texts.Culture.TwoLetterISOLanguageName + "-" + fixture.ActualThemeVariant + ".png");
-            Click(page.FindControl<Button>("ArchiveMediaMode")!);
+            CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!);
             await Settle(fixture);
             Require(tiles.GetVisualDescendants().OfType<Image>().All(image => image.Source == null), "Hidden tile view retained decoded preview bitmaps.");
-            Click(page.FindControl<Button>("ArchiveMediaMode")!);
+            CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!);
             await Settle(fixture);
             await WaitForVisibleThumbnailsAsync(tiles);
             page.FindControl<ListBox>("ArchiveThreads")!.SelectedItems!.Clear();
@@ -328,7 +329,6 @@ internal static class MediaTileIntegrationChecks
     private static MediaTilePanel Panel(ListBox list) => list.GetVisualDescendants().OfType<MediaTilePanel>().Single();
     private static void SetAssets(ArchivePage page, ArchiveAssetRow[] rows) => typeof(ArchivePage).GetField("_assets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(page, rows);
     private static void Render(ArchivePage page) => typeof(ArchivePage).GetMethod("RenderMedia", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, null);
-    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
     private static async Task Settle(Window window)
     {
