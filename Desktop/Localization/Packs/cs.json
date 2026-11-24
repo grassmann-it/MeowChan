@@ -306,8 +306,6 @@
     "downloads.searchActive": "{0} výsledků · {1}",
     "downloads.searchActive.few": "{0} výsledky · {1}",
     "downloads.searchClear": "Vymazat",
-    "downloads.searchClose": "Zavřít",
-    "downloads.searchCloseTip": "Zavřít panel hledání. Esc nejprve smaže text a potom panel zavře.",
     "downloads.searchEmpty": "V této kartě nejsou žádné výsledky.",
     "downloads.searchClearQuery": "Vymazat hledaný text",
     "downloads.searchShowBoards": "Zobrazit {0} odpovídajících boardů",

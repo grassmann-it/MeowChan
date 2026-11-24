@@ -4,7 +4,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -64,17 +66,25 @@ public partial class MainWindow
         input.SelectAll();
     }
 
-    private void OnDownloadSearchClick(object? sender, RoutedEventArgs e) => FocusDownloadSearch();
+    private void OnDownloadSearchClick(object? sender, RoutedEventArgs e) => ToggleDownloadSearch();
 
-    // DL-07: the close of the open bar is a labelled "Close" with the collapse chevron, not a second ×
-    // (DownloadSearchCloseButton). Esc clears the text first (SearchBox) and closes the bar from an empty field (ExitRequested, InitializeWorkspace).
-    private void LocalizeDownloadSearchClose() => DownloadSearchCloseButton.Apply(DownloadSearchClose);
-
-    private void OnDownloadSearchClose(object? sender, RoutedEventArgs e)
+    private void ToggleDownloadSearch()
     {
+        if (_downloadSearchOpen) CloseDownloadSearch();
+        else FocusDownloadSearch();
+    }
+
+    private bool IsDownloadSearchSource(object? source) => CanFocusDownloadSearch && _downloadSearchOpen
+        && source is Avalonia.Visual visual && visual.GetSelfAndVisualAncestors().Contains(DownloadSearchBar);
+
+    private bool DownloadSearchIsComposing() => DownloadSearchInput.GetVisualDescendants().OfType<TextPresenter>()
+        .Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
+
+    private void CloseDownloadSearch()
+    {
+        DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
         _downloadSearchOpen = false;
         RefreshDownloadSearchPresentation();
-        DownloadSearchButton.Focus();
     }
     private void OnDownloadSearchClear(object? sender, RoutedEventArgs e)
     {
@@ -197,7 +207,7 @@ public partial class MainWindow
         bool active = !string.IsNullOrWhiteSpace(DownloadSearchText);
         DownloadSearchBar.IsVisible = _downloadSearchOpen || active;
         DownloadSearchInput.IsVisible = _downloadSearchOpen;
-        DownloadSearchClose.IsVisible = _downloadSearchOpen;
+        DownloadSearchButton.IsChecked = _downloadSearchOpen;
         // While the field is shown its own clear button is the way to empty it; the bar button covers the folded bar.
         DownloadSearchClear.IsVisible = active && !_downloadSearchOpen;
         TextBlock summary = DownloadSearchSummary;

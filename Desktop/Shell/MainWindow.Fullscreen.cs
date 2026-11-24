@@ -694,16 +694,23 @@ public partial class MainWindow
     /// <summary>F1, the app menu and the macOS Help menu: toggles the one shortcuts window on the area the user works in (KS2); the gallery passes its own context.</summary>
     private void ShowShellHelp(MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext? context = null)
     {
-        if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true }) { DismissShellHelp(); return; }
+        if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true } visible)
+        {
+            DismissShellHelp();
+            ShortcutHelpMenuItem.IsChecked = visible.IsVisible;
+            return;
+        }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
         var window = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.Open(this, SettingsEditor, context
             ?? (_gallery != null && !_gallerySuspended ? _gallery.ShortcutHelp() : ShellHelpContext()));
+        ShortcutHelpMenuItem.IsChecked = window.IsVisible;
         window.Closed -= OnShortcutsWindowClosed;
         window.Closed += OnShortcutsWindowClosed;
     }
 
     private void OnShortcutsWindowClosed(object? sender, EventArgs e)
     {
+        ShortcutHelpMenuItem.IsChecked = false;
         if (_isClosing) return;
         Activate();
         RestoreHelpOrigin();
@@ -821,6 +828,12 @@ public partial class MainWindow
             // sees Escape on macOS. The gallery retains that ownership for one
             // bounded grace so closing the popup cannot close the gallery too.
             if (_gallery != null && !_gallerySuspended && _gallery.ConsumeRecentlyClosedPlaybackMenuEscape(e)) return;
+            if (IsDownloadSearchSource(e.Source))
+            {
+                e.Handled = true;
+                if (!DownloadSearchIsComposing() && !DismissShellMenu()) CloseDownloadSearch();
+                return;
+            }
             // A search field with text takes its first Escape to clear itself (SearchBox); nothing around it reacts to that key.
             if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
@@ -830,7 +843,7 @@ public partial class MainWindow
                 e.Handled = tagging.DismissStampByEscape();
                 return;
             }
-            if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
+            if (DismissShellMenu() || DismissReadingHistory() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
                 (_selectedPage == WorkspacePage.Media && _mediaPage?.TryDismissPanelTagEditor(e) == true) ||
                 (_archivePage?.TryDismissOverlay(e.Source) ?? false))
             { e.Handled = true; return; }
@@ -841,15 +854,16 @@ public partial class MainWindow
             { _pluginsPage.CancelDiscardConfirmation(); e.Handled = true; return; }
             if (_selectedPage == WorkspacePage.Sources && _gallery == null && !_largeReaderOpen && _sourcesPage?.TryDismissMergedLayer() == true)
             { e.Handled = true; return; }
+            if (CanFocusDownloadSearch && (WorkspaceInspector.IsVisible || _downloadSearchOpen))
+            {
+                e.Handled = true;
+                if (WorkspaceInspector.IsVisible) ToggleWorkspaceDetails();
+                else CloseDownloadSearch();
+                return;
+            }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }
             if (_largeReaderOpen) { e.Handled = true; CloseLargeReader(); return; }
-            if (_selectedPage == WorkspacePage.Downloads && WorkspaceInspector.IsVisible)
-            {
-                e.Handled = true;
-                OnDetailsToggleClick(sender, e);
-                DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
-            }
             return;
         }
         if (HasBlockingPageDecision()) return;
@@ -920,10 +934,17 @@ public partial class MainWindow
                 }
                 return;
             }
-            if (CommandBindings.Matches(e, "input.focus-download-search") && CanFocusDownloadSearch)
+            if (CanFocusDownloadSearch && DownloadsMatches(e, "input.focus-download-search")
+                && (!IsDownloadSearchSource(e.Source) || !DownloadSearchIsComposing()))
             {
                 e.Handled = true;
-                FocusDownloadSearch();
+                ToggleDownloadSearch();
+                return;
+            }
+            if (CanFocusDownloadSearch && DownloadsColumnsButton.IsVisible && DownloadsMatches(e, "table.choose-columns"))
+            {
+                e.Handled = true;
+                ToggleDownloadColumns();
                 return;
             }
             if (TryRunUnroutedShellCommand(e)) return;

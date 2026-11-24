@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
@@ -22,18 +23,36 @@ public partial class MainWindow
         CommandBindings.Apply(DownloadsColumnsButton, "table.choose-columns", iconWithLabel: true);
     }
 
-    private void OnDownloadsColumnsClick(object? sender, RoutedEventArgs e)
+    private void ToggleDownloadColumns()
     {
-        if (sender is not Button button) return;
+        var button = DownloadsColumnsButton;
+        if (button.ContextMenu is { IsOpen: true } open)
+        {
+            open.Close();
+            return;
+        }
         ContextMenu menu = BuildDownloadColumnsMenu(DownloadsTabs.SelectedIndex == 1 ? "BoardsDataGrid" : "ThreadsDataGrid");
         button.ContextMenu = menu;
-        // The menu is built for the table of the tab shown now; a later right-click on the button must not reopen it for another tab.
-        menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };
+        menu.Closed += (_, _) =>
+        {
+            if (!ReferenceEquals(button.ContextMenu, menu)) return;
+            button.ContextMenu = null;
+            button.IsChecked = false;
+        };
+        menu.AddHandler(InputElement.KeyDownEvent, (_, key) =>
+        {
+            if (ShortcutService.IsCapturing) return;
+            using var context = EffectiveShortcutBindings.EnterKeyContext("downloads");
+            if (!ShortcutService.Current.Matches(key, "table.choose-columns")) return;
+            key.Handled = true;
+            menu.Close();
+        }, RoutingStrategies.Tunnel);
         menu.Open(button);
+        button.IsChecked = menu.IsOpen;
     }
 
     // A right-click on a column header of either downloads table opens the same column menu as the "Columns" button; the keyboard
-    // reaches it through that button. Rows keep their own menu (MainWindow.Selection.cs).
+    // can run the column command separately. Rows keep their own menu (MainWindow.Selection.cs).
     private void InitializeDownloadHeaderMenus()
     {
         foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })

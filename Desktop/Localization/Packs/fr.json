@@ -518,8 +518,6 @@
     "search.carry.offerKeep": "Garder l’actuelle",
     "command.input.focus-diagnostics-search": "Rechercher dans le diagnostic",
     "command.scope.input.focus-diagnostics-search": "Diagnostic · filtre des messages",
-    "downloads.searchClose": "Fermer",
-    "downloads.searchCloseTip": "Fermer la barre de recherche. Échap efface d’abord le texte, puis ferme la barre.",
     "downloads.searchEmpty": "Aucun résultat dans cet onglet.",
     "downloads.searchClearQuery": "Effacer le texte de recherche",
     "downloads.searchShowBoards": "Afficher {0} tableaux correspondants",

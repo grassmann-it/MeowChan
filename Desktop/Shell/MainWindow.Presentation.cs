@@ -37,8 +37,6 @@ public partial class MainWindow
         if (_workspaceInitialized) return;
         _workspaceInitialized = true;
         _workspaceRefresh = new CoalescedUiUpdate(RefreshWorkspace);
-        // Escape clears the typed search first (SearchBox); in an empty field it closes the search bar.
-        DownloadSearchInput.ExitRequested += (_, e) => { if (_downloadSearchOpen) { OnDownloadSearchClose(DownloadSearchInput, new RoutedEventArgs()); e.Handled = true; } };
         UrlList.CollectionChanged += OnWorkspaceCollectionChanged;
         BoardsList.CollectionChanged += OnWorkspaceCollectionChanged;
         Texts.Changed += OnWorkspaceLanguageChanged;
@@ -47,7 +45,6 @@ public partial class MainWindow
         ShellActionErrorBanner.PropertyChanged += OnShellFeedbackVisibilityChanged;
         ApplyWindowChrome();
         PropertyChanged += OnWindowChromePropertyChanged;
-        KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
         InitializeFooterDisplays();
         InitializeDownloadsHeader();
@@ -81,7 +78,6 @@ public partial class MainWindow
         WorkspaceBody.SizeChanged -= OnWorkspaceBodySizeChanged;
         ShellActionErrorBanner.PropertyChanged -= OnShellFeedbackVisibilityChanged;
         PropertyChanged -= OnWindowChromePropertyChanged;
-        KeyDown -= OnWorkspaceKeyDown;
         DisposeShellPresentation();
         DisposeWindowPreferences();
     }
@@ -125,16 +121,6 @@ public partial class MainWindow
         // the selected item. Keep that item reachable after a resize or an expanded
         // admission report instead of leaving selection below the clipped viewport.
         KeepSelectedDownloadVisible();
-    }
-
-    private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Handled || IsNativeShortcutSource(e.Source) || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
-        if (_selectedPage != WorkspacePage.Downloads || e.Key != Key.Escape || !WorkspaceInspector.IsVisible) return;
-        OnDetailsToggleClick(sender, e);
-        WorkspaceControl<DataGrid>(DownloadsTabs.SelectedIndex == 1
-            ? "BoardsDataGrid" : "ThreadsDataGrid").Focus();
-        e.Handled = true;
     }
 
     private void OnWorkspaceLanguageChanged(object? sender, EventArgs e)
@@ -351,7 +337,6 @@ public partial class MainWindow
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
         LocalizeHeaderTagline();
-        LocalizeDownloadSearchClose();
         LocalizeAdmissionDismiss();
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
@@ -442,6 +427,7 @@ public partial class MainWindow
     private void RefreshDetailsToggleIcon()
     {
         bool visible = WorkspaceInspector.IsVisible;
+        DetailsToggleButton.IsChecked = visible;
         CommandBindings.ApplyLabeled(DetailsToggleButton,
             visible ? "inspector.close" : "thread.details",
             Texts.T(visible ? "action.hideDetails" : "action.showDetails"));
@@ -662,8 +648,12 @@ public partial class MainWindow
         RefreshWorkspace();
     }
 
-    private void OnDetailsToggleClick(object? sender, RoutedEventArgs e)
+    private void OnDetailsToggleClick(object? sender, RoutedEventArgs e) => ToggleWorkspaceDetails();
+
+    private void ToggleWorkspaceDetails()
     {
+        bool closing = WorkspaceInspector.IsVisible;
+        if (closing) DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
         if (_workspaceNarrowLayout) _workspaceNarrowInspectorVisible = !_workspaceNarrowInspectorVisible;
         else _workspaceInspectorVisible = !_workspaceInspectorVisible;
         UpdateWorkspaceLayout();
@@ -675,7 +665,12 @@ public partial class MainWindow
         if (_refreshingDownloadSearch) return;
         RefreshWorkspace();
     }
-    private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
+    private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_workspaceInitialized && ReferenceEquals(e.Source, DownloadsTabs))
+            DownloadsColumnsButton.ContextMenu?.Close();
+        RefreshWorkspace();
+    }
     private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e) => GoToDownloads();
 
     // The footer button and the empty states of Archive and Media share this destination.

@@ -137,44 +137,25 @@ public sealed class DownloadsFollowUpTests
         finally { Texts.SetLanguage(previous); }
     }
 
-    // ---- DL-07: one cross in the open search bar -------------------------------------------------------------
-
+    // FIX-112-TOGGLE audit §1: the opener closes the editor; Clear remains a separate action.
     [Theory]
-    [InlineData("en", "Close")]
-    [InlineData("de", "Schließen")]
-    public void TheCloseOfTheSearchBarIsALabelledChevronButtonNotACross(string language, string label)
+    [InlineData("en")]
+    [InlineData("de")]
+    public void TheDownloadsSearchEditorKeepsItsOwnClearAction(string language)
     {
         string previous = Texts.Language;
         try
         {
             Texts.SetLanguage(language);
-            Button close = new();
-            DownloadSearchCloseButton.Apply(close);
-            Assert.Equal(label, close.Content);
-            Assert.Null(WorkspaceIcons.KeyOf(close.Content)); // no drawn cross content
-            Assert.DoesNotContain(WorkspaceIcons.SquareClass, close.Classes);
-            Assert.Equal("chevron-up", IconButtons.KeyOf(close));
-            Assert.Equal(label, AutomationProperties.GetName(close));
-            string tip = Assert.IsType<string>(ToolTip.GetTip(close));
-            Assert.Equal(Texts.T("downloads.searchCloseTip"), tip);
-            Assert.Contains("Esc", tip);
-            // Calling it again (language change) only renames it.
-            DownloadSearchCloseButton.Apply(close);
-            Assert.Equal(label, close.Content);
+            SearchBox search = new() { Text = "local query" };
+            Assert.True(search.ClearButton.IsVisible);
+            Assert.Equal("SearchBoxClear", search.ClearButton.Name);
+            Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(search.ClearButton)));
+            search.ClearButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(string.Empty, search.Text);
+            Assert.False(search.ClearButton.IsVisible);
         }
         finally { Texts.SetLanguage(previous); }
-    }
-
-    [Fact]
-    public void TheSearchFieldKeepsTheClearCrossAndTheBarsCloseIsDeclaredInTheEndSlot()
-    {
-        XDocument window = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
-        XElement close = window.Descendants().Single(element => (string?)element.Attribute(X + "Name") == "DownloadSearchClose");
-        Assert.Equal("True", close.Attributes().Single(attribute => attribute.Name.LocalName == "HeaderBar.IsEnd").Value);
-        Assert.DoesNotContain("icon-square", (string?)close.Attribute("Classes") ?? string.Empty);
-        // The field's own clear button is the only cross of the row.
-        string searchBox = File.ReadAllText(Root("Desktop/Controls/SearchBox.cs"));
-        Assert.Contains("SearchBoxClear", searchBox);
     }
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
