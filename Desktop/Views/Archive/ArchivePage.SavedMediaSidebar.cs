@@ -56,7 +56,7 @@ public partial class ArchivePage
         sidebar.ConfigureRating(() => Current() && !row.RatingUnavailable && _mediaRatingError == null
             && GetMediaRating != null && SetMediaRatingAsync != null && CanChangeMediaRating?.Invoke(key) == true,
             () => row.Rating, value => Current() ? SetMediaRatingAsync?.Invoke(key, value) ?? Task.CompletedTask : Task.CompletedTask);
-        _ = RefreshSavedMediaSidebarTagsAsync(sidebar, thread, row, Current);
+        OpenActions.Start(() => RefreshSavedMediaSidebarTagsAsync(sidebar, thread, row, Current), "archive.savedMedia.sidebarTags");
     }
 
     private async Task RefreshSavedMediaSidebarTagsAsync(ReaderMediaSidebar sidebar, ArchivedThreadView thread, ArchiveAssetRow row, Func<bool> current)
