@@ -48,10 +48,10 @@ public static class GalleryShortcutScheme
     /// <summary>The Shift-letter defaults that act on the shown medium instead of showing or hiding a block: mute (Shift+M), rotate (Shift+R), snapshot (Shift+S) and slideshow (Shift+D, revision 22).</summary>
     public static IReadOnlyList<string> ShiftLetterActionIds { get; } = Array.AsReadOnly(new[] { "video.mute", "gallery.rotate", "video.snapshot", "gallery.slideshow-toggle" });
 
-    /// <summary>The Shift-letter defaults of another page that switch what that page shows (the Media page's focus mode, Shift+F next to the favourite's F). They are
+    /// <summary>The Shift-letter switches outside the gallery: the Media page's focus mode (Shift+F) and details in the media sidebar (Shift+I). They are
     /// panel-like switches, not actions on a medium, and are no gallery commands, so they sit in neither <see cref="PanelToggleIds"/> nor <see cref="ShiftLetterActionIds"/>.
     /// <c>ShiftLetterSchemeTests</c> accepts exactly these three lists for a default of the form Shift + one letter.</summary>
-    public static IReadOnlyList<string> ShiftLetterOtherPanelIds { get; } = Array.AsReadOnly(new[] { "media.focus-mode" });
+    public static IReadOnlyList<string> ShiftLetterOtherPanelIds { get; } = Array.AsReadOnly(new[] { "media.focus-mode", "media.sidebar.info" });
 
     /// <summary>The favourite keys (revision 20), the same on every surface that shows or selects a medium: M adds, U removes, F toggles.</summary>
     public static IReadOnlyList<string> FavoriteKeyIds { get; } = Array.AsReadOnly(new[] { "favorites.add", "favorites.remove", "favorites.toggle" });
