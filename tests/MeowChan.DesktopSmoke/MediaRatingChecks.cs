@@ -4,6 +4,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
@@ -94,6 +95,7 @@ internal static partial class MediaRatingChecks
             Require(command.CanExecute(item.CommandParameter), intent + " menu command is unavailable");
             command.Execute(item.CommandParameter);
         }
+        else if (control is ToggleButton) CommandBindings.InvokeAction(control);
         else SmokeActionClick.Execute(control);
     }
     private static async Task<Control> FocusSelectedAsync(Control list, object selected)
@@ -333,11 +335,11 @@ internal static partial class MediaRatingChecks
             Observe("Missing local bytes do not prevent exact metadata rating", !File.Exists(Row(3).Asset.Path) && Rating(Row(3)) == 2);
             SetChoice(Filter, 1, "Filter unrated only"); Projection("Unrated projection", row => Rating(row) == null);
             SetChoice(Filter, 5, "Filter minimum 4"); Projection("Minimum 4 projection", row => Rating(row) >= 4);
-            Click(_page.FindControl<Button>("ArchiveFavoritesFilter")!, "Intersect rating and favorites");
+            Click(_page.FindControl<ToggleButton>("ArchiveFavoritesFilter")!, "Intersect rating and favorites");
             Projection("Favorite AND minimum 4", row => Rating(row) >= 4 && MediaRatingFixture.Specs.Single(s => row.Asset.OriginalFileName == $"rating-{s.Index:D2}.png").Favorite);
             SetChoice(_page.FindControl<ComboBox>("ArchiveVersionScope")!, 0, "Intersect current version scope");
             Projection("Current AND favorite AND minimum 4", row => row.Asset.IsCurrent && Rating(row) >= 4 && MediaRatingFixture.Specs.Single(s => row.Asset.OriginalFileName == $"rating-{s.Index:D2}.png").Favorite);
-            Click(_page.FindControl<Button>("ArchiveFavoritesFilter")!, "Restore all favorite states");
+            Click(_page.FindControl<ToggleButton>("ArchiveFavoritesFilter")!, "Restore all favorite states");
             SetChoice(_page.FindControl<ComboBox>("ArchiveVersionScope")!, 1, "Restore all versions");
             SetChoice(Filter, 0, "Restore all rating values");
             SetChoice(_page.FindControl<ComboBox>("ArchiveMediaSort")!, 3, "Sort rating descending, unrated last");
