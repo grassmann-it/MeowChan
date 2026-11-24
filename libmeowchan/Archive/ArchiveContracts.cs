@@ -221,16 +221,33 @@ internal static class ArchivePostOrder
 {
     private static readonly IComparer<string> DecimalIdentityOrder = Comparer<string>.Create(CompareDecimalIdentity);
 
+    // A partial 4chan or 8kun capture can contain replies without the opening post.
+    internal static bool ThreadNumberIdentifiesOpeningPost(string source) => source is "4chan" or "8kun";
+
+    internal static string? OpeningPostId(ArchivedThreadView thread)
+    {
+        ResourceId id = thread.Summary.Id;
+        if (ThreadNumberIdentifiesOpeningPost(id.Source))
+            return id.Thread is { } number && thread.FindPostIndex(number) >= 0 ? number : null;
+        return thread.Posts.FirstOrDefault()?.PostId;
+    }
+
     internal static CapturedPost[] Sort(ResourceId id, IEnumerable<CapturedPost> posts, bool? decimalPostOrder = null)
     {
         CapturedPost[] items = posts.ToArray();
         // This is a source contract, not an assumption that every provider's numeric IDs
         // are chronological. Opaque/custom providers retain control through Ordinal.
-        if ((decimalPostOrder ?? (id.Source is "4chan" or "8kun"))
-            && items.All(post => post.PostId.Length > 0 && post.PostId.All(character => character is >= '0' and <= '9')))
-            return items.OrderBy(post => post.PostId, DecimalIdentityOrder).ToArray();
-        return items.OrderBy(post => post.Ordinal).ThenBy(post => post.PostId, StringComparer.Ordinal).ToArray();
+        bool useDecimal = (decimalPostOrder ?? (id.Source is "4chan" or "8kun"))
+            && items.All(post => post.PostId.Length > 0 && post.PostId.All(character => character is >= '0' and <= '9'));
+        return Order(items, post => post.PostId, post => post.Ordinal, useDecimal).ToArray();
     }
+
+    internal static T? FirstDeclaredPost<T>(IReadOnlyList<T> posts, Func<T, string> postId, Func<T, long> ordinal, bool decimalPostOrder)
+        where T : class => Order(posts, postId, ordinal, decimalPostOrder).FirstOrDefault();
+
+    private static IOrderedEnumerable<T> Order<T>(IEnumerable<T> posts, Func<T, string> postId, Func<T, long> ordinal, bool decimalPostOrder)
+        => decimalPostOrder ? posts.OrderBy(postId, DecimalIdentityOrder)
+            : posts.OrderBy(ordinal).ThenBy(postId, StringComparer.Ordinal);
 
     private static int CompareDecimalIdentity(string? first, string? second)
     {

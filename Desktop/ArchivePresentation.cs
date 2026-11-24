@@ -355,11 +355,5 @@ internal static class ArchivePresentation
         return (header, body);
     }
 
-    // 4chan/8kun number the opening post with the thread number, so a thread whose OP was not
-    // captured has none. Other sources: the first captured post opens the thread.
-    internal static string? OpeningPostId(ArchivedThreadView thread) => OpeningPostId(thread.Summary.Id,
-        id => thread.FindPostIndex(id) >= 0, thread.PostCount == 0 ? null : thread.GetPosts(0, 1)[0].PostId);
-
-    internal static string? OpeningPostId(ResourceId thread, Func<string, bool> captured, string? firstPost) =>
-        thread.Thread is { } id && captured(id) ? id : thread.Source is "4chan" or "8kun" ? null : firstPost;
+    internal static string? OpeningPostId(ArchivedThreadView thread) => ArchivePostOrder.OpeningPostId(thread);
 }

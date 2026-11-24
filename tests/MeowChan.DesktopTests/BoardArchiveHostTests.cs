@@ -97,6 +97,43 @@ public sealed class BoardArchiveHostTests
         Assert.Equal(3, transport.Requests.Count(call => call.Path == "/g/archive.json"));
     }
 
+    [Theory]
+    [InlineData(PostOrderKind.StableOrdinal, "later", "a1", 10)]
+    [InlineData(PostOrderKind.StableOrdinal, "123", "a1", 10)]
+    [InlineData(PostOrderKind.DecimalPostId, "92233720368547758080", "9223372036854775808", 30)]
+    public async Task PreviewUsesTheDeclaredPostOrder(PostOrderKind order, string last, string first, int firstOrdinal)
+    {
+        await using var worker = new ArchiveWorker(order: order)
+        {
+            ReadPosts = (_, _) => Task.FromResult<SourcePost[]>(
+                [new(last, 20, SourceFieldPresence.Text, Text: last),
+                 new(first, firstOrdinal, SourceFieldPresence.Text, Text: $"<b>{first}</b>")])
+        };
+        using PluginSourceImageBoard source = worker.CreateSource();
+
+        BoardArchiveThreadDetails details = Assert.IsType<BoardArchiveThreadDetails>(
+            await source.ReadBoardArchiveThreadAsync("https://archive.test/g/thread/123", CancellationToken.None));
+        Assert.Equal(first, details.OpeningPost);
+    }
+
+    [Theory]
+    [InlineData("archive-fixture", false)]
+    [InlineData("4chan", true)]
+    [InlineData("8kun", true)]
+    public async Task PreviewHasNoOpeningTextForAnEmptySnapshotOrAMissingNumberedOp(string sourceId, bool hasReply)
+    {
+        await using var worker = new ArchiveWorker(sourceId)
+        {
+            ReadPosts = (_, _) => Task.FromResult<SourcePost[]>(hasReply
+                ? [new("124", 0, SourceFieldPresence.Text, Text: "Only a reply")] : [])
+        };
+        using PluginSourceImageBoard source = worker.CreateSource();
+
+        BoardArchiveThreadDetails details = Assert.IsType<BoardArchiveThreadDetails>(
+            await source.ReadBoardArchiveThreadAsync("https://archive.test/g/thread/123", CancellationToken.None));
+        Assert.Equal(string.Empty, details.OpeningPost);
+    }
+
     private static BoardArchiveLocation Archive(DesktopSessionHost host, string board)
         => Assert.IsType<BoardArchiveLocation>(host.FindBoardArchive("https://boards.4chan.org/" + board + "/archive"));
 
