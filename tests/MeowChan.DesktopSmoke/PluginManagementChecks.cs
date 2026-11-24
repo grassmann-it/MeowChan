@@ -66,14 +66,14 @@ internal static partial class PluginManagementChecks
                 .Replace("Fixture rejects count nine", "Fixture rejects effective default two", StringComparison.Ordinal)
             : FixtureSource;
         await File.WriteAllTextAsync(source, fixtureSource);
-        PluginCompilationService compiler = new(new(Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory, Path.Combine(root, "cache")));
+        await using PluginCompilationService compiler = new(new(Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory, Path.Combine(root, "cache")));
         PluginInstallationInventory inventory = new();
         PluginProfileStore profile = new(root);
         PluginWorkerLaunch launch = new(Path.Combine(workerDirectory, "MeowChan.PluginWorker" + executableSuffix), Array.Empty<string>(), Path.Combine(root, "workers"));
         Directory.CreateDirectory(launch.WorkingDirectory);
         await using PluginWorkerManager runtime = new(new() { OperationTimeout = TimeSpan.FromSeconds(5) });
-        FixtureTransport transportHandler = new();
-        using HttpClient transport = new(transportHandler);
+        using FixtureTransport transportHandler = new();
+        using HttpClient transport = new(transportHandler, disposeHandler: false);
         PluginBuildResult original = await compiler.BuildAsync(source);
         Require(original.Succeeded, "Real fixture compilation failed: " + string.Join("; ", original.Diagnostics.Select(item => item.Message)));
         PluginDescription description = await runtime.DescribeAsync(launch, original.Artifact!);
