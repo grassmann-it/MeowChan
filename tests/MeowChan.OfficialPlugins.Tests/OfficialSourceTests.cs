@@ -41,7 +41,8 @@ public sealed class OfficialSourceTests
     {
         ISourcePlugin plugin = Plugin(eightKun);
         SourceDescription source = plugin.Describe().Sources.Single();
-        using HttpClient client = new(new LibraryTransport("", ""));
+        using LibraryTransport transport = new("", "");
+        using HttpClient client = new(transport, disposeHandler: false);
         IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
         Assert.Equal(eightKun ? 5 : 8, source.Routes.Count);
         foreach (UrlRoute route in source.Routes)
@@ -95,7 +96,8 @@ public sealed class OfficialSourceTests
         FourChanPlugin plugin = new();
         ThreadFailure failure = Assert.IsType<ThreadFailure>(await plugin.ReadThreadAsync(Request(false), Context(new FixtureHttp(Response(200, body)))));
         Assert.Equal("invalid_metadata", failure.Failure.Code);
-        using HttpClient client = new(new LibraryTransport(body, "[]"));
+        using LibraryTransport transport = new(body, "[]");
+        using HttpClient client = new(transport, disposeHandler: false);
         FourChanImageBoard provider = new(client);
         IThread thread = provider.GetThread(new Uri("https://boards.4chan.org/g/thread/123"));
         await Assert.ThrowsAsync<InvalidDataException>(() => thread.checkThreadAsync(new DownloadQueue(1, 1024)));
@@ -112,7 +114,8 @@ public sealed class OfficialSourceTests
         ISourcePlugin plugin = Plugin(eightKun);
         ThreadFailure failure = Assert.IsType<ThreadFailure>(await plugin.ReadThreadAsync(Request(eightKun), Context(new FixtureHttp(Response(200, body)))));
         Assert.Equal("invalid_metadata", failure.Failure.Code);
-        using HttpClient client = new(new LibraryTransport(body, "[]"));
+        using LibraryTransport transport = new(body, "[]");
+        using HttpClient client = new(transport, disposeHandler: false);
         IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
         IThread thread = provider.GetThread(new Uri(eightKun ? "https://8kun.top/g/res/123.html" : "https://boards.4chan.org/g/thread/123"));
         await Assert.ThrowsAsync<InvalidDataException>(() => thread.checkThreadAsync(new DownloadQueue(1, 1024)));
@@ -130,7 +133,8 @@ public sealed class OfficialSourceTests
         const string body = "[{\"threads\":[{\"no\":\"000123\"}]}]";
         CatalogSnapshot result = Assert.IsType<CatalogSnapshot>(await plugin.ReadCatalogAsync(request, Context(new FixtureHttp(Response(200, body)))));
         Assert.Equal("123", Assert.Single(result.Snapshot.Threads).Id.ThreadId);
-        using HttpClient client = new(new LibraryTransport("", body));
+        using LibraryTransport transport = new("", body);
+        using HttpClient client = new(transport, disposeHandler: false);
         IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
         IThread legacy = Assert.Single(await provider.GetBoard(new Uri(eightKun ? "https://8kun.top/g/" : "https://boards.4chan.org/g/")).GetThreadsAsync());
         Assert.Equal(legacy.ThreadUri, result.Snapshot.Threads.Single().Url);
@@ -201,7 +205,8 @@ public sealed class OfficialSourceTests
             await using ThreadContentRuntime runtime = new(profile, lease);
             await runtime.InitializeAsync();
             await runtime.Rules.SaveAsync([new MediaRule(MediaRuleScope.Global, types: new MediaTypeSelection(MediaTypeSelectionMode.Selected))]);
-            using HttpClient client = new(new LibraryTransport(json, Fixture("catalog.json")));
+            using LibraryTransport transport = new(json, Fixture("catalog.json"));
+            using HttpClient client = new(transport, disposeHandler: false);
             IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
             DownloadQueue queue = new(1, 1L << 30);
             await using Registry registry = new([provider], queue, Path.Combine(profile, "media"), TimeSpan.FromHours(1), 60,
