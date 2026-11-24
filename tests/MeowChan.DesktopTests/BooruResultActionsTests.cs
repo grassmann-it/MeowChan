@@ -25,6 +25,41 @@ public sealed class BooruResultActionsTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void ResultsAndTheInlineGalleryUseTheSameContextMenuInEitherHost(bool separate) => Run(() =>
+    {
+        using Fixture fixture = new(separate);
+        fixture.Queue.States["101"] = BooruLocalState.Loaded;
+        fixture.View.ShowInMedia = id => { fixture.LocallyOpened.Add(id); return Task.FromResult(true); };
+        fixture.Search("cat");
+        ContextGestures.MenuKey(fixture.Hit("101"));
+        ContextMenu grid = Assert.IsType<ContextMenu>(fixture.Hit("101").ContextMenu);
+        string[] ids = MenuProbe.Entries(grid).Select(item => item.Id).ToArray();
+        Assert.Contains("gallery.open", ids);
+        Assert.Contains(BooruWorkbenchView.MenuShowInMedia, ids);
+        grid.Close();
+        fixture.View.SetResultView(BooruResultView.List, save: false);
+        fixture.Settle();
+        Border hit = fixture.Hit("101");
+        ContextGestures.ShiftF10(hit);
+        ContextMenu list = Assert.IsType<ContextMenu>(hit.ContextMenu);
+        Assert.Equal(ids, MenuProbe.Entries(list).Select(item => item.Id));
+        list.Close();
+        ContextGestures.DoubleClick(hit, new Point(12, 12));
+        Assert.Equal("101", fixture.View.Gallery.CurrentPostId);
+        Assert.Empty(fixture.LocallyOpened);
+
+        Control stage = fixture.View.Gallery.Stage;
+        ContextGestures.RightClick(stage);
+        ContextMenu gallery = Assert.IsType<ContextMenu>(stage.ContextMenu);
+        Assert.Equal(ids, MenuProbe.Entries(gallery).Select(item => item.Id));
+        gallery.Close();
+        ContextGestures.MiddleClick(stage);
+        Assert.Equal(Url("101"), Assert.Single(fixture.Harness.Links.Opened));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void AGridHasOnePreviewPerHitAndRestoresTheScrolledHitAfterAnAction(bool separate) => Run(() =>
     {
         using Fixture fixture = new(separate, perPage: 10);

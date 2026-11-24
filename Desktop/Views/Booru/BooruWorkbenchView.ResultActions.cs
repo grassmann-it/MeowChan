@@ -26,13 +26,13 @@ internal sealed partial class BooruWorkbenchView
         !_closed && ReferenceEquals(scope.Tab, _tabs.SelectedItem) && _model.Search.ResultRow(scope.Target) != null;
 
     /// <summary>One binding shared by the tile or list row and every surface that acts on it.</summary>
-    private sealed class ResultActions(BooruWorkbenchView owner, BooruResultTarget target)
+    private sealed class ResultActions(BooruWorkbenchView owner, BooruResultTarget target, Func<bool>? isShown = null)
     {
         private readonly string? _url = BooruPostLinks.TryCanonical(target.Post, out string url) ? url : null;
 
         internal BooruResultTarget Target => target;
         internal string PostId => target.Post.PostId;
-        internal bool IsCurrent() => IsSearchItem(owner._tabs.SelectedItem) && CurrentRow() != null;
+        internal bool IsCurrent() => IsSearchItem(owner._tabs.SelectedItem) && CurrentRow() != null && isShown?.Invoke() != false;
 
         internal bool CanRun(ResultAction action) => CurrentRow() is { } row && IsAvailable(action, row);
 

@@ -5309,6 +5309,7 @@
     "settings.booru.newSearchTarget.new": "新しいタブ",
     "settings.booru.newSearchTarget.current": "現在のタブ",
     "booru.tabs.new": "新しい検索タブ",
+    "booru.menu.copyTags": "取得元のタグをコピー",
     "booru.tabs.duplicate": "タブを複製",
     "booru.tabs.openCurrentHint": "表示中の検索とその結果を新しいタブにコピーします。何も送信されません。",
     "booru.tabs.close": "タブを閉じる",

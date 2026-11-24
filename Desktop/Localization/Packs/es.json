@@ -5414,6 +5414,7 @@
     "settings.booru.newSearchTarget.new": "Pestaña nueva",
     "settings.booru.newSearchTarget.current": "Pestaña actual",
     "booru.tabs.new": "Nueva pestaña de búsqueda",
+    "booru.menu.copyTags": "Copiar etiquetas de origen",
     "booru.tabs.duplicate": "Duplicar pestaña",
     "booru.tabs.openCurrentHint": "Copia la búsqueda mostrada y sus resultados en una pestaña nueva. No se envía nada.",
     "booru.tabs.close": "Cerrar pestaña",

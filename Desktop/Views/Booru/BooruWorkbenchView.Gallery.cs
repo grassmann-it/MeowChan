@@ -62,6 +62,7 @@ internal sealed partial class BooruWorkbenchView
         };
         _gallery.OpenWindowRequested = postId => OpenResultViewer(postId);
         _gallery.LeaveRequested = LeaveGallery;
+        AttachGalleryResultContext();
         _resultScroll.PropertyChanged += (_, e) =>
         {
             if (e.Property == ScrollViewer.ViewportProperty) UpdateGalleryStageHeight();

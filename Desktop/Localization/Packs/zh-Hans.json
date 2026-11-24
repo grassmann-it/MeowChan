@@ -5309,6 +5309,7 @@
     "settings.booru.newSearchTarget.new": "新标签页",
     "settings.booru.newSearchTarget.current": "当前标签页",
     "booru.tabs.new": "新建搜索标签页",
+    "booru.menu.copyTags": "复制来源标签",
     "booru.tabs.duplicate": "复制标签页",
     "booru.tabs.openCurrentHint": "将当前显示的搜索及其结果复制到新标签页。不会发送任何请求。",
     "booru.tabs.close": "关闭标签页",

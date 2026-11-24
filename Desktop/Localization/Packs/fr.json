@@ -5414,6 +5414,7 @@
     "settings.booru.newSearchTarget.new": "Nouvel onglet",
     "settings.booru.newSearchTarget.current": "Onglet actuel",
     "booru.tabs.new": "Nouvel onglet de recherche",
+    "booru.menu.copyTags": "Copier les tags source",
     "booru.tabs.duplicate": "Dupliquer l’onglet",
     "booru.tabs.openCurrentHint": "Copie la recherche affichée et ses résultats dans un nouvel onglet. Rien n’est envoyé.",
     "booru.tabs.close": "Fermer l’onglet",

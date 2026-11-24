@@ -5465,6 +5465,7 @@
     "settings.booru.newSearchTarget.new": "Nová karta",
     "settings.booru.newSearchTarget.current": "Aktuální karta",
     "booru.tabs.new": "Nová karta hledání",
+    "booru.menu.copyTags": "Kopírovat zdrojové štítky",
     "booru.tabs.duplicate": "Duplikovat kartu",
     "booru.tabs.openCurrentHint": "Zkopíruje zobrazené hledání a jeho výsledky do nové karty. Nic se neodesílá.",
     "booru.tabs.close": "Zavřít kartu",

@@ -382,11 +382,12 @@ internal sealed partial class BooruWorkbenchView
         header.AddHandler(InputElement.PointerPressedEvent, (object? _, PointerPressedEventArgs e) =>
         {
             if (!MiddleClickTracker.IsPress(e, header)) { middle.Cancel(); return; }
-            middle.Pressed(ReferenceEquals(e.Source, close) ? null : header);
+            middle.Pressed(ItemActivation.IsOwnedByInteractivePart(e.Source, header) ? null : header);
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         header.AddHandler(InputElement.PointerReleasedEvent, (object? _, PointerReleasedEventArgs e) =>
         {
-            if (_closed || !MiddleClickTracker.IsRelease(e) || !middle.Released(ReferenceEquals(e.Source, close) ? null : header)) return;
+            if (_closed || !MiddleClickTracker.IsRelease(e) || !middle.Released(MiddleClickTracker.HitAt(e, header) is { } hit
+                && !ItemActivation.IsOwnedByInteractivePart(hit, header) ? header : null)) return;
             e.Handled = true;
             closeTab();
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);

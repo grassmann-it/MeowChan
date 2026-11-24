@@ -5309,6 +5309,7 @@
     "settings.booru.newSearchTarget.new": "새 탭",
     "settings.booru.newSearchTarget.current": "현재 탭",
     "booru.tabs.new": "새 검색 탭",
+    "booru.menu.copyTags": "출처 태그 복사",
     "booru.tabs.duplicate": "탭 복제",
     "booru.tabs.openCurrentHint": "표시된 검색과 그 결과를 새 탭으로 복사합니다. 아무것도 전송되지 않습니다.",
     "booru.tabs.close": "탭 닫기",

@@ -5420,6 +5420,7 @@
     "settings.booru.newSearchTarget.new": "Nova aba",
     "settings.booru.newSearchTarget.current": "Aba atual",
     "booru.tabs.new": "Nova aba de pesquisa",
+    "booru.menu.copyTags": "Copiar tags da fonte",
     "booru.tabs.duplicate": "Duplicar aba",
     "booru.tabs.openCurrentHint": "Copia a pesquisa mostrada e seus resultados para uma nova aba. Nada é enviado.",
     "booru.tabs.close": "Fechar aba",

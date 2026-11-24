@@ -5443,6 +5443,7 @@
     "settings.booru.newSearchTarget.new": "Новая вкладка",
     "settings.booru.newSearchTarget.current": "Текущая вкладка",
     "booru.tabs.new": "Новая вкладка поиска",
+    "booru.menu.copyTags": "Копировать теги источника",
     "booru.tabs.duplicate": "Дублировать вкладку",
     "booru.tabs.openCurrentHint": "Копирует показанный поиск и его результаты в новую вкладку. Ничего не отправляется.",
     "booru.tabs.close": "Закрыть вкладку",

@@ -5466,6 +5466,7 @@
     "settings.booru.newSearchTarget.new": "Nowa karta",
     "settings.booru.newSearchTarget.current": "Bieżąca karta",
     "booru.tabs.new": "Nowa karta wyszukiwania",
+    "booru.menu.copyTags": "Kopiuj tagi źródłowe",
     "booru.tabs.duplicate": "Duplikuj kartę",
     "booru.tabs.openCurrentHint": "Kopiuje wyświetlone wyszukiwanie i jego wyniki do nowej karty. Nic nie jest wysyłane.",
     "booru.tabs.close": "Zamknij kartę",

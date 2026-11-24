@@ -137,7 +137,7 @@ public sealed class BooruHitKeyboardTests
     });
 
     [Fact]
-    public void EnterOnALocallySavedHitShowsItInMediaAndEnterWithoutACopyLoadsNothing() => OnDispatcher(async () =>
+    public void EnterAndDoubleClickOpenTheGalleryForSavedAndRemoteHits() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
@@ -151,8 +151,9 @@ public sealed class BooruHitKeyboardTests
             KeyEventArgs enter = Press(Avalonia.Input.Key.Enter, savedTitle);
             Raise(savedTitle, enter);
             Assert.True(enter.Handled);
-            await BooruTestSupport.WaitAsync(() => shown.Count == 1, "the Show in Media action");
-            Assert.Equal("101", shown[0]);
+            Assert.Equal(BooruResultView.Gallery, view.ResultView);
+            Assert.Equal("101", view.Gallery.CurrentPostId);
+            view.SetResultView(BooruResultView.List, save: false);
 
             // No local copy: Enter and a double click open the inline gallery on the hit (F13a), in particular no download (decision 95).
             TextBlock title = cards[1].GetLogicalDescendants().OfType<TextBlock>().First();
@@ -170,7 +171,7 @@ public sealed class BooruHitKeyboardTests
             await Task.Delay(20);
             Assert.Empty(harness.Queue.Loads);
             Assert.Equal(0, harness.ProviderRequests - harness.Search.Requests);
-            Assert.Single(shown);
+            Assert.Empty(shown);
 
             // A double click on the saved hit is the same action; on its button it is not.
             Button showButton = Button(cards[0], BooruWorkbenchView.ShowInMediaPrefix + "101");
@@ -180,7 +181,9 @@ public sealed class BooruHitKeyboardTests
             TappedEventArgs onCard = DoubleTap(cards[0], cards[0]);
             Raise(cards[0], onCard);
             Assert.True(onCard.Handled);
-            await BooruTestSupport.WaitAsync(() => shown.Count == 2, "the double click action");
+            Assert.Equal(BooruResultView.Gallery, view.ResultView);
+            Assert.Equal("101", view.Gallery.CurrentPostId);
+            Assert.Empty(shown);
         }
     });
 

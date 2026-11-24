@@ -36,7 +36,7 @@ internal sealed partial class BooruWorkbenchView
     private static void AttachCardMenu(Border card, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null) =>
         _ = new ContextMenuHost(card, compose, fallbackFocus);
 
-    private static ContextMenuBuilder? ComposeResultMenu(ResultActions result)
+    private ContextMenuBuilder? ComposeResultMenu(ResultActions result)
     {
         if (!result.IsCurrent() || result.CurrentRow() is not { } row) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("booru.ui.post.title", result.PostId));
@@ -49,9 +49,21 @@ internal sealed partial class BooruWorkbenchView
         if (commands.Any(command => command.Action == ResultAction.ShowInMedia))
             menu.Command("thread.show-in-media", () => result.Run(ResultAction.ShowInMedia), entryId: MenuShowInMedia,
                 showShortcut: false, availableWhen: () => result.IsCurrent() && result.CanRun(ResultAction.ShowInMedia));
+        menu.Command("gallery.open", () => OpenGallery(result.PostId), showShortcut: false, availableWhen: result.IsCurrent);
+        menu.Section().Check("booru.menu.selection", Texts.T("media.tile.selected"), _selectedResults.Contains(result.PostId), () =>
+        {
+            if (!result.IsCurrent()) return;
+            if (!_selectedResults.Add(result.PostId)) _selectedResults.Remove(result.PostId);
+            Render(force: true);
+        });
         menu.Section();
         foreach (ResultCommand link in commands.Where(command => command.Action is ResultAction.Open or ResultAction.Copy))
             AddResultItem(menu, result, link, link.Action == ResultAction.Open ? MenuOpenPost : MenuCopyLink);
+        string tags = string.Join(" ", row.Post.Tags.Select(tag => tag.Name).Distinct(StringComparer.OrdinalIgnoreCase));
+        if (tags.Length > 0)
+            menu.Item("booru.menu.copy-tags", Texts.T("booru.menu.copyTags"),
+                () => OpenActions.Start(() => MenuClipboard.CopyAsync(this, tags), "booru.menu.copy-tags"),
+                availableWhen: result.IsCurrent, icon: "copy");
         return menu;
     }
 
