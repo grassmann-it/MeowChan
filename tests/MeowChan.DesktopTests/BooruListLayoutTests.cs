@@ -236,14 +236,18 @@ public sealed class BooruListLayoutTests
         Assert.Equal(Texts.T("booru.ui.tags.more", 200 - limitedChips.Length), Toggle(limitedCard, "101").Content);
     });
 
-    [Fact]
-    public void FoldTooltipNamesOnlyTheProfileLimitButCountsEveryHiddenTag() => Run(() =>
+    // Astra W112-69 B §8 keeps the complete hidden count and limits the names in the tooltip.
+    [Theory]
+    [InlineData(60, "")]
+    [InlineData(61, "…")]
+    [InlineData(200, "…")]
+    public void FoldTooltipLimitsNamesButCountsEveryHiddenTag(int tagCount, string suffix) => Run(() =>
     {
-        using Fixture fixture = new(tagCount: 200,
-            config: new Config { BooruResultTagsShown = 0, BooruHiddenTagTooltipLimit = 2 });
+        using Fixture fixture = new(tagCount: tagCount, config: new Config { BooruResultTagsShown = 0 });
         Button more = Toggle(fixture.Card("101"), "101");
-        Assert.Equal(Texts.T("booru.ui.tags.more", 200), more.Content);
-        string hint = Texts.T("booru.ui.tags.showAll", new string('n', 300) + ", iron_road…");
+        Assert.Equal(Texts.T("booru.ui.tags.more", tagCount), more.Content);
+        var tags = fixture.Model.Search.View.Rows[0].Post.Tags;
+        string hint = Texts.T("booru.ui.tags.showAll", string.Join(", ", tags.Take(60).Select(tag => tag.Name)) + suffix);
         Assert.Equal(hint, ToolTip.GetTip(more));
         Assert.Equal(hint, AutomationProperties.GetHelpText(more));
     });
@@ -466,7 +470,7 @@ public sealed class BooruListLayoutTests
         Assert.Throws<ArgumentOutOfRangeException>(old.Validate);
 
         Config config = new() { BooruListPreviewWidth = 256, BooruListWideAbove = 1360, BooruListWideRowHeight = 196, BooruListTagLines = 2,
-            BooruResultTagsShown = 20, BooruHiddenTagTooltipLimit = 8 };
+            BooruResultTagsShown = 20 };
         config.Validate();
         Config restarted = JsonSerializer.Deserialize(JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config),
             ConfigJsonContext.Default.Config)!;
@@ -474,8 +478,6 @@ public sealed class BooruListLayoutTests
         Assert.Equal(config.BooruListLayout, config.Clone().BooruListLayout);
         Config imported = SettingsTransfer.Export(config).Deserialize(ConfigJsonContext.Default.Config)!;
         Assert.Equal(config.BooruListLayout, imported.BooruListLayout);
-        Assert.Equal(8, imported.BooruHiddenTagTooltipLimit);
-        Assert.Equal(8, config.Clone().BooruHiddenTagTooltipLimit);
         using Fixture custom = new(separate: true, config: restarted);
         custom.ResizeViewport(1152);
         Near(256, custom.Frame("101").Bounds.Width);
@@ -499,13 +501,9 @@ public sealed class BooruListLayoutTests
             Assert.Equal(192, input.Value);
             NumericUpDown tagLimit = Assert.Single(editor.GetLogicalDescendants().OfType<NumericUpDown>(),
                 control => AutomationProperties.GetAutomationId(control) == "BooruResultTagsShownInput");
-            NumericUpDown tooltipLimit = Assert.Single(editor.GetLogicalDescendants().OfType<NumericUpDown>(),
-                control => AutomationProperties.GetAutomationId(control) == "BooruHiddenTagTooltipLimitInput");
             Assert.Equal(20, tagLimit.Value);
-            Assert.Equal(8, tooltipLimit.Value);
             editor.ResetDraft(SettingsEditor.SettingsResetScope.WorkerBudgets);
             Assert.Equal(Config.BooruResultTagsShownAutomatic, tagLimit.Value);
-            Assert.Equal(60, tooltipLimit.Value);
             tagLimit.Value = 12;
             NumericUpDown advanced = Assert.Single(editor.GetLogicalDescendants().OfType<NumericUpDown>(),
                 control => control.Name == "BooruListWideAboveInput");

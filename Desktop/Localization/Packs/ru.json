@@ -42,8 +42,6 @@
     "budgets.exportHistoryEntryLimitHint": "Ограничение числа записей при чтении и записи каждого файла истории экспорта. По умолчанию: {0}. Диапазон: {1}–{2}.",
     "budgets.boardAdmissionSizeMiB": "Размер файла правил досок (МиБ)",
     "budgets.boardAdmissionSizeMiBHint": "Ограничение размера файла правил досок и его резервной копии. По умолчанию: {0} МиБ. Диапазон: {1}–{2} МиБ.",
-    "budgets.booruHiddenTagTooltipLimit": "Скрытые теги Booru в подсказке",
-    "budgets.booruHiddenTagTooltipLimitHint": "Максимальное число названий скрытых тегов в подсказке списка результатов Booru. По умолчанию: {0}. Диапазон: {1}–{2}.",
     "budgets.slashTagSuggestionCount": "Подсказки тегов со слешем",
     "budgets.slashTagSuggestionCountHint": "Максимум подсказок при вводе тега со слешем. По умолчанию: {0}; допустимо: {1}–{2}.",
     "budgets.videoScrubCacheMiB": "Размер кэша предпросмотра при перемотке видео (MiB)",

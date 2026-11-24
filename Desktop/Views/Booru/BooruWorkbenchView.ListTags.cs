@@ -33,7 +33,7 @@ internal sealed partial class BooruWorkbenchView
         BooruTag[] ordered = ListTagOrder.SelectMany(category => post.Tags.Where(tag => tag.Category == category)).ToArray();
         int savedLimit = TagsShown();
         int limit = savedLimit == Config.BooruResultTagsShownAutomatic ? ordered.Length : savedLimit;
-        BooruListTagFlow tags = new(post.PostId, ordered, limit, ListLayout.TagLines, HiddenTagTooltipLimit, _expandedTagPosts.Contains(post.PostId),
+        BooruListTagFlow tags = new(post.PostId, ordered, limit, ListLayout.TagLines, _expandedTagPosts.Contains(post.PostId),
             CreateItem, expanded =>
             {
                 if (!result.IsCurrent()) return false;
@@ -131,6 +131,7 @@ internal sealed class BooruListTagFlow : Panel
     private const double Gap = 4;
     private const double CategoryGap = 12;
     private const double ChipRowHeight = 20;
+    private const int HiddenTagTooltipLimit = 60;
 
     private static readonly BooruTagCategory[] FoldOrder =
     [
@@ -147,7 +148,6 @@ internal sealed class BooruListTagFlow : Panel
     private readonly Group[] _groups;
     private readonly int _minimumHidden;
     private readonly int _lineLimit;
-    private readonly int _hiddenTagTooltipLimit;
     private readonly Func<int, (Control Item, Button Chip, ContextMenuHost Menu)> _createItem;
     private readonly Func<bool, bool> _setExpanded;
     private readonly Action<Button> _restoreFocus;
@@ -161,7 +161,7 @@ internal sealed class BooruListTagFlow : Panel
     private bool _showToggle;
     private double _heightBudget;
 
-    internal BooruListTagFlow(string postId, BooruTag[] tags, int limit, int lineLimit, int hiddenTagTooltipLimit, bool expanded,
+    internal BooruListTagFlow(string postId, BooruTag[] tags, int limit, int lineLimit, bool expanded,
         Func<int, (Control Item, Button Chip, ContextMenuHost Menu)> createItem, Func<bool, bool> setExpanded, Action<Button> restoreFocus)
     {
         Name = "BooruListTags:" + postId;
@@ -171,7 +171,6 @@ internal sealed class BooruListTagFlow : Panel
         _tags = tags;
         _minimumHidden = Math.Max(0, tags.Length - limit);
         _lineLimit = lineLimit;
-        _hiddenTagTooltipLimit = hiddenTagTooltipLimit;
         _createItem = createItem;
         _setExpanded = setExpanded;
         _restoreFocus = restoreFocus;
@@ -402,8 +401,8 @@ internal sealed class BooruListTagFlow : Panel
             {
                 int count = group.Hidden(hidden);
                 return _tags.Skip(group.Start + group.Count - count).Take(count);
-            }).Take(_hiddenTagTooltipLimit).Select(tag => tag.Name);
-            tip = Texts.T("booru.ui.tags.showAll", string.Join(", ", names) + (hidden > _hiddenTagTooltipLimit ? "…" : string.Empty));
+            }).Take(HiddenTagTooltipLimit).Select(tag => tag.Name);
+            tip = Texts.T("booru.ui.tags.showAll", string.Join(", ", names) + (hidden > HiddenTagTooltipLimit ? "…" : string.Empty));
         }
         ToolTip.SetTip(_toggle, tip);
         AutomationProperties.SetHelpText(_toggle, tip);

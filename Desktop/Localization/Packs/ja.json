@@ -42,8 +42,6 @@
     "budgets.exportHistoryEntryLimitHint": "エクスポート履歴ファイルごとの読み書き時の項目数上限です。既定値は {0}、範囲は {1}～{2} です。",
     "budgets.boardAdmissionSizeMiB": "板のルールファイルのサイズ（MiB）",
     "budgets.boardAdmissionSizeMiBHint": "板のルールファイルとそのバックアップのサイズ上限です。既定値は {0} MiB、範囲は {1}～{2} MiB です。",
-    "budgets.booruHiddenTagTooltipLimit": "ツールチップに表示する非表示の Booru タグ",
-    "budgets.booruHiddenTagTooltipLimitHint": "Booru の検索結果一覧のツールチップに名前を表示する非表示タグの最大数です。既定値は {0}、範囲は {1}～{2} です。",
     "budgets.slashTagSuggestionCount": "スラッシュタグの候補数",
     "budgets.slashTagSuggestionCountHint": "スラッシュタグの入力中に表示する候補数の上限です。既定値: {0}、許容範囲: {1}～{2}。",
     "budgets.videoScrubCacheMiB": "動画タイムラインプレビューのキャッシュサイズ（MiB）",

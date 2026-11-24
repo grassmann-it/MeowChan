@@ -42,8 +42,6 @@
     "budgets.exportHistoryEntryLimitHint": "Límite de entradas para leer y escribir cada archivo del historial de exportación. Valor predeterminado: {0}. Intervalo: {1}–{2}.",
     "budgets.boardAdmissionSizeMiB": "Tamaño del archivo de reglas de los tablones (MiB)",
     "budgets.boardAdmissionSizeMiBHint": "Límite de tamaño para el archivo de reglas de los tablones y su copia de seguridad. Valor predeterminado: {0} MiB. Intervalo: {1}–{2} MiB.",
-    "budgets.booruHiddenTagTooltipLimit": "Etiquetas ocultas de Booru en la ayuda emergente",
-    "budgets.booruHiddenTagTooltipLimitHint": "Número máximo de etiquetas ocultas que se nombran en la ayuda emergente de la lista de resultados de Booru. Valor predeterminado: {0}. Intervalo: {1}–{2}.",
     "budgets.slashTagSuggestionCount": "Sugerencias de etiquetas entre barras",
     "budgets.slashTagSuggestionCountHint": "Número máximo de sugerencias al introducir una etiqueta entre barras. Predeterminado: {0}; permitido: de {1} a {2}.",
     "budgets.videoScrubCacheMiB": "Tamaño de la caché de vistas previas al recorrer el vídeo (MiB)",

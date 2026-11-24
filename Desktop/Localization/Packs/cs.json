@@ -42,8 +42,6 @@
     "budgets.exportHistoryEntryLimitHint": "Limit počtu záznamů pro čtení a zápis každého souboru historie exportů. Výchozí hodnota: {0}. Rozsah: {1}–{2}.",
     "budgets.boardAdmissionSizeMiB": "Velikost souboru pravidel nástěnek (MiB)",
     "budgets.boardAdmissionSizeMiBHint": "Limit velikosti souboru pravidel nástěnek a jeho zálohy. Výchozí hodnota: {0} MiB. Rozsah: {1}–{2} MiB.",
-    "budgets.booruHiddenTagTooltipLimit": "Skryté značky Booru v popisku",
-    "budgets.booruHiddenTagTooltipLimitHint": "Nejvyšší počet názvů skrytých značek v popisku seznamu výsledků Booru. Výchozí hodnota: {0}. Rozsah: {1}–{2}.",
     "budgets.slashTagSuggestionCount": "Návrhy štítků s lomítkem",
     "budgets.slashTagSuggestionCountHint": "Maximální počet návrhů zobrazených při zadávání štítku s lomítkem. Výchozí: {0}; povoleno: {1}–{2}.",
     "budgets.videoScrubCacheMiB": "Velikost mezipaměti náhledů při přetáčení videa (MiB)",

@@ -42,8 +42,6 @@
     "budgets.exportHistoryEntryLimitHint": "Nombre maximal d’entrées en lecture et en écriture par fichier d’historique des exports. Valeur par défaut : {0}. Plage : {1}–{2}.",
     "budgets.boardAdmissionSizeMiB": "Taille du fichier des règles des forums (MiB)",
     "budgets.boardAdmissionSizeMiBHint": "Taille maximale du fichier des règles des forums et de sa sauvegarde. Valeur par défaut : {0} MiB. Plage : {1}–{2} MiB.",
-    "budgets.booruHiddenTagTooltipLimit": "Tags Booru masqués dans l’infobulle",
-    "budgets.booruHiddenTagTooltipLimitHint": "Nombre maximal de tags masqués nommés dans l’infobulle de la liste des résultats Booru. Valeur par défaut : {0}. Plage : {1}–{2}.",
     "budgets.slashTagSuggestionCount": "Suggestions d’étiquettes entre barres obliques",
     "budgets.slashTagSuggestionCountHint": "Nombre maximal de suggestions lors de la saisie d’une étiquette entre barres obliques. Par défaut : {0} ; autorisé : de {1} à {2}.",
     "budgets.videoScrubCacheMiB": "Taille du cache des aperçus de la ligne de temps vidéo (MiB)",

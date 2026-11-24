@@ -15,8 +15,6 @@ internal static class SettingsLimitsCatalog
         ("budgets.exportHistoryEntryLimitHint", "Read and write limit for entries in each export history file. Default: {0}. Range: {1}–{2}.", "Lese- und Schreibgrenze für Einträge je Datei der Exporthistorie. Standard: {0}. Bereich: {1}–{2}."),
         ("budgets.boardAdmissionSizeMiB", "Board rules file size (MiB)", "Dateigröße der Board-Regeln (MiB)"),
         ("budgets.boardAdmissionSizeMiBHint", "Size limit for the board rules file and its backup. Default: {0} MiB. Range: {1}–{2} MiB.", "Größengrenze für die Board-Regeldatei und ihre Sicherung. Standard: {0} MiB. Bereich: {1}–{2} MiB."),
-        ("budgets.booruHiddenTagTooltipLimit", "Hidden Booru tags named in the tooltip", "Verdeckte Booru-Tags im Tooltip"),
-        ("budgets.booruHiddenTagTooltipLimitHint", "Maximum number of hidden tag names listed in the Booru results list tooltip. Default: {0}. Range: {1}–{2}.", "Höchstzahl der verdeckten Tags, die der Tooltip in der Booru-Trefferliste namentlich nennt. Standard: {0}. Bereich: {1}–{2}."),
         ("budgets.slashTagSuggestionCount", "Slash-tag suggestions", "Slash-Tagvorschläge"),
         ("budgets.slashTagSuggestionCountHint", "Maximum suggestions shown while entering a slash tag. Default: {0}; allowed: {1}–{2}.", "Höchstzahl angezeigter Vorschläge bei der Eingabe eines Slash-Tags. Standard: {0}; erlaubt: {1}–{2}."),
         ("budgets.videoScrubCacheMiB", "Video scrub preview cache size (MiB)", "Größe des Video-Scrub-Vorschau-Caches (MiB)"),

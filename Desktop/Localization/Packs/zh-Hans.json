@@ -42,8 +42,6 @@
     "budgets.exportHistoryEntryLimitHint": "每个导出历史记录文件的读写条数上限。默认值为 {0}，范围为 {1}–{2}。",
     "budgets.boardAdmissionSizeMiB": "版面规则文件大小（MiB）",
     "budgets.boardAdmissionSizeMiBHint": "版面规则文件及其备份的大小上限。默认值为 {0} MiB，范围为 {1}–{2} MiB。",
-    "budgets.booruHiddenTagTooltipLimit": "工具提示中的隐藏 Booru 标签",
-    "budgets.booruHiddenTagTooltipLimitHint": "Booru 结果列表的工具提示中最多列出的隐藏标签名称数量。默认值为 {0}，范围为 {1}–{2}。",
     "budgets.slashTagSuggestionCount": "斜杠标签建议数",
     "budgets.slashTagSuggestionCountHint": "输入斜杠标签时显示的建议数量上限。默认值：{0}，允许范围：{1} 到 {2}。",
     "budgets.videoScrubCacheMiB": "视频时间轴预览缓存大小（MiB）",

@@ -42,8 +42,6 @@
     "budgets.exportHistoryEntryLimitHint": "Limite di voci in lettura e scrittura per ogni file della cronologia delle esportazioni. Valore predefinito: {0}. Intervallo: {1}–{2}.",
     "budgets.boardAdmissionSizeMiB": "Dimensione del file delle regole delle bacheche (MiB)",
     "budgets.boardAdmissionSizeMiBHint": "Dimensione massima del file delle regole delle bacheche e della sua copia di sicurezza. Valore predefinito: {0} MiB. Intervallo: {1}–{2} MiB.",
-    "budgets.booruHiddenTagTooltipLimit": "Tag Booru nascosti nel suggerimento",
-    "budgets.booruHiddenTagTooltipLimitHint": "Numero massimo di tag nascosti elencati nel suggerimento della lista dei risultati di Booru. Valore predefinito: {0}. Intervallo: {1}–{2}.",
     "budgets.slashTagSuggestionCount": "Suggerimenti di tag tra barre oblique",
     "budgets.slashTagSuggestionCountHint": "Numero massimo di suggerimenti durante l’inserimento di un tag tra barre oblique. Valore predefinito: {0}; consentiti: da {1} a {2}.",
     "budgets.videoScrubCacheMiB": "Dimensione della cache delle anteprime della barra temporale video (MiB)",

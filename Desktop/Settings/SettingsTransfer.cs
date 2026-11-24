@@ -110,7 +110,6 @@ public static class SettingsTransfer
             ExportHistorySizeMiB = source.ExportHistorySizeMiB,
             ExportHistoryEntryLimit = source.ExportHistoryEntryLimit,
             BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB,
-            BooruHiddenTagTooltipLimit = source.BooruHiddenTagTooltipLimit,
             SlashTagSuggestionCount = source.SlashTagSuggestionCount,
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones,
             PrivateTagLimit = source.PrivateTagLimit,

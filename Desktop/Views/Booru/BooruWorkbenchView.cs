@@ -263,9 +263,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal Func<int>? ResultTagsShown { get; set; }
     private Config? _listProfile;
     private BooruListLayoutSettings ListLayout => _listProfile?.BooruListLayout ?? BooruListLayoutSettings.Default;
-    private int HiddenTagTooltipLimit => Math.Clamp(
-        _listProfile?.BooruHiddenTagTooltipLimit ?? Config.BooruHiddenTagTooltipLimitDefault,
-        Config.BooruHiddenTagTooltipLimitMinimum, Config.BooruHiddenTagTooltipLimitMaximum);
 
     internal void ApplyListProfile(Config config) => _listProfile = config;
 
@@ -620,7 +617,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         RenderResultViewBar(view);
 
         int decodeEdge = _resultView == BooruResultView.List ? ListDecodeEdge : 0;
-        string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, ListLayout, TagsShown(), HiddenTagTooltipLimit, decodeEdge, string.Join('|',
+        string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, ListLayout, TagsShown(), decodeEdge, string.Join('|',
             view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}")));
         if (force || key != _resultsKey || _renderedResultRevision != view.ResultRevision)
         {
