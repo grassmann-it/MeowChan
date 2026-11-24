@@ -128,7 +128,7 @@ public sealed class ContextGestureHarnessTests
         {
             ContextGestures.ControlClick(fixture.RowHit(fixture.Second));
             Assert.Empty(fixture.Compositions);
-            Assert.Same(fixture.Second, fixture.Selected);
+            Assert.Equal(new[] { fixture.First, fixture.Second }, fixture.Selection);
         }
         finally { ContextClick.MacOSForTests = null; }
     });
