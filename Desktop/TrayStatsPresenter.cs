@@ -18,9 +18,9 @@ internal sealed record TrayStatsHost(
 
 /// <summary>
 /// Network and disk statistics in the tray, text only: the tooltip (rates while downloads run, today's total otherwise) and three
-/// enabled lines at the top of the tray menu. The presenter owns no timer. It holds the hub claim of <see cref="TrayStatsClaim"/>
+/// enabled lines in the tray menu. The presenter owns no timer. It holds the hub claim of <see cref="TrayStatsClaim"/>
 /// (window hidden and tooltip on), refreshes the tooltip on each hub sample while the claim is held and otherwise only when the
-/// window's own tray refresh asks (throttled to one reading per second), and fills the menu lines when the menu opens.
+/// window's own tray refresh asks (throttled to one reading per second). Menu lines also follow download state and language changes.
 /// </summary>
 internal sealed class TrayStatsPresenter : IDisposable
 {
@@ -35,12 +35,15 @@ internal sealed class TrayStatsPresenter : IDisposable
     private readonly NativeMenuItem _ratesItem = new();
     private readonly NativeMenuItem _diskItem = new();
     private readonly NativeMenuItem _detailItem = new();
-    private readonly NativeMenuItemSeparator _separator = new();
+    private readonly NativeMenuItemBase[] _group;
+    private readonly int _groupIndex;
+    private bool _menuVisible;
+    private (bool Paused, int Active, string Language)? _menuState;
     private string _key = string.Empty;
     private long _stamp;
     private bool _disposed;
 
-    /// <summary>Inserts the three lines and a separator at the top of <paramref name="menu"/> and listens for its update request.</summary>
+    /// <summary>Appends the statistics group and listens for the menu's update request.</summary>
     internal TrayStatsPresenter(IoStatsHub hub, NativeMenu menu, TrayStatsHost host, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(hub);
@@ -52,15 +55,12 @@ internal sealed class TrayStatsPresenter : IDisposable
         _time = time ?? TimeProvider.System;
         _sampled = new CoalescedUiUpdate(OnSampled, TimeSpan.Zero, null, (action, _) => _host.Post(action));
         _claim = new TrayStatsClaim(hub, _sampled.Request);
-        bool visible = host.MenuEnabled();
-        _ratesItem.IsVisible = _diskItem.IsVisible = _detailItem.IsVisible = _separator.IsVisible = visible;
         _ratesItem.Click += OnClick;
         _diskItem.Click += OnClick;
         _detailItem.Click += OnClick;
-        menu.Items.Insert(0, _ratesItem);
-        menu.Items.Insert(1, _diskItem);
-        menu.Items.Insert(2, _detailItem);
-        menu.Items.Insert(3, _separator);
+        _group = [new NativeMenuItemSeparator(), _ratesItem, _diskItem, _detailItem, new NativeMenuItemSeparator()];
+        _groupIndex = menu.Items.Count;
+        if (host.MenuEnabled()) SetMenuVisibility(true);
         menu.NeedsUpdate += OnNeedsUpdate;
     }
 
@@ -69,13 +69,12 @@ internal sealed class TrayStatsPresenter : IDisposable
     /// <summary>Line two: "Disk y" (written) while rates show, else today's network total.</summary>
     internal NativeMenuItem DiskItem => _diskItem;
     internal NativeMenuItem DetailItem => _detailItem;
-    internal NativeMenuItemSeparator Separator => _separator;
     internal bool ClaimHeld => _claim.Held;
 
     /// <summary>The tray's own refresh: claim, menu visibility and tooltip. Cheap when nothing changed for less than a second.</summary>
-    internal void Refresh(bool force = false) => Update(force, fillMenu: false);
+    internal void Refresh(bool force = false) => Update(force, fillMenu: false, refreshMenuState: true);
 
-    // The menu is opening: current numbers into both lines and the tooltip.
+    // The menu is opening: current numbers into the menu lines and the tooltip.
     private void OnNeedsUpdate(object? sender, EventArgs e)
     {
         if (_disposed || _host.Closing()) return;
@@ -91,21 +90,21 @@ internal sealed class TrayStatsPresenter : IDisposable
 
     private void OnClick(object? sender, EventArgs e) => _host.OpenStatistics();
 
-    private void Update(bool force, bool fillMenu)
+    private void Update(bool force, bool fillMenu, bool refreshMenuState = false)
     {
         if (_disposed) return;
         bool shown = _host.WindowShown();
         bool tooltipOn = _host.TooltipEnabled();
         bool menuOn = _host.MenuEnabled();
         _claim.Update(TrayStatsClaim.Wanted(_host.Closing(), shown, tooltipOn));
-        if (_ratesItem.IsVisible != menuOn)
+        if (_menuVisible != menuOn)
         {
-            _ratesItem.IsVisible = _diskItem.IsVisible = _detailItem.IsVisible = _separator.IsVisible = menuOn;
+            SetMenuVisibility(menuOn);
             force = fillMenu = true;
         }
-        // The lines are written when the menu opens, when the setting came on, and the first time.
-        if (_ratesItem.Header == null) fillMenu = true;
         (bool paused, int active) = _host.Downloads();
+        // The Linux exporter does not raise the menu update event when the host opens the menu.
+        fillMenu |= _menuState == null || (refreshMenuState && _menuState != (paused, active, Texts.Language));
         string tip;
         if (tooltipOn)
         {
@@ -127,11 +126,26 @@ internal sealed class TrayStatsPresenter : IDisposable
         _host.SetTooltip(tip);
     }
 
+    private void SetMenuVisibility(bool visible)
+    {
+        _menuVisible = visible;
+        // The Linux exporter always exports separators that belong to the menu.
+        if (visible)
+        {
+            for (int i = 0; i < _group.Length; i++) _menu.Items.Insert(_groupIndex + i, _group[i]);
+        }
+        else
+        {
+            foreach (NativeMenuItemBase item in _group) _menu.Items.Remove(item);
+        }
+    }
+
     private TrayStatsInput StateOf(bool paused, int active) =>
         TrayStatsInput.From(_hub.Peek(), paused, active, _hub.SamplingMode != IoStatsVisibility.None);
 
     private void ApplyLines(in TrayStatsInput state)
     {
+        _menuState = (state.Paused, state.Active, Texts.Language);
         (string net, string disk, string detail) = TrayStatsModel.MenuLines(state);
         if (!Equals(_ratesItem.Header, net)) _ratesItem.Header = net;
         if (!Equals(_diskItem.Header, disk)) _diskItem.Header = disk;
