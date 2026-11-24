@@ -359,8 +359,9 @@ public partial class ArchivePage
         ListBox posts = ArchivePosts;
         ArchivePostId? target = row.Backlink ? row.Quote.Origin : row.Quote.Target;
         if (_ended || _thread == null || row.IsDead || target == null || target.Thread != _thread.Summary.Id
-            || FindPostRow(target.PostId) is not { } item
-            || posts.ContainerFromItem(item) is not Control container || !container.IsEffectivelyVisible || outline.Parent is not Visual host
+            || Projection?.PositionOf(target.PostId) is not (>= 0 and var index)
+            || posts.ContainerFromIndex(index) is not Control { DataContext: ArchivePostRow item } container
+            || item.Id != target.PostId || !container.IsEffectivelyVisible || outline.Parent is not Visual host
             || container.TranslatePoint(default, host) is not Point origin || posts.TranslatePoint(default, host) is not Point listOrigin) return;
         Rect visible = new Rect(origin, container.Bounds.Size).Intersect(new Rect(listOrigin, posts.Bounds.Size));
         if (visible.Width < 1 || visible.Height < 1) return;
