@@ -646,16 +646,32 @@ internal sealed partial class ReaderMediaSidebar : Border
         button.PointerCaptureLost += (_, e) => _decisionPresses.Remove(e.Pointer);
     }
 
-    internal async Task EditTagsAsync()
+    internal Task EditTagsAsync() => EditTagsAsync(revealDetails: false);
+
+    internal Task EditTagsFromShortcutAsync() => EditTagsAsync(revealDetails: true);
+
+    private async Task EditTagsAsync(bool revealDetails)
     {
         if (!IsEffectivelyVisible || !_editTags.IsVisible || OpenTagsAsync is not { } openTags) return;
         if (_cancelTagEditor != null) return;
         using CancellationTokenSource request = new();
         Action cancel = request.Cancel;
         _cancelTagEditor = cancel;
-        Control anchor = _details.IsVisible && _editTags.IsEffectivelyVisible ? _editTags : InfoToggle;
         try
         {
+            if (revealDetails && !_details.IsVisible)
+            {
+                _showDetailsForTagEditor = true;
+                UpdateInfoLayout();
+                if (_details.IsVisible) TopLevel.GetTopLevel(this)?.UpdateLayout();
+            }
+            Control anchor = _details.IsVisible && _editTags.IsEffectivelyVisible ? _editTags : InfoToggle;
+            if (revealDetails && ReferenceEquals(anchor, _editTags))
+            {
+                _editTags.BringIntoView();
+                TopLevel.GetTopLevel(this)?.UpdateLayout();
+            }
+            if (request.IsCancellationRequested) return;
             await openTags(anchor, request.Token);
             // Blocked editors can be opened synchronously by the host.
             if (ReferenceEquals(_cancelTagEditor, cancel) && QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor))
@@ -663,7 +679,11 @@ internal sealed partial class ReaderMediaSidebar : Border
         }
         finally
         {
-            if (ReferenceEquals(_cancelTagEditor, cancel)) _cancelTagEditor = null;
+            if (ReferenceEquals(_cancelTagEditor, cancel))
+            {
+                _cancelTagEditor = null;
+                RestoreDetailsAfterTagEditor();
+            }
         }
     }
 
@@ -674,6 +694,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         cancel();
         if (QuickTagPopover.Current is { } popover && (ReferenceEquals(popover.Anchor, _editTags) || ReferenceEquals(popover.Anchor, InfoToggle)))
             popover.Close(QuickTagPopoverCloseReason.Stale);
+        if (_cancelTagEditor == null) RestoreDetailsAfterTagEditor();
         return true;
     }
 

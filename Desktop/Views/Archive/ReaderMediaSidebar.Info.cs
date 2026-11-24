@@ -70,6 +70,7 @@ internal sealed partial class ReaderMediaSidebar
     private readonly DispatcherTimer _hideOverlay = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private ReaderMediaPreferences _infoPreferences = ReaderMediaPreferences.Default;
     private bool? _detailsOverride;
+    private bool _showDetailsForTagEditor;
     private bool _wasDocked, _engaged;
     private bool _narrowOverlay;
     internal Action<string>? SaveInfoMode { get; set; }
@@ -97,6 +98,13 @@ internal sealed partial class ReaderMediaSidebar
     {
         _detailsOverride = null;
         _wasDocked = false;
+        UpdateInfoLayout();
+    }
+
+    private void RestoreDetailsAfterTagEditor()
+    {
+        if (!_showDetailsForTagEditor) return;
+        _showDetailsForTagEditor = false;
         UpdateInfoLayout();
     }
 
@@ -222,16 +230,21 @@ internal sealed partial class ReaderMediaSidebar
         Size inner = Bounds.Size.Deflate(Padding + BorderThickness);
         double rows = (_stripRow.IsVisible ? _stripRow.DesiredSize.Height : 0) + (_videoRow.IsVisible ? _videoRow.DesiredSize.Height : 0);
         PixelSize? source = _mediumKey == Load.ShownKey ? Load.ShownSource : null;
-        var layout = ReaderMediaSidebarRules.InfoLayout(_infoPreferences, _detailsOverride, inner, source, rows,
-            _wasDocked, _image.MaxHeight, Bounds.Height);
-        _wasDocked = layout.Docked && _sections.IsVisible;
-        bool showOverlay = !_wasDocked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
+        bool? detailsOverride = _showDetailsForTagEditor ? true : _detailsOverride;
+        // Before the first arrangement, prepare the tag anchor and apply the height limits when the panel is sized.
+        SidebarInfoLayout layout = _showDetailsForTagEditor && Bounds.Height == 0
+            ? new(true, double.NaN, double.PositiveInfinity, false)
+            : ReaderMediaSidebarRules.InfoLayout(_infoPreferences, detailsOverride, inner, source, rows,
+                _wasDocked, _image.MaxHeight, Bounds.Height);
+        bool docked = layout.Docked && _sections.IsVisible;
+        if (!_showDetailsForTagEditor) _wasDocked = docked;
+        bool showOverlay = !docked && _engaged && _badgesOn && _image.IsVisible && !_videoRow.IsVisible &&
             _infoPreferences.MediaSidebarInfo is "Auto" or "Overlay";
-        if ((!_wasDocked && _details.IsKeyboardFocusWithin) || (!showOverlay && _overlay.IsKeyboardFocusWithin))
+        if ((!docked && _details.IsKeyboardFocusWithin) || (!showOverlay && _overlay.IsKeyboardFocusWithin))
             InfoToggle.Focus(NavigationMethod.Tab);
-        _details.IsVisible = _wasDocked;
-        _details.MaxHeight = _wasDocked ? layout.DetailsLimit : double.PositiveInfinity;
-        bool auto = _wasDocked && double.IsFinite(layout.CardHeight);
+        _details.IsVisible = docked;
+        _details.MaxHeight = docked ? layout.DetailsLimit : double.PositiveInfinity;
+        bool auto = docked && double.IsFinite(layout.CardHeight);
         if (Child is Grid grid)
         {
             double scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
@@ -240,7 +253,7 @@ internal sealed partial class ReaderMediaSidebar
                 ? new GridLength(Math.Ceiling((layout.CardHeight + _card.Margin.Top) * scale) / scale)
                 : GridLength.Star;
         }
-        InfoToggle.IsChecked = _wasDocked;
+        InfoToggle.IsChecked = docked;
         string tip = CommandBindings.Tooltip("media.sidebar.info");
         ToolTip.SetTip(InfoToggle, layout.TooShort ? tip + " · " + Texts.T("settings.reader.mediaSidebarInfo.shortHeight") : tip);
         _overlay.IsVisible = showOverlay;
