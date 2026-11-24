@@ -34,8 +34,10 @@ public sealed class FolderSourceDesktopTests : IDisposable
                   + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(entry)))
                 : Path.GetRelativePath(folder, entry) + "/ " + Directory.GetLastWriteTimeUtc(entry).Ticks).ToArray();
 
-    [Fact]
-    public void RemoveSourceAsksWithKeepFirstAndOnlyRemovesTheNamedSource() => BooruComponentDispatcher.Run(() =>
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.5)]
+    public void RemoveSourceAsksWithKeepFirstAndOnlyRemovesTheNamedSource(double scale) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         FolderSourceRoot first = Source("First");
@@ -57,6 +59,7 @@ public sealed class FolderSourceDesktopTests : IDisposable
         {
             window.Show();
             window.PlatformImpl!.Activated?.Invoke();
+            window.SetRenderScaling(scale);
             BooruComponentDispatcher.Wait(WaitAsync(() => panel.Rows.Children.Count == 2));
             string openName = "FolderSourceRemove_" + FolderSourceIdentity.Format(second.Id);
             foreach ((Key key, PhysicalKey physicalKey) in new[] { (Key.Escape, PhysicalKey.Escape), (Key.Enter, PhysicalKey.Enter) })
@@ -81,7 +84,8 @@ public sealed class FolderSourceDesktopTests : IDisposable
                 var confirm = Find("FolderSourceRemoveConfirm");
                 Assert.NotNull(keep);
                 Assert.NotNull(confirm);
-                Assert.True(keep.TranslatePoint(default, confirm) is { X: < 0 });
+                Point endOfKeep = keep.TranslatePoint(new Point(keep.Bounds.Width, 0), confirm)!.Value;
+                Assert.InRange(-endOfKeep.X, 7, 9);
                 Assert.Same(keep, window.FocusManager!.GetFocusedElement());
                 Assert.Contains("Second", panel.GetVisualDescendants().OfType<TextBlock>()
                     .Single(block => block.Name == "FolderSourceRemoveAsk").Text);

@@ -3,6 +3,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -350,6 +354,80 @@ public sealed class TaggingPageTests : IDisposable
         Assert.Equal(0, (await host.LoadTagQueueAsync()).Count);
         Assert.NotEmpty(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
     }
+
+    [Theory]
+    [InlineData("en", 1.0, "Cancel", "Clear tagging queue")]
+    [InlineData("de", 1.5, "Abbrechen", "Tagging-Warteschlange leeren")]
+    public void ClearConfirmationStartsOnCancelAndOnlyClearsTheQueue(string language, double scale, string safeLabel, string clearLabel) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory temp = new();
+            Texts.SetLanguage(language);
+            BooruComponentDispatcher.Wait(ExerciseAsync());
+
+            async Task ExerciseAsync()
+            {
+                await using DesktopSessionHost host = await StartAsync(temp.Path);
+                TagQueueItem item = Item(1) with { Directory = temp.Path };
+                string media = Path.Combine(temp.Path, "file-1.png");
+                File.WriteAllText(media, "keep the media");
+                await host.EnqueueTagQueueAsync([item]);
+                TaggingPage page = new(host);
+                Window window = new() { Content = page, Width = 760, Height = 640 };
+                try
+                {
+                    window.Show();
+                    window.PlatformImpl!.Activated?.Invoke();
+                    window.SetRenderScaling(scale);
+                    await page.ActivateAsync();
+                    Dispatcher.UIThread.RunJobs();
+                    long revision = host.GetTagQueue()!.Revision;
+                    Button cancel = page.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "TaggingClearNo");
+                    Button clear = page.ClearYesButton;
+                    foreach ((Key key, PhysicalKey physical) in new[] { (Key.Escape, PhysicalKey.Escape), (Key.Enter, PhysicalKey.Enter) })
+                    {
+                        Ask();
+                        Press(key, physical);
+                        Assert.False(page.ClearQuestionOpen);
+                        Assert.Equal(revision, host.GetTagQueue()!.Revision);
+                    }
+                    Ask();
+                    Press(Key.Tab, PhysicalKey.Tab);
+                    Assert.True(clear.IsFocused);
+                    Press(Key.Enter, PhysicalKey.Enter);
+                    await BooruTestSupport.WaitAsync(() => page.Queue.Count == 0, "the queue is cleared");
+                    Assert.Empty(host.GetTagQueue()!.Items);
+                    Assert.Equal("keep the media", File.ReadAllText(media));
+
+                    void Ask()
+                    {
+                        Assert.True(page.ClearButton.Command!.CanExecute(null));
+                        page.ClearButton.Command.Execute(null);
+                        window.UpdateLayout();
+                        Assert.True(page.ClearQuestionOpen);
+                        Assert.True(cancel.IsFocused);
+                        Point endOfCancel = cancel.TranslatePoint(new Point(cancel.Bounds.Width, 0), clear)!.Value;
+                        Assert.InRange(-endOfCancel.X, 7, 9);
+                        Assert.Equal(safeLabel, cancel.Content);
+                        Assert.Equal(clearLabel, clear.Content);
+                    }
+
+                    void Press(Key key, PhysicalKey physical)
+                    {
+                        window.KeyPress(key, RawInputModifiers.None, physical, null);
+                        window.KeyRelease(key, RawInputModifiers.None, physical, null);
+                        Dispatcher.UIThread.RunJobs();
+                        window.UpdateLayout();
+                    }
+                }
+                finally
+                {
+                    page.End();
+                    window.Close();
+                }
+            }
+        });
 
     [Fact]
     public async Task AQueueReadErrorKeepsTheLastSnapshotNamesItsSourceAndCanBeReloaded()
