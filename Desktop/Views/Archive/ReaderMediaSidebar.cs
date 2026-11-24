@@ -260,7 +260,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private Control? _tagEditorAnchor;
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
-    private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top };
+    private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
     private readonly TextBlock _status = new TextBlock
     {
@@ -354,7 +354,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     internal MediaPositionPill PositionPill => _positionPill;
     internal TextBlock Title => _heading;
     internal Func<Control, CancellationToken, Task>? OpenTagsAsync { get; set; }
-    internal string DecisionKeyContext { set { _decision.KeyContext = _overlayRating.KeyContext = _headerFavorite.KeyContext = value; } }
+    internal string DecisionKeyContext { set { _decision.KeyContext = _headerFavorite.KeyContext = value; } }
     internal GalleryDecisionRow DecisionRow => _decision;
     /// <summary>Space above the header line, included in the vertical budget of the header and card.</summary>
     internal const double HeaderTopInset = WorkspaceMetrics.MediaFirstInset;
@@ -409,16 +409,14 @@ internal sealed partial class ReaderMediaSidebar : Border
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         _placeholder[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
         _placeholder[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
-        _play.VerticalAlignment = VerticalAlignment.Top;
+        _play.VerticalAlignment = VerticalAlignment.Center;
         _image.SizeChanged += (_, e) =>
         {
             _play.Diameter = VideoPlayMark.Diameter(e.NewSize);
-            _play.Margin = new Thickness(0, Math.Max(0, (e.NewSize.Height - _play.Diameter) / 2), 0, 0);
             UpdateBadges();
-            PositionOverlay();
         };
         _frame.Margin = _edge.BorderThickness;
-        _badges.VerticalAlignment = VerticalAlignment.Top;
+        _badges.VerticalAlignment = VerticalAlignment.Center;
         _edge.IsVisible = false;
         _frame.Children.Add(_placeholder);
         _frame.Children.Add(_image);
@@ -442,22 +440,16 @@ internal sealed partial class ReaderMediaSidebar : Border
         _info.Children.Add(_facts);
         _info.Children.Add(_provenanceNote);
         _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor);
-        _details.Child = _infoBar;
-        _overlayActions = MediaInfoBar.CreateActionGrid(_overlayRating, _tagCount, _expand);
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
-        foreach (GalleryDecisionRow row in new[] { _decision, _overlayRating })
+        _decision.RatingRequested += value =>
         {
-            row.RatingRequested += value =>
-            {
-                if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
-            };
-            row.AddHandler(KeyDownEvent, (_, e) =>
-            {
-                if (!e.Handled && row.RouteStarKey(e)) e.Handled = true;
-            }, RoutingStrategies.Tunnel);
-        }
-        foreach (Button button in _infoBar.GetVisualDescendants().Concat(_overlayActions.GetVisualDescendants())
-            .OfType<Button>().Append(_headerFavorite).Append(Open))
+            if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
+        };
+        _decision.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!e.Handled && _decision.RouteStarKey(e)) e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        foreach (Button button in _infoBar.GetVisualDescendants().OfType<Button>().Append(_headerFavorite).Append(Open))
             TrackDecisionPress(button);
         AddHandler(PointerReleasedEvent, (_, e) =>
         {
@@ -472,7 +464,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _header.SetFactsContent(_info);
-        _card.Margin = new Thickness(0, 8, 0, 0);
+        _header.ReserveCloseSpace(Close);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -494,9 +486,6 @@ internal sealed partial class ReaderMediaSidebar : Border
         _stripCounter.IsVisible = false;
         _stripRow.Children.Add(_stripCounter);
 
-        // The header, then the card: the medium, the strip of a post with several files and under the medium the video's controls (empty for
-        // an image), all inside the card's edge. A hidden row takes no space; the last shown row keeps a gap to the card's bottom edge. The
-        // live region has no height and shares the header's cell.
         _card.Children.Add(_frame);
         Grid.SetRow(_stripRow, 1); _card.Children.Add(_stripRow);
         Grid.SetRow(_videoRow, 2); _card.Children.Add(_videoRow);
@@ -509,15 +498,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             UpdateCardRows();
         };
         UpdateCardRows();
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto") };
-        layout.Children.Add(_header);
-        layout.Children.Add(_live);
-        Grid.SetRow(_card, 1); layout.Children.Add(_card);
-        Grid.SetRow(_details, 2); layout.Children.Add(_details);
-        Grid.SetRow(_decisionError, 3); layout.Children.Add(_decisionError);
-        // Header is visually first. Its close is the last element in the sidebar's tab order.
-        KeyboardNavigation.SetTabIndex(Close, 1);
-        Child = layout;
+        Child = new Grid { Children = { _card, _live } };
         InitializeInfo();
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
@@ -547,7 +528,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _infoBar.Localize();
         RefreshTags();
         RefreshDecisions();
-        _positionPill.Show(_threadPosition);
+        SetThreadPosition(_threadPosition);
         string stripName = Texts.T("reader.sidebar.strip");
         AutomationProperties.SetName(_strip, stripName);
         ToolTip.SetTip(_strip, stripName);
@@ -597,7 +578,6 @@ internal sealed partial class ReaderMediaSidebar : Border
         {
             InvalidateDecisionTarget();
             _mediumKey = mediumKey;
-            _wasDocked = false;
         }
         if (newMedium || _postLine != postLine || _fileName != fileLine)
         {
@@ -625,6 +605,8 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         _threadPosition = position;
         _positionPill.Show(position);
+        _positionPill.IsVisible = false;
+        _header.InvalidateMeasure();
     }
 
     private void TrackDecisionPress(Button button)
@@ -654,6 +636,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             if (origin == null && !_details.IsVisible)
             {
                 _infoBar.PinEditorAnchor(true);
+                RevealBars();
                 UpdateInfoLayout();
                 TopLevel.GetTopLevel(this)?.UpdateLayout();
             }
@@ -788,9 +771,7 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void RefreshTags()
     {
-        RefreshOverlayTagCount();
         _infoBar.SetTags(_tags, _tagsBlocked, OpenTagsAsync != null);
-        _tagCount.IsEnabled = OpenTagsAsync != null && _tagsBlocked == null;
     }
 
     internal void RefreshFavorite() { RefreshDecisions(); UpdateBadges(); }
@@ -804,7 +785,6 @@ internal sealed partial class ReaderMediaSidebar : Border
         if (_decision.View.Available && updated.Available && _decision.View != updated)
             Announce(GalleryDecisionText.Summary(updated));
         _decision.Show(updated, favorite.Available);
-        _overlayRating.Show(updated);
         _headerFavorite.Refresh();
         UpdateBadges();
         if (!favorite.Available && _favoriteHold != null)
@@ -815,6 +795,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         string? error = _decisionFailure ?? favorite.Error;
         _decisionError.Text = error;
         _decisionError.IsVisible = !string.IsNullOrEmpty(error);
+        if (_decisionError.IsVisible) RevealBars();
     }
 
     private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available)
@@ -841,9 +822,9 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void UpdateBadges()
     {
-        if (!_badgesOn || !_image.IsVisible) { _badges.Clear(); return; }
+        if (!_badgesOn || !_image.IsVisible || _headBar.IsVisible) { _badges.Clear(); return; }
         // No Favorite here: the header's star toggle shows and changes the favourite, a second filled star on the picture only duplicated it.
-        _badges.Apply(new MediaBadgeState(Rating: _details.IsVisible ? null : _decision.View.Rating, Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
+        _badges.Apply(new MediaBadgeState(Rating: _decision.View.Rating, Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
     }
 
     internal void SetDetail(string detailLine)
@@ -860,7 +841,6 @@ internal sealed partial class ReaderMediaSidebar : Border
     internal void ShowPicture(Bitmap bitmap, Action<Bitmap> release, bool playable, double maximumWidth, double maximumHeight,
         string? mediumKey = null, PixelSize? source = null)
     {
-        if (mediumKey != Load.ShownKey) _wasDocked = false;
         ReleasePicture();
         _bitmap = bitmap;
         _release = release;

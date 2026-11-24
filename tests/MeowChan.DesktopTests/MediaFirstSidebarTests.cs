@@ -76,26 +76,75 @@ public sealed class MediaFirstSidebarTests
     }
 
     [Fact]
-    public void AutoUsesSeparateEnterAndExitThresholds()
+    public void OverlayIdleRestartsAfterInteractionAndUsesTheLeaveDelay()
     {
-        var preferences = ReaderMediaPreferences.Default with { MediaSidebarInfo = "Auto" };
-        bool docked = false;
-        foreach (var (free, expected) in new[] { (104, true), (103, true), (80, true), (79, false), (103, false), (104, true) })
+        // W112-72 §5: "Nach einem Haltegrund beginnt die volle Leerlaufzeit neu."
+        static long At(int ms) => System.Diagnostics.Stopwatch.Frequency * ms / 1000;
+        foreach (int delay in new[] { 500, 2000, 30000 })
         {
-            Size inner = new(302, 300 + 58 + free);
-            var result = ReaderMediaSidebarRules.InfoLayout(preferences, null, inner, new(1080, 1080), 0, docked,
-                double.PositiveInfinity, 60);
-            Assert.Equal(expected, result.Docked);
-            docked = result.Docked;
-            Assert.Equal(result, ReaderMediaSidebarRules.InfoLayout(preferences, null, inner, new(1080, 1080), 0, docked,
-                double.PositiveInfinity, 60));
+            SidebarOverlayIdle idle = new(0);
+            idle.Observe(At(delay - 1), delay, false, false, false, out bool hide);
+            Assert.False(hide);
+            idle.Observe(At(delay), delay, false, false, false, out hide);
+            Assert.True(hide);
+            foreach (var (bar, press, popup) in new[] { (true, false, false), (false, true, false), (false, false, true) })
+            {
+                var held = idle.Observe(At(delay + 100), delay, bar, press, popup, out hide);
+                Assert.False(hide);
+                var released = held.Observe(At(delay + 200), delay, false, false, false, out hide);
+                Assert.False(hide);
+                released.Observe(At(2 * delay + 199), delay, false, false, false, out hide);
+                Assert.False(hide);
+                released.Observe(At(2 * delay + 200), delay, false, false, false, out hide);
+                Assert.True(hide);
+            }
+            var leaving = new SidebarOverlayIdle(0, Leaving: true);
+            leaving.Observe(At(399), delay, false, false, false, out hide);
+            Assert.False(hide);
+            leaving.Observe(At(400), delay, false, false, false, out hide);
+            Assert.True(hide);
         }
     }
+
+    [Fact]
+    public void HidingAndRevealingBothBarsPreservesImageBoundsAndCloseTarget() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using RenderTargetBitmap picture = new(new PixelSize(600, 900));
+        ReaderMediaSidebar panel = new();
+        panel.Describe("No. 7", "portrait.png", "", true);
+        panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
+        Window window = new() { Width = 320, Height = 800, Content = panel };
+        try
+        {
+            window.Show();
+            Settle(window);
+            Rect InPanel(Control c) => new(c.TranslatePoint(default, panel)!.Value, c.Bounds.Size);
+            Rect image = InPanel(panel.Picture), close = InPanel(panel.Close);
+            Assert.Equal(InPanel(panel.Frame).Center.Y, image.Center.Y, 0.5);
+            long time = System.Diagnostics.Stopwatch.GetTimestamp() + 3 * System.Diagnostics.Stopwatch.Frequency;
+            panel.ObserveIdle(time);
+            panel.ObserveIdle(time + System.Diagnostics.Stopwatch.Frequency);
+            Settle(window);
+            Assert.False(panel.HeaderRow.IsEffectivelyVisible);
+            Assert.False(panel.Details.IsEffectivelyVisible);
+            Assert.Equal(image, InPanel(panel.Picture));
+            Assert.True(panel.Close.IsEffectivelyVisible);
+            Assert.Equal(close, InPanel(panel.Close));
+            window.MouseMove(new Point(120, 400));
+            Settle(window);
+            Assert.True(panel.HeaderRow.IsEffectivelyVisible);
+            Assert.True(panel.Details.IsEffectivelyVisible);
+            Assert.Equal(image, InPanel(panel.Picture));
+            Assert.Equal(close, InPanel(panel.Close));
+        }
+        finally { window.Close(); }
+    });
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void FailedRatingStaysVisibleAtTheDockingBoundary(bool automatic) => BooruComponentDispatcher.Run(() =>
+    public void FailedRatingStaysVisibleOnTheFrame(bool automatic) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using RenderTargetBitmap picture = new(new PixelSize(600, 600));
@@ -107,7 +156,7 @@ public sealed class MediaFirstSidebarTests
         const string failure = "Rating could not be saved.";
         int writes = 0;
         panel.ConfigureRating(() => true, () => 3, _ => { writes++; return Task.FromException(new IOException(failure)); });
-        // The square image has 104 DIP free in Auto. A manual dock leaves exactly 240 DIP for the frame.
+        // W112-72 §§1,3: “Die Leisten nehmen im Overlay nie Layoutplatz”; the write error stays below the rating.
         Window window = new() { Width = 320, Height = automatic ? 480 : 410, Content = panel };
         try
         {
@@ -116,17 +165,17 @@ public sealed class MediaFirstSidebarTests
             Settle(window);
             Assert.True(panel.DecisionRow.IsEffectivelyVisible);
             double imageHeight = panel.Picture.Bounds.Height;
-            if (!automatic) Assert.Equal(240, panel.Frame.Bounds.Height, 0.5);
+            if (!automatic) Assert.Equal(panel.Card.Bounds.Height - 2, panel.Frame.Bounds.Height, 0.5);
             panel.DecisionRow.StarButtons[4].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Settle(window);
             Assert.Equal(1, writes);
-            Assert.False(panel.Details.IsEffectivelyVisible);
+            Assert.True(panel.Details.IsEffectivelyVisible);
             var alert = Assert.Single(panel.GetVisualDescendants().OfType<TextBlock>(), t => t.IsEffectivelyVisible && t.Text == failure);
             Rect bounds = new(alert.TranslatePoint(default, panel)!.Value, alert.Bounds.Size);
             Assert.True(bounds.Height > 0 && new Rect(panel.Bounds.Size).Contains(bounds));
             Assert.Equal(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(alert));
-            Assert.True(panel.Picture.Bounds.Height >= imageHeight);
-            Assert.True(panel.Frame.Bounds.Height >= ReaderMediaSidebarRules.MinimumPictureHeight);
+            Assert.Equal(imageHeight, panel.Picture.Bounds.Height);
+            Assert.Equal(panel.Card.Bounds.Height - 2, panel.Frame.Bounds.Height, 0.5);
         }
         finally { window.Close(); }
     });
@@ -450,7 +499,7 @@ public sealed class MediaFirstSidebarTests
             window.PlatformImpl.Resize(new Size(width, 392), WindowResizeReason.User);
             Settle();
             Assert.True(details.IsVisible);
-            Assert.True(panel.Frame.Bounds.Height >= ReaderMediaSidebarRules.MinimumPictureHeight);
+            Assert.Equal(panel.Card.Bounds.Height - 2, panel.Frame.Bounds.Height, 0.5);
         }
         finally { window.Close(); Texts.SetLanguage(previous); }
     });

@@ -15,6 +15,7 @@ internal sealed class MediaCompactHeader : Grid
     private readonly TextBlock _title;
     private readonly MediaPositionPill _pill;
     private readonly double _actionsWidth;
+    private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private string _file = "", _detail = "";
     private readonly Button _fileButton = new()
     {
@@ -72,21 +73,26 @@ internal sealed class MediaCompactHeader : Grid
         _actionsWidth = buttons.Length * WorkspaceMetrics.InputHeight + Math.Max(0, buttons.Length - 1) * actionSpacing;
         ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto");
         Children.Add(title);
-        pill.HorizontalAlignment = HorizontalAlignment.Center;
-        SetColumn(pill, 1);
-        Children.Add(pill);
-        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = actionSpacing };
+
         foreach (Button button in buttons)
         {
             button.Width = button.Height = WorkspaceMetrics.InputHeight;
             button.Classes.Add(WorkspaceIcons.SquareClass);
-            actions.Children.Add(button);
+            button.Focusable = button.IsTabStop = false;
+            _actions.Children.Add(button);
         }
-        SetColumn(actions, 2);
-        Children.Add(actions);
+        SetColumn(_actions, 2);
+        Children.Add(_actions);
         SetRow(Meta, 1);
         SetColumnSpan(Meta, 3);
         Children.Add(Meta);
+    }
+
+    // The live close button stays at this same position when both bars disappear.
+    internal void ReserveCloseSpace(PanelCloseButton close)
+    {
+        _actions.Children.Remove(close);
+        _actions.Children.Add(new Border { Width = WorkspaceMetrics.InputHeight });
     }
 
     internal void Describe(string file, string detail)
@@ -100,11 +106,8 @@ internal sealed class MediaCompactHeader : Grid
     protected override Size MeasureOverride(Size availableSize)
     {
         double room = Math.Max(0, availableSize.Width - _actionsWidth);
-        double title = Math.Max(64, MeasureText(_title, _title.Text));
-        double bare = MeasureText(_pill.Label, _pill.Bare) + 18;
-        _pill.IsVisible = _pill.HasPosition && title + 16 + bare <= room;
-        _title.MaxWidth = Math.Max(64, _pill.IsVisible ? title : room);
-        string prefix = _pill.HasPosition && !_pill.IsVisible ? _pill.Bare! : "";
+        _title.MaxWidth = Math.Max(64, room);
+        string prefix = _pill.Bare ?? "";
         string Line(string file) => ReaderMediaSidebarRules.HeaderText(prefix, file, _detail);
         double fileRoom = availableSize.Width - (_fileButton.Flyout == null ? 0 : 16);
         string full = Line(_file);

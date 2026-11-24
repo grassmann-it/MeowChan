@@ -147,6 +147,7 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
     /// <summary>The switched-on sidebar shows also beside the posts of the archive view, not only in the large reader (Off / Large reader only / Always).</summary>
     internal bool SidebarAlways { get; init; }
     /// <summary>The sidebar sits right of the posts instead of left.</summary>
+    internal int ControlsIdleHideMs { get; init; } = Config.ControlsIdleHideMsDefault;
     internal string MediaSidebarInfo { get; init; } = "Auto";
     internal int MediaSidebarInfoMinimumFree { get; init; } = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeDefault;
     internal int MediaSidebarInfoMaximumShare { get; init; } = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareDefault;
@@ -170,6 +171,7 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         Sidebar = config.ReaderMediaSidebar,
         SidebarAlways = config.ReaderMediaSidebarScope == Config.ReaderMediaSidebarScopeAlways,
         SidebarRight = config.ReaderMediaSidebarSide == Config.ReaderMediaSidebarSideRight,
+        ControlsIdleHideMs = config.ControlsIdleHideMs,
         MediaSidebarInfo = config.MediaSidebarInfo,
         MediaSidebarInfoMinimumFree = config.MediaSidebarInfoMinimumFree,
         MediaSidebarInfoMaximumShare = config.MediaSidebarInfoMaximumShare,
