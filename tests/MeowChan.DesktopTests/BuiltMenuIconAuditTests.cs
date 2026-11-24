@@ -133,13 +133,27 @@ public sealed class BuiltMenuIconAuditTests
         await BooruTestSupport.WaitAsync(() => Equals(another.Header, Texts.T("shell.tagline.menuAnother")), "localized tagline");
         var settings = Assert.Single(menu.Items.OfType<MenuItem>(), row => Equals(row.Tag, "tagline.settings"));
         Assert.Equal(CommandCatalog.Label("navigation.settings"), settings.Header);
-        string RowId(NativeMenuItem item) => ReferenceEquals(item, stats.RatesItem) ? "rate"
-            : ReferenceEquals(item, stats.DiskItem) ? "disk"
-            : ReferenceEquals(item, stats.DetailItem) ? "detail" : item.Header ?? "";
-        MenuIconAudit.VerifyNative("tray", tray.Menu!.Items.OfType<NativeMenuItem>().Select(item => (RowId(item), item)),
+        var ids = new Dictionary<NativeMenuItem, string>
+        {
+            [Item("_trayOpenItem")] = "app.show",
+            [Item("_trayFolderItem")] = "location.open-folder",
+            [Item("_clipboardMenuItem")] = "watch.import-clipboard",
+            [Item("_trayPauseItem")] = "session.pause",
+            [update] = "updates.check",
+            [Item("_trayStatusItem")] = "navigation.status",
+            [Item("_traySettingsItem")] = "navigation.settings",
+            [Item("_trayExitItem")] = "app.quit",
+            [stats.RatesItem] = "rate",
+            [stats.DiskItem] = "disk",
+            [stats.DetailItem] = "detail"
+        };
+        MenuIconAudit.VerifyNative("tray", tray.Menu!.Items.OfType<NativeMenuItem>()
+                .Select((item, index) => (ids.GetValueOrDefault(item, "row." + index), item)),
             new("tray", "rate", "Live rate summary and a link to statistics."),
             new("tray", "disk", "Live disk summary and a link to statistics."),
             new("tray", "detail", "Live activity summary and a link to statistics."));
+
+        NativeMenuItem Item(string field) => Assert.IsType<NativeMenuItem>(Field(typeof(MainWindow), field).GetValue(window));
     }
 
     [Fact]
