@@ -1220,8 +1220,21 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal IReadOnlyList<MenuItem> StampMenuItems(TagId tag)
     {
         bool inStamp = _session.InStamp(tag);
-        MenuItem item = new() { Header = Texts.T(inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd"), Name = _name + (inStamp ? "StampRemove" : "StampAdd") };
-        item.Click += (_, _) => { if (inStamp) _session.RemoveFromStamp(tag); else _session.AddToStamp(tag); };
+        string id = inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd";
+        string label = Texts.T(id);
+        MenuItem item = new()
+        {
+            Header = label, Name = _name + (inStamp ? "StampRemove" : "StampAdd"), Tag = id,
+            Icon = CommandBindings.IconFromKey(inStamp ? "x" : "plus", deferMask: true),
+            IsEnabled = !_disposed && _session.Snapshot?.Find(tag) != null
+        };
+        AutomationProperties.SetName(item, label);
+        item.Click += (_, _) =>
+        {
+            if (!item.IsEnabled || _disposed) return;
+            if (inStamp) _session.RemoveFromStamp(tag);
+            else _session.AddToStamp(tag);
+        };
         return new[] { item };
     }
 

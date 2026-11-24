@@ -576,8 +576,13 @@ public sealed class QuickTagStampSourceTests : IDisposable
             Assert.All(new[] { chips[0], chips[1], chips[2] }, chip => Assert.NotNull(chip.ContextMenu));
             MenuItem remove = Assert.Single(surface.StampMenuItems(a));
             Assert.Equal("Remove from stamp", remove.Header);
+            Assert.Equal("x", MenuIcons.KeyOf(remove));
             MenuItem add = Assert.Single(surface.StampMenuItems(other));
             Assert.Equal("Add to stamp", add.Header);
+            Assert.Equal("plus", MenuIcons.KeyOf(add));
+            MenuItem unavailable = Assert.Single(surface.StampMenuItems(default));
+            Assert.False(unavailable.IsEnabled);
+            Assert.Equal("plus", MenuIcons.KeyOf(unavailable));
             add.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
             Assert.Equal(new[] { "a", "b", "other" }, session.Stamp.ToNames());
             surface.Refresh();

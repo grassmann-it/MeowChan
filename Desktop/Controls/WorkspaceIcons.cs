@@ -149,6 +149,15 @@ internal static class WorkspaceIcons
     /// <summary>The key of the icon a button or content shows, or null when it shows something else.</summary>
     internal static string? KeyOf(object? content) => (content as Path)?.Tag as string;
 
+    internal static string? FeatherKeyOf(object? content) => KeyOf(content) switch
+    {
+        Refresh => "refresh-cw",
+        Shuffle => "shuffle",
+        Maximize => "maximize-2",
+        TagList => "panel-left",
+        _ => null
+    };
+
     /// <summary>
     /// Turns <paramref name="button"/> into an icon-only button of the square family: <see cref="SquareClass"/> (input-height square, no
     /// text), the icon as content, and the tooltip and accessible name the caller gives. The icon is never the only name.
