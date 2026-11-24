@@ -286,7 +286,10 @@ public sealed class BooruMediaSidebarTests
             && AutomationProperties.GetAutomationId(item) == "BooruMediaScore");
 
         Focus(Hit(view, "101"));
-        PressPointer(window, ById<Button>(Sidebar(view), "BooruPanelTag:blue_eyes"));
+        Button blueEyes = ById<Button>(Sidebar(view), "BooruPanelTag:blue_eyes");
+        blueEyes.BringIntoView();
+        Settle(window);
+        PressPointer(window, blueEyes);
         Assert.Contains("blue_eyes", model.Search.View.Input.Split(' '));
         Button artist = ById<Button>(Sidebar(view), "BooruPanelTag:sky");
         artist.BringIntoView();
