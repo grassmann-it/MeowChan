@@ -36,7 +36,7 @@ public sealed class ReaderMediaPanelDecisionTests
         {
             window.Show();
             window.UpdateLayout();
-            Assert.False(sidebar.DecisionRow.IsEffectivelyVisible);
+            Assert.DoesNotContain(sidebar.GetVisualDescendants().OfType<GalleryDecisionRow>(), row => row.IsEffectivelyVisible);
             Click(sidebar.InfoToggle);
             window.UpdateLayout();
             GalleryDecisionRow decision = Assert.Single(sidebar.GetVisualDescendants().OfType<GalleryDecisionRow>(), row => row.IsEffectivelyVisible);

@@ -72,7 +72,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.Equal("Medium 4 of 27", AutomationProperties.GetName(counter));
         Assert.Equal("Medium 4 of 27", ToolTip.GetTip(counter));
         Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(counter));
-        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(label));
+        Assert.Equal(AutomationLiveSetting.Off, AutomationProperties.GetLiveSetting(label));
         counter.Show(null);
         Assert.False(counter.IsVisible);
         counter.Show(new(5, 27, false));
