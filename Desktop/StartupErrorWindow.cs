@@ -67,12 +67,19 @@ public sealed class StartupErrorWindow : Window
 
         // Texts has built-in English before Initialize, including for profile startup failures.
         ApplyTexts();
-        Texts.Changed += OnTextsChanged;
+        Opened += OnOpened;
         Closed += (_, _) =>
         {
             _closed = true;
             Texts.Changed -= OnTextsChanged;
         };
+    }
+
+    private void OnOpened(object? sender, EventArgs e)
+    {
+        Opened -= OnOpened;
+        Texts.Changed += OnTextsChanged;
+        ApplyTexts();
     }
 
     private void ApplyTexts()

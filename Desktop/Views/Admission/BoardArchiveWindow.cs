@@ -75,16 +75,17 @@ internal sealed class BoardArchiveWindow : Window
 
         Opened += async (_, _) =>
         {
-            _opened = true;
+            if (_closed) return;
+            if (!_opened)
+            {
+                _opened = true;
+                Texts.Changed += OnTextsChanged;
+            }
+            ApplyTexts();
+            RefreshControls();
             await LoadBoardAsync(focusList: true);
         };
-        Closed += (_, _) =>
-        {
-            _closed = true;
-            Texts.Changed -= OnTextsChanged;
-            _catalogRead?.Cancel();
-            _detailRead?.Cancel();
-        };
+        Closed += (_, _) => EndLifetime();
         _boards.SelectionChanged += async (_, _) => { if (_opened && !_closed) await LoadBoardAsync(); };
         _rows.SelectionChanged += async (_, _) =>
         {
@@ -112,7 +113,15 @@ internal sealed class BoardArchiveWindow : Window
         DialogEscape.Attach(this);
         ApplyTexts();
         RefreshControls();
-        Texts.Changed += OnTextsChanged;
+    }
+
+    internal void EndLifetime()
+    {
+        if (_closed) return;
+        _closed = true;
+        Texts.Changed -= OnTextsChanged;
+        _catalogRead?.Cancel();
+        _detailRead?.Cancel();
     }
 
     private async Task LoadBoardAsync(bool focusList = false)

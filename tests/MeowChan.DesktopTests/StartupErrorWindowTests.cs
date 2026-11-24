@@ -17,6 +17,35 @@ public sealed class StartupErrorWindowTests
     private const string Message = " Fehler beim Start 🚧\r\n日本語 · Żółć\n\n  Letzte Zeile  ";
 
     [Fact]
+    public void AConstructedWindowJoinsLanguageChangesOnlyWhenItOpens() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        StartupErrorWindow window = new(Message);
+        string initialTitle = window.Title!;
+        try
+        {
+            Texts.SetLanguage("de");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(initialTitle, window.Title);
+
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.Equal(Texts.T("startup.title"), window.Title);
+            Assert.Equal(Texts.T("action.exit"), Find<Button>(window, "StartupErrorExit").Content);
+
+            window.Close();
+            Texts.SetLanguage("en");
+            Dispatcher.UIThread.RunJobs();
+            Assert.NotEqual(Texts.T("startup.title"), window.Title);
+        }
+        finally
+        {
+            if (window.IsVisible) window.Close();
+        }
+    });
+
+    [Fact]
     public void KeyboardCopiesTheWholeDisplayedMessageAndCanExit() => WithWindow(null, window =>
     {
         var detail = Find<SelectableTextBlock>(window, "StartupErrorMessage");

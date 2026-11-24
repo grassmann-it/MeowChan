@@ -11,14 +11,15 @@ public partial class MainWindow
 {
     private bool _admissionArchiveOpened;
 
-    private Task ShowBoardArchiveAsync(BoardArchiveLocation initial, IEnumerable<BoardArchiveLocation> additional)
+    private async Task ShowBoardArchiveAsync(BoardArchiveLocation initial, IEnumerable<BoardArchiveLocation> additional)
     {
         BoardArchiveLocation[] boards = additional.Concat(BoardsList
                 .Select(row => _session.FindBoardArchive(row.Url, fromBoard: true)).OfType<BoardArchiveLocation>())
             .Prepend(initial).DistinctBy(board => board.Uri).ToArray();
         var window = new BoardArchiveWindow(boards, _session.ReadBoardArchiveAsync, _session.ReadBoardArchiveThreadAsync,
             thread => _session.AddAsync(thread.Url), thread => OpenTarget(thread.Url));
-        return window.ShowDialog(this);
+        try { await window.ShowDialog(this); }
+        finally { window.EndLifetime(); }
     }
 
     private async Task OpenBoardArchiveAsync(BoardArchiveLocation archive, Control origin)

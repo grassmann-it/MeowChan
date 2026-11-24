@@ -135,6 +135,49 @@ public sealed class BoardArchiveWindowTests
         });
 
     [Fact]
+    public void ADialogThatFailsToOpenStartsReadingAndRefreshesItsLanguageOnTheNextShow()
+        => BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Window owner = new();
+            var board = new BoardArchiveLocation("g", new Uri("https://archive.test/g/archive"));
+            int reads = 0;
+            BoardArchiveWindow dialog = new([board], (_, _) =>
+            {
+                reads++;
+                return Task.FromResult<IReadOnlyList<BoardArchiveThread>?>([]);
+            }, (_, _) => throw new InvalidOperationException("Unexpected detail read"),
+                _ => throw new InvalidOperationException("Unexpected watch"), _ => { });
+            string initialTitle = dialog.Title!;
+            try
+            {
+                Assert.Throws<InvalidOperationException>(() => { _ = dialog.ShowDialog(owner); });
+                Texts.SetLanguage("de");
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(initialTitle, dialog.Title);
+                Assert.Equal(0, reads);
+
+                owner.Show();
+                Task shown = dialog.ShowDialog(owner);
+                Layout(dialog);
+                Assert.Equal(Texts.T("boardArchive.title"), dialog.Title);
+                Assert.Equal(Texts.T("boardArchive.empty"), Control<TextBlock>(dialog, "BoardArchiveStatus").Text);
+                Assert.Equal(1, reads);
+
+                dialog.Close();
+                BooruComponentDispatcher.Wait(shown);
+                Texts.SetLanguage("en");
+                Dispatcher.UIThread.RunJobs();
+                Assert.NotEqual(Texts.T("boardArchive.title"), dialog.Title);
+            }
+            finally
+            {
+                if (dialog.IsVisible) dialog.Close();
+                if (owner.IsVisible) owner.Close();
+            }
+        });
+
+    [Fact]
     public async Task ReturningToABoardAndThreadWaitsForTheCanceledReadAndShowsTheLatestResult()
     {
         using TempDirectory profile = new();
