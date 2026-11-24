@@ -42,7 +42,6 @@ public sealed class SearchScopeChip : Button
 {
     protected override Type StyleKeyOverride => typeof(Button);
 
-    private static readonly Lazy<Geometry> Chevron = new(() => Geometry.Parse("M 1,1 L 5,5 L 9,1"));
     private static readonly SearchScope[] AllScopes = { SearchScope.Text, SearchScope.FileName, SearchScope.Sha256 };
     private SearchScope[] _scopes = AllScopes;
 
@@ -205,7 +204,7 @@ public sealed class SearchScopeChip : Button
         if (!_geometryApplied)
         {
             // Geometry needs the rendering platform: build it when the chip is shown, not when it is constructed.
-            _chevron.Data = Chevron.Value;
+            _chevron.Data = Geometry.Parse("M 1,1 L 5,5 L 9,1");
             _geometryApplied = true;
         }
         Texts.Changed += OnTextsChanged;
