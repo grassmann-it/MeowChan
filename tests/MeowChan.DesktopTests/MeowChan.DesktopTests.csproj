@@ -37,6 +37,9 @@
     <EmbeddedResource Include="LocalizationAudit/*.json"
                       WithCulture="false"
                       LogicalName="MeowChan.DesktopTests.LocalizationAudit.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Fixtures/Booru112/*.json"
+                      WithCulture="false"
+                      LogicalName="MeowChan.DesktopTests.Fixtures.Booru112.%(Filename)%(Extension)" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

@@ -69,7 +69,8 @@ public sealed class BooruSearchTabIdentityTests
         File.WriteAllText(path, """
             {"Version":1,"State":{"ActiveIndex":1,"Tabs":[
                 {"PostId":"42","Query":null,"Page":1},
-                {"SourceId":"danbooru","InstanceId":"other","PostId":"42","Query":null,"Page":1}
+                {"SourceId":"danbooru","InstanceId":"other","PostId":"42","Query":null,"Page":1},
+                {"SourceId":"test-source","InstanceId":"other","PostId":"42","Query":null,"Page":1}
             ]}}
             """);
         BooruSearchTabStore store = new(lease);
@@ -77,8 +78,12 @@ public sealed class BooruSearchTabIdentityTests
         Assert.Equal(1, state.ActiveIndex);
         Assert.Equal(new BooruPostKey("danbooru", BooruPostKey.DefaultInstance, "42"), state.Tabs[0]!.PostIdentity);
         Assert.Equal(new BooruPostKey("danbooru", "other", "42"), state.Tabs[1]!.PostIdentity);
+        Assert.Equal(new BooruPostKey("test-source", "other", "42"), state.Tabs[2]!.PostIdentity);
         using JsonDocument migrated = JsonDocument.Parse(File.ReadAllText(path));
         Assert.Equal(2, migrated.RootElement.GetProperty("version").GetInt32());
+        BooruSearchTabState reopened = Assert.IsType<BooruSearchTabState>(new BooruSearchTabStore(lease).Read());
+        Assert.Equal(state.ActiveIndex, reopened.ActiveIndex);
+        Assert.Equal(state.Tabs.Select(tab => tab!.PostIdentity), reopened.Tabs.Select(tab => tab!.PostIdentity));
     }
 
     [Fact]

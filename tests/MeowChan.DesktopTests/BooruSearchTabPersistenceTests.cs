@@ -113,6 +113,10 @@ public sealed class BooruSearchTabPersistenceTests
     [InlineData("{\"version\":1, broken")]
     [InlineData("{\"version\":1,\"providerId\":\"danbooru\",\"activeIndex\":6,\"tabs\":[null]}")]
     [InlineData("{\"version\":1,\"version\":1,\"providerId\":\"danbooru\",\"activeIndex\":0,\"tabs\":[null]}")]
+    [InlineData("""
+        {"version":1,"providerId":"danbooru","activeIndex":0,"tabs":[null],"allTabsClosable":true,
+         "draft":{"mode":0,"input":"invalid","query":null,"postId":null,"page":0,"isEnd":true,"empty":false,"rows":[]}}
+        """)]
     [InlineData("{\"version\":2,\"providerId\":\"danbooru\",\"activeIndex\":0,\"tabs\":[null]}")]
     public async Task InvalidOrFutureFilesAreQuarantinedAndTheNextSaveWorks(string contents)
     {
@@ -219,6 +223,43 @@ public sealed class BooruSearchTabPersistenceTests
         Assert.False(loaded.RestoreBooruSearchTabs);
         Assert.Equal(2, loaded.BooruSavedTabs);
         Assert.Equal(0, loaded.BooruSavedResultsPerTab);
+    }
+
+    [Theory]
+    [InlineData("empty", 0)]
+    [InlineData("draft", 0)]
+    [InlineData("full", 17)]
+    public void Legacy112WriterFilesMigrate(string fixture, int activeIndex)
+    {
+        using TempDirectory profile = new();
+        string path = Path.Combine(profile.Path, BooruSearchTabStore.FileName);
+        using (Stream original = Assert.IsAssignableFrom<Stream>(typeof(BooruSearchTabPersistenceTests).Assembly
+            .GetManifestResourceStream($"MeowChan.DesktopTests.Fixtures.Booru112.{fixture}.json")))
+        using (FileStream copy = File.Create(path))
+            original.CopyTo(copy);
+
+        string?[] expectedInputs = fixture switch
+        {
+            "empty" => [null],
+            "draft" => ["start_here"],
+            "full" => Enumerable.Range(0, 33).Select(index => index == 0 ? "" : $"draft_{index}").ToArray(),
+            _ => throw new ArgumentOutOfRangeException(nameof(fixture))
+        };
+        ReadExpectedTabs();
+        using JsonDocument migrated = JsonDocument.Parse(File.ReadAllBytes(path));
+        Assert.Equal(2, migrated.RootElement.GetProperty("version").GetInt32());
+        ReadExpectedTabs();
+
+        void ReadExpectedTabs()
+        {
+            using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+            BooruSearchTabState? state = new BooruSearchTabStore(lease).Read();
+            Assert.False(File.Exists(path + ".bad"), "The 1.1.2 writer file was quarantined.");
+            Assert.NotNull(state);
+            Assert.Equal(activeIndex, state.ActiveIndex);
+            Assert.Equal(expectedInputs, state.Tabs.Select(tab => tab?.Input));
+            if (fixture == "empty") Assert.Null(Assert.Single(state.Tabs));
+        }
     }
 
     [Fact]
