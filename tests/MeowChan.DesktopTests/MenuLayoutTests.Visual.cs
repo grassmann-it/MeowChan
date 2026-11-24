@@ -19,7 +19,7 @@ using MeowChan.Gallery;
 namespace MeowChan.DesktopTests;
 
 [Collection("Avalonia global state")]
-public sealed class MenuIconLayoutTests
+public sealed partial class MenuIconLayoutTests
 {
     [Theory]
     [InlineData("de", "Bedienelemente beim Öffnen der Galerie über das aktuell ausgewählte Medium legen")]
@@ -213,13 +213,13 @@ public sealed class MenuIconLayoutTests
                 Assert.Same(filmstrip, panel.ButtonOf(GalleryLayoutMenu.FilmstripId));
                 var model = panel.Model!.Find(GalleryLayoutMenu.FilmstripId)!;
                 Assert.Equal(Texts.T("gallery.layout.filmstrip"), AutomationProperties.GetName(filmstrip));
-                Assert.Equal("columns", model.ActionIcon);
+                Assert.Equal("film", model.ActionIcon);
                 Assert.True(filmstrip.IsFocused);
-                Control filmIcon = AssertFlyout(filmstrip, "columns", model.Checked);
+                Control filmIcon = AssertFlyout(filmstrip, "film", model.Checked);
                 Press(filmstrip, Key.Space);
                 Assert.True(viewer.IsLayoutMenuOpen);
                 Assert.True(filmstrip.IsFocused);
-                Assert.Same(filmIcon, AssertFlyout(filmstrip, "columns", !model.Checked));
+                Assert.Same(filmIcon, AssertFlyout(filmstrip, "film", !model.Checked));
                 Button dock = Assert.IsType<ToggleButton>(panel.ButtonOf(GalleryLayoutMenu.FilmstripTopId));
                 Assert.Null(IconSlot(dock).Content);
                 if (!filmstrip.IsChecked.GetValueOrDefault())
