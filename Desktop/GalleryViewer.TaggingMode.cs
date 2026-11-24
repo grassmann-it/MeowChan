@@ -438,6 +438,8 @@ internal sealed partial class GalleryViewer
         foreach (string id in new[] { "tags.queue.done-next", "tags.queue.skip", "tags.queue.back", QuickTagCommands.StampApply, QuickTagCommands.CommitNext, "tags.queue.play-pause", TaggingCardCommands.Toggle })
             _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
         _helpContent.Children.Add(new TextBlock { Text = TaggingModeText.HelpNote(), Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap });
-        _helpContent.Children.Add(new TextBlock { Text = TaggingCardsText.HelpNote(), Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap });
+        string cardHelp = TaggingCardsText.HelpNote();
+        if (cardHelp.Length > 0)
+            _helpContent.Children.Add(new TextBlock { Text = cardHelp, Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap });
     }
 }

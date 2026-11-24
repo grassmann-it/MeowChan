@@ -135,10 +135,13 @@ internal interface ITaggingCardsOwner
 /// <summary>The sentences of the card mode; one place so the strip, the live region and the tests agree.</summary>
 internal static class TaggingCardsText
 {
-    /// <summary>"Card mode on: the keys 1–5 choose a card, K leaves the card mode."</summary>
-    internal static string On(int cards) => Texts.T("cards.status.on",
-        Commands.CommandCatalog.ShortcutDisplay(TaggingCardCommands.Card(1)) + "–" + Commands.CommandCatalog.ShortcutDisplay(TaggingCardCommands.Card(Math.Max(1, cards))),
-        TaggingModeText.Key(TaggingCardCommands.Toggle));
+    internal static string On(int cards)
+    {
+        string?[] keys = Enumerable.Range(1, cards).Select(KeyOf).ToArray();
+        string displayed = HasDefaultKeys(keys) ? keys[0] + "–" + keys[^1] : string.Join(", ", keys.OfType<string>());
+        return Texts.T("cards.status.on", displayed.Length == 0 ? Texts.T("settings.shortcutsEditor.unbound") : displayed,
+            TaggingModeText.Key(TaggingCardCommands.Toggle));
+    }
 
     internal static string Off() => Texts.T("cards.status.off");
 
@@ -152,6 +155,14 @@ internal static class TaggingCardsText
     internal static string? KeyOf(int number) => CommandCatalog.ShortcutTooltipDisplay(TaggingCardCommands.Card(number), "gallery-tagging");
 
     /// <summary>The note in F1 under the mode's keys.</summary>
-    internal static string HelpNote() => Texts.T("cards.help.note", TaggingModeText.Key(TaggingCardCommands.Toggle),
-        KeyOf(1), KeyOf(TaggingCardCommands.CardKeys));
+    internal static string HelpNote()
+    {
+        string?[] keys = Enumerable.Range(1, TaggingCardCommands.CardKeys).Select(KeyOf).ToArray();
+        return HasDefaultKeys(keys)
+            ? Texts.T("cards.help.note", TaggingModeText.Key(TaggingCardCommands.Toggle), keys[0], keys[^1])
+            : ShortcutHelp.Commands("gallery-tagging", TaggingCardCommands.Cards.ToArray());
+    }
+
+    private static bool HasDefaultKeys(string?[] keys) => keys.Length > 0
+        && keys.SequenceEqual(Enumerable.Range(1, keys.Length).Select(number => number.ToString(Texts.Culture)));
 }
