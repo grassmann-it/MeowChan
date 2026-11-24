@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
@@ -73,7 +74,7 @@ internal static class ArchiveSavedMediaPosterChecks
             page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
             ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
             await Program.WaitUntilAsync(() => { host.UpdateLayout(); return tiles.ItemCount == 2; });
-            if (!tiles.IsVisible) page.FindControl<Button>("ArchiveMediaMode")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            if (!tiles.IsVisible) CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!);
             ArchiveMediaTileView View(string name) => tiles.GetVisualDescendants().OfType<ArchiveMediaTileView>()
                 .First(view => view.DataContext is ArchiveAssetRow row && (row.Asset.OriginalFileName ?? row.Asset.Path).EndsWith(name, StringComparison.Ordinal));
             await Program.WaitUntilAsync(() =>
