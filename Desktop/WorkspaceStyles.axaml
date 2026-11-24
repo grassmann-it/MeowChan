@@ -1473,6 +1473,10 @@
     <Style Selector="ToggleButton.rating-favorite:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.rating-favorite:indeterminate /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
     </Style>
+    <Style Selector="ToggleButton.rating-favorite:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.rating-favorite:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.rating-favorite:indeterminate:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <Style Selector="Button.panel-action">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
