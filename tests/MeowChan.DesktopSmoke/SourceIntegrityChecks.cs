@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -89,19 +90,40 @@ internal static class SourceIntegrityChecks
         {
             navigatedSource = source; sources.SelectSource(source);
         };
-        sourcesHost.Content = sources;
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
             Texts.SetLanguage("en"); Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
+            double wideWidth = window.Screens.ScreenFromWindow(window) is { } screen
+                ? Math.Min(1200, Math.Floor(screen.WorkingArea.Width / window.RenderScaling
+                    - Math.Max(0, (window.FrameSize?.Width ?? window.ClientSize.Width) - window.ClientSize.Width)))
+                : 0;
+            if (wideWidth >= 1024)
+            {
+                window.WindowState = WindowState.Normal;
+                window.Width = wideWidth;
+                await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - wideWidth) <= 1);
+            }
+            sourcesHost.Content = sources;
             Navigate(window, "nav.sources"); sources.SelectSource(PluginUxFixture.SourceId);
             CheckBox permission = C<CheckBox>(sources, "SourceAllowProviderMismatch");
             await RevealAsync(window, permission);
+            if (wideWidth >= 1024) await CheckSourceResizeAsync(window, sources, permission, wideWidth);
             Require(permission.IsChecked == false && C<TextBlock>(sources, "SourceExperimental").IsVisible,
                 "Experimental metadata unexpectedly enabled the source exception.");
+            AssertImmediatePermissionHint(sources, permission);
             await ToggleAsync(window, sources, true);
             Require(first.GetSnapshot().AllowProviderSizeMd5Mismatch && !second.GetSnapshot().AllowProviderSizeMd5Mismatch,
                 "Allowing the first source changed another source or did not publish immediately.");
+            first.SetActive(false);
+            sources.Refresh(providers, session.GetView(), true);
+            Require(!first.GetSnapshot().AllowProviderSizeMd5Mismatch && permission.IsChecked == true
+                && !C<TextBlock>(sources, "SourceMediaIntegrityTiming").IsEffectivelyVisible
+                && string.IsNullOrEmpty(AutomationProperties.GetHelpText(permission))
+                && C<TextBlock>(sources, "SourceMediaIntegrityStatus").Text == Texts.T("sources.providerMismatchInactive"),
+                "An inactive source presented a saved permission as taking effect immediately.");
+            first.SetActive(true);
+            sources.Refresh(providers, session.GetView(), true);
             sources.SelectSource(OtherSource); await ToggleAsync(window, sources, true);
             sources.SelectSource(PluginUxFixture.SourceId); await ToggleAsync(window, sources, false);
             Require(!first.GetSnapshot().AllowProviderSizeMd5Mismatch && second.GetSnapshot().AllowProviderSizeMd5Mismatch,
@@ -189,6 +211,7 @@ internal static class SourceIntegrityChecks
                 Require(permission.IsFocused && permission.IsChecked == false && InViewport(window, permission),
                     "The strict source checkbox is not keyboard reachable at the actual minimum size.");
                 AssertTextFits(C<TextBlock>(sources, "SourceAllowProviderMismatchLabel"));
+                AssertImmediatePermissionHint(sources, permission);
                 Program.CaptureWindow(window, CaptureName("policy-focus-" + cell));
                 await NativeFeatureCheckpoint.HoldAsync("source-policy", sources, permission, permission);
                 if (!InViewport(window, scope))
@@ -253,6 +276,7 @@ internal static class SourceIntegrityChecks
                     "The frozen plugin source action navigated to a different source.");
                 Observation(window, sources, "plugin-link-navigation", new { cell, source = navigatedSource, expectedScale });
             }
+            await CheckPluginTimingAsync(sources, plugins, fixture);
             Require(fixture.ForbiddenCalls == 0, "The passive GUI fixture unexpectedly compiled, described, started or probed a plugin.");
             Require(!first.GetView().IsGranted && !second.GetView().IsGranted, "A passive presentation cell changed saved consent.");
             Console.WriteLine("SOURCE_INTEGRITY_GUI PASS: real pages and Host persistence; independent allow/revoke, failure rollback, frozen pending targets; twelve EN/DE Dark/Light B/S/A cells at actual scale " + expectedScaleText
@@ -267,6 +291,79 @@ internal static class SourceIntegrityChecks
             await PresentationChecks.SwitchModeAsync(window, initial.WorkspaceMode);
             window.Width = originalWidth; window.Height = originalHeight;
         }
+    }
+
+    private static async Task CheckSourceResizeAsync(MainWindow window, SourcesPage page, CheckBox permission, double wideWidth)
+    {
+        Grid split = C<Grid>(page, "SourcesSplit");
+        Control list = C<StackPanel>(page, "SourcesListPane");
+        Control detail = C<Border>(page, "SourceDetailsPanel");
+        double Gap() => detail.TranslatePoint(default, split)!.Value.X
+            - list.TranslatePoint(default, split)!.Value.X - list.Bounds.Width;
+
+        await Program.WaitUntilAsync(() => list.IsEffectivelyVisible && detail.IsEffectivelyVisible && Gap() > 0);
+        double initialGap = Gap();
+        Require(permission.Focus(NavigationMethod.Tab), "The permission checkbox could not take focus in the wide layout.");
+        window.Width = 760;
+        await Program.WaitUntilAsync(() => !list.IsEffectivelyVisible && detail.IsEffectivelyVisible);
+        await Settle();
+        Require(permission.IsFocused && Math.Abs(detail.TranslatePoint(default, split)!.Value.X) <= 1,
+            "The narrow source pane lost focus or retained an empty column.");
+
+        window.Width = wideWidth;
+        await Program.WaitUntilAsync(() => list.IsEffectivelyVisible && detail.IsEffectivelyVisible && Gap() > 0);
+        await Settle();
+        Require(permission.IsFocused && Math.Abs(Gap() - initialGap) <= 1,
+            $"The restored layout lost focus or changed the gap from {initialGap:0.##} DIP to {Gap():0.##} DIP.");
+    }
+
+    private static void AssertImmediatePermissionHint(SourcesPage sources, CheckBox permission)
+    {
+        TextBlock timing = C<TextBlock>(sources, "SourceMediaIntegrityTiming");
+        Require(permission.IsLogicalAncestorOf(timing) && timing.IsEffectivelyVisible
+            && timing.Text == Texts.T("sources.providerMismatchImmediate")
+            && AutomationProperties.GetName(permission) == Texts.T("sources.allowProviderMismatch")
+            && AutomationProperties.GetHelpText(permission) == timing.Text,
+            "The source permission did not present its immediate effect in current-language visible and accessible text.");
+        AssertTextFits(timing);
+    }
+
+    private static async Task CheckPluginTimingAsync(SourcesPage sources, PluginsPage plugins, PluginUxFixture fixture)
+    {
+        await sources.ShowPlugin(PluginUxFixture.SourceId);
+        var before = await fixture.Store.ReadAsync();
+        var active = before.Plugins.Single(plugin => plugin.PluginId == PluginUxFixture.SourcePluginId).Active!;
+        var savedProfile = await fixture.StageSettingsAsync();
+        await plugins.RefreshAsync();
+        var saved = savedProfile.Plugins.Single(plugin => plugin.PluginId == PluginUxFixture.SourcePluginId);
+        Require(PluginAddChecks.NextLine(plugins) == Texts.T("plugins.step.next.saved")
+            && saved.Active?.Configuration.Revision == active.Configuration.Revision && saved.Pending is { } settings
+            && settings.ExecutionRevision == active.ExecutionRevision && settings.Configuration.Revision != active.Configuration.Revision,
+            "Saved plugin settings did not show a restart hint and keep the running configuration.");
+
+        await fixture.AddSecondSourceFileAsync();
+        var profile = await fixture.Store.ReadAsync();
+        await fixture.Store.SelectCandidateAsync(PluginUxFixture.SourcePluginId, PluginUxFixture.SecondSourceKey, profile.Revision);
+        await plugins.RefreshAsync();
+        foreach (string key in new[] { PluginUxFixture.SourceKey, PluginUxFixture.SecondSourceKey })
+        {
+            plugins.Select(key);
+            await Settle();
+            Require(PluginAddChecks.NextLine(plugins) == Texts.T("plugins.step.next.restartSaved"),
+                "The running or scheduled candidate did not identify the saved build as waiting for restart.");
+        }
+        var scheduledProfile = await fixture.Store.ReadAsync();
+        var scheduled = scheduledProfile.Plugins.Single(plugin => plugin.PluginId == PluginUxFixture.SourcePluginId);
+        Require(scheduled.Active?.CandidateId == PluginUxFixture.SourceKey
+            && scheduled.Pending?.CandidateId == PluginUxFixture.SecondSourceKey,
+            "Scheduling a candidate changed the active build before restart.");
+
+        plugins.CurrentDraft!.Plugin.Set("label", "Unsaved label");
+        Require(C<TextBlock>(plugins, "PluginDraftStatus").Text == Texts.T("plugins.draft")
+            && C<TextBlock>(plugins, "PluginDraftSummary").IsEffectivelyVisible
+            && PluginAddChecks.NextLine(plugins) == Texts.T("plugins.step.next.restartSaved")
+            && (await fixture.Store.ReadAsync()).Revision == scheduledProfile.Revision,
+            "The unsaved plugin draft did not keep its own timing while leaving the scheduled build intact.");
     }
 
     private static async Task AssertLocalSaveFailureVisibleAsync(MainWindow window, SourcesPage page, bool expectedSaved)
