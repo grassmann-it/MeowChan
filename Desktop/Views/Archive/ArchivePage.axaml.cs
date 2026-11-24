@@ -1038,8 +1038,7 @@ public partial class ArchivePage : UserControl
     private void OnArchiveFavoritesFilterClick(object? sender, RoutedEventArgs e)
     {
         _archiveFavoritesOnly = !_archiveFavoritesOnly;
-        ArchiveFavoritesFilter.Content = Texts.T(
-            _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
+        ArchiveFavoritesFilter.IsChecked = _archiveFavoritesOnly;
         RenderMedia();
     }
     private async void OnArchiveLayoutClick(object? sender, RoutedEventArgs e)
@@ -1218,8 +1217,7 @@ public partial class ArchivePage : UserControl
         ArchivePostsTab.Header = Texts.T("archive.posts");
         ArchiveMediaTab.Header = Texts.T("archive.media");
         LocalizeMediaLayoutSwitch();
-        ArchiveFavoritesFilter.Content = Texts.T(
-            _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
+        ArchiveFavoritesFilter.Content = Texts.T("archive.favoritesOnly");
         // Replacing translated labels clears selection synchronously; it is not a new user choice.
         _localizingMediaChoices = true;
         try
@@ -1233,8 +1231,6 @@ public partial class ArchivePage : UserControl
         LocalizeMediaRatings();
         LocalizeMediaSelection();
         UpdateReaderNavigation();
-        DataGrid media = ArchiveMediaGrid;
-        media.Columns[0].Header = Texts.T("archive.name"); media.Columns[1].Header = Texts.T("archive.size"); media.Columns[2].Header = Texts.T("archive.version");
         UpdateActions();
         RefreshMediaSidebarToggle();
     }
