@@ -302,8 +302,9 @@ public sealed class GalleryRatingPanelTests : IDisposable
     }
 
     [Fact]
-    public void TheGalleryInfoLineHasAKeyboardStopAndTheTileRatingCaptionNamesItsShortcut()
+    public void TheGalleryInfoLineHasAKeyboardStopAndTheTileRatingCaptionNamesItsShortcut() => BooruComponentDispatcher.Run(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         // Dead-affordance audit 15.11.: the passive "Rating: n" texts open the same surface as R. The info line's segment is a link button around the text
         // (review 16.11.): native Enter and Space, the focus adorner and the Button role, none of which a focused TextBlock had.
         TextBlock status = new();
@@ -335,7 +336,7 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Assert.Equal(AutomationControlType.Button, AutomationProperties.GetControlTypeOverride(caption));
         Assert.False(caption.Focus());
         Assert.StartsWith(CommandCatalog.Label("media.rating.edit"), Assert.IsType<string>(ToolTip.GetTip(caption)));
-    }
+    });
 
     [Fact]
     public void NoRatingDialogPlaybackHoldOrToolbarRatingButtonRemains()
