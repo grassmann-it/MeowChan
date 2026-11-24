@@ -292,7 +292,7 @@ public sealed class ShellReachabilityTests : IDisposable
     [
         "command.thread.show-in-media", "command.media.link-folder", "command.media.folders", "media.empty.copyOrLink", "media.queueAll.hint",
         "media.queueAll.reason.none", "reader.thread.postBookmarks", "resume.tip.jump", "resume.tip.history", "resume.history.open",
-        "menu.group.read", "menu.group.collection", "menu.group.app"
+        "nav.more.currentPage", "menu.group.read", "menu.group.collection", "menu.group.app"
     ];
 
     [Fact]
