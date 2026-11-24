@@ -136,6 +136,8 @@ internal static class SelectionChecks
         await using (ArchiveReader reader = await window.SessionHost.OpenArchiveReaderAsync(CancellationToken.None))
             Require((await reader.SelectThreadIdsAsync(new ArchiveThreadQuery(), CancellationToken.None)).Count == 52,
                 "Removing watches deleted archived posts.");
+        Require(rows.All(row => File.Exists(Path.Combine(window.SessionHost.ProfileDirectory, "Delete media " + row.ThreadId, "reader.png"))),
+            "Removing watches deleted local files.");
         Console.WriteLine("SMOKE selection watches: native Ctrl/Shift range+arrow, selected/unselected right-click, EN/DE/modes, narrow logo, input shielding, frozen batch-export return, single-watch Enter, ambiguous multi-watch Enter blocked and non-destructive batch Delete passed.");
 
         SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);

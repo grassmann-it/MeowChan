@@ -1,9 +1,11 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -32,20 +34,36 @@ internal static class ArchiveDeletionChecks
             table.RaiseEvent(key);
             Require(key.Handled, "Archive did not handle Shift+Delete.");
         }
+        ArchivePermanentDeletionPlan plan = await window.SessionHost.PrepareArchiveDeletionAsync(rows.Select(row => row.Summary.Id).ToArray());
+        string preview = CountPhrases.ArchiveDeletionSummary(2, plan.Files.OwnedFileCount, plan.Files.OwnedBytes);
+        foreach (Key key in new[] { Key.Escape, Key.Enter })
+        {
+            Open();
+            await Program.WaitUntilAsync(() => Dialog()?.IsVisible == true);
+            Window question = Dialog()!;
+            question.UpdateLayout();
+            Button cancel = Find<Button>(question, "ArchivePermanentDeleteCancel");
+            Button confirm = Find<Button>(question, "ArchivePermanentDeleteConfirm");
+            Require(Equals(cancel.Content, "Cancel"), "Confirmation cancel label is not localized.");
+            Require(Equals(confirm.Content, "Delete archive entries and files") && confirm.IsEnabled,
+                "The enabled confirmation does not name the entries and files.");
+            Require(cancel.TranslatePoint(default, confirm) is { X: < 0 }, "Cancel is not left of the destructive action.");
+            Require(question.GetVisualDescendants().OfType<TextBlock>().Any(block => block.Text == preview),
+                "Confirmation omitted the preview's counts or size.");
+            Require(Find<TextBox>(question, "ArchivePermanentDeleteDetails").Text!.Contains("unrelated.txt"),
+                "Confirmation omitted retained files.");
+            await Program.WaitUntilAsync(() => cancel.IsFocused);
+            if (key == Key.Escape) Program.CaptureWindow(question, "smoke-archive-delete-confirmation.png");
+            RawKeyboardInput.Press(question, key);
+            await Program.WaitUntilAsync(() => Dialog() == null);
+            Require(directories.All(path => File.Exists(Path.Combine(path, "reader.png"))), key + " deleted local media.");
+            await using ArchiveReader reader = await window.SessionHost.OpenArchiveReaderAsync(CancellationToken.None);
+            foreach (ArchiveThreadRow row in rows)
+                Require(await reader.ReadThreadAsync(row.Summary.Id) != null, key + " deleted archive records.");
+        }
         Open();
         await Program.WaitUntilAsync(() => Dialog()?.IsVisible == true);
         Window dialog = Dialog()!;
-        Require(Equals(Find<Button>(dialog, "ArchivePermanentDeleteCancel").Content, "Cancel"), "Confirmation cancel label is not localized.");
-        Require(Find<Button>(dialog, "ArchivePermanentDeleteConfirm").IsEnabled, "Valid multi-selection cannot be confirmed.");
-        Program.CaptureWindow(dialog, "smoke-archive-delete-confirmation.png");
-        Click(Find<Button>(dialog, "ArchivePermanentDeleteCancel"));
-        await Program.WaitUntilAsync(() => Dialog() == null);
-        Require(directories.All(path => File.Exists(Path.Combine(path, "reader.png"))), "Cancel deleted local media.");
-        await using (ArchiveReader reader = await window.SessionHost.OpenArchiveReaderAsync(CancellationToken.None))
-            foreach (ArchiveThreadRow row in rows) Require(await reader.ReadThreadAsync(row.Summary.Id) != null, "Cancel deleted archive records.");
-        Open();
-        await Program.WaitUntilAsync(() => Dialog()?.IsVisible == true);
-        dialog = Dialog()!;
         Click(Find<Button>(dialog, "ArchivePermanentDeleteConfirm"));
         await Program.WaitUntilAsync(() => Find<Button>(dialog, "ArchivePermanentDeleteCancel").IsEnabled);
         Require(directories.All(path => !File.Exists(Path.Combine(path, "reader.png")) && !File.Exists(Path.Combine(path, ".meowchan-manifest.json"))), "Confirmed deletion retained owned media.");

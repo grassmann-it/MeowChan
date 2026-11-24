@@ -1,4 +1,10 @@
 using System.Security.Cryptography;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.FolderSources;
@@ -27,6 +33,73 @@ public sealed class FolderSourceDesktopTests : IDisposable
                 ? Path.GetRelativePath(folder, entry) + " " + new FileInfo(entry).Length + " " + File.GetLastWriteTimeUtc(entry).Ticks + " "
                   + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(entry)))
                 : Path.GetRelativePath(folder, entry) + "/ " + Directory.GetLastWriteTimeUtc(entry).Ticks).ToArray();
+
+    [Fact]
+    public void RemoveSourceAsksWithKeepFirstAndOnlyRemovesTheNamedSource() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        FolderSourceRoot first = Source("First");
+        FolderSourceRoot second = Source("Second");
+        FolderSourceRoot[] sources = [first, second];
+        List<Guid> removed = new();
+        FolderSourcesPanel panel = new(new FolderSourcePanelServices(
+            () => sources.Select(root => new FolderSourceView(root, new(root.Id, 0, 0, 0), false)).ToArray(),
+            () => new(null, null, new(0, 0, false, false), 0, 0), () => FolderSourceError.None,
+            new(_ => FolderSourceError.None, (_, _, _) => Task.FromResult(first), (_, _) => Task.FromResult(first)),
+            _ => Task.CompletedTask, id =>
+            {
+                removed.Add(id);
+                sources = sources.Where(root => root.Id != id).ToArray();
+                return Task.CompletedTask;
+            }, () => false, _ => { }));
+        Window window = new() { Width = 700, Height = 580, Content = panel };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            BooruComponentDispatcher.Wait(WaitAsync(() => panel.Rows.Children.Count == 2));
+            string openName = "FolderSourceRemove_" + FolderSourceIdentity.Format(second.Id);
+            foreach ((Key key, PhysicalKey physicalKey) in new[] { (Key.Escape, PhysicalKey.Escape), (Key.Enter, PhysicalKey.Enter) })
+            {
+                Ask();
+                Press(key, physicalKey);
+                Assert.Null(Find("FolderSourceRemoveConfirm"));
+                Assert.Empty(removed);
+            }
+            Ask();
+            Press(Key.Tab, PhysicalKey.Tab);
+            Assert.Same(Find("FolderSourceRemoveConfirm"), window.FocusManager!.GetFocusedElement());
+            Press(Key.Enter, PhysicalKey.Enter);
+            Assert.Equal(second.Id, Assert.Single(removed));
+            BooruComponentDispatcher.Wait(WaitAsync(() => panel.Rows.Children.Count == 1));
+
+            void Ask()
+            {
+                Assert.True(Find(openName)!.Focus());
+                Press(Key.Enter, PhysicalKey.Enter);
+                var keep = Find("FolderSourceRemoveKeep");
+                var confirm = Find("FolderSourceRemoveConfirm");
+                Assert.NotNull(keep);
+                Assert.NotNull(confirm);
+                Assert.True(keep.TranslatePoint(default, confirm) is { X: < 0 });
+                Assert.Same(keep, window.FocusManager!.GetFocusedElement());
+                Assert.Contains("Second", panel.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(block => block.Name == "FolderSourceRemoveAsk").Text);
+            }
+
+            Button? Find(string name) => panel.GetVisualDescendants().OfType<Button>().SingleOrDefault(button => button.Name == name);
+            void Press(Key key, PhysicalKey physicalKey)
+            {
+                window.KeyPress(key, RawInputModifiers.None, physicalKey, null);
+                window.KeyRelease(key, RawInputModifiers.None, physicalKey, null);
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+            }
+        }
+        finally { window.Close(); }
+
+        static FolderSourceRoot Source(string name) => new(Guid.NewGuid(), Path.GetFullPath(name), name, DateTimeOffset.UnixEpoch, false, null, null);
+    });
 
     [Fact]
     public async Task TheHostAddsScansHashesAndRemovesAFolderWithoutEverTouchingIt()
