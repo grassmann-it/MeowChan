@@ -1,9 +1,7 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Platform;
+using Avalonia.Threading;
 using MeowChan.Desktop;
-using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
@@ -13,16 +11,27 @@ public sealed class TaglineIntervalSaveTests
     [Fact]
     public void EmptyMinutesBlockIntervalModeAndPreserveSavedMinutesWhenSwitchedOff() => BooruComponentDispatcher.Run(() =>
     {
-        using IDisposable scope = AvaloniaLocator.EnterScope();
-        AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication.Bind();
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory temp = new();
         Config config = new() { DownloadPath = temp.Path, HeaderTagline = TaglinePicker.ModeInterval, HeaderTaglineIntervalMinutes = 17 };
         Config? saved = null;
         SettingsEditor editor = new(config, candidate => { saved = candidate; return Task.CompletedTask; });
+        Window window = new() { Content = editor, Width = 1000, Height = 800 };
+        window.Show();
         try
         {
             NumericUpDown minutes = editor.FindControl<NumericUpDown>("HeaderTaglineIntervalMinutesInput")!;
+            Assert.True(editor.RevealSetting(nameof(Config.HeaderTaglineIntervalMinutes)));
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.True(minutes.IsEffectivelyVisible);
+            Assert.True(minutes.Bounds.Width > 0 && minutes.Bounds.Height > 0);
+            Assert.Equal((1m, 1440m, 17m), (minutes.Minimum, minutes.Maximum, minutes.Value!.Value));
+            editor.ResetDraft(SettingsEditor.SettingsResetScope.Interface);
+            Assert.Equal(5m, minutes.Value);
+            Assert.Equal(TaglinePicker.ModePerStart, editor.SelectedHeaderTagline!.Value);
+            editor.SelectedHeaderTagline = editor.HeaderTaglineChoices.Single(choice => choice.Value == TaglinePicker.ModeInterval);
+
             Button save = editor.FindControl<Button>("SaveSettingsButton")!;
             minutes.Value = null;
             minutes.Text = string.Empty;
@@ -36,6 +45,6 @@ public sealed class TaglineIntervalSaveTests
             Assert.Equal(TaglinePicker.ModeOff, saved.HeaderTagline);
             Assert.Equal(17, saved.HeaderTaglineIntervalMinutes);
         }
-        finally { editor.EndLifetime(); }
+        finally { window.Close(); editor.EndLifetime(); }
     });
 }
