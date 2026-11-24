@@ -1,8 +1,11 @@
+using System.Globalization;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
@@ -12,8 +15,8 @@ using MeowChan.Persistence;
 namespace MeowChan.DesktopSmoke;
 
 // Standalone, opt-in entry so this disjoint fixture needs no Program/project/selector edits.
-// Build the normal smoke project first; then rebuild ONLY that project with --no-restore
-// -p:BuildProjectReferences=false -p:DefineConstants=DOWNLOAD_SEARCH_STARTUP_TRUTH
+// After building the application, build the smoke project in the same configuration
+// with -p:BuildProjectReferences=false -p:DefineConstants=DOWNLOAD_SEARCH_STARTUP_TRUTH
 // -p:StartupObject=MeowChan.DesktopSmoke.DownloadSearchStartupTruthChecks .
 // Run the resulting assembly with scripts/run-desktop-smoke.py --mode normal (private Xvfb).
 internal static class DownloadSearchStartupTruthChecks
@@ -94,6 +97,7 @@ internal static class DownloadSearchStartupTruthChecks
         await HeldAsync(main, app.Barrier, app.Store, historical: 1);
         await CrossReadyAsync(main, app.Barrier, app.ReadableBarrier, "710001", live: true);
         await LiveAsync(main);
+        await EmptyActionsAsync(main);
         string root = main.SessionHost.ProfileDirectory;
         foreach (string cache in new[] { "missing", "malformed", "empty", "board-only" })
         {
@@ -209,6 +213,8 @@ internal static class DownloadSearchStartupTruthChecks
         Require(C<TextBlock>(window, "BoardsEmptyState").IsVisible, "Missing historical board grid lacks an awaiting state.");
         Require(C<TextBlock>(window, "ThreadsEmptyState").IsVisible == (window.HistoricThreads.Count == 0),
             "Missing historical thread grid lacks an awaiting state.");
+        foreach (string name in new[] { "ThreadsEmptySearchButton", "BoardsEmptySearchButton" })
+            Require(!C<Button>(window, name).IsVisible, "Pending search offered an action based on unknown counts.");
     }
 
     private static async Task CrossReadyAsync(MainWindow window, StartupPreviewBarrier barrier,
@@ -226,6 +232,17 @@ internal static class DownloadSearchStartupTruthChecks
         await AppliedAsync(window);
         AssertPending(window);
         Require(input.Text == query && input.IsKeyboardFocusWithin, "Catalog milestone changed query/focus.");
+        if (live)
+        {
+            RawKeyboardInput.Press(window, Key.Tab);
+            Require(C<Button>(window, "DownloadSearchClose").IsFocused, "Tab could not leave the pending search field.");
+            RawKeyboardInput.Press(window, Key.Tab, RawInputModifiers.Shift);
+            Require(input.IsKeyboardFocusWithin, "Shift+Tab could not return to the pending search field.");
+            Program.CaptureWindow(window, "smoke-download-search-restoring.png");
+            // Set the selection to preserve after Tab may have selected the entire query.
+            input.SelectionStart = 0;
+            input.SelectionEnd = 1;
+        }
         readable.Release.TrySetResult();
         await Read<Task>(window, "_restoreTask").WaitAsync(Deadline);
         await AppliedAsync(window);
@@ -286,6 +303,87 @@ internal static class DownloadSearchStartupTruthChecks
         C<TabControl>(window, "DownloadsTabs").SelectedIndex = 0;
         input.Text = ""; await rows.WaitForAppliedAsync(); await AppliedAsync(window);
         Console.WriteLine("CX03 live PASS: Unicode/short/whitespace/literal, stale query slice, active-list count and excluded-selection non-resurrection.");
+    }
+
+    private static async Task EmptyActionsAsync(MainWindow window)
+    {
+        await using SyntheticShellRows rows = await SyntheticShellRows.CreateAsync(window,
+            Enumerable.Range(0, 3).Select(i => SnapshotFixtures.Thread(930000 + i, (930000 + i).ToString(), "thread-only-match")),
+            Enumerable.Range(0, 4).Select(i => SnapshotFixtures.Board(940000 + i, "board-only-match-" + i)));
+        TabControl tabs = C<TabControl>(window, "DownloadsTabs");
+        TextBox input = C<TextBox>(window, "DownloadSearchInput");
+        Button showBoards = C<Button>(window, "ThreadsEmptySearchButton");
+        Button showThreads = C<Button>(window, "BoardsEmptySearchButton");
+        window.FocusDownloadSearch();
+        tabs.SelectedIndex = 0;
+        input.Text = "  BoArD-only-match  ";
+        await AppliedAsync(window);
+        Require(tabs.SelectedIndex == 0 && window.VisibleThreads.Count == 0 && window.VisibleBoards.Count == 4,
+            "The 0/4 search switched tabs before activation or miscounted matches.");
+        Require(Equals(showBoards.Content, "Show 4 matching boards"), "The board action omitted the matching count.");
+        double width = window.Width;
+        window.Width = window.MinWidth;
+        try
+        {
+            foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
+            {
+                Texts.SetLanguage(language);
+                await AppliedAsync(window);
+                window.UpdateLayout();
+                string label = Texts.Count("downloads.searchShowBoards", 4);
+                Require(showBoards.IsEffectivelyVisible && showBoards.Content as string == label
+                    && AutomationProperties.GetName(showBoards) == label, "Board action did not refresh in " + language);
+                Control panel = C<Control>(window, "ThreadsResultPanel");
+                Point? start = showBoards.TranslatePoint(default, panel);
+                Point? end = showBoards.TranslatePoint(new Point(showBoards.Bounds.Width, showBoards.Bounds.Height), panel);
+                Require(showBoards.Bounds.Width > 0 && showBoards.Bounds.Height > 0
+                    && start is { X: >= -1, Y: >= -1 } && end is Point edge
+                    && edge.X <= panel.Bounds.Width + 1 && edge.Y <= panel.Bounds.Height + 1,
+                    "Board action is clipped in " + language);
+            }
+        }
+        finally
+        {
+            window.Width = width;
+            Texts.SetLanguage("en");
+        }
+        await AppliedAsync(window);
+        C<Button>(window, "DownloadSearchClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        ActivateEmptyAction(window, showBoards, "smoke-download-search-0-4.png");
+        Require(tabs.SelectedIndex == 1 && input.Text == "  BoArD-only-match  " && !input.IsVisible
+            && C<DataGrid>(window, "BoardsDataGrid").IsKeyboardFocusWithin, "Keyboard switch to Boards lost the query or focus.");
+
+        window.FocusDownloadSearch();
+        input.Text = "thread-only-match";
+        await AppliedAsync(window);
+        Require(tabs.SelectedIndex == 1 && window.VisibleThreads.Count == 3 && window.VisibleBoards.Count == 0
+            && Equals(showThreads.Content, "Show 3 matching threads"), "The 3/0 search did not offer the Thread action.");
+        ActivateEmptyAction(window, showThreads, "smoke-download-search-3-0.png");
+        Require(tabs.SelectedIndex == 0 && input.Text == "thread-only-match"
+            && C<DataGrid>(window, "ThreadsDataGrid").IsKeyboardFocusWithin, "Keyboard switch to Threads lost the query or focus.");
+
+        input.Text = "neither-list-matches";
+        await AppliedAsync(window);
+        C<Button>(window, "DownloadSearchClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(tabs.SelectedIndex == 0 && window.VisibleBoards.Count == 0 && window.VisibleThreads.Count == 0
+            && Equals(showBoards.Content, "Clear search text") && !input.IsVisible, "The 0/0 search did not offer to clear the folded query.");
+        ActivateEmptyAction(window, showBoards, "smoke-download-search-0-0.png");
+        await AppliedAsync(window);
+        Require(string.IsNullOrEmpty(input.Text) && input.IsKeyboardFocusWithin && tabs.SelectedIndex == 0
+            && window.VisibleBoards.Count >= 4 && window.VisibleThreads.Count >= 3, "Clearing did not restore the lists and focus the search field.");
+        Console.WriteLine("SMOKE render scaling: actual=" + window.RenderScaling.ToString(CultureInfo.InvariantCulture) + ";");
+        Console.WriteLine("W112-46 PASS: keyboard actions 0/4, 3/0, 0/0, pending restore and localized layout.");
+    }
+
+    private static void ActivateEmptyAction(MainWindow window, Button button, string screenshot)
+    {
+        TabItem tab = (TabItem)C<TabControl>(window, "DownloadsTabs").SelectedItem!;
+        Require(tab.Focus() && button.IsEffectivelyVisible, "The active tab or search action is unavailable.");
+        for (int step = 0; step < 24 && !button.IsFocused; step++)
+            RawKeyboardInput.Press(window, Key.Tab);
+        Require(button.IsFocused, "Tab did not reach " + button.Name);
+        Program.CaptureWindow(window, screenshot);
+        RawKeyboardInput.Press(window, Key.Enter);
     }
 
     private static async Task TerminalAsync(MainWindow owner, StartupPreviewSmokeApp app, bool fail)
