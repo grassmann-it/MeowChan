@@ -15,7 +15,6 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderPreviewDelayMs), 300, 0, 2000 };
         yield return new object[] { nameof(Config.ReaderReplyStep), 5, 1, 50 };
         yield return new object[] { nameof(Config.ReaderReplyLines), 4, 1, 20 };
-        yield return new object[] { nameof(Config.ReaderPageSize), 50, 20, 200 };
         yield return new object[] { nameof(Config.ReaderThreadingDepth), 6, 1, 16 };
         yield return new object[] { nameof(Config.GalleryFitMaxUpscalePercent), 200, 100, 1600 };
         yield return new object[] { nameof(Config.GalleryMaxZoomPercent), 1600, 200, 6400 };
@@ -82,14 +81,15 @@ public sealed class ReaderSettingsPersistenceTests
     [InlineData("Long", 241, 37)]
     [InlineData("SinceOp", 480, 200)]
     [InlineData("RelativeToNow", 365, 50)]
-    public void EveryP5BChoiceSurvivesTheEditorAndTwoRestartsWithoutRoundingWidthsOrPageSizes(string dateStyle, int width, int pageSize)
+    public void DisplaySettingsSurviveTwoRestartsWithAnObsoletePageSizeInTheInitialProfile(string dateStyle, int width, int legacyPageSize)
     {
         using TempDirectory directory = new();
-        Config config = new()
-        {
-            ReaderDateStyle = dateStyle, ReaderThumbnailWidth = width, ReaderPageSize = pageSize,
-            ReaderPostWidth = "Column", ReaderFoldLines = 31, ReaderPreviewDelayMs = 725
-        };
+        Config config = JsonSerializer.Deserialize("{\"ReaderPageSize\":" + legacyPageSize + "}", ConfigJsonContext.Default.Config)!;
+        config.ReaderDateStyle = dateStyle;
+        config.ReaderThumbnailWidth = width;
+        config.ReaderPostWidth = "Column";
+        config.ReaderFoldLines = 31;
+        config.ReaderPreviewDelayMs = 725;
         config = ReaderSettingsEditorTests.CaptureDraft(config, config.Clone());
         config.SaveConfig(directory.Path);
         for (int restart = 0; restart < 2; restart++)
@@ -99,7 +99,7 @@ public sealed class ReaderSettingsPersistenceTests
             Assert.Equal(dateStyle, config.ReaderDateStyle);
             Assert.Equal(Enum.Parse<ReaderDateStyle>(dateStyle), ReaderSettingsPreferences.DateStyle(config));
             Assert.Equal(width, config.ReaderThumbnailWidth);
-            Assert.Equal(pageSize, config.ReaderPageSize);
+            Assert.DoesNotContain("ReaderPageSize", JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config), StringComparison.Ordinal);
             Assert.Equal("Column", config.ReaderPostWidth);
             Assert.Equal(31, config.ReaderFoldLines);
             Assert.Equal(725, config.ReaderPreviewDelayMs);

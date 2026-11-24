@@ -24,7 +24,6 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderPreviewDelayMs), "settings.reader.previewDelay", nameof(SettingsEditor.ReaderPreviewDelayMsMinimum), nameof(SettingsEditor.ReaderPreviewDelayMsMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderReplyStep), "settings.reader.replyStep", nameof(SettingsEditor.ReaderReplyStepMinimum), nameof(SettingsEditor.ReaderReplyStepMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderReplyLines), "settings.reader.replyLines", nameof(SettingsEditor.ReaderReplyLinesMinimum), nameof(SettingsEditor.ReaderReplyLinesMaximum), "SettingsReadingMediaPage"),
-        (nameof(Config.ReaderPageSize), "settings.reader.pageSize", nameof(SettingsEditor.ReaderPageSizeMinimum), nameof(SettingsEditor.ReaderPageSizeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderThreadingDepth), "settings.reader.threadingDepth", nameof(SettingsEditor.ReaderThreadingDepthMinimum), nameof(SettingsEditor.ReaderThreadingDepthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReadingHistoryLimit), "settings.reader.historyLimit", nameof(SettingsEditor.ReadingHistoryLimitMinimum), nameof(SettingsEditor.ReadingHistoryLimitMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReadingHistoryMenuEntries), "settings.reader.historyMenuEntries", nameof(SettingsEditor.ReadingHistoryMenuEntriesMinimum), nameof(SettingsEditor.ReadingHistoryMenuEntriesMaximum), "SettingsReadingMediaPage"),

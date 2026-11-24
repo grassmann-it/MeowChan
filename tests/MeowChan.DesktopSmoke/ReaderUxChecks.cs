@@ -79,6 +79,11 @@ internal static class ReaderUxChecks
 
     internal static async Task RunAsync(MainWindow window)
     {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_CONTINUOUS_ONLY") == "1")
+        {
+            await ReaderViewChecks.CheckContinuousAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_TRANSITION_REVIEW") is "observe" or "1")
         {
             await GalleryTransitionReviewChecks.RunAsync(window);
@@ -224,13 +229,14 @@ internal static class ReaderUxChecks
             Console.WriteLine("SMOKE scoped reader navigation overlay: completed real reader setup and responsive overlay/last-post matrix; remaining reader-ux groups not run.");
             return;
         }
+        await ReaderViewChecks.CheckContinuousAsync(window);
         await CheckOwnedNavigationAsync(window, page, reader);
         await RunFreshGalleryRoundtripAsync(window, page, reader);
         await CheckListGalleryReturnAsync(window, page, reader);
         await ReaderReturnChecks.RunAsync(window);
         await ReaderStabilityChecks.RunAsync(window);
         await ReaderGroupChecks.RunAsync(window);
-        Console.WriteLine("SMOKE reader UX: full-window ownership, readable media, real arrow routing, post page boundary, frozen thread navigation, A→D return, zoom, Tab and list-origin restore passed.");
+        Console.WriteLine("SMOKE reader UX: full-window ownership, readable media, real arrow routing, continuous post list, frozen thread navigation, A→D return, zoom, Tab and list-origin restore passed.");
     }
 
     // Each scoped journey starts from its own real archive query and opened reader.
@@ -312,11 +318,12 @@ internal static class ReaderUxChecks
         await Program.WaitUntilAsync(() => page.FindControl<Border>("ArchiveExportDialog")!.IsVisible);
         Require(page.FindControl<Border>("ArchiveExportDialog")!.GetVisualAncestors().Contains(reader), "Export dialog was hidden behind the reader.");
         Click(page.FindControl<Button>("ArchiveExportClose")!);
+        object? postRows = page.FindControl<ListBox>("ArchivePosts")!.ItemsSource;
         await page.FocusPostAsync("1049");
         PressKey(page.FindControl<Button>("ReaderNextPost")!, Key.Down);
         await Program.WaitUntilAsync(() => SelectedPost(page) == "1050");
-        Require(page.FindControl<ListBox>("ArchivePosts")!.ItemsSource!.Cast<ArchivePostRow>().First().Id == "1050",
-            "Reader Down failed to cross the post-page boundary.");
+        Require(ReferenceEquals(postRows, page.FindControl<ListBox>("ArchivePosts")!.ItemsSource),
+            "Reader Down replaced the continuous list at the former page break.");
         PressKey(page.FindControl<Button>("ReaderPreviousPost")!, Key.Up);
         await Program.WaitUntilAsync(() => SelectedPost(page) == "1049");
         await Program.WaitUntilAsync(() => page.FindControl<Button>("ReaderNextThread")!.IsEnabled);
@@ -931,7 +938,7 @@ internal static class ReaderUxChecks
                 operationMessage.Invoke(page, new object?[] { "action", shown, false });
                 window.UpdateLayout();
                 Rect overlayBox = Bounds(overlay);
-                Control? readerFooter = new Control[] { page.FindControl<Grid>("ArchivePostNavigation")!, page.FindControl<StackPanel>("ArchiveMediaFooter")!,
+                Control? readerFooter = new Control[] { page.FindControl<StackPanel>("ArchiveMediaFooter")!,
                     page.FindControl<Grid>("ArchiveReferencesNavigation")! }.FirstOrDefault(candidate => candidate.IsEffectivelyVisible && candidate.Bounds.Height > 0);
                 Avalonia.Automation.Peers.AutomationPeer messagePeer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(message);
                 Console.WriteLine("SMOKE embedded archive status overlay: " + JsonSerializer.Serialize(new
@@ -1271,7 +1278,7 @@ internal static class ReaderUxChecks
         double limitY = Math.Max(0, (height - viewport.Bounds.Height) / 2);
         Require(limitX > 20 && limitY > 20, "Drag fixture does not exceed the viewport on both axes.");
         Point start = viewport.TranslatePoint(new Point(viewport.Bounds.Width / 2, viewport.Bounds.Height / 2), window)!.Value;
-        MouseDevice mouse = new();
+        using MouseDevice mouse = new();
         void Input(RawPointerEventType type, Point point, RawInputModifiers modifiers = RawInputModifiers.None)
             => AvaloniaLocator.Current.GetRequiredService<IInputManager>().ProcessInput(new RawPointerEventArgs(mouse,
                 (ulong)Environment.TickCount64,

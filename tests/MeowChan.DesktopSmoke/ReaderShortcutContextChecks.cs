@@ -98,12 +98,13 @@ internal static class ReaderShortcutContextChecks
                 && !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "9998");
             await page.MediaLoadTask;
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-            Button next = page.FindControl<Button>("NextPostsButton")!;
+            Button next = page.FindControl<Button>("ReaderNextPost")!;
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             string? Selected() => (posts.SelectedItem as ArchivePostRow)?.Id;
             async Task Probe(Control source, Key key, bool expectedNavigation, string name)
             {
                 await page.FocusPostAsync("1000");
+                page.ShowReaderNavigation();
                 Control requestedSource = source;
                 // ListBox itself is not a focus target. Exercise the real
                 // materialized post container, as native keyboard input does.
@@ -123,49 +124,56 @@ internal static class ReaderShortcutContextChecks
             }
             await Commit(original);
             await CheckPostMediaContextAsync(page, Check);
-            await page.FocusPostAsync("1000");
-            Click(next);
+            await page.FocusPostAsync("1050");
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            page.ShowReaderNavigation();
             next.Focus(); Press(next, Key.Down); await page.ReaderNavigationTask;
             Check(Selected() == "1051", "protected-full44-down-1051", new { selected = Selected() });
-            foreach (Key key in new[] { Key.Home, Key.End, Key.PageUp, Key.PageDown, Key.Enter, Key.Space })
+            Grid surface = page.FindControl<Grid>("ReaderContentSurface")!;
+            Button nativeButton = new() { Width = 1, Height = 1, Opacity = 0 };
+            surface.Children.Add(nativeButton);
+            try
             {
-                Config candidate = original.Clone();
-                // Enter otherwise conflicts with the independently remappable
-                // thread.read command. Remove that gesture explicitly in draft.
-                if (key == Key.Enter)
-                    candidate.ShortcutBindings = candidate.ShortcutBindings.Set("thread.read", Array.Empty<ShortcutGesture>());
-                candidate.ShortcutBindings = candidate.ShortcutBindings.Set("reader.next-post", new[] { ShortcutGesture.Parse(key.ToString()) });
-                await Commit(candidate);
-                tabs.SelectedIndex = 0;
-                await Probe(next, Key.Down, false, "old-down-removed-" + key);
-                await Probe(next, key, key is not (Key.Enter or Key.Space), "button-content-" + key);
-                // Focusable content label is a fixture-only focus destination in
-                // the real tab content tree, without adding a synthetic parent.
-                TextBlock content = page.FindControl<TextBlock>("ArchivePostPage")!;
-                bool focusable = content.Focusable;
-                content.Focusable = true;
-                try
+                foreach (Key key in new[] { Key.Home, Key.End, Key.PageUp, Key.PageDown, Key.Enter, Key.Space })
                 {
-                    await Probe(content, key, true, "plain-content-" + key);
-                    using (ShortcutService.BeginCapture())
-                        await Probe(content, key, false, "capture-content-" + key);
+                    Config candidate = original.Clone();
+                    // Enter otherwise conflicts with the independently remappable
+                    // thread.read command. Remove that gesture explicitly in draft.
+                    if (key == Key.Enter)
+                        candidate.ShortcutBindings = candidate.ShortcutBindings.Set("thread.read", Array.Empty<ShortcutGesture>());
+                    candidate.ShortcutBindings = candidate.ShortcutBindings.Set("reader.next-post", new[] { ShortcutGesture.Parse(key.ToString()) });
+                    await Commit(candidate);
+                    tabs.SelectedIndex = 0;
+                    await Probe(nativeButton, Key.Down, false, "old-down-removed-" + key);
+                    await Probe(nativeButton, key, key is not (Key.Enter or Key.Space), "button-content-" + key);
+                    // Focusable content label is a fixture-only focus destination in
+                    // the reader surface, without adding a synthetic parent.
+                    TextBlock content = page.FindControl<TextBlock>("ArchiveReaderTitle")!;
+                    bool focusable = content.Focusable;
+                    content.Focusable = true;
+                    try
+                    {
+                        await Probe(content, key, true, "plain-content-" + key);
+                        using (ShortcutService.BeginCapture())
+                            await Probe(content, key, false, "capture-content-" + key);
+                    }
+                    finally { content.Focusable = focusable; }
+                    if (key is not (Key.Enter or Key.Space))
+                        await Probe(posts, key, false, "native-post-list-" + key);
+                    TabItem header = tabs.GetVisualDescendants().OfType<TabItem>().First();
+                    await Probe(header, key, false, "native-tab-header-" + key);
+                    tabs.SelectedIndex = 0;
+                    Click(page.FindControl<Button>("ExportArchiveButton")!);
+                    await Program.WaitUntilAsync(() => page.IsReaderDialogOpen);
+                    TextBox editor = page.FindControl<TextBox>("ArchiveExportDestination")!;
+                    Task beforeEditor = page.ReaderNavigationTask;
+                    editor.Focus(); Press(editor, key);
+                    Check(ReferenceEquals(beforeEditor, page.ReaderNavigationTask), "native-dialog-editor-" + key);
+                    Click(page.FindControl<Button>("ArchiveExportClose")!);
+                    await Program.WaitUntilAsync(() => !page.IsReaderDialogOpen);
                 }
-                finally { content.Focusable = focusable; }
-                if (key is not (Key.Enter or Key.Space))
-                    await Probe(posts, key, false, "native-post-list-" + key);
-                TabItem header = tabs.GetVisualDescendants().OfType<TabItem>().First();
-                await Probe(header, key, false, "native-tab-header-" + key);
-                tabs.SelectedIndex = 0;
-                Click(page.FindControl<Button>("ExportArchiveButton")!);
-                await Program.WaitUntilAsync(() => page.IsReaderDialogOpen);
-                TextBox editor = page.FindControl<TextBox>("ArchiveExportDestination")!;
-                Task beforeEditor = page.ReaderNavigationTask;
-                editor.Focus(); Press(editor, key);
-                Check(ReferenceEquals(beforeEditor, page.ReaderNavigationTask), "native-dialog-editor-" + key);
-                Click(page.FindControl<Button>("ArchiveExportClose")!);
-                await Program.WaitUntilAsync(() => !page.IsReaderDialogOpen);
             }
+            finally { surface.Children.Remove(nativeButton); }
             Program.CaptureWindow(window, "smoke-reader-shortcut-contexts.png");
             Click(page.FindControl<Button>("ArchiveCloseReader")!);
         }
@@ -202,11 +210,11 @@ internal static class ReaderShortcutContextChecks
                 body.SelectionEnd = 0;
                 posts.SelectedItem = null;
                 Press(body, key); await page.ReaderMediaActivationTask;
-                check(opens == before, "no-reader-post-selection-" + key, null);
+                check(opens == before, "no-reader-post-selection-" + key, new { before, opens, target });
                 await page.FocusPostAsync("1001"); // Mixed fixture: text-only, unlike 1003.
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
                 body = Body(); body.Focus(); Press(body, key); await page.ReaderMediaActivationTask;
-                check(opens == before, "text-only-selected-post-" + key, null);
+                check(opens == before, "text-only-selected-post-" + key, new { before, opens, target });
             }
         }
         finally { page.OpenGallery = previous; ReaderSmokeSetup.Restore(page, mediaBefore); }

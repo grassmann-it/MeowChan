@@ -1443,14 +1443,15 @@ Choose **Read posts** to open the large thread reader across the work area, with
 readable posts and embedded media. Up/Down moves exactly one post. Left/Right
 moves through the frozen current thread list/search in its sort order, across
 pages, without wrapping. A single thread opened without that scope has no global
-thread sequence. Input fields keep their native arrow-key behavior.
+thread sequence. The Posts tab scrolls continuously from the opening post to the
+final reply. Input fields keep their native arrow-key behavior.
 
 The lower-right navigation cross is an **auto-hiding overlay**. It reserves no
 side lane, does not shorten the viewport and adds no extra scrollable tail after
 the final post. It fades out while the pointer is idle, and reappears on pointer
 movement over the reader or briefly after a navigation shortcut. It stays visible
-while the pointer is over or near it, or it has keyboard focus. Pagination and
-the scrollbar remain usable; hiding the cross does not change the content layout.
+while the pointer is over or near it, or it has keyboard focus. The scrollbar
+remains usable with the navigation overlay visible.
 
 In selected post content, **Enter** (the command **Open medium of the post**) does what a
 click on the medium does under Settings → **Reading & media → Clicking a medium**:
@@ -1834,19 +1835,16 @@ thread's tab.
 | Quote preview delay (ms) | 300 | 0 to 2000 |
 | Reply cards per step | 5 | 1 to 50 |
 | Lines per reply card | 4 | 1 to 20 |
-| Posts per reader page | 50 | 20 to 200 |
 | Maximum conversation indentation depth | 6 | 1 to 16 |
 
 Preview widths default to 240 pixels in the embedded reader and 360 pixels in the
-Reader, which uses 1.5 times the configured width. **Posts per reader page**
-changes the reader's paging, not the archive thread-list page size. It keeps the
-current reading position in view; conversation subtrees can span pages.
+Reader, which uses 1.5 times the configured width.
 
 **Date and time format** offers **System format** (default), **Weekday and seconds**,
 **Since opening post** and **Relative to now**. The exact local date remains in the
 tooltip. If the opening post has no timestamp, **Since opening post** falls back to
 System format; a post with no timestamp has no date text. Relative text is calculated
-when the page is rendered, not refreshed by a timer. Quote previews use the same
+when the list is rendered. Quote previews use the same
 format; their tooltip shows the full local date. A preview of a post from another
 thread has no known opening post here, so **Since opening post** shows System
 format for it.

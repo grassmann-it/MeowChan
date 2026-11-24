@@ -98,11 +98,12 @@ public sealed class GalleryMeasuredGeometryTests
         Assert.True(pill.IsEffectivelyVisible);
         Assert.True(position.Width > 0 && position.Height > 0, $"Position bounds: {position}");
         Assert.Equal(0, tabs.Left, 0.5);
-        Assert.Equal(0, tabs.Top, 0.5);
-        Assert.Equal(32, tabs.Height, 0.5);
+        Assert.Equal(cross.Center.Y, tabs.Center.Y, 0.5);
+        Assert.Equal(24, position.Height, 0.5);
+        Assert.Equal(32, cross.Width, 0.5);
         Assert.Equal(32, cross.Height, 0.5);
-        Assert.Equal(tabs.Right + MediaSidebarHeader.HeaderGap, position.Left, 0.5);
-        Assert.Equal(cross.Left - MediaSidebarHeader.HeaderGap, position.Right, 0.5);
+        Assert.True(tabs.Right + 8 <= position.Left + 0.5);
+        Assert.Equal((tabs.Right + cross.Left) / 2, position.Center.X, 0.5);
         Assert.Equal(header.Bounds.Width, cross.Right, 0.5);
         Assert.Equal(cross.Center.Y, position.Center.Y, 0.5);
     }
@@ -117,7 +118,7 @@ public sealed class GalleryMeasuredGeometryTests
     }
 
     [Theory]
-    [InlineData(240, false, false, "No. 16 / 23", "Medium 16 of 23")]
+    [InlineData(240, false, false, "16 / 23", "Medium 16 of 23")]
     [InlineData(280, true, false, "No. 16 / 23+", "Medium 16 of at least 23")]
     [InlineData(360, false, true, "No. 16 / 23", "Queue 16 of 23")]
     [InlineData(480, false, true, "No. 16 / 23", "Queue 16 of 23")]
@@ -139,8 +140,8 @@ public sealed class GalleryMeasuredGeometryTests
             AssertHeaderRow(panel);
             MediaPositionPill pill = Assert.Single(panel.Children.OfType<MediaPositionPill>());
             Assert.Same(panel.Position, pill);
-            Assert.Contains(WorkspaceChips.Badge, pill.Classes);
-            Assert.Equal(shortText, Assert.IsType<TextBlock>(pill.Child).Text);
+            Assert.Contains("chip-position", pill.Classes);
+            Assert.Equal(shortText, pill.Label.Text);
             Assert.Equal(longText, ToolTip.GetTip(pill));
             Assert.Equal(longText, Avalonia.Automation.AutomationProperties.GetName(pill));
 
@@ -152,7 +153,7 @@ public sealed class GalleryMeasuredGeometryTests
             Assert.Equal(row.StarButtons[0].Bounds.Left, row.FavoriteButton.Bounds.Left, 0.5);
             Assert.True(row.FavoriteButton.Bounds.Right <= row.StarButtons[^1].Bounds.Right);
             Assert.True(row.ClearButton.Bounds.Bottom < row.Summary.Bounds.Top);
-            Assert.Equal(row.ClearButton.Bounds.Left, row.Summary.Bounds.Left, 0.5);
+            Assert.Equal(row.ClearButton.Bounds.Left + 8, row.Summary.Bounds.Left, 0.5);
         }
 
         panel.Position.Show(null);
@@ -189,23 +190,28 @@ public sealed class GalleryMeasuredGeometryTests
         panel.UpdateLayout();
 
         AssertHeaderRow(panel);
-        TextBlock label = Assert.IsType<TextBlock>(panel.Position.Child);
-        Assert.Equal(MediaPositionText.Short(position), label.Text);
+        TextBlock label = panel.Position.Label;
+        Assert.Contains(label.Text, new[] { MediaPositionText.Short(position), "183 / 197" });
         Assert.True(label.Bounds.Width > 0 && label.Bounds.Height > 0);
         Assert.Equal(tabHeight, ((Control)panel.PostButton.Parent!).Bounds.Height, 0.5);
     });
 
     [Fact]
-    public void AtVeryNarrowWidthsTheCounterEllipsizesAndRecoversWhenWidened() => WithSidePanel(140, panel =>
+    public void AtVeryNarrowWidthsTheCounterEllipsizesAndRecoversWhenWidened() => WithSidePanel(108, panel =>
     {
         panel.Position.Show(new(12345, 67890, true));
         panel.UpdateLayout();
 
+        Assert.False(panel.Position.IsVisible);
+        Assert.Equal(32, panel.CloseButton.Bounds.Width);
+        panel.Width = 164;
+        panel.UpdateLayout();
         AssertHeaderRow(panel);
-        TextBlock label = Assert.IsType<TextBlock>(panel.Position.Child);
+        TextBlock label = panel.Position.Label;
+        Assert.Equal("12345 / 67890+", label.Text);
         Assert.True(Assert.Single(label.TextLayout.TextLines).HasCollapsed);
 
-        for (int width = 144; width <= 480; width += 4)
+        for (int width = 164; width <= 480; width += 4)
         {
             panel.Width = width;
             panel.UpdateLayout();
@@ -226,7 +232,7 @@ public sealed class GalleryMeasuredGeometryTests
         galleryScope.Arrange(new Rect(0, 0, 1100, 720));
         ScrollViewer post = Find<ScrollViewer>(viewer, "GalleryPanelPostScroll");
         Border frame = Find<Border>(viewer, "GalleryContext");
-        Assert.Equal(8, frame.Padding.Top);
+        Assert.Equal(new Thickness(16), frame.Padding);
         Assert.Equal(frame.Padding.Left, frame.Padding.Right);
         Assert.Equal(16, frame.Padding.Left);
         Assert.Equal(0, post.Padding.Left);

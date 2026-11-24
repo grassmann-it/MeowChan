@@ -85,7 +85,7 @@ internal sealed record GalleryDecisionStatus(GalleryDecisionStatusKind Kind, int
 internal static class GalleryDecisionText
 {
     /// <summary>"Rating: 4 of 5" · "Rating: Unrated" · "Rating: ratings differ".</summary>
-    internal static string Rating(GalleryDecisionView view) => MediaRatingText.Label + ": " + (view.RatingMixed
+    internal static string Rating(GalleryDecisionView view) => Texts.T("gallery.decision.rating.description", view.RatingMixed
         ? Texts.T("gallery.decision.rating.mixed") : MediaRatingText.Value(view.Rating));
 
     /// <summary>

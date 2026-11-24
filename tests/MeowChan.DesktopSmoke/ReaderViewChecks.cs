@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -15,7 +16,7 @@ using Texts = MeowChan.Desktop.Localization.Texts;
 namespace MeowChan.DesktopSmoke;
 
 // Reader foundation (plan P0) in a private profile with a detached reader: the settings popover (formerly the "View" menu), "Hide media" and "Only posts
-// with media" over a 120-post thread, paging and Up/Down in the shown order, a find hit in a hidden post that reveals it,
+// with media" over a 120-post thread, continuous scrolling and Up/Down in the shown order, a find hit in a hidden post that reveals it,
 // the reading mark and new posts, and a test classifier/ordering for the placeholder and the indentation.
 internal static class ReaderViewChecks
 {
@@ -28,6 +29,7 @@ internal static class ReaderViewChecks
         internal required ArchiveCatalog Catalog { get; init; }
         internal required ResourceId Id { get; init; }
         internal bool Staircase { get; init; }
+        internal int JumpPost { get; init; }
         internal ArchivePage Page { get; set; } = null!;
         internal Window Window { get; set; } = null!;
         internal ListBox List => Page.FindControl<ListBox>("ArchivePosts")!;
@@ -46,9 +48,19 @@ internal static class ReaderViewChecks
     // 500..619: even posts carry an attachment (none is saved, so no thumbnail loads), 537 holds the find needle. With staircase quotes
     // each post quotes the one before inside a group of four, for the production conversation view; a reply to the opening post stays
     // at the root, so 501 quotes nothing and 504..507 is the first full staircase (depth 0, 1, 2, 3).
-    private static CapturedPost[] Posts(int count, bool staircase = false) => Enumerable.Range(0, count).Select(index =>
+    private static CapturedPost[] Posts(int count, bool staircase, int jumpPost) => Enumerable.Range(0, count).Select(index =>
     {
         string id = (500 + index).ToString();
+        if (jumpPost > 0)
+        {
+            string target = (499 + jumpPost).ToString();
+            string body = index == 0 ? $"<a href=\"#p{target}\" class=\"quotelink\">&gt;&gt;{target}</a>" :
+                index == jumpPost - 1 ? "Deep continuous-reader find target" : "Continuous reader post " + id;
+            int mediaCount = index == 0 ? 1 : index == jumpPost - 1 ? 2 : 0;
+            CapturedAttachment[] attachments = Enumerable.Range(0, mediaCount).Select(position =>
+                new CapturedAttachment(position, $"media-{id}-{position}", OriginalFileName: $"image-{position}.png")).ToArray();
+            return new CapturedPost(id, index, PostFieldPresence.All, Html: "<p>" + body + "</p>", Attachments: attachments);
+        }
         string text = index == 37 ? "A text-only post with the needle." : "Reader view post " + id + ".";
         string quote = staircase && index % 4 != 0 && index != 1
             ? "<a href=\"#p" + (499 + index) + "\" class=\"quotelink\">&gt;&gt;" + (499 + index) + "</a><br>" : "";
@@ -65,16 +77,114 @@ internal static class ReaderViewChecks
             await CheckPlaceholderAndIndentAsync(owner);
         }
         finally { Application.Current!.RequestedThemeVariant = theme; }
-        Console.WriteLine("SMOKE reader view: settings popover, hide media, only posts with media, paging, Up/Down, revealing find hit, reading mark, new posts, placeholder and indentation passed; ReaderPostLayout.MeasurePasses (b10) is not in this source and was not compared.");
+        Console.WriteLine("SMOKE reader view: settings popover, hide media, only posts with media, continuous scrolling, Up/Down, revealing find hit, reading mark, new posts, placeholder and indentation passed; ReaderPostLayout.MeasurePasses (b10) is not in this source and was not compared.");
     }
 
-    private static async Task<Fixture> OpenAsync(MainWindow owner, int count, bool staircase = false)
+    internal static async Task CheckContinuousAsync(MainWindow owner)
+    {
+        foreach ((int count, int ordinal) in new[] { (93, 80), (1500, 1400) })
+        {
+            await using Fixture fixture = await OpenAsync(owner, count, jumpPost: ordinal);
+            ArchivePage page = fixture.Page;
+            ListBox list = fixture.List;
+            object? items = list.ItemsSource;
+            ScrollViewer scroll = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+            string At(int number) => (499 + number).ToString();
+            int[] VisiblePositions() => list.GetRealizedContainers()
+                .Where(card => card.TranslatePoint(default, list) is { } top && top.Y < list.Bounds.Height
+                    && top.Y + card.Bounds.Height > 0)
+                .Select(list.IndexFromContainer).Where(index => index >= 0).Order().ToArray();
+            bool Visible(int number) => VisiblePositions().Contains(number - 1);
+            bool Landed(int number) => Selected(fixture) == At(number) && Visible(number);
+            async Task WaitForPost(int number) => await Program.WaitUntilAsync(() => Landed(number),
+                () => $"Post {number}/{count} was not in view (selected {Selected(fixture)}, visible {string.Join(",", VisiblePositions())}).");
+
+            Require(list.ItemCount == count && list.ItemsPanelRoot is VirtualizingStackPanel
+                && page.FindControl<Control>("ArchivePostNavigation") == null,
+                $"The {count}-post thread does not have a single virtualized list.");
+            await WaitForPost(1);
+            int last = -1, peakRealized = 0, frames = 0;
+            Stopwatch elapsed = Stopwatch.StartNew();
+            for (; frames < count && last < count - 1; frames++)
+            {
+                int[] visible = VisiblePositions();
+                Require(visible.Length > 0 && visible[0] <= last + 1, $"Scroll skipped a post after {last + 1} of {count}.");
+                last = Math.Max(last, visible[^1]);
+                peakRealized = Math.Max(peakRealized, list.GetRealizedContainers().Count());
+                if (last == count - 1) break;
+                scroll.Offset += new Vector(0, scroll.Viewport.Height * 0.75);
+                await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+            }
+            Console.WriteLine($"SMOKE continuous reader {count} posts, {frames} scroll steps, peak {peakRealized} realized cards, {elapsed.ElapsedMilliseconds} ms under virtual display.");
+            Require(last == count - 1 && peakRealized < 50 && ReferenceEquals(items, list.ItemsSource),
+                $"Scrolling {count} posts did not reach the tail in the original virtualized list.");
+
+            await page.FocusPostAsync(At(ordinal));
+            await WaitForPost(ordinal);
+            if (!ReaderMediaSidebarRules.IsOn(page.ReaderMedia, true)) page.ToggleMediaSidebar();
+            await Program.WaitUntilAsync(() => page.CanStepMediaSidebar(1));
+            string? MediaPosition() => page.MediaSidebar!.GetVisualDescendants().OfType<TextBlock>()
+                .Single(text => text.Name == "ReaderMediaSidebarThreadPosition").Text;
+            await Program.WaitUntilAsync(() => MediaPosition() == Texts.T("reader.sidebar.position", 2, 3));
+            page.StepMediaSidebar(1);
+            await Program.WaitUntilAsync(() => MediaPosition() == Texts.T("reader.sidebar.position", 3, 3));
+            page.StepMediaSidebar(-1);
+            await Program.WaitUntilAsync(() => MediaPosition() == Texts.T("reader.sidebar.position", 2, 3));
+            Require(Landed(ordinal), "Stepping the media navigator moved the selected post.");
+            await Program.WaitUntilAsync(() => (list.SelectedItem as ArchivePostRow)?.BacklinkCount == 1);
+
+            Button next = page.FindControl<Button>("ReaderNextPost")!;
+            Button previous = page.FindControl<Button>("ReaderPreviousPost")!;
+            next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await page.ReaderNavigationTask;
+            await WaitForPost(ordinal + 1);
+            previous.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await page.ReaderNavigationTask;
+            await WaitForPost(ordinal);
+            Require(page.FindControl<TextBlock>("ReaderPostPosition")!.Text == ReaderNavigationLayout.CounterText(ordinal - 1, count)
+                && ReferenceEquals(items, list.ItemsSource), "Post arrows used the wrong position or recreated the list.");
+
+            await page.ResumeReadingPositionAsync(new LocalReadingPosition("4chan", "g", ThreadId, At(ordinal), -16, At(ordinal)));
+            await WaitForPost(ordinal);
+            Require(page.CurrentReaderAnchor is { } restored && restored.PostId == At(ordinal) && Math.Abs(restored.Top + 16) <= 2,
+                "Continue reading did not restore the deep anchor and its offset.");
+            Action galleryReturn = page.CaptureGalleryOrigin();
+            page.SetObscuredByGallery(true);
+            await page.LoadThreadAsync(fixture.Id);
+            page.SetObscuredByGallery(false);
+            galleryReturn();
+            await WaitForPost(ordinal);
+            await Program.WaitUntilAsync(() => page.CurrentReaderAnchor is { } anchor
+                && anchor.PostId == At(ordinal) && Math.Abs(anchor.Top + 16) <= 2);
+
+            TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+            tabs.SelectedIndex = 1;
+            await page.NavigateReaderAsync(1, 0);
+            Require(tabs.SelectedIndex == 1 && Selected(fixture) == At(ordinal + 1), "Post navigation changed the Saved media tab.");
+            tabs.SelectedIndex = 0;
+            await WaitForPost(ordinal + 1);
+
+            await page.FocusPostAsync(At(1));
+            await page.NavigateQuoteAsync(((ArchivePostRow)list.Items[0]!).Quotes.Single());
+            await WaitForPost(ordinal);
+
+            await page.FocusPostAsync(At(1));
+            page.FindControl<Button>("ReaderFindOpen")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.FindControl<TextBox>("ReaderFindQuery")!.Text = "Deep continuous-reader find target";
+            await Program.WaitUntilAsync(() => page.FindControl<Button>("ReaderFindNext")!.IsEnabled);
+            page.FindControl<Button>("ReaderFindNext")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitForPost(ordinal);
+            Console.WriteLine($"SMOKE continuous reader {count} posts: jump to {ordinal}, post and media arrows, offset restore, gallery origin, Saved media, quote and Find passed.");
+        }
+    }
+
+    private static async Task<Fixture> OpenAsync(MainWindow owner, int count, bool staircase = false, int jumpPost = 0)
     {
         string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-reader-view-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
         ProfileLease lease = ProfileLease.Acquire(profile);
         ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
-        Fixture fixture = new() { Profile = profile, Lease = lease, Catalog = catalog, Id = new("4chan", "g", ThreadId), Staircase = staircase };
+        Fixture fixture = new() { Profile = profile, Lease = lease, Catalog = catalog, Id = new("4chan", "g", ThreadId), Staircase = staircase, JumpPost = jumpPost };
         await CaptureAsync(fixture, count);
         ArchivePage page = new(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { });
         fixture.Page = page;
@@ -90,7 +200,7 @@ internal static class ReaderViewChecks
 
     private static Task CaptureAsync(Fixture fixture, int count) => fixture.Catalog.CaptureAsync(new CapturedThreadSnapshot(
         fixture.Id, "https://boards.4chan.org/g/thread/" + ThreadId, "Reader view " + ThreadId,
-        ThreadSourceState.Active, DateTimeOffset.UtcNow, fixture.Profile, Posts(count, fixture.Staircase)));
+        ThreadSourceState.Active, DateTimeOffset.UtcNow, fixture.Profile, Posts(count, fixture.Staircase, fixture.JumpPost)));
 
     private static async Task ToggleAsync(Fixture fixture, string command)
     {
@@ -100,7 +210,6 @@ internal static class ReaderViewChecks
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
     }
 
-    private static string PageText(Fixture fixture) => fixture.Page.FindControl<TextBlock>("ArchivePostPage")!.Text ?? "";
     private static string? Selected(Fixture fixture) => (fixture.List.SelectedItem as ArchivePostRow)?.Id;
 
     private static IEnumerable<ListBoxItem> Containers(Fixture fixture) => fixture.List.GetVisualDescendants().OfType<ListBoxItem>()
@@ -121,9 +230,9 @@ internal static class ReaderViewChecks
         await using Fixture fixture = await OpenAsync(owner, 120);
         ArchivePage page = fixture.Page;
         // Default: today's view.
-        Require(page.Projection is { IsIdentity: true, Count: 120 } && fixture.Rows.Length == 50 && fixture.Rows[0].Id == "500",
+        Require(page.Projection is { IsIdentity: true, Count: 120 } && fixture.Rows.Length == 120 && fixture.Rows[0].Id == "500",
             "The default view is not the chronological identity.");
-        Require(PageText(fixture) == Texts.T("archive.page", 1, 50, 120), "Default page label changed: " + PageText(fixture));
+        Require(page.FindControl<Control>("ArchivePostNavigation") == null, "The reader still declares a page footer.");
         // P0's two media switches lead the menu; the conversation (R3), the media switches (R6), the media sidebar (R8), "Show new posts
         // automatically" (R2) and the reader settings entry (R7) follow. A detached reader has no post filter host, so no "Post filters…".
         Require(page.ReaderViewOptionIds.SequenceEqual(new[] { "reader.view.hide-media", "reader.view.media-only", "reader.view.conversation",
@@ -168,11 +277,10 @@ internal static class ReaderViewChecks
         await ToggleAsync(fixture, "reader.view.hide-media");
         Require(fixture.Rows.Where(row => row.HasAttachments).All(row => row.ShowsMedia), "Hide media did not switch off.");
 
-        // Only posts with media: 60 posts, two pages, the status names the hidden ones.
+        // Only posts with media: 60 posts, the status names the hidden ones.
         await ToggleAsync(fixture, "reader.view.media-only");
         Require(page.Projection is { IsIdentity: false, Count: 60, HiddenCount: 60 }, "Only posts with media did not keep 60 posts.");
-        Require(fixture.Rows.Length == 50 && fixture.Rows.All(row => row.HasAttachments), "A post without media is still shown.");
-        Require(PageText(fixture) == Texts.T("archive.page", 1, 50, 60), "Page label: " + PageText(fixture));
+        Require(fixture.Rows.Length == 60 && fixture.Rows.All(row => row.HasAttachments), "A post without media is still shown.");
         string status = page.FindControl<TextBlock>("ArchiveReaderStatus")!.Text ?? "";
         Require(status.EndsWith(" · " + Texts.Count("reader.view.hiddenCount", 60, 60), StringComparison.Ordinal), "Status lacks the hidden count: " + status);
         await CaptureThemesAsync(fixture, "media-only");
@@ -181,19 +289,14 @@ internal static class ReaderViewChecks
         Program.CaptureWindow(fixture.Window, "smoke-reader-p0-view-media-only-900.png");
         fixture.Window.Width = 1440;
 
-        // Up/Down cross the page boundary in the shown order.
+        // Up/Down pass the former page break while the list keeps its items and containers.
         await page.FocusPostAsync("598");
-        await Program.WaitUntilAsync(() => Selected(fixture) == "598");
+        object? rows = fixture.List.ItemsSource;
         await page.NavigateReaderAsync(1, 0);
-        await Program.WaitUntilAsync(() => Selected(fixture) == "600", () => "after Down: " + Selected(fixture));
-        Require(fixture.Rows.Length == 10 && fixture.Rows[0].Id == "600" && PageText(fixture) == Texts.T("archive.page", 51, 60, 60),
-            "Down did not open the second shown page: " + PageText(fixture));
-        Require(!page.FindControl<Button>("NextPostsButton")!.IsEnabled && page.FindControl<Button>("PreviousPostsButton")!.IsEnabled,
-            "Page buttons do not follow the shown posts.");
+        Require(Selected(fixture) == "600" && fixture.List.SelectedIndex == 50 && ReferenceEquals(rows, fixture.List.ItemsSource),
+            "Down did not reach the next shown post in the same list.");
         await page.NavigateReaderAsync(-1, 0);
-        await Program.WaitUntilAsync(() => Selected(fixture) == "598", () => "after Up: " + Selected(fixture));
-        page.FindControl<Button>("NextPostsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Require(fixture.Rows[0].Id == "600", "Next page did not page the shown order.");
+        Require(Selected(fixture) == "598" && fixture.List.SelectedIndex == 49, "Up did not return to the previous shown post.");
 
         // A find hit in a hidden post reveals it; Hide again hides it.
         page.FindControl<Button>("ReaderFindOpen")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -244,7 +347,7 @@ internal static class ReaderViewChecks
         await ToggleAsync(fixture, "reader.view.media-only");
         Require(page.Projection is { IsIdentity: true, Count: 125 } && fixture.Rows.Any(row => !row.HasAttachments),
             "Switching off did not return to the identity.");
-        Console.WriteLine("SMOKE reader view media: hide media, only posts with media, paging, Up/Down, find reveal, reading mark and new posts passed.");
+        Console.WriteLine("SMOKE reader view media: hide media, only posts with media, continuous scrolling, Up/Down, find reveal, reading mark and new posts passed.");
     }
 
     // The placeholder comes from a later package; a test classifier stands in for it.

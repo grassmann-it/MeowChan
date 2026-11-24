@@ -1,3 +1,4 @@
+using Avalonia;
 using System.Text;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -86,7 +87,9 @@ internal static class ReaderThreadFindChecks
                 "Offline 404 snapshot was not loaded through the catalog.");
             ListBox posts = C<ListBox>("ArchivePosts");
             string[] initial = Rows();
-            Require(initial.Length == 50 && !initial.Contains("1650"), "Offscreen fixture is vacuous.");
+            await UntilAsync(() => posts.ContainerFromIndex(0) != null);
+            Require(initial.Length == 651 && initial[^1] == "1650" && posts.ContainerFromIndex(650) == null,
+                "The final post must belong to the thread but start outside the realization window.");
             Click("ReaderFindOpen");
             await page.ThreadFindTask.WaitAsync(Deadline);
             TextBox query = C<TextBox>("ReaderFindQuery");
@@ -100,8 +103,11 @@ internal static class ReaderThreadFindChecks
             Require(C<TextBlock>("ReaderFindExcerpt").Inlines!.Count == 0, "Search auto-selected a hit.");
             Click("ReaderFindNext");
             CheckHit(1, 8);
-            Require(Rows().SequenceEqual(new[] { "1650" }) && posts.SelectedItem is ArchivePostRow { Id: "1650" },
-                "Explicit hit did not ShowPost on the final (651st-post) page.");
+            Require(Rows().SequenceEqual(initial) && posts.SelectedItem is ArchivePostRow { Id: "1650" },
+                "The explicit hit did not select the final post in the original list.");
+            await UntilAsync(() => posts.ContainerFromIndex(650) is Control card
+                && card.TranslatePoint(default, posts) is Point top && top.Y < posts.Bounds.Height
+                && top.Y + card.Bounds.Height > 0);
             Dispatch(Key.Enter);
             CheckHit(2, 26);
             Dispatch(Key.Enter, KeyModifiers.Shift);
@@ -223,9 +229,11 @@ internal static class ReaderThreadFindChecks
                         "Boundary TextInput lacks the actual focused query/owner.");
                     string[] rows = Rows();
                     object? selected = posts.SelectedItem;
-                    Task before = page.ThreadFindTask;
-                    query.RaiseEvent(new TextInputEventArgs { RoutedEvent = InputElement.TextInputEvent, Text = text });
-                    await UntilAsync(() => !ReferenceEquals(before, page.ThreadFindTask));
+                    string? before = query.Text;
+                    query.RaiseEvent(new TextInputEventArgs { RoutedEvent = InputElement.TextInputEvent, Source = query, Text = text });
+                    await UntilAsync(() => !string.Equals(before, query.Text, StringComparison.Ordinal));
+                    // Invalid input can complete synchronously and reuse Task.CompletedTask.
+                    await SmokeDispatcher.SettleAsync();
                     await page.ThreadFindTask.WaitAsync(Deadline);
                     Require(query.IsFocused && Rows().SequenceEqual(rows) && ReferenceEquals(posts.SelectedItem, selected),
                         "Boundary input/search finish stole focus, selected or navigated a post.");

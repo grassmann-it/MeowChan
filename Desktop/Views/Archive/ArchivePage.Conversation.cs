@@ -11,7 +11,7 @@ public partial class ArchivePage
     internal int ReaderThreadingDepth
     {
         get => _conversationOrdering?.Depth ?? ReaderConversationTree.DepthDefault;
-        set => ApplyReaderDisplayPreferences(ReaderThumbnailWidth, ReaderDateStyle, ReaderPageSize, value);
+        set => ApplyReaderDisplayPreferences(ReaderThumbnailWidth, ReaderDateStyle, value);
     }
 
     // ContainerPrepared sets the initial indent, but a realized card survives window/split/sidebar resizing.

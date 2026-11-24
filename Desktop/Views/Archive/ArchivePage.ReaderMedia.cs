@@ -42,7 +42,7 @@ public partial class ArchivePage
 
     /// <summary>Applies the media preferences: the focus and hover options at once, a changed textless setting by rebuilding the posts.</summary>
     internal void ApplyReaderMediaPreferences(ReaderMediaPreferences media) =>
-        ApplyReaderDisplayPreferences(ReaderThumbnailWidth, ReaderDateStyle, ReaderPageSize, media: media);
+        ApplyReaderDisplayPreferences(ReaderThumbnailWidth, ReaderDateStyle, media: media);
 
     // The live part: no rows change, only inherited values on the list and the hover popup's settings.
     private void ApplyReaderMediaLive()

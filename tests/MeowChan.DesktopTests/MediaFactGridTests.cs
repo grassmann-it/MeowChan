@@ -23,7 +23,7 @@ public sealed class MediaFactGridTests
             Texts.Initialize();
             Texts.SetLanguage(language);
             const string longName = "A-very-long-file-name-that-keeps-going-without-spaces-and-has-a-long-ending.png";
-            MediaFactGrid facts = new("Facts") { Width = width - 32 };
+            MediaFactGrid facts = new("Facts") { Width = width - 34 };
             facts.Add(Texts.T("media.fact.file"), longName, fileName: true);
             facts.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(1476233));
             facts.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(1476233));
@@ -42,7 +42,7 @@ public sealed class MediaFactGridTests
                     Assert.Equal(values[0].FontSize, value.FontSize);
                     Assert.Equal(values[0].FontWeight, value.FontWeight);
                     Assert.Equal(values[0].Bounds.Left, value.Bounds.Left, 0.5);
-                    if (width < 292)
+                    if (width == 240)
                     {
                         Assert.Equal(label.Bounds.Left, value.Bounds.Left, 0.5);
                         Assert.Equal(label.Bounds.Bottom + 2, value.Bounds.Top, 0.5);

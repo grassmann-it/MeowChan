@@ -9,7 +9,7 @@ using Serilog;
 
 namespace MeowChan.Desktop;
 
-// The reader's shared foundation (plan P0, section 3): one projection "thread -> shown order" that every page,
+// The reader's shared foundation (plan P0, section 3): one projection "thread -> shown order" that the post list,
 // navigation and reading-mark computation works against. P0's "Only posts with media", P2's post filters and P4's
 // conversation view only contribute verdicts or an order; placeholders, indentation and revealing belong to P0.
 
@@ -177,27 +177,6 @@ internal sealed class ReaderPostProjection
             if ((uint)position >= (uint)_posts.Count) throw new ArgumentOutOfRangeException(nameof(position));
             return new ReaderPostEntry(position, _posts[position], 0, -1, default);
         }
-    }
-
-    /// <summary>
-    /// The page containing a position in the shown order. Retained offsets (history, settings changes) may belong
-    /// to an older page size or a longer projection; always realign them before rendering or paging again.
-    /// </summary>
-    internal int PageOffset(int position, int pageSize)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
-        return Count == 0 ? 0 : Math.Clamp(position, 0, Count - 1) / pageSize * pageSize;
-    }
-
-    internal IReadOnlyList<ReaderPostEntry> Page(int offset, int count)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(offset);
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        int length = offset >= Count ? 0 : Math.Min(count, Count - offset);
-        ReaderPostEntry[] page = new ReaderPostEntry[length];
-        if (_entries != null) Array.Copy(_entries, offset, page, 0, length);
-        else for (int index = 0; index < length; index++) page[index] = new(offset + index, _posts[offset + index], 0, -1, default);
-        return Array.AsReadOnly(page);
     }
 
     /// <summary>The shown position of a post; -1 when this view hides it or it was not captured.</summary>

@@ -137,7 +137,7 @@ public partial class ArchivePage
             // presenting an unrelated unread line after this explicit Continue reading jump.
             _unreadMark = ResumeUnreadMark(view, position, fallback);
             _history.Clear(); // F2: continue reading is a jump; "Back to last read" never flips to the thread shown before it
-            ShowCapturedView(view, index / PageSize * PageSize, postId);
+            ShowCapturedView(view, postId);
             contentCurrent = CaptureReadingRequestGuard();
             await RevealPostAsync(postId, Current); // The saved place is shown even where the reader view hides it.
             if (!Current()) return;

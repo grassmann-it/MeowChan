@@ -126,13 +126,13 @@ public partial class ArchivePage
         if (!any) _statusOverlayHovered = false;
     }
     // The overlay floats at the bottom left of the column that shows the reader (side by side)
-    // or the stacked list, above that column's docked footer (result pager, post pager, media
+    // or the stacked list, above that column's docked footer (result pager, media
     // or reference footer), so it never covers a control the user needs to reach.
     private void PlaceStatusOverlay()
     {
         Grid split = ArchiveSplit;
         double bottom = 8;
-        Control[] footers = { ArchiveResultsBar, ArchivePostNavigation, ArchiveMediaFooter, ArchiveReferencesNavigation };
+        Control[] footers = { ArchiveResultsBar, ArchiveMediaFooter, ArchiveReferencesNavigation };
         foreach (Control footer in footers)
         {
             if (!footer.IsEffectivelyVisible || footer.Bounds.Height <= 0 || footer.TranslatePoint(default, split) is not Point top) continue;

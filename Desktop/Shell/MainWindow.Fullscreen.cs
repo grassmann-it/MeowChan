@@ -724,8 +724,9 @@ public partial class MainWindow
             // The three back commands are listed by their state (the same answer the Back gesture gets: CanRunBack), the page buttons by the
             // enabled state their page keeps: a button that layout hides (narrow chrome, a work view, the More menu) leaves its command in force.
             foreach (string id in BackCommands) if (CanRunBack(id)) ids.Insert(0, id);
-            foreach (var pair in new[] { ("PreviousPostsButton", "pagination.previous"), ("NextPostsButton", "pagination.next") })
-                if (_archivePage?.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
+            if (_archivePage?.FindControl<TabControl>("ArchiveContentTabs")?.SelectedItem is TabItem { Name: "ArchiveReferencesTab" })
+                foreach (var pair in new[] { ("PreviousReferences", "pagination.previous"), ("NextReferences", "pagination.next") })
+                    if (_archivePage.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
         }
         else if (_selectedPage == WorkspacePage.Downloads && _restoreCompleted && !WorkspaceCommandBusy)
         {

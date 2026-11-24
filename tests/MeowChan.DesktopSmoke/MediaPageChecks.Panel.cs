@@ -71,7 +71,7 @@ internal static partial class MediaPageChecks
             // By thread: B's post file (200), A's post file (100), A's file without a post.
             Require(rows.Length == 3 && rows[0].Entry.PostId == "200" && rows[1].Entry.PostId == "100" && rows[2].Entry.PostId == null,
                 "The panel fixture's order is wrong: " + string.Join(",", rows.Select(row => row.Name + ":" + row.Entry.PostId)));
-            TextBlock position = (TextBlock)panel.PositionPill.Child!;
+            TextBlock position = panel.PositionPill.Label;
 
             // The panel shows exactly this row: its header names the medium, the picture is named after it.
             async Task<Bitmap?> ShowsAsync(int index, string how, bool picture)
@@ -112,26 +112,26 @@ internal static partial class MediaPageChecks
             double panelTop = TopOf(panel), hostTop = TopOf(panelHost);
             Require(Math.Abs(panelTop - hostTop) <= 1 && Math.Abs(panel.Bounds.Bottom - panelHost.Bounds.Height) <= 1,
                 "The media sidebar divider must reach both host edges.");
-            Require(!page.IsPanelHeaderLifted && Math.Abs(TopOf(panel.HeaderRow) - panelTop - 8) <= 1
-                    && Math.Abs(panel.Segments.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight) <= 1,
+            Require(!page.IsPanelHeaderLifted && Math.Abs(TopOf(panel.HeaderRow) - panelTop - 16) <= 1
+                    && Math.Abs(panel.HeaderRow.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight) <= 1,
                 "The title/actions line must be inset inside the full-height sidebar.");
             Point InHeader(Control control) => control.TranslatePoint(default, panel.HeaderRow)!.Value;
-            Require(Math.Abs(InHeader(panel.Segments).X) <= 1
-                && Math.Abs(InHeader(panel.PositionPill).X - panel.Segments.Bounds.Width - MediaSidebarHeader.HeaderGap) <= 1
-                && Math.Abs(InHeader(panel.PositionPill).X + panel.PositionPill.Bounds.Width + MediaSidebarHeader.HeaderGap - InHeader(panel.Close).X) <= 1
+            Require(Math.Abs(InHeader(panel.Title).X) <= 1
+                && InHeader(panel.PositionPill).X >= panel.Title.Bounds.Right + 7.5
+                && Math.Abs(2 * InHeader(panel.PositionPill).X + panel.PositionPill.Bounds.Width - panel.Title.Bounds.Right - InHeader(panel.Close).X) <= 1
                 && Math.Abs(InHeader(panel.Close).X + panel.Close.Bounds.Width - panel.HeaderRow.Bounds.Width) <= 1,
                 "The tabs, post number, position and actions are misaligned.");
-            Require(Math.Abs(TopOf(panel.Card) - panelTop - 8 - panel.HeaderRow.Bounds.Height) <= 1,
+            Require(Math.Abs(TopOf(panel.Card) - panelTop - 28 - panel.HeaderRow.Bounds.Height) <= 1,
                 "The card must begin below the Media header.");
             ScrollViewer details = C<ScrollViewer>(panel, "ReaderMediaSidebarDetails");
-            Require(Math.Abs(TopOf(details) + details.Bounds.Height - (hostTop + panelHost.Bounds.Height)) <= 1,
+            Require(Math.Abs(TopOf(details) + details.Bounds.Height - (hostTop + panelHost.Bounds.Height - 16)) <= 1,
                 "The media card and details must consume the host height below the title line.");
             page.SetBooruMode(true, save: false);
             TextBlock tagsTitle = C<TextBlock>(page.TagSidebar, "MediaTagSidebarTitle");
             double CentreY(Control control) => TopOf(control) + control.Bounds.Height / 2;
             await PanelUntilAsync(() => tagsTitle.IsEffectivelyVisible && tagsTitle.Bounds.Height > 0
-                    && Math.Abs(CentreY(tagsTitle) - CentreY(panel.Segments)) <= 2,
-                () => $"Tags and Media header centres: {CentreY(tagsTitle)} and {CentreY(panel.Segments)}, tags visible: {tagsTitle.IsEffectivelyVisible}.");
+                    && Math.Abs(CentreY(tagsTitle) + 8 - CentreY(panel.Title)) <= 2,
+                () => $"Tags and Media header centres: {CentreY(tagsTitle)} and {CentreY(panel.Title)}, tags visible: {tagsTitle.IsEffectivelyVisible}.");
             page.SetBooruMode(false, save: false);
 
             // A fit change refreshes the current medium without announcing it again.

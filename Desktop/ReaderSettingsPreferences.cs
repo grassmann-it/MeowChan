@@ -15,7 +15,7 @@ internal static class ReaderSettingsPreferences
     internal static void Apply(ArchivePage reader, Config config)
     {
         // Capture the original reader place before any of the inherited layout preferences are updated.
-        reader.ApplyReaderDisplayPreferences(config.ReaderThumbnailWidth, DateStyle(config), config.ReaderPageSize,
+        reader.ApplyReaderDisplayPreferences(config.ReaderThumbnailWidth, DateStyle(config),
             config.ReaderThreadingDepth, ReaderMediaPreferences.From(config));
         reader.ReaderFoldLinesPreference = config.ReaderFoldLines;
         reader.ReaderSpoilerModePreference = Spoilers(config);

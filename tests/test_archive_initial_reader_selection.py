@@ -7,13 +7,13 @@ ARCHIVE = ROOT / "Desktop/Views/Archive"
 
 
 class InitialReaderSelectionContracts(unittest.TestCase):
-    def test_selection_uses_rendered_filtered_page_and_retains_current_post(self):
+    def test_selection_uses_complete_filtered_order_and_retains_current_post(self):
         source = (ARCHIVE / "ArchivePage.axaml.cs").read_text()
         render = source.split("private void RenderThread(", 1)[1].split("private readonly record struct PostRowContext", 1)[0]
-        self.assertIn("projection.Page(_postOffset, pageSize)", render)
-        self.assertIn("posts.FirstOrDefault(post => post.Id == _readerPostId) ?? posts.FirstOrDefault()", render)
-        self.assertLess(render.index("postList.ItemsSource = posts;"), render.index("postList.SelectedItem = selectedPost;"))
-        self.assertIn("_readerPostId = selectedPost?.Id;", render)
+        self.assertIn("new ArchivePostRow[projection?.Count ?? 0]", render)
+        self.assertIn("selected = projection.PositionOf(retained)", render)
+        self.assertLess(render.index("postList.ItemsSource = posts;"), render.index("postList.SelectedIndex = selected;"))
+        self.assertIn("_readerPostId = selected >= 0 ? posts[selected].Id : null;", render)
         self.assertNotIn(".Focus(", render)
         self.assertNotIn("FocusPostAsync(", render)
         self.assertNotIn("ReaderPositionChanged(", render)
@@ -22,7 +22,7 @@ class InitialReaderSelectionContracts(unittest.TestCase):
     def test_post_identity_does_not_leak_across_threads(self):
         source = (ARCHIVE / "ArchivePage.axaml.cs").read_text()
         load = source.split("private async Task LoadThreadAsync(", 1)[1].split("private void RenderThread(", 1)[0]
-        self.assertLess(load.index("if (_selectedThread != id) _readerPostId = null;"), load.index("_selectedThread = id;"))
+        self.assertLess(load.index("_readerPostId = null;"), load.index("_selectedThread = id;"))
 
     def test_selection_drives_both_media_presentations(self):
         media = (ARCHIVE / "ArchivePage.ReaderMedia.cs").read_text()
@@ -35,8 +35,9 @@ class InitialReaderSelectionContracts(unittest.TestCase):
     def test_restored_and_explicit_selection_remain_authoritative(self):
         reader = (ARCHIVE / "ArchivePage.Reader.cs").read_text()
         navigation = (ARCHIVE / "ArchivePage.Navigation.cs").read_text()
-        self.assertIn("list.SelectedItem = selected; _readerPostId = selected.Id;", reader)
-        self.assertIn("posts.SelectedItem = rows.FirstOrDefault(post => post.Id == postId);", navigation)
+        self.assertIn("list.SelectedItem = selected;", reader)
+        self.assertIn("_readerPostId = selected.Id;", reader)
+        self.assertIn("_projectionSelectionPost = postId;", navigation)
 
 
 if __name__ == "__main__":
