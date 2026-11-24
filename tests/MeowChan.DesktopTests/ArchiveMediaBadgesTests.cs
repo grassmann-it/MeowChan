@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.LogicalTree;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -296,7 +297,19 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
     public void TheTileHandsItsSlotToTheBadgesAndKeepsTheCheckBesideAMissingFileBadge() => OnPlatform(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
-        ArchiveMediaTileView tile = new() { DataContext = AssetRow("still.png", status: MediaManifestStatus.Missing) };
+        ArchiveAssetRow unavailable = AssetRow("still.png", status: MediaManifestStatus.Missing);
+        ArchiveAssetRow available = AssetRow("rebound.png");
+        TaskCompletionSource finishDecode = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ArchiveMediaTileView tile = new()
+        {
+            ThumbnailDecoder = async (row, token) =>
+            {
+                if (ReferenceEquals(row, unavailable)) throw new FileNotFoundException();
+                await finishDecode.Task.WaitAsync(token).ConfigureAwait(false);
+                return new WriteableBitmap(new PixelSize(16, 16), new Vector(96, 96));
+            },
+            DataContext = unavailable
+        };
         ArchiveAttachmentView attachment = new() { DataContext = AttachmentRow("still.png") };
         ListBoxItem container = new() { Content = tile, IsSelected = true };
         StackPanel content = new() { Children = { container, attachment } };
@@ -323,8 +336,13 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
                 Assert.True(check.Bounds.Right < missing.Bounds.Left);
             }
             double insetWithBadge = check.Bounds.Right;
-            tile.DataContext = AssetRow("rebound.png");
+            tile.DataContext = available;
+            finishDecode.SetResult();
+            Image preview = Assert.Single(tile.Badges.GetVisualParent()!.GetVisualChildren().OfType<Image>());
+            BooruComponentDispatcher.WaitUntil(() => preview.Source is WriteableBitmap, "the rebound archive thumbnail");
             window.UpdateLayout();
+            Assert.DoesNotContain(tile.Badges.Plan.Badges, badge => badge.Badge.Id == MediaBadgeId.Missing);
+            Assert.True(check.IsVisible);
             Assert.True(check.Bounds.Right > insetWithBadge);
         }
         finally { window.Close(); }

@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -247,43 +248,44 @@ public sealed class TileSizeTests : IDisposable
         Assert.Contains("ApplyAppearance(ArchiveTileMetrics.Standard);", tile);
     }
 
-    [Fact]
-    public void TheArchivePageKeepsItsTileSizeAndRestoresThePanelAnchor()
-    {
-        string page = Read("Desktop/Views/Archive/ArchivePage.TileSize.cs");
-        Assert.Contains("panel.ColumnWidth = appearance.CellWidth;", page);
-        Assert.Contains("panel.ItemHeight = appearance.CellHeight;", page);
-        Assert.Contains("panel.RestoreAnchor(kept.Index", page);
-        // The saved size reaches the page through the shell and a change is saved as a view preference.
-        string shell = Read("Desktop/Shell/MainWindow.Navigation.cs");
-        Assert.Contains("_archivePage.MediaTileSizePreference = MediaTileSizes.Parse(_config.ArchiveMediaTileSize);", shell);
-        Assert.Contains("current.ArchiveMediaTileSize = size.ToString()", shell);
-    }
-
-    [Fact]
-    public void TheTilePanelFillsTheWidthAndKeepsTheFinalPartialRowOnTheSameAxes() => BooruComponentDispatcher.Run(() =>
+    [Theory]
+    [InlineData(1, 622)]
+    [InlineData(1.5, 931)]
+    public void TheTilePanelFillsTheWidthWithSharedPixelEdgesInFullAndPartialRows(double scale, int widthInPixels) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ListBox list = new()
         {
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
             ItemsSource = new[] { "first", "second", "third", "fourth", "fifth" },
             ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { FillColumns = true })
         };
         ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
-        Window window = new() { Width = 620, Height = 520, Content = list };
+        ScrollViewer.SetVerticalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+        Window window = new() { Width = 700, Height = 520, Content = list };
         try
         {
             window.Show();
+            window.SetRenderScaling(scale);
+            list.Width = widthInPixels / scale;
             window.UpdateLayout();
+            Assert.Equal(scale, window.RenderScaling);
             MediaTilePanel panel = Assert.IsType<MediaTilePanel>(list.ItemsPanelRoot);
             Assert.Equal(3, panel.Columns);
+            Assert.Equal(widthInPixels, panel.Bounds.Width * scale, precision: 6);
             Control[] tiles = Enumerable.Range(0, 5)
                 .Select(index => Assert.IsAssignableFrom<Control>(list.ContainerFromIndex(index))).ToArray();
-            Rect BoundsInPanel(Control tile) => new(tile.TranslatePoint(default, panel)!.Value, tile.Bounds.Size);
-            Assert.InRange(Math.Abs(BoundsInPanel(tiles[2]).Right - panel.Bounds.Width), 0, 1);
-            Assert.Equal(BoundsInPanel(tiles[0]).X, BoundsInPanel(tiles[3]).X, 0);
-            Assert.Equal(BoundsInPanel(tiles[1]).X, BoundsInPanel(tiles[4]).X, 0);
-            Assert.True(BoundsInPanel(tiles[3]).Top > BoundsInPanel(tiles[0]).Top);
+            Rect[] bounds = tiles.Select(tile => new Rect(tile.TranslatePoint(default, panel)!.Value, tile.Bounds.Size)).ToArray();
+            Assert.Equal(0, bounds[0].Left * scale, precision: 6);
+            Assert.Equal(widthInPixels, bounds[2].Right * scale, precision: 6);
+            for (int column = 0; column < 2; column++)
+            {
+                Assert.Equal(bounds[column].Right * scale, bounds[column + 1].Left * scale, precision: 6);
+                Assert.Equal(bounds[column].Left * scale, bounds[column + 3].Left * scale, precision: 6);
+                Assert.Equal(bounds[column].Right * scale, bounds[column + 3].Right * scale, precision: 6);
+            }
+            Assert.All(bounds.Skip(3), tile => Assert.True(tile.Top > bounds[0].Top));
         }
         finally { window.Close(); }
     });

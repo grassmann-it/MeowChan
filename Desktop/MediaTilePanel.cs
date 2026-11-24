@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Ursa.Controls;
@@ -219,7 +220,22 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
         base.OnDetachedFromVisualTree(e);
     }
 
-    private Rect CellRect(int index) => new(index % Columns * ItemWidth, index / Columns * ItemHeight, ItemWidth, ItemHeight);
+    private Rect CellRect(int index)
+    {
+        int column = index % Columns;
+        double left = column * ItemWidth;
+        double width = ItemWidth;
+        if (FillColumns && UseLayoutRounding)
+        {
+            // Round shared edges before Avalonia rounds each container's origin and size.
+            double scale = LayoutHelper.GetLayoutScale(this);
+            double leftPixel = Math.Round(left * scale);
+            double rightPixel = Math.Round((column + 1) * ItemWidth * scale);
+            left = leftPixel / scale;
+            width = (rightPixel - leftPixel) / scale;
+        }
+        return new Rect(left, index / Columns * ItemHeight, width, ItemHeight);
+    }
 
     protected override Control? ScrollIntoView(int index)
     {
