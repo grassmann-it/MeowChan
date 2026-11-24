@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
 using MeowChan.Desktop.Controls;
@@ -206,6 +207,7 @@ public sealed class NarrowContentLayoutTests
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ArchivePage page = new();
+        Window window = new() { Width = width + 48, Height = 160 };
         try
         {
             Control navigation = page.FindControl<Control>("ReaderFindNavigation")!;
@@ -215,9 +217,17 @@ public sealed class NarrowContentLayoutTests
             string fullText = Texts.T("reader.sidebar.position", 123456, 234567);
             position.Text = fullText;
             position.IsVisible = true;
-            Layout(navigation, width);
+            // Host the actual row so the button templates and resource bindings take part in layout.
+            Assert.IsAssignableFrom<Panel>(navigation.Parent).Children.Remove(navigation);
+            navigation.IsVisible = true;
+            navigation.Width = width;
+            window.Content = navigation;
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
 
-            Assert.True(previous.Bounds.Width > 0 && next.Bounds.Width > 0);
+            Assert.True(previous.Bounds.Width > 0 && next.Bounds.Width > 0,
+                $"Navigation {navigation.Bounds}, previous arrow {previous.Bounds}, next arrow {next.Bounds}");
             Assert.True(previous.Bounds.Right <= position.Bounds.Left && position.Bounds.Right <= next.Bounds.Left);
             Assert.True(next.Bounds.Right <= width);
             Assert.Equal(trimmed, position.IsTrimmed);
@@ -225,7 +235,11 @@ public sealed class NarrowContentLayoutTests
             Assert.Equal(fullText, position.Text);
             Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(position));
         }
-        finally { page.EndLifetime(); }
+        finally
+        {
+            window.Close();
+            page.EndLifetime();
+        }
     });
 
     [Fact]
