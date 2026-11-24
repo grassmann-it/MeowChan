@@ -133,6 +133,26 @@ internal static class MediaTileIntegrationChecks
             panel.RestoreAnchor(720, -17);
             await Settle(fixture);
             anchored = Key(Rows(tiles)[panel.CaptureAnchor()!.Value.Index]);
+            Config preferences = Config.LoadConfig(profile);
+            page.SaveMediaTileSize = size =>
+            {
+                preferences.ArchiveMediaTileSize = size.ToString();
+                preferences.SaveConfig(profile);
+                return Task.CompletedTask;
+            };
+            foreach (MediaTileSize size in new[] { MediaTileSize.Small, MediaTileSize.Large, MediaTileSize.Medium })
+            {
+                Require(page.MediaTileSizeInput!.Set(size), "The archive must accept a new tile size.");
+                await Settle(fixture);
+                Require(panel.ItemHeight == ArchiveTileMetrics.For(size).CellHeight, "The archived tile height did not follow its size.");
+                Require(Config.LoadConfig(profile).ArchiveMediaTileSize == size.ToString(), "The chosen archive tile size was not saved.");
+                Require(panel.CaptureAnchor() is { } resized && Math.Abs(resized.Offset + 17) <= 1 / fixture.RenderScaling
+                    && Rows(tiles).Skip(resized.Index).Take(panel.Columns).Any(row => Key(row) == anchored),
+                    "A size change lost the anchored identity or the fractional row offset.");
+                Require(Key((ArchiveAssetRow)tiles.SelectedItem!) == Key(chosen), "A size change lost the selected archive asset.");
+                // The first column can change with the number of columns; start the next step from the current top row.
+                anchored = Key(Rows(tiles)[panel.CaptureAnchor()!.Value.Index]);
+            }
             CommandBindings.InvokeAction(page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!);
             await Settle(fixture);
             Require(Key((ArchiveAssetRow)grid.SelectedItem!) == Key(chosen), "Tile-to-list toggle lost exact selected asset.");

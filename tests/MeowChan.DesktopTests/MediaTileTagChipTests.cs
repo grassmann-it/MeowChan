@@ -159,7 +159,7 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.True(star.IsVisible && star.Focusable);
         Assert.False(star.IsChecked);
         Assert.Contains("tile-favorite", star.Classes);
-        Assert.Contains(MediaLibraryTileView.QuietFavoriteClass, star.Classes); // the badge shows the state at rest
+        Assert.Contains(MediaTileView.QuietFavoriteClass, star.Classes); // the badge shows the state at rest
         Assert.False(MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content));
         Assert.Equal(Texts.T("viewer.favorite.add"), AutomationProperties.GetName(star));
         RoutedEventArgs click = new(Button.ClickEvent);
