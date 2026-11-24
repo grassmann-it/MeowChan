@@ -307,6 +307,8 @@ internal static class ReaderViewChecks
             int index = page.Projection!.PositionOf(anchor);
             list.ScrollIntoView(index);
             await Program.WaitUntilAsync(() => Visible(list, anchor));
+            // ScrollIntoView ends with an offset write that is not arranged yet. Measure the card only in the settled layout.
+            await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
             ScrollViewer scroll = list.GetVisualDescendants().OfType<ScrollViewer>().First();
             Control card = (Control)list.ContainerFromIndex(index)!;
             double top = card.TranslatePoint(default, list)!.Value.Y;
