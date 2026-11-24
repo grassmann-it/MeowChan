@@ -1263,6 +1263,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ResetViewForMedium(entry);
         ReleaseTransientOverlays();
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
+        RefreshPanelCounter();
         _exportOriginal.IsEnabled = true;
         _saveFrame.IsEnabled = false; // a frame can be saved once the video is ready (RefreshFrameCommands)
         RefreshTaggingStrip(); // the decisions follow the shown medium (PT3)

@@ -245,7 +245,7 @@ internal sealed class ReaderMediaSidebar : Border
 {
     private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", Classes = { "workspace-panel-title" }, MinWidth = 64,
         VerticalAlignment = VerticalAlignment.Center, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly MediaPositionPill _positionPill = new("ReaderMediaSidebarThreadPosition");
+    private readonly MediaPositionPill _positionPill = new("ReaderMediaSidebarThreadPosition", announce: false);
     private readonly MediaPanelSections _sections = new() { Name = "ReaderMediaSidebarSections" };
     private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 8 };
     private readonly MediaFactGrid _facts = new("ReaderMediaSidebarFacts");
@@ -256,7 +256,7 @@ internal sealed class ReaderMediaSidebar : Border
     private bool _historical;
     private readonly TextBlock _provenanceNote = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private GalleryTagPanelPosition? _threadPosition;
-    private bool _openingTags;
+    private Action? _cancelTagEditor;
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -351,7 +351,7 @@ internal sealed class ReaderMediaSidebar : Border
     internal Control HeaderRow => _header;
     internal MediaPositionPill PositionPill => _positionPill;
     internal TextBlock Title => _heading;
-    internal Func<Control, Task>? OpenTagsAsync { get; set; }
+    internal Func<Control, CancellationToken, Task>? OpenTagsAsync { get; set; }
     internal string DecisionKeyContext { set => _decision.KeyContext = value; }
     internal GalleryDecisionRow DecisionRow => _decision;
     /// <summary>Space above the header line, included in the vertical budget of the header and card.</summary>
@@ -431,7 +431,7 @@ internal sealed class ReaderMediaSidebar : Border
         _info.Children.Add(_provenanceNote);
         _actions.Children.Add(Open);
         _actions.Children.Add(_editTags);
-        _editTags.Click += (_, _) => OpenActions.Start(() => SelectTagsAsync(_editTags), "media.tags.edit");
+        _editTags.Click += (_, _) => OpenActions.Start(EditTagsAsync, "media.tags.edit");
         _rating.Children.Add(_decision);
         _rating.Children.Add(_decisionError);
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
@@ -504,7 +504,11 @@ internal sealed class ReaderMediaSidebar : Border
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
-        DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
+        DetachedFromVisualTree += (_, _) =>
+        {
+            Texts.Changed -= OnLanguageChanged;
+            InvalidateTagEditor();
+        };
         Localize();
         ShowEmpty();
     }
@@ -596,20 +600,34 @@ internal sealed class ReaderMediaSidebar : Border
         _positionPill.Show(position);
     }
 
-    private async Task SelectTagsAsync(Control anchor)
+    internal async Task EditTagsAsync()
     {
-        if (_openingTags || OpenTagsAsync is not { } openTags) return;
-        _openingTags = true;
+        if (!IsEffectivelyVisible || !_editTags.IsVisible || OpenTagsAsync is not { } openTags) return;
+        if (_cancelTagEditor != null) return;
+        using CancellationTokenSource request = new();
+        Action cancel = request.Cancel;
+        _cancelTagEditor = cancel;
         try
         {
-            await openTags(anchor);
-            // A blocked editor can be opened synchronously by the host.
-            if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor)) await popover.Result;
+            await openTags(_editTags, request.Token);
+            // Blocked editors can be opened synchronously by the host.
+            if (ReferenceEquals(_cancelTagEditor, cancel) && QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, _editTags))
+                await popover.Result;
         }
         finally
         {
-            _openingTags = false;
+            if (ReferenceEquals(_cancelTagEditor, cancel)) _cancelTagEditor = null;
         }
+    }
+
+    internal bool InvalidateTagEditor()
+    {
+        if (_cancelTagEditor is not { } cancel) return false;
+        _cancelTagEditor = null;
+        cancel();
+        if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, _editTags))
+            popover.Close(QuickTagPopoverCloseReason.Stale);
+        return true;
     }
 
     /// <summary>The text of the header line now (smokes and tests read it); the plain title while nothing is known.</summary>

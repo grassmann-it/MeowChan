@@ -210,6 +210,7 @@ public sealed class FirstRunEffectiveLimitInteractionRegressionTests : IDisposab
             Set(Window, "SetupParallelInput", Parallel);
             Set(Window, "SetupEffectiveParallelLimit", Summary);
             Set(Window, "SetupNormalizedPath", new TextBlock());
+            Set(Window, "SetupFolderStatus", new TextBlock());
             Set(Window, "SetupPathError", new TextBlock());
             Set(Window, "SetupLimitsError", LimitsError);
             Set(Window, "SetupError", new TextBlock());

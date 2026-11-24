@@ -634,13 +634,13 @@ public partial class MainWindow : Window
         try
         {
             allAccepted = await SubmitAdmissionBatchAsync(input);
-            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened)
+            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened && !_admissionArchiveOpened)
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);
                 ShowNotification(Texts.T(fromClipboard ? "clipboard.title" : "admission.results"),
                     Texts.T(fromClipboard ? "clipboard.empty" : "admission.empty"), NotificationType.Information, operation: "admission.empty");
             }
-            return allAccepted && (_admissionResults.Count != 0 || _admissionBooruOpened);
+            return allAccepted && (_admissionResults.Count != 0 || _admissionBooruOpened || _admissionArchiveOpened);
         }
         catch (OperationCanceledException) when (_isClosing)
         {
@@ -857,7 +857,6 @@ public partial class MainWindow : Window
         _trayLogo = ThemeLogo.Follow(trayIcon);
         trayIcon.ToolTipText = TrayMenuModel.BaseTooltip;
         NativeMenu menu = new NativeMenu();
-        AddTrayStatsItems(menu); // two statistics lines and a separator (hidden by the setting); text only
         NativeMenuItem openItem = CreateTrayCommandItem("app.show");
         _trayOpenItem = openItem;
         openItem.Click += (sender, e) =>
@@ -865,6 +864,7 @@ public partial class MainWindow : Window
             RestoreWindow();
         };
         menu.Items.Add(openItem);
+        AddTrayStatsItems(menu);
         NativeMenuItem folderItem = CreateTrayCommandItem("location.open-folder");
         _trayFolderItem = folderItem;
         folderItem.Click += (sender, e) => OpenDirectory(_config.DownloadPath);
@@ -881,6 +881,7 @@ public partial class MainWindow : Window
         _trayUpdateItem = new NativeMenuItem { IsVisible = false };
         _trayUpdateItem.Click += OnTrayUpdateClick;
         menu.Items.Add(_trayUpdateItem);
+        menu.Items.Add(new NativeMenuItemSeparator());
         AddTrayNavigationItems(menu); // statistics and settings, then a separator
         NativeMenuItem exitItem = CreateTrayCommandItem("app.quit");
         _trayExitItem = exitItem;
