@@ -33,8 +33,11 @@ internal sealed partial class BooruWorkbenchView
 
     /// <summary>Gives a card its context menu; <paramref name="compose"/> is called at every opening, so the entries are current. <paramref name="fallbackFocus"/>
     /// takes the focus when an entry rebuilt the cards (the hit's own card again).</summary>
-    private static void AttachCardMenu(Border card, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null) =>
+    private static void AttachCardMenu(Border card, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null)
+    {
+        ContextMenuHost.Install(card, compose, fallbackFocus);
         card.AttachedToVisualTree += (_, _) => ContextMenuHost.Install(card, compose, fallbackFocus);
+    }
 
     private static ContextMenuBuilder? ComposeResultMenu(ResultActions result)
     {
