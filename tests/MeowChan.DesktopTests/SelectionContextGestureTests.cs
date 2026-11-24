@@ -3,9 +3,12 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.VisualTree;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
+using MeowChan.Storage;
 using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
@@ -87,6 +90,7 @@ public sealed class SelectionContextGestureTests
             await session.StartAsync();
             await session.EnqueueTagQueueAsync([Item(1), Item(2), Item(3)]);
             using TaggingPage page = new(session);
+            await page.ActivateAsync();
             ListBox list = page.ShownList;
             Window window = new() { Width = 1000, Height = 680, Content = page };
             ContextClick.MacOSForTests = macControlClick;
@@ -114,6 +118,81 @@ public sealed class SelectionContextGestureTests
             }
             finally { ContextClick.MacOSForTests = null; window.Close(); }
         }
+    });
+
+    [Fact]
+    public void MediaMenuChecksThatTheResolvedFileStillExists() => RateAndTagWindowFixture.RunMediaPage(async (window, page) =>
+    {
+        ListBoxItem tile = Assert.IsType<ListBoxItem>(page.Grid.ContainerFromIndex(0));
+        MediaLibraryTileRow row = Assert.IsType<MediaLibraryTileRow>(tile.DataContext);
+        MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(row.Entry.Directory!);
+        MediaAssetReference asset = Assert.Single(manifest.Assets, candidate => candidate.AssetId == row.Entry.AssetId);
+        List<string> opened = [];
+        window.OpenFileForTests = path => { opened.Add(path); return Task.CompletedTask; };
+
+        ContextMenu OpenMenu()
+        {
+            ContextGestures.MenuKey(tile);
+            ContextMenu menu = Assert.IsType<ContextMenu>(page.MediaMenu);
+            Assert.Equal(PlacementMode.BottomEdgeAlignedLeft, menu.Placement);
+            Assert.Same(menu, tile.ContextMenu);
+            return menu;
+        }
+        MenuItem Original(ContextMenu menu) => Assert.Single(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "media.open-external"));
+
+        ContextMenu ready = OpenMenu();
+        await BooruTestSupport.WaitAsync(() => Original(ready).IsEnabled, "the original to be checked");
+        Assert.Single(MenuProbe.Entries(ready), item => item.Id == "media.open-external").Activate();
+        await BooruTestSupport.WaitAsync(() => opened.Count == 1, "the exact original to open");
+        Assert.Equal(asset.Path, Assert.Single(opened));
+
+        ready = OpenMenu();
+        await BooruTestSupport.WaitAsync(() => Original(ready).IsEnabled, "the original to be rechecked");
+        File.Delete(asset.Path);
+        Assert.Single(MenuProbe.Entries(ready), item => item.Id == "media.open-external").Activate();
+        await BooruTestSupport.WaitAsync(() => !ready.IsOpen, "the attempted original to close its menu");
+        ContextMenu missing = OpenMenu();
+        await BooruTestSupport.WaitAsync(() => !Original(missing).IsEnabled
+            && Avalonia.Automation.AutomationProperties.GetHelpText(Original(missing)) == MediaMenuReasons.NotSaved,
+            "the missing-file explanation");
+        Assert.Equal(asset.Path, Assert.Single(opened));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ArchiveEmptySpaceKeepsTheSelectionAndShownThread(bool macControlClick) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        using var media = BooruComponentDispatcher.Wait(ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false));
+        ArchivedThreadView first = RateAndTagWindowFixture.View(media);
+        ArchivedThreadView second = new(first.Summary with { Id = new ResourceId("4chan", "g", "142"),
+            Url = "https://offline.invalid/thread/142", Title = "Second thread", MediaDirectory = Path.Combine(profile.Path, "second-media") },
+            first.GetPosts(), [], decimalPostOrder: true);
+        BooruComponentDispatcher.Wait(RateAndTagWindowFixture.SeedAsync(profile.Path, first));
+        BooruComponentDispatcher.Wait(RateAndTagWindowFixture.SeedAsync(profile.Path, second));
+        ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
+        Window window = new() { Width = 1500, Height = 860, Content = page };
+        ContextClick.MacOSForTests = macControlClick;
+        try
+        {
+            window.Show();
+            BooruComponentDispatcher.Wait(page.ActivateAsync());
+            BooruComponentDispatcher.Wait(page.LoadThreadAsync(first.Summary.Id));
+            ListBox list = page.FindControl<ListBox>("ArchiveThreads")!;
+            ContextGestures.Settle(window);
+            Assert.Equal(2, list.ItemCount);
+            list.Selection.SelectRange(0, 1);
+            ContextGestures.Settle(window);
+            ArchivedThreadView shown = Assert.IsType<ArchivedThreadView>(page.CurrentThread);
+            Point empty = new(24, list.Bounds.Height - 12);
+            if (macControlClick) ContextGestures.ControlClick(list, empty); else ContextGestures.RightClick(list, empty);
+            Assert.Equal(2, list.Selection.Count);
+            Assert.Same(shown, page.CurrentThread);
+            Assert.False(list.ContextMenu?.IsOpen == true);
+        }
+        finally { ContextClick.MacOSForTests = null; page.EndLifetime(); window.Close(); }
     });
 
     [Theory]
