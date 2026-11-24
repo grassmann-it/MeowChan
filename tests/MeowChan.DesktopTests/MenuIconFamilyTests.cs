@@ -30,9 +30,10 @@ public sealed class MenuIconFamilyTests
         { "image", "Open or return to media, media display options and frame capture.",
             ["tagging.preview-column", "gallery.open", "gallery.open-results", "reader.media.activate", "gallery.fit",
                 "gallery.context-close", "reader.view.media-only", "reader.view.textless-large", "video.snapshot"] },
-        { "file-text", "Text and post documents, including both gallery post presentations.",
-            ["plugins.edit", "gallery.post-overlay-toggle", "gallery.context-toggle", "gallery.show-in-thread",
+        { "file-text", "Text and post documents, including the gallery post panel.",
+            ["plugins.edit", "gallery.context-toggle", "gallery.show-in-thread",
                 "about.open-license", "about.show-licenses"] },
+        { "layers", "Drawing post content over the gallery rather than opening a panel.", ["gallery.post-overlay-toggle"] },
         { "external-link", "Open elsewhere, with profile switching as the existing exception.",
             ["profile.switch", "location.open-source", "reader.expand", "about.open-link", "media.open-external", "post.open-source"] },
     };

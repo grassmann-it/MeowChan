@@ -80,6 +80,9 @@ public sealed class ArchiveListAuditTests
         MenuItem reset = Assert.Single(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "archive.columnsReset"));
         Assert.Equal("columns", MenuIcons.KeyOf(fit));
         Assert.Equal("rotate-ccw", MenuIcons.KeyOf(reset));
+        MenuIconAudit.Verify("archive-columns", menu.Items.OfType<Control>(),
+            new[] { "identity", "title", "posts", "media", "source", "work", "lastCapture", "tags", "favorite", "foundIn" }
+                .Select(key => new MenuIconAudit.Exception("archive-columns", "archive.column." + key, "Column visibility choice.")).ToArray());
     });
 
     [Fact]

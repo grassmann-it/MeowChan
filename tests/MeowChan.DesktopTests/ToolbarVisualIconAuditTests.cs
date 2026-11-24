@@ -60,6 +60,17 @@ public sealed class ToolbarVisualIconAuditTests
             Assert.Equal("more-horizontal", IconButtons.KeyOf(page.SelectionMoreButton));
             Assert.Equal(CommandCatalog.Get(TaggingCommands.Tag).Icon, IconButtons.KeyOf(page.SelectionTagButton));
             Assert.Equal(new[] { "plus", "edit-2", "x-circle" }, page.GroupManageMenuModel()!.Entries.Select(item => item.Icon));
+            for (int change = 0; change < 2; change++)
+            {
+                bool shown = page.ShowPreviewColumn;
+                var columns = ContextMenuBuilder.Build(page.ColumnMenuModel()!)!;
+                MenuIconAudit.Verify("tagging-columns", columns.Items.OfType<Control>());
+                MenuItem preview = Assert.Single(columns.Items.OfType<MenuItem>());
+                Assert.Equal("image", MenuIcons.KeyOf(preview));
+                Assert.Equal(shown, preview.IsChecked);
+                preview.Command!.Execute(null);
+                Assert.Equal(!shown, page.ShowPreviewColumn);
+            }
 
             TaggingControlRow row = Assert.IsType<TaggingControlRow>(page.SelectionBar.Child);
             row.Measure(new Size(176, double.PositiveInfinity));
@@ -175,6 +186,62 @@ public sealed class ToolbarVisualIconAuditTests
             Audit(Bar(page, "ReaderMediaActions"), "PreviewArchiveMediaButton");
         }
         finally { window.Close(); page.EndLifetime(); }
+    });
+
+    [Fact]
+    public void NarrowMediaHeaderPreservesLayoutRefreshAndFocusIconsAndTheSearchTarget() => Run(() =>
+    {
+        MediaPage media = new(_ => throw new InvalidOperationException("The menu does not need a media library."));
+        using TestWindow window = new(media);
+        try
+        {
+            media.ApplyWorkView(WorkView.Advanced, viewChanged: true);
+            Settle(window);
+            var layoutIcon = Assert.IsAssignableFrom<Control>(Assert.IsType<StackPanel>(media.LayoutButton.Content).Children[0]);
+            var focusIcon = Assert.IsAssignableFrom<Control>(media.FocusButton.Content);
+            Assert.Equal("columns", MenuIcons.KeyOf(layoutIcon));
+            Assert.Equal(CommandCatalog.Get("media.focus-mode").Icon, MenuIcons.KeyOf(focusIcon));
+            Assert.Equal(16, focusIcon.Bounds.Width);
+            Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(media.FocusButton)));
+            Assert.False(string.IsNullOrWhiteSpace(ToolTip.GetTip(media.FocusButton) as string));
+
+            BooruReviewTestPlatform.Resize(window, 760);
+            Button more = Bar<Button>(media, "MediaMore");
+            var flyout = Assert.IsAssignableFrom<MenuFlyout>(more.Flyout);
+            flyout.ShowAt(more);
+            Settle(window);
+            MenuItem[] rows = flyout.Items.OfType<MenuItem>().ToArray();
+            MenuIconAudit.Verify("media-more", rows, new[]
+            {
+                MediaLayoutMenu.SideLeftId, MediaLayoutMenu.SideRightId, MediaLayoutMenu.PanelSideLeftId,
+                MediaLayoutMenu.PanelSideRightId, MediaLayoutMenu.SizeSmallId, MediaLayoutMenu.SizeMediumId,
+                MediaLayoutMenu.SizeLargeId, MediaLayoutMenu.PresetStandardId, MediaLayoutMenu.PresetBooruId, MediaLayoutMenu.PresetGridSidebarId
+            }.Select(id => new MenuIconAudit.Exception("media-more", "MediaLayoutSubmenu/" + id, "Media layout choice.")).ToArray());
+            MenuItem layout = Assert.Single(rows, row => row.Name == "MediaLayoutSubmenu");
+            Assert.Equal(MenuIcons.KeyOf(layoutIcon), MenuIcons.KeyOf(layout));
+            var refresh = Assert.Single(rows, row => Equals(row.Tag, "media.toolbar.refresh"));
+            Assert.Equal("refresh-cw", MenuIcons.KeyOf(refresh));
+            MenuItem focus = Assert.Single(rows, row => CommandBindings.ActionId(row) == "media.focus-mode");
+            Assert.Equal(MenuIcons.KeyOf(focusIcon), MenuIcons.KeyOf(focus));
+            MenuItem tagList = Assert.Single(layout.Items.OfType<MenuItem>(), row => Equals(row.Tag, MediaLayoutMenu.TagListId));
+            bool wasShown = media.PageLayout.TagList;
+            tagList.Command!.Execute(null);
+            Assert.Equal(!wasShown, media.PageLayout.TagList);
+            flyout.Hide();
+
+            string? carried = null;
+            media.SearchInArchiveRequested = value => carried = value;
+            media.NameFilter.Text = "lamp";
+            media.SearchScopeChip.ShowMenu();
+            var scope = Assert.IsType<ContextMenu>(media.SearchScopeChip.OpenMenu);
+            MenuIconAudit.Verify("media-search-scope", scope.Items.OfType<Control>());
+            MenuItem carry = Assert.Single(scope.Items.OfType<MenuItem>());
+            Assert.Equal("archive", MenuIcons.KeyOf(carry));
+            carry.Command!.Execute(null);
+            Assert.Equal("lamp", carried);
+            scope.Close();
+        }
+        finally { window.Close(); media.EndLifetime(); }
     });
 
     [Fact]

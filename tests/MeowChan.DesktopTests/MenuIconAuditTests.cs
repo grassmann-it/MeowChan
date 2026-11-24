@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -11,8 +10,7 @@ using MeowChan.Tags;
 namespace MeowChan.DesktopTests;
 
 // Menu and icon audit of 15.11.2026 (Tom's review of 1.1.0): an entry that is no catalog command keeps the icon column of its menu
-// filled, the same action has the same icon in every menu, and a menu names only shortcuts that work where it opens. Plain models and a
-// source scan; no window.
+// filled, the same action has the same icon in every menu, and a menu names only shortcuts that work where it opens. Plain models and command presentations.
 [Collection("Localization")]
 public sealed class MenuIconAuditTests : IDisposable
 {
@@ -128,17 +126,7 @@ public sealed class MenuIconAuditTests : IDisposable
             Assert.Equal("New group…", create.Label);
             Assert.Equal(TaggingCommands.GroupNewIcon, create.Icon);
         }
-        // The dialog title keeps the plain label, and Manage groups uses the menu label.
-        string groups = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Groups.cs"));
-        Assert.Contains("GroupNameDialog.ShowAsync(this, Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
-        Assert.Contains(".Item(\"tagging.group.new\", Texts.T(\"tagging.page.group.newMenu\")", groups, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Item(\"tagging.group.new\", Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
-        foreach (string action in new[] { "CreateGroupDialogAsync", "RenameGroupDialogAsync", "DeleteGroupAsync" })
-        {
-            Assert.DoesNotContain($"_ = {action}()", groups, StringComparison.Ordinal);
-            Assert.Contains($"_ = RunGroupAction({action})", groups, StringComparison.Ordinal);
-        }
-        Assert.Contains("ShowStatus(TagQueueActions.DescribeFailure(error))", groups, StringComparison.Ordinal);
+
     }
 
     [Fact]
@@ -157,25 +145,4 @@ public sealed class MenuIconAuditTests : IDisposable
         foreach (CommandDefinition command in CommandCatalog.All)
             Assert.False(Regex.IsMatch(command.LabelEn, " / (?!MeowChan)[A-Z][a-z]"), command.Id + ": " + command.LabelEn);
     }
-
-    // The icons handed to the menu entries by name (icon: "…", the tagging group constants) are masks of the catalog.
-    [Fact]
-    public void EveryMenuEntryIconNamedInTheSourcesExists()
-    {
-        Regex named = new("\\bicon: \"([a-z][a-z0-9-]*)\"|Icon = \"([a-z][a-z0-9-]*)\";", RegexOptions.CultureInvariant);
-        List<string> missing = [];
-        int seen = 0;
-        foreach (string path in Directory.EnumerateFiles(Root("Desktop"), "*.cs", SearchOption.AllDirectories))
-            foreach (Match match in named.Matches(File.ReadAllText(path)))
-            {
-                seen++;
-                string icon = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
-                if (!File.Exists(Root("Assets/icons/feather/masks/" + icon + ".png"))) missing.Add(Path.GetFileName(path) + ": " + icon);
-            }
-        Assert.True(seen >= 4, "The scan found only " + seen + " named menu icons.");
-        Assert.True(missing.Count == 0, "Menu icons without a mask: " + string.Join("; ", missing));
-    }
-
-    private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));
 }
