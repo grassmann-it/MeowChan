@@ -13,7 +13,6 @@ internal readonly record struct GalleryEdgeHit(bool Controls, bool Post)
 {
     // An already-visible panel owns its whole rectangle, not just the 24px strip.
     // Indicators own their own hover/activation path, not an underlying strip.
-    // Their targets stay present through reveal until the pointer leaves.
     internal GalleryEdgeHit WithoutPanelOverlap(bool inControls, bool inPost, bool inIndicator) =>
         inControls || inPost || inIndicator ? default : this;
 
@@ -65,6 +64,16 @@ internal static class GalleryEdgeHover
 }
 
 internal enum GalleryMotionEffect { None, RenewClock, Reveal }
+
+internal readonly record struct GalleryControlsHandle(bool Present, bool Artwork, bool HitTest)
+{
+    internal static GalleryControlsHandle Resolve(bool overlay, bool hidden, bool pressPending, bool motionOrFocus)
+    {
+        if (!overlay) return default;
+        bool artwork = hidden && motionOrFocus;
+        return new(hidden || pressPending, artwork, artwork || pressPending);
+    }
+}
 
 // Only actual mouse motion renews artwork; hover, presses and timer polling do not.
 // Transparent 44px targets remain available for touch/keyboard and pending clicks.
