@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using System.Net;
 using MeowChan.Desktop.Booru;
-using MeowChan.PluginHost.Http;
 using MeowChan.PluginSdk;
 using SkiaSharp;
 
@@ -137,11 +137,10 @@ internal sealed class FakeBooruQueuePort : IBooruQueuePort
     internal void RaiseLocalStatesChanged() => LocalStatesChanged?.Invoke();
 }
 
-internal sealed class FakeBooruPreviewPort : IBooruPreviewPort, IBooruSamplePort
+internal sealed class FakeBooruPreviewPort : IBooruPreviewPort
 {
     private int _requests;
     internal Func<BooruPostView, byte[]?>? OnPreview { get; set; }
-    internal Func<BooruPostView, CancellationToken, Task<byte[]?>>? OnSample { get; set; }
     internal int Requests => Volatile.Read(ref _requests);
 
     public Task<byte[]?> LoadPreviewAsync(BooruPostView post, CancellationToken cancellationToken)
@@ -150,10 +149,22 @@ internal sealed class FakeBooruPreviewPort : IBooruPreviewPort, IBooruSamplePort
         int seed = int.TryParse(post.PostId, out int parsed) ? parsed : 0;
         return Task.FromResult(OnPreview is null ? BooruUiFixtures.Png(seed) : OnPreview(post));
     }
+}
 
-    public async Task<BooruSampleResult> LoadSampleAsync(BooruPostView post, int maximumBytes, long cacheBytes,
-        TimeSpan responseTimeout, CancellationToken cancellationToken) =>
-        OnSample is null ? default : new(await OnSample(post, cancellationToken));
+/// <summary>Feeds the real preview and sample port from in-memory images without opening a socket.</summary>
+internal sealed class BooruSidebarMediaTransport(IReadOnlyDictionary<Uri, byte[]> images) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request.Method != HttpMethod.Get || request.RequestUri is not { } uri || !images.TryGetValue(uri, out byte[]? bytes))
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound) { RequestMessage = request });
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(bytes),
+            RequestMessage = request
+        });
+    }
 }
 
 /// <summary>
@@ -285,7 +296,7 @@ internal sealed class FakeBooruLinks
 /// <summary>The four fakes and the clock, bundled the way production bundles its ports.</summary>
 internal sealed class BooruUiHarness
 {
-    internal BooruUiHarness()
+    internal BooruUiHarness(IBooruPreviewPort? media = null)
     {
         Clock = new BooruManualClock();
         Search = new FakeBooruSearchPort();
@@ -293,7 +304,7 @@ internal sealed class BooruUiHarness
         Previews = new FakeBooruPreviewPort();
         Watchers = new FakeBooruWatcherPort(Clock);
         Links = new FakeBooruLinks();
-        Services = new BooruWorkbenchServices(Search, Queue, Watchers, Previews, Clock, Links.Actions);
+        Services = new BooruWorkbenchServices(Search, Queue, Watchers, media ?? Previews, Clock, Links.Actions);
     }
 
     internal FakeBooruLinks Links { get; }

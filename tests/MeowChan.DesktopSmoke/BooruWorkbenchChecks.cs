@@ -17,6 +17,7 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Theming;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.PluginHost.Http;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
@@ -573,11 +574,25 @@ internal static partial class BooruWorkbenchChecks
     private static async Task CaptureMediaSidebarAsync(MainWindow owner, string shots)
     {
         Directory.CreateDirectory(shots);
-        BooruUiHarness harness = new();
+        BooruPostView[] posts = [BooruUiFixtures.Post("101"), BooruUiFixtures.Post("102", sample: true, score: 0),
+            BooruUiFixtures.Post("103")];
+        const int sampleWidth = 192;
+        const int sampleHeight = 108;
+        Dictionary<Uri, byte[]> images = new()
+        {
+            [posts[0].PreviewUrl!] = BooruUiFixtures.Png(101),
+            [posts[1].PreviewUrl!] = BooruUiFixtures.Png(102),
+            [posts[2].PreviewUrl!] = BooruUiFixtures.Png(103),
+            [posts[1].SampleUrl!] = DanbooruStub.Png(sampleWidth, sampleHeight, 0xFF4A90D9, 102)
+        };
+        SourceDescription source = new(BooruUiFixtures.Source, "Danbooru", new Uri("https://danbooru.donmai.us/"),
+            SourceCapabilities.PostSearch | SourceCapabilities.Previews, [],
+            [new("cdn.donmai.us", HttpHostPurpose.PreviewMedia)], new("1", []));
+        using HttpClient transport = new(new BooruSidebarMediaTransport(images));
+        using BooruPreviewHttp media = new(transport, source);
+        BooruUiHarness harness = new(new BooruHostPreviewPort(media, source.SourceId));
         harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
-            BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101"), BooruUiFixtures.Post("102", sample: true, score: 0),
-                BooruUiFixtures.Post("103"))));
-        harness.Previews.OnSample = (_, _) => Task.FromResult<byte[]?>(BooruUiFixtures.Png(103));
+            BooruUiFixtures.Page(query, page, true, posts)));
         using BooruPage page = new(harness.Services);
         Window window = new() { Width = 1152, Height = 850, Content = page, ShowInTaskbar = false };
         try
@@ -611,6 +626,8 @@ internal static partial class BooruWorkbenchChecks
                     page.View.SetCursor("102", requestSidebarSample: true);
                     await Program.WaitUntilAsync(() => image.Source != null && !ReferenceEquals(image.Source, preview),
                         () => "the Booru sidebar sample did not arrive");
+                    Require(image.Source is Bitmap sample && sample.PixelSize.Width == sampleWidth && sample.PixelSize.Height == sampleHeight,
+                        "The Booru sidebar did not show the fixture sample.");
                     await SettleAsync(window);
                     Capture(window, shots, stem + "-sample");
                 }
