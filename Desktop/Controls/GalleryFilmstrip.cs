@@ -40,6 +40,10 @@ internal sealed class GalleryFilmstrip : Border
     private readonly FilmstripPanel _strip = new() { Name = "GalleryFilmstripTiles", Background = Brushes.Transparent, ClipToBounds = true };
     private readonly Button _back = new() { Name = "GalleryFilmstripBack" };
     private readonly Button _forward = new() { Name = "GalleryFilmstripForward" };
+    private readonly Button _loadMore = new()
+    {
+        Name = "GalleryFilmstripLoadMore", Classes = { "subtle" }, Padding = new Thickness(4)
+    };
     private readonly TextBlock _position = new() { Name = "GalleryFilmstripPosition", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
     private readonly Dictionary<int, FilmstripTile> _live = new();
     private ThreadGalleryPositions? _threadPositions;
@@ -50,7 +54,7 @@ internal sealed class GalleryFilmstrip : Border
     // ---- state ----
     private IReadOnlyList<GalleryEntry>? _entries;
     private int _count;
-    private bool _hasMore;
+    private bool _hasMore, _loadingMore, _focusLoadedMedia;
     private int _current = -1;
     private double _tile = Config.GalleryFilmstripHeightDefault;
     private double _gap = Config.GalleryFilmstripTileGapDefault;
@@ -98,6 +102,9 @@ internal sealed class GalleryFilmstrip : Border
         _forward.HorizontalAlignment = HorizontalAlignment.Right;
         _back.Click += (_, _) => ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, -1, Slots, _tile, _viewport, _gap));
         _forward.Click += (_, _) => ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, 1, Slots, _tile, _viewport, _gap));
+        _loadMore.Click += (_, _) => RequestMore();
+        PointerFocusReclaim.SetExempt(_loadMore, true);
+        AutomationProperties.SetLiveSetting(_loadMore, AutomationLiveSetting.Polite);
         _position.Classes.Add("workspace-meta");
         _position.IsVisible = false; // the viewer fills it only while the arrows are away (QW1)
         AutomationProperties.SetAccessibilityView(_position, AccessibilityView.Raw);
@@ -155,8 +162,9 @@ internal sealed class GalleryFilmstrip : Border
         set { if (_flags.Source == value) return; _flags.Source = value; UpdateTileNames(); }
     }
 
-    /// <summary>The user asked for the tile (a click or Enter): the entry's index, or the entry count for the "more" tile.</summary>
+    /// <summary>The user activated a media tile by pointer or keyboard.</summary>
     internal event Action<int>? TileActivated;
+    internal event Action? LoadMoreRequested;
     /// <summary>The user right-clicked the tile of an entry (never the "more" tile): the entry's index. The strip opens no menu itself.</summary>
     internal event Action<int>? TileContextRequested;
     /// <summary>The user left the strip with Escape or Enter and wants the picture to take the keyboard back.</summary>
@@ -182,7 +190,8 @@ internal sealed class GalleryFilmstrip : Border
     internal bool BackShown => _backShown;
     internal bool ForwardShown => _forwardShown;
     /// <summary>The control of one realized tile (tests and smokes).</summary>
-    internal Control? TileControl(int index) => _live.GetValueOrDefault(index);
+    internal Control? TileControl(int index) => index == _count && _strip.Children.Contains(_loadMore)
+        ? _loadMore : _live.GetValueOrDefault(index);
     internal Control BackButton => _back;
     internal Control ForwardButton => _forward;
 
@@ -190,16 +199,33 @@ internal sealed class GalleryFilmstrip : Border
     private int Slots => _count + (_hasMore ? 1 : 0);
 
     /// <summary>Gives the strip its list. The same list that grew keeps its thumbnails; another list starts empty.</summary>
-    internal void SetEntries(IReadOnlyList<GalleryEntry>? entries, int count, bool hasMore, ThreadGalleryPositions? threadPositions = null)
+    internal void SetEntries(IReadOnlyList<GalleryEntry>? entries, int count, ThreadGalleryPositions? threadPositions = null)
     {
         bool same = ReferenceEquals(entries, _entries);
+        _focusLoadedMedia = same && count > _count && _loadMore.IsKeyboardFocusWithin;
+        int previousCount = _count;
+        bool positionsChanged = !ReferenceEquals(threadPositions, _threadPositions);
         _entries = entries;
         _threadPositions = threadPositions;
         _count = entries == null ? 0 : Math.Clamp(count, 0, entries.Count);
-        _hasMore = hasMore && entries != null;
         if (!same) { ClearTiles(); _thumbnails.Reset(); _durations.Clear(); _current = -1; _offset = 0; }
         RefreshTexts();
         ScrollTo(_offset);
+        if (same && (_count != previousCount || positionsChanged)) UpdateTileNames();
+    }
+
+    internal void SetLoadMoreState(bool available, bool loading)
+    {
+        if (_hasMore == available && _loadingMore == loading) return;
+        _hasMore = available;
+        _loadingMore = loading;
+        RefreshLoadMoreText();
+        ScrollTo(_offset);
+    }
+
+    private void RequestMore()
+    {
+        if (_hasMore && !_loadingMore) LoadMoreRequested?.Invoke();
     }
 
     /// <summary>
@@ -259,6 +285,9 @@ internal sealed class GalleryFilmstrip : Border
         else Refresh();
         _fromStrip = false;
         if (changed) UpdateTileNames();
+        if (_focusLoadedMedia && _live.TryGetValue(index, out FilmstripTile? loaded))
+            loaded.Focus(NavigationMethod.Directional);
+        _focusLoadedMedia = false;
     }
 
     /// <summary>Tile size (the height setting) and preload (tiles decoded in advance on each side), both clamped to their ranges.</summary>
@@ -312,7 +341,8 @@ internal sealed class GalleryFilmstrip : Border
         ClearTiles();
         _thumbnails.Dispose();
         _thumbnails = CreateWindow();
-        _entries = null; _count = 0; _hasMore = false; _current = -1;
+        _strip.Children.Remove(_loadMore);
+        _entries = null; _count = 0; _hasMore = _loadingMore = _focusLoadedMedia = false; _current = -1;
     }
 
     // ---- keyboard ----
@@ -330,6 +360,7 @@ internal sealed class GalleryFilmstrip : Border
         if (!MeowChan.Desktop.Commands.ShortcutService.IsCapturing
             && MeowChan.Desktop.Commands.ShortcutService.Current.Matches(e, "gallery.open"))
         {
+            if (ReferenceEquals(e.Source, _loadMore)) { RequestMore(); return true; }
             if (e.Source is FilmstripTile tile)
             {
                 _fromStrip = true;
@@ -395,7 +426,7 @@ internal sealed class GalleryFilmstrip : Border
         _pressed = _dragging = false;
         if (ReferenceEquals(e.Pointer.Captured, _strip)) e.Pointer.Capture(null);
         e.Handled = true;
-        if (click && tile >= 0 && tile == _pressedTile) { _fromStrip = tile < _count && tile != _current; TileActivated?.Invoke(tile); }
+        if (click && tile >= 0 && tile < _count && tile == _pressedTile) { _fromStrip = tile != _current; TileActivated?.Invoke(tile); }
         _pressedTile = -1;
     }
 
@@ -433,10 +464,20 @@ internal sealed class GalleryFilmstrip : Border
         if (_retired) return;
         GalleryFilmstripPlan.TileRange visible = IsVisible && _viewport > 0 ? VisibleRange : GalleryFilmstripPlan.TileRange.Empty;
         // Tiles that left the view go back to the pool before the decode window moves, so no tile shows a preview that was given back.
-        foreach (int index in _live.Keys.Where(index => !visible.Contains(index)).ToArray()) Recycle(index);
+        foreach (int index in _live.Keys.Where(index => index >= _count || !visible.Contains(index)).ToArray()) Recycle(index);
         if (!visible.IsEmpty)
-            for (int index = visible.First; index <= visible.Last; index++)
+            for (int index = visible.First; index <= visible.Last && index < _count; index++)
                 if (!_live.ContainsKey(index)) Realize(index);
+        if (_hasMore && visible.Contains(_count))
+        {
+            if (!_strip.Children.Contains(_loadMore)) _strip.Children.Add(_loadMore);
+        }
+        else if (_strip.Children.Contains(_loadMore))
+        {
+            if (_loadMore.IsKeyboardFocusWithin) Focus(NavigationMethod.Directional);
+            _strip.Children.Remove(_loadMore);
+        }
+        _strip.LoadMoreIndex = _count;
         _strip.Offset = _offset;
         _strip.TileSize = _tile;
         _strip.Gap = _gap;
@@ -499,7 +540,8 @@ internal sealed class GalleryFilmstrip : Border
     {
         FilmstripTile tile = _pool.Count > 0 ? _pool.Pop() : new FilmstripTile();
         _live[index] = tile;
-        _strip.Children.Add(tile);
+        int end = _strip.Children.IndexOf(_loadMore);
+        _strip.Children.Insert(end >= 0 ? end : _strip.Children.Count, tile);
         BindTile(tile, index);
     }
 
@@ -520,19 +562,13 @@ internal sealed class GalleryFilmstrip : Border
 
     private void BindTile(FilmstripTile tile, int index)
     {
-        tile.Index = index;
-        if (index >= _count || _entries == null)
-        {
-            tile.BindMore(Texts.T("gallery.filmstrip.more"), index + 1, Slots);
-            return;
-        }
-        GalleryEntry entry = _entries[index];
+        GalleryEntry entry = _entries![index];
         string name = FileName(entry);
         MediaBadgeState badges = _flags.StateFor(entry, BadgeStateOf(name, _durations.TryGetValue(index, out TimeSpan length) ? length : null));
         MediaBadgeOptions options = _flags.Options;
         string label = _threadPositions is not { } positions ? TileName(index + 1, _count, name, badges, options)
             : TileName(positions.NumberAt(index), positions.Count, name, badges, options);
-        tile.Bind(index, name, label, badges, options, new Size(_tile, _tile), index + 1, Slots,
+        tile.Bind(index, name, label, badges, options, new Size(_tile, _tile), index + 1, _count,
             _thumbnails.TryGet(index), index == _current);
     }
 
@@ -589,6 +625,16 @@ internal sealed class GalleryFilmstrip : Border
         string back = Texts.T("gallery.filmstrip.scrollBack"), forward = Texts.T("gallery.filmstrip.scrollForward");
         AutomationProperties.SetName(_back, back); ToolTip.SetTip(_back, back);
         AutomationProperties.SetName(_forward, forward); ToolTip.SetTip(_forward, forward);
+        RefreshLoadMoreText();
+    }
+
+    private void RefreshLoadMoreText()
+    {
+        string label = Texts.T(_loadingMore ? "gallery.filmstrip.more" : "gallery.filmstrip.loadMore");
+        string icon = _loadingMore ? WorkspaceIcons.Refresh : WorkspaceIcons.ArrowDown;
+        if (WorkspaceIcons.KeyOf(_loadMore.Content) != icon) _loadMore.Content = WorkspaceIcons.Create(icon);
+        AutomationProperties.SetName(_loadMore, label);
+        ToolTip.SetTip(_loadMore, label);
     }
 
     private void UpdateFocusVisual()
@@ -643,6 +689,7 @@ internal sealed class GalleryFilmstrip : Border
         internal double Offset { get; set; }
         internal double TileSize { get; set; } = Config.GalleryFilmstripHeightDefault;
         internal double Gap { get; set; } = Config.GalleryFilmstripTileGapDefault;
+        internal int LoadMoreIndex { get; set; }
 
         protected override Size MeasureOverride(Size availableSize)
         {
@@ -655,7 +702,10 @@ internal sealed class GalleryFilmstrip : Border
             double pitch = GalleryFilmstripPlan.Pitch(TileSize, Gap);
             double top = Math.Max(0, (finalSize.Height - TileSize) / 2);
             foreach (Control child in Children)
-                if (child is FilmstripTile tile) child.Arrange(new Rect(tile.Index * pitch - Offset, top, TileSize, TileSize));
+            {
+                int index = child is FilmstripTile tile ? tile.Index : LoadMoreIndex;
+                child.Arrange(new Rect(index * pitch - Offset, top, TileSize, TileSize));
+            }
             return finalSize;
         }
     }
@@ -675,13 +725,11 @@ internal sealed class GalleryFilmstrip : Border
         // MB1b: the play mark (dense, 32 percent of the tile), the length and the GIF chip come from the shared badge view; it is drawn
         // over the whole tile, takes no hit and no focus and is not in the accessibility tree (the tile's name carries the words).
         private readonly MediaBadgeView _badges = new() { Name = "GalleryFilmstripBadges", Options = MediaBadgeOptions.Filmstrip };
-        private readonly Avalonia.Controls.Shapes.Path _moreGlyph;
-        private bool _current, _hover, _more;
+        private bool _current, _hover;
 
         internal int Index { get; set; }
         internal bool HasPicture => _image.Source != null;
         internal bool IsCurrent => _current;
-        internal bool IsMoreTile => _more;
 
         internal FilmstripTile()
         {
@@ -690,12 +738,9 @@ internal sealed class GalleryFilmstrip : Border
             _frame.Child = _frameInner;
             _inner[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Raised");
             _extension[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
-            _moreGlyph = WorkspaceIcons.Create(WorkspaceIcons.More);
-            _moreGlyph.IsVisible = false;
             Grid content = new();
             content.Children.Add(_extension);
             content.Children.Add(_image);
-            content.Children.Add(_moreGlyph);
             content.Children.Add(_badges);
             content.Children.Add(_frame);
             _inner.Child = content;
@@ -706,8 +751,7 @@ internal sealed class GalleryFilmstrip : Border
 
         internal void Bind(int index, string fileName, string name, in MediaBadgeState badges, in MediaBadgeOptions options, Size tile, int position, int size, Bitmap? picture, bool current)
         {
-            Index = index; _more = false;
-            _moreGlyph.IsVisible = false;
+            Index = index;
             _extension.Text = System.IO.Path.GetExtension(fileName).TrimStart('.').ToUpperInvariant();
             _extension.IsVisible = true;
             // The dense play mark sits in the middle: a placeholder's format text moves up out of its way.
@@ -733,19 +777,6 @@ internal sealed class GalleryFilmstrip : Border
             return flags.Length == 0 ? fileName : fileName + Environment.NewLine + flags;
         }
 
-        internal void BindMore(string name, int position, int size)
-        {
-            _more = true; _current = false;
-            _image.Source = null;
-            _extension.IsVisible = false; _badges.Clear();
-            _moreGlyph.IsVisible = true;
-            ToolTip.SetTip(this, name);
-            AutomationProperties.SetName(this, name);
-            AutomationProperties.SetPositionInSet(this, position);
-            AutomationProperties.SetSizeOfSet(this, size);
-            ApplyBorders();
-        }
-
         internal void Unbind()
         {
             // Never hold a preview the window may have given back.
@@ -758,7 +789,7 @@ internal sealed class GalleryFilmstrip : Border
         internal void SetPicture(Bitmap? picture)
         {
             _image.Source = picture;
-            _extension.IsVisible = picture == null && !_more;
+            _extension.IsVisible = picture == null;
         }
 
         internal void SetCurrent(bool current) { if (_current == current) return; _current = current; ApplyBorders(); }

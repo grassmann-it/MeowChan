@@ -73,6 +73,11 @@ internal sealed partial class GalleryViewer
         CommandBindings.BindExisting(_filmstripToggle, "gallery.filmstrip-toggle");
         _filmstripToggle.Click += (_, _) => ToggleFilmstrip();
         _filmstrip.TileActivated += OnFilmstripTileActivated;
+        _filmstrip.LoadMoreRequested += () =>
+        {
+            if (_terminalRetirement || _viewerInteractionStopped || !_interactionAvailable || _filmstrip.CurrentIndex < 0) return;
+            Move(_filmstrip.Count - _filmstrip.CurrentIndex);
+        };
         _filmstrip.TileContextRequested += OnFilmstripTileContextRequested;
         _filmstrip.ExitRequested += () => { FocusGallerySurface(); _keyboardInteraction = false; };
         _compactPosition.PropertyChanged += (_, e) =>
@@ -107,13 +112,24 @@ internal sealed partial class GalleryViewer
 
     internal ThreadGalleryPositions? ThreadPositions { get; set; }
 
+    internal void SetFilmstripContinuation(bool available, bool loading) =>
+        _filmstrip.SetLoadMoreState(available || loading, loading);
+
+    internal void ReportGalleryContinuationFailure(string diagnosis)
+    {
+        _navigationPending = false;
+        _browseQueue.Clear();
+        StopSlideshow();
+        _status.Text = Texts.T("gallery.filmstrip.loadFailed");
+        _status.IsVisible = true;
+        ReportDiagnostic("load-more", diagnosis);
+    }
+
     // The strip follows the list the shell owns: the entries (the same list that grows as further threads load) and the shown one.
     private void FilmstripShown(GalleryEntry entry, IReadOnlyList<GalleryEntry> list)
     {
         int index = IndexInList(list, entry);
-        // Further threads are still to be resolved when the next arrow is live at the last loaded medium (the shell's own rule).
-        bool more = index >= 0 && index == list.Count - 1 && _next.IsEnabled;
-        _filmstrip.SetEntries(list, list.Count, more, ThreadPositions);
+        _filmstrip.SetEntries(list, list.Count, ThreadPositions);
         _filmstrip.SetCurrent(index);
         // The player reports the new length asynchronously. Clear the selected slot first so a reused
         // viewer never leaves the previous medium's duration on a video whose length is not known yet.
@@ -314,7 +330,7 @@ internal sealed partial class GalleryViewer
     }
 
     // A click or Home/End on a tile asks the shell for the same relative move the arrows use, so the list, the preload and the
-    // favourite state keep one owner. The "more" tile (one past the last entry) loads the next thread.
+    // favourite state keep one owner.
     private void OnFilmstripTileActivated(int index)
     {
         if (!_preserveFilmstripContextRequest) CancelFilmstripContextRequest();
