@@ -123,7 +123,7 @@ public sealed class ReaderMediaPanelDecisionTests
             BooruComponentDispatcher.Wait(page.PanelTask);
             sidebar.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, key, picture.PixelSize);
             List<MediaLibraryEntry> edited = [];
-            sidebar.OpenTagsAsync = (_, _) => { edited.Add(page.PanelRow!.Entry); return Task.CompletedTask; };
+            page.TagPopoverAsync = (entry, _, _, _, _) => { edited.Add(entry); return Task.CompletedTask; };
             window.UpdateLayout();
             var more = sidebar.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "ReaderMediaSidebarMore");
             Assert.True(more.IsEffectivelyVisible);
