@@ -307,6 +307,7 @@ public partial class ArchivePage
     // Menu key, Shift+F10) any focus inside the sidebar stands for it, its strip included.
     private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors, bool keyboard = true)
     {
+        if (ArchiveMediaTab.IsSelected) return null;
         if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
             || !keyboard && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))) return null;
         return ArchivePosts.SelectedItem is ArchivePostRow post && CurrentSidebarAttachment() is { } current
@@ -330,7 +331,7 @@ public partial class ArchivePage
     // strip itself is the source, and the menu is the focused (the selected, i.e. shown) thumbnail's. Shown tells whether that file is the one the sidebar shows.
     private (ArchiveAttachmentRow Attachment, string PostId, Control Origin, bool Shown)? SidebarStripContext(Control[] ancestors)
     {
-        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))
+        if (ArchiveMediaTab.IsSelected || _mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))
             || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } post) return null;
         ListBoxItem? item = ancestors.OfType<ListBoxItem>().FirstOrDefault(candidate => candidate.Tag is int)
             ?? _mediaSidebar.Strip.SelectedItem as ListBoxItem;

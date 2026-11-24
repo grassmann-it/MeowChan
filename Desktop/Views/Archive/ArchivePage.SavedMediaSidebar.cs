@@ -34,6 +34,17 @@ public partial class ArchivePage
     private static string SavedSidebarKey(ArchivedThreadView thread, ArchiveAssetRow row) =>
         $"saved\n{thread.Summary.Id}\n{row.Manifest.Directory}\n{row.Asset.AssetId}\n{row.Asset.Sha256}";
 
+    private void RefreshMediaSidebarDecisions()
+    {
+        if (ArchiveMediaTab.IsSelected)
+        {
+            if (!_ended && _mediaSidebarShown && _mediaSidebar is { } sidebar && _thread is { } thread
+                && SavedMediaSidebarRow is { } row)
+                ConfigureSavedMediaSidebarDecisions(sidebar, thread, row);
+        }
+        else RefreshPostMediaSidebarDecisions();
+    }
+
     private void ConfigureSavedMediaSidebarDecisions(ReaderMediaSidebar sidebar, ArchivedThreadView thread, ArchiveAssetRow row)
     {
         bool Current() => !_ended && _available && _mediaSidebarShown && ReferenceEquals(_thread, thread)

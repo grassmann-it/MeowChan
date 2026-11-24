@@ -697,15 +697,10 @@ public partial class ArchivePage
         // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
-    private void RefreshMediaSidebarDecisions()
+    private void RefreshPostMediaSidebarDecisions()
     {
-        if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || _thread is not { } thread) return;
-        if (ArchiveMediaTab.IsSelected)
-        {
-            if (SavedMediaSidebarRow is { } savedRow) ConfigureSavedMediaSidebarDecisions(sidebar, thread, savedRow);
-            return;
-        }
-        if (ArchivePosts.SelectedItem is not ArchivePostRow post || CurrentSidebarAttachment() is not { } row) return;
+        if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || _thread is not { } thread
+            || ArchivePosts.SelectedItem is not ArchivePostRow post || CurrentSidebarAttachment() is not { } row) return;
         ResourceId resource = thread.Summary.Id;
         ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(_assets.Select(asset => asset.Manifest).Distinct(), resource, post.Id, row.Attachment);
         ArchiveAssetRow? saved = resolved == null ? null
