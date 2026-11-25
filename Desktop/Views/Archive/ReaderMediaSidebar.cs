@@ -390,9 +390,12 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void OnFramePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.Handled || e.GetCurrentPoint(_frame).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed || IsOverlaySource(e.Source))
+        if (e.GetCurrentPoint(_frame).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+        if (e.Handled || IsOverlaySource(e.Source))
         {
-            _framePress = null;
+            // A consumed left press (including a Mac context click) cannot turn its release into playback.
+            // It also starts no sequence of ordinary picture taps.
+            _framePress = (e.Pointer, 0, _mediumRevision, false, false);
             return;
         }
         bool presented = !IsShowingStalePicture;

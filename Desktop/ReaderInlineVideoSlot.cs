@@ -144,7 +144,7 @@ internal static class InlineVideoDisposal
 
 /// <summary>
 /// One place in the reader where a video can play inline: a post's attachment or the media sidebar. It owns the activator button over
-/// the poster (focusable, named, Enter or click plays), the row under the frame with the moved transport, a visible error line and a
+/// the poster (named for the video, a click plays), the row under the frame with the moved transport, a visible error line and a
 /// polite live region that announces play and pause. Only the reader's current video shows its transport (one set of video controls
 /// in the reader at a time); a paused older one keeps its picture and shows the activator again to continue. Nothing is created until
 /// the video is asked to play; the player is given back to the controller when the medium changes or the owner leaves the tree.
@@ -161,6 +161,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private GalleryInlineVideoPlayer? _player;
     private CancellationTokenSource? _activation;
     private string? _key;
+    private string? _posterKey;
     private Func<CancellationToken, Task<GalleryEntry?>>? _resolve;
     private string _name = string.Empty;
     private Action? _openGallery;
@@ -187,7 +188,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         // (Semi's hover tint would otherwise turn the whole picture into a flat grey rectangle) and shows a thin ring on hover.
         Activator = new Button
         {
-            Name = "ReaderInlineVideoPlay", Classes = { "video-activator" },
+            Name = "ReaderInlineVideoPlay", Classes = { "video-activator" }, Focusable = false, IsTabStop = false,
             HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, IsVisible = false,
             Cursor = new Cursor(StandardCursorType.Hand)
         };
@@ -217,7 +218,11 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             var pointer = _pointerPlay;
             _pointerPlay = null;
             if (pointer is { } press && (press.Key != _key || _area.FindAncestorOfType<ReaderMediaSidebar>() is { } sidebar
-                && !sidebar.CanPlayFromFrame(press.Pointer, press.Key))) return;
+                && !sidebar.CanPlayFromFrame(press.Pointer, _posterKey)))
+            {
+                ReturnFocusToOwner();
+                return;
+            }
             OpenActions.Start(() => PlayAsync(muted: false, pointer: pointer.HasValue), "reader.video.play");
         };
         area.Children.Add(Activator);
@@ -246,7 +251,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     /// <summary>The row under the frame as its type (the owner gives it the frame's width).</summary>
     internal ReaderInlineVideoRow Row { get; }
 
-    /// <summary>The focusable "Play video here" button over the poster (keyboard path; also over a paused older video).</summary>
+    /// <summary>The "Play video here" button over the poster or a paused older video.</summary>
     internal Button Activator { get; }
     /// <summary>The row the owner places under the media frame: transport (current video only), error line, live region.</summary>
     internal Control Below => Row;
@@ -265,13 +270,14 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     /// or none gives the player back. <paramref name="controller"/> null or switched off offers nothing.
     /// </summary>
     internal void Offer(ReaderInlineVideoController? controller, string? key, Func<CancellationToken, Task<GalleryEntry?>>? resolve, string name,
-        Action? openGallery = null)
+        Action? openGallery = null, string? posterKey = null)
     {
         bool usable = controller is { Options.Enabled: true } && key != null && resolve != null;
         if (!usable) { key = null; resolve = null; name = string.Empty; }
         if (!ReferenceEquals(controller, _controller) || !string.Equals(key, _key, StringComparison.Ordinal)) _ = ReleaseAsync();
         _controller = controller;
         _key = key;
+        _posterKey = posterKey ?? key;
         _resolve = resolve;
         _name = name;
         _openGallery = usable ? openGallery : null;

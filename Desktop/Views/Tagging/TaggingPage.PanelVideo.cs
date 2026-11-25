@@ -92,7 +92,8 @@ public sealed partial class TaggingPage
         bool offered = IsPanelShown && entry != null && MediaPanelKeys.CanOfferVideo(_panelVideoController.Options.Enabled,
             entry.Directory != null && entry.AssetId != null, entry.Kind == SavedMediaKind.Video);
         slot.Offer(offered ? _panelVideoController : null, offered ? PanelVideoKey(entry!) : null,
-            offered ? token => ResolvePanelVideoAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? OpenPanelGallery : null);
+            offered ? token => ResolvePanelVideoAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? OpenPanelGallery : null,
+            posterKey: _panelMediaKey);
         SchedulePanelVideoAutoplay(offered ? PanelVideoKey(entry!) : null);
     }
 

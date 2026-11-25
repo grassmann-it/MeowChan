@@ -141,7 +141,7 @@ public sealed partial class MediaPage
         panel.GalleryRequested += (_, _) => StartOpenPanelMedia();
         panel.PictureActivated += (_, _) => OnPanelPictureActivated();
         panel.Close.Click += (_, e) => { e.Handled = true; ClosePanel(); };
-        // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
+        // In the panel the play button covers the poster while idle. Playback keys stay with the working grid.
         ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true)
         {
             ShortcutContext = "media", OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
