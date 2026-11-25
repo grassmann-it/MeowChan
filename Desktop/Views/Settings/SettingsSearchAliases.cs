@@ -43,6 +43,7 @@ internal static class SettingsSearchAliases
         ["ReaderTextlessMediaWidth"] = "images pictures width bigger larger no text image only bilder breite größer ohne text nur bild",
         ["ReaderFocusedMediaEnlarge"] = "focus focused selected active post media enlarge zoom bigger fokus markiert vergrößern medien",
         ["ReaderFocusedMediaScalePercent"] = "focus focused selected active post media enlarge zoom percent fokus markiert vergrößern prozent",
+        ["ReaderFocusedPostTopPaddingPercent"] = "focus focused post enlarge center centre vertical top padding viewport markiert post vergrößern zentrieren oben abstand puffer",
         ["ReaderHoverEnlarge"] = "hover pointer mouse preview zoom magnify enlarge überfahren zeiger maus vorschau vergrößern lupe",
         ["ReaderHoverEnlargeSize"] = "hover pointer mouse preview zoom size überfahren zeiger maus vorschau größe",
         ["ReaderHoverEnlargeDelayMs"] = "hover pointer mouse preview delay überfahren zeiger maus vorschau verzögerung",

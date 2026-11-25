@@ -4392,6 +4392,8 @@
     "reader.view.focusedEnlarge.inSidebar": "Enquanto a barra lateral de mídia está ativada, ela mostra no lugar a mídia da postagem selecionada; esta configuração vale quando a barra lateral está oculta.",
     "settings.reader.focusedScale": "Ampliação da mídia da postagem em foco (%)",
     "settings.reader.focusedScale.hint": "100 significa sem alteração.",
+    "settings.reader.focusedTopPadding": "Margem superior para postagens altas em foco (%)",
+    "settings.reader.focusedTopPadding.hint": "Se a mídia da postagem em foco estiver ampliada e a postagem for mais alta que a área visível, esta proporção da altura do leitor fica livre acima dela.",
     "settings.reader.hoverEnlarge": "Ampliar uma imagem enquanto o cursor estiver sobre ela",
     "settings.reader.hoverEnlarge.hint": "Mostra uma prévia maior ao lado da imagem após um breve atraso. Desativado por padrão. Também está no menu Exibir do leitor.",
     "settings.reader.hoverSize": "Tamanho da prévia ao passar o cursor (px)",

@@ -4392,6 +4392,8 @@
     "reader.view.focusedEnlarge.inSidebar": "Quando la barra laterale dei media è attiva, mostra al suo posto i media del post selezionato; questa impostazione vale quando la barra laterale è nascosta.",
     "settings.reader.focusedScale": "Ingrandimento dei media del post attivo (%)",
     "settings.reader.focusedScale.hint": "100 significa nessuna modifica.",
+    "settings.reader.focusedTopPadding": "Margine superiore per i post attivi alti (%)",
+    "settings.reader.focusedTopPadding.hint": "Quando i media del post attivo sono ingranditi e il post supera l’area visibile, questa parte dell’altezza del lettore rimane libera sopra il post.",
     "settings.reader.hoverEnlarge": "Ingrandisci un’immagine mentre il puntatore è sopra di essa",
     "settings.reader.hoverEnlarge.hint": "Dopo un breve ritardo mostra un’anteprima più grande accanto all’immagine. Disattivato per impostazione predefinita. Anche nel menu Vista del lettore.",
     "settings.reader.hoverSize": "Dimensione dell’anteprima al passaggio (px)",

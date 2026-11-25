@@ -4431,6 +4431,8 @@
     "reader.view.focusedEnlarge.inSidebar": "Když je zapnutý panel médií, zobrazuje místo toho média vybraného příspěvku; toto nastavení platí, když je panel skrytý.",
     "settings.reader.focusedScale": "Zvětšení médií aktivního příspěvku (%)",
     "settings.reader.focusedScale.hint": "100 znamená beze změny.",
+    "settings.reader.focusedTopPadding": "Horní odsazení vysokého vybraného příspěvku (%)",
+    "settings.reader.focusedTopPadding.hint": "Pokud je vybraný příspěvek se zvětšenými médii vyšší než viditelná oblast, zůstane nad ním volná tato část výšky čtečky.",
     "settings.reader.hoverEnlarge": "Zvětšit obrázek, dokud na něm spočívá ukazatel",
     "settings.reader.hoverEnlarge.hint": "Po krátké prodlevě zobrazí vedle obrázku větší náhled. Ve výchozím stavu vypnuto. Je také v nabídce Zobrazení čtečky.",
     "settings.reader.hoverSize": "Velikost náhledu při najetí (px)",

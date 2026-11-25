@@ -658,6 +658,10 @@ namespace MeowChan
         internal const int ReaderFocusedMediaScalePercentDefault = ReaderDisplayPreferences.FocusedMediaScaleDefault;
         internal const int ReaderFocusedMediaScalePercentMinimum = ReaderDisplayPreferences.FocusedMediaScaleMinimum;
         internal const int ReaderFocusedMediaScalePercentMaximum = ReaderDisplayPreferences.FocusedMediaScaleMaximum;
+        public int ReaderFocusedPostTopPaddingPercent { get; set; } = ReaderFocusedPostTopPaddingPercentDefault;
+        internal const int ReaderFocusedPostTopPaddingPercentDefault = ReaderDisplayPreferences.FocusedPostTopPaddingPercentDefault;
+        internal const int ReaderFocusedPostTopPaddingPercentMinimum = ReaderDisplayPreferences.FocusedPostTopPaddingPercentMinimum;
+        internal const int ReaderFocusedPostTopPaddingPercentMaximum = ReaderDisplayPreferences.FocusedPostTopPaddingPercentMaximum;
         public bool ReaderTextlessLargeImages { get; set; } = true;
         public bool ReaderHoverEnlarge { get; set; } = false;
         public bool ReaderFocusedMediaEnlarge { get; set; } = false;
@@ -1140,6 +1144,7 @@ namespace MeowChan
             ReaderHoverEnlargeSize = Math.Clamp(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeMinimum, ReaderHoverEnlargeSizeMaximum);
             ReaderHoverEnlargeDelayMs = Math.Clamp(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsMinimum, ReaderHoverEnlargeDelayMsMaximum);
             ReaderFocusedMediaScalePercent = Math.Clamp(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentMinimum, ReaderFocusedMediaScalePercentMaximum);
+            ReaderFocusedPostTopPaddingPercent = Math.Clamp(ReaderFocusedPostTopPaddingPercent, ReaderFocusedPostTopPaddingPercentMinimum, ReaderFocusedPostTopPaddingPercentMaximum);
             ReaderMediaSidebarWidth = Math.Clamp(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthMinimum, ReaderMediaSidebarWidthMaximum);
             ReaderMediaSidebarMinimumWidth = Math.Clamp(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthMinimum, ReaderMediaSidebarMinimumWidthMaximum);
             ReaderInlineVideoMaxPlayers = Math.Clamp(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersMinimum, ReaderInlineVideoMaxPlayersMaximum);
@@ -1965,6 +1970,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderHoverEnlargeDelayMs), "ReaderHoverEnlargeDelayMs is outside its supported range.");
             if (ReaderFocusedMediaScalePercent is < ReaderFocusedMediaScalePercentMinimum or > ReaderFocusedMediaScalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderFocusedMediaScalePercent), "ReaderFocusedMediaScalePercent is outside its supported range.");
+            if (ReaderFocusedPostTopPaddingPercent is < ReaderFocusedPostTopPaddingPercentMinimum or > ReaderFocusedPostTopPaddingPercentMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderFocusedPostTopPaddingPercent), "ReaderFocusedPostTopPaddingPercent is outside its supported range.");
             if (ReaderMediaSidebarWidth is < ReaderMediaSidebarWidthMinimum or > ReaderMediaSidebarWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarWidth), "ReaderMediaSidebarWidth is outside its supported range.");
             if (ReaderMediaSidebarMinimumWidth is < ReaderMediaSidebarMinimumWidthMinimum or > ReaderMediaSidebarMinimumWidthMaximum)
@@ -2240,6 +2247,7 @@ namespace MeowChan
                 ReaderHoverEnlargeSize = ReaderHoverEnlargeSize,
                 ReaderHoverEnlargeDelayMs = ReaderHoverEnlargeDelayMs,
                 ReaderFocusedMediaScalePercent = ReaderFocusedMediaScalePercent,
+                ReaderFocusedPostTopPaddingPercent = ReaderFocusedPostTopPaddingPercent,
                 ReaderTextlessLargeImages = ReaderTextlessLargeImages,
                 ReaderHoverEnlarge = ReaderHoverEnlarge,
                 ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge,
@@ -2546,6 +2554,7 @@ namespace MeowChan
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
             ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent;
+            ReaderFocusedPostTopPaddingPercent = source.ReaderFocusedPostTopPaddingPercent;
             ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
             ReaderHoverEnlarge = source.ReaderHoverEnlarge;
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
@@ -2826,6 +2835,7 @@ namespace MeowChan
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
             ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent;
+            ReaderFocusedPostTopPaddingPercent = source.ReaderFocusedPostTopPaddingPercent;
             ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
             ReaderHoverEnlarge = source.ReaderHoverEnlarge;
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;

@@ -4386,6 +4386,8 @@
     "reader.view.focusedEnlarge.inSidebar": "Tant que le panneau des médias est affiché, il présente à la place les médias de la publication sélectionnée ; ce réglage s’applique lorsque le panneau est masqué.",
     "settings.reader.focusedScale": "Agrandissement des médias du message actif (%)",
     "settings.reader.focusedScale.hint": "100 signifie aucun changement.",
+    "settings.reader.focusedTopPadding": "Marge supérieure des messages actifs trop hauts (%)",
+    "settings.reader.focusedTopPadding.hint": "Si les médias du message actif sont agrandis et que le message dépasse la zone visible, cette part de la hauteur du lecteur reste libre au-dessus.",
     "settings.reader.hoverEnlarge": "Agrandir une image tant que le pointeur est dessus",
     "settings.reader.hoverEnlarge.hint": "Affiche un aperçu plus grand à côté de l’image après un court délai. Désactivé par défaut. Également dans le menu Affichage du lecteur.",
     "settings.reader.hoverSize": "Taille de l’aperçu au survol (px)",

@@ -4344,6 +4344,8 @@
     "reader.view.focusedEnlarge.inSidebar": "미디어 사이드바가 켜져 있으면 대신 사이드바에 선택한 게시물의 미디어가 표시됩니다. 이 설정은 사이드바를 숨겼을 때 적용됩니다.",
     "settings.reader.focusedScale": "선택한 게시물의 미디어 확대 비율(%)",
     "settings.reader.focusedScale.hint": "100은 변경 없음을 뜻합니다.",
+    "settings.reader.focusedTopPadding": "높이가 큰 선택한 게시물의 위쪽 여백(%)",
+    "settings.reader.focusedTopPadding.hint": "선택한 게시물의 미디어를 확대했을 때 게시물이 보기 영역보다 높으면, 리더 높이의 이 비율만큼 게시물 위에 여백을 둡니다.",
     "settings.reader.hoverEnlarge": "포인터를 올려 두는 동안 이미지 확대",
     "settings.reader.hoverEnlarge.hint": "잠시 후 이미지 옆에 더 큰 미리보기를 표시합니다. 기본값은 꺼짐입니다. 리더의 “보기” 메뉴에도 있습니다.",
     "settings.reader.hoverSize": "호버 미리보기 크기(px)",

@@ -4344,6 +4344,8 @@
     "reader.view.focusedEnlarge.inSidebar": "媒体侧栏开启时，将改在侧栏中显示所选帖子的媒体；此设置在侧栏隐藏时生效。",
     "settings.reader.focusedScale": "当前帖子媒体的放大比例（%）",
     "settings.reader.focusedScale.hint": "100 表示不变。",
+    "settings.reader.focusedTopPadding": "较高的选中帖子上方留白（%）",
+    "settings.reader.focusedTopPadding.hint": "如果选中帖子的媒体已放大，且帖子高于可见区域，则在帖子上方留出相当于阅读器高度这一比例的空间。",
     "settings.reader.hoverEnlarge": "指针停留时放大图片",
     "settings.reader.hoverEnlarge.hint": "短暂延迟后，在图片旁显示更大的预览。默认关闭。阅读器的“视图”菜单中也有此选项。",
     "settings.reader.hoverSize": "悬停预览大小（像素）",
