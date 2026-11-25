@@ -115,7 +115,16 @@ public sealed class MediaPanelKeysTests : IDisposable
         // A binding saved before the switch existed keeps its key: the new default yields.
         var section = new ShortcutBindingsSection().Set("media.focus-mode", [ShortcutGesture.Parse("Primary+Shift+M")]);
         EffectiveShortcutBindings saved = EffectiveShortcutBindings.Build(section, platform);
-        Assert.Empty(saved.For(MediaPanelKeys.ToggleCommandId));
+        // W112-73 spec §1 gives the switch the tagging context as well: it yields on the Media page, where the saved binding runs,
+        // and keeps the key on the tagging page ("Primary+Shift+M | Panel ein/aus", spec §2).
+        Assert.Equal(new[] { "media" }, saved.YieldedContexts(MediaPanelKeys.ToggleCommandId, ShortcutGesture.Parse("Primary+Shift+M")));
+        var key = new Avalonia.Input.KeyEventArgs
+        {
+            Key = Avalonia.Input.Key.M,
+            KeyModifiers = (platform == ShortcutPlatform.MacOS ? Avalonia.Input.KeyModifiers.Meta : Avalonia.Input.KeyModifiers.Control) | Avalonia.Input.KeyModifiers.Shift
+        };
+        Assert.False(saved.Matches(key, MediaPanelKeys.ToggleCommandId, "media"));
+        Assert.True(saved.Matches(key, MediaPanelKeys.ToggleCommandId, "tagging"));
         Assert.True(Has(saved, "media.focus-mode", ShortcutGesture.Parse("Primary+Shift+M")));
         Assert.DoesNotContain(saved.Issues, issue => issue.BlocksSave);
     }
