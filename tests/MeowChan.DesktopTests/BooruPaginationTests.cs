@@ -8,6 +8,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
