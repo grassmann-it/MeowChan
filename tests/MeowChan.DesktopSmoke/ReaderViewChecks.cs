@@ -228,9 +228,11 @@ internal static class ReaderViewChecks
             Require(source.BuiltCount == beforeHover, $"Hovering distant quote {target} built {source.BuiltCount - beforeHover} rows.");
             page.CloseQuotePreview();
         }
+        Require(!first.RepliesExpanded, "The opening post expanded before the preference was enabled.");
         page.ReaderExpandRepliesPreference = true;
-        await Program.WaitUntilAsync(() => first is { RepliesAutoExpanded: true, RepliesLoaded: true });
-        Require(first.Replies.Count == 1, "The realized post did not open its captured reply.");
+        await Program.WaitUntilAsync(() => ReferenceEquals(list.SelectedItem, first)
+            && first is { RepliesExpanded: true, RepliesLoaded: true });
+        Require(first.Replies.Count == 1, "The selected post did not open its captured reply.");
         await page.SetRepliesExpandedAsync(first, false);
 
         fixture.FailCaptureWrite = true;
@@ -260,7 +262,7 @@ internal static class ReaderViewChecks
         await Program.WaitUntilAsync(() => tail is { RepliesLoaded: true, RepliesLoading: false },
             () => $"Tail replies loaded {tail.RepliesLoaded}, loading {tail.RepliesLoading}, expanded {tail.RepliesExpanded}, error {tail.RepliesError}.");
         Require(tail.Replies is [{ Quote.Origin.PostId: "10498" }], "The distant reply did not open after capture and refresh failures. "
-            + $"Expanded {tail.RepliesExpanded}, automatic {tail.RepliesAutoExpanded}, replies {tail.Replies.Count}, error {tail.RepliesError}.");
+            + $"Expanded {tail.RepliesExpanded}, replies {tail.Replies.Count}, error {tail.RepliesError}.");
         await page.SetRepliesExpandedAsync(tail, false);
         Console.WriteLine("SMOKE capture and refresh failures left the distant reply count and reply card usable.");
 
@@ -401,7 +403,7 @@ internal static class ReaderViewChecks
             ArchivePostRow returned = Parent();
             Require(returned.RepliesExpanded == expanded && returned.Replies.SequenceEqual(loaded) && returned.RepliesOffset == 1,
                 $"Back lost loaded reply pages or changed their expanded state. Wanted expanded {expanded}; row expanded {returned.RepliesExpanded}, "
-                + $"automatic {returned.RepliesAutoExpanded}, loaded {returned.RepliesLoaded}, loading {returned.RepliesLoading}, count {returned.BacklinkCount}, "
+                + $"loaded {returned.RepliesLoaded}, loading {returned.RepliesLoading}, count {returned.BacklinkCount}, "
                 + $"offset {returned.RepliesOffset}, replies {string.Join(",", returned.Replies.Select(reply => reply.Quote.Origin.PostId))}, error {returned.RepliesError}.");
         }
 

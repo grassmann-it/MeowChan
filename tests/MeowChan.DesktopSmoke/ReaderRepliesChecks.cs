@@ -15,6 +15,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
+using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 
 namespace MeowChan.DesktopSmoke;
 
