@@ -1,8 +1,17 @@
 using System.Diagnostics;
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -31,6 +40,9 @@ public sealed class TaggingPageTests : IDisposable
 
     private static TagQueueSnapshot Queue(int cursor, params TagQueueItem[] items) =>
         new(1, cursor, Array.Empty<string>(), items, TagQueueLoadState.Ready);
+
+    private static T FindByAutomationId<T>(Control root, string id) where T : Control =>
+        root.GetVisualDescendants().OfType<T>().Single(control => AutomationProperties.GetAutomationId(control) == id);
 
     [Fact]
     public void TheFilterKeepsTheQueueOrderAndMarksWhereTheWalkContinues()
@@ -325,31 +337,360 @@ public sealed class TaggingPageTests : IDisposable
         Assert.False(await work.RemoveStampAsync("surface"));
     }
 
-    [Fact]
-    public async Task ClearingEmptiesTheQueueAndRecoversAnUnreadableFile()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClearingEmptiesTheQueueAndRecoversAnUnreadableFile(bool hasPreviousSnapshot) => BooruComponentDispatcher.Run(() =>
     {
-        using TempDirectory temp = new();
-        await using DesktopSessionHost host = await StartAsync(temp.Path);
-        await host.EnqueueTagQueueAsync(new[] { Item(1), Item(2) });
-        TaggingQueueController work = new(host);
-        await work.LoadAsync();
-        Assert.True(await work.ClearAllAsync());
-        Assert.Equal(0, host.GetTagQueue()!.Count);
-        Assert.Equal("The tagging queue is empty now.", work.Status);
-        Assert.Null(TaggingQueueView.StartLabel(work.Queue));
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
 
-        // A damaged file is an error line, never emptied by reading; clearing keeps the damaged copy and starts empty.
-        await File.WriteAllTextAsync(Path.Combine(temp.Path, TagQueueStore.FileName), "{ not json");
-        TaggingQueueController damaged = new(host);
-        await damaged.LoadAsync();
-        Assert.NotNull(damaged.LoadError);
-        Assert.False(damaged.CanChange);
-        Assert.Equal(Texts.T("queue.error.unreadable"), damaged.ErrorText);
-        Assert.True(await damaged.ClearAllAsync());
-        Assert.Null(damaged.LoadError);
-        Assert.Equal(0, (await host.LoadTagQueueAsync()).Count);
-        Assert.NotEmpty(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
-    }
+        async Task ExerciseAsync()
+        {
+            using TempDirectory temp = new();
+            await using DesktopSessionHost host = await StartAsync(temp.Path);
+            TagQueueItem[] items = [Item(1), Item(2)];
+            await host.EnqueueTagQueueAsync(items);
+            TaggingQueueController work = new(host);
+            await work.LoadAsync();
+            Assert.True(await work.ClearAllAsync(resetDamaged: false));
+            Assert.Equal(0, host.GetTagQueue()!.Count);
+            Assert.Equal("The tagging queue is empty now.", work.Status);
+            Assert.Null(TaggingQueueView.StartLabel(work.Queue));
+
+            await host.EnqueueTagQueueAsync(items);
+            TaggingPage page = new(host);
+            Window window = new() { Content = page, Width = 760, Height = 640 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                if (hasPreviousSnapshot) await page.ActivateAsync();
+
+                const string brokenJson = "{ not json";
+                string file = Path.Combine(temp.Path, TagQueueStore.FileName);
+                await File.WriteAllTextAsync(file, brokenJson);
+                await page.ActivateAsync();
+                Assert.Equal(hasPreviousSnapshot ? items.Length : 0, page.Queue.Count);
+                TaggingQueueController damaged = new(host);
+                await damaged.LoadAsync();
+                Assert.NotNull(damaged.LoadError);
+                Assert.False(damaged.CanChange);
+                Assert.Equal(Texts.T("queue.error.unreadable"), damaged.ErrorText);
+
+                Dispatcher.UIThread.RunJobs();
+                TextBlock question = FindByAutomationId<TextBlock>(page, "tagging.clear-question");
+                Button cancel = FindByAutomationId<Button>(page, "tagging.clear-cancel");
+                Button confirm = FindByAutomationId<Button>(page, "tagging.clear-confirm-action");
+                AskReset();
+                Assert.True(cancel.IsFocused);
+                cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.False(page.ClearQuestionOpen);
+                Assert.Equal(brokenJson, await File.ReadAllTextAsync(file));
+                Assert.Empty(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
+
+                AskReset();
+                confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => !page.IsBusy && host.TagQueueError == null, "the confirmed queue reset");
+                Assert.True(damaged.Refresh());
+                Assert.Null(damaged.LoadError);
+                TagQueueSnapshot reset = await host.LoadTagQueueAsync();
+                Assert.Equal(0, reset.Count);
+                Assert.Empty(reset.Groups);
+                Assert.Empty(reset.Stamp);
+                Assert.Contains(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"),
+                    path => File.ReadAllText(path) == brokenJson);
+
+                void AskReset()
+                {
+                    Assert.True(page.ClearButton.Command!.CanExecute(null));
+                    page.ClearButton.Command.Execute(null);
+                    window.UpdateLayout();
+                    Assert.True(question.IsEffectivelyVisible);
+                    string prompt = question.Text!;
+                    Assert.Contains("The number of entries is unknown.", prompt);
+                    Assert.Contains("including its groups and stamps", prompt);
+                    Assert.Contains("a copy is kept as a backup", prompt);
+                    Assert.DoesNotContain("Entries to remove:", prompt);
+                    Assert.Equal("Reset tagging queue", confirm.Content);
+                }
+            }
+            finally
+            {
+                page.End();
+                window.Close();
+            }
+        }
+    });
+
+    [Fact]
+    public void DeletingAGroupConfirmsStampLossAndOnlyUngroupsItsOwnEntries() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            using TempDirectory temp = new();
+            await using DesktopSessionHost host = await StartAsync(temp.Path);
+            TagQueueItem first = Item(1), second = Item(2);
+            await host.EnqueueTagQueueAsync([first, second]);
+            TagQueueGroup target = Assert.Single((await host.CreateTagQueueGroupAsync("Review", [first.Key])).Groups);
+            TagQueueGroup kept = (await host.CreateTagQueueGroupAsync("Keep", [second.Key])).Groups.Single(group => group.Id != target.Id);
+            await host.SetTagQueueGroupStampAsync(target.Id, ["reviewed"]);
+            await host.SetTagQueueGroupStampAsync(kept.Id, ["saved"]);
+
+            TaggingPage page = new(host);
+            Window window = new() { Content = page, Width = 760, Height = 640 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                await page.ActivateAsync();
+                ComboBox groups = Find<ComboBox>(page, "tagging.group");
+                groups.SelectedItem = page.GroupChoices.Single(choice => choice.Id == target.Id);
+                page.GroupManageMenuModel()!.Entries.Single(entry => entry.Id == "tagging.group.delete").Invoke!();
+                Window? Prompt() => window.OwnedWindows.SingleOrDefault(owned =>
+                    AutomationProperties.GetAutomationId(owned) == "tagging.group.delete");
+                await BooruTestSupport.WaitAsync(() => Prompt()?.IsVisible == true, "the group deletion prompt");
+                Window dialog = Prompt()!;
+                string? question = Find<TextBlock>(dialog, "tagging.group.delete.message").Text;
+                Assert.Contains("Its entries stay in the queue without a group.", question);
+                Assert.Contains("This also deletes the group's stamp.", question);
+                Assert.Equal(new[] { "reviewed" }, host.GetTagQueue()!.Group(target.Id)!.Stamp);
+                Find<Button>(dialog, "tagging.group.delete.accept").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => page.Queue.Groups.Count == 1, "the selected group is deleted");
+
+                TagQueueSnapshot saved = (await host.LoadTagQueueAsync());
+                Assert.Equal(kept.Id, Assert.Single(saved.Groups).Id);
+                Assert.Equal(new[] { "saved" }, saved.Groups[0].Stamp);
+                Assert.Null(saved.Items.Single(item => item.Key == first.Key).GroupId);
+                Assert.Equal(kept.Id, saved.Items.Single(item => item.Key == second.Key).GroupId);
+            }
+            finally
+            {
+                page.End();
+                window.Close();
+            }
+        }
+
+        static T Find<T>(Control root, string id) where T : Control => root.GetVisualDescendants().OfType<T>()
+            .Single(control => AutomationProperties.GetAutomationId(control) == id);
+    });
+
+    [Fact]
+    public void ConfirmingAClearAfterTheFileBecomesUnreadableRequiresASeparateReset() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            using TempDirectory temp = new();
+            await using DesktopSessionHost host = await StartAsync(temp.Path);
+            TagQueueItem item = Item(1);
+            await host.EnqueueTagQueueAsync([item]);
+            TagQueueGroup group = Assert.Single((await host.CreateTagQueueGroupAsync("Review", [item.Key])).Groups);
+            await host.SetTagQueueGroupStampAsync(group.Id, ["reviewed"]);
+            await host.SetTagQueueStampAsync(["general"]);
+            TaggingPage page = new(host);
+            Window window = new() { Content = page, Width = 760, Height = 640 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                await page.ActivateAsync();
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(new[] { "reviewed" }, Assert.Single(page.Queue.Groups).Stamp);
+                Assert.Equal(new[] { "general" }, page.Queue.Stamp);
+                Button clear = page.Actions.Items.OfType<Button>().Single(button => AutomationProperties.GetAutomationId(button) == "tagging.clear");
+                Assert.True(clear.Command!.CanExecute(null));
+                clear.Command.Execute(null);
+                window.UpdateLayout();
+                Button confirm = Find<Button>("tagging.clear-confirm-action");
+                Button cancel = Find<Button>("tagging.clear-cancel");
+                Assert.True(cancel.IsFocused);
+                Assert.Equal("Clear tagging queue", confirm.Content);
+
+                string path = Path.Combine(temp.Path, TagQueueStore.FileName);
+                byte[] damaged = [.. (await File.ReadAllBytesAsync(path)), (byte)'{'];
+                await File.WriteAllBytesAsync(path, damaged);
+                confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => page.ClearQuestionOpen && Equals(confirm.Content, "Reset tagging queue"),
+                    "a separate queue reset confirmation");
+
+                Assert.True(cancel.IsFocused);
+                Assert.Contains("including its groups and stamps", Find<TextBlock>("tagging.clear-question").Text);
+                Assert.Equal(damaged, await File.ReadAllBytesAsync(path));
+                Assert.Empty(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
+
+                confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => !page.IsBusy && host.TagQueueError == null, "the explicitly confirmed queue reset");
+                TagQueueSnapshot reset = await host.LoadTagQueueAsync();
+                Assert.Empty(reset.Items);
+                Assert.Empty(reset.Groups);
+                Assert.Empty(reset.Stamp);
+                string preserved = Assert.Single(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
+                Assert.Equal(damaged, await File.ReadAllBytesAsync(preserved));
+
+                T Find<T>(string id) where T : Control => page.GetVisualDescendants().OfType<T>()
+                    .Single(control => AutomationProperties.GetAutomationId(control) == id);
+            }
+            finally
+            {
+                page.End();
+                window.Close();
+            }
+        }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ConfirmingAResetAfterRecoveryPreservesTheQueue(bool retryBeforeConfirming) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            using TempDirectory temp = new();
+            await using DesktopSessionHost host = await StartAsync(temp.Path);
+            await host.EnqueueTagQueueAsync([Item(1), Item(2)]);
+            TagQueueItem[] entries = (await host.LoadTagQueueAsync()).Items.ToArray();
+            string path = Path.Combine(temp.Path, TagQueueStore.FileName);
+            byte[] restored = await File.ReadAllBytesAsync(path);
+            await File.WriteAllTextAsync(path, "{ not json");
+
+            TaggingPage page = new(host);
+            Window window = new() { Content = page, Width = 760, Height = 640 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                await page.ActivateAsync();
+                Dispatcher.UIThread.RunJobs();
+                Button clear = page.Actions.Items.OfType<Button>().Single(button => AutomationProperties.GetAutomationId(button) == "tagging.clear");
+                Button confirm = FindByAutomationId<Button>(page, "tagging.clear-confirm-action");
+                Assert.True(clear.Command!.CanExecute(null));
+                clear.Command.Execute(null);
+                Assert.True(page.ClearQuestionOpen);
+                Assert.Equal("Reset tagging queue", confirm.Content);
+
+                await File.WriteAllBytesAsync(path, restored);
+                if (retryBeforeConfirming)
+                {
+                    Button retry = FindByAutomationId<Button>(page, "tagging.retry");
+                    retry.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await BooruTestSupport.WaitAsync(() => !page.IsBusy && page.Rows.Count == entries.Length, "the restored queue after retry");
+                    Assert.True(page.ClearQuestionOpen);
+                }
+
+                confirm.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => !page.IsBusy && host.TagQueueError == null, "the reset confirmation to finish");
+                Assert.False(page.ClearQuestionOpen);
+                Assert.Equal(entries, page.Queue.Items.ToArray());
+                Assert.Equal(entries.Select(item => item.Key), page.Rows.Select(row => row.Key));
+                Assert.Equal(entries, (await host.LoadTagQueueAsync()).Items.ToArray());
+                Assert.Equal(restored, await File.ReadAllBytesAsync(path));
+
+                Assert.True(clear.Command.CanExecute(null));
+                clear.Command.Execute(null);
+                Assert.True(page.ClearQuestionOpen);
+                Assert.Equal("Clear tagging queue", confirm.Content);
+                Assert.Contains("Entries to remove: 2.", FindByAutomationId<TextBlock>(page, "tagging.clear-question").Text);
+            }
+            finally
+            {
+                page.End();
+                window.Close();
+            }
+        }
+    });
+
+    [Theory]
+    [InlineData("en", 1.0, "Cancel", "Clear tagging queue")]
+    [InlineData("de", 1.5, "Abbrechen", "Tagging-Warteschlange leeren")]
+    public void ClearConfirmationStartsOnCancelAndOnlyClearsTheQueue(string language, double scale, string safeLabel, string clearLabel) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory temp = new();
+            Texts.SetLanguage(language);
+            BooruComponentDispatcher.Wait(ExerciseAsync());
+
+            async Task ExerciseAsync()
+            {
+                await using DesktopSessionHost host = await StartAsync(temp.Path);
+                TagQueueItem item = Item(1) with { Directory = temp.Path };
+                string media = Path.Combine(temp.Path, "file-1.png");
+                File.WriteAllText(media, "keep the media");
+                await host.EnqueueTagQueueAsync([item]);
+                TaggingPage page = new(host);
+                Window window = new() { Content = page, Width = 760, Height = 640 };
+                try
+                {
+                    window.Show();
+                    window.PlatformImpl!.Activated?.Invoke();
+                    window.SetRenderScaling(scale);
+                    await page.ActivateAsync();
+                    Dispatcher.UIThread.RunJobs();
+                    long revision = host.GetTagQueue()!.Revision;
+                    Button cancel = FindByAutomationId<Button>(page, "tagging.clear-cancel");
+                    Button clear = FindByAutomationId<Button>(page, "tagging.clear-confirm-action");
+                    ToggleButton more = FindByAutomationId<ToggleButton>(page, "tagging.actions.more");
+                    ComboBox filter = FindByAutomationId<ComboBox>(page, "tagging.filter");
+                    ListBox list = FindByAutomationId<ListBox>(page, "tagging.list");
+                    foreach ((Key key, PhysicalKey physical) in new[] { (Key.Escape, PhysicalKey.Escape), (Key.Enter, PhysicalKey.Enter) })
+                    {
+                        await AskAsync();
+                        Press(key, physical);
+                        Assert.False(page.ClearQuestionOpen);
+                        Assert.True(list.IsKeyboardFocusWithin);
+                        Assert.Equal(revision, host.GetTagQueue()!.Revision);
+                    }
+                    await AskAsync();
+                    Press(Key.Tab, PhysicalKey.Tab);
+                    Assert.True(clear.IsFocused);
+                    Press(Key.Enter, PhysicalKey.Enter);
+                    await BooruTestSupport.WaitAsync(() => page.Queue.Count == 0, "the queue is cleared");
+                    Assert.Empty(host.GetTagQueue()!.Items);
+                    Assert.Equal("keep the media", File.ReadAllText(media));
+                    Assert.True(filter.IsFocused);
+
+                    async Task AskAsync()
+                    {
+                        Assert.True(more.IsEffectivelyVisible);
+                        more.IsChecked = true;
+                        Button action = FindByAutomationId<Button>(page.Actions.OverflowHost!, "tagging.clear");
+                        await BooruTestSupport.WaitAsync(() => action.IsEffectivelyVisible && action.IsEffectivelyEnabled,
+                            "the clear action in More");
+                        ((IInvokeProvider)new ButtonAutomationPeer(action)).Invoke();
+                        window.UpdateLayout();
+                        Assert.False(more.IsChecked);
+                        Assert.True(page.ClearQuestionOpen);
+                        Assert.True(cancel.IsFocused);
+                        Point endOfCancel = cancel.TranslatePoint(new Point(cancel.Bounds.Width, 0), clear)!.Value;
+                        Assert.InRange(-endOfCancel.X, 7, 9);
+                        Assert.Equal(safeLabel, cancel.Content);
+                        Assert.Equal(clearLabel, clear.Content);
+                    }
+
+                    void Press(Key key, PhysicalKey physical)
+                    {
+                        window.KeyPress(key, RawInputModifiers.None, physical, null);
+                        window.KeyRelease(key, RawInputModifiers.None, physical, null);
+                        Dispatcher.UIThread.RunJobs();
+                        window.UpdateLayout();
+                    }
+                }
+                finally
+                {
+                    page.End();
+                    window.Close();
+                }
+            }
+        });
 
     [Fact]
     public async Task AQueueReadErrorKeepsTheLastSnapshotNamesItsSourceAndCanBeReloaded()

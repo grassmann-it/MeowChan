@@ -59,6 +59,7 @@ public sealed partial class TaggingPage
 
     private void InitializeGroups()
     {
+        AutomationProperties.SetAutomationId(_group, "tagging.group");
         _group.ItemTemplate = GroupChoiceTemplate();
         _group.SelectionChanged += (_, _) =>
         {
@@ -146,8 +147,10 @@ public sealed partial class TaggingPage
     private async Task DeleteGroupAsync()
     {
         if (_selectedGroupId == null || TopLevel.GetTopLevel(this) is not Window owner || _queueWork.Queue.Group(_selectedGroupId) is not { } group) return;
+        string message = Texts.T("tagging.page.group.delete.ask", group.Name);
+        if (group.Stamp.Count > 0) message += "\n" + Texts.T("tagging.page.group.delete.stamp");
         bool confirmed = await DialogPrompt.ConfirmAsync(owner, Texts.T("tagging.page.group.delete"),
-            Texts.T("tagging.page.group.delete.ask", group.Name), Texts.T("tagging.page.group.delete"), Texts.T("queue.ask.no"));
+            message, Texts.T("tagging.page.group.delete"), Texts.T("queue.ask.no"), automationId: "tagging.group.delete");
         if (!confirmed) return;
         bool done = await _queueWork.DeleteGroupAsync(group.Id);
         if (done) { _selectedGroupId = null; _ungroupedSelected = true; }
