@@ -28,8 +28,7 @@ public partial class MainWindow
         await _session.SaveViewPreferencesAsync(change);
         if (_isClosing) return;
         ApplyGalleryPreferences();
-        _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
-        _taggingPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
+        ConfigureMediaPanel();
     }
 
     /// <summary>
