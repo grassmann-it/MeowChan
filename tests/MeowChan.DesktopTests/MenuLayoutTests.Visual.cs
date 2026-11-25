@@ -1,11 +1,14 @@
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Shapes;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -25,7 +28,7 @@ public sealed partial class MenuIconLayoutTests
     [InlineData("de", "Bedienelemente beim Öffnen der Galerie über das aktuell ausgewählte Medium legen")]
     [InlineData("ja", "ギャラリーで現在選択しているメディアの上に操作ボタンを表示する")]
     [InlineData("zh-Hans", "在图库中打开当前选中的媒体时将操作按钮显示在媒体上方")]
-    public void ContextMenuTogglesAndSubmenuKeepActionIconsBesideTheSemiMarks(string language, string phrase) => OnUi(() =>
+    public void ContextMenuTogglesAndSubmenuShareTheIconAndStateColumn(string language, string phrase) => OnUi(() =>
     {
         Texts.SetLanguage(language);
         string label = phrase + " · " + phrase;
@@ -39,6 +42,7 @@ public sealed partial class MenuIconLayoutTests
                 .Check("overlay", label, enabled, () => enabled = !enabled, icon: "sliders")
                 .Check("unavailable", Texts.T("gallery.layout.tools"), true, () => throw new InvalidOperationException(),
                     available: false, reason: Texts.T("gallery.layout.whyTag"), icon: "tool")
+                .Item("plain", Texts.T("gallery.layout.info"), () => { })
                 .Submenu("mode", Texts.T("gallery.layout.filmstrip"), choices.ToModel(), icon: "columns");
             Assert.Equal("sliders", builder.ToModel().Entries.First().Icon);
             Assert.Equal("columns", choices.ToModel().Entries.Last().Icon);
@@ -61,8 +65,11 @@ public sealed partial class MenuIconLayoutTests
             MenuItem check = Item(menu, "overlay");
             MenuItem unavailable = Item(menu, "unavailable");
             MenuItem submenu = Item(menu, "mode");
-            AssertSemi(check, MenuItemToggleType.CheckBox, "sliders", isChecked: false);
-            AssertSemi(unavailable, MenuItemToggleType.CheckBox, "tool", isChecked: true);
+            AssertMenuChip(check, MenuItemToggleType.CheckBox, "sliders", isChecked: false);
+            AssertAt(48, LabelOf(Item(menu, "plain")), Item(menu, "plain"));
+            AssertAt(48, LabelOf(submenu), submenu);
+            AssertChip(submenu, false, hasIcon: true);
+            AssertMenuChip(unavailable, MenuItemToggleType.CheckBox, "tool", isChecked: true);
             Assert.False(unavailable.IsEffectivelyEnabled);
             Assert.Contains(Texts.T("gallery.layout.whyTag"), Assert.IsType<string>(ToolTip.GetTip(unavailable)));
             AssertLongLabel(check, LabelOf(check), Part<TextBlock>(check, "PART_InputGestureText"), label);
@@ -73,7 +80,9 @@ public sealed partial class MenuIconLayoutTests
             Assert.True(submenu.IsSubMenuOpen);
             MenuItem first = Item(submenu, "first"), radio = Item(submenu, "second");
             Assert.Null(MenuIcons.KeyOf(first)); // Filmstrip positions are values in a choice group.
-            AssertSemi(radio, MenuItemToggleType.Radio, "columns", isChecked: false);
+            AssertMenuChip(first, MenuItemToggleType.Radio, null, isChecked: true);
+            Assert.Single(submenu.Items.OfType<MenuItem>(), row => row.IsChecked);
+            AssertMenuChip(radio, MenuItemToggleType.Radio, "columns", isChecked: false);
             Assert.True(radio.Focus(NavigationMethod.Directional));
             SendMenuKey(radio, Key.Enter);
             Assert.True(second);
@@ -86,7 +95,7 @@ public sealed partial class MenuIconLayoutTests
             submenu = Item(menu, "mode");
             Assert.True(submenu.Focus(NavigationMethod.Directional));
             SendMenuKey(submenu, Key.Right);
-            AssertSemi(Item(submenu, "second"), MenuItemToggleType.Radio, "columns", isChecked: true);
+            AssertMenuChip(Item(submenu, "second"), MenuItemToggleType.Radio, "columns", isChecked: true);
             SendMenuKey(Item(submenu, "first"), Key.Left);
             Assert.False(submenu.IsSubMenuOpen);
             Assert.True(check.Focus(NavigationMethod.Directional));
@@ -96,7 +105,7 @@ public sealed partial class MenuIconLayoutTests
 
             SendMenuKey(anchor, Key.F10, KeyModifiers.Shift);
             menu = Assert.IsType<ContextMenu>(host.OpenMenu);
-            AssertSemi(Item(menu, "overlay"), MenuItemToggleType.CheckBox, "sliders", isChecked: true);
+            AssertMenuChip(Item(menu, "overlay"), MenuItemToggleType.CheckBox, "sliders", isChecked: true);
             host.Close();
         });
 
@@ -135,10 +144,8 @@ public sealed partial class MenuIconLayoutTests
             Assert.True(panel.FocusFirst());
             Settle(row);
             Assert.True(row.IsFocused);
-            var grid = Assert.IsType<Grid>(row.Content);
-            var text = Assert.IsType<StackPanel>(grid.Children.Single(child => Grid.GetColumn(child) == 2));
-            var shortcut = Assert.IsType<TextBlock>(grid.Children.Single(child => Grid.GetColumn(child) == 3));
-            var labelBlock = Assert.IsType<TextBlock>(text.Children[0]);
+            var labelBlock = ById<TextBlock>(row, id + ".label");
+            var shortcut = ById<TextBlock>(row, id + ".shortcut");
             Control firstIcon = AssertFlyout(row, "tool", isChecked: false);
             Assert.Null(IconSlot(panel.ButtonOf("dynamic-column")!).Content);
             AssertLongLabel(row, labelBlock, shortcut, german);
@@ -171,7 +178,7 @@ public sealed partial class MenuIconLayoutTests
             Assert.True(viewer.IsOverflowOpen);
             Assert.Contains(viewer.OverflowMenuContent, Assert.IsAssignableFrom<Visual>(Focused(more)).GetVisualAncestors());
 
-            ToggleButton repeat = Assert.IsType<ToggleButton>(Assert.Single(viewer.OverflowItems, row => row.Name == "GalleryVideoRepeatToggle"));
+            ToggleButton repeat = ById<ToggleButton>(viewer.OverflowMenuContent, "video.loop");
             var entry = Assert.IsType<GalleryViewer.OverflowItem>(repeat.Tag);
             Assert.Equal("repeat", entry.IconKey);
             Control repeatIcon = AssertFlyout(repeat, "repeat", isChecked: false);
@@ -239,7 +246,7 @@ public sealed partial class MenuIconLayoutTests
             Settle(viewer);
             Assert.True(more.Focus(NavigationMethod.Tab));
             Press(more, Key.Enter);
-            var slideshow = Assert.Single(viewer.OverflowItems, row => row.Name == "GallerySlideshowToggle");
+            var slideshow = ById<ToggleButton>(viewer.OverflowMenuContent, "gallery.slideshow-toggle");
             var slideshowEntry = Assert.IsType<GalleryViewer.OverflowItem>(slideshow.Tag);
             AssertMask(slideshow, Assert.IsType<Border>(slideshowEntry.Icon.Content), "play");
             AssertBefore(Assert.IsType<Border>(slideshowEntry.Icon.Content), slideshowEntry.Label, slideshow, 8);
@@ -249,39 +256,76 @@ public sealed partial class MenuIconLayoutTests
 
     private static Border AssertFlyout(ToggleButton row, string key, bool isChecked)
     {
-        var grid = Assert.IsType<Grid>(row.Content);
         Assert.Equal(isChecked, row.IsChecked);
-        Assert.Equal(new GridLength(16), grid.ColumnDefinitions[0].Width);
-        Assert.Equal(new GridLength(16), grid.ColumnDefinitions[1].Width);
-        Control mark = Assert.Single(grid.Children, child => Grid.GetColumn(child) == 0);
-        Border icon = Assert.IsType<Border>(IconSlot(row).Content);
-        Assert.Equal(isChecked ? 1 : 0, mark.Opacity);
-        Assert.InRange(RelativeBounds(mark, row).Width, 15, 17);
+        MenuStateChip chip = AssertChip(row, isChecked, hasIcon: true);
+        Border icon = Assert.IsType<Border>(chip.Content);
         AssertMask(row, icon, key);
-        AssertBefore(mark, icon, row, 8);
-        AssertBefore(icon, Assert.Single(grid.Children, child => Grid.GetColumn(child) == 2), row, 8);
+        AssertAt(20, icon, row);
         return icon;
     }
 
-    private static ContentControl IconSlot(Button row) =>
-        Assert.IsType<ContentControl>(Assert.Single(Assert.IsType<Grid>(row.Content).Children, child => Grid.GetColumn(child) == 1));
+    private static MenuStateChip IconSlot(Control row) =>
+        Assert.Single(row.GetVisualDescendants().OfType<MenuStateChip>());
 
-    private static void AssertSemi(MenuItem row, MenuItemToggleType kind, string key, bool isChecked)
+    private static void AssertMenuChip(MenuItem row, MenuItemToggleType kind, string? key, bool isChecked)
     {
         Assert.Equal(kind, row.ToggleType);
         Assert.Equal(isChecked, row.IsChecked);
         Assert.Equal(key, MenuIcons.KeyOf(row));
-        var icon = Assert.IsType<Border>(row.Icon);
-        Assert.Contains(icon, row.GetVisualDescendants());
-        AssertMask(row, icon, key);
-        Control? mark = row.GetVisualDescendants().OfType<Control>().FirstOrDefault(child => child.Name == "PART_ToggleIconPresenter");
-        bool visible = mark is { IsEffectivelyVisible: true, Opacity: > 0, Bounds.Width: > 0 }
-            && mark is not ContentPresenter { Child: null }
-            && mark is not ContentControl { Content: null };
-        Assert.Equal(isChecked, visible);
-        if (isChecked) AssertBefore(mark!, icon, row);
-        AssertBefore(icon, LabelOf(row), row);
+        var chip = AssertChip(row, isChecked, key != null);
+        if (key != null)
+        {
+            var icon = Assert.IsType<Border>(row.Icon);
+            Assert.Contains(icon, row.GetVisualDescendants());
+            AssertMask(row, icon, key);
+            AssertAt(20, icon, row);
+        }
+        AssertAt(48, LabelOf(row), row);
+        Assert.Equal(isChecked && kind == MenuItemToggleType.Radio,
+            Assert.Single(chip.GetVisualDescendants().OfType<Ellipse>()).IsEffectivelyVisible);
+        var peer = Assert.IsAssignableFrom<AutomationPeer>(ControlAutomationPeer.CreatePeerForElement(row));
+        Assert.Equal(isChecked ? ToggleState.On : ToggleState.Off, peer.GetProvider<IToggleProvider>()!.ToggleState);
     }
+
+    private static MenuStateChip AssertChip(Control row, bool isChecked, bool hasIcon)
+    {
+        var chip = IconSlot(row);
+        Assert.True(chip.IsEffectivelyVisible);
+        AssertAt(16, chip, row);
+        Assert.InRange(chip.Bounds.Width, 23.25, 24.75);
+        Assert.InRange(chip.Bounds.Height, 23.25, 24.75);
+        Assert.Equal(isChecked, chip.IsChecked);
+        if (isChecked)
+        {
+            Assert.IsAssignableFrom<ISolidColorBrush>(chip.Background);
+            if (row.IsEffectivelyEnabled)
+                Assert.Equal(ResourceBrush(row, "Workspace.AccentSurface"), BrushColor(chip.Background));
+            else
+            {
+                Assert.Equal(ResourceBrush(row, "Workspace.Muted"), BrushColor(chip.BorderBrush));
+                Assert.Equal(ResourceBrush(row, "Workspace.Muted"), BrushColor(chip.Background));
+                Assert.Equal(ResourceBrush(row, "Workspace.Muted"), BrushColor(chip.Foreground));
+            }
+        }
+        else
+        {
+            Assert.Null(chip.Background);
+            if (hasIcon) Assert.Null(chip.BorderBrush);
+            else Assert.Equal(ResourceBrush(row, "Workspace.Muted"), BrushColor(chip.BorderBrush));
+        }
+        return chip;
+    }
+
+    private static Color BrushColor(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
+
+    private static Color ResourceBrush(Control row, string key)
+    {
+        Assert.True(row.TryFindResource(key, row.ActualThemeVariant, out object? value), key);
+        return BrushColor(Assert.IsAssignableFrom<IBrush>(value));
+    }
+
+    private static void AssertAt(double x, Control part, Control row) =>
+        Assert.InRange(RelativeBounds(part, row).Left, x - 1, x + 1);
 
     private static void AssertMask(Control row, Border icon, string key)
     {
@@ -323,8 +367,11 @@ public sealed partial class MenuIconLayoutTests
 
     private static TextBlock LabelOf(MenuItem row) => Assert.IsAssignableFrom<TextBlock>(Part<ContentPresenter>(row, "PART_HeaderPresenter").Child);
 
-    private static MenuItem Item(ItemsControl menu, string tag) =>
-        Assert.Single(menu.Items.OfType<MenuItem>(), row => Equals(row.Tag, tag));
+    private static MenuItem Item(ItemsControl menu, string id) =>
+        Assert.Single(menu.Items.OfType<MenuItem>(), row => AutomationProperties.GetAutomationId(row) == id);
+
+    private static T ById<T>(Control owner, string id) where T : Control =>
+        Assert.Single(owner.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
     private static void OnUi(Action test) => BooruComponentDispatcher.Run(() =>
     {

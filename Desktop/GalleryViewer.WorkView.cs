@@ -26,15 +26,13 @@ internal sealed partial class GalleryViewer
     /// panel and the shortcut help start below it, so they never cover the way back.</summary>
     internal const double TopRowClearance = 56;
 
-    private sealed class ToolSlot(string id, Control control, Panel menuHost, Control? anchor, Control? caption, Action<Button>? addRow)
+    private sealed class ToolSlot(string id, Control control, Panel menuHost, Control? anchor, Action<Button>? addRow)
     {
         internal string Id { get; } = id;
         internal Control Control { get; } = control;
         internal Panel MenuHost { get; } = menuHost;
         /// <summary>The control the flyout row sits before (null: at the end); stable because no view moves it.</summary>
         internal Control? Anchor { get; } = anchor;
-        /// <summary>A caption above the control in the flyout, hidden while the control is on the bar.</summary>
-        internal Control? Caption { get; } = caption;
         internal Action<Button>? AddRow { get; } = addRow;
         internal int Order => WorkViewPolicy.Get(Id).OverflowOrder;
         internal bool OnBar { get; set; }
@@ -132,18 +130,16 @@ internal sealed partial class GalleryViewer
     private void InitializeWorkViewTools()
     {
         _workViewTools.IsVisible = false;
-        _toolSlots.Add(new("gallery.toolbar.tags", _tagsButton, _overflowPanel, _exportOriginal, null,
+        _toolSlots.Add(new("gallery.toolbar.tags", _tagsButton, _overflowPanel, _exportOriginal,
             button => AddOverflowItem(button, "media.tags.edit", label: TagsLabel)));
-        _toolSlots.Add(new("gallery.toolbar.slideshow-seconds", _slideshowSeconds, _slideshowHome, _videoRuleCaption, _secondsCaption, null));
-        _toolSlots.Add(new("gallery.toolbar.playback-mode", _playbackMode, _slideshowHome, _secondsCaption, _modeCaption, null));
-        _toolSlots.Add(new("gallery.toolbar.help", _helpButton, _overflowPanel, null, null,
+        _toolSlots.Add(new("gallery.toolbar.slideshow-seconds", _slideshowSeconds, _secondsSetting, null, null));
+        _toolSlots.Add(new("gallery.toolbar.playback-mode", _playbackMode, _modeSetting, null, null));
+        _toolSlots.Add(new("gallery.toolbar.help", _helpButton, _overflowPanel, null,
             button => AddOverflowItem(button, "viewer.shortcut-help", label: () => CommandCatalog.Label("viewer.shortcut-help"))));
         _toolSlots.Sort((a, b) => a.Order.CompareTo(b.Order));
     }
 
     private ToolSlot? SlotOf(Control control) => _toolSlots.FirstOrDefault(slot => ReferenceEquals(slot.Control, control));
-
-    private bool ToolInMenu(string id) => _toolSlots.Any(slot => slot.Id == id && !slot.OnBar);
 
     /// <summary>
     /// Lays the viewer out for <paramref name="view"/> (plan §1.6): movable tools go to the bar or under "More", the "where am I"
@@ -178,11 +174,11 @@ internal sealed partial class GalleryViewer
             control.Margin = default;
             control.HorizontalAlignment = HorizontalAlignment.Left;
             control.VerticalAlignment = VerticalAlignment.Center;
+            slot.MenuHost.IsVisible = false;
         }
         slot.OnBar = true;
         int index = _workViewTools.Children.Count(child => SlotOf(child) is { } other && other.Order < slot.Order);
         _workViewTools.Children.Insert(index, control);
-        if (slot.Caption != null) slot.Caption.IsVisible = false;
         if (hadFocus && control.IsEffectivelyVisible) control.Focus(NavigationMethod.Tab);
     }
 
@@ -204,12 +200,11 @@ internal sealed partial class GalleryViewer
         }
         else
         {
-            control.Margin = new Thickness(8, 0);
             control.HorizontalAlignment = HorizontalAlignment.Stretch;
+            slot.MenuHost.IsVisible = control.IsVisible;
         }
         int anchor = slot.Anchor == null ? -1 : slot.MenuHost.Children.IndexOf(slot.Anchor);
         if (anchor >= 0) slot.MenuHost.Children.Insert(anchor, control); else slot.MenuHost.Children.Add(control);
-        if (slot.Caption != null) slot.Caption.IsVisible = true;
         if (control is Button) UpdateTagsButton(); // the row's label follows the live tag count again
         if (hadFocus && _overflowButton.IsEffectivelyVisible) _overflowButton.Focus(NavigationMethod.Tab);
     }

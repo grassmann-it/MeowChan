@@ -3,6 +3,9 @@
         xmlns:ursa="https://irihi.tech/ursa">
     <Styles.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://MeowChan/Desktop/MenuItemTemplate.axaml" />
+            </ResourceDictionary.MergedDictionaries>
             <SolidColorBrush x:Key="Workspace.MediaScrim">#D2181A1F</SolidColorBrush>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Dark">
@@ -594,8 +597,7 @@
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
-        <!-- Semi owns every standard control template. These public theme resources
-             retain MeowChan's density without replacing focus, input or state behavior. -->
+        <!-- Semi's public theme resources retain MeowChan's density and interaction behavior. -->
         <Thickness x:Key="DataGridCellTextBlockDefaultMargin">12,0</Thickness>
         <x:Double x:Key="DataGridCellMinHeight">0</x:Double>
         <!-- D6: one radius (8, Workspace.Radius.Group) for every overlay Semi draws: menu, flyout, tooltip, toast, drop-down and
@@ -604,11 +606,12 @@
         <!-- Menu layout (CM1): a popup menu is as wide as its widest row between 224 and 416 dip (28 and 52 steps of 8); MenuLayout (code) reads
              both keys and the label column gives way to the maximum with an ellipsis and a tooltip, never the shortcut column. The shortcut is
              one right-aligned column for all rows, set off from the label by at least 24 dip (MenuItemInputGestureTextMargin, the room in front of
-             it). A row is Workspace.Size.Control (32) high and 16 dip in from the edge: Workspace.Inset.MenuItem 15,6 plus the 1-px row edge. -->
+             it). Rows are at least 32 dip high. From the row edge: 16 dip inset, 24 dip icon/state cell, 8 dip gap, label at 48.
+             Levels without icons or switches start the label at 16. -->
         <x:Double x:Key="MenuFlyoutMinWidth">224</x:Double>
         <x:Double x:Key="MenuFlyoutMaxWidth">416</x:Double>
         <Thickness x:Key="MenuItemInputGestureTextMargin">24,0,0,0</Thickness>
-        <Thickness x:Key="Workspace.Inset.MenuItem">15,6</Thickness>
+        <Thickness x:Key="Workspace.Inset.MenuItem">15,3</Thickness>
         <CornerRadius x:Key="FlyoutCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
         <!-- HB1: no tooltip is wider than 360 dip: longer text wraps (style "ToolTip TextBlock" below). Help popovers have their own,
@@ -985,15 +988,35 @@
          ListBoxItem ContentPresenter#PART_ContentPresenter, each binding BorderBrush, BorderThickness and Padding from the row. -->
     <Style Selector="MenuItem"><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="{StaticResource Workspace.Inset.MenuItem}" /></Style>
     <Style Selector="ContextMenu MenuItem, MenuFlyoutPresenter MenuItem, Menu MenuItem MenuItem"><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" /></Style>
+    <Style Selector="ContextMenu MenuItem:not(:separator), MenuFlyoutPresenter MenuItem:not(:separator), Menu MenuItem MenuItem:not(:separator)">
+        <Setter Property="Template" Value="{StaticResource Workspace.PopupMenuItemTemplate}" />
+    </Style>
     <!-- CM1: every popup menu measures to its widest row (MenuLayout); both kinds of popup menu, from code and from XAML, take part. -->
     <Style Selector="ContextMenu, MenuFlyoutPresenter"><Setter Property="controls:MenuLayout.IsManaged" Value="True" /></Style>
     <Style Selector="Menu > MenuItem"><Setter Property="Padding" Value="15,0" /></Style>
     <Style Selector="MenuItem:selected"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
     <Style Selector="MenuItem:pressed"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="MenuItem:pressed /template/ Border#PART_LayoutRoot:pointerover">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
     <!-- Group labels of the header menu (Reading, Collection, App): a small disabled line, not focusable, that names the entries below it. -->
     <Style Selector="MenuItem.menu-group-label">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Padding" Value="15,6,15,2" /><Setter Property="MinHeight" Value="0" /><Setter Property="Focusable" Value="False" />
+    </Style>
+    <Style Selector="MenuItem.menu-group-label /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Grid.Column" Value="0" /><Setter Property="Grid.ColumnSpan" Value="4" />
+    </Style>
+    <Style Selector="TextBlock.menu-group-label">
+        <Setter Property="Height" Value="24" /><Setter Property="Margin" Value="16,0" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="VerticalAlignment" Value="Center" /><Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="TextAlignment" Value="Left" /><Setter Property="Padding" Value="0,4,0,0" />
+    </Style>
+    <Style Selector="Grid.gallery-menu-setting > :is(Control).gallery-menu-input">
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
     </Style>
     <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width):not(.tagging-table) > ListBoxItem:not(.chip-item)">
         <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="11,7" />
@@ -1386,8 +1409,7 @@
     <Style Selector="ToggleButton#GalleryPanelTags">
         <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
     </Style>
-    <!-- Gallery "⋯" menu: the rare toolbar commands as full-width rows (lead mark, label, shortcut). The check of the two
-         overlay choices is drawn by the row itself, so the toggle's own checked fill is switched off here. -->
+    <!-- Gallery "⋯" menu: full-width rows with the shared icon/state chip, label and shortcut. -->
     <Style Selector="FlyoutPresenter.gallery-overflow">
         <Setter Property="Padding" Value="4" /><Setter Property="MinWidth" Value="300" /><Setter Property="MaxWidth" Value="440" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
@@ -1430,7 +1452,7 @@
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.gallery-overflow-item:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
     <!-- Disabled rows are Muted text on the overlay (7.37:1 / 6.66:1), no extra dimming: the earlier 0.6 opacity put them at 3.54:1 / 2.72:1. -->
     <Style Selector="Button.gallery-overflow-item:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:disabled /template/ ContentPresenter#PART_ContentPresenter">

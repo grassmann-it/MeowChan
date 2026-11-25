@@ -1,0 +1,77 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
+                    xmlns:converters="using:Avalonia.Controls.Converters">
+    <converters:PlatformKeyGestureConverter x:Key="Workspace.MenuKeyGestureConverter" />
+
+    <ControlTheme x:Key="{x:Type controls:MenuStateChip}" TargetType="controls:MenuStateChip">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="1" CornerRadius="6">
+                    <Panel>
+                        <Viewbox Width="16" Height="16" StretchDirection="DownOnly"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                              Foreground="{TemplateBinding Foreground}" />
+                        </Viewbox>
+                        <Ellipse Name="PART_ToggleIconPresenter" Width="8" Height="8"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 Fill="{TemplateBinding Foreground}" IsVisible="{TemplateBinding ShowRadioDot}" />
+                    </Panel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:hasicon /template/ Ellipse#PART_ToggleIconPresenter">
+            <Setter Property="Width" Value="4" /><Setter Property="Height" Value="4" />
+            <Setter Property="Margin" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Right" /><Setter Property="VerticalAlignment" Value="Bottom" />
+        </Style>
+    </ControlTheme>
+
+    <!-- Popup wiring follows Semi 12.1.0.1. Retain its part names, shared size scopes, row states and platform gesture converter. -->
+    <ControlTemplate x:Key="Workspace.PopupMenuItemTemplate" TargetType="MenuItem">
+        <Panel>
+            <Border Name="PART_LayoutRoot" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{TemplateBinding CornerRadius}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="MenuItemLead" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="MenuItemIGT" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="MenuItemChevron" />
+                    </Grid.ColumnDefinitions>
+                    <controls:MenuStateChip Name="PART_IconPresenter" Margin="0,0,8,0"
+                                            Content="{TemplateBinding Icon}" ToggleType="{TemplateBinding ToggleType}"
+                                            IsChecked="{TemplateBinding IsChecked}" />
+                    <ContentPresenter Name="PART_HeaderPresenter" Grid.Column="1" VerticalAlignment="Center"
+                                      RecognizesAccessKey="True" Content="{TemplateBinding Header}"
+                                      ContentTemplate="{TemplateBinding HeaderTemplate}" />
+                    <TextBlock Name="PART_InputGestureText" Grid.Column="2" HorizontalAlignment="Right"
+                               VerticalAlignment="Center" Margin="{DynamicResource MenuItemInputGestureTextMargin}"
+                               Foreground="{DynamicResource MenuItemInputGestureTextForeground}"
+                               Text="{TemplateBinding InputGesture, Converter={StaticResource Workspace.MenuKeyGestureConverter}}" />
+                    <PathIcon Name="PART_ExpandIcon" Grid.Column="3" Theme="{DynamicResource InnerPathIcon}"
+                              VerticalAlignment="Center" Margin="{DynamicResource MenuItemExpandIconMargin}"
+                              Data="{DynamicResource MenuItemExpandIconGlyph}"
+                              Foreground="{DynamicResource MenuItemExpandIconForeground}" />
+                </Grid>
+            </Border>
+            <Popup Name="PART_Popup" IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}"
+                   Placement="RightEdgeAlignedTop" HorizontalOffset="-8" VerticalOffset="-4"
+                   InheritsTransform="True" IsLightDismissEnabled="False" WindowManagerAddShadowHint="False">
+                <Border Margin="8" Padding="{DynamicResource MenuFlyoutPadding}"
+                        MinWidth="{DynamicResource MenuFlyoutMinWidth}" MaxWidth="{DynamicResource MenuFlyoutMaxWidth}"
+                        MinHeight="{DynamicResource MenuFlyoutMinHeight}" MaxHeight="{DynamicResource MenuFlyoutMaxHeight}"
+                        Background="{DynamicResource MenuFlyoutBackground}" BorderBrush="{DynamicResource MenuFlyoutBorderBrush}"
+                        BorderThickness="{DynamicResource MenuFlyoutBorderThickness}" BoxShadow="{DynamicResource MenuFlyoutBorderBoxShadow}"
+                        CornerRadius="{DynamicResource MenuFlyoutCornerRadius}">
+                    <ScrollViewer Theme="{DynamicResource MenuScrollViewer}" CornerRadius="{DynamicResource MenuFlyoutCornerRadius}">
+                        <ItemsPresenter Name="PART_ItemsPresenter" Grid.IsSharedSizeScope="True" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                    </ScrollViewer>
+                </Border>
+            </Popup>
+        </Panel>
+    </ControlTemplate>
+</ResourceDictionary>
