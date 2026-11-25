@@ -5008,6 +5008,7 @@
     "theme.color.muted": "控えめなテキスト",
     "theme.color.border": "枠線",
     "theme.color.favorite": "お気に入り",
+    "theme.color.rating": "評価の星",
     "theme.color.error": "エラー",
     "theme.colors.choose": "{0}の色を選択（現在 {1}）",
     "theme.colors.hex": "{0}のカラーコード",

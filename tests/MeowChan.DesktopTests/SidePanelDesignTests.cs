@@ -125,7 +125,7 @@ public sealed class SidePanelDesignTests
         for (int i = 0; i < row.StarButtons.Count; i++)
         {
             Rect cell = In(row.StarButtons[i], frame);
-            string token = i < row.View.Rating.GetValueOrDefault() ? "Workspace.Favorite" : "Workspace.Muted";
+            string token = i < row.View.Rating.GetValueOrDefault() ? "Workspace.Rating" : "Workspace.Muted"; // Tom, 26.11.2026: stars gold, hearts red
             Color color = Assert.IsAssignableFrom<ISolidColorBrush>(frame.FindResource(frame.ActualThemeVariant, token)).Color;
             SKColor ink = new(color.R, color.G, color.B, color.A);
             bool hasSurface = false, hasInk = false;

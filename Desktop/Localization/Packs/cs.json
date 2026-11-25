@@ -5177,6 +5177,7 @@
     "theme.color.muted": "Tlumený text",
     "theme.color.border": "Okraj",
     "theme.color.favorite": "Oblíbené",
+    "theme.color.rating": "Hvězdičky hodnocení",
     "theme.color.error": "Chyba",
     "theme.colors.choose": "Vybrat barvu pro {0} (nyní {1})",
     "theme.colors.hex": "Kód barvy pro {0}",

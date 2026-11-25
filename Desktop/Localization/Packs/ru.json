@@ -5155,6 +5155,7 @@
     "theme.color.muted": "Приглушённый текст",
     "theme.color.border": "Граница",
     "theme.color.favorite": "Избранное",
+    "theme.color.rating": "Звёзды оценки",
     "theme.color.error": "Ошибка",
     "theme.colors.choose": "Выбрать цвет: {0} (сейчас {1})",
     "theme.colors.hex": "Код цвета: {0}",

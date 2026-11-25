@@ -133,6 +133,8 @@ internal sealed partial class BooruWorkbenchView
         {
             string label = Texts.T("media.layout.panel");
             IconButtons.Apply(_mediaToggle, "panel-right", label);
+            // The same "on" look as the sidebar switches of Media and the Reader (toggle surface, accent edge, white icon), not the solid accent.
+            _mediaToggle.Classes.Set("toolbar-toggle", true);
             string? reason = widthAllows ? null : Texts.T("media.layout.panel.collapsed", SidebarPageMinimum);
             ToolTip.SetTip(_mediaToggle, CommandBindings.Tooltip("media.panel.toggle", reason, label, keyContext: "booru"));
         }

@@ -38,7 +38,7 @@ public sealed class ThemeCustomizationTests
     [Fact]
     public void TheRolesAreTheCuratedEightOverRealSeedsWithoutSharing()
     {
-        Assert.Equal(["accent", "background", "surface", "text", "muted", "border", "favorite", "error"], ThemeUserColors.All.Select(role => role.Id));
+        Assert.Equal(["accent", "background", "surface", "text", "muted", "border", "favorite", "rating", "error"], ThemeUserColors.All.Select(role => role.Id));
         string[] seeds = ThemeUserColors.All.SelectMany(role => role.Seeds).ToArray();
         Assert.Equal(seeds.Length, seeds.Distinct(StringComparer.Ordinal).Count());
         Assert.All(seeds, seed => Assert.Contains(seed, (IReadOnlySet<string>)ThemeTokens.Seeds));

@@ -95,7 +95,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `color-code` in `Desktop/VideoPlayMark.cs` (Brushes.White): Play triangle of the video badge (palette item 4).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Color.FromArgb): Favourite badge on media (palette item 5).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Brushes.White): Favourite badge star (palette item 5; GalleryFavoriteStateTests pins it).
-- `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Brushes.Gold): Favourite badge star when marked (palette item 5).
 - `color-code` in `Desktop/GalleryViewer.Overlay.cs` (Color.FromArgb): Edge hint over media (palette item 6) and overlay tone alpha.
 - `color-code` in `Desktop/GalleryViewer.Overlay.cs` (Color.FromRgb): Edge hint and fallback tone when the Workspace.Overlay resource is missing.
 - `color-code` in `Desktop/GalleryViewer.cs` (Brushes.Black): Letterbox behind media (palette item 8).

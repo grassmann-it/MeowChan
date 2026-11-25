@@ -247,6 +247,11 @@ internal static class MediaBadgeLayout
     internal const double DotSize = 8, Gap = 2;
     /// <summary>The share of the unit the rating's star has, the room beside an icon that has a text, and the font size's share of the unit.</summary>
     internal const double RatingIconShare = 0.6, IconTextGap = 2, FontShare = 0.75;
+    /// <summary>
+    /// The share of the unit the favourite's heart has on its round badge. The heart fills its mask from edge to edge, so at "unit less 4" its
+    /// lobes touched the ring (Tom, 26.11.2026: too close to the circle's edge); at 65 percent it keeps a sixth of the unit to the ring.
+    /// </summary>
+    internal const double FavoriteIconShare = 0.65;
     internal const double FontMinimum = 9, FontMaximum = 12;
 
     /// <summary>The shorter side of the picture; 0 when there is no usable picture.</summary>
@@ -270,8 +275,21 @@ internal static class MediaBadgeLayout
     /// <summary>The distance from the picture's edge: a quarter of the unit, at least 3.</summary>
     internal static double Margin(double unit) => Math.Max(3, unit / 4);
 
-    /// <summary>The side of an icon inside a chip: the unit less 4 (the rating's star is smaller).</summary>
-    internal static double IconSize(MediaBadgeId id, double unit) => id == MediaBadgeId.Rating ? RatingIconShare * unit : unit - 4;
+    /// <summary>The side of an icon inside a chip: the unit less 4 (the rating's star and the favourite's heart are smaller).</summary>
+    internal static double IconSize(MediaBadgeId id, double unit) => id switch
+    {
+        MediaBadgeId.Rating => RatingIconShare * unit,
+        MediaBadgeId.Favorite => FavoriteIconShare * unit,
+        _ => unit - 4
+    };
+
+    /// <summary>The colour of a badge's icon: the heart red, the rating's star gold, every other icon white like the text beside it.</summary>
+    internal static Color IconColor(MediaBadgeId id) => id switch
+    {
+        MediaBadgeId.Favorite => VideoPlayMark.FavoriteColor,
+        MediaBadgeId.Rating => VideoPlayMark.RatingColor,
+        _ => VideoPlayMark.GlyphColor
+    };
 
     /// <summary>What a picture of this shorter side can carry under these limits.</summary>
     internal static MediaBadgeMode ModeFor(double shortSide, MediaBadgeLimits limits)
@@ -513,28 +531,31 @@ internal static class MediaBadgeSentences
 }
 
 /// <summary>
-/// The white copies of the badge masks the view draws with, made once per icon from the catalog's masks (black with an alpha channel) and kept for
-/// the life of the process: a drawn bitmap is much cheaper than a mask layer on every tile. Needs the platform; the view calls it while it draws.
+/// The coloured copies of the badge masks the view draws with (white; the heart red, the rating's star gold), made once per icon and colour from
+/// the catalog's masks (black with an alpha channel) and kept for the life of the process: a drawn bitmap is much cheaper than a mask layer on
+/// every tile. Needs the platform; the view calls it while it draws.
 /// </summary>
 internal static class MediaBadgeIconBitmaps
 {
-    private static readonly Dictionary<string, Bitmap> Cache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<(string Icon, uint Color), Bitmap> Cache = new();
 
-    internal static Bitmap Get(string icon)
+    internal static Bitmap Get(string icon) => Get(icon, VideoPlayMark.GlyphColor);
+
+    internal static Bitmap Get(string icon, Color color)
     {
         lock (Cache)
         {
-            if (Cache.TryGetValue(icon, out Bitmap? bitmap)) return bitmap;
+            if (Cache.TryGetValue((icon, color.ToUInt32()), out Bitmap? bitmap)) return bitmap;
             using Stream source = AssetLoader.Open(new Uri(CommandBindings.IconUri(icon)));
             using SKBitmap mask = SKBitmap.Decode(source);
             for (int y = 0; y < mask.Height; y++)
                 for (int x = 0; x < mask.Width; x++)
-                    mask.SetPixel(x, y, new SKColor(255, 255, 255, mask.GetPixel(x, y).Alpha));
+                    mask.SetPixel(x, y, new SKColor(color.R, color.G, color.B, mask.GetPixel(x, y).Alpha));
             using SKImage image = SKImage.FromBitmap(mask);
             using SKData png = image.Encode(SKEncodedImageFormat.Png, 100);
             using Stream output = png.AsStream();
             bitmap = new Bitmap(output);
-            Cache.Add(icon, bitmap);
+            Cache.Add((icon, color.ToUInt32()), bitmap);
             return bitmap;
         }
     }
@@ -702,7 +723,7 @@ internal sealed partial class MediaBadgeView : Control
                 context.DrawEllipse(new SolidColorBrush(MeowChan.Desktop.MediaLabelText.Of(this, badge.Icon[MediaBadgeIcons.LabelPrefix.Length..])), null, target.Center, target.Width / 2, target.Height / 2);
             else
             {
-                Bitmap mask = MediaBadgeIconBitmaps.Get(badge.Icon);
+                Bitmap mask = MediaBadgeIconBitmaps.Get(badge.Icon, MediaBadgeLayout.IconColor(badge.Id));
                 using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality }))
                     context.DrawImage(mask, new Rect(mask.Size), target);
             }
