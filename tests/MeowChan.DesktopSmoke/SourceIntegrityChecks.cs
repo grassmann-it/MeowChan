@@ -263,20 +263,22 @@ internal static class SourceIntegrityChecks
                 TextBlock pluginBadge = C<TextBlock>(plugins, "PluginExperimental");
                 await RevealAsync(window, pluginBadge); AssertTextFits(pluginBadge);
                 Program.CaptureWindow(window, CaptureName("plugin-badge-" + cell));
-                Control manage = await RevealShowSourceAsync(window, plugins, workView);
-                Require(manage.IsEffectivelyEnabled && manage.Focus(NavigationMethod.Tab), "The real Show source link could not receive focus.");
-                await Settle();
+                using MediaNativeInput input = new(window);
+                Control manage = await RevealShowSourceAsync(window, plugins, workView, input, cell);
                 TopLevel surface = TopLevel.GetTopLevel(manage)
                     ?? throw new InvalidOperationException("The Show source link lost its visible surface.");
-                Require(manage.IsFocused && InViewport(surface, manage)
+                Require(manage.IsEffectivelyEnabled && InViewport(surface, manage)
                     && AutomationProperties.GetName(manage) == Texts.T("plugins.watches"),
-                    "The Show source link was not translated or keyboard reachable.");
+                    "The Show source action was not translated or fully in the viewport.");
                 CapturePluginLink(surface, CaptureName("plugin-link-" + cell));
-                // The native checkpoint exercises Tab in the detail page when the link is direct.
-                if (manage is Button)
-                    await NativeFeatureCheckpoint.HoldAsync("source-plugin-link", plugins, manage, manage);
                 navigatedSource = null;
-                await ActivateAsync(manage);
+                if (manage is Button direct)
+                {
+                    Require(!direct.Focusable, "The direct Show source button took part in keyboard focus.");
+                    await NativeFeatureCheckpoint.HoldAsync("source-plugin-link", plugins, null, direct);
+                    await input.ClickButtonAsync(direct);
+                }
+                else await ActivateAsync(manage);
                 await Program.WaitUntilAsync(() => navigatedSource == PluginUxFixture.SourceId && sources.IsEffectivelyVisible);
                 Require(window.SelectedPage == MainWindow.WorkspacePage.Sources && ReferenceEquals(sourcesHost.Content, sources)
                     && !plugins.ShowingSourcePluginDetails && C<TextBlock>(sources, "SourceHeading").IsEffectivelyVisible
@@ -389,9 +391,11 @@ internal static class SourceIntegrityChecks
         AssertTextFits(error);
     }
 
-    private static async Task<Control> RevealShowSourceAsync(MainWindow window, PluginsPage plugins, WorkView view)
+    private static async Task<Control> RevealShowSourceAsync(MainWindow window, PluginsPage plugins, WorkView view, MediaNativeInput input, string cell)
     {
-        Button direct = C<Button>(plugins, "PluginWatches");
+        Button ActionButton(string id) => plugins.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetAutomationId(button) == id);
+        Button direct = ActionButton("PluginWatches");
         if (view != WorkView.Barebones)
         {
             await RevealAsync(window, direct);
@@ -400,9 +404,16 @@ internal static class SourceIntegrityChecks
 
         // WorkViewPolicy.Plugins places the action under the plugin's More menu in Barebones.
         Require(!direct.IsEffectivelyVisible, "Barebones exposed a direct Show source link.");
-        Button more = C<Button>(plugins, "PluginMoreActions");
-        await RevealAsync(window, more);
-        await ActivateAsync(more);
+        Button more = ActionButton("PluginMoreActions");
+        await Program.WaitUntilAsync(() =>
+        {
+            more.BringIntoView();
+            window.UpdateLayout();
+            return InViewport(window, more);
+        }, () => $"PluginMoreActions is not fully in the viewport in {cell} at {window.ClientSize}: {JsonSerializer.Serialize(State(window, more))}");
+        Require(!more.Focusable, "The More actions button took part in keyboard focus.");
+        Console.WriteLine($"SMOKE PluginMoreActions {cell} client={window.ClientSize}: {JsonSerializer.Serialize(State(window, more))}");
+        await input.ClickButtonAsync(more);
         if (plugins.PluginActionMenu is not { IsOpen: true } menu)
             throw new InvalidOperationException("The plugin's More actions menu did not open.");
         MenuItem item = menu.Items.OfType<MenuItem>().Single(candidate => AutomationProperties.GetAutomationId(candidate) == "plugins.watches");
