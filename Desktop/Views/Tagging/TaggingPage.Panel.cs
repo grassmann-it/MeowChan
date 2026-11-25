@@ -237,6 +237,7 @@ public sealed partial class TaggingPage
             if (panel.Shown is { } image && ReaderMediaSidebarRules.NeedsLargerDecode(image.PixelSize, PanelTarget(panel), panel.Load.ShownSource))
                 QueuePanelFollow(resize: true);
         };
+        InitializePanelVideo(panel);
         panel.Localize();
         panel.ShowEmpty();
         _panelBody.Children.Add(panel);
@@ -358,7 +359,9 @@ public sealed partial class TaggingPage
         _panelResizePending = _panelCursorPending = false;
         _taggingPanel?.InvalidateTagEditor();
         _taggingPanel?.ResetInfoOverride();
+        OfferPanelVideo(null);
         _taggingPanel?.ShowEmpty();
+        _ = ReleasePanelVideos();
     }
 
     private void CancelPanelLoad()
@@ -399,6 +402,7 @@ public sealed partial class TaggingPage
         }
 
         GalleryTagPanelPosition position = DescribePanel(panel, row, entry, key);
+        if (changed) OfferPanelVideo(row);
         if (changed) AnnouncePanel(Texts.T("media.panel.region", position.Number, position.Count, row.Name));
         if (panel.Load.Awaiting || _panelFileAvailable == false) return;
         (double Width, double Height) target = PanelTarget(panel);
