@@ -696,7 +696,7 @@
                                                 <DataGridTextColumn Width="130" MinWidth="100" Binding="{Binding RatingLabel, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
                                         </controls:RowFocusDataGrid>
-                                        <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
+                                        <ListBox x:Name="ArchiveMediaTiles" AutomationProperties.AutomationId="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
                                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                                             <!-- The tile panel is made in code (ArchivePage.TileSize.cs): its cell follows the tile size. -->
                                             <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">
