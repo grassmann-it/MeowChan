@@ -158,13 +158,20 @@ internal static partial class QuickTagNativeTypingChecks
         await Settle(window);
         if (video)
         {
-            await Program.WaitUntilAsync(() => page.SidebarInlineVideo?.IsOffered == true, () => $"sidebar shown={page.IsMediaSidebarShown} offered={page.SidebarInlineVideo?.IsOffered}");
+            string VideoState()
+            {
+                ReaderInlineVideoSlot? videoSlot = page.SidebarInlineVideo;
+                return $"selected={(list.SelectedItem as ArchivePostRow)?.Id} postsShown={page.ReaderShowsPosts} sidebar shown={page.IsMediaSidebarShown}"
+                    + $" header={page.MediaSidebar?.HeaderLine} offered={videoSlot?.IsOffered} live={videoSlot?.IsLive}"
+                    + $" playback={videoSlot?.Player?.PlaybackMode} error={videoSlot?.ErrorText}";
+            }
+            await Program.WaitUntilAsync(() => page.SidebarInlineVideo?.IsOffered == true, VideoState);
             ReaderInlineVideoSlot slot = page.SidebarInlineVideo!;
             if (!slot.IsPlaying)
             {
                 if (slot.Activator.IsEffectivelyVisible) await input.ClickAsync(slot.Activator);
                 await slot.ActivationTask;
-                await Program.WaitUntilAsync(() => slot.IsPlaying);
+                await Program.WaitUntilAsync(() => slot.IsPlaying, VideoState);
             }
         }
         ListBoxItem? card = list.ContainerFromItem(post) as ListBoxItem;
