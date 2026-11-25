@@ -366,7 +366,7 @@
                     <Grid x:Name="ReaderContentSurface">
                         <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" AutomationProperties.AutomationId="ArchiveContentTabs" IsVisible="False">
-                            <TabItem x:Name="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
+                            <TabItem x:Name="ArchivePostsTab" AutomationProperties.AutomationId="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
                                 <Grid RowDefinitions="Auto,*">
                                     <Border x:Name="ReaderNewPostsBar" IsVisible="False" Margin="8,4"
                                             Background="{DynamicResource Workspace.Card}"
@@ -384,7 +384,7 @@
                                              1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
                                              shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
-                                        <desktop:ReaderPostList x:Name="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        <desktop:ReaderPostList x:Name="ArchivePosts" AutomationProperties.AutomationId="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.BringIntoViewOnFocusChange="False"
                                                  Background="{DynamicResource Workspace.Background}" Padding="0,4"
                                                  ContainerPrepared="OnReaderPostContainerPrepared">
@@ -616,7 +616,8 @@
                                                                     <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" TextWrapping="Wrap" />
                                                                     <!-- Narrow-window sweep: the button and its range share a line while they fit; in a narrow card the range wraps below. -->
                                                                     <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="{Binding HasMoreReplies}">
-                                                                        <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
+                                                                        <Button AutomationProperties.AutomationId="ReaderMoreReplies" Content="{Binding MoreRepliesLabel}"
+                                                                                commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
                                                                         <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" />
                                                                     </WrapPanel>
                                                                 </StackPanel>
@@ -674,7 +675,10 @@
                                         <ToggleButton x:Name="ArchiveMediaLayoutTable" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="toolbar-toggle segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
                                     </desktop:ActionToolBar>
                                     <Grid x:Name="ArchiveMediaSurface" Grid.Row="1">
-                                        <controls:RowFocusDataGrid x:Name="ArchiveMediaGrid" Classes="row-focus" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
+                                        <controls:RowFocusDataGrid x:Name="ArchiveMediaGrid" AutomationProperties.AutomationId="ArchiveMediaGrid" Classes="row-focus" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
+                                            <DataGrid.Styles>
+                                                <Style Selector="DataGridRow"><Setter Property="AutomationProperties.AutomationId" Value="ArchiveMediaTableRow" /></Style>
+                                            </DataGrid.Styles>
                                             <DataGrid.Columns>
                                                 <DataGridTemplateColumn Width="*" MinWidth="220" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                                 <DataGridTemplateColumn Width="96" MinWidth="88">
@@ -696,8 +700,11 @@
                                                 <DataGridTextColumn Width="130" MinWidth="100" Binding="{Binding RatingLabel, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
                                         </controls:RowFocusDataGrid>
-                                        <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
-                                            <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
+                                        <ListBox x:Name="ArchiveMediaTiles" AutomationProperties.AutomationId="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
+                                            <ListBox.Styles>
+                                                <Style Selector="ListBoxItem"><Setter Property="AutomationProperties.AutomationId" Value="ArchiveMediaTile" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style>
+                                                <Style Selector="Border#ArchiveMediaSelected"><Setter Property="AutomationProperties.AutomationId" Value="ArchiveMediaSelected" /></Style>
+                                            </ListBox.Styles>
                                             <!-- The tile panel is made in code (ArchivePage.TileSize.cs): its cell follows the tile size. -->
                                             <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">
                                                 <desktop:ArchiveMediaTileView />
@@ -729,7 +736,7 @@
                                 </Grid>
                             </TabItem>
                             <!-- Only present while there are captured replies to show: LoadBacklinksAsync shows it with its count. -->
-                            <TabItem x:Name="ArchiveReferencesTab" wv:WorkViewElement.Id="reader.tabs.references" IsVisible="False">
+                            <TabItem x:Name="ArchiveReferencesTab" AutomationProperties.AutomationId="ArchiveReferencesTab" wv:WorkViewElement.Id="reader.tabs.references" IsVisible="False">
                                 <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8" RowSpacing="{StaticResource Workspace.Space.8}">
                                     <StackPanel Spacing="{StaticResource Workspace.Space.2}">
                                         <TextBlock x:Name="ArchiveReferencesHelp" Tag="archive.referencesHelp" Classes="muted localized" TextWrapping="Wrap" />

@@ -62,6 +62,7 @@ public partial class ArchivePage
         CancelPendingGalleryOpen();
         var operation = new FilenameSearchOwner(window, surface, _lifetime.Token);
         _filenameSearchOwner = operation; // Synchronous, including before any injected Show await.
+        _mediaSidebar?.InvalidateTagEditor();
         // A text find in the open thread is closed as before; the reader bar in the File name scope stays
         // open with its draft, so the search can be refined after a cancelled dialog (AP2).
         if (ReaderScope == MeowChan.Desktop.Controls.SearchScope.Text) CloseThreadFind();

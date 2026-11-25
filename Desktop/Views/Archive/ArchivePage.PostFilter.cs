@@ -110,7 +110,7 @@ public partial class ArchivePage
 
     private void OnPostFilterKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(sender as Control ?? ArchiveReaderPane, e.Source)
+        if (e.Handled || !ArchivePostsTab.IsSelected || ShortcutService.IsCapturing || !CommandRouter.IsRoutingContextActive(sender as Control ?? ArchiveReaderPane, e.Source)
             || ReaderSelectionOwnsActivationKey(e) || IsReaderDialogOpen || !CanChangePostFilters || _thread == null
             || ArchivePosts.SelectedItem is not ArchivePostRow row || _thread.FindPostIndex(row.Id) < 0) return;
         ResourceId thread = _thread.Summary.Id;
@@ -191,9 +191,14 @@ public partial class ArchivePage
         && _postFilter.VerdictOf(_thread, post.PostId) is { Visibility: not ReaderPostVisibility.Shown };
 
     /// <summary>A reply card of a post the filter hides says "hidden" instead of quoting it, unless the post was shown
-    /// explicitly; the card itself stays, so the count from the archive keeps matching.</summary>
-    private string PostFilterReplyExcerpt(CapturedPost post, string excerpt) =>
-        PostFilterConceals(post) && !_revealedPosts.Contains(post.PostId) ? Texts.T("postFilter.hiddenReply") : excerpt;
+    /// explicitly. Keep excerpts covered while an applicable filter has no current verdict.</summary>
+    private string PostFilterReplyExcerpt(CapturedPost post, string excerpt)
+    {
+        if (_thread is not { } thread || _revealedPosts.Contains(post.PostId) || !_postFilter.IsActive(thread.Summary.Id))
+            return excerpt;
+        return _postFilter.VerdictOf(thread, post.PostId) is { Visibility: ReaderPostVisibility.Shown }
+            ? excerpt : Texts.T("postFilter.hiddenReply");
+    }
 
     /// <summary>The quote preview of a filtered post ends with "Hidden by your post filter".</summary>
     private void UpdateQuotePreviewFilterNote(CapturedPost post)

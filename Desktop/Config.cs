@@ -115,12 +115,12 @@ namespace MeowChan
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
         /// <summary>
-        /// Revision of the one-shot migrations of view-preference defaults (1: the archive list width default moved from 270 to 330).
+        /// Revision of the one-shot migrations of view-preference defaults (1: archive list width 270 to 330, 2: Booru tag count 12 to automatic).
         /// A new profile starts at the current value; a file without the field is read as 0 (see OnDeserializing), so an old value is
-        /// migrated exactly once and a width the person chose later, 270 included, is kept.
+        /// migrated exactly once and values the person chooses after the migration are kept.
         /// </summary>
         public int PreferenceDefaultsRevision { get; set; } = CurrentPreferenceDefaultsRevision;
-        internal const int CurrentPreferenceDefaultsRevision = 1;
+        internal const int CurrentPreferenceDefaultsRevision = 2;
         public bool FirstRunSetupPending { get; set; }
         public int FirstRunSetupVersion { get; set; }
         public Dictionary<string, SourceMediaIntegrityPermission> SourceMediaIntegrityPermissions { get; set; } = new(StringComparer.Ordinal);
@@ -371,10 +371,11 @@ namespace MeowChan
         internal const int MediaTagListTopDefault = 30;
         internal const int MediaTagListTopMinimum = 5;
         internal const int MediaTagListTopMaximum = 1_000;
-        /// <summary>E2: how many source tag chips a Danbooru result in the list shows before "+N more" (0 shows none until "+N more" is used).</summary>
+        /// <summary>E2: how many source tag chips a Danbooru result in the list shows before "+N more" (-1 fits the available space, 0 initially folds all tags).</summary>
         public int BooruResultTagsShown { get; set; } = BooruResultTagsShownDefault;
-        internal const int BooruResultTagsShownDefault = 12;
-        internal const int BooruResultTagsShownMinimum = 0;
+        internal const int BooruResultTagsShownAutomatic = -1;
+        internal const int BooruResultTagsShownDefault = BooruResultTagsShownAutomatic;
+        internal const int BooruResultTagsShownMinimum = BooruResultTagsShownAutomatic;
         internal const int BooruResultTagsShownMaximum = 200;
         /// <summary>Destination used when submitting from the Booru search field.</summary>
         public string BooruNewSearchTarget { get; set; } = BooruSearchTargetNewTab;
@@ -1207,6 +1208,8 @@ namespace MeowChan
                     foreach (PresentationProfile profile in _deserializedLayoutProfiles.Values)
                         profile.ArchiveSplitWidth = MigrateArchiveSplitWidthDefault(profile.ArchiveSplitWidth);
             }
+            if (PreferenceDefaultsRevision < 2 && BooruResultTagsShown == 12)
+                BooruResultTagsShown = BooruResultTagsShownDefault;
             PreferenceDefaultsRevision = CurrentPreferenceDefaultsRevision;
         }
 

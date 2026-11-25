@@ -358,9 +358,11 @@ public partial class ArchivePage
         outline.IsVisible = false;
         ListBox posts = ArchivePosts;
         ArchivePostId? target = row.Backlink ? row.Quote.Origin : row.Quote.Target;
-        if (_ended || _thread == null || row.IsDead || target == null || target.Thread != _thread.Summary.Id
-            || FindPostRow(target.PostId) is not { } item
-            || posts.ContainerFromItem(item) is not Control container || !container.IsEffectivelyVisible || outline.Parent is not Visual host
+        if (_ended || _thread == null || row.IsDead || target == null || target.Thread != _thread.Summary.Id) return;
+        int index = Projection?.PositionOf(target.PostId) ?? -1;
+        if (index < 0 || posts.ItemsSource is not ReaderPostRows rows || rows.MaterializedAt(index) == null) return;
+        if (posts.ContainerFromIndex(index) is not Control { DataContext: ArchivePostRow item } container
+            || item.Id != target.PostId || !container.IsEffectivelyVisible || outline.Parent is not Visual host
             || container.TranslatePoint(default, host) is not Point origin || posts.TranslatePoint(default, host) is not Point listOrigin) return;
         Rect visible = new Rect(origin, container.Bounds.Size).Intersect(new Rect(listOrigin, posts.Bounds.Size));
         if (visible.Width < 1 || visible.Height < 1) return;

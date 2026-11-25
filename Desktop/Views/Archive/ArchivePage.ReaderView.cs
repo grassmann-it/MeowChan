@@ -416,6 +416,12 @@ public partial class ArchivePage
         ReaderSettingsApply? settings = TakeReaderSettingsApply(projection);
         ReaderAnchor? anchor = settings == null ? _projectionAnchor : null;
         bool focus = _projectionAnchorFocus;
+        if (anchor != null && ReferenceEquals(_postInteractionThread, _thread) && ArchivePosts.ItemsSource is ReaderPostRows)
+        {
+            // The old list is still navigable during classification. Read its latest scroll and selection before replacing it.
+            anchor = CaptureReaderAnchor() ?? anchor;
+            focus = ArchivePosts.IsKeyboardFocusWithin;
+        }
         _projectionAnchor = null;
         _projectionAnchorFocus = false;
         if (anchor != null && anchor.Thread != _thread.Summary.Id) anchor = null;
