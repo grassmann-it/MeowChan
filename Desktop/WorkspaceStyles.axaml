@@ -768,6 +768,14 @@
                 </Border>
             </Panel>
         </Template>
+        <!-- Templated controls also clip at their own bounds. Keep both strokes inside those bounds. -->
+        <Template x:Key="Workspace.InsetViewportFocusAdorner">
+            <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
+                    CornerRadius="{StaticResource Workspace.Radius.Control}" AdornerLayer.IsClipEnabled="True" IsHitTestVisible="False">
+                <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
+                        CornerRadius="{StaticResource Workspace.Radius.Badge}" />
+            </Border>
+        </Template>
     </Styles.Resources>
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource Workspace.Background}" />
@@ -1053,7 +1061,7 @@
     </Style>
     <Style Selector="ListBox.workspace-selection-bar, ListBox.tagging-table">
         <Style Selector="^ > ListBoxItem">
-            <Setter Property="FocusAdorner" Value="{StaticResource Workspace.ViewportFocusAdorner}" />
+            <Setter Property="FocusAdorner" Value="{StaticResource Workspace.InsetViewportFocusAdorner}" />
         </Style>
     </Style>
     <Style Selector="Button.row-action">
@@ -2551,6 +2559,9 @@
     <!-- A card the keyboard reaches (Booru hit): the shared double focus ring, drawn only for keyboard focus (Avalonia shows the adorner for Tab and arrow focus). -->
     <Style Selector="Border.workspace-card-focusable">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.ViewportFocusAdorner}" />
+    </Style>
+    <Style Selector="Border.booru-tile WrapPanel.booru-tile-actions > Button, Border.booru-tile WrapPanel.booru-tile-actions > CheckBox">
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.InsetViewportFocusAdorner}" />
     </Style>
     <Style Selector="Border.booru-stage-focus">
         <Setter Property="IsVisible" Value="False" />
