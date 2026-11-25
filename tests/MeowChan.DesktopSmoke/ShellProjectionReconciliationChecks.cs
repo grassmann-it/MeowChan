@@ -222,19 +222,26 @@ internal static class ShellProjectionReconciliationChecks
             Call(shell, "RefreshSession");
             Require(shell.SessionRowsApplying, "Close fixture did not establish a partial frame.");
             Task rowsApplied = (Task)Call(shell, "AwaitSessionRowsAsync")!;
-            int countAtClose = shell.UrlList.Count;
+            ThreadRow[] rowsAtClose = shell.UrlList.ToArray();
+            var snapshotsAtClose = rowsAtClose.Select(row => row.Snapshot).ToArray();
             Set(shell, "_rowSlicePosted", false);
             Call(shell, "PostSessionRowSlice");
             Require(Get<bool>(shell, "_rowSlicePosted"), "Close fixture has no actual queued Background callback.");
             Set(shell, "_galleryCleanupTask", releaseCleanup.Task);
             RestoreHost(host, original, captureWasClosed); restored = true;
+            TaskCompletionSource closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            shell.Closed += (_, _) => closed.TrySetResult();
             close = (Task)Call(shell, "CloseApplicationAsync")!;
             Require(Get<bool>(shell, "_isClosing") && !close.IsCompleted && rowsApplied.IsCompletedSuccessfully
                 && host.State == DesktopSessionState.Stopping,
                 "Close waited for source/search completion before accepting shutdown.");
+            Require(!shell.IsVisible, "Accepted shutdown did not hide the shell promptly.");
             await PostedAsync(DispatcherPriority.Background);
-            Require(!shell.SessionRowsApplying && shell.UrlList.Count == countAtClose && shell.IsVisible,
+            Require(!shell.SessionRowsApplying && shell.UrlList.SequenceEqual(rowsAtClose)
+                && shell.UrlList.Select(row => row.Snapshot).SequenceEqual(snapshotsAtClose),
                 "An old row callback mutated the closing window before actual cleanup drain.");
+            Require(!releaseCleanup.Task.IsCompleted && !close.IsCompleted && !closed.Task.IsCompleted,
+                "The closing shell crossed the held cleanup barrier.");
             bool leaseRetained = false;
             try { using ProfileLease unexpected = ProfileLease.Acquire(directory); }
             catch (IOException) { leaseRetained = true; }
@@ -245,8 +252,10 @@ internal static class ShellProjectionReconciliationChecks
             Require(refused, "Partial-frame close did not close real host command admission.");
             releaseCleanup.TrySetResult();
             await close.WaitAsync(Deadline);
-            Require(!shell.IsVisible && host.State == DesktopSessionState.Stopped,
-                "The real shell did not finish close after its actual drain was released.");
+            await closed.Task.WaitAsync(Deadline);
+            Require(!shell.IsVisible, "The shell remained visible after Closed.");
+            Require(host.State == DesktopSessionState.Stopped && host.IsProfileReleased,
+                "The real shell closed without stopping its host and releasing its profile.");
             using (ProfileLease released = ProfileLease.Acquire(directory)) { }
             Console.WriteLine($"SMOKE shell projection reconciliation: PASS; real source/search slices={seedCounts.Calls}/{activeCounts.Calls}/{latestCounts.Calls}; >64 rows, latest pending, fixed-frame query, retained references/selection/lead/focus, no Reset, row-command fence, prompt Pause/warning/status and partial-frame close. Offline private-boundary fixture; no native-player ownership claim.");
                 }
