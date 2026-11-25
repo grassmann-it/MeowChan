@@ -112,6 +112,7 @@ internal sealed class MediaInfoBar : Grid
     internal void SetTags(IReadOnlyList<string>? tags, string? blocked, bool canEdit)
     {
         _tagCount = tags?.Count ?? 0;
+        Expand.Focusable = Expand.IsTabStop = _tagCount != 0;
         _blocked = blocked;
         _canEdit = canEdit;
         _edit.IsEnabled = canEdit;
