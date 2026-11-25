@@ -666,6 +666,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     /// <summary>The optional lifetime of writes started from this surface.</summary>
     internal CancellationToken WriteToken { get; set; }
+    internal Func<CancellationToken, Task<bool>>? VerifyBeforeWriteAsync { get; set; }
 
     internal event Action? CloseRequested;
     /// <summary>The marks button was pressed: the host clears its marks and retargets the surface.</summary>
@@ -1291,7 +1292,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private async Task Guard(Func<Task> action, string context)
     {
-        try { await action(); }
+        try
+        {
+            if (VerifyBeforeWriteAsync is { } verify && !await verify(WriteToken) || _disposed) return;
+            await action();
+        }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, context)) { /* Logged and shown. */ }
         await ReplayDeferredAddAsync();
     }

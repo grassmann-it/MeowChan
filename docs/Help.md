@@ -2131,6 +2131,10 @@ or 80 million source pixels are refused by the gallery. Fit decoding is bounded 
 more memory. Corrupt, missing, unsupported or unverifiable files show a reason.
 The verified originals remain on disk even when preview is unavailable. These
 viewer limits are separate from download rules and do not cap total archive size.
+For the Reader, Media and Tagging sidebars, the profile setting
+`SidebarPreviewMaximumPixels` defaults to 80 million source pixels and accepts
+1 to 80 million. If the sidebar skips the preview because of its size, the
+verified original can still be favorited, rated and tagged where supported.
 
 ### Own tags and the shared media menu
 

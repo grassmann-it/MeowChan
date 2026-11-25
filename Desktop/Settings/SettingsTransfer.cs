@@ -176,6 +176,7 @@ public static class SettingsTransfer
             ReaderExpandReplies = source.ReaderExpandReplies,
             ReaderThreadingDepth = source.ReaderThreadingDepth,
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent,
+            SidebarPreviewMaximumPixels = source.SidebarPreviewMaximumPixels,
             PostFilterRuleLimit = source.PostFilterRuleLimit,
             HiddenPostLimit = source.HiddenPostLimit,
             QuickTagSuggestionCount = source.QuickTagSuggestionCount,

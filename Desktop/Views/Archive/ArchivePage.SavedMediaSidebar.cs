@@ -18,8 +18,7 @@ public partial class ArchivePage
 {
     private ArchiveAssetRow? _savedMediaSidebarRow;
     private (ArchivedThreadView Thread, IReadOnlyList<ArchiveAssetRow> Assets, Task<ILookup<GalleryAssetKey, GalleryEntry>> Entries)? _savedSidebarTags;
-    internal Func<GalleryEntry, GalleryDecodeRequest.Fit, CancellationToken, Task<ReaderMediaSidebarContent.Picture>> SavedSidebarImageLoaderForTests { get; set; }
-        = DecodeSavedSidebarImageAsync;
+    internal Func<GalleryEntry, GalleryDecodeRequest.Fit, CancellationToken, Task<ReaderMediaSidebarContent.Picture>>? SavedSidebarImageLoaderForTests { get; set; }
 
     private ArchiveAssetRow? SavedMediaSidebarRow => ArchiveMediaTab.IsSelected && _shownMediaThread == _selectedThread
         && ReferenceEquals(_savedMediaSidebarRow, SelectedMediaRow()) ? _savedMediaSidebarRow : null;
@@ -122,6 +121,7 @@ public partial class ArchivePage
         string key = SavedSidebarKey(thread, row);
         (double Width, double Height) target = MediaSidebarTarget(sidebar);
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(key, target);
+        if (!ticket.UpToDate && !ticket.SameMedium) sidebar.SetImageVerification(entry.Kind == SavedMediaKind.Image ? null : true);
         sidebar.Describe(row.Version, row.Name, ticket.SameMedium ? _sidebarShownDetail : string.Empty, OpenMediaGallery != null, mediumKey: key);
         sidebar.SetSourceFacts($"{entry.Key.Thread.Source} /{entry.Key.Thread.Board}/ · {entry.Key.Thread.Thread}",
             null, null, row.Asset.Length, null, null, hash: row.Asset.Sha256);
@@ -146,7 +146,13 @@ public partial class ArchivePage
             return load.RunAsync(async ct =>
             {
                 if (entry.Kind == SavedMediaKind.Image)
-                    return await SavedSidebarImageLoaderForTests(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
+                {
+                    GalleryDecodeRequest.Fit fit = new(target.Width, target.Height);
+                    if (SavedSidebarImageLoaderForTests is not { } decode) return await load.ReadImageAsync(entry, fit, ct);
+                    ReaderMediaSidebarContent.Picture picture = await decode(entry, fit, ct);
+                    if (IsCurrentSidebarRequest(ticket.Request) && !ct.IsCancellationRequested) sidebar.SetImageVerification(true, entry);
+                    return picture;
+                }
                 if (entry.Kind == SavedMediaKind.Video)
                 {
                     Bitmap? poster = await MediaTileThumbnails.LoadPosterAsync(row.Manifest, row.Asset,
@@ -162,13 +168,6 @@ public partial class ArchivePage
                 sidebar.SetDetail(_sidebarShownDetail);
             });
         });
-    }
-
-    private static async Task<ReaderMediaSidebarContent.Picture> DecodeSavedSidebarImageAsync(GalleryEntry entry,
-        GalleryDecodeRequest.Fit target, CancellationToken token)
-    {
-        (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, target, token);
-        return new(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new(info.Width, info.Height));
     }
 
     private void OfferSavedSidebarVideo(GalleryEntry entry, string key)

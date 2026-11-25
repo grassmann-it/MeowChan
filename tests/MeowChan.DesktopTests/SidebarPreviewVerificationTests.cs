@@ -1,0 +1,173 @@
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
+using Avalonia.VisualTree;
+using MeowChan.Archive;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
+using MeowChan.Desktop.Updates;
+using MeowChan.Favorites;
+using MeowChan.Gallery;
+using MeowChan.Tags;
+
+namespace MeowChan.DesktopTests;
+
+[Collection("Localization")]
+public sealed class SidebarPreviewVerificationTests
+{
+    [Theory]
+    [InlineData("Reader", false)]
+    [InlineData("Reader", true)]
+    [InlineData("Media", false)]
+    [InlineData("Media", true)]
+    [InlineData("Tagging", false)]
+    [InlineData("Tagging", true)]
+    public void LargeImageActionsDependOnTheSavedChecksum(string host, bool wrongSha) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            BooruComponentDispatcher.Wait(ExerciseAsync());
+
+            async Task ExerciseAsync()
+            {
+                using TempDirectory profile = new();
+                // A PNG header declares 10,000 × 8,001 pixels. The existing tiny IDAT keeps the fixture under 100 bytes.
+                byte[] image = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAJxAAAB9BCAIAAABpcsUXAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
+                using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false, image: image);
+                ArchivedThreadView thread = RateAndTagWindowFixture.View(media);
+                GalleryEntry entry = Assert.Single(GallerySelection.Build(thread, [media.Snapshot]).Entries);
+                FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
+                MediaTagSubject subject = Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry));
+                await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
+                if (wrongSha)
+                {
+                    image[^1] ^= 1;
+                    await File.WriteAllBytesAsync(media.Asset.Path, image);
+                }
+                new Config
+                {
+                    DownloadPath = Path.Combine(profile.Path, "downloads"), FirstRunSetupVersion = 1, DownloadsPaused = true,
+                    WorkspaceMode = "Advanced", Language = "en", WindowWidth = 1600, WindowHeight = 900,
+                    ReaderMediaSidebar = true, ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways,
+                    ReaderMediaSidebarMinimumWidth = Config.ReaderMediaSidebarMinimumWidthMinimum,
+                    MediaSidebarAutoHide = false, MediaSidebarFacts = true,
+                    MediaLayout = (new MediaPageLayout { Panel = true }).Format(),
+                    TaggingPagePanel = true, TaggingPageView = "List"
+                }.SaveConfig(profile.Path);
+
+                await using DesktopSessionHost session = new(profile.Path, [],
+                    updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+                await session.StartAsync();
+                if (host == "Tagging")
+                    await session.EnqueueTagQueueAsync([Assert.IsType<TagQueueItem>(TagQueueItem.From(entry, DateTimeOffset.UnixEpoch))]);
+                await using MainWindow window = new(session) { Classes = { MotionPolicy.OffClass } };
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                await window.StartupTimingRestoreTask;
+                try
+                {
+                    await ShowSidebarAsync(window, host, thread.Summary.Id);
+                    string placeholder = Texts.T(wrongSha ? "reader.sidebar.unavailable" : "archive.tooLarge");
+                    await WaitAsync(window, () => Find<TextBlock>(window, "ReaderMediaSidebarStatus")?.Text == placeholder
+                        && Find<Image>(window, "ReaderMediaSidebarPicture", visibleOnly: false)?.Source == null, $"the {host} preview to report {placeholder}");
+
+                    ToggleButton favorite = Visible<ToggleButton>(window, "ReaderMediaSidebarFavorite");
+                    ToggleButton rating = Visible<ToggleButton>(window, "ReaderMediaSidebarDecisionRating3");
+                    const string editId = "ReaderMediaSidebarEditTags";
+                    if (wrongSha)
+                    {
+                        Assert.False(favorite.IsEffectivelyEnabled);
+                        Assert.False(rating.IsEffectivelyEnabled);
+                        Assert.False(Find<Button>(window, editId) is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true });
+                        Click(window, favorite);
+                        Click(window, rating);
+                        Assert.Null(QuickTagPopover.Current);
+                        Assert.Empty(session.GetFavorites());
+                        Assert.Empty(session.GetMediaRatings());
+                        Assert.Empty(session.GetPublishedPrivateTagSnapshot().Snapshot!.Tags);
+                        return;
+                    }
+
+                    await WaitAsync(window, () => favorite.IsEffectivelyEnabled && rating.IsEffectivelyEnabled
+                        && Find<Button>(window, editId) is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }, $"the {host} actions to enable");
+                    Click(window, favorite);
+                    await WaitAsync(window, () => session.GetFavorites().Any(), "the favorite write");
+                    Assert.Equal(key, Assert.Single(session.GetFavorites()).Key);
+                    await WaitAsync(window, () => rating.IsEffectivelyEnabled && favorite.IsChecked == true, "the saved favorite to appear");
+                    Click(window, rating);
+                    await WaitAsync(window, () => session.GetMediaRating(key) == 3 && rating.IsChecked == true, "the third star to persist");
+                    Assert.Equal(key, Assert.Single(session.GetMediaRatings()).Key);
+                    await WaitAsync(window, () => Find<Button>(window, editId) is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }, "the tag editor to enable");
+                    Click(window, Visible<Button>(window, editId));
+                    string inputId = (host == "Reader" ? "Archive" : host) + "TagPopoverInput";
+                    await WaitAsync(window, () => Find<IdentitySuggestionBox>(window, inputId) is { IsKeyboardFocusWithin: true }, "the sidebar tag field");
+                    IdentitySuggestionBox input = Visible<IdentitySuggestionBox>(window, inputId);
+                    input.Text = "sidebar preview fixture";
+                    TopLevel popup = TopLevel.GetTopLevel(input)!;
+                    popup.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                    popup.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                    await WaitAsync(window, () => session.GetPublishedPrivateTagSnapshot().Snapshot!.TagsOf(subject).Count > 0, "the tag write");
+                    var saved = session.GetPublishedPrivateTagSnapshot().Snapshot!;
+                    Assert.Equal("sidebar preview fixture", Assert.Single(saved.TagsOf(subject)).Name.Display);
+                    Assert.Single(saved.Tags);
+                }
+                finally { QuickTagPopover.Current?.Close(); }
+            }
+        });
+
+    private static async Task ShowSidebarAsync(MainWindow window, string host, ResourceId thread)
+    {
+        if (host == "Reader")
+        {
+            Click(window, Visible<Button>(window, "ArchiveNavigationButton"));
+            Assert.Equal(MainWindow.WorkspacePage.Archive, window.SelectedPage);
+            await window.ArchivePage.LoadThreadAsync(thread);
+            Visible<ListBox>(window, "ArchivePosts").SelectedIndex = 0;
+            await window.ArchivePage.MediaLoadTask;
+        }
+        else if (host == "Media")
+        {
+            Click(window, Visible<Button>(window, "MediaNavigationButton"));
+            Assert.Equal(MainWindow.WorkspacePage.Media, window.SelectedPage);
+            MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+            await page.BuildTask;
+            await WaitAsync(window, () => page.Grid.ItemCount == 1, "the Media tile");
+            page.Grid.SelectedIndex = 0;
+        }
+        else
+        {
+            Assert.True(window.ShowTaggingPage());
+            await WaitAsync(window, () => window.TaggingPage is { IsBusy: false, Queue.Count: 1 }, "the Tagging queue");
+        }
+    }
+
+    private static Task WaitAsync(Window window, Func<bool> condition, string expected) => BooruTestSupport.WaitAsync(() =>
+    {
+        window.UpdateLayout();
+        return condition();
+    }, expected);
+
+    private static T Visible<T>(Window window, string id) where T : Control => Assert.IsAssignableFrom<T>(Find<T>(window, id));
+
+    private static T? Find<T>(Window window, string id, bool visibleOnly = true) where T : Control =>
+        window.GetVisualDescendants().Concat(window.OpenedPopups.SelectMany(popup =>
+            popup.Child?.GetSelfAndVisualDescendants() ?? []))
+            .OfType<T>().FirstOrDefault(control => (!visibleOnly || control.IsEffectivelyVisible)
+                && (AutomationProperties.GetAutomationId(control) is { Length: > 0 } explicitId
+                    ? explicitId : ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId()) == id);
+
+    private static void Click(Window window, Control control)
+    {
+        Point center = control.TranslatePoint(new Rect(control.Bounds.Size).Center, window)!.Value;
+        window.MouseMove(center);
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseUp(center, MouseButton.Left);
+    }
+}

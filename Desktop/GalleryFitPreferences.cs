@@ -14,6 +14,7 @@ internal readonly record struct GalleryFitPreferences(bool Limit = false, int Ma
     internal const int MaxUpscalePercentDefault = 200;
     internal const int MaxUpscalePercentMinimum = 100;
     internal const int MaxUpscalePercentMaximum = 1600;
+    internal int PreviewMaximumPixels { get; init; } = Config.SidebarPreviewMaximumPixelsDefault;
 
     internal static int ClampPercent(int percent) => Math.Clamp(percent, MaxUpscalePercentMinimum, MaxUpscalePercentMaximum);
 
