@@ -1140,17 +1140,6 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                <TextBlock x:Name="BooruNewSearchTargetFieldLabel" Text="{Binding BooruNewSearchTargetLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding BooruNewSearchTargetHint}" Classes="workspace-help" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ComboBox x:Name="BooruNewSearchTargetInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding BooruSearchTargetChoices}" SelectedItem="{Binding SelectedBooruNewSearchTarget, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=BooruNewSearchTargetFieldLabel}" AutomationProperties.Name="{Binding BooruNewSearchTargetLabel}" AutomationProperties.HelpText="{Binding BooruNewSearchTargetHint}">
-                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </Grid>
-                    </Border>
-                    <Border Classes="settings-divider">
-                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <TextBlock x:Name="RestoreBooruSearchTabsFieldLabel" Text="{Binding RestoreBooruSearchTabsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding RestoreBooruSearchTabsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>

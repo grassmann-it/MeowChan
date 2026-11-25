@@ -89,15 +89,21 @@ internal sealed partial class BooruWorkbenchView
     {
         List<WorkViewMoreSurface.Entry> entries = new();
         object? tab = _tabs.SelectedItem;
-        foreach (ResultActions result in _resultActions)
+        if (IsSearchItem(tab))
         {
-            foreach (ResultCommand link in result.LinkCommands())
+            bool CanSubmit() => ReferenceEquals(tab, _tabs.SelectedItem) && _model.Search.CanSubmit;
+            entries.Add(new(10, AlternateSubmitCommand, () => Texts.T("booru.tabs.searchNewShort"),
+                () => OpenActions.Start(() => SubmitSearchAsync(alternate: true), AlternateSubmitCommand), CanSubmit, "search"));
+            foreach (ResultActions result in _resultActions)
             {
-                WorkViewEntry policy = WorkViewPolicy.Get(link.WorkViewId!);
-                if (policy.For(_workView) == Presence.Overflow)
-                    entries.Add(new(policy.OverflowOrder, policy.CommandId, () => link.Name, () => result.Run(link.Action),
-                        () => ReferenceEquals(tab, _tabs.SelectedItem) && policy.For(_workView) == Presence.Overflow
-                            && result.CanRun(link.Action), link.Icon));
+                foreach (ResultCommand link in result.LinkCommands())
+                {
+                    WorkViewEntry policy = WorkViewPolicy.Get(link.WorkViewId!);
+                    if (policy.For(_workView) == Presence.Overflow)
+                        entries.Add(new(policy.OverflowOrder, policy.CommandId, () => link.Name, () => result.Run(link.Action),
+                            () => ReferenceEquals(tab, _tabs.SelectedItem) && policy.For(_workView) == Presence.Overflow
+                                && result.CanRun(link.Action), link.Icon));
+                }
             }
         }
         entries.AddRange(WorkViewMoreSurface.ForButtons(_watcherWorkViewActions, _workView));

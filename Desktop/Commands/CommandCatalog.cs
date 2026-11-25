@@ -119,7 +119,7 @@ public static class CommandCatalog
         // The Statistics segment of Status: no default gesture; the header graph and the tray open it.
         new("navigation.statistics", "command.navigation.statistics", "Statistics", "Statistik", "monitor", null, CommandScope.Application, new[] { "status-segment", "header-graph", "tray" }),
         new("booru.search.submit", "booru.tabs.command.submit", "Submit Booru search", "Booru-Suche starten", "search", "Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
-        new("booru.search.alternate", "booru.tabs.command.alternate", "Submit Booru search in the other tab mode", "Booru-Suche mit dem anderen Tab-Ziel starten", "search", "Shift+Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
+        new("booru.search.alternate", "booru.tabs.command.alternate", "Submit Booru search in a new tab", "Booru-Suche in einem neuen Tab starten", "search", "Shift+Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
         new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),

@@ -58,7 +58,7 @@ public sealed class BooruPageHostContractTests
         Assert.Equal(BooruWorkbenchView.TabsName, tabs.Name);
         TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
         Assert.Single(segments);
-        Control search = Assert.IsAssignableFrom<Control>(Assert.Single(segments, tab => tab.Tag is BooruSearchTabs.PrimaryId).Content);
+        Control search = Assert.IsAssignableFrom<Control>(Assert.Single(segments).Content);
         page.View.ShowWatchers();
         TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
         Assert.Equal(BooruWorkbenchView.WatchersTabName, watchersTab.Name);

@@ -85,7 +85,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TextBlock _title = new() { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap };
     private readonly HelpButton _searchHelp = new() { Name = SearchHelpName };
     private readonly TabControl _tabs = new() { Name = TabsName, Classes = { "booru-tabs" } };
-    private readonly TabItem _searchTab = new() { Tag = BooruSearchTabs.PrimaryId, Classes = { "booru-tab" } };
     private readonly TabItem _watchersTab = new() { Name = WatchersTabName };
     private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 136 };
     // Escape empties the typed query first (SearchBox); in an empty field it closes the window as before. No debounce: a search goes out only on "Search".
@@ -155,6 +154,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _ownsModel = ownsModel;
         Name = "BooruWorkbenchView";
+        AutomationProperties.SetAutomationId(_input, InputName);
+        AutomationProperties.SetAutomationId(_submit, SubmitName);
+        AutomationProperties.SetAutomationId(_cancel, CancelName);
+        AutomationProperties.SetAutomationId(_retry, RetryName);
+        AutomationProperties.SetAutomationId(_more, "BooruMore");
         InstallTagDraftStyles();
         // Every key of the workbench, on the Danbooru page and in its window, runs in the "booru" context (S3 P2-4): a default that a saved binding took
         // away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
@@ -312,9 +316,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildBody()
     {
-        _searchTab.Content = BuildSearchTab();
         _watchersTab.Content = BuildWatchersTab();
-        _tabs.ItemsSource = CreateTabItems();
+        InitializeSearchTabs(BuildSearchTab());
         return _tabs;
     }
 
@@ -460,7 +463,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.Post(() =>
     {
-        if (!_closed) Render(force: true);
+        if (_closed) return;
+        _more.ContextMenu?.Close();
+        foreach (SearchTabControl tab in _searchItems.Values) tab.CloseMenu();
+        Render(force: true);
     });
 
     /// <summary>A pause or cooldown that ran out only re-renders the controls; it never sends anything.</summary>
@@ -513,7 +519,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private void RenderChrome()
     {
         _title.Text = Texts.T("booru.ui.title");
-        _searchTab.Header = Texts.T("booru.ui.tab.search");
         if (_linkNoteScope is { } scope && !IsCurrentResultLink(scope))
         {
             _linkNoteScope = null;
@@ -1210,6 +1215,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _clock.Tick -= OnClockTick;
         _keyContextHost.Dispose();
         DisposeResultTagMenus();
+        foreach (SearchTabControl tab in _searchItems.Values) tab.Dispose();
+        _model.Search.EnsureSearchTab = null;
         ChromeChanged = null;
         ReviewCurrentBuild = null;
         ReviewUnavailableReason = null;

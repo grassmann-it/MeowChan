@@ -189,9 +189,9 @@ internal static class BooruCompositionChecks
             searchInput.Text = "cat_ears";
             await Program.WaitUntilAsync(() => AutomationProperties.GetHelpText(searchInput)!.Contains("Draft: cat_ears"),
                 () => "the composed workbench did not show the unsent query as a draft");
-            int previousSearchTab = page.View.SearchTabs.ActiveId;
+            int? previousSearchTab = page.View.SearchTabs.ActiveId;
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
-            Require(page.View.SearchTabs.ActiveId != previousSearchTab && page.View.SearchTabs.ExtraCount == 1,
+            Require(page.View.SearchTabs.ActiveId != previousSearchTab && page.View.SearchTabs.Ids.Count == 1,
                 "The default Search action did not activate a new tab.");
             await Program.WaitUntilAsync(() => Cards(page).Count == 4 && Previews(page) == 4,
                 () => $"results: cards={Cards(page).Count} previews={Previews(page)} status={BooruText.SearchStatus(page.Model.Search.View, false)}");
@@ -262,7 +262,7 @@ internal static class BooruCompositionChecks
             await Program.WaitUntilAsync(() => shell.ActualThemeVariant == ThemeVariant.Light, () => "light theme not restored for Add-line capture");
             int before = stub.Requests.Count;
             TextBox urlInput = shell.FindControl<TextBox>("UrlInput")!;
-            int resultsTab = page.View.SearchTabs.ActiveId;
+            int resultsTab = page.View.SearchTabs.ActiveId ?? throw new InvalidOperationException("No results tab.");
             // A Safebooru search address opens an editable query with the visible rating:g term.
             await SubmitAddLineAsync(shell, "https://safebooru.donmai.us/posts?tags=cat_ears&page=2");
             await Program.WaitUntilAsync(() => Find<TextBox>(page, BooruWorkbenchView.InputName).Text == "cat_ears rating:g",

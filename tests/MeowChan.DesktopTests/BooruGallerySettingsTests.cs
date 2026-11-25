@@ -41,7 +41,7 @@ public sealed class BooruGallerySettingsTests
     }
 
     [Theory]
-    [InlineData("BooruSearchTabs", 5, 8)]
+    [InlineData("BooruSearchTabs", 5, 9)]
     [InlineData("BooruGallerySampleMiB", 3, 8)]
     [InlineData("BooruGalleryCacheMiB", 16, 32)]
     [InlineData("BooruGalleryMaximumPixels", 20_000_000, 40_000_000)]

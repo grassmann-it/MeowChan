@@ -377,16 +377,17 @@ namespace MeowChan
         internal const int BooruResultTagsShownDefault = BooruResultTagsShownAutomatic;
         internal const int BooruResultTagsShownMinimum = BooruResultTagsShownAutomatic;
         internal const int BooruResultTagsShownMaximum = 200;
-        /// <summary>Destination used when submitting from the Booru search field.</summary>
+        /// <summary>Legacy profile value retained for settings compatibility.</summary>
         public string BooruNewSearchTarget { get; set; } = BooruSearchTargetNewTab;
         internal const string BooruSearchTargetNewTab = "NewTab";
         internal const string BooruSearchTargetCurrentTab = "CurrentTab";
 
-        /// <summary>How many extra search tabs the Booru page may hold during the session.</summary>
+        /// <summary>Maximum total number of search tabs in the Booru workbench.</summary>
+        [JsonConverter(typeof(BooruSearchTabCapacityConverter))]
         public int BooruSearchTabs { get; set; } = BooruSearchTabsDefault;
-        internal const int BooruSearchTabsDefault = 8;
-        internal const int BooruSearchTabsMinimum = 1;
-        internal const int BooruSearchTabsMaximum = 32;
+        internal const int BooruSearchTabsDefault = 9;
+        internal const int BooruSearchTabsMinimum = 2;
+        internal const int BooruSearchTabsMaximum = 33;
         public bool RestoreBooruSearchTabs { get; set; } = true;
         public int BooruSearchPages { get; set; } = BooruSearchPagesDefault;
         internal const int BooruSearchPagesDefault = BooruSearchPagesMaximum;
@@ -397,9 +398,9 @@ namespace MeowChan
         internal const int BooruSearchPostsPerPageMinimum = 1;
         internal const int BooruSearchPostsPerPageMaximum = Desktop.Booru.BooruSearchModel.PageSize;
         public int BooruSavedTabs { get; set; } = BooruSavedTabsDefault;
-        internal const int BooruSavedTabsDefault = BooruSearchTabsDefault + 1;
+        internal const int BooruSavedTabsDefault = 9;
         internal const int BooruSavedTabsMinimum = 2;
-        internal const int BooruSavedTabsMaximum = BooruSearchTabsMaximum + 1;
+        internal const int BooruSavedTabsMaximum = 33;
         public int BooruSavedResultsPerTab { get; set; } = BooruSavedResultsPerTabDefault;
         internal const int BooruSavedResultsPerTabDefault = BooruSavedResultsPerTabMaximum;
         internal const int BooruSavedResultsPerTabMinimum = 0;
@@ -1850,8 +1851,6 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
             if (BooruResultTagsShown is < BooruResultTagsShownMinimum or > BooruResultTagsShownMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
-            if (BooruNewSearchTarget is not (BooruSearchTargetNewTab or BooruSearchTargetCurrentTab))
-                throw new ArgumentOutOfRangeException(nameof(BooruNewSearchTarget));
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
             if (BooruSearchPages is < BooruSearchPagesMinimum or > BooruSearchPagesMaximum)

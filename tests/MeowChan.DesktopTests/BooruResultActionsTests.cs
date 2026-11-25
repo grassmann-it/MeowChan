@@ -149,7 +149,7 @@ public sealed class BooruResultActionsTests
         fixture.Window.MouseUp(fixture.Picture("102"), MouseButton.Middle);
         Assert.Empty(fixture.Harness.Links.Opened);
 
-        int originalTab = fixture.View.SearchTabs.ActiveId;
+        int originalTab = Assert.IsType<int>(fixture.View.SearchTabs.ActiveId);
         Click(Find<Button>(fixture.View, BooruWorkbenchView.NewSearchTabName));
         fixture.Settle();
         Assert.NotEqual(originalTab, fixture.View.SearchTabs.ActiveId);
@@ -338,7 +338,6 @@ public sealed class BooruResultActionsTests
             Window.RequestedThemeVariant = ThemeVariant.Dark;
             Window.Activate();
             Window.PlatformImpl!.Resize(new Size(780, 620), Avalonia.Controls.WindowResizeReason.User);
-            View.NewSearchTarget = () => MeowChan.Config.BooruSearchTargetCurrentTab;
             if (grid) View.RestoreResultView(BooruResultView.Grid, MediaTileSize.Large);
             Settle();
         }

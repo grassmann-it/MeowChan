@@ -138,7 +138,7 @@ public sealed class BooruMediaSidebarTests
         Assert.Equal(0, time.Scheduled);
         Click(toggle);
 
-        int original = view.SearchTabs.ActiveId;
+        int original = Assert.IsType<int>(view.SearchTabs.ActiveId);
         int copied = view.SearchTabs.Add(copyCurrent: true);
         Assert.NotEqual(original, copied);
         Assert.True(view.SearchTabs.Select(original));
@@ -181,7 +181,7 @@ public sealed class BooruMediaSidebarTests
             harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
                 BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101", sample: true))));
             Search(model, view);
-            int original = view.SearchTabs.ActiveId;
+            int original = Assert.IsType<int>(view.SearchTabs.ActiveId);
             int copied = view.SearchTabs.Add(copyCurrent: true);
             Assert.NotEqual(original, copied);
             Assert.True(view.SearchTabs.Select(original));
