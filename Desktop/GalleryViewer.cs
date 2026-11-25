@@ -1104,7 +1104,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             .Distinct(StringComparer.Ordinal).Where(id => CommandCatalog.TryGet(id, out _)).ToArray();
         WorkView view = _workView;
         WorkViewPage[] pages = { WorkViewPage.Shell, WorkViewPage.Gallery };
-        return new Views.Shortcuts.ShortcutHelpContext(ShortcutGroups.Gallery, preferred, id => WorkViewHelp.UnderMore(id, view, pages),
+        return new Views.Shortcuts.ShortcutHelpContext(ShortcutGroups.Gallery, preferred,
+            id => WorkViewHelp.UnderMore(id == "media.sidebar.autohide" ? "gallery.post-overlay-toggle" : id, view, pages),
             CommandScope.None, new[] { "viewer.help.scheme", EscapeHelpKey },
             ExpandedAreas: new[] { ShortcutGroups.TagPanel });
     }
@@ -1120,8 +1121,14 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             ? new[] { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.add", "favorites.remove", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "gallery.slideshow-toggle", "gallery.overlay-toggle", "gallery.post-overlay-toggle", "window.fullscreen", "gallery.close" }
             : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.add", "favorites.remove", "gallery.context-toggle", "gallery.slideshow-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
-            && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
-            _helpContent.Children.Add(new TextBlock { Text = id == "gallery.close" ? CommandBindings.Tooltip(id, visibleLabel: CloseLabel) : CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
+            && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id))
+            .Select(id => id == "media.sidebar.autohide" ? "gallery.post-overlay-toggle" : id).Distinct())
+            _helpContent.Children.Add(new TextBlock { Text = id switch
+            {
+                "gallery.close" => CommandBindings.Tooltip(id, visibleLabel: CloseLabel),
+                "gallery.post-overlay-toggle" => PostPanelPlacementHelp(),
+                _ => CommandBindings.Tooltip(id)
+            }, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
         AddTaggingHelp();
         _helpContent.Children.Add(new TextBlock { Text = Texts.T(EscapeHelpKey), Classes = { "workspace-help" } });
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
@@ -1735,8 +1742,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         if (CommandBindings.Matches(e, "media.sidebar.info")) { TogglePostFacts(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "media.sidebar.autohide"))
         {
-            ChangePlaybackPreferences(_playbackPreferences with { OverlayPostContext = !_playbackPreferences.OverlayPostContext });
             e.Handled = true;
+            _ = ExecutePlaybackActionAsync("gallery.post-overlay-toggle");
             return;
         }
         if (HandleFilmstripKey(e) || HandleLayoutKey(e)) return;

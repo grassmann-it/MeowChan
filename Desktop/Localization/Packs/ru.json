@@ -2598,7 +2598,7 @@
     "command.gallery.slideshow-toggle": "Запустить / приостановить слайд-шоу",
     "command.gallery.overlay-toggle": "Переключить наложение элементов управления",
     "command.gallery.overlay-autohide-toggle": "Переключить автоскрытие наложения",
-    "command.gallery.post-overlay-toggle": "Переключить наложение поста",
+    "command.gallery.post-overlay-toggle": "Наложить / закрепить панель записи",
     "command.gallery.context-toggle": "Показать контекст поста",
     "command.gallery.context-close": "Вернуться к изображению",
     "command.gallery.show-in-thread": "Показать в треде",

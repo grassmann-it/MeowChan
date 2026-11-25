@@ -10,7 +10,7 @@ namespace MeowChan.Desktop.Commands;
 /// <list type="bullet">
 /// <item><b>Shift + letter</b> shows or hides a panel or block: <c>Shift+H</c> tools, <c>Shift+Z</c> info line, <c>Shift+K</c> cards of the tagging mode, <c>Shift+N</c> hint row,
 /// <c>Shift+L</c> filmstrip, <c>Shift+O</c> controls overlay, <c>Shift+P</c> post panel, <c>Shift+T</c> view / tag mode,
-/// <c>Shift+I</c> facts and <c>Shift+A</c> media sidebar auto-hide.</item>
+/// <c>Shift+I</c> facts and <c>Shift+A</c> post-panel placement in the gallery (sidebar auto-hide in Reader and Media).</item>
 /// <item><b>Plain letters</b> act on what plays: <c>L</c> repeat and <c>A</c> the A–B loop. The older plain letters of the gallery (<c>F</c> toggles a favourite, <c>I</c> details, <c>Q</c> queue, <c>R</c> rating,
 /// <c>T</c> show in thread) stay.</item>
 /// <item><b>Favourites, uniformly everywhere</b> (Tom's decision of 15.11.2026, revision 20): <c>M</c> adds, <c>U</c> removes and <c>F</c> toggles, in the gallery as in

@@ -2433,7 +2433,7 @@
     "command.gallery.slideshow-toggle": "슬라이드쇼 시작 / 일시 중지",
     "command.gallery.overlay-toggle": "컨트롤 오버레이 전환",
     "command.gallery.overlay-autohide-toggle": "오버레이 자동 숨기기 전환",
-    "command.gallery.post-overlay-toggle": "게시물 오버레이 전환",
+    "command.gallery.post-overlay-toggle": "게시물 패널 겹치기 / 도킹하기",
     "command.gallery.context-toggle": "게시물 컨텍스트 표시",
     "command.gallery.context-close": "이미지로 돌아가기",
     "command.gallery.show-in-thread": "스레드에서 보기",

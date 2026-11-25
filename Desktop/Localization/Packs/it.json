@@ -2203,7 +2203,7 @@
     "command.gallery.slideshow-toggle": "Avvia / metti in pausa presentazione",
     "command.gallery.overlay-toggle": "Attiva/disattiva controlli sovrapposti",
     "command.gallery.overlay-autohide-toggle": "Attiva/disattiva occultamento automatico",
-    "command.gallery.post-overlay-toggle": "Attiva/disattiva post sovrapposto",
+    "command.gallery.post-overlay-toggle": "Sovrapponi / aggancia il pannello del post",
     "command.gallery.context-toggle": "Mostra contesto del post",
     "command.gallery.context-close": "Torna all’immagine",
     "command.gallery.show-in-thread": "Mostra nel thread",

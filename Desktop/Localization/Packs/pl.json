@@ -2218,7 +2218,7 @@
     "command.gallery.slideshow-toggle": "Uruchom / wstrzymaj pokaz slajdów",
     "command.gallery.overlay-toggle": "Przełącz nakładkę sterowania",
     "command.gallery.overlay-autohide-toggle": "Przełącz autoukrywanie nakładki",
-    "command.gallery.post-overlay-toggle": "Przełącz nakładkę postu",
+    "command.gallery.post-overlay-toggle": "Nałóż / zadokuj panel posta",
     "command.gallery.context-toggle": "Pokaż kontekst postu",
     "command.gallery.context-close": "Wróć do obrazu",
     "command.gallery.show-in-thread": "Pokaż w wątku",

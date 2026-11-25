@@ -2588,7 +2588,7 @@
     "command.gallery.slideshow-toggle": "Démarrer / mettre en pause le diaporama",
     "command.gallery.overlay-toggle": "Basculer l’incrustation des commandes",
     "command.gallery.overlay-autohide-toggle": "Basculer le masquage automatique de l’incrustation",
-    "command.gallery.post-overlay-toggle": "Basculer l’incrustation du message",
+    "command.gallery.post-overlay-toggle": "Superposer / ancrer le panneau de publication",
     "command.gallery.context-toggle": "Afficher le contexte du message",
     "command.gallery.context-close": "Retour à l’image",
     "command.gallery.show-in-thread": "Afficher dans le fil",

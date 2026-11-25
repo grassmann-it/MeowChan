@@ -5,6 +5,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
@@ -27,6 +28,64 @@ public sealed partial class MenuIconLayoutTests
     [Fact]
     public void GalleryLayoutFlyoutAndContextMenuShareActionMasks() => OnUi(() =>
         BooruComponentDispatcher.Wait(ExerciseLayoutIconsAsync()));
+
+    [Theory]
+    [InlineData("en", "Overlay / dock post panel", "Auto-hide sidebar controls")]
+    [InlineData("de", "Post-Panel überlagern / andocken", "Leisten automatisch ausblenden")]
+    public void PostPanelPlacementAgreesAcrossHelpMenuAndTheBoundKey(string language, string placement, string hide) => OnUi(() =>
+    {
+        const string shared = "media.sidebar.autohide";
+        ShortcutBindingsSection original = ShortcutService.CurrentSection;
+        try
+        {
+            Texts.SetLanguage(language);
+            ShortcutService.Publish(new ShortcutBindingsSection());
+            BooruComponentDispatcher.Wait(CheckAsync());
+        }
+        finally { ShortcutService.Publish(original); }
+
+        async Task CheckAsync()
+        {
+            await using var viewer = new GalleryViewer();
+            viewer.Configure(contextOpen: true, showShortcutHelp: true, videoAutoplay: false, videoStartMuted: true, videoVolume: 0);
+            viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayControls: false, AutoHideControls: false));
+            List<GalleryPlaybackPreferences> saved = [];
+            viewer.PlaybackPreferencesChanged += saved.Add;
+            WithWindow(viewer, _ =>
+            {
+                var toggle = Assert.IsType<ToggleButton>(Assert.Single(viewer.OverflowItems,
+                    button => AutomationProperties.GetAutomationId(button) == "GalleryPostOverlayToggle"));
+                GalleryViewer.OverflowItem item = Assert.IsType<GalleryViewer.OverflowItem>(toggle.Tag);
+                Check(Key.A, KeyModifiers.Shift);
+                Assert.True(toggle.IsChecked);
+                toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.False(toggle.IsChecked);
+
+                ShortcutService.Publish(new ShortcutBindingsSection().Set(shared, [ShortcutGesture.Parse("J")]));
+                Settle(viewer);
+                Check(Key.J, KeyModifiers.None);
+                Assert.True(toggle.IsChecked);
+                Assert.Equal(new[] { true, false, true }, saved.Select(preference => preference.OverlayPostContext));
+                Assert.All(saved, preference => Assert.False(preference.AutoHideControls));
+
+                void Check(Key key, KeyModifiers modifiers)
+                {
+                    var help = viewer.ShortcutHelp();
+                    Assert.Contains(shared, help.Preferred);
+                    var gallery = ShortcutTableModel.Build(ShortcutService.CurrentSection, ShortcutService.Current, help.Area, help.Preferred);
+                    var reader = ShortcutTableModel.Build(ShortcutService.CurrentSection, ShortcutService.Current, ShortcutGroups.Reader);
+                    ShortcutTableRow row = Assert.Single(gallery.Rows, command => command.CommandId == shared);
+                    Assert.Equal(placement, row.Label);
+                    Assert.Equal(hide, Assert.Single(reader.Rows, command => command.CommandId == shared).Label);
+                    Assert.Equal(placement, item.Label.Text);
+                    Assert.Equal(Assert.Single(row.GestureTexts), item.Gesture.Text);
+                    KeyEventArgs press = new() { Key = key, KeyModifiers = modifiers, Source = viewer };
+                    viewer.RouteKeyForTests(press);
+                    Assert.True(press.Handled);
+                }
+            });
+        }
+    });
 
     private static async Task ExerciseCompactGalleryIconsAsync()
     {

@@ -2433,7 +2433,7 @@
     "command.gallery.slideshow-toggle": "开始 / 暂停幻灯片放映",
     "command.gallery.overlay-toggle": "切换控件浮层",
     "command.gallery.overlay-autohide-toggle": "切换浮层自动隐藏",
-    "command.gallery.post-overlay-toggle": "切换帖子浮层",
+    "command.gallery.post-overlay-toggle": "叠放／停靠帖子面板",
     "command.gallery.context-toggle": "显示帖子上下文",
     "command.gallery.context-close": "返回图片",
     "command.gallery.show-in-thread": "在串中显示",

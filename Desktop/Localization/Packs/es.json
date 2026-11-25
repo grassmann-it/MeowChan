@@ -2588,7 +2588,7 @@
     "command.gallery.slideshow-toggle": "Iniciar / pausar presentación",
     "command.gallery.overlay-toggle": "Alternar superposición de controles",
     "command.gallery.overlay-autohide-toggle": "Alternar ocultación automática de la superposición",
-    "command.gallery.post-overlay-toggle": "Alternar superposición de la publicación",
+    "command.gallery.post-overlay-toggle": "Superponer / acoplar el panel de la publicación",
     "command.gallery.context-toggle": "Mostrar contexto de la publicación",
     "command.gallery.context-close": "Volver a la imagen",
     "command.gallery.show-in-thread": "Mostrar en el hilo",

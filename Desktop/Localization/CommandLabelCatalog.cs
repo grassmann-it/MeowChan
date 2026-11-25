@@ -129,7 +129,7 @@ internal static class CommandLabelCatalog
         ("command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren"),
         ("command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten"),
         ("command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten"),
-        ("command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten"),
+        ("command.gallery.post-overlay-toggle", "Overlay / dock post panel", "Post-Panel überlagern / andocken"),
         ("command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden"),
         ("command.gallery.layout-menu", "Open layout menu", "Layout-Menü öffnen"),
         ("command.gallery.layout.tools", "Layout: show / hide tools", "Layout: Werkzeuge anzeigen / ausblenden"),

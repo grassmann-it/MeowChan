@@ -2203,7 +2203,7 @@
     "command.gallery.slideshow-toggle": "Iniciar / pausar apresentação",
     "command.gallery.overlay-toggle": "Alternar controles sobrepostos",
     "command.gallery.overlay-autohide-toggle": "Alternar ocultação automática da sobreposição",
-    "command.gallery.post-overlay-toggle": "Alternar sobreposição da postagem",
+    "command.gallery.post-overlay-toggle": "Sobrepor / encaixar o painel da postagem",
     "command.gallery.context-toggle": "Mostrar contexto da postagem",
     "command.gallery.context-close": "Voltar à imagem",
     "command.gallery.show-in-thread": "Mostrar no tópico",

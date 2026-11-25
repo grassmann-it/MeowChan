@@ -2433,7 +2433,7 @@
     "command.gallery.slideshow-toggle": "スライドショーを開始／一時停止",
     "command.gallery.overlay-toggle": "コントロールのオーバーレイを切り替え",
     "command.gallery.overlay-autohide-toggle": "オーバーレイの自動非表示を切り替え",
-    "command.gallery.post-overlay-toggle": "投稿オーバーレイを切り替え",
+    "command.gallery.post-overlay-toggle": "投稿パネルを重ねる／固定する",
     "command.gallery.context-toggle": "投稿コンテキストを表示",
     "command.gallery.context-close": "画像に戻る",
     "command.gallery.show-in-thread": "スレッドで表示",

@@ -12,7 +12,27 @@ internal static class ShortcutHelp
     internal static string Commands(string context, bool macOS, EffectiveShortcutBindings bindings, params string[] ids) =>
         string.Join("\n", ids.Select(id => (Id: id, Keys: CommandCatalog.ShortcutTooltipDisplay(id, macOS, context, bindings)))
             .Where(item => item.Keys != null)
-            .Select(item => CommandCatalog.Label(item.Id) + " · " + item.Keys));
+            .Select(item => ActionLabel(item.Id, context) + " · " + item.Keys));
+
+    internal static string ActionLabel(string id, string? area)
+    {
+        string label = CommandCatalog.Label(id);
+        if (id != "media.sidebar.autohide") return label;
+        string gallery = CommandCatalog.Label("gallery.post-overlay-toggle");
+        if (area == ShortcutGroups.Gallery) return gallery;
+        return area == null
+            ? $"{label} ({ShortcutGroups.Label(ShortcutGroups.Reader)} / {ShortcutGroups.Label("media")}) · {gallery} ({ShortcutGroups.Label(ShortcutGroups.Gallery)})"
+            : label;
+    }
+
+    internal static string? GalleryPostPanelKeys()
+    {
+        bool macOS = OperatingSystem.IsMacOS();
+        string[] keys = CommandCatalog.TooltipGestures("media.sidebar.autohide", macOS, "gallery")
+            .Concat(CommandCatalog.TooltipGestures("gallery.post-overlay-toggle", macOS, "gallery"))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        return keys.Length == 0 ? null : string.Join(" / ", keys);
+    }
 
     internal static bool ActsHere(string id, ShortcutGesture gesture, string context, EffectiveShortcutBindings bindings)
     {

@@ -178,7 +178,7 @@ internal sealed partial class GalleryViewer
         button.Tag = item;
         StyleAsOverflowRow(button, true);
         button.Content = root;
-        MenuLayout.SetFlyoutShortcut(gesture, CommandCatalog.ShortcutDisplay(id));
+        MenuLayout.SetFlyoutShortcut(gesture, OverflowShortcut(id));
         _overflowButtons.Add(button);
         (host ?? _overflowPanel).Children.Add(button);
         return button;
@@ -208,7 +208,7 @@ internal sealed partial class GalleryViewer
                 item.Label.Text = item.LabelSource();
                 AutomationProperties.SetName(button, item.Label.Text);
             }
-            MenuLayout.SetFlyoutShortcut(item.Gesture, CommandCatalog.ShortcutDisplay(item.Id));
+            MenuLayout.SetFlyoutShortcut(item.Gesture, OverflowShortcut(item.Id));
             // A command presenter (shortcut or language change) may have replaced the row with plain text.
             if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root;
         }
@@ -221,6 +221,9 @@ internal sealed partial class GalleryViewer
         RefreshWheelBrowseHelp();
         ApplyOverflowButtonText();
     }
+
+    private static string? OverflowShortcut(string id) =>
+        id == "gallery.post-overlay-toggle" ? Commands.ShortcutHelp.GalleryPostPanelKeys() : CommandCatalog.ShortcutDisplay(id);
 
     /// <summary>The visible text of a toolbar button or menu row (smokes and tests).</summary>
     internal static string? LabelOf(Button button) => button.Tag is OverflowItem item ? item.Label.Text : button.Content as string;

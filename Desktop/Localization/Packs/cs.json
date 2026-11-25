@@ -2218,7 +2218,7 @@
     "command.gallery.slideshow-toggle": "Spustit / pozastavit prezentaci",
     "command.gallery.overlay-toggle": "Přepnout překryvné ovládání",
     "command.gallery.overlay-autohide-toggle": "Přepnout automatické skrývání překrytí",
-    "command.gallery.post-overlay-toggle": "Přepnout překrytí příspěvku",
+    "command.gallery.post-overlay-toggle": "Překrýt / ukotvit panel příspěvku",
     "command.gallery.context-toggle": "Zobrazit kontext příspěvku",
     "command.gallery.context-close": "Zpět na obrázek",
     "command.gallery.show-in-thread": "Zobrazit ve vlákně",
