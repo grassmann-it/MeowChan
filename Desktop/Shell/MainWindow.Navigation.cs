@@ -186,7 +186,7 @@ public partial class MainWindow
         };
         _archivePage.OpenFavoritesGallery = OpenFavoritesGalleryAsync;
         _archivePage.ArchiveLayoutPreference = _config.ArchiveThreadLayout;
-        _archivePage.ArchiveSplitPreference = _config.ArchiveSplitWidth;
+        _archivePage.ArchiveSplitPreference = _config.GetLayoutProfile(_config.WorkspaceMode).ArchiveSplitWidthOverride;
         _archivePage.ArchiveThreadListHiddenPreference = _config.ArchiveThreadListHidden;
         _archivePage.SaveThreadListHiddenAsync = hidden => _session.SaveViewPreferencesAsync(current => current.ArchiveThreadListHidden = hidden);
         _archivePage.SaveViewPreferencesAsync = (layout, split) =>
@@ -196,7 +196,7 @@ public partial class MainWindow
             {
                 PresentationProfile profile = current.GetLayoutProfile(mode);
                 profile.ArchiveThreadLayout = layout;
-                profile.ArchiveSplitWidth = split;
+                profile.ArchiveSplitWidthOverride = split;
             });
         };
         _archivePage.OpenReaderRequested = OpenLargeReader;
@@ -344,7 +344,7 @@ public partial class MainWindow
         _archivePage.ArchiveColumnOrderPreference = _config.ColumnOrder;
         _archivePage.MediaTilesPreference = _config.ArchiveMediaTiles;
         _archivePage.ArchiveLayoutPreference = _config.ArchiveThreadLayout;
-        _archivePage.ArchiveSplitPreference = _config.ArchiveSplitWidth;
+        _archivePage.ArchiveSplitPreference = _config.GetLayoutProfile(_config.WorkspaceMode).ArchiveSplitWidthOverride;
         _archivePage.ReadingFontSizePreference = ReadingFontSize();
     }
 

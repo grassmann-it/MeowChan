@@ -144,6 +144,7 @@ public sealed class FooterDisplayInteractionTests
 
         MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
         await page.BuildTask;
+        await BooruTestSupport.WaitAsync(() => page.Grid.ItemCount == 1 && page.CanToggleFocusMode, "saved media for focus mode");
         Assert.Single(page.ShownEntries);
         page.SetFocusMode(true, announce: false);
         Layout(window);
