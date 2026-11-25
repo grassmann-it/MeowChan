@@ -24,7 +24,7 @@ public sealed partial class Registry
             if (lease != null && !ReferenceEquals(lease, store.ProfileLease))
                 throw new InvalidOperationException("Admission storage belongs to a different profile lease.");
             _boardAdmission = store;
-            _queue.BoardWatcherInterval = board => GetBoardWatcherInterval(store, board);
+            _queue.BoardWatcherInterval = board => store.Get(board.BoardUri.AbsoluteUri).WatcherInterval;
         }
         if (store.LoadWarning != null) Warn(store.LoadWarning);
     }
@@ -95,7 +95,7 @@ public sealed partial class Registry
                 IBoard? watched;
                 lock (_state) watched = _watches.TryGetValue(resource.Key, out Watch? watch) && !watch.Stopping ? watch.Board : null;
                 if (watched != null && watched is not BaseBoard)
-                    watched.UpdateMonitoringInterval(GetBoardWatcherInterval(_boardAdmission, watched) ?? _boardInterval);
+                    watched.UpdateMonitoringInterval(ResolveBoardMonitoringInterval(watched, _boardInterval));
             }
         }
         finally { _gate.Release(); }
@@ -104,19 +104,7 @@ public sealed partial class Registry
             await AddAdmittedAsync(choice.Key, admission).ConfigureAwait(false);
         SignalChanged();
         // Use normal admission so a previous stopping board lifetime is drained before replacement.
-        AdmissionResult result = await AddAdmittedAsync(url, admission).ConfigureAwait(false);
-        if (result is { Status: AdmissionStatus.Added, Board: { } board } && board is not BaseBoard)
-        {
-            await _gate.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                if (_watches.TryGetValue(Key(board), out Watch? watch) && !watch.Stopping && ReferenceEquals(watch.Board, board)
-                    && GetBoardWatcherInterval(_boardAdmission, board) is { } interval)
-                    board.UpdateMonitoringInterval(interval);
-            }
-            finally { _gate.Release(); }
-        }
-        return result;
+        return await AddAdmittedAsync(url, admission).ConfigureAwait(false);
     }
 
     private bool AllowsBoardDiscovery(IBoard board, IThread thread)
@@ -125,19 +113,8 @@ public sealed partial class Registry
         return policy.Evaluate(new(thread.ThreadId, thread.ThreadUri.AbsoluteUri, thread.Title, thread.CatalogOpeningText)).Included;
     }
 
-    internal void ApplyExternalBoardWatcherIntervals()
-    {
-        if (!Boards.Any(board => board is not BaseBoard)) return;
-        _gate.Wait();
-        try
-        {
-            foreach (IBoard board in Boards)
-                if (board is not BaseBoard && GetBoardWatcherInterval(_boardAdmission, board) is { } interval)
-                    board.UpdateMonitoringInterval(interval);
-        }
-        finally { _gate.Release(); }
-    }
-
-    private static TimeSpan? GetBoardWatcherInterval(BoardAdmissionStore? store, IBoard board) =>
-        store?.Get(board.BoardUri.AbsoluteUri).WatcherIntervalMinutes is int minutes ? TimeSpan.FromMinutes(minutes) : null;
+    // BaseBoard reads the live override when scheduling the next wait, so its setter keeps the fallback.
+    private TimeSpan ResolveBoardMonitoringInterval(IBoard board, TimeSpan globalInterval) => board is BaseBoard
+        ? globalInterval
+        : GetBoardAdmissionPolicy(board.BoardUri.AbsoluteUri).WatcherInterval ?? globalInterval;
 }

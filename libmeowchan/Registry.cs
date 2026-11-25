@@ -65,8 +65,8 @@ public sealed partial class Registry : IAsyncDisposable
     private SessionSnapshot _session = new SessionSnapshot();
     private bool _restored;
     private bool _hasMutations;
-    private readonly SemaphoreSlim _pauseTransitions = new(1, 1);
-    private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
+    private readonly OperationGate _pauseTransitions = new();
+    private readonly OperationGate _gate = new();
     private readonly object _state = new object();
     private readonly Dictionary<ResourceKey, Watch> _watches = new Dictionary<ResourceKey, Watch>();
     private readonly HashSet<ResourceKey> _suppressed = new HashSet<ResourceKey>();
@@ -531,7 +531,8 @@ public sealed partial class Registry : IAsyncDisposable
             foreach (Watch watch in active)
             {
                 if (watch.Thread != null) watch.Thread.UpdateMonitoringInterval(options.RecheckInterval);
-                else watch.Board!.UpdateMonitoringInterval(options.RecheckInterval);
+                else if (watch.Board is { } board)
+                    board.UpdateMonitoringInterval(ResolveBoardMonitoringInterval(board, options.RecheckInterval));
             }
             _outputDirectory = nextRoot;
             _threadInterval = options.RecheckInterval;
@@ -624,7 +625,7 @@ public sealed partial class Registry : IAsyncDisposable
                     baseBoard.WatchGeneration = (durable ?? _workResources.GetValueOrDefault(resource.Key))?.Generation ?? 0;
                 }
                 if (ProducersMayRun) StartWatchProducer(resource.Key, watch);
-                resource.Board.UpdateMonitoringInterval(_boardInterval);
+                resource.Board.UpdateMonitoringInterval(ResolveBoardMonitoringInterval(resource.Board, _boardInterval));
             }
             lock (_state) { watch.Ready = true; }
             return new AdmissionResult(AdmissionStatus.Added, resource.Thread, resource.Board);
@@ -658,7 +659,7 @@ public sealed partial class Registry : IAsyncDisposable
         }
     }
 
-    private async Task AdmitDiscoveryAsync(Watch parent, IThread thread, CancellationToken cancellationToken, ProfileAdmissionToken? admission)
+    private async Task AdmitDiscoveryAsync(Watch parent, IThread thread, ProfileAdmissionToken? admission, CancellationToken cancellationToken)
     {
         AdmissionResult? result = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -690,7 +691,7 @@ public sealed partial class Registry : IAsyncDisposable
     }
 
     private async Task CommitSourceEndAsync(ResourceKey key, IThread thread, ThreadSourceState state, DateTimeOffset observed,
-        CapturedThreadSnapshot? finalSnapshot, CancellationToken cancellationToken, ProfileAdmissionToken? admission)
+        CapturedThreadSnapshot? finalSnapshot, ProfileAdmissionToken? admission, CancellationToken cancellationToken)
     {
         if (_workStore == null) return;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -1036,36 +1037,35 @@ public sealed partial class Registry : IAsyncDisposable
 
     private bool Track(Func<ProfileAdmissionToken?, Task> operation, ProfileProducerEpoch? expectedEpoch = null)
     {
-        ProfileProducerEpoch.Use? use;
-        TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_state)
         {
             if (!_producerIngress || _stopping || BoundProfileLease != null && _producerEpoch == null || expectedEpoch != null && !ReferenceEquals(expectedEpoch, _producerEpoch)) return false;
-            use = _producerEpoch?.Enter();
+            TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
             _backgroundTasks.Add(completion.Task); // Registration precedes dispatch and close.
+            _ = RunTrackedAsync(_producerEpoch, operation, completion);
+            return true;
         }
+    }
+
+    private async Task RunTrackedAsync(ProfileProducerEpoch? epoch, Func<ProfileAdmissionToken?, Task> operation,
+        TaskCompletionSource completion)
+    {
         try
         {
-            _ = Task.Run(async () =>
-            {
-                try { await operation(use?.Admission).ConfigureAwait(false); }
-                catch (Exception exception) { _logger.Error(exception, "Session callback failed"); Warn($"Session change failed: {exception.Message}", scheduleCompletion: false); }
-                finally
-                {
-                    use?.Dispose();
-                    lock (_state) _backgroundTasks.Remove(completion.Task);
-                    completion.TrySetResult();
-                }
-            });
+            // Acquire synchronously while Track still holds _state, then retain the use through the callback.
+            using ProfileProducerEpoch.Use? use = epoch?.Enter();
+            await Task.Run(() => operation(use?.Admission)).ConfigureAwait(false);
         }
-        catch
+        catch (Exception exception)
         {
-            use?.Dispose();
+            _logger.Error(exception, "Session callback failed");
+            Warn($"Session change failed: {exception.Message}", scheduleCompletion: false);
+        }
+        finally
+        {
             lock (_state) _backgroundTasks.Remove(completion.Task);
             completion.TrySetResult();
-            throw;
         }
-        return true;
     }
 
     private void SignalChanged()
@@ -1122,8 +1122,9 @@ public sealed partial class Registry : IAsyncDisposable
                 DownloadCounts counts = _queue.GetThreadCounts(new[] { watch.Thread })[watch.Thread];
                 if (counts.Active != 0 || counts.Queued != 0) continue;
                 {
-                    using IDisposable resourceFence = WorkStateAccess.For(_workStore).Enter(state.Url);
-                    if (WorkStateAccess.For(_workStore).IsDirty(state.Url)
+                    WorkStateAccess work = WorkStateAccess.For(_workStore);
+                    using IDisposable resourceFence = work.Enter(state.Url);
+                    if (work.IsDirty(state.Url)
                         || !_workCacheEntries.TryGetValue(state.Url, out WorkCacheEntry? cached)
                         || cached.Resource.Generation != state.Generation) continue;
                     IReadOnlyList<MediaWork> media = cached.Snapshot.Media;
@@ -1140,11 +1141,11 @@ public sealed partial class Registry : IAsyncDisposable
                         if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) &&
                             (state.EndObservedAt == null || now < state.EndObservedAt.Value.AddHours(12)))) continue;
                     }
-                    WorkResource? committed = WorkStateAccess.For(_workStore).CommitStateUnderFence(state with { Intent = WorkIntent.Completed }, admission);
+                    WorkResource? committed = work.CommitStateUnderFence(state with { Intent = WorkIntent.Completed }, admission);
                     if (committed == null) continue;
                     _workResources[entry.Key] = committed;
                     _workCacheEntries[state.Url] = CreateWorkCacheEntry(committed, media);
-                    WorkStateAccess.For(_workStore).ClearDirty(state.Url);
+                    work.ClearDirty(state.Url);
                 }
                 SessionSnapshot next = RemovalSnapshot(state.Url, true);
                 next.SuppressedThreadUrls = next.SuppressedThreadUrls.Where(url => url != state.Url).ToArray();
@@ -1195,6 +1196,9 @@ public sealed partial class Registry : IAsyncDisposable
             _queue.StateChanged -= SignalChanged;
             _queue.PersistenceFailed -= Warn;
             _stateChanges.Dispose();
+            _producerTransitions.Dispose();
+            _pauseTransitions.Dispose();
+            _gate.Dispose();
         }
     }
 }

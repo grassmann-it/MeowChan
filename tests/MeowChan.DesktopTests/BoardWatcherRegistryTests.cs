@@ -1,10 +1,13 @@
+using System.ComponentModel;
 using System.Net.Http;
 using MeowChan.Admission;
 using MeowChan.Boards.Base;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Updates;
 using MeowChan.Downloader;
+using MeowChan.Http;
 using MeowChan.Interfaces;
+using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
 
@@ -125,6 +128,57 @@ public sealed class BoardWatcherRegistryTests
         finally { catalog.Resume.TrySetResult(); }
     }
 
+    [Fact]
+    public async Task DirectBoardRestoresItsOwnDelayAndKeepsItThroughGlobalChangeAndResume()
+    {
+        using var profile = new TempDirectory();
+        var source = new DirectSource();
+        string url = source.Board.BoardUri.AbsoluteUri;
+        TimeSpan ownInterval = TimeSpan.FromMinutes(12);
+        using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+        await using (Registry registry = CreateRegistry(profile.Path, source, lease))
+        {
+            await registry.StartAsync(lease);
+            await registry.ApplyBoardAdmissionAsync(url, new BoardAdmissionPolicy([], null, null, 12));
+            Assert.Equal(ownInterval, Assert.Single(source.Board.ScheduledDelays));
+        }
+
+        var reopened = new DirectSource();
+        using ProfileLease reopenedLease = ProfileLease.Acquire(profile.Path);
+        await using Registry restored = CreateRegistry(profile.Path, reopened, reopenedLease);
+        await restored.StartAsync(reopenedLease);
+        Assert.Same(reopened.Board, Assert.Single(restored.Boards));
+        Assert.Equal(ownInterval, Assert.Single(reopened.Board.ScheduledDelays));
+
+        TimeSpan newGlobalInterval = TimeSpan.FromSeconds(85);
+        reopened.Board.BeginCatalogCheck();
+        reopened.Board.AfterIntervalUpdate = reopened.Board.CompleteCatalogCheck;
+        await restored.ApplyOptionsAsync(new SessionOptions
+        {
+            DownloadPath = profile.Path,
+            RecheckInterval = newGlobalInterval
+        }, persistSession: true);
+        reopened.Board.AfterIntervalUpdate = null;
+        Assert.Equal(new[] { ownInterval, ownInterval }, reopened.Board.ScheduledDelays);
+
+        await restored.SetPausedAsync(true);
+        await restored.SetPausedAsync(false);
+        Assert.Equal(new[] { ownInterval, ownInterval, ownInterval }, reopened.Board.ScheduledDelays);
+
+        await restored.ApplyBoardAdmissionAsync(url, BoardAdmissionPolicy.All);
+        reopened.Board.BeginCatalogCheck();
+        reopened.Board.CompleteCatalogCheck();
+        Assert.Equal(newGlobalInterval, reopened.Board.ScheduledDelays[^1]);
+    }
+
+    private static Registry CreateRegistry(string path, DirectSource source, ProfileLease lease)
+    {
+        var registry = new Registry([source], new DownloadQueue(1, 1024 * 1024), path,
+            TimeSpan.FromSeconds(70), 70, new SessionStore(path, lease));
+        registry.ConfigureBoardAdmission(new BoardAdmissionStore(path, lease));
+        return registry;
+    }
+
     private static void SaveConfig(string path) => new Config
     {
         DownloadPath = Path.Combine(path, "media"), AutomaticUpdateChecks = false,
@@ -229,6 +283,70 @@ public sealed class BoardWatcherRegistryTests
             UpdateMonitoringInterval(interval);
             AfterIntervalUpdate?.Invoke(interval);
         }
+    }
+
+    private sealed class DirectSource : IImageBoard
+    {
+        internal DirectSource() => Board = new(this);
+        internal DirectBoard Board { get; }
+        public string Name => "direct-watcher-fixture";
+        public string NiceName => "Direct watcher fixture";
+        public Uri BaseUri => new("https://direct-watcher.test/");
+        public bool CanHandle(Uri uri) => uri.Host == BaseUri.Host;
+        public bool IsThreadUri(Uri uri) => false;
+        public bool IsBoardUri(Uri uri) => uri == Board.BoardUri;
+        public IBoard GetBoard(Uri boardUri) => Board;
+        public IThread GetThread(Uri threadUri) => throw new NotSupportedException();
+        public HttpClient GetHttpClient() => throw new NotSupportedException();
+    }
+
+    private sealed class DirectBoard(DirectSource source) : IBoard
+    {
+        private TimeSpan _interval;
+        private bool _catalogCheckInFlight;
+        internal List<TimeSpan> ScheduledDelays { get; } = [];
+        internal Action? AfterIntervalUpdate { get; set; }
+        public IImageBoard ImageBoard => source;
+        public string BoardCode => "p";
+        public string Name => "Photography";
+        public string NiceName => Name;
+        public Uri BoardUri => new(source.BaseUri, "p/");
+        public RequestPolicyProgress? RequestProgress => null;
+        public FailureInfo? LastCheckFailure => null;
+        public event PropertyChangedEventHandler? PropertyChanged { add { } remove { } }
+
+        public Task<IEnumerable<IThread>> GetThreadsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IEnumerable<IThread>>([]);
+
+        public void StartMonitoring(int intervalInSeconds)
+        {
+            _interval = TimeSpan.FromSeconds(intervalInSeconds);
+            BeginCatalogCheck();
+            CompleteCatalogCheck();
+        }
+
+        public void UpdateMonitoringInterval(TimeSpan interval)
+        {
+            _interval = interval;
+            AfterIntervalUpdate?.Invoke();
+        }
+
+        internal void BeginCatalogCheck() => _catalogCheckInFlight = true;
+
+        internal void CompleteCatalogCheck()
+        {
+            Assert.True(_catalogCheckInFlight);
+            _catalogCheckInFlight = false;
+            ScheduledDelays.Add(_interval);
+        }
+
+        public void StopMonitoring() => _catalogCheckInFlight = false;
+        public Task StopMonitoringAsync() { StopMonitoring(); return Task.CompletedTask; }
+        public IDisposable RegisterDiscoverySink(Func<IThread, CancellationToken, ValueTask> sink) => new DiscoveryRegistration();
+        public BoardSnapshot GetSnapshot(string downloadDirectory) =>
+            new(new ResourceId(source.Name, BoardCode), BoardUri.AbsoluteUri, Name, downloadDirectory, null, null);
+
+        private sealed class DiscoveryRegistration : IDisposable { public void Dispose() { } }
     }
 
     private sealed class CatalogCheck

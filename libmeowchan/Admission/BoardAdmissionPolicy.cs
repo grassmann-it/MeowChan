@@ -22,6 +22,8 @@ public sealed class BoardAdmissionPolicy
     public IReadOnlyDictionary<string, ThreadAdmissionException> Exceptions { get; }
     public string? WatcherName { get; }
     public int? WatcherIntervalMinutes { get; }
+    /// <summary>The configured check interval, or null to inherit the session interval.</summary>
+    public TimeSpan? WatcherInterval => WatcherIntervalMinutes is int minutes ? TimeSpan.FromMinutes(minutes) : null;
     public static BoardAdmissionPolicy All { get; } = new(Array.Empty<ThreadTextRule>());
 
     public BoardAdmissionPolicy(IEnumerable<ThreadTextRule> rules,
