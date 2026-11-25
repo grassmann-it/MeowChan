@@ -220,13 +220,13 @@ public sealed class SidebarContextGestureTests
         {
             using TempDirectory profile = new();
             using TempDirectory directory = new();
-            SavedFile[] media = await SeedAsync(profile.Path, directory.Path);
             new Config
             {
                 DownloadPath = Path.Combine(profile.Path, "downloads"), FirstRunSetupVersion = 1, DownloadsPaused = true,
                 WorkspaceMode = "Advanced", Language = "en", ReaderMediaSidebarScope = "Always", ReaderMediaSidebarMinimumWidth = 1000,
                 MediaSidebarAutoHide = true, MediaSidebarInfo = "Always"
             }.SaveConfig(profile.Path);
+            SavedFile[] media = await SeedAsync(profile.Path, directory.Path);
             await using DesktopSessionHost host = new(profile.Path, [],
                 updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
             await using MainWindow window = new(host) { Width = 1700, Height = 900, Classes = { MotionPolicy.OffClass } };
