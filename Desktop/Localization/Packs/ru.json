@@ -1455,7 +1455,7 @@
     "wizard.watcher.name": "Название наблюдения",
     "wizard.watcher.interval": "Проверять каждые",
     "wizard.watcher.minutes": "мин",
-    "wizard.watcher.intervalHint": "Пустое поле использует общий интервал проверки. Допустимый диапазон: от {0} до {1} мин.",
+    "wizard.watcher.intervalHint": "Пустое поле использует общий интервал проверки. Допустимый диапазон (в минутах): от {0} до {1}.",
     "wizard.watcher.intervalInvalid": "Введите целое число от {0} до {1}.",
     "wizard.watcher.patterns": "{0} шабл.",
     "wizard.suggest.scanned.one": "Проанализирована {0:N0} сохранённая тема",

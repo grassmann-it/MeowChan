@@ -995,7 +995,7 @@
     "wizard.watcher.name": "Nome del monitoraggio",
     "wizard.watcher.interval": "Controlla ogni",
     "wizard.watcher.minutes": "minuti",
-    "wizard.watcher.intervalHint": "Lascia vuoto per usare l’intervallo di controllo globale. Valori consentiti: da {0} a {1} minuti.",
+    "wizard.watcher.intervalHint": "Lascia vuoto per usare l’intervallo di controllo globale. Intervallo consentito (in minuti): da {0} a {1}.",
     "wizard.watcher.intervalInvalid": "Inserisci un numero intero da {0} a {1}.",
     "wizard.watcher.patterns": "{0} schemi",
     "wizard.suggest.scanned.one": "Analizzata {0:N0} discussione salvata",

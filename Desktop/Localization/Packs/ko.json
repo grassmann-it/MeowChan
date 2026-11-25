@@ -1330,7 +1330,7 @@
     "wizard.watcher.name": "관찰 이름",
     "wizard.watcher.interval": "확인 간격",
     "wizard.watcher.minutes": "분",
-    "wizard.watcher.intervalHint": "비워 두면 전역 재확인 간격을 사용합니다. 허용 범위는 {0}~{1}분입니다.",
+    "wizard.watcher.intervalHint": "비워 두면 전역 재확인 간격을 사용합니다. 허용 범위(분): {0}~{1}.",
     "wizard.watcher.intervalInvalid": "{0}부터 {1} 사이의 정수를 입력하세요.",
     "wizard.watcher.patterns": "패턴 {0}개",
     "wizard.title": "게시판 스레드 선택",

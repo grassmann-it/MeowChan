@@ -1330,7 +1330,7 @@
     "wizard.watcher.name": "关注名称",
     "wizard.watcher.interval": "检查间隔",
     "wizard.watcher.minutes": "分钟",
-    "wizard.watcher.intervalHint": "留空时使用全局检查间隔。允许范围：{0} 至 {1} 分钟。",
+    "wizard.watcher.intervalHint": "留空时使用全局检查间隔。允许范围（分钟）：{0} 至 {1}。",
     "wizard.watcher.intervalInvalid": "请输入 {0} 至 {1} 之间的整数。",
     "wizard.watcher.patterns": "{0} 个模式",
     "wizard.title": "选择版块中的串",

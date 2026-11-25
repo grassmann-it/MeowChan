@@ -167,11 +167,24 @@ public sealed class NavJumpsTests
     }
 
     [Fact]
-    public void ContinueReadingIsAJumpToo()
+    public async Task ContinueReadingIsAJumpToo()
     {
-        string resume = Body("Desktop/Views/Archive/ArchivePage.Resume.cs", "internal async Task ResumeReadingPositionAsync");
-        int clear = resume.IndexOf("_history.Clear();", StringComparison.Ordinal);
-        Assert.True(clear >= 0 && clear < resume.IndexOf("ShowCapturedView(view", StringComparison.Ordinal));
+        using TempDirectory temp = new();
+        await SeedAsync(temp.Path);
+        BooruComponentDispatcher.Run(() => WithReadingPage(temp.Path, page => Pump(async () =>
+        {
+            await page.LoadThreadAsync(Shown);
+            await page.NavigateQuoteAsync(new ArchiveQuoteRow(new ArchiveQuote(new ArchivePostId(Shown, "p000"),
+                new ArchivePostId(Quoted, "p001"), ">>p001", null)));
+            Assert.True(page.CanGoHistoryBack);
+
+            bool? historyAtOpen = null;
+            page.OpenReaderRequested += _ => historyAtOpen = page.CanGoHistoryBack;
+            await page.ResumeReadingPositionAsync(new(Jumped.Source, Jumped.Board, Jumped.Thread!, "p002", 0, "p002"));
+            Assert.Equal(Jumped, page.CurrentThread?.Summary.Id);
+            Assert.False(historyAtOpen);
+            Assert.False(page.CanGoHistoryBack);
+        })));
     }
 
     // ---- F3: an open gallery owns the way back ----

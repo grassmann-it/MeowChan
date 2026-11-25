@@ -13,7 +13,7 @@ namespace MeowChan.DesktopTests;
 
 internal static class BooruReviewTestPlatform
 {
-    internal static IDisposable Enter()
+    internal static IDisposable Enter(bool overlayPopups = true)
     {
         IDisposable scope = AvaloniaLocator.EnterScope();
         try
@@ -22,7 +22,7 @@ internal static class BooruReviewTestPlatform
             SkiaPlatform.Initialize();
             BindTextShaper();
             typeof(AvaloniaHeadlessPlatform).GetMethod("Initialize", BindingFlags.Static | BindingFlags.NonPublic)!
-                .Invoke(null, [new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }]);
+                .Invoke(null, [new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false, OverlayPopups = overlayPopups }]);
             TokenApplication app = TokenApplication.Bind();
             app.RegisterServices();
             AvaloniaLocator.CurrentMutable.Bind<IThemeVariantHost>().ToConstant(app);

@@ -1330,7 +1330,7 @@
     "wizard.watcher.name": "監視名",
     "wizard.watcher.interval": "確認間隔",
     "wizard.watcher.minutes": "分",
-    "wizard.watcher.intervalHint": "空欄にすると全体の再確認間隔を使います。指定できる範囲は {0}～{1} 分です。",
+    "wizard.watcher.intervalHint": "空欄にすると全体の再確認間隔を使います。指定できる範囲（分）：{0}～{1}。",
     "wizard.watcher.intervalInvalid": "{0}～{1} の整数を入力してください。",
     "wizard.watcher.patterns": "{0} 件のパターン",
     "wizard.title": "板のスレッドを選択",
