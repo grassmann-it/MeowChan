@@ -118,7 +118,23 @@ internal static class GalleryCaptionChecks
         {
             Rect bounds = Bounds(tool, viewer), visible = VisibleBounds(tool, viewer);
             if (bounds.Width <= 0 || bounds.Height <= 0 || visible.Width < bounds.Width - 1 || visible.Height < bounds.Height - 1)
+            {
+                List<string> clippingAncestors = new();
+                _ = VisibleBounds(tool, viewer, clippingAncestors);
+                Slider? slider = tool.TemplatedParent as Slider ?? tool.GetVisualAncestors().OfType<Slider>().FirstOrDefault();
+                Console.WriteLine("SMOKE gallery tool clipping: " + JsonSerializer.Serialize(new
+                {
+                    video, theme, language = Texts.Language, width, state, tool = ControlName(tool),
+                    logicalParent = ControlName(tool.Parent as Control), templateOwner = ControlName(tool.TemplatedParent as Control),
+                    bounds = bounds.ToString(), visible = visible.ToString(), clippingAncestors,
+                    slider = slider == null ? null : new
+                    {
+                        owner = ControlName(slider), slider.Value, slider.Minimum, slider.Maximum,
+                        bounds = Bounds(slider, viewer).ToString(), visible = VisibleBounds(slider, viewer).ToString()
+                    }
+                }));
                 throw new InvalidOperationException("Gallery tool is clipped: " + tool.Name);
+            }
         }
         if (video && viewport.IsVisible)
         {
@@ -397,13 +413,23 @@ internal static class GalleryCaptionChecks
     }
     private static T Find<T>(GalleryViewer viewer, string name) where T : Control =>
         viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => control.Name == name);
-    private static Rect VisibleBounds(Control control, Control root)
+    private static string? ControlName(Control? control) => control == null ? null
+        : AutomationProperties.GetAutomationId(control) ?? control.Name ?? control.GetType().Name;
+
+    private static Rect VisibleBounds(Control control, Control root, List<string>? clippingAncestors = null)
     {
         if (!control.IsEffectivelyVisible) return default;
         Rect visible = Bounds(control, root);
         foreach (Control ancestor in control.GetVisualAncestors().OfType<Control>())
         {
-            if (ancestor.ClipToBounds) visible = visible.Intersect(Bounds(ancestor, root));
+            if (ancestor.ClipToBounds)
+            {
+                Rect clip = Bounds(ancestor, root);
+                Rect clipped = visible.Intersect(clip);
+                if (clippingAncestors != null && clipped != visible)
+                    clippingAncestors.Add($"{ControlName(ancestor)} ({ancestor.GetType().Name}) {clip}");
+                visible = clipped;
+            }
             if (ReferenceEquals(ancestor, root)) break;
         }
         return visible;
