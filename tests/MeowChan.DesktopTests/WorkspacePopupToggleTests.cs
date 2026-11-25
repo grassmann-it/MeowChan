@@ -6,6 +6,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -255,6 +256,8 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         {
             await viewer.ShowAsync(entry, [entry], 1, CancellationToken.None);
             Layout(window);
+            Assert.Contains(viewer.GetVisualDescendants().OfType<Image>(), image => image.IsEffectivelyVisible
+                && image.Source is Bitmap picture && picture.PixelSize == new PixelSize(17, 11));
             Button layout = Find<Button>(window, "GalleryLayoutButton");
             Button more = Find<Button>(window, "GalleryMore");
             bool layoutOnBar = width == 1280;
@@ -289,7 +292,11 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             PressAtFocus(window, Key.Enter);
             Assert.False(media.IsOpen);
             Assert.True(viewer.IsOverflowOpen);
-            Assert.Same(Find<Button>(viewer.OverflowMenuContent, "gallery.zoom-in"), window.FocusManager?.GetFocusedElement());
+            Button zoom = Find<Button>(viewer.OverflowMenuContent, "gallery.zoom-in");
+            Assert.True(zoom.IsEffectivelyEnabled);
+            var focused = window.FocusManager?.GetFocusedElement() as Control;
+            Assert.True(ReferenceEquals(zoom, focused),
+                $"Expected gallery.zoom-in at {width} DIP, got {(focused == null ? "<none>" : AutomationProperties.GetAutomationId(focused) ?? focused.Name ?? focused.GetType().Name)}.");
             Assert.True(viewer.OverflowMenuContent.IsKeyboardFocusWithin);
             PressAtFocus(window, Key.Escape);
             Assert.False(viewer.IsOverflowOpen);
@@ -394,7 +401,7 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
     {
         const string file = "picture.png";
         string path = Path.Combine(directory, file);
-        byte[] png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAD9sSLAAAAFElEQVR4AWMYBWj1/z+uFpMTmn8AuGMCD9ugRsIAAAAASUVORK5CYII=");
+        byte[] png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
         File.WriteAllBytes(path, png);
         MediaAssetReference asset = new("picture", "picture", "original", file, path, png.Length,
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png)), "", file, true);
