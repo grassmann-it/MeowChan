@@ -59,6 +59,7 @@ public sealed partial class TaggingPage
     internal Action<bool>? SavePanelEnabled { get; set; }
     internal Action<Action<Config>>? SavePanelSetting { get; set; }
     internal Func<string, MediaLibraryEntry, Func<bool>, Task>? ExecutePanelDecisionAsync { get; set; }
+    internal ToggleButton PanelToggle => _panelToggle;
     internal bool IsPanelShown => !_queueWork.Ended && _taggingPanel is { IsEffectivelyVisible: true };
 
     internal void ConfigurePanelInfo(ReaderMediaPreferences preferences)
@@ -292,7 +293,10 @@ public sealed partial class TaggingPage
             SetPanelTarget(wanted);
         }
         else if (_panelFollowDelay == null)
-            _ = FollowPanelAfterDelayAsync(_panelThrottle.Remaining(now));
+        {
+            long wait = _panelThrottle.Remaining(now);
+            OpenActions.Start(() => FollowPanelAfterDelayAsync(wait), "tagging.panel.follow");
+        }
     }
 
     private long PanelMilliseconds() => (long)PanelClock.GetElapsedTime(0, PanelClock.GetTimestamp()).TotalMilliseconds;
@@ -393,7 +397,7 @@ public sealed partial class TaggingPage
         (double Width, double Height) target = PanelTarget(panel);
         ReaderMediaLoadTicket ticket = panel.Load.Begin(key, target);
         if (ticket.UpToDate) return;
-        _ = LoadTaggingPanelAsync(panel, entry, key, ticket, target);
+        OpenActions.Start(() => LoadTaggingPanelAsync(panel, entry, key, ticket, target), "tagging.panel.load");
     }
 
     private GalleryTagPanelPosition DescribePanel(ReaderMediaSidebar panel, TaggingQueueRow row, MediaLibraryEntry entry, string key)
