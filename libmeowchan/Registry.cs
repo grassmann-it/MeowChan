@@ -1121,32 +1121,7 @@ public sealed partial class Registry : IAsyncDisposable
                 if (!_watches.TryGetValue(entry.Key, out Watch? watch) || watch.Thread == null || watch.Stopping) continue;
                 DownloadCounts counts = _queue.GetThreadCounts(new[] { watch.Thread })[watch.Thread];
                 if (counts.Active != 0 || counts.Queued != 0) continue;
-                {
-                    WorkStateAccess work = WorkStateAccess.For(_workStore);
-                    using IDisposable resourceFence = work.Enter(state.Url);
-                    if (work.IsDirty(state.Url)
-                        || !_workCacheEntries.TryGetValue(state.Url, out WorkCacheEntry? cached)
-                        || cached.Resource.Generation != state.Generation) continue;
-                    IReadOnlyList<MediaWork> media = cached.Snapshot.Media;
-                    DateTimeOffset now = _queue.UtcNow;
-                    if (state.Intent == WorkIntent.Repairing)
-                    {
-                        if (media.Any(item => item.ManualAttempt)) continue;
-                    }
-                    else
-                    {
-                        if (media.Any(item => item.Status == MediaWorkStatus.NeedsIntervention ||
-                            item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) && item.HttpStatus != 404)) continue;
-                        if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded or MediaWorkStatus.Expired))) continue;
-                        if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) &&
-                            (state.EndObservedAt == null || now < state.EndObservedAt.Value.AddHours(12)))) continue;
-                    }
-                    WorkResource? committed = work.CommitStateUnderFence(state with { Intent = WorkIntent.Completed }, admission);
-                    if (committed == null) continue;
-                    _workResources[entry.Key] = committed;
-                    _workCacheEntries[state.Url] = CreateWorkCacheEntry(committed, media);
-                    work.ClearDirty(state.Url);
-                }
+                if (!TryCommitCompletion(WorkStateAccess.For(_workStore), entry.Key, state, admission)) continue;
                 SessionSnapshot next = RemovalSnapshot(state.Url, true);
                 next.SuppressedThreadUrls = next.SuppressedThreadUrls.Where(url => url != state.Url).ToArray();
                 try { await SaveSessionAsync(next, admission).ConfigureAwait(false); }
@@ -1165,6 +1140,35 @@ public sealed partial class Registry : IAsyncDisposable
         }
         foreach ((ResourceKey key, Watch watch) in completed)
             await RemoveAsync(key, watch.Thread, null, shutdown: true).ConfigureAwait(false);
+    }
+
+    private bool TryCommitCompletion(WorkStateAccess work, ResourceKey key, WorkResource state, ProfileAdmissionToken? admission)
+    {
+        // Enter transfers the lease to this method. Release it before the caller saves the session.
+        using IDisposable resourceFence = work.Enter(state.Url);
+        if (work.IsDirty(state.Url)
+            || !_workCacheEntries.TryGetValue(state.Url, out WorkCacheEntry? cached)
+            || cached.Resource.Generation != state.Generation) return false;
+        IReadOnlyList<MediaWork> media = cached.Snapshot.Media;
+        DateTimeOffset now = _queue.UtcNow;
+        if (state.Intent == WorkIntent.Repairing)
+        {
+            if (media.Any(item => item.ManualAttempt)) return false;
+        }
+        else
+        {
+            if (media.Any(item => item.Status == MediaWorkStatus.NeedsIntervention ||
+                item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) && item.HttpStatus != 404)) return false;
+            if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded or MediaWorkStatus.Expired))) return false;
+            if (media.Any(item => item.Status is not (MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) &&
+                (state.EndObservedAt == null || now < state.EndObservedAt.Value.AddHours(12)))) return false;
+        }
+        WorkResource? committed = work.CommitStateUnderFence(state with { Intent = WorkIntent.Completed }, admission);
+        if (committed == null) return false;
+        _workResources[key] = committed;
+        _workCacheEntries[state.Url] = CreateWorkCacheEntry(committed, media);
+        work.ClearDirty(state.Url);
+        return true;
     }
 
     private void Warn(string warning) => Warn(warning, scheduleCompletion: true);
