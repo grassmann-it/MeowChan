@@ -83,9 +83,11 @@ public sealed class BooruSearchOverflowTests
         }
 
         input.Text = "cat";
+        Settle(window);
         Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
         int firstTab = Assert.Single(page.View.SearchTabs.Ids);
         input.Text = "dog";
+        Settle(window);
         Activate(BooruWorkbenchView.AlternateSubmitName);
         Assert.Equal(2, page.View.SearchTabs.Ids.Count);
         Assert.Equal("cat", page.View.SearchTabs.ViewOf(firstTab)?.ExecutedQuery);
