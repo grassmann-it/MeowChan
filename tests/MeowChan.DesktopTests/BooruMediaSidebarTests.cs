@@ -376,11 +376,18 @@ public sealed class BooruMediaSidebarTests
                     Assert.False(button.Focusable);
                     Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(button)));
                     Assert.InRange(In(button, actions).Right, 0, actions.Bounds.Width);
-                    TextBlock label = ById<TextBlock>(button, AutomationProperties.GetAutomationId(button) + ":Label");
-                    Assert.True(label.IsEffectivelyVisible);
-                    Assert.InRange(In(label, button).Right, 0,
-                        button.Bounds.Width - button.BorderThickness.Right - button.Padding.Right + 0.5);
+                    AssertActionLabelFits(button, requireLabel: false);
                 });
+
+                // Variante A, §2: “Icon zuerst, Label nur bei Platz”. Give all three labels room to check the secondary buttons too.
+                if (width == 1840)
+                {
+                    sidebar.Width = 800;
+                    Settle(window);
+                    Assert.All(buttons, button => AssertActionLabelFits(button, requireLabel: true));
+                    sidebar.Width = 360;
+                    Settle(window);
+                }
             }
         }
         Resize(window, 800);
@@ -582,6 +589,19 @@ public sealed class BooruMediaSidebarTests
     private static T ById<T>(Control root, string id) where T : Control => SidePanelDesignTests.ById<T>(root, id);
 
     private static Rect In(Control control, Control root) => new(control.TranslatePoint(default, root)!.Value, control.Bounds.Size);
+
+    private static void AssertActionLabelFits(Button button, bool requireLabel)
+    {
+        TextBlock label = ById<TextBlock>(button, AutomationProperties.GetAutomationId(button) + ":Label");
+        if (!label.IsEffectivelyVisible)
+        {
+            Assert.False(requireLabel, $"The action label '{label.Text}' should be visible when there is room.");
+            Assert.Equal(button.Height, button.Width);
+            return;
+        }
+
+        Assert.InRange(In(label, button).Right, 0, button.Bounds.Width - button.BorderThickness.Right - button.Padding.Right + 0.5);
+    }
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
