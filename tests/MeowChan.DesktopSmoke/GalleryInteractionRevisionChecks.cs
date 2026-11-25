@@ -9,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Diagnostics;
 using MeowChan.Gallery;
 
 namespace MeowChan.DesktopSmoke;
@@ -155,7 +156,10 @@ internal static partial class GalleryPlaybackFeatureChecks
 
     private static async Task CheckSavedSlideshowAutoplayAsync(MainWindow owner, GalleryEntry clip, GalleryEntry image)
     {
-        foreach (bool manualSelection in new[] { false, true })
+        await CheckSelectionAsync(manualSelection: false);
+        await CheckSelectionAsync(manualSelection: true);
+
+        async Task CheckSelectionAsync(bool manualSelection)
         {
             await using Fixture fixture = new(owner);
             await fixture.ReadyAsync();
@@ -456,8 +460,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         // boundary while exercising the menu. Slower native runners can consume most
         // of its twelve seconds during the preceding transport assertions; rewinding
         // is deterministic setup, not a relaxation of the menu contract.
-        Require(player.SeekRelative(TimeSpan.FromSeconds(-8)), "Menu intent setup could not rewind the seekable video.");
-        await ObservePlayingAsync(player, "rewound menu intent setup");
+        await RewindForMenuAsync(player);
         // The playback selector stays in the shared "More" flyout while the slideshow
         // toggle moves onto the toolbar. Opening the flyout is part of the user flow:
         // without it the selector is intentionally detached from any native hit root.
@@ -482,6 +485,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         await UntilAsync(() => !mode.IsDropDownOpen, "Native Escape did not close mode menu.");
         await ObservePlayingAsync(player, "closed playback menu");
         Require(contextWrites == 2, "Transient bottom-panel hover persisted post-context choices.");
+        Console.WriteLine("SMOKE gallery playback menu PASS: native clock advanced with the menu open and after Escape.");
     }
 
     private static async Task<T> NativeTargetAsync<T>(GalleryViewer viewer, string name) where T : Control
@@ -510,9 +514,56 @@ internal static partial class GalleryPlaybackFeatureChecks
     }
 
     private static GalleryVideoPlayer Player(GalleryViewer viewer) => viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
-    private static bool HasRealFrames(GalleryVideoPlayer.PlaybackEvidence evidence) => evidence.HasPlayback
-        && evidence.State == "Playing" && evidence.Time > 100 && evidence.Seekable && evidence.Length >= 8000
-        && (OperatingSystem.IsWindows() ? evidence.DisplayedFrames >= 3 : evidence.SurfaceFrames >= 3 && evidence.SurfaceNonUniform);
+    private static bool HasRealFrames(GalleryVideoPlayer.PlaybackEvidence evidence) =>
+        GalleryRewindClockProbe.HasRealFrames(evidence, OperatingSystem.IsWindows());
+
+    private static async Task RewindForMenuAsync(GalleryVideoPlayer player)
+    {
+        long generation = player.InspectPlaybackLifecycle().Generation;
+        var before = await player.InspectPlaybackAsync().WaitAsync(Deadline);
+        Require(before.State == "Playing" && before.Time >= 0, "Menu intent setup requires a running native clock before rewind.");
+        Require(player.InspectPlaybackLifecycle().PlaybackGeneration == generation,
+            "Menu intent setup changed media before rewind.");
+        using var trace = PerformanceDiagnostics.BeginRun("gallery-menu-rewind", "assembly-mvid:" + typeof(Program).Module.ModuleVersionId,
+            "playback-vp8-audio.webm");
+        long fromMs = player.PositionMs;
+        try
+        {
+            const int deltaMs = -8000;
+            Require(player.SeekRelative(TimeSpan.FromMilliseconds(deltaMs)), "Menu intent setup could not rewind the seekable video.");
+            long targetMs = player.PositionMs;
+            Console.WriteLine($"SMOKE gallery rewind request: generation={generation} deltaMs={deltaMs} timelineBeforeMs={fromMs} targetMs={targetMs} nativeBeforeMs={before.Time}");
+            GalleryRewindClockProbe probe = new(generation, before.Time, targetMs);
+            GalleryRewindClockResult result = GalleryRewindClockResult.WaitingForRewind;
+            // Same bound and cadence as ObservePlayingAsync, including its final readback.
+            for (int i = 0; i <= 16; i++)
+            {
+                if (i is > 0 and <= 15) await Task.Delay(100);
+                var sample = await player.InspectPlaybackAsync().WaitAsync(Deadline);
+                var lifecycle = player.InspectPlaybackLifecycle();
+                result = probe.Observe(lifecycle.PlaybackGeneration, sample.State, sample.Time);
+                Console.WriteLine($"SMOKE gallery rewind sample: index={i} generation={lifecycle.Generation} playbackGeneration={lifecycle.PlaybackGeneration} "
+                    + $"state={sample.State} nativeMs={sample.Time} timelineMs={player.PositionMs} pending={player.IsSeekInteracting} result={result}");
+                Require(lifecycle.Generation == generation && result != GalleryRewindClockResult.MediaChanged,
+                    "Rewound menu intent setup changed media while observing the native clock.");
+                Require(result != GalleryRewindClockResult.PlaybackChanged,
+                    "Rewound menu intent setup changed native playback away from Playing.");
+                if (result == GalleryRewindClockResult.Advanced) return;
+            }
+            Require(result != GalleryRewindClockResult.WaitingForRewind,
+                "Rewound menu intent setup never observed the native clock move back to the seek target.");
+            throw new InvalidOperationException("Rewound menu intent setup left a Playing label but a frozen native clock.");
+        }
+        finally
+        {
+            var snapshot = trace.Snapshot();
+            var events = snapshot.Events.Where(e => e.Phase is "video.seek.set-time" or "video.seek.readback").ToArray();
+            Console.WriteLine("SMOKE gallery rewind native operations: " + System.Text.Json.JsonSerializer.Serialize(new
+            {
+                snapshot.Frequency, snapshot.Dropped, events,
+            }));
+        }
+    }
 
     private static async Task ObservePlayingAsync(GalleryVideoPlayer player, string action)
     {
@@ -526,10 +577,10 @@ internal static partial class GalleryPlaybackFeatureChecks
             await Task.Delay(100);
             var state = await player.InspectPlaybackAsync().WaitAsync(Deadline);
             Require(state.State == "Playing", action + " caused a delayed native pause/stop.");
-            if (state.Time >= first.Time + 200) return;
+            if (state.Time >= first.Time + GalleryRewindClockProbe.ClockAdvanceMs) return;
         }
         var frozen = await player.InspectPlaybackAsync().WaitAsync(Deadline);
-        Require(frozen.Time >= first.Time + 200, action + " left a Playing label but a frozen native clock.");
+        Require(frozen.Time >= first.Time + GalleryRewindClockProbe.ClockAdvanceMs, action + " left a Playing label but a frozen native clock.");
     }
 
     private static async Task ObservePausedAsync(GalleryVideoPlayer player, string action)
@@ -676,7 +727,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         await UntilAsync(async () =>
         {
             var state = await Player(viewer).InspectPlaybackAsync();
-            return state.Length > 0 && Math.Abs(state.Time - state.Length * fraction) < 900;
+            return state.Length > 0 && Math.Abs(state.Time - state.Length * fraction) < GalleryRewindClockProbe.SeekToleranceMs;
         }, "Native seek did not move the actual decoder to the intended position.");
     }
 

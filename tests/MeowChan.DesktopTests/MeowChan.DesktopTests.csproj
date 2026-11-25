@@ -31,6 +31,7 @@
     <Compile Include="../MeowChan.DesktopSmoke/SmokeSelectors.cs" Link="TestSupport/SmokeSelectors.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/SmokeStartupDiagnostics.cs" Link="TestSupport/SmokeStartupDiagnostics.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/GalleryNativePointerProbe.cs" Link="TestSupport/GalleryNativePointerProbe.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/GalleryRewindClockProbe.cs" Link="TestSupport/GalleryRewindClockProbe.cs" />
     <Compile Include="../MeowChan.DesktopSmoke/SmokeVisualTree.cs" Link="TestSupport/SmokeVisualTree.cs" />
     <!-- These test the Debug-only acceptance harness, not product behavior; unchanged assertions run in Debug. -->
     <Compile Include="../Shared/Apphost/ApphostAcceptanceAssertions.cs;../Shared/Apphost/ApphostPlaybackDiagnostics.cs" Condition="'$(Configuration)' != 'Debug'" />
