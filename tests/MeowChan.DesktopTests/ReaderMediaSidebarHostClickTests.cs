@@ -101,7 +101,7 @@ public sealed class ReaderMediaSidebarHostClickTests
         ArchivedThreadView baseThread = RateAndTagWindowFixture.View(media);
         ArchivedThreadView thread = new(baseThread.Summary with { PostCount = 3 },
             [.. baseThread.GetPosts(), new("45", 2, PostFieldPresence.All,
-                Html: "<a href=\"#p44\" class=\"quotelink\">&gt;&gt;44</a> Sidebar reply")],
+                Html: "<a href=\"#44\" class=\"quotelink\">&gt;&gt;44</a> Sidebar reply")],
             baseThread.MediaDirectories, decimalPostOrder: true);
         await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);

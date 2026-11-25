@@ -150,8 +150,10 @@ public sealed class ReaderExpandRepliesTests : IDisposable
             Window window = new() { Content = page, Width = 1320, Height = 760 };
             try
             {
+                page.IsAvailable = true;
                 window.Show();
                 ReaderArchiveTestFixture.Load(page, view);
+                window.UpdateLayout();
                 ListBox posts = SidePanelDesignTests.ById<ListBox>(window, "ArchivePosts");
                 ArchivePostRow[] rows = posts.Items.OfType<ArchivePostRow>().ToArray();
                 BooruComponentDispatcher.WaitUntil(() =>
