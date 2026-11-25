@@ -48,7 +48,7 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
     [Fact]
     public void EnglishSourceCatalogHasTheAuditedUniqueInventory()
     {
-        // Fable §12 adds a distinct, localized name for the sidebar gear.
+        // Includes the three footer display hints and the labels and hints for the two Booru limits.
         // Board-watcher wizard specification §5.8 requires all new texts in English and the ten bundled packs.
         Assert.Equal(5523, BuiltInCatalog.English.Count);
         Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
