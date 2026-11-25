@@ -65,7 +65,8 @@ public sealed partial class MenuIconLayoutTests
                 Settle(viewer);
                 Check(Key.J, KeyModifiers.None);
                 Assert.True(toggle.IsChecked);
-                Assert.Equal(new[] { true, false, true }, saved.Select(preference => preference.OverlayPostContext));
+                bool[] expectedPlacement = [true, false, true];
+                Assert.Equal(expectedPlacement, saved.Select(preference => preference.OverlayPostContext));
                 Assert.All(saved, preference => Assert.False(preference.AutoHideControls));
 
                 void Check(Key key, KeyModifiers modifiers)

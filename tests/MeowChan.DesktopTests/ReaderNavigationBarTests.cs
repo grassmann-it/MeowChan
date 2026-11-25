@@ -29,6 +29,8 @@ public sealed class ReaderNavigationBarTests : IDisposable
     private static XDocument Markup(string relative) => XDocument.Parse(Source(relative));
 
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
+    private static readonly string[] NavigationArrowIds =
+        ["ReaderPreviousThread", "ReaderNextThread", "ReaderPreviousPost", "ReaderNextPost"];
 
     [Fact]
     public void SecondaryMediaGeometryTreatsMissingOrDetachedControlsAsNotVisible()
@@ -217,7 +219,7 @@ public sealed class ReaderNavigationBarTests : IDisposable
         Assert.Equal("1", (string?)separator.Attribute("Width"));
         Assert.Equal("24", (string?)separator.Attribute("Height"));
         Assert.Equal("{DynamicResource Workspace.ControlBorder}", (string?)separator.Attribute("Background"));
-        foreach (string name in new[] { "ReaderPreviousThread", "ReaderNextThread", "ReaderPreviousPost", "ReaderNextPost" })
+        foreach (string name in NavigationArrowIds)
         {
             XElement button = Named(markup, name);
             Assert.Equal("Button", button.Name.LocalName);
@@ -270,7 +272,7 @@ public sealed class ReaderNavigationBarTests : IDisposable
                 window.KeyReleaseQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
                 BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
                 Assert.Equal("1", page.CurrentReaderPostId);
-                foreach (string id in new[] { "ReaderPreviousThread", "ReaderNextThread", "ReaderPreviousPost", "ReaderNextPost" })
+                foreach (string id in NavigationArrowIds)
                 {
                     Button arrow = Find<Button>(window, id);
                     Assert.False(arrow.IsTabStop);
