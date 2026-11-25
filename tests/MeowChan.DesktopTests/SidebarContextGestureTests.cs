@@ -13,6 +13,7 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Updates;
 using MeowChan.Gallery;
+using MeowChan.Interfaces;
 using MeowChan.Storage;
 using MeowChan.Tags;
 
@@ -37,12 +38,12 @@ public sealed class SidebarContextGestureTests
 
         ContextGestures.RightClick(Picture(sidebar));
         QuickTagSurface surface = await OpenTagsAsync(page.MediaMenu);
-        surface.Input.Text = "panel tag";
+        surface.Input.Text = "panel-tag";
         Assert.True(await surface.CommitTypedAsync());
 
         PrivateTagStoreSnapshot saved = ReadSavedTags(window);
         Assert.Empty(saved.TagsOf(Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(a.Entry))));
-        Assert.Equal("panel tag", Assert.Single(saved.TagsOf(Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(b.Entry)))).Name.Display);
+        Assert.Equal("panel-tag", Assert.Single(saved.TagsOf(Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(b.Entry)))).Name.Display);
     });
 
     [Fact]
@@ -52,7 +53,7 @@ public sealed class SidebarContextGestureTests
         ContextGestures.RightClick(Picture(sidebar));
         QuickTagSurface surface = await OpenTagsAsync(page.ArchiveMediaMenu);
         QuickTagPopover editor = Assert.IsType<QuickTagPopover>(window.ArchiveTagPopover);
-        surface.Input.Text = "stale draft";
+        surface.Input.Text = "stale-draft";
 
         page.SelectMediaSidebarIndex(1);
         Assert.Equal(Thread, page.CurrentThread?.Summary.Id);
@@ -65,10 +66,10 @@ public sealed class SidebarContextGestureTests
 
         ContextGestures.RightClick(Picture(sidebar));
         QuickTagSurface next = await OpenTagsAsync(page.ArchiveMediaMenu);
-        next.Input.Text = "current tag";
+        next.Input.Text = "current-tag";
         Assert.True(await next.CommitTypedAsync());
         Assert.Empty(ReadSavedTags(window).TagsOf(media[0].Subject));
-        Assert.Equal("current tag", Assert.Single(ReadSavedTags(window).TagsOf(media[1].Subject)).Name.Display);
+        Assert.Equal("current-tag", Assert.Single(ReadSavedTags(window).TagsOf(media[1].Subject)).Name.Display);
     });
 
     [Theory]
