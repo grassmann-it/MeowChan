@@ -111,6 +111,9 @@ internal sealed class MediaFramePanel : Panel
     /// <summary>When set, this height scales with the column width and <see cref="MaximumHeightOverride"/> is a separate, absolute cap.
     /// Positive infinity leaves only the absolute cap in effect.</summary>
     internal double HeightLimitAtMaximumWidth { get; set; } = double.NaN;
+    /// <summary>The reader height available to an expanded image. NaN keeps the unexpanded frame.</summary>
+    internal double ExpandedHeightLimit { get; set; } = double.NaN;
+    internal const double ExpandedMaximumWidth = 8192;
     internal static double MaximumWidth(bool large) => large ? 360 : 240;
     internal static double MaximumHeight(bool large) => large ? 280 : 180;
 
@@ -126,6 +129,10 @@ internal sealed class MediaFramePanel : Panel
         Size frame = !double.IsNaN(HeightLimitAtMaximumWidth)
             ? MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, HeightLimitAtMaximumWidth, maximumHeight)
             : MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, maximumHeight);
+        // Keep at least the height of the unexpanded frame in this same column.
+        if (double.IsFinite(ExpandedHeightLimit))
+            frame = MediaSlotGeometry.Fit(Aspect, availableSize.Width, ExpandedMaximumWidth, double.PositiveInfinity,
+                Math.Max(frame.Height, ExpandedHeightLimit));
         Size picture = MediaSlotGeometry.Letterbox(frame, Aspect).Size;
         foreach (Control child in Children)
         {
