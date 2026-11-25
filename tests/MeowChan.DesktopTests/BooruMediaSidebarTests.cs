@@ -468,7 +468,11 @@ public sealed class BooruMediaSidebarTests
         Assert.Equal("1 / 2", position.Text);
         Assert.Contains("101.png", ById<TextBlock>(sidebar, "BooruMediaSummary").Text);
         Assert.Contains(SizeText.Format(1_234_567), ById<TextBlock>(sidebar, "BooruMediaSummary").Text);
-        Assert.Equal(In(info, sidebar).Center.Y, In(position, sidebar).Center.Y, precision: 0);
+        // Tom, 25.11. 14:55: “Kopf mit Post-ID und Provider”. With the provider the meta line may take the header's second
+        // row (as in Tom's screenshot); the position stays on that line, inside the header and above the media.
+        Assert.Equal(In(ById<TextBlock>(sidebar, "BooruMediaSummary"), sidebar).Center.Y, In(position, sidebar).Center.Y, precision: 0);
+        Assert.True(In(position, sidebar).Top >= In(info, sidebar).Top);
+        Assert.True(In(position, sidebar).Bottom <= In(media, sidebar).Top);
         Assert.True(In(media, sidebar).Height > 0);
         Assert.True(In(media, sidebar).Bottom <= In(actions, sidebar).Top);
         Assert.True(In(tags, sidebar).Bottom <= In(facts, sidebar).Top);
