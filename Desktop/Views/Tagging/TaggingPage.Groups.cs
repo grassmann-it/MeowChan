@@ -71,8 +71,8 @@ public sealed partial class TaggingPage
         PopupToggle.Prepare(_groupManage);
         AutomationProperties.SetAutomationId(_group, _group.Name);
         _groupManageHost = new ContextMenuHost(_group, ComposeGroupManageMenu, fallbackFocus: () => FocusContent(),
-            resolveOrigin: () => _groupManage.IsEffectivelyVisible ? _groupManage : _group,
-            acceptSource: _ => !_group.IsDropDownOpen, toggle: true);
+            resolveOrigin: () => _groupManage.IsEffectivelyVisible && _groupManage.IsAttachedToVisualTree() ? _groupManage : _group,
+            acceptSource: _ => !_group.IsDropDownOpen, toggle: true, allowNativeContextKey: true);
         _groupManage.Click += (_, _) => _groupManageHost?.Activate();
         RenderGroups();
     }

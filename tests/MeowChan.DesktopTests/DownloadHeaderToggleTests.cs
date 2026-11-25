@@ -181,6 +181,7 @@ public sealed class DownloadHeaderToggleTests
     [Fact]
     public void ColumnsClosesOnSecondPointerClickAndUsesTheCurrentTabWhenReopened() => RunWithGrid(fixture =>
     {
+        fixture.ShowThreads([Thread(1)]);
         var columns = fixture.Find<ToggleButton>("DownloadsColumnsButton");
         Assert.False(columns.Focusable);
         Click(fixture, columns);
@@ -299,7 +300,8 @@ public sealed class DownloadHeaderToggleTests
     {
         var modifiers = (RawInputModifiers)gesture.KeyModifiers;
         target.KeyPress(gesture.Key, modifiers, PhysicalKey.None, null);
-        target.KeyRelease(gesture.Key, modifiers, PhysicalKey.None, null);
+        TopLevel receiver = target.PlatformImpl != null ? target : fixture.Window;
+        receiver.KeyRelease(gesture.Key, modifiers, PhysicalKey.None, null);
         fixture.Layout();
     }
 }

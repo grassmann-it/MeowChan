@@ -75,7 +75,7 @@ public sealed class DialogWindowTests
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
-            using IdentitySuggestionBox input = new() { ReleaseEscape = releaseEscape };
+            using IdentitySuggestionBox input = new() { ReleaseEscape = releaseEscape, Text = string.Empty };
             Window owner = new() { Width = 360, Height = 220, Content = input };
             int escapes = 0;
             owner.KeyDown += (_, e) => { if (e.Key == Key.Escape) escapes++; };
@@ -85,6 +85,8 @@ public sealed class DialogWindowTests
             {
                 owner.UpdateLayout();
                 input.Focus();
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(input.IsKeyboardFocusWithin);
                 input.Candidates = (_, _) => Task.FromResult<IdentitySuggestion[]>([new("fixture", null, "fixture")]);
                 input.ToggleExplicitList();
                 Dispatcher.UIThread.RunJobs();

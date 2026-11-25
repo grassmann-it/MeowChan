@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -51,13 +52,30 @@ internal static class PopupToggle
     {
         ButtonMenu state = Menus.GetValue(button, static anchor => new ButtonMenu(anchor));
         state.Menu = menu;
+        TopLevel? root = TopLevel.GetTopLevel(button);
+        root?.AddHandler(InputElement.PointerPressedEvent, DismissOnAnchor, RoutingStrategies.Tunnel, handledEventsToo: true);
         menu.Opened += (_, _) => Present(button, true);
         menu.Closed += (_, _) =>
         {
+            root?.RemoveHandler(InputElement.PointerPressedEvent, DismissOnAnchor);
             if (!ReferenceEquals(state.Menu, menu)) return;
             state.Menu = null;
             Present(button, false);
         };
+
+        void DismissOnAnchor(object? sender, PointerPressedEventArgs e)
+        {
+            if (!ReferenceEquals(state.Menu, menu) || !menu.IsOpen || e.Source is not Visual source
+                || !e.GetCurrentPoint(button).Properties.IsLeftButtonPressed) return;
+            // Before Avalonia's light-dismiss layer forwards the press, consume an activation on the anchor.
+            bool onAnchor = source.GetSelfAndVisualAncestors().Contains(button)
+                || root != null && new Rect(button.Bounds.Size).Contains(e.GetPosition(button))
+                    && root.InputHitTest(e.GetPosition(root), visual => !ReferenceEquals(visual, source)) is Visual underlying
+                    && underlying.GetSelfAndVisualAncestors().Contains(button);
+            if (!onAnchor) return;
+            e.Handled = true;
+            menu.Close();
+        }
     }
 
     private sealed class ButtonMenu
@@ -66,12 +84,6 @@ internal static class PopupToggle
 
         internal ButtonMenu(Button button)
         {
-            // Avalonia forwards the outside press before light-dismissing a ContextMenu. Consume
-            // a press on its own anchor while it is still open, so the release can't reopen it.
-            button.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
-            {
-                if (e.GetCurrentPoint(button).Properties.IsLeftButtonPressed && Close(button)) e.Handled = true;
-            }, RoutingStrategies.Tunnel);
             button.DetachedFromVisualTree += (_, _) => Close(button);
             button.PropertyChanged += (_, e) =>
             {

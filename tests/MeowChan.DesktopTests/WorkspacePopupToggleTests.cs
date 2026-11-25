@@ -17,6 +17,7 @@ using MeowChan.Desktop.Updates;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
+using MeowChan.Rules;
 using MeowChan.Storage;
 using MeowChan.Tags;
 
@@ -37,6 +38,7 @@ public sealed class WorkspacePopupToggleTests
         SettingsEditor settings = new(new Config());
         using PluginsPage plugins = new();
         rules.ApplyWorkView(WorkView.Barebones, true);
+        rules.EditScope(MediaRuleScope.Global);
         diagnostics.ApplyWorkView(WorkView.Barebones);
         plugins.ApplyWorkView(WorkView.Barebones, true);
         Control page = id switch
@@ -65,6 +67,7 @@ public sealed class WorkspacePopupToggleTests
     {
         await using RulesPage page = new() { IsAvailable = true };
         page.ApplyWorkView(WorkView.Barebones, true);
+        page.EditScope(MediaRuleScope.Global);
         Window window = Show(page);
         try
         {
@@ -179,7 +182,7 @@ public sealed class WorkspacePopupToggleTests
             PressAtFocus(window, Key.Enter);
             Assert.False(menu.IsOpen);
             Button cancel = Assert.Single(window.OpenedPopups.SelectMany(popup =>
-                    popup.GetVisualDescendants().OfType<Button>()),
+                    popup.Child?.GetVisualDescendants().OfType<Button>() ?? []),
                 button => AutomationProperties.GetAutomationId(button) == "settings.reset.cancel");
             Assert.True(cancel.IsFocused);
             PressAtFocus(window, Key.Enter);
@@ -205,6 +208,13 @@ public sealed class WorkspacePopupToggleTests
         {
             await page.ActivateAsync();
             Layout(window);
+            ToggleButton more = Assert.IsAssignableFrom<ToggleButton>(page.Actions.More);
+            Click(window, more);
+            Button groupOpener = page.GroupManageButton;
+            VerifyPopup(window, groupOpener, () => groupOpener.ContextMenu?.IsOpen == true);
+            more.IsChecked = false;
+            Layout(window);
+
             ComboBox groups = Find<ComboBox>(window, "TaggingGroup");
             Assert.True(groups.Focus());
             PressCommand(window, "menu.context-open");
@@ -398,12 +408,12 @@ public sealed class WorkspacePopupToggleTests
     {
         Assert.False(opener.Focusable);
         Assert.False(isOpen());
-        Click(window, opener);
+        Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
         Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
-        Click(window, opener);
+        Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.False(isOpen());
-        Click(window, opener);
+        Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
         PressAtFocus(window, Key.Escape);
         Assert.False(isOpen());
@@ -432,7 +442,7 @@ public sealed class WorkspacePopupToggleTests
     {
         TopLevel root = window.FocusManager?.GetFocusedElement() is Visual focused
             ? TopLevel.GetTopLevel(focused) ?? window : window;
-        Press(root, key, modifiers);
+        Press(root, key, modifiers, window);
         Layout(window);
     }
 
@@ -442,11 +452,12 @@ public sealed class WorkspacePopupToggleTests
         PressAtFocus(window, gesture.Key, (RawInputModifiers)gesture.KeyModifiers);
     }
 
-    private static void Press(TopLevel root, Key key, RawInputModifiers modifiers = RawInputModifiers.None)
+    private static void Press(TopLevel root, Key key, RawInputModifiers modifiers = RawInputModifiers.None, Window? fallback = null)
     {
         root.KeyPress(key, modifiers, PhysicalKey.None, null);
-        root.KeyRelease(key, modifiers, PhysicalKey.None, null);
-        Layout(root);
+        TopLevel receiver = root.PlatformImpl != null ? root : Assert.IsType<Window>(fallback);
+        receiver.KeyRelease(key, modifiers, PhysicalKey.None, null);
+        Layout(receiver);
     }
 
     private static void Layout(TopLevel root)
