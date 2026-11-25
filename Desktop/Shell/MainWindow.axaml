@@ -434,11 +434,11 @@
                                     </controls:WorkspaceEmptyState>
                                 </Grid>
                         <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Margin="8,2,8,8" IsVisible="False">
-                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                 <controls:SearchBox x:Name="DownloadSearchInput" AutomationProperties.AutomationId="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
                                 <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
-                                <Button x:Name="DownloadSearchClear" Focusable="False" Grid.Column="2" Classes="localized subtle" Tag="downloads.searchClear" Click="OnDownloadSearchClear" />
                             </Grid>
+                            <Button x:Name="DownloadSearchClear" Focusable="False" controls:HeaderBar.IsEnd="True" Classes="localized subtle" Tag="downloads.searchClear" Click="OnDownloadSearchClear" />
                         </controls:HeaderBar>
                     </Grid>
                 </Border>
