@@ -1150,13 +1150,16 @@ public sealed class SavedMediaReaderTests
         (grid ? page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource : page.FindControl<DataGrid>("ArchiveMediaGrid")!.ItemsSource)!
         .Cast<ArchiveAssetRow>().ToArray();
 
-    private static void Run(Action<ArchivePage, Window> test, Action<string>? openFolder = null,
-        bool additionalRevisions = false, bool withNavigation = false, bool? gridPreference = null) => BooruComponentDispatcher.Run(() =>
+    internal static void Run(Action<ArchivePage, Window> test, Action<string>? openFolder = null,
+        bool additionalRevisions = false, bool withNavigation = false, bool? gridPreference = null,
+        Func<string, MediaAssetReference>? extraAsset = null) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
         using TempDirectory temp = new();
         (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(temp.Path, additionalRevisions: additionalRevisions);
+        if (extraAsset != null)
+            manifest = new(temp.Path, manifest.Status, manifest.ManifestVersion, manifest.Generation, [.. manifest.GetPage(), extraAsset(temp.Path)]);
         HashSet<string> favorites = [manifest.GetPage().Single(asset => Path.GetFileName(asset.Path) == "a.png").AssetId];
         if (withNavigation) BooruComponentDispatcher.Wait(CaptureNextThreadAsync());
         ArchivePage page = new(token => withNavigation ? ArchiveReader.OpenAsync(temp.Path, token)
