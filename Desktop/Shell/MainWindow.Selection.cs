@@ -385,7 +385,11 @@ public partial class MainWindow
         {
             foreach (T id in frozen)
             {
-                await AwaitSessionRowsAsync();
+                // The next projection can start before the completed frame's waiter resumes.
+                do
+                {
+                    await AwaitSessionRowsAsync();
+                } while (_sessionRowsApplying && !_isClosing);
                 if (_isClosing) return;
                 try { await command(id); }
                 catch (Exception error) { failures.Add(error.Message); }
