@@ -9,6 +9,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
@@ -17,14 +18,15 @@ namespace MeowChan.DesktopTests;
 public sealed class ReaderMediaSidebarSettingsMenuTests
 {
     [Theory]
-    [InlineData("reader", true)]
-    [InlineData("media", false)]
-    public void GearRendersTwoChecksThatSaveAndCanBeDismissed(string keyContext, bool autoHide) => BooruComponentDispatcher.Run(() =>
+    [InlineData("reader", true, "de", "Auto-Hide", "Fakten anzeigen")]
+    [InlineData("media", false, "en", "Auto-hide", "Show sidebar facts")]
+    public void GearRendersTwoChecksThatSaveAndCanBeDismissed(string keyContext, bool autoHide,
+        string language, string autoHideLabel, string factsLabel) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.Initialize();
         string previousLanguage = Texts.Language;
-        Texts.SetLanguage("en");
+        Texts.SetLanguage(language);
         Config saved = new() { MediaSidebarAutoHide = autoHide, MediaSidebarFacts = true };
         int writes = 0;
         ReaderMediaSidebar sidebar = new()
@@ -41,6 +43,9 @@ public sealed class ReaderMediaSidebarSettingsMenuTests
             Settle(window);
             var gear = SidePanelDesignTests.ById<ToggleButton>(sidebar, "ReaderMediaSidebarSettings");
             var menu = Assert.IsType<MenuFlyout>(gear.Flyout);
+            var mac = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
+            Assert.Equal("⇧A", CommandCatalog.ShortcutTooltipDisplay("media.sidebar.autohide", macOS: true, keyContext, mac));
+            Assert.Equal("⇧I", CommandCatalog.ShortcutTooltipDisplay("media.sidebar.info", macOS: true, keyContext, mac));
 
             (MenuItem AutoHide, MenuItem Facts) Open()
             {
@@ -54,14 +59,15 @@ public sealed class ReaderMediaSidebarSettingsMenuTests
                 MenuItem[] rows = presenter.GetVisualDescendants().OfType<MenuItem>()
                     .Where(row => row.IsEffectivelyVisible && row.Bounds.Width > 0 && row.Bounds.Height > 0).ToArray();
                 Assert.True(rows.Length == 2, $"Expected two laid-out menu rows, found {rows.Length} with {menu.Items.Count} flyout entries.");
-                return (FindRow("ReaderMediaSidebarSettingsAutoHide", Key.A), FindRow("ReaderMediaSidebarSettingsFacts", Key.I));
+                return (FindRow("ReaderMediaSidebarSettingsAutoHide", Key.A, autoHideLabel),
+                    FindRow("ReaderMediaSidebarSettingsFacts", Key.I, factsLabel));
 
-                MenuItem FindRow(string id, Key key)
+                MenuItem FindRow(string id, Key key, string label)
                 {
                     MenuItem row = Assert.Single(rows, item => AutomationProperties.GetAutomationId(item) == id);
                     Assert.Equal(MenuItemToggleType.CheckBox, row.ToggleType);
                     Assert.Equal(new KeyGesture(key, KeyModifiers.Shift), row.InputGesture);
-                    string label = Assert.IsType<string>(row.Header);
+                    Assert.Equal(label, Assert.IsType<string>(row.Header));
                     Assert.Contains(row.GetVisualDescendants().OfType<TextBlock>(), text =>
                         text.Text == label && text.IsEffectivelyVisible && text.Bounds.Width > 0 && text.Bounds.Height > 0);
                     return row;
