@@ -69,7 +69,8 @@ internal static class ArchiveFilterSurfaceChecks
         Border results = page.FindControl<Border>("ArchiveResultsSurface")!;
         Grid listPane = page.FindControl<Grid>("ArchiveListPane")!;
         TextBox search = page.FindControl<TextBox>("ArchiveSearchText")!;
-        Button apply = page.FindControl<Button>("ArchiveFilterApply")!, close = page.FindControl<Button>("ArchiveFilterClose")!;
+        Button apply = page.FindControl<Button>("ArchiveFilterApply")!, close = surface.GetVisualDescendants().OfType<Button>()
+            .Single(button => Avalonia.Automation.AutomationProperties.GetAutomationId(button) == "ArchiveFilterSurfaceClose");
         await Program.WaitUntilAsync(() =>
         {
             host.UpdateLayout();
@@ -140,9 +141,9 @@ internal static class ArchiveFilterSurfaceChecks
         Program.CaptureWindow(host, $"smoke-archive-filter-surface-{(int)width}-{code}-{theme.ToString().ToLowerInvariant()}.png");
 
         // Tab stays inside the open surface; Escape closes it and returns to results.
-        close.Focus(NavigationMethod.Tab);
+        apply.Focus(NavigationMethod.Tab);
         Key(Avalonia.Input.Key.Tab);
-        await Program.WaitUntilAsync(() => FocusIn(surface) && !ReferenceEquals(Focused(), close));
+        await Program.WaitUntilAsync(() => FocusIn(surface) && !ReferenceEquals(Focused(), apply));
         ComboBox sort = page.FindControl<ComboBox>("ArchiveSort")!;
         sort.Focus(NavigationMethod.Tab);
         sort.IsDropDownOpen = true;
