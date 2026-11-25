@@ -114,6 +114,8 @@ public sealed partial class ArchiveCatalog : IAsyncDisposable
                     using SqliteCommand stamp = ArchiveSql.Command(connection, transaction, "PRAGMA user_version=13");
                     stamp.ExecuteNonQuery();
                 }
+                // An additive index also applies to catalogs already at the current schema version.
+                ArchiveSql.EnsureBoardTitleHistoryIndex(connection, transaction, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 transaction.Commit();
             }
