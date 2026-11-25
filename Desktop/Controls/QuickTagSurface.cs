@@ -1186,12 +1186,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private async void OnSuggestionClick(object? sender, RoutedEventArgs e)
     {
-        if (_suggestionChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip) await OpenActions.RunAsync(() => ToggleSuggestionAsync(chip.Index), "tags.quick.suggestion.click");
+        if (_suggestionChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip) await OpenActions.RunAsync(() => AcceptSuggestionAsync(chip.Suggestion), "tags.quick.suggestion.click");
     }
 
     /// <summary>Toggles suggestion <paramref name="index"/> (0-based), as a click, Alt+n or n in the strip does.</summary>
     internal Task ToggleSuggestionAsync(int index) =>
-        index < 0 || index >= _shown.Count ? Task.CompletedTask : Guard(() => _session.AcceptAsync(_shown[index], WriteToken), "tags.quick.suggestion");
+        index < 0 || index >= _shown.Count ? Task.CompletedTask : AcceptSuggestionAsync(_shown[index]);
+
+    private Task AcceptSuggestionAsync(QuickTagSuggestion suggestion) =>
+        Guard(() => _session.AcceptAsync(suggestion, WriteToken), "tags.quick.suggestion");
 
     private async void OnAssignedClick(object? sender, RoutedEventArgs e)
     {

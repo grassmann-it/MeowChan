@@ -4963,6 +4963,8 @@
     "reader.sidebar.stripItem": "Fichier {0} sur {1} : {2}",
     "reader.sidebar.discover": "Appuyez sur {0} pour afficher en grand les médias du message sélectionné à côté des messages.",
     "reader.sidebar.discoverNoKey": "Affiche en grand les médias du message sélectionné à côté des messages.",
+    "settings.reader.sidebarPreviewPixels": "Nombre maximal de pixels des aperçus du panneau latéral",
+    "settings.reader.sidebarPreviewPixels.hint": "Pour les images plus grandes, le panneau latéral affiche une indication de taille.",
     "settings.reader.mediaStripLimit": "Miniatures dans la bande du panneau des médias",
     "settings.reader.mediaStripLimit.hint": "Un message comportant plusieurs fichiers affiche une bande de miniatures sous le grand média. S’il en compte davantage, une fenêtre se déplace ; les boutons ◀ ▶ atteignent toujours chaque fichier.",
     "settings.reader.mediaGrid": "Afficher plusieurs images d’un message court sous forme de grille",

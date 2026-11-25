@@ -103,6 +103,8 @@ internal static class ReaderSettingsCatalog
         ("settings.reader.inlineVideoPlayers.hint", "More players keep paused videos ready to continue but use more memory; the one used longest ago is closed first.", "Mehr Player halten angehaltene Videos zum Fortsetzen bereit, brauchen aber mehr Speicher; der am längsten nicht genutzte wird zuerst geschlossen."),
         ("settings.reader.inlineVideoMaxFile", "Largest video played in the reader (MiB)", "Größtes im Reader abgespieltes Video (MiB)"),
         ("settings.reader.inlineVideoMaxFile.hint", "A larger video is not played here; the reader says so, and the gallery still plays it.", "Ein größeres Video wird hier nicht abgespielt; der Reader weist darauf hin, und die Galerie spielt es weiterhin ab."),
+        ("settings.reader.sidebarPreviewPixels", "Maximum pixels for sidebar previews", "Maximale Pixelzahl für die Seitenleistenvorschau"),
+        ("settings.reader.sidebarPreviewPixels.hint", "Larger images show a size notice in the sidebar.", "Bei größeren Bildern zeigt die Seitenleiste einen Größenhinweis."),
         ("settings.reader.mediaStripLimit", "Thumbnails in the media sidebar strip", "Vorschaubilder im Streifen der Medienleiste"),
         ("settings.reader.mediaStripLimit.hint", "A post with several files shows a strip of thumbnails under the large medium. If it has more files than this number, a window slides along; the ◀ ▶ buttons still reach every file.", "Ein Post mit mehreren Dateien zeigt unter dem großen Medium einen Streifen mit Vorschaubildern. Hat er mehr Dateien als diese Zahl, verschiebt sich ein Fenster; die Knöpfe ◀ ▶ erreichen weiterhin jede Datei."),
         ("settings.reader.keepExpanded", "Keep images expanded", "Bilder aufgeklappt lassen"),

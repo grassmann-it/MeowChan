@@ -44,15 +44,8 @@ public partial class ArchivePage
         _favoriteKeyLatch.Observe(this);
         // A held key repeats KeyDown: only its first press acts. The latch is taken even while the last write runs, so the key does not act when it ends.
         if (_favoriteKeyLatch.IsRepeat(e.Key) || !FavoriteKeyTask.IsCompleted) return true;
-        FavoriteKeyTask = IsMediaSidebarSource(source) && _mediaSidebar is { } sidebar
-            && SidebarStripContext(source.GetSelfAndVisualAncestors().OfType<Control>().ToArray()) is not { Shown: false }
-            ? WriteSidebarFavoriteKeyAsync(sidebar, action, targets) : WriteFavoriteKeyAsync(action, targets);
+        FavoriteKeyTask = WriteFavoriteKeyAsync(action, targets, source);
         return true;
-    }
-
-    private async Task WriteSidebarFavoriteKeyAsync(ReaderMediaSidebar sidebar, FavoriteKeyAction action, IReadOnlyList<GalleryEntry> targets)
-    {
-        if (await sidebar.VerifyImageActionAsync()) await WriteFavoriteKeyAsync(action, targets);
     }
 
     /// <summary>The media a favourite key pressed with the focus on <paramref name="source"/> acts on (empty: nothing to act on).</summary>
@@ -94,7 +87,7 @@ public partial class ArchivePage
         FindMatchingAsset(threadId, postId, attachment.Attachment, _assets) is { } asset ? AssetEntry(threadId, asset) : null;
 
     // One decision for the whole target (FavoriteKeys.Writes), then the explicit write for each medium that changes, one after the other.
-    private async Task WriteFavoriteKeyAsync(FavoriteKeyAction action, IReadOnlyList<GalleryEntry> targets)
+    private async Task WriteFavoriteKeyAsync(FavoriteKeyAction action, IReadOnlyList<GalleryEntry> targets, Control source)
     {
         if ((EffectiveArchiveFavorite ?? IsArchiveFavorite) is not { } isFavorite) return;
         Action<string> reportError = CaptureActionErrorReporter();
@@ -104,7 +97,13 @@ public partial class ArchivePage
         foreach ((int index, bool selected) in FavoriteKeys.Writes(action, marked))
         {
             if (_ended) return;
-            try { await ToggleArchiveMediaFavoriteAsync(targets[index], selected); }
+            GalleryEntry target = targets[index];
+            try
+            {
+                var verify = CaptureSidebarTargetGuard(source, target);
+                if (verify != null && !await verify(default)) return;
+                await ToggleArchiveMediaFavoriteAsync(target, selected);
+            }
             catch (Exception error) { reportError(error.Message); return; }
         }
     }

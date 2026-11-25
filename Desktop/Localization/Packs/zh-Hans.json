@@ -4873,6 +4873,8 @@
     "reader.sidebar.stripItem": "第 {0} 个文件，共 {1} 个：{2}",
     "reader.sidebar.discover": "按 {0} 可在帖子旁大图显示所选帖子的媒体。",
     "reader.sidebar.discoverNoKey": "在帖子旁大图显示所选帖子的媒体。",
+    "settings.reader.sidebarPreviewPixels": "侧栏预览的最大像素数",
+    "settings.reader.sidebarPreviewPixels.hint": "对于超过此限制的图像，侧栏会显示尺寸提示。",
     "settings.reader.mediaStripLimit": "媒体侧栏缩略图条中的缩略图数量",
     "settings.reader.mediaStripLimit.hint": "包含多个文件的帖子会在大媒体下方显示一排缩略图。文件数超过此数量时，窗口会随之滑动；◀ ▶ 按钮仍可到达每个文件。",
     "settings.reader.mediaGrid": "将短帖子的多张图片显示为网格",

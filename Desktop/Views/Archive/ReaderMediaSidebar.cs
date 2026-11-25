@@ -302,6 +302,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private string? _tagsBlocked;
     private string? _decisionFailure;
     private bool _writingDecision;
+    private event Action? DecisionTargetChanged;
     private string? _mediumKey;
     private int _mediumRevision;
     private bool? _imageVerified = true;
@@ -507,7 +508,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             e.Handled = true;
             e.Pointer.Capture(null);
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
-        DetachedFromVisualTree += (_, _) => _decisionPresses.Clear();
+        DetachedFromVisualTree += (_, _) => { _decisionPresses.Clear(); InvalidateDecisionTarget(); };
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, SettingsButton, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _header.ReserveCloseSpace(Close);
@@ -743,6 +744,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     internal void InvalidateDecisionTarget()
     {
         _mediumRevision++;
+        DecisionTargetChanged?.Invoke();
         _decisionFailure = null;
         InvalidateTagEditor();
     }
@@ -932,38 +934,43 @@ internal sealed partial class ReaderMediaSidebar : Border
         RefreshDecisions();
     }
 
-    internal async Task<bool> VerifyImageActionAsync(CancellationToken token = default)
+    internal Task<bool> VerifyImageActionAsync(CancellationToken token = default) =>
+        VerifyTargetAsync(_verifiedImage, displayed: true, _mediumRevision, token);
+
+    internal Func<CancellationToken, Task<bool>> CaptureImageActionGuard(GalleryEntry? target = null, bool displayed = true)
     {
-        if (!CanUseMediaActions || token.IsCancellationRequested) return false;
-        if (_verifiedImage is not { } entry) return true;
         int revision = _mediumRevision;
-        bool Current() => revision == _mediumRevision && ReferenceEquals(_verifiedImage, entry)
-            && CanUseMediaActions && !token.IsCancellationRequested && IsEffectivelyVisible;
+        GalleryEntry? entry = target ?? _verifiedImage;
+        return token => VerifyTargetAsync(entry, displayed, revision, token);
+    }
+
+    private async Task<bool> VerifyTargetAsync(GalleryEntry? entry, bool displayed, int revision, CancellationToken token)
+    {
+        bool Current() => revision == _mediumRevision && !token.IsCancellationRequested && IsEffectivelyVisible
+            && (!displayed || CanUseMediaActions && (_verifiedImage == null || _verifiedImage.Asset == entry?.Asset));
+        if (!Current()) return false;
+        if (entry == null) return true;
+        using CancellationTokenSource checking = CancellationTokenSource.CreateLinkedTokenSource(token);
+        DecisionTargetChanged += checking.Cancel;
         try
         {
             await Task.Run(async () =>
             {
-                await using var original = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false);
-            }, token);
+                await using var original = await GallerySidebarOriginal.OpenAsync(entry, checking.Token).ConfigureAwait(false);
+            }, checking.Token);
             return Current();
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { return false; }
+        catch (OperationCanceledException) when (checking.IsCancellationRequested) { return false; }
         catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException)
         {
-            if (Current())
+            if (displayed && Current())
             {
                 SetImageVerification(false);
                 ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
             }
             return false;
         }
-    }
-
-    internal Func<CancellationToken, Task<bool>>? CaptureImageActionGuard()
-    {
-        if (_verifiedImage == null) return null;
-        int revision = _mediumRevision;
-        return token => revision == _mediumRevision ? VerifyImageActionAsync(token) : Task.FromResult(false);
+        finally { DecisionTargetChanged -= checking.Cancel; }
     }
 
     private void RefreshDecisions()

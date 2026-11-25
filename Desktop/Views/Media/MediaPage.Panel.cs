@@ -271,9 +271,9 @@ public sealed partial class MediaPage
         MediaLibraryTileRow? rebound = previous == null ? null : RowOfTile(MediaLibraryTileKey.Of(previous.Tile), previous.Index);
         MediaLibraryTileRow? pick = rebound != null && _grid.Selection.IsSelected(rebound.Index) ? rebound : SelectedRow ?? rebound;
         bool sameMedium = pick != null && _panelRow != null && MediaLibraryTileKey.Of(pick.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
-        if (sameMedium)
+        if (sameMedium && SamePanelTagTarget(pick!.Entry, _panelRow!.Entry))
         {
-            // Same tile in a new list: no new decode, only the header and the star.
+            // The rebound row still represents the same occurrence.
             SetPanelRow(pick);
             _panelWanted = pick;
             DescribePanel(_panel, pick!);

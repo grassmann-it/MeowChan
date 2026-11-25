@@ -4969,6 +4969,8 @@
     "reader.sidebar.stripItem": "Arquivo {0} de {1}: {2}",
     "reader.sidebar.discover": "Pressione {0} para mostrar a mídia da postagem selecionada em tamanho grande ao lado das postagens.",
     "reader.sidebar.discoverNoKey": "Mostra a mídia da postagem selecionada em tamanho grande ao lado das postagens.",
+    "settings.reader.sidebarPreviewPixels": "Máximo de pixels para prévias na barra lateral",
+    "settings.reader.sidebarPreviewPixels.hint": "Para imagens maiores, a barra lateral exibe um aviso sobre o tamanho.",
     "settings.reader.mediaStripLimit": "Miniaturas na faixa da barra lateral de mídia",
     "settings.reader.mediaStripLimit.hint": "Uma postagem com vários arquivos mostra uma faixa de miniaturas sob a mídia grande. Se tiver mais arquivos que este número, uma janela se desloca; os botões ◀ ▶ continuam chegando a todos os arquivos.",
     "settings.reader.mediaGrid": "Mostrar várias imagens de uma postagem curta como grade",

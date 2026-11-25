@@ -24,99 +24,6 @@ public sealed class SidebarContextGestureTests
 {
     private static readonly ResourceId Thread = new("fixture", "g", "42");
 
-    [Theory]
-    [InlineData("favorite")]
-    [InlineData("rating")]
-    [InlineData("menu")]
-    public void FocusedStripItemUsesItsOwnOriginal(string command) => Run(async (window, media) =>
-    {
-        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
-        ListBox strip = Assert.Single(sidebar.GetVisualDescendants().OfType<ListBox>(), list =>
-            Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(list)?.GetAutomationId() == "ReaderMediaSidebarStrip");
-        ListBoxItem second = Assert.Single(strip.Items.OfType<ListBoxItem>(), item =>
-            AutomationProperties.GetName(item)?.Contains("b.png", StringComparison.Ordinal) == true);
-        Assert.True(second.Focus());
-        Assert.Equal(0, page.MediaSidebarIndex);
-        if (command == "favorite")
-        {
-            await ChangeBytesAsync(media[1].Path);
-            ContextGestures.KeyStroke(second, Key.M, PhysicalKey.M);
-            await page.FavoriteKeyTask;
-            Assert.Empty(window.SessionHost.GetFavorites());
-            return;
-        }
-
-        await ChangeBytesAsync(media[0].Path);
-        if (command == "rating")
-        {
-            ContextGestures.KeyStroke(second, Key.D3, PhysicalKey.Digit3, RawInputModifiers.Shift);
-            await BooruTestSupport.WaitAsync(() => window.SessionHost.GetMediaRatings().Count > 0, "the focused original's rating");
-            Assert.Equal("778", Assert.Single(window.SessionHost.GetMediaRatings()).Key.MediaIdentifier);
-        }
-        else
-        {
-            ContextGestures.MenuKey(second);
-            ContextMenu menu = Assert.IsType<ContextMenu>(page.ArchiveMediaMenu);
-            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == "favorites.toggle").Activate();
-            await BooruTestSupport.WaitAsync(() => window.SessionHost.GetFavorites().Count > 0, "the focused original's favorite");
-            Assert.Equal("778", Assert.Single(window.SessionHost.GetFavorites()).Key.MediaIdentifier);
-        }
-    });
-
-    [Fact]
-    public void UnnamedAttachmentRemainsBlockedUntilItsOriginalIsVerified() => Run(async (window, media) =>
-    {
-        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
-        TaskCompletionSource started = new(), resume = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        sidebar.BeforePreviewDecodeForTests = (path, token) =>
-        {
-            if (path != media[1].Path) return Task.CompletedTask;
-            started.TrySetResult();
-            return resume.Task.WaitAsync(token);
-        };
-        try
-        {
-            await ChangeBytesAsync(media[1].Path);
-            page.SelectMediaSidebarIndex(1);
-            await BooruTestSupport.WaitAsync(() => started.Task.IsCompleted, "verification of 778 to start");
-            Assert.Contains("778", sidebar.HeaderLine);
-            Assert.False(await sidebar.VerifyImageActionAsync());
-            Assert.False(sidebar.FavoriteButton.IsEffectivelyEnabled);
-            Assert.Empty(window.SessionHost.GetFavorites());
-        }
-        finally { resume.TrySetResult(); await page.MediaSidebarTask; }
-        Assert.False(sidebar.CanUseMediaActions);
-    }, unnamedSecond: true);
-
-    [Fact]
-    public void FilteringADuplicateTileVerifiesTheVisibleOccurrence() => Run(async (window, media) =>
-    {
-        Navigate(window, Key.E, PhysicalKey.E, MainWindow.WorkspacePage.Media);
-        MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
-        await page.BuildTask;
-        await BooruTestSupport.WaitAsync(() => page.Grid.ItemCount == 1, "the grouped tile");
-        page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
-        page.Grid.SelectedIndex = 0;
-        await BooruTestSupport.WaitAsync(() => page.Panel?.Shown != null, "the first occurrence's picture");
-        string first = page.PanelRow!.Entry.Name!;
-        SavedFile other = Assert.Single(media, file => Path.GetFileName(file.Path) != first);
-        page.NameFilter.Text = Path.GetFileName(other.Path);
-        page.NameFilter.FlushQuery();
-        await MediaSidebarAsync(window, page, Path.GetFileName(other.Path));
-        await page.PanelTask;
-        File.Delete(Assert.Single(media, file => Path.GetFileName(file.Path) == first).Path);
-        Assert.True(await page.Panel!.VerifyImageActionAsync());
-        await ChangeBytesAsync(other.Path);
-        Assert.False(await page.Panel.VerifyImageActionAsync());
-    }, copies: true);
-
-    private static async Task ChangeBytesAsync(string path)
-    {
-        byte[] bytes = await File.ReadAllBytesAsync(path);
-        bytes[^1] ^= 1;
-        await File.WriteAllBytesAsync(path, bytes);
-    }
-
     [Fact]
     public void MediaPanelMenuWritesOnlyToTheShownMediumOfAMultipleSelection() => Run(async (window, _) =>
     {
@@ -544,9 +451,9 @@ public sealed class SidebarContextGestureTests
         return (page, page.MediaSidebar!);
     }
 
-    private sealed record SavedFile(string Path, MediaTagSubject Subject);
+    internal sealed record SavedFile(string Path, MediaTagSubject Subject);
 
-    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false, bool copies = false, bool unnamedSecond = false) => BooruComponentDispatcher.Run(() =>
+    internal static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false, bool copies = false, bool unnamedSecond = false) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruComponentDispatcher.Wait(ExerciseAsync());
