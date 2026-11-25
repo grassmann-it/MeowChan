@@ -506,6 +506,39 @@ public sealed class SidebarContextGestureTests
         }
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RejectedMenuKeyCannotOpenTheNextPictureOnRelease(bool reader) => Run(async (window, media) =>
+    {
+        var (sidebar, selectNext, menu) = await OpenPreviewAsync(window, reader);
+        TaskCompletionSource resume = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Image picture = Picture(sidebar);
+        object? first = picture.Source;
+        Control frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+        frame.Focusable = true;
+        sidebar.BeforePreviewDecodeForTests = (path, token) => path == media[1].Path ? resume.Task.WaitAsync(token) : Task.CompletedTask;
+        try
+        {
+            selectNext();
+            await BooruTestSupport.WaitAsync(() => sidebar.IsDimmed, "the old picture during the new decode");
+            Assert.Same(first, picture.Source);
+            Assert.True(frame.Focus());
+            window.KeyPress(Key.Apps, RawInputModifiers.None, PhysicalKey.ContextMenu, null);
+            Assert.False(menu()?.IsOpen == true);
+            resume.TrySetResult();
+            await BooruTestSupport.WaitAsync(() => !sidebar.IsDimmed && picture.Source != first, "the next picture");
+            Assert.True(frame.IsFocused);
+            window.KeyRelease(Key.Apps, RawInputModifiers.None, PhysicalKey.ContextMenu, null);
+            ContextGestures.Settle(window);
+            Assert.False(menu()?.IsOpen == true, "Releasing the rejected Apps key opened the replacement's menu.");
+            ContextGestures.MenuKey(frame);
+            Assert.True(menu()?.IsOpen == true);
+            menu()!.Close();
+        }
+        finally { resume.TrySetResult(); sidebar.BeforePreviewDecodeForTests = null; }
+    });
+
     private static async Task<(ReaderMediaSidebar Sidebar, Action Next, Func<ContextMenu?> Menu)> OpenSavedPreviewWithHeldPresentationAsync(
         MainWindow window, Task resume)
     {
@@ -693,6 +726,104 @@ public sealed class SidebarContextGestureTests
         finally { loading.TrySetResult(); }
     });
 
+    [Theory]
+    [InlineData("favorites.toggle")]
+    [InlineData("media.copy-path")]
+    [InlineData("media.open-external")]
+    public void LegacyThumbnailCommandsFollowTheDisplayedFileWhenOnlyItsChecksumChanges(string command) => Run(async (window, media) =>
+    {
+        long now = 0;
+        window.ArchivePage.UseManualReaderTicks(() => now);
+        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
+        await page.MediaSidebarStripTask;
+        ListBox posts = SidePanelDesignTests.ById<ListBox>(page, "ArchivePosts");
+        ArchivePostRow post = Assert.IsType<ArchivePostRow>(posts.SelectedItem);
+        ArchiveAttachmentRow old = Assert.Single(post.Attachments, row => row.Attachment.Position == 1);
+        ArchiveAttachmentRow other = Assert.Single(post.Attachments, row => row.Attachment.Position == 0);
+        Assert.Null(old.Attachment.AttachmentRevisionKey);
+        ArchiveAttachmentRow replacement = old with
+        {
+            Attachment = old.Attachment with { ExpectedMd5 = other.Attachment.ExpectedMd5 },
+            LoadStripThumbnail = other.LoadStripThumbnail
+        };
+        MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(Path.GetDirectoryName(media[0].Path)!);
+        Assert.Equal(media[1].Path, MediaAttachmentResolver.Resolve(manifest, Thread, post.Id, old.Attachment)?.Asset.Path);
+        Assert.Equal(media[0].Path, MediaAttachmentResolver.Resolve(manifest, Thread, post.Id, replacement.Attachment)?.Asset.Path);
+
+        List<string> targets = [];
+        Task Record(string path) { targets.Add(path); return Task.CompletedTask; }
+        page.IsArchiveFavorite = _ => false;
+        page.ToggleArchiveFavoriteAsync = entry => Record(entry.Asset.Path);
+        page.CopyFilePathAsync = Record;
+        page.OpenMediaExternallyAsync = entry => Record(entry.Asset.Path);
+        ListBoxItem thumbnail = SidebarSecondThumbnail(sidebar);
+        Assert.True(sidebar.HasStripPicture(1));
+        await InvokeIfOpenAsync(thumbnail);
+        Assert.Equal(media[1].Path, Assert.Single(targets));
+        targets.Clear();
+
+        ArchivePostRow revised = post with { Attachments = [other, replacement] };
+        posts.ItemsSource = new[] { revised };
+        posts.SelectedItem = revised;
+        ContextGestures.Settle(window);
+        Assert.Same(thumbnail, SidebarSecondThumbnail(sidebar));
+        await InvokeIfOpenAsync(thumbnail);
+        Assert.DoesNotContain(media[0].Path, targets);
+
+        now += ReaderMediaSidebarRules.FollowIntervalMs;
+        page.TickMediaSidebarFollow();
+        await page.MediaSidebarStripTask;
+        ContextGestures.Settle(window);
+        Assert.True(sidebar.HasStripPicture(1));
+        targets.Clear();
+        await InvokeIfOpenAsync(SidebarSecondThumbnail(sidebar));
+        Assert.Equal(media[0].Path, Assert.Single(targets));
+
+        async Task InvokeIfOpenAsync(ListBoxItem item)
+        {
+            ContextGestures.RightClick(item);
+            if (page.ArchiveMediaMenu is not { IsOpen: true } menu) return;
+            await BooruTestSupport.WaitAsync(() => MenuProbe.Entries(menu).Any(entry => entry.Id == command && entry.Enabled),
+                "the file command to be ready");
+            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == command).Activate();
+            ContextGestures.Settle(window);
+            if (menu.IsOpen) menu.Close();
+        }
+    }, legacy: true);
+
+    [Fact]
+    public void ControlClickOnADetachedReaderThumbnailOpensThatFilesMenu() => Run(async (window, media) =>
+    {
+        (ArchivePage page, _) = await OpenReaderAsync(window);
+        Control frame = page.DetachReader();
+        Window detached = new() { Width = 1700, Height = 900, Content = frame };
+        try
+        {
+            detached.Show();
+            detached.PlatformImpl!.Activated?.Invoke();
+            await BooruTestSupport.WaitAsync(() =>
+            {
+                detached.UpdateLayout();
+                return page.MediaSidebar is { StripVisible: true } sidebar && sidebar.HasStripPicture(1);
+            }, "the detached reader's thumbnail strip");
+            List<string> paths = [];
+            page.CopyFilePathAsync = path => { paths.Add(path); return Task.CompletedTask; };
+            ContextClick.MacOSForTests = true;
+            ContextGestures.ControlClick(SidebarSecondThumbnail(page.MediaSidebar!));
+            ContextMenu menu = Assert.IsType<ContextMenu>(page.ArchiveMediaMenu);
+            Assert.True(menu.IsOpen);
+            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == "media.copy-path").Activate();
+            Assert.Equal(media[1].Path, Assert.Single(paths));
+        }
+        finally
+        {
+            ContextClick.MacOSForTests = null;
+            detached.Content = null;
+            page.AttachReader(frame);
+            detached.Close();
+        }
+    });
+
     [Fact]
     public void ReaderPictureOpensTheDisplayedAttachmentBeforeTheNextFollowTick() => Run(async (window, media) =>
     {
@@ -793,6 +924,70 @@ public sealed class SidebarContextGestureTests
                 await presentation;
             await controller.ReleaseAllAsync();
         }
+    });
+
+    [Fact]
+    public void RejectedControlClickDoesNotStartTheMediaPanelVideoOnRelease() => Run(async (window, media) =>
+    {
+        var (sidebar, selectNext, menu) = await OpenPreviewAsync(window, reader: false);
+        MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+        ReaderInlineVideoSlot slot = Assert.IsType<ReaderInlineVideoSlot>(page.PanelVideo);
+        TaskCompletionSource resume = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int starts = 0;
+        Image picture = Picture(sidebar);
+        object? old = picture.Source;
+        sidebar.BeforePreviewDecodeForTests = (path, token) => path == media[1].Path ? resume.Task.WaitAsync(token) : Task.CompletedTask;
+        try
+        {
+            selectNext();
+            await BooruTestSupport.WaitAsync(() => sidebar.IsDimmed && page.PanelRow?.Entry.Name == "b.png", "the pending poster");
+            slot.Offer(page.PanelVideoController, MediaPage.PanelVideoKey(page.PanelRow!.Entry), _ =>
+            {
+                starts++;
+                return Task.FromResult<GalleryEntry?>(null);
+            }, "b.mp4");
+            Assert.True(slot.IsOffered);
+            ContextClick.MacOSForTests = true;
+            ContextGestures.Press(picture, MouseButton.Left, modifiers: RawInputModifiers.Control);
+            Assert.False(menu()?.IsOpen == true);
+            Assert.Equal(0, starts);
+            resume.TrySetResult();
+            await BooruTestSupport.WaitAsync(() => !sidebar.IsDimmed && picture.Source != old, "the new poster");
+            ContextGestures.Release(picture, MouseButton.Left, modifiers: RawInputModifiers.Control);
+            await slot.ActivationTask;
+            Assert.Equal(0, starts);
+            Assert.False(menu()?.IsOpen == true);
+            ContextGestures.Click(slot.Activator);
+            await slot.ActivationTask;
+            Assert.Equal(1, starts);
+        }
+        finally { resume.TrySetResult(); sidebar.BeforePreviewDecodeForTests = null; ContextClick.MacOSForTests = null; }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RejectedPlayClickReturnsFocusToTheWorkingList(bool reader) => Run(async (window, _) =>
+    {
+        var (sidebar, _, _) = await OpenPreviewAsync(window, reader);
+        MediaPage? media = window.MediaPageForTests;
+        ReaderInlineVideoSlot slot = Assert.IsType<ReaderInlineVideoSlot>(reader ? window.ArchivePage.SidebarInlineVideo : media!.PanelVideo);
+        ReaderInlineVideoController controller = reader ? window.ArchivePage.InlineVideo : media!.PanelVideoController;
+        await controller.ConfigureAsync(controller.Options with { Enabled = true, SidebarAutoplay = false });
+        Control work = reader ? SidePanelDesignTests.ById<ListBox>(window.ArchivePage, "ArchivePosts") : media!.Grid;
+        Control frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+        frame.Focusable = true;
+        Assert.True(frame.Focus());
+        sidebar.Describe("43", "b.mp4", string.Empty, true, mediumKey: "pending-video");
+        int starts = 0;
+        slot.Offer(controller, "pending-video", _ => { starts++; return Task.FromResult<GalleryEntry?>(null); }, "b.mp4");
+        Assert.True(sidebar.IsShowingStalePicture);
+        ContextGestures.Click(slot.Activator);
+        await slot.ActivationTask;
+        Assert.Equal(0, starts);
+        Assert.True(work.IsKeyboardFocusWithin, "The rejected play click must return the keys to the working list.");
+        Assert.False(slot.Activator.Focus());
+        Assert.False(slot.Activator.IsTabStop);
     });
 
     [Fact]
@@ -972,7 +1167,7 @@ public sealed class SidebarContextGestureTests
 
     private sealed record SavedFile(string Path, MediaTagSubject Subject);
 
-    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false, bool identicalOccurrences = false, bool readerStrip = false) => BooruComponentDispatcher.Run(() =>
+    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false, bool identicalOccurrences = false, bool readerStrip = false, bool legacy = false) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruComponentDispatcher.Wait(ExerciseAsync());
@@ -987,7 +1182,7 @@ public sealed class SidebarContextGestureTests
                 WorkspaceMode = "Advanced", Language = "en", ReaderMediaSidebarScope = "Always", ReaderMediaSidebarMinimumWidth = 1000,
                 MediaSidebarAutoHide = true, MediaSidebarInfo = "Always", MediaSidebarPinned = false
             }.SaveConfig(profile.Path);
-            SavedFile[] media = await SeedAsync(profile.Path, directory.Path, loose, identicalOccurrences, readerStrip);
+            SavedFile[] media = await SeedAsync(profile.Path, directory.Path, loose, identicalOccurrences, readerStrip, legacy);
             await using DesktopSessionHost host = new(profile.Path, [],
                 updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
             await using MainWindow window = new(host) { Width = 1700, Height = 900, Classes = { MotionPolicy.OffClass } };
@@ -999,10 +1194,26 @@ public sealed class SidebarContextGestureTests
         }
     });
 
-    private static async Task<SavedFile[]> SeedAsync(string profile, string directory, bool loose, bool identicalOccurrences, bool readerStrip)
+    private static async Task<SavedFile[]> SeedAsync(string profile, string directory, bool loose, bool identicalOccurrences, bool readerStrip, bool legacy)
     {
         const string first = "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAE0lEQVR4nGNgmMlAMhrVM6oHiADlWm/EglqV/gAAAABJRU5ErkJggg==";
         const string second = "iVBORw0KGgoAAAANSUhEUgAAABMAAAANCAIAAADE7sJwAAAAFklEQVR4nGMwdgklDzGM6hzVOQR1AgDPR8TVSHrz+wAAAABJRU5ErkJggg==";
+        if (legacy)
+        {
+            byte[] a = Convert.FromBase64String(first), b = Convert.FromBase64String(second);
+            await ArchiveCleanupFixtures.AssetsAsync(directory, new("777", "original", "a.png", "a.png", a),
+                new("777", "original", "b.png", "b.png", b));
+            CapturedAttachment Attachment(int position, string name, byte[] bytes) =>
+                new(position, "777", OriginalFileName: name, ExpectedMd5: Convert.ToBase64String(MD5.HashData(bytes)));
+            CapturedPost post = new("43", 0, PostFieldPresence.All, Html: "Legacy pictures",
+                Attachments: [Attachment(0, "a.png", a), Attachment(1, "b.png", b)]);
+            ArchivedThreadView view = new(new(Thread, "https://fixture.invalid/g/thread/42", "Legacy files", directory,
+                ThreadSourceState.Archived, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 1, 1), [post], [directory], true);
+            await RateAndTagWindowFixture.SeedAsync(profile, view);
+            MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
+            return GallerySelection.Build(view, [manifest], allSavedVersions: true).Entries.OrderBy(entry => entry.Asset.Path)
+                .Select(entry => new SavedFile(entry.Asset.Path, Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry)))).ToArray();
+        }
         if (readerStrip)
         {
             const string third = "iVBORw0KGgoAAAANSUhEUgAAABcAAAARCAIAAAC5EaDqAAAAGklEQVR4nGMw36hIOWIYNWXUlFFTRk2hkSkAFVCUz4rmaxkAAAAASUVORK5CYII=";
