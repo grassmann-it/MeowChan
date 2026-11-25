@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -280,6 +281,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     internal void AddAction(Button button, string icon, string label)
     {
         TextBlock text = new() { Text = label, Classes = { "panel-action-label" }, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetAutomationId(text, button.Name + ":Label");
         StackPanel line = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
         line.Children.Add(text);
         button.AttachedToVisualTree += (_, _) =>
@@ -298,12 +300,15 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         double width = Math.Min(Width, availableSize.Width);
         if (!double.IsFinite(width)) width = Config.MediaPanelWidthDefault;
         double room = Math.Max(0, width - 2 * Inset);
-        double extra = room - _actionLabels.Count * WorkspaceMetrics.InputHeight - Math.Max(0, _actionLabels.Count - 1) * Actions.ItemSpacing;
+        int visibleActions = _actionLabels.Count(action => action.Button.IsVisible);
+        double extra = room - visibleActions * WorkspaceMetrics.InputHeight - Math.Max(0, visibleActions - 1) * Actions.ItemSpacing;
         foreach (var (button, label) in _actionLabels)
         {
+            if (!button.IsVisible) continue;
             FormattedText text = new(label.Text ?? string.Empty, Texts.Culture, label.FlowDirection,
                 new Typeface(label.FontFamily, label.FontStyle, label.FontWeight, label.FontStretch), label.FontSize, label.Foreground);
-            double full = Math.Ceiling(text.Width + 36); // 16 icon, 4 gap, 8 on each edge
+            double chrome = 16 + 4 + 2 * Inset + button.BorderThickness.Left + button.BorderThickness.Right;
+            double full = Math.Ceiling(text.Width + chrome);
             double added = Math.Max(0, full - WorkspaceMetrics.InputHeight);
             bool showLabel = added <= extra;
             button.Width = showLabel ? Math.Max(WorkspaceMetrics.InputHeight, full) : WorkspaceMetrics.InputHeight;

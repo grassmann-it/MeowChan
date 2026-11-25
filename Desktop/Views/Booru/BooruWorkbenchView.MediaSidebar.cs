@@ -23,6 +23,7 @@ internal sealed partial class BooruWorkbenchView
 
     private readonly BooruMediaSidebar _mediaSidebar = new();
     private readonly ToggleButton _mediaToggle = new() { Name = "BooruMediaToggle", Focusable = false, IsTabStop = false };
+    private readonly List<Button> _sidebarWorkViewButtons = new();
     private readonly List<ContextMenuHost> _sidebarTagMenus = new();
     private readonly List<(Button Button, ChipOutline Outline, BooruTag Tag, string Category)> _sidebarTags = new();
     private ContextMenuHost? _sidebarViewMenu;
@@ -85,7 +86,7 @@ internal sealed partial class BooruWorkbenchView
     private void OnMediaSidebarKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || !_mediaSidebar.IsEffectivelyVisible || ShortcutServiceCapturing()
-            || !ShortcutService.Current.Matches(e, "media.sidebar.info", "media")
+            || !ShortcutService.Current.Matches(e, "media.sidebar.info", "booru")
             || CommandRouter.IsNativeInput(e.Source, e.Key) || !CommandRouter.IsRoutingContextActive(this, e.Source)) return;
         e.Handled = true;
         _mediaSidebar.ToggleFacts();
@@ -171,6 +172,7 @@ internal sealed partial class BooruWorkbenchView
     private void BuildSidebarActions(BooruResultRowView row, ResultActions result)
     {
         _mediaSidebar.ClearActions();
+        _sidebarWorkViewButtons.Clear();
         ResultCommand[] commands = result.Commands(row).ToArray();
         ResultCommand? primary = commands.FirstOrDefault(command => command.Action == ResultAction.ShowInMedia)
             ?? commands.FirstOrDefault(command => command.Action is ResultAction.Load or ResultAction.Cancel or ResultAction.Retry);
@@ -192,6 +194,7 @@ internal sealed partial class BooruWorkbenchView
             ToolTip.SetTip(button, command.Tip);
             ToolTip.SetShowOnDisabled(button, true);
             button.Click += (_, _) => { if (SidebarResultIsCurrent(result)) result.Run(command.Action); };
+            if (command.WorkViewId is { } id) RegisterWorkViewAction(button, id, _sidebarWorkViewButtons);
             _mediaSidebar.AddAction(button, command.Icon, command.Label);
         }
     }
@@ -280,6 +283,7 @@ internal sealed partial class BooruWorkbenchView
         ReleaseSidebarTags();
         _mediaSidebar.Tags.Content = null;
         _mediaSidebar.ClearActions();
+        _sidebarWorkViewButtons.Clear();
         _mediaSidebar.Release();
     }
 

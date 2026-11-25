@@ -86,6 +86,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         if (compact) ToolTip.SetTip(open, AutomationProperties.GetName(open));
         open.Click += (_, _) => { if (result.IsCurrent()) OpenGallery(postId); };
         CheckBox select = new() { Name = "BooruSelect:" + postId, Content = Texts.T("media.tile.selected"), IsChecked = _selectedResults.Contains(postId) };
+        AutomationProperties.SetAutomationId(select, select.Name);
         AutomationProperties.SetName(select, Texts.T("media.tile.selected") + ": " + Texts.T("booru.ui.post.title", postId));
         if (compact)
         {

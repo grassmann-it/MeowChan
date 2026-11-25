@@ -79,7 +79,7 @@ internal sealed partial class BooruWorkbenchView
         WorkViewGate.Apply(_noticeHost, _workView, WorkViewElement.GetStateVisible(_noticeHost));
         WorkViewGate.Apply(_storageHost, _workView, WorkViewElement.GetStateVisible(_storageHost), _catalogUsageRevealed);
 
-        foreach (Button button in _resultWorkViewButtons.Concat(_watcherWorkViewActions))
+        foreach (Button button in _resultWorkViewButtons.Concat(_sidebarWorkViewButtons).Concat(_watcherWorkViewActions))
             WorkViewGate.Apply(button, _workView, WorkViewElement.GetStateVisible(button));
 
         WorkViewMoreSurface.Configure(_more, MoreEntries().Count);

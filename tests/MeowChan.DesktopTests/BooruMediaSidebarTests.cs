@@ -12,7 +12,9 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 using SkiaSharp;
@@ -40,14 +42,14 @@ public sealed class BooruMediaSidebarTests
         // Variante A, §1: “Die Fakten stehen in der Infoleiste unten.”
         Assert.Equal("0", ById<SelectableTextBlock>(sidebar, "BooruMediaScore").Text);
         Assert.Contains("2", AutomationProperties.GetName(ById<TextBlock>(sidebar, "BooruMediaPosition")));
-        Assert.True(Find<CheckBox>(Hit(view, "101"), "BooruSelect:101").IsChecked);
-        Assert.False(Find<CheckBox>(Hit(view, "102"), "BooruSelect:102").IsChecked);
+        Assert.True(ById<CheckBox>(Hit(view, "101"), "BooruSelect:101").IsChecked);
+        Assert.False(ById<CheckBox>(Hit(view, "102"), "BooruSelect:102").IsChecked);
         Image preview = ById<Image>(sidebar, "BooruMediaPreview");
         Bitmap bitmap = Assert.IsAssignableFrom<Bitmap>(preview.Source);
-        double wide = Find<Border>(Hit(view, "102"), "BooruPreviewFrame:102").Bounds.Width;
+        double wide = ById<Control>(Hit(view, "102"), "BooruPreviewFrame:102").Bounds.Width;
 
         Resize(window, 900);
-        Assert.True(Find<Border>(Hit(view, "102"), "BooruPreviewFrame:102").Bounds.Width < wide);
+        Assert.True(ById<Control>(Hit(view, "102"), "BooruPreviewFrame:102").Bounds.Width < wide);
         view.SetResultView(BooruResultView.Grid, save: false);
         view.SetResultView(BooruResultView.List, save: false);
         window.UpdateLayout();
@@ -262,7 +264,7 @@ public sealed class BooruMediaSidebarTests
                 AutomationProperties.GetAutomationId(button) == "BooruPanelBooruShowInMedia:102"), "the saved hit");
         Assert.Equal(("102", BooruLoadOrigin.Search), Assert.Single(harness.Queue.Loads));
         Settle(window);
-        Assert.True(Find<Button>(Hit(view, "102"), "BooruShowInMedia:102").IsEnabled);
+        Assert.True(ById<Button>(Hit(view, "102"), "BooruShowInMedia:102").IsEnabled);
         Assert.False(ById<Control>(sidebar, "BooruMediaLocalActions").IsVisible);
         Assert.False(ById<Button>(sidebar, "BooruMediaFavorite").IsVisible);
         Click(ById<Button>(sidebar, "BooruPanelBooruShowInMedia:102"));
@@ -361,7 +363,7 @@ public sealed class BooruMediaSidebarTests
                 Control sidebar = Sidebar(view);
                 Assert.True(sidebar.IsVisible);
                 Assert.Equal(360, sidebar.Bounds.Width);
-                ScrollViewer results = Find<ScrollViewer>(view, "BooruResultScroll");
+                ScrollViewer results = ById<ScrollViewer>(view, "BooruResultScroll");
                 Assert.True(results.Viewport.Width >= 480);
                 Assert.True(results.Extent.Width <= results.Viewport.Width + 1);
                 Control actions = ById<Control>(sidebar, "BooruMediaActions");
@@ -374,6 +376,10 @@ public sealed class BooruMediaSidebarTests
                     Assert.False(button.Focusable);
                     Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(button)));
                     Assert.InRange(In(button, actions).Right, 0, actions.Bounds.Width);
+                    TextBlock label = ById<TextBlock>(button, AutomationProperties.GetAutomationId(button) + ":Label");
+                    Assert.True(label.IsEffectivelyVisible);
+                    Assert.InRange(In(label, button).Right, 0,
+                        button.Bounds.Width - button.BorderThickness.Right - button.Padding.Right + 0.5);
                 });
             }
         }
@@ -385,6 +391,50 @@ public sealed class BooruMediaSidebarTests
         Assert.False(Sidebar(view).IsVisible);
         Assert.False(ById<Button>(view, "BooruMediaToggle").IsVisible);
     });
+
+    [Fact]
+    public void SidebarLinkButtonsFollowTheWorkViewOverflowPolicy() => InWindow((harness, model, view, window) =>
+    {
+        view.ApplyWorkView(WorkView.Barebones, viewChanged: true);
+        harness.Serve(pages: 1, perPage: 1);
+        Search(model, view);
+        Settle(window);
+
+        Control sidebar = Sidebar(view);
+        Button load = ById<Button>(sidebar, "BooruPanelBooruLoad:101");
+        Button open = ById<Button>(sidebar, "BooruPanelBooruOpenPost:101");
+        Button copy = ById<Button>(sidebar, "BooruPanelBooruCopyLink:101");
+        // WorkViewPolicy.Booru assigns load to Direct and both link actions to Overflow in Barebones.
+        Assert.True(load.IsEffectivelyVisible);
+        Assert.False(open.IsEffectivelyVisible);
+        Assert.False(copy.IsEffectivelyVisible);
+
+        view.ApplyWorkView(WorkView.Advanced, viewChanged: true);
+        Assert.True(open.IsEffectivelyVisible);
+        Assert.True(copy.IsEffectivelyVisible);
+
+        view.ApplyWorkView(WorkView.Barebones, viewChanged: true);
+        Assert.True(load.IsEffectivelyVisible);
+        Assert.False(open.IsEffectivelyVisible);
+        Assert.False(copy.IsEffectivelyVisible);
+    });
+
+    [Fact]
+    public void SavedBooruShortcutTakesPrecedenceOverTheMacSidebarFactsGestureInBooru()
+    {
+        const string facts = "media.sidebar.info";
+        const string tileSize = "media.tile-size.reset";
+        ShortcutGesture gesture = ShortcutGesture.Parse("Shift+I");
+        KeyEventArgs key = new() { Key = Key.I, KeyModifiers = KeyModifiers.Shift };
+        EffectiveShortcutBindings defaults = EffectiveShortcutBindings.Build(new ShortcutBindingsSection(), ShortcutPlatform.MacOS);
+        Assert.True(defaults.Matches(key, facts, "booru"));
+
+        ShortcutBindingsSection profile = new ShortcutBindingsSection().Set(tileSize, [gesture]);
+        EffectiveShortcutBindings saved = EffectiveShortcutBindings.Build(profile, ShortcutPlatform.MacOS);
+        Assert.True(saved.Matches(key, tileSize, "booru"));
+        Assert.False(saved.Matches(key, facts, "booru"));
+        Assert.True(saved.Matches(key, facts, "reader"));
+    }
 
     [Theory]
     [InlineData(false)]
@@ -571,9 +621,6 @@ public sealed class BooruMediaSidebarTests
         using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
         return data.ToArray();
     }
-
-    private static T Find<T>(Control root, string name) where T : Control =>
-        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => control.Name == name);
 
     private static KeyEventArgs KeyPress(Key key, Control source, KeyModifiers modifiers = KeyModifiers.None) =>
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers, Source = source };

@@ -602,11 +602,12 @@ internal static partial class BooruWorkbenchChecks
             page.View.RestoreMediaSidebar(open: true);
             window.Show(owner);
             await SettleAsync(window);
-            TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+            TextBox input = FindById<TextBox>(page, BooruWorkbenchView.InputName);
+            Button submit = FindById<Button>(page, BooruWorkbenchView.SubmitName);
             input.Text = "cat";
-            await Program.WaitUntilAsync(() => Find<Button>(page, BooruWorkbenchView.SubmitName).IsEnabled,
+            await Program.WaitUntilAsync(() => submit.IsEnabled,
                 () => "the Booru sidebar fixture search was not ready");
-            Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
+            Click(submit);
             await Program.WaitUntilAsync(() => Previews(page) == 3, () => "the Booru sidebar fixture previews did not arrive");
             foreach (int width in new[] { 1280, 1920 })
             foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
@@ -621,10 +622,7 @@ internal static partial class BooruWorkbenchChecks
                     page.View.SetCursor("102");
                     await SettleAsync(window);
                     Require(Math.Abs(window.ClientSize.Width - width) <= 1, $"The sidebar capture is not {width} DIP wide.");
-                    Control sidebar = page.GetVisualDescendants().OfType<Control>()
-                        .Single(control => AutomationProperties.GetAutomationId(control) == "BooruMediaSidebar");
-                    Image image = sidebar.GetVisualDescendants().OfType<Image>()
-                        .Single(control => AutomationProperties.GetAutomationId(control) == "BooruMediaPreview");
+                    Image image = FindById<Image>(page, "BooruMediaPreview");
                     IImage preview = image.Source ?? throw new InvalidOperationException("The sidebar preview did not arrive.");
                     string stem = $"booru-sidebar-{width}-{mode}-{theme}".ToLowerInvariant();
                     Capture(window, shots, stem + "-preview");
@@ -919,6 +917,9 @@ internal static partial class BooruWorkbenchChecks
         Controls(root).OfType<T>().SingleOrDefault(control => control.Name == name)
         ?? throw new InvalidOperationException("Control not found: " + name);
 
+    private static T FindById<T>(Control root, string id) where T : Control =>
+        Controls(root).OfType<T>().Single(control => AutomationProperties.GetAutomationId(control) == id);
+
     private static List<FeedbackToastContent> Toasts(Window window) => window.GetVisualDescendants().OfType<NotificationCard>()
         .Where(card => !card.IsClosing && !card.IsClosed).Select(card => card.Content).OfType<FeedbackToastContent>().ToList();
 
@@ -928,9 +929,8 @@ internal static partial class BooruWorkbenchChecks
         .Where(border => border.Name is { } name && name.StartsWith(prefix, StringComparison.Ordinal)).Cast<Control>().ToList();
 
     private static int Previews(Control root) =>
-        Controls(root).OfType<Image>().Count(image => image.Source is Bitmap
-            && image.GetVisualAncestors().OfType<Border>().Any(border =>
-                border.Name?.StartsWith("BooruPreviewFrame:", StringComparison.Ordinal) == true));
+        Controls(root).OfType<Image>().Count(image => image.IsEffectivelyVisible && image.Source is Bitmap
+            && AutomationProperties.GetAutomationId(image)?.StartsWith("BooruPreview:", StringComparison.Ordinal) == true);
 
     private static string Text(Control root) => string.Join('\n', Controls(root).Where(control => control.IsEffectivelyVisible)
         .Select(control => control switch
