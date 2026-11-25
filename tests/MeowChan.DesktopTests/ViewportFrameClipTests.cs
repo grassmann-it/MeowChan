@@ -441,14 +441,15 @@ public sealed class ViewportFrameClipTests
 
     private static void CheckInsetFocusEdges(Window window, SKBitmap before, SKBitmap after, Rect item, Rect viewport)
     {
-        Assert.True(window.TryFindResource("Workspace.Accent", out object? accent));
-        Assert.True(window.TryFindResource("Workspace.Background", out object? background));
+        Application app = Application.Current!;
+        Assert.True(app.TryFindResource("Workspace.Accent", window.ActualThemeVariant, out object? accent), "The theme must supply the accent brush.");
+        Assert.True(app.TryFindResource("Workspace.Background", window.ActualThemeVariant, out object? background), "The theme must supply the contrast brush.");
         SKColor outer = BrushColor(accent);
         SKColor inner = BrushColor(background);
         double scale = window.RenderScaling;
         foreach (Edge edge in new[] { Edge.Top, Edge.Bottom, Edge.Left, Edge.Right })
         {
-            const double corner = 8;
+            const double corner = 5;
             const double strokes = 3;
             Rect band = edge switch
             {
@@ -482,14 +483,16 @@ public sealed class ViewportFrameClipTests
     private static void CheckBooruActionFocus(Window window, ScrollViewer scroll, Control viewport, Control tile, string actionId)
     {
         Control action = Find<Control>(tile, actionId);
+        // Semi adorns the checkbox glyph. The whole checkbox remains the keyboard stop.
+        Control adornmentTarget = action is CheckBox ? Find<Panel>(action, "PART_GlyphPanel") : action;
         Rect area = Bounds(viewport, window);
-        Rect start = Bounds(action, window);
+        Rect start = Bounds(adornmentTarget, window);
         Assert.True(area.Contains(start), $"The action {start} must begin inside {area}.");
         Assert.True(tile.Focus(NavigationMethod.Pointer));
         double offset = start.Center.Y - area.Top;
         scroll.Offset = new Vector(0, offset);
         using SKBitmap idle = Render(window);
-        Rect item = Bounds(action, window);
+        Rect item = Bounds(adornmentTarget, window);
         AssertPartial(item, area, Edge.Top);
 
         scroll.Offset = default;
@@ -504,7 +507,7 @@ public sealed class ViewportFrameClipTests
         scroll.Offset = new Vector(0, offset);
         using SKBitmap focused = Render(window);
         Assert.Same(action, window.FocusManager!.GetFocusedElement());
-        Assert.Equal(item, Bounds(action, window));
+        Assert.Equal(item, Bounds(adornmentTarget, window));
         CheckInsetFocusEdges(window, idle, focused, item, area);
         Rect outside = new(item.Left - 4, item.Top - 4, item.Width + 8, area.Top - item.Top + 4);
         int escaped = ChangedPixels(idle, focused, outside, window.RenderScaling);
@@ -516,7 +519,7 @@ public sealed class ViewportFrameClipTests
         Rect area = Bounds(viewport, window);
         Rect start = Bounds(tile, window);
         ToolTip.SetShowDelay(tile, 0);
-        scroll.Offset = new Vector(0, start.Top - area.Top - 8);
+        scroll.Offset = new Vector(0, start.Top - area.Top);
         Layout(window);
         Rect shown = Bounds(tile, window);
         Assert.True(area.Contains(shown), $"The whole tile {shown} must be visible inside {area}.");
