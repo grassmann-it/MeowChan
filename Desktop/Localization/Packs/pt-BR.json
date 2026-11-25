@@ -5301,6 +5301,7 @@
     "menu.group.collection": "Coleção",
     "menu.group.app": "App",
     "archive.columnsReset.hint": "Volta as colunas desta lista ao padrão da visualização.",
+    "archive.columns.required": "Esta coluna é necessária para identificar o item.",
     "media.layout.resetHelp": "Volta ao layout padrão.",
     "sources.stat.active": "Ativos",
     "sources.stat.boards": "Boards",

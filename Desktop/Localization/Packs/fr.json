@@ -5295,6 +5295,7 @@
     "menu.group.collection": "Collection",
     "menu.group.app": "Application",
     "archive.columnsReset.hint": "Remet les colonnes de cette liste sur la valeur par défaut de la vue de travail.",
+    "archive.columns.required": "Cette colonne est nécessaire pour identifier l’élément.",
     "media.layout.resetHelp": "Revient à la disposition par défaut.",
     "sources.stat.active": "Actifs",
     "sources.stat.boards": "Tableaux",

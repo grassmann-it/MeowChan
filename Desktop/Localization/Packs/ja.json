@@ -5202,6 +5202,7 @@
     "menu.group.collection": "コレクション",
     "menu.group.app": "アプリ",
     "archive.columnsReset.hint": "このリストの列を作業ビューの既定に戻します。",
+    "archive.columns.required": "この列は項目を識別するために必要です。",
     "media.layout.resetHelp": "既定のレイアウトに戻します。",
     "sources.stat.active": "実行中",
     "sources.stat.boards": "板",

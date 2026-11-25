@@ -5347,6 +5347,7 @@
     "menu.group.collection": "Sbírka",
     "menu.group.app": "Aplikace",
     "archive.columnsReset.hint": "Vrátí sloupce tohoto seznamu na výchozí hodnotu zobrazení.",
+    "archive.columns.required": "Tento sloupec je potřeba k identifikaci položky.",
     "media.layout.resetHelp": "Vrátí výchozí rozvržení.",
     "sources.stat.active": "Aktivní",
     "sources.stat.boards": "Boardy",

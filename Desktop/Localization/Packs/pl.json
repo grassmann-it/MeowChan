@@ -5348,6 +5348,7 @@
     "menu.group.collection": "Kolekcja",
     "menu.group.app": "Aplikacja",
     "archive.columnsReset.hint": "Przywraca kolumny tej listy do wartości domyślnej widoku roboczego.",
+    "archive.columns.required": "Ta kolumna jest potrzebna do zidentyfikowania pozycji.",
     "media.layout.resetHelp": "Wraca do układu domyślnego.",
     "sources.stat.active": "Aktywne",
     "sources.stat.boards": "Tablice",

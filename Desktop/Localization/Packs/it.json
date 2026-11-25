@@ -5301,6 +5301,7 @@
     "menu.group.collection": "Raccolta",
     "menu.group.app": "App",
     "archive.columnsReset.hint": "Riporta le colonne di questo elenco al valore predefinito della vista di lavoro.",
+    "archive.columns.required": "Questa colonna è necessaria per identificare l’elemento.",
     "media.layout.resetHelp": "Torna al layout predefinito.",
     "sources.stat.active": "Attivi",
     "sources.stat.boards": "Board",

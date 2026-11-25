@@ -5202,6 +5202,7 @@
     "menu.group.collection": "컬렉션",
     "menu.group.app": "앱",
     "archive.columnsReset.hint": "이 목록의 열을 작업 보기의 기본값으로 되돌립니다.",
+    "archive.columns.required": "이 열은 항목을 식별하는 데 필요합니다.",
     "media.layout.resetHelp": "기본 레이아웃으로 되돌립니다.",
     "sources.stat.active": "활성",
     "sources.stat.boards": "게시판",

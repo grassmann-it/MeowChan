@@ -5202,6 +5202,7 @@
     "menu.group.collection": "收藏",
     "menu.group.app": "应用",
     "archive.columnsReset.hint": "将此列表的列恢复为工作视图的默认设置。",
+    "archive.columns.required": "需要此列来识别条目。",
     "media.layout.resetHelp": "恢复默认布局。",
     "sources.stat.active": "活动",
     "sources.stat.boards": "版块",

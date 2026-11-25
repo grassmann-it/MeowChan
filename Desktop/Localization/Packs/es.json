@@ -5295,6 +5295,7 @@
     "menu.group.collection": "Colección",
     "menu.group.app": "Aplicación",
     "archive.columnsReset.hint": "Devuelve las columnas de esta lista al valor predeterminado de la vista de trabajo.",
+    "archive.columns.required": "Esta columna es necesaria para identificar el elemento.",
     "media.layout.resetHelp": "Vuelve al diseño predeterminado.",
     "sources.stat.active": "Activos",
     "sources.stat.boards": "Tablones",
