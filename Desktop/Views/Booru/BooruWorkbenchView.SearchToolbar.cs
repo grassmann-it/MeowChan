@@ -43,6 +43,7 @@ internal sealed partial class BooruWorkbenchView
         private const double Gap = 8;
         private const double MinimumInputWidth = 160;
         private const double PreferredInputWidth = 320;
+        private const double MaximumInputWidth = 512;
 
         private readonly Control _mode, _input, _submit, _actions;
         private bool _wrapSubmit, _wrapActions;
@@ -84,7 +85,7 @@ internal sealed partial class BooruWorkbenchView
             double reserved = _mode.DesiredSize.Width + Gap;
             if (!_wrapSubmit) reserved += _submit.DesiredSize.Width + Gap;
             if (!_wrapActions) reserved += _actions.DesiredSize.Width + Gap;
-            return Math.Max(0, width - reserved);
+            return Math.Clamp(width - reserved, 0, MaximumInputWidth);
         }
 
         protected override Size ArrangeOverride(Size finalSize)

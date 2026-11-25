@@ -24,7 +24,6 @@ internal sealed partial class BooruWorkbenchView
         Name = "BooruResultScroll", HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto, IsTabStop = false
     };
-    private readonly StackPanel _resultsArea = new() { Spacing = 8 };
     private readonly StackPanel _bottomBar = new() { Spacing = 8 };
     private string? _cursorPostId;
     private BooruResultView _galleryReturn = BooruResultView.List;
@@ -67,7 +66,6 @@ internal sealed partial class BooruWorkbenchView
             if (e.Property == ScrollViewer.ViewportProperty) UpdateGalleryStageHeight();
         };
         _gallery.SizeChanged += (_, _) => UpdateGalleryStageHeight();
-        _bottomBar.SizeChanged += (_, _) => UpdateGalleryStageHeight();
     }
 
     private BooruGallerySampleLimits ReadGallerySampleSettings() => BooruGallerySampleLimits.FromSettings(
@@ -87,7 +85,7 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_resultView != BooruResultView.Gallery || !ReferenceEquals(_gallery.Parent, _results)) return;
         double galleryChrome = _gallery.Bounds.Height - _gallery.Stage.Bounds.Height;
-        _gallery.StageHeight = _resultScroll.Viewport.Height - galleryChrome - _bottomBar.Bounds.Height - _resultsArea.Spacing;
+        _gallery.StageHeight = _resultScroll.Viewport.Height - galleryChrome;
     }
 
     // ---- cursor ---------------------------------------------------------------------------------------------
