@@ -103,7 +103,8 @@ internal sealed partial class BooruWorkbenchView
         card.Focusable = true;
         card.IsTabStop = true;
         AutomationProperties.SetControlTypeOverride(card, AutomationControlType.ListItem);
-        AutomationProperties.SetName(card, card.Name);
+        string providerFacts = BooruText.ProviderRatingAndScore(row.Post);
+        AutomationProperties.SetName(card, Texts.T("booru.ui.post.title", postId) + " · " + providerFacts);
         AutomationProperties.SetAutomationId(card, card.Name);
         AutomationProperties.SetHelpText(card, Texts.T("booru.ui.result.hitName", postId, BooruText.Rating(row.Post.Rating),
             Texts.T(result.IsAvailable(ResultAction.ShowInMedia, row) ? "booru.ui.result.localYes" : "booru.ui.result.localNo")));

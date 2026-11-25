@@ -69,15 +69,15 @@ public sealed class BooruSearchDestinationTests
                 .Single(control => control.Name == BooruWorkbenchView.SearchHelpName);
             TextBlock title = page.View.Header.GetVisualDescendants().OfType<TextBlock>()
                 .Single(text => text.Classes.Contains("page-title"));
-            WrapPanel actions = Assert.IsType<WrapPanel>(button.GetVisualParent());
+            WrapPanel actions = Assert.IsType<WrapPanel>(help.GetVisualParent());
             Border browser = page.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "BooruPageBody");
             foreach (string language in new[] { "en", "de", "pl", "ja" })
             {
                 Texts.SetLanguage(language);
                 CheckAtWidth(1360, stacked: false);
-                // Fit both actions plus the page insets, with too little room for the title beside them.
+                // Fit both action groups with too little room for the title beside them.
                 double pageInsets = page.Bounds.Width - browser.Bounds.Width;
-                CheckAtWidth(Math.Ceiling(actions.Bounds.Width + pageInsets) + 4, stacked: true);
+                CheckAtWidth(Math.Ceiling(actions.Bounds.Width + button.Bounds.Width + pageInsets) + 12, stacked: true);
             }
 
             void CheckAtWidth(double width, bool stacked)
@@ -89,14 +89,16 @@ public sealed class BooruSearchDestinationTests
                 Rect actionsBox = InPage(actions);
                 Rect browserBox = InPage(browser);
                 Assert.True(buttonBox.Width > 0 && helpBox.Width > 0);
-                Assert.True(buttonBox.Right <= helpBox.Left);
-                Assert.Equal(browserBox.Right, helpBox.Right, 0);
-                Assert.Equal(4, browserBox.Top - actionsBox.Bottom, 0);
+                Assert.Equal(browserBox.Left, titleBox.Left, 0);
+                Assert.Equal(PageHeader.PageTopOffset, titleBox.Top, 0);
+                Assert.True(helpBox.Right <= buttonBox.Left);
+                Assert.Equal(browserBox.Right, buttonBox.Right, 0);
+                Assert.Equal(8, browserBox.Top - Math.Max(actionsBox.Bottom, buttonBox.Bottom), 0);
                 if (stacked)
                     Assert.True(actionsBox.Top >= titleBox.Bottom + 7.5);
                 else
                 {
-                    Assert.Equal(titleBox.Bottom, actionsBox.Bottom, 0);
+                    Assert.Equal(titleBox.Top, actionsBox.Top, 0);
                     Assert.True(actionsBox.Left >= titleBox.Right);
                 }
             }
