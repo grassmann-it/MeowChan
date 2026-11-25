@@ -462,6 +462,10 @@ public sealed class EffectiveShortcutBindings
             "tags.quick.mark-previous" => Of("Primary+Shift+Up", "Shift+PageUp"),
             // The Apple delete key is Key.Back; forward Delete needs Fn and stays an extra (like watch.remove).
             "tagging.remove" => Of("Primary+Back", "Delete"),
+            // Revision 30: F7/F8 need Fn on an Apple keyboard, so the Booru search field's Watch and Download/Stop get ⌥⌘W / ⌥⌘L first
+            // (W for watch, L for "load all"); ⇧⌘F7 / ⇧⌘F8 stay extras.
+            "booru.search.watch" => Of("Primary+Alt+W", "Primary+Shift+F7"),
+            "booru.search.download-all" => Of("Primary+Alt+L", "Primary+Shift+F8"),
             _ => null
         };
     }

@@ -118,11 +118,13 @@ public sealed class BooruSearchOverflowTests
             Assert.True(item.IsEffectivelyVisible && item.IsEffectivelyEnabled);
             Assert.Equal(button.Content, item.Header);
             // Blocker 3 requires the Watch and Download/Stop shortcuts in the overflow entries.
-            KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+            // On a Mac, F7/F8 need Fn and may only be extras (MacShortcutDefaultsTests.NoMacCommandDependsOnFnAsItsOnlyWay): ⌥⌘W / ⌥⌘L come first.
+            bool mac = OperatingSystem.IsMacOS();
+            KeyModifiers primary = mac ? KeyModifiers.Meta : KeyModifiers.Control;
             KeyGesture expected = id switch
             {
-                BooruWorkbenchView.CreateWatcherName => new(Key.F7, primary | KeyModifiers.Shift),
-                _ when id == BooruWorkbenchView.DownloadAllName => new(Key.F8, primary | KeyModifiers.Shift),
+                BooruWorkbenchView.CreateWatcherName => mac ? new(Key.W, primary | KeyModifiers.Alt) : new(Key.F7, primary | KeyModifiers.Shift),
+                _ when id == BooruWorkbenchView.DownloadAllName => mac ? new(Key.L, primary | KeyModifiers.Alt) : new(Key.F8, primary | KeyModifiers.Shift),
                 _ => new(Key.Enter, KeyModifiers.Shift)
             };
             Assert.Equal(expected, item.InputGesture);
