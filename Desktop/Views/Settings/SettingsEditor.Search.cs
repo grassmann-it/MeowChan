@@ -174,7 +174,12 @@ public partial class SettingsEditor
         SettingsRoot.Children.Add(_searchPanel);
         SettingsConditional.RowAppeared += OnConditionalRowAppeared;
         DetachedFromLogicalTree += (_, _) => SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
-        AttachedToLogicalTree += (_, _) => { SettingsConditional.RowAppeared -= OnConditionalRowAppeared; SettingsConditional.RowAppeared += OnConditionalRowAppeared; };
+        AttachedToLogicalTree += (_, _) =>
+        {
+            if (_isClosed) return;
+            SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
+            SettingsConditional.RowAppeared += OnConditionalRowAppeared;
+        };
         AddHandler(KeyDownEvent, OnSlashFocusesSearch, RoutingStrategies.Bubble);
         ApplySearchTexts();
     }

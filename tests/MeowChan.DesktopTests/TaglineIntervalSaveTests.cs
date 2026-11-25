@@ -45,6 +45,6 @@ public sealed class TaglineIntervalSaveTests
             Assert.Equal(TaglinePicker.ModeOff, saved.HeaderTagline);
             Assert.Equal(17, saved.HeaderTaglineIntervalMinutes);
         }
-        finally { window.Close(); editor.EndLifetime(); }
+        finally { window.Close(); editor.Dispose(); }
     });
 }
