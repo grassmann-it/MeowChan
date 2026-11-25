@@ -453,7 +453,7 @@ public sealed class TaggingPagePanelTests
         Assert.Empty(fixture.Session.GetMediaRatings());
         fixture.Key(PhysicalKey.Digit7, RawInputModifiers.Shift);
         await fixture.WaitAsync(() => fixture.Session.GetMediaRating(AssetKey(fixture.Items[0])) == 3, "remapped rating gesture");
-        Assert.True(fixture.Star().IsChecked);
+        await fixture.WaitAsync(() => fixture.Star().IsChecked == true, "the third star after the remapped gesture");
     });
 
     [Theory]

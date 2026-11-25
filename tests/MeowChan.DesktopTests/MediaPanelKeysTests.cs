@@ -103,7 +103,8 @@ public sealed class MediaPanelKeysTests : IDisposable
     {
         CommandDefinition toggle = CommandCatalog.Get(MediaPanelKeys.ToggleCommandId);
         Assert.Equal(CommandScope.Media, toggle.Scope);
-        Assert.Equal(new[] { "media" }, toggle.ExecutionContexts);
+        // W112-73 spec §1: "media.panel.toggle … bekommt den Tastenkontext tagging; die Shell leitet ihn an die sichtbare Seite".
+        Assert.Equal(new[] { "media", "tagging" }, toggle.ExecutionContexts);
         Assert.True(toggle.IsImplemented);
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
         Assert.Equal(bindings.Display("reader.sidebar.toggle"), bindings.Display(MediaPanelKeys.ToggleCommandId));

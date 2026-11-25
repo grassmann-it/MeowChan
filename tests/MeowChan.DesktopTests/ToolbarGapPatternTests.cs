@@ -255,7 +255,8 @@ public sealed class ToolbarGapPatternTests
     public void TheTaggingHeaderEndsWithThePageOverflowThenTheJoinedViewControls() => TaggingLayoutRhythmTests.WithPage(page =>
     {
         ActionToolBar presentation = Assert.IsType<ActionToolBar>(page.Header.Children[^1]);
-        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
+        // W112-73 spec §1: "Knopf TaggingPanelToggle in _listPresentation rechts neben TaggingViewToggle".
+        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle, page.PanelToggle }, presentation.Items.Cast<Control>());
         Assert.Same(page.Actions, page.Header.Children[^2]);
         Assert.Equal(new Control[] { page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
             page.Actions.Items.Cast<Control>());
