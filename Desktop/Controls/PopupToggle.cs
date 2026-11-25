@@ -61,7 +61,8 @@ internal static class PopupToggle
         ButtonMenu state = Menus.GetValue(button, static anchor => new ButtonMenu(anchor));
         state.Menu = menu;
         TopLevel? root = TopLevel.GetTopLevel(button);
-        root?.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        menu.Opened += (_, _) => root?.AddHandler(InputElement.PointerPressedEvent,
+            OnPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         root?.AddHandler(InputElement.PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
         button.DetachedFromVisualTree += OnDetached;
         menu.Opened += (_, _) => Present(button, true);
