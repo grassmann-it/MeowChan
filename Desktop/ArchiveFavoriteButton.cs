@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -66,6 +67,9 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     internal ArchiveFavoriteButton()
     {
         Name = "ArchiveMediaFavorite";
+        AutomationProperties.SetAutomationId(this, Name);
+        Focusable = false;
+        IsTabStop = false;
         Padding = new Avalonia.Thickness(8);
         CommandBindings.Apply(this, "favorites.toggle", iconOnly: true);
         // One tooltip source (Refresh): a rebinding re-runs Refresh instead of the catalog's "Add / remove favorite · F", which used to replace the
@@ -85,6 +89,13 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
             catch (Exception error) { _error = error.Message; }
             finally { _running = false; Refresh(); }
         };
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        if (!e.Handled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            this.FindAncestorOfType<ListBoxItem>()?.Focus(NavigationMethod.Pointer);
+        base.OnPointerPressed(e);
     }
 
     internal void Configure(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null, Func<FavoriteStarHold>? hold = null)

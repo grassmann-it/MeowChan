@@ -62,7 +62,7 @@ internal static class BoardAdmissionCatalog
         ("wizard.watcher.name", "Watcher name", "Watcher-Name"),
         ("wizard.watcher.interval", "Check every", "Prüfen alle"),
         ("wizard.watcher.minutes", "minutes", "Minuten"),
-        ("wizard.watcher.intervalHint", "Empty uses the global recheck interval. Allowed: {0} to {1} minutes.", "Leer nutzt das globale Prüfintervall. Erlaubt: {0} bis {1} Minuten."),
+        ("wizard.watcher.intervalHint", "Empty uses the global recheck interval. Allowed range (minutes): {0} to {1}.", "Leer nutzt das globale Prüfintervall. Zulässiger Bereich (Minuten): {0} bis {1}."),
         ("wizard.watcher.intervalInvalid", "Enter a whole number from {0} to {1}.", "Gib eine ganze Zahl von {0} bis {1} ein."),
         ("wizard.watcher.patterns", "{0} patterns", "{0} Muster"),
         ("wizard.title", "Select board threads", "Board-Threads auswählen"),

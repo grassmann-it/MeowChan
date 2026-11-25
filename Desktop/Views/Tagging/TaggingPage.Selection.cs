@@ -38,7 +38,8 @@ public sealed partial class TaggingPage
         _selTag.Click += (_, _) => OpenActions.Start(() => CanRowCommand(SelectionTagCommand)
             ? TagSelectionAsync(_selTag) : System.Threading.Tasks.Task.CompletedTask, "tagging.selection.tag");
         _selDone.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.MarkDone), "tagging.selection.done");
-        _selectionMenuHost = new ContextMenuHost(_selMore, ComposeSelectionMenu, fallbackFocus: () => FocusContent());
+        PopupToggle.Prepare(_selMore);
+        _selectionMenuHost = new ContextMenuHost(_selMore, ComposeSelectionMenu, fallbackFocus: () => FocusContent(), toggle: true);
         _selMore.Click += (_, _) => ShowSelectionMenu();
         CommandBindings.ShowIconBeforeText(_selMore, CommandCatalog.Get("menu.context-open").Icon,
             showLabel: _selectionRow.GetObservable(TaggingControlRow.ShowActionLabelsProperty));
@@ -92,7 +93,7 @@ public sealed partial class TaggingPage
             () => OpenActions.Start(() => ExecuteRowCommandAsync(id), "tagging.selection.more"));
 
     internal ContextMenuModel? SelectionMenuModel() => ComposeSelectionMenu()?.ToModel();
-    internal void ShowSelectionMenu() => _selectionMenuHost?.Show(atPointer: false);
+    internal void ShowSelectionMenu() => _selectionMenuHost?.Activate();
     internal ContextMenu? OpenSelectionMenu => _selectionMenuHost?.OpenMenu;
 
     private void UpdateSelectionBar()

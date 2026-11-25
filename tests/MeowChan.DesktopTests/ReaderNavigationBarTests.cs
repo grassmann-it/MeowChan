@@ -4,7 +4,9 @@ using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -27,6 +29,8 @@ public sealed class ReaderNavigationBarTests : IDisposable
     private static XDocument Markup(string relative) => XDocument.Parse(Source(relative));
 
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
+    private static readonly string[] NavigationArrowIds =
+        ["ReaderPreviousThread", "ReaderNextThread", "ReaderPreviousPost", "ReaderNextPost"];
 
     [Fact]
     public void SecondaryMediaGeometryTreatsMissingOrDetachedControlsAsNotVisible()
@@ -215,7 +219,7 @@ public sealed class ReaderNavigationBarTests : IDisposable
         Assert.Equal("1", (string?)separator.Attribute("Width"));
         Assert.Equal("24", (string?)separator.Attribute("Height"));
         Assert.Equal("{DynamicResource Workspace.ControlBorder}", (string?)separator.Attribute("Background"));
-        foreach (string name in new[] { "ReaderPreviousThread", "ReaderNextThread", "ReaderPreviousPost", "ReaderNextPost" })
+        foreach (string name in NavigationArrowIds)
         {
             XElement button = Named(markup, name);
             Assert.Equal("Button", button.Name.LocalName);
@@ -257,6 +261,24 @@ public sealed class ReaderNavigationBarTests : IDisposable
                 AssertCounter(threadPosition, "1 / 1", "Thread 1 of 1");
                 AssertCounter(postPosition, "1 / 2", "Post 1 of 2");
 
+                var nextPost = Find<Button>(window, "ReaderNextPost");
+                Point next = nextPost.TranslatePoint(new Rect(nextPost.Bounds.Size).Center, window)!.Value;
+                window.MouseDown(next, MouseButton.Left);
+                window.MouseUp(next, MouseButton.Left);
+                BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
+                Assert.Equal("2", page.CurrentReaderPostId);
+                Assert.True(Find<ListBox>(window, "ArchivePosts").IsKeyboardFocusWithin);
+                window.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+                BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
+                Assert.Equal("1", page.CurrentReaderPostId);
+                foreach (string id in NavigationArrowIds)
+                {
+                    Button arrow = Find<Button>(window, id);
+                    Assert.False(arrow.IsTabStop);
+                    Assert.False(arrow.Focus());
+                }
+
                 page.ReaderNavigationShowPosition = false;
                 Settle();
                 Assert.False(threadPosition.IsEffectivelyVisible || postPosition.IsEffectivelyVisible);
@@ -280,6 +302,7 @@ public sealed class ReaderNavigationBarTests : IDisposable
 
                 // NAVBAR-06: Always stays visible and interactive after the idle delay with the pointer away.
                 page.ReaderNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsMinimum;
+                window.MouseMove(new Point(60, 60));
                 page.NotifyReaderPointerMoved(new Point(60, 60));
                 BooruComponentDispatcher.Wait(Task.Delay(2 * page.ReaderNavigationIdleDelayMs, BooruComponentDispatcher.Cancellation));
                 Settle();

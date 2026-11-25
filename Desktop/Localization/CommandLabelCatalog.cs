@@ -10,9 +10,6 @@ internal static class CommandLabelCatalog
     {
         ("command.media.sidebar.info", "Show sidebar facts", "Fakten anzeigen"),
         ("command.media.sidebar.autohide", "Auto-hide sidebar controls", "Leisten automatisch ausblenden"),
-        ("media.sidebar.settings", "Sidebar settings", "Leisten-Einstellungen"),
-        ("media.sidebar.pin", "Keep details expanded", "Details geöffnet halten"),
-        ("media.sidebar.unpin", "Collapse details", "Details einklappen"),
         ("command.sections.open-navigation", "Navigate sections", "Abschnitte öffnen"),
         ("command.sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen"),
         ("command.reader.skip-unavailable-group-member", "Skip unavailable member", "Fehlendes Mitglied überspringen"),
@@ -129,7 +126,7 @@ internal static class CommandLabelCatalog
         ("command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren"),
         ("command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten"),
         ("command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten"),
-        ("command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten"),
+        ("command.gallery.post-overlay-toggle", "Overlay / dock post panel", "Post-Panel überlagern / andocken"),
         ("command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden"),
         ("command.gallery.layout-menu", "Open layout menu", "Layout-Menü öffnen"),
         ("command.gallery.layout.tools", "Layout: show / hide tools", "Layout: Werkzeuge anzeigen / ausblenden"),
@@ -284,6 +281,9 @@ internal static class CommandLabelCatalog
 
     internal static readonly (string Key, string English, string German)[] PresentationEntries =
     {
+        ("media.sidebar.settings", "Sidebar settings", "Leisten-Einstellungen"),
+        ("media.sidebar.pin", "Keep details expanded", "Details geöffnet halten"),
+        ("media.sidebar.unpin", "Collapse details", "Details einklappen"),
         ("command.navigation.downloads.tip", "Manage watched threads and downloads", "Beobachtete Threads und Downloads verwalten"),
         ("command.navigation.archive.tip", "Find archived threads and read their posts", "Archivierte Threads finden und Beiträge lesen"),
         ("command.navigation.media.tip", "Browse media saved from threads", "Gespeicherte Medien aus Threads durchstöbern"),

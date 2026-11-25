@@ -70,6 +70,13 @@ public partial class MainWindow
     /// <summary>Opens the history list under the arrow button (under the app menu button while the book is not shown).</summary>
     internal bool ShowReadingHistoryList(bool keyboard = false) => _readingHistoryFlyout?.Show(keyboard) == true;
 
+    private bool DismissReadingHistory()
+    {
+        if (_readingHistoryFlyout is not { IsOpen: true } history) return false;
+        history.Close();
+        return true;
+    }
+
     private void InvalidateReadingResumeState()
     {
         ++_readingResumeStateRevision;
@@ -207,7 +214,11 @@ public partial class MainWindow
     {
         // The app menu entry sits directly behind "Continue reading" (which keeps resuming the newest place outside a thread). It opens the
         // same list as the arrow: a submenu popup is as narrow as its shortest entry and cannot scroll, the list can do both.
-        _readingHistoryMenu = new MenuItem { Header = Texts.T("resume.history.menu"), Icon = CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId) };
+        _readingHistoryMenu = new MenuItem
+        {
+            Header = Texts.T("resume.history.menu"), Icon = CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId),
+            ToggleType = MenuItemToggleType.CheckBox
+        };
         _readingHistoryMenu.Click += (_, _) => Dispatcher.UIThread.Post(() => ShowReadingHistoryList(keyboard: false), DispatcherPriority.Input);
         WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(_resumeReadingMenu!) + 1, _readingHistoryMenu);
         // The arrow, right-click, the menu key and Shift+F10 on the book button open the list under the arrow (or under the app menu
@@ -216,7 +227,18 @@ public partial class MainWindow
             place => _ = ResumeReadingPlaceAsync(place), () => _ = ShowReadingHistoryAsync(), FocusReadingResumeFallback);
         _readingHistoryFlyout.AddTrigger(ContinueReadingButton);
         _readingHistoryFlyout.AddTrigger(ContinueReadingHistoryButton);
-        ContinueReadingHistoryButton.Click += (_, _) => ShowReadingHistoryList(keyboard: !ContinueReadingHistoryButton.IsPointerOver);
+        _readingHistoryFlyout.Flyout.Opened += (_, _) =>
+        {
+            ContinueReadingHistoryButton.IsChecked = true;
+            _readingHistoryMenu.IsChecked = true;
+        };
+        _readingHistoryFlyout.Flyout.Closed += (_, _) =>
+        {
+            ContinueReadingHistoryButton.IsChecked = false;
+            _readingHistoryMenu.IsChecked = false;
+        };
+        ContinueReadingHistoryButton.Click += (_, _) =>
+            ContinueReadingHistoryButton.IsChecked = ShowReadingHistoryList(keyboard: !ContinueReadingHistoryButton.IsPointerOver);
     }
 
     private Control? ReadingHistoryAnchor() =>

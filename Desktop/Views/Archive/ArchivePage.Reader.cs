@@ -334,6 +334,13 @@ public partial class ArchivePage
         // The automatic scroll stays off for jumps and the pointer; a control inside a realized card that the keyboard focuses
         // (Tab to a link below the view) is brought in explicitly, so keyboard users never lose sight of the focus.
         posts.AddHandler(GotFocusEvent, OnReaderPostsGotFocus, RoutingStrategies.Bubble);
+        // Once the post and its children have had Enter, a missing medium must not open the toolbar's thread gallery.
+        posts.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && IsMediumGalleryKey(e)
+                && e.Source is Visual source && !ReaderMediaBelongsToNativeControl(source, posts)
+                && !ClaimedByOtherReaderCommand(e)) e.Handled = true;
+        }, RoutingStrategies.Bubble);
     }
 
     private void OnReaderPostsGotFocus(object? sender, FocusChangedEventArgs e)
@@ -395,6 +402,7 @@ public partial class ArchivePage
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         ReaderHostingStep("wire.01");
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        pane.AddHandler(PointerPressedEvent, OnArchiveMediaControlPress, RoutingStrategies.Tunnel);
         ReaderHostingStep("wire.02");
         pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
         ReaderHostingStep("wire.03");
@@ -417,6 +425,7 @@ public partial class ArchivePage
         _readerKeyContext = null;
         pane.RemoveHandler(KeyDownEvent, OnReaderKeyDown);
         pane.RemoveHandler(ContextRequestedEvent, OnArchiveMediaContextRequested);
+        pane.RemoveHandler(PointerPressedEvent, OnArchiveMediaControlPress);
         pane.RemoveHandler(KeyDownEvent, OnArchiveMediaContextKey);
         pane.RemoveHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
     }
@@ -950,7 +959,7 @@ public partial class ArchivePage
     }
 
     // Hidden means transparent and not hit-tested (the fade comes from the reader-cross style and is skipped under reduced
-    // motion); the buttons stay in the visual tree, so keyboard focus and automation still reach them and show the bar.
+    // motion); the bar itself stays a keyboard stop, and automation can still reach its buttons.
     private void UpdateReaderNavigationShown()
     {
         bool shown = ReaderNavigationShown;
@@ -977,6 +986,7 @@ public partial class ArchivePage
             return;
         }
         if (!_largeReader || IsReaderDialogOpen) return;
+        if (SuppressReaderActionArrows(e)) return;
         // An open quote preview is dismissed first: Escape must not also close the reader.
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsQuotePreviewOpen)
         {
@@ -1056,11 +1066,25 @@ public partial class ArchivePage
     internal bool TryNavigateReaderByKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || !_largeReader || _busy || _ended || IsReaderDialogOpen) return false;
+        if (SuppressReaderActionArrows(e)) return true;
         int post = ShortcutService.Current.Matches(e, "reader.previous-post") ? -1 : ShortcutService.Current.Matches(e, "reader.next-post") ? 1 : 0;
         int thread = ShortcutService.Current.Matches(e, "reader.previous-thread") ? -1 : ShortcutService.Current.Matches(e, "reader.next-thread") ? 1 : 0;
         if (post == 0 && thread == 0) return false;
         e.Handled = true;
         ReaderNavigationTask = NavigateReaderAsync(post, thread);
+        return true;
+    }
+
+    private bool SuppressReaderActionArrows(KeyEventArgs e)
+    {
+        if (e.KeyModifiers is not (KeyModifiers.None or KeyModifiers.Shift)
+            || e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down) || e.Source is not Visual source
+            || SidebarToggleGroup.IsSegmentArrow(e)) return false;
+        var path = source.GetSelfAndVisualAncestors();
+        if (!path.Contains(ReaderNavigation)
+            && !(path.Any(visual => visual is Button)
+                && (path.Contains(ReaderToolbar) || path.Contains(ArchiveMediaFooter)))) return false;
+        e.Handled = true;
         return true;
     }
 

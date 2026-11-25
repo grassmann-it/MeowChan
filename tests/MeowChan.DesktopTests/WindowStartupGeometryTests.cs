@@ -52,6 +52,17 @@ public sealed class WindowStartupGeometryTests
     }
 
     [Fact]
+    public void FirstRunMinimumFitsWindowsRunnerWhenFrameAndClientAreEqual()
+    {
+        Size client = new(480, 400);
+        WindowStartupFit fit = DialogFit.Compute(client, client, WorkspaceMetrics.DialogMinimumSize(DialogSize.L),
+            new PixelRect(0, 0, 1920, 1040), 1, new PixelPoint(78, 78));
+
+        Assert.Equal(client, fit.Client);
+        Assert.Equal(client, fit.Minimum);
+    }
+
+    [Fact]
     public void LargeDesktopKeepsRequestedSizeAndExistingPosition()
     {
         WindowStartupFit fit = WindowStartupGeometry.Fit(new Size(1380, 850), new Size(1396, 889),

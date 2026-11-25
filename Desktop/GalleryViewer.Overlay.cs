@@ -472,9 +472,8 @@ internal sealed partial class GalleryViewer
             _contextPanel.VerticalAlignment = VerticalAlignment.Stretch;
             double transportInset = !_nativeOverlayActive && _entry?.Kind == SavedMediaKind.Video
                 ? _video?.TransportBottomInset ?? 0 : 0;
-            // The overlay option sits above the floating footer; the narrow placement sits in the picture row,
-            // above the docked toolbar, so only the transport strip of a video has to be cleared.
-            _contextPanel.Margin = new Thickness(12, PostPanelTopInset(ContextOverlayWidth, 12, 12), 12, overlayOption && OverlayControlsEffective && _overlayFooter.IsVisible
+            // Both the optional overlay and the narrow panel share the picture row with a floating footer.
+            _contextPanel.Margin = new Thickness(12, PostPanelTopInset(ContextOverlayWidth, 12, 12), 12, OverlayControlsEffective && _overlayFooter.IsVisible
                 ? _overlayFooter.Bounds.Height + 16 : transportInset + 12);
             Grid.SetColumn(_contextPanel, 0); Grid.SetColumnSpan(_contextPanel, 1);
             Grid.SetRow(_contextPanel, _nativeOverlayFallback && !overlayOption ? 1 : 0); Grid.SetRowSpan(_contextPanel, 1);

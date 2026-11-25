@@ -1,10 +1,15 @@
 using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
 using MeowChan.Diagnostics;
@@ -16,7 +21,7 @@ using SkiaSharp;
 
 namespace MeowChan.DesktopSmoke;
 
-internal sealed class ShellLoadSmokeApp : App
+internal sealed class ShellLoadSmokeApp : App, IDisposable
 {
     private readonly HttpClient _client;
     private int _disposed;
@@ -28,7 +33,7 @@ internal sealed class ShellLoadSmokeApp : App
         // Harness-only cadence control. Reflection keeps these same sources compatible with HEAD.
         string? cadence = Environment.GetEnvironmentVariable("MEOWCHAN_SHELL_LOAD_CADENCE_MS");
         var hook = typeof(MainWindow).GetProperty("SessionProgressIntervalForTests",
-            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            BindingFlags.Static | BindingFlags.NonPublic);
         object? previous = hook?.GetValue(null);
         if (cadence != null)
         {
@@ -39,21 +44,25 @@ internal sealed class ShellLoadSmokeApp : App
         }
         try
         {
-            return new(new DesktopSessionHost(Config.GetConfigDirectory(),
+            return MainWindow.CreateWithSessionFactory(() => new DesktopSessionHost(Config.GetConfigDirectory(),
                 new IImageBoard[] { new FourChanImageBoard(_client) },
                 workStoreFactory: (directory, lease) => Gate.Wrap(new WorkStateStore(directory, lease))));
         }
         finally { if (hook != null) hook.SetValue(null, previous); }
     }
-    internal void DisposeFixture()
+    internal void DisposeFixture() => Dispose();
+
+    public void Dispose()
     {
-        Gate.Release(); Transport.AllowMedia();
-        if (Interlocked.Exchange(ref _disposed, 1) == 0) { Gate.StopReleaseThread(); _client.Dispose(); }
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        Transport.AllowMedia();
+        try { Gate.Dispose(); }
+        finally { _client.Dispose(); }
     }
 }
 
 /// <summary>The gate releaser has its own OS thread and starts before media is allowed. No UI/ThreadPool dependency.</summary>
-internal sealed partial class HeldCommitStore : IWorkStateStore
+internal sealed partial class HeldCommitStore : IWorkStateStore, IDisposable
 {
     private IWorkStateStore _inner = null!;
     private readonly ManualResetEventSlim _release = new(false), _entered = new(false);
@@ -81,7 +90,15 @@ internal sealed partial class HeldCommitStore : IWorkStateStore
         _releaseThread.Start();
     }
     internal void Release() => _release.Set();
-    internal void StopReleaseThread() { _entered.Set(); _release.Set(); _releaseThread?.Join(TimeSpan.FromSeconds(2)); }
+    public void Dispose()
+    {
+        _entered.Set();
+        Release();
+        if (_releaseThread != null && !_releaseThread.Join(TimeSpan.FromSeconds(2)))
+            throw new InvalidOperationException("The fixture gate releaser did not stop.");
+        _entered.Dispose();
+        _release.Dispose();
+    }
     public IReadOnlyList<WorkResource> LoadResources() => _inner.LoadResources();
     public IReadOnlyList<MediaWork> LoadMedia(string url, long generation) => _inner.LoadMedia(url, generation);
     public WorkResource CommitIntent(WorkResource resource) => _inner.CommitIntent(resource);
@@ -125,6 +142,9 @@ internal sealed partial class HeldCommitStore : IWorkStateStore
 internal static class ShellLoadChecks
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
+    private static readonly FieldInfo NavigationPending = typeof(GalleryViewer)
+        .GetField("_navigationPending", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("The gallery no longer exposes its pending field to fixture diagnostics.");
     internal static async Task RunAsync(MainWindow window, IClassicDesktopStyleApplicationLifetime desktop)
     {
         ShellLoadSmokeApp app = Application.Current as ShellLoadSmokeApp ?? throw new InvalidOperationException("Wrong load fixture app.");
@@ -156,12 +176,14 @@ internal static class ShellLoadChecks
             GalleryEntry[] entries = ShellLoadFixture.Entries;
             await window.OpenMediaGalleryLaidOutAsync(entries, entries[0].EntryKey);
             galleryOpen = true;
-            GalleryViewer viewer = (GalleryViewer)window.FindControl<ContentControl>("GalleryHost")!.Content!;
+            ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
+            GalleryViewer viewer = (GalleryViewer)host.Content!;
             await Program.WaitUntilAsync(() => Control<Image>(viewer, "GalleryImage").Source is Bitmap);
             // Raster identity controls, before measured interactions, on each frozen target.
             viewer = await VerifyPixelsAsync(window, viewer, measurement, "before");
             int index = 0;
             long epoch = session.Epoch;
+            ObserveNavigation(window, host, viewer, entries[0], entries[1], "before-measurement");
             async Task<NavigationSample> Interact()
             {
                 if (!window.IsVisible) throw new InvalidOperationException("Window closed before measurement finished.");
@@ -169,6 +191,21 @@ internal static class ShellLoadChecks
                     await window.SessionHost.RequestCheckAsync(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
                 int next = index == entries.Length - 1 ? index - 1 : index + 1;
                 GalleryEntry target = entries[next];
+                Button command = Control<Button>(viewer, next > index ? "GalleryNext" : "GalleryPrevious");
+                if (viewer.ControlsHiddenNow)
+                {
+                    ObserveNavigation(window, host, viewer, entries[index], target, "before-tab-reveal");
+                    // GalleryEdgeKeyboard.ShouldReveal: Tab reveals the auto-hidden footer for keyboard access.
+                    viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+                    window.UpdateLayout();
+                    ObserveNavigation(window, host, viewer, entries[index], target, "after-tab-reveal");
+                }
+                if (!host.IsEffectivelyVisible || !ReferenceEquals(host.Content, viewer)
+                    || !command.IsEffectivelyEnabled || !command.IsEffectivelyVisible)
+                {
+                    ObserveNavigation(window, host, viewer, entries[index], target, "unavailable");
+                    throw new InvalidOperationException("The target navigation control was not available to the user.");
+                }
                 long request = PerformanceDiagnostics.NextId(), accepted = 0;
                 long intent = Stopwatch.GetTimestamp();
                 PerformanceDiagnostics.Record("gallery.navigation", "intent", request, row.WatchId.ToString(), target.Asset.AssetId, epoch);
@@ -180,12 +217,7 @@ internal static class ShellLoadChecks
                 Image displayed = Control<Image>(viewer, "GalleryImage");
                 object? previous = displayed.Source;
                 viewer.MoveRequested += OnMove;
-                try
-                {
-                    Button command = Control<Button>(viewer, next > index ? "GalleryNext" : "GalleryPrevious");
-                    Require(command.IsEnabled && command.IsEffectivelyVisible, "The target navigation control was not available to the user.");
-                    Click(command);
-                }
+                try { Click(command); }
                 finally { viewer.MoveRequested -= OnMove; }
                 if (accepted == 0) throw new InvalidOperationException("Enabled gallery navigation did not accept input.");
                 await Program.WaitUntilAsync(() => viewer.CaptureState().Key == target.Key && displayed.Source is Bitmap
@@ -335,8 +367,38 @@ internal static class ShellLoadChecks
         return viewer;
     }
 
-    private static T Control<T>(GalleryViewer viewer, string name) where T : Avalonia.Controls.Control =>
-        viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => control.Name == name);
+    private static void ObserveNavigation(MainWindow window, ContentControl host, GalleryViewer viewer,
+        GalleryEntry current, GalleryEntry target, string stage)
+    {
+        Button previous = Control<Button>(viewer, "GalleryPrevious");
+        Button next = Control<Button>(viewer, "GalleryNext");
+        object Path(Button button)
+        {
+            Point? center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window);
+            Visual? hit = center is { } point ? window.InputHitTest(point, enabledElementsOnly: false) as Visual : null;
+            return new
+            {
+                button.Name, button.IsEnabled, button.IsEffectivelyEnabled, button.IsEffectivelyVisible,
+                reachesButton = hit?.GetSelfAndVisualAncestors().Contains(button) == true,
+                path = button.GetSelfAndVisualAncestors().OfType<Control>()
+                    .Select(control => new { id = AutomationProperties.GetAutomationId(control) ?? control.Name ?? control.GetType().Name, control.IsVisible }).ToArray()
+            };
+        }
+
+        GalleryViewerState state = viewer.CaptureState();
+        Console.WriteLine("SMOKE shell-load navigation: " + JsonSerializer.Serialize(new
+        {
+            stage, activeGallery = ReferenceEquals(host.Content, viewer) && host.IsEffectivelyVisible, window.IsActive,
+            current = state.Key?.AssetId, expectedCurrent = current.Asset.AssetId, neighbor = target.Asset.AssetId,
+            navigationPending = NavigationPending.GetValue(viewer), viewer.ControlsHiddenNow, navigationShown = viewer.ShownChromePlan.Nav,
+            previous = Path(previous), next = Path(next)
+        }));
+    }
+
+    private static T Control<T>(GalleryViewer viewer, string name) where T : Control =>
+        viewer.GetGalleryVisualDescendants().OfType<T>()
+            .Single(control => (AutomationProperties.GetAutomationId(control) ?? control.Name) == name);
+
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
     private static async Task CloseAsync(MainWindow window)

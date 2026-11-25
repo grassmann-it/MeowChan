@@ -63,6 +63,8 @@ public sealed class MacShortcutDefaultsTests
     [InlineData("archive.previous-page", "⌥⌘← / ⌥⇞", "Alt+PageUp")]
     [InlineData("archive.next-page", "⌥⌘→ / ⌥⇟", "Alt+PageDown")]
     [InlineData("media.return", "⌘←", "Alt+Left")]
+    [InlineData("tagging.stamp", "⌥⌘S / F9 (Fn)", "F9")]
+    [InlineData("settings.more", "⌃⌘M / ⇧⌘F10 (Fn)", "Ctrl+Shift+F10")]
     public void MacStandardsDifferFromWindowsAndLinuxWhichKeepTheirOwn(string id, string mac, string other)
     {
         Assert.Equal(mac, EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS).Display(id));

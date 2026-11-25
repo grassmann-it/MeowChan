@@ -364,7 +364,16 @@ internal sealed class MenuLayout : AvaloniaObject
         // columns at their final width already, and the rows measure with them: nothing is left to add.
         bool final = rows.Any(row => Part(row, "PART_InputGestureText") is { Parent: Grid grid } cell
             && Grid.GetColumn(cell) is var index && index < grid.ColumnDefinitions.Count && grid.ColumnDefinitions[index].ActualWidth > 0);
-        double rowWidth = rows.Select((row, index) => row.DesiredSize.Width + (final ? 0 : column.Sum() - own[index].Sum())).Max();
+        double sharedWidth = column.Sum();
+        double rowWidth = rows.Select((row, index) => row.DesiredSize.Width + (final ? 0 : sharedWidth - own[index].Sum())).Max();
+        // A reopened submenu row can already have a trimmed header at the previous language's width.
+        // Its desired size then understates the space its full label needs next to the shared cells.
+        foreach (MenuItem row in rows)
+        {
+            if (!row.HasSubMenu || Part(row, "PART_HeaderPresenter") is not ContentPresenter { Child: TextBlock } header) continue;
+            Thickness inset = row.Margin + row.BorderThickness + row.Padding;
+            rowWidth = Math.Max(rowWidth, inset.Left + sharedWidth + NaturalLabelWidth(header) + inset.Right);
+        }
         double frame = Math.Max(0, menu.DesiredSize.Width - rows.Max(row => row.DesiredSize.Width));
         double wanted = Math.Min(Math.Max(frame + rowWidth, minimum), maximum);
         if (menu.DesiredSize.Width >= maximum - 0.5) wanted = maximum;

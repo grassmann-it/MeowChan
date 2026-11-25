@@ -340,7 +340,7 @@ public partial class MainWindow
         if (DownloadsMatches(e, "watch.remove"))
         { e.Handled = true; await RemoveDownloadSelectionAsync(boards); return; }
         if (DownloadsMatches(e, "thread.details"))
-        { e.Handled = true; OpenWorkspaceDetails(); return; }
+        { e.Handled = true; if (GetWorkspaceSelection() != null) ToggleWorkspaceDetails(); return; }
         // Revision 19: "Show in Media" (Alt+M), like the thread menu entry: every selected thread (as one thread set when there are several);
         // boards have no media of their own.
         if (!boards && DownloadsMatches(e, "thread.show-in-media"))
@@ -385,7 +385,11 @@ public partial class MainWindow
         {
             foreach (T id in frozen)
             {
-                await AwaitSessionRowsAsync();
+                // The next projection can start before the completed frame's waiter resumes.
+                do
+                {
+                    await AwaitSessionRowsAsync();
+                } while (_sessionRowsApplying && !_isClosing);
                 if (_isClosing) return;
                 try { await command(id); }
                 catch (Exception error) { failures.Add(error.Message); }

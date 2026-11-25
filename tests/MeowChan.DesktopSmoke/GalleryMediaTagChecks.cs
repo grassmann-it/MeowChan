@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
@@ -88,12 +89,7 @@ internal static class GalleryMediaTagChecks
                     window.UpdateLayout(); // the existing gallery close button does not prove the new header slot has been templated
                     MediaPositionPill counter = viewer.SidePanel.Position;
                     Require(counter.IsEffectivelyVisible && !viewer.TagSurface!.Header.Children.Contains(counter), "Counter was duplicated or hidden.");
-                    Require(Avalonia.Automation.AutomationProperties.GetName(counter) == Texts.T("tags.quick.gallery.position", 1, 2)
-                        && Avalonia.Automation.AutomationProperties.GetLiveSetting(counter) == Avalonia.Automation.AutomationLiveSetting.Polite
-                        && counter.Label is TextBlock liveLabel
-                        && Avalonia.Automation.AutomationProperties.GetLiveSetting(liveLabel) == Avalonia.Automation.AutomationLiveSetting.Polite
-                        && liveLabel.Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
-                        "The position pill lost localization or polite announcements.");
+                    CheckPositionPill(counter, 1, 2, allowBare: width == 280);
                     GallerySidePanel panel = viewer.SidePanel;
                     Rect InPanel(Control control) => new(control.TranslatePoint(default, panel)!.Value, control.Bounds.Size);
                     Rect position = InPanel(counter), post = InPanel(panel.PostButton), tagsTab = InPanel(panel.TagsButton), close = InPanel(panel.CloseButton);
@@ -104,7 +100,7 @@ internal static class GalleryMediaTagChecks
                         && Math.Abs(close.Right - panel.Bounds.Width) <= 1
                         && new[] { post, tagsTab, close }.All(control => control.Height == 32 && Math.Abs(control.Center.Y - position.Center.Y) <= 1),
                         $"The gallery header is misaligned (counter {position}, Post {post}, Tags {tagsTab}, Close {close}).");
-                    Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, counter={position}");
+                    Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, counter={position}, visible={counter.Label.Text}, announced={AutomationProperties.GetName(counter)}");
                     Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
                 }
             }
@@ -150,12 +146,9 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == unbound.EntryKey && marking.MarkBar.IsVisible);
             marking.MarkedClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
-            MediaPositionPill movedCounter = viewer.SidePanel.Position;
-            Require(movedCounter.Label is TextBlock movedLabel && movedLabel.Text == Texts.T("tags.quick.gallery.positionShort", 2, 2)
-                && Avalonia.Automation.AutomationProperties.GetName(movedCounter) == Texts.T("tags.quick.gallery.position", 2, 2)
-                && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedCounter) == Avalonia.Automation.AutomationLiveSetting.Polite
-                && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedLabel) == Avalonia.Automation.AutomationLiveSetting.Polite,
-                "Navigation did not update the position pill text and accessible name.");
+            window.UpdateLayout();
+            CheckPositionPill(viewer.SidePanel.Position, 2, 2, allowBare: false);
+            Console.WriteLine($"SMOKE gallery counter navigation: visible={viewer.SidePanel.Position.Label.Text}, announced={AutomationProperties.GetName(viewer.SidePanel.Position)}");
             // Rate from the stars and keep the same keys available for text on the bound medium's tag field.
             viewer.TagSurface.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Previous));
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey && marking.Input.IsEffectivelyEnabled);
@@ -283,6 +276,26 @@ internal static class GalleryMediaTagChecks
             await window.GalleryCleanupTask;
             Texts.SetLanguage(language);
         }
+    }
+
+    private static void CheckPositionPill(MediaPositionPill pill, int number, int count, bool allowBare)
+    {
+        TextBlock label = pill.Label;
+        string announcement = Texts.T("tags.quick.gallery.position", number, count);
+        string shortText = Texts.T("tags.quick.gallery.positionShort", number, count);
+        // MediaPositionPill owns the polite live region. Its decorative label uses Raw accessibility.
+        Require(AutomationProperties.GetName(pill) == announcement
+            && AutomationProperties.GetAccessibilityView(pill) != AccessibilityView.Raw
+            && AutomationProperties.GetLiveSetting(pill) == AutomationLiveSetting.Polite
+            && AutomationProperties.GetAccessibilityView(label) == AccessibilityView.Raw
+            && AutomationProperties.GetLiveSetting(label) == AutomationLiveSetting.Off,
+            $"Incorrect position announcement for {Texts.Language}: {AutomationProperties.GetName(pill)}.");
+        // At narrow widths MediaPositionPill.MeasureOverride may use the bare count.
+        Require(label.IsEffectivelyVisible && label.Bounds.Width > 0 && label.Bounds.Height > 0
+            && label.TextLayout.WidthIncludingTrailingWhitespace <= label.Bounds.Width + 1
+            && label.TextLayout.TextLines.All(line => !line.HasCollapsed)
+            && (label.Text == shortText || allowBare && label.Text == $"{number} / {count}"),
+            $"Incorrect visible position for {Texts.Language}: {label.Text}, bounds {label.Bounds}.");
     }
 
     private static async Task CheckTagPanelCompositionAsync(GalleryViewer viewer, QuickTagSurface surface, TextBox editor, KeyModifiers primary)

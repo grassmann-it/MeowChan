@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -117,6 +118,8 @@ public class SearchBox : TextBox
     public event EventHandler<HandledEventArgs>? ExitRequested;
 
     public bool HasText => !string.IsNullOrEmpty(Text);
+    internal bool IsComposing => this.GetVisualDescendants().OfType<TextPresenter>()
+        .Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
     public bool IsQueryPending => _debounce?.IsPending == true;
 
     // Test seams; set before the first edit.
@@ -163,7 +166,7 @@ public class SearchBox : TextBox
             chip.ShowMenu();
             return;
         }
-        if (!e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+        if (!e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && !IsComposing)
         {
             if (HasText) { ClearAndFocus(); e.Handled = true; return; }
             HandledEventArgs exit = new();

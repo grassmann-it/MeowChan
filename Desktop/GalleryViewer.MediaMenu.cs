@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
@@ -123,16 +125,36 @@ internal sealed partial class GalleryViewer
             ReaderPlaybackMenu.GalleryExtras.Playback(true, CanUseVideoTransport, video.IsPlaybackRequested, video.Muted, video.LoopEnabled,
                 video.HasAudio, video.CanToggleLoopNow),
             action => ExecuteVideoMenuAction(video, action), run);
-        List<Control>? context = null;
+        List<Control> context = new();
         if (ReaderPlaybackMenu.GalleryExtras.OffersPostBookmark(entry.Post != null))
-            context = new() { MediaMenuBuilder.PostBookmarkItem(session, Sync(() => RequestPostBookmark(entry)),
-                () => !_terminalRetirement && PostBookmarkRequested != null, run) };
+            context.Add(MediaMenuBuilder.PostBookmarkItem(session, Sync(() => RequestPostBookmark(entry)),
+                () => !_terminalRetirement && PostBookmarkRequested != null, run));
+        if (shown && _overflowButton.IsEffectivelyVisible)
+        {
+            MenuItem more = MediaMenuBuilder.ContextItem(session, "gallery.overflow.label", Sync(OpenMore),
+                () => _overflowButton.IsEffectivelyVisible, run, icon: "more-horizontal");
+            AutomationProperties.SetAutomationId(more, "gallery.overflow.label");
+            context.Add(more);
+        }
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
             text => MenuExplanationRequested?.Invoke(text), playback);
         if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();
         _mediaMenuPresenter.Show(menu, session, owner, attachToOrigin: true, fallbackFocus: FocusGallerySurface);
+
+        void OpenMore()
+        {
+            if (!ReferenceEquals(MediaMenuSession, session)) return;
+            MediaMenu?.Close();
+            // Let the context menu finish returning focus before the first overflow row takes it.
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (session.IsCurrent && ReferenceEquals(MediaMenuSession, session) && !_viewerInteractionStopped
+                    && IsGalleryWindowActive && !HasGalleryDialog && !HasGalleryPopup && _overflowButton.IsEffectivelyVisible)
+                    SetOverflowOpen(true);
+            }, DispatcherPriority.Background);
+        }
     }
 
     private void RequestPostBookmark(GalleryEntry entry)

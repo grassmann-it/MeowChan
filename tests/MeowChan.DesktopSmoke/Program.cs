@@ -1,6 +1,7 @@
 using MeowChan.Testing;
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -527,19 +528,13 @@ internal static class Program
                 if (Environment.GetEnvironmentVariable("MEOWCHAN_SHELL_PREFERENCES_ONLY") == "1")
                 {
                     await RunOptionalCheckAsync("ShellPreferenceCoalescingChecks", mainWindow);
-                    mainWindow.FindControl<MenuItem>("ExitMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-                    await WaitUntilAsync(() => !mainWindow.IsVisible);
-                    _checksPassed = true;
-                    desktop.Shutdown();
+                    await FinishExplicitShellCloseAsync(mainWindow, desktop);
                     return;
                 }
                 if (Environment.GetEnvironmentVariable("MEOWCHAN_SHELL_PROJECTION_ONLY") == "1")
                 {
                     await RunOptionalCheckAsync("ShellProjectionReconciliationChecks", mainWindow);
-                    mainWindow.FindControl<MenuItem>("ExitMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-                    await WaitUntilAsync(() => !mainWindow.IsVisible);
-                    _checksPassed = true;
-                    desktop.Shutdown();
+                    await FinishExplicitShellCloseAsync(mainWindow, desktop);
                     return;
                 }
                 if (Environment.GetEnvironmentVariable("MEOWCHAN_SHUTDOWN_ORDER_ONLY") == "1")
@@ -726,6 +721,111 @@ internal static class Program
             else if (window != null) window.Close();
             else if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown(1);
         }
+    }
+
+    private static async Task FinishExplicitShellCloseAsync(MainWindow window, IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        window.FindControl<MenuItem>("ExitMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        // RunAsync subscribes to the primary window's Closed before running either journey.
+        await WaitUntilAsync(() => _closed);
+        if (window.SessionHost.State != DesktopSessionState.Stopped || !window.SessionHost.IsProfileReleased)
+            throw new InvalidOperationException("The main window closed before its session stopped and released the profile.");
+        _checksPassed = true;
+        desktop.Shutdown();
+    }
+
+    internal sealed class FixtureShell : IAsyncDisposable
+    {
+        private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        private static readonly FieldInfo ShutdownRunning = typeof(MainWindow).GetField("_shutdownRunning", PrivateInstance)!;
+        private static readonly FieldInfo AllowClose = typeof(MainWindow).GetField("_allowClose", PrivateInstance)!;
+
+        private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TimeSpan _deadline;
+        private Task? _close;
+
+        internal MainWindow Window { get; }
+        internal bool CloseRequested { get; private set; }
+        internal Exception? JourneyFailure { get; private set; }
+
+        internal void RecordJourneyFailure(Exception error)
+        {
+            JourneyFailure = error;
+            Console.Error.WriteLine("SMOKE fixture journey failed: " + error);
+        }
+
+        private FixtureShell(DesktopSessionHost host, TimeSpan deadline)
+        {
+            _deadline = deadline;
+            Window = new MainWindow(host);
+            Window.Closed += (_, _) => _closed.TrySetResult();
+        }
+
+        internal static async Task<FixtureShell> CreateAsync(Func<DesktopSessionHost> createHost, TimeSpan deadline)
+        {
+            DesktopSessionHost host = createHost();
+            try { return new FixtureShell(host, deadline); }
+            catch (Exception error)
+            {
+                await SmokeCleanup.RunAsync(error, () => host.DisposeAsync().AsTask().WaitAsync(deadline), ReportCleanupFailure);
+                throw;
+            }
+        }
+
+        internal void RequestClose()
+        {
+            if (CloseRequested) return;
+            CloseRequested = true;
+            Window.Close();
+        }
+
+        internal Task CloseAsync(Func<ShutdownBudget, bool>? expectedFailure = null) =>
+            _close ??= CloseCoreAsync(expectedFailure);
+
+        private async Task CloseCoreAsync(Func<ShutdownBudget, bool>? expectedFailure)
+        {
+            DesktopSessionHost host = Window.SessionHost;
+            RequestClose();
+            await WaitUntilAsync(() => _closed.Task.IsCompletedSuccessfully
+                || (Window.ShutdownBudgetForTests != null && !(bool)ShutdownRunning.GetValue(Window)!),
+                _deadline, () => Window.ShutdownBudgetForTests is { } budget
+                    ? $"fixture shutdown running: {budget.DescribeRunning()}, host={host.State}, profile released={host.IsProfileReleased}"
+                    : "fixture shutdown did not start (window close was vetoed or is awaiting a decision)");
+
+            ShutdownBudget? shutdown = Window.ShutdownBudgetForTests;
+            bool requiresAcknowledgment = !_closed.Task.IsCompletedSuccessfully;
+            if (requiresAcknowledgment)
+            {
+                if (!Window.IsVisible || !(bool)AllowClose.GetValue(Window)! || !host.IsProfileReleased)
+                    throw new InvalidOperationException("Fixture shutdown ended without Closed and retained window or profile ownership.", shutdown?.Failure);
+                Console.WriteLine($"SMOKE fixture acknowledging shutdown error at {shutdown?.FailedStep}: {shutdown?.Failure?.Message}");
+                Window.Close();
+                await _closed.Task.WaitAsync(_deadline);
+            }
+
+            if (host.State != DesktopSessionState.Stopped || !host.IsProfileReleased)
+                throw new InvalidOperationException("The fixture window closed before its own session stopped and released the profile.");
+            await Window.DisposeAsync().AsTask().WaitAsync(_deadline);
+            await host.DisposeAsync().AsTask().WaitAsync(_deadline);
+            if (shutdown is { TimedOut: true })
+                throw new InvalidOperationException($"Fixture shutdown timed out at {shutdown.TimedOutStep}.", shutdown.Failure);
+            if (expectedFailure != null)
+            {
+                if (!requiresAcknowledgment || shutdown == null || !expectedFailure(shutdown))
+                    throw new InvalidOperationException("The fixture did not observe its expected shutdown error.", shutdown?.Failure);
+            }
+            else if (shutdown?.Failure is Exception failure)
+                throw new InvalidOperationException($"Fixture shutdown failed at {shutdown.FailedStep}.", failure);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_close == null)
+                await SmokeCleanup.RunAsync(JourneyFailure, () => CloseAsync(), ReportCleanupFailure);
+        }
+
+        private static void ReportCleanupFailure(Exception error) =>
+            Console.Error.WriteLine("SMOKE cleanup failed for fixture shell: " + error);
     }
 
     // Shared by the complete manual normal run and its bounded CI head.

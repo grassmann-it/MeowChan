@@ -77,8 +77,10 @@ internal static partial class MediaRatingChecks
         Require(original != null, "Production rating writer is not connected");
         string before = Digest(RatingPath);
         FavoriteAssetKey expectedKey = KeyOf(Row(2));
-        MethodInfo executor = typeof(ArchivePage).GetMethod("ExecuteRatingCommandAsync", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Production focused rating executor is missing");
+        Func<int?, Task> executeRating = typeof(ArchivePage)
+            .GetMethod("ExecuteRatingCommandAsync", BindingFlags.Instance | BindingFlags.NonPublic, [typeof(int?)])
+            ?.CreateDelegate<Func<int?, Task>>(_page)
+            ?? throw new InvalidOperationException("Production focused rating executor with a nullable rating parameter is missing");
         foreach (bool navigate in new[] { false, true })
         {
             Log("Load original A content for late error boundary", "production LoadThreadAsync executor");
@@ -101,8 +103,8 @@ internal static partial class MediaRatingChecks
             Task? pending = null;
             try
             {
-                Log("Start direct focused rating executor and hold its completion", "fixture reflection invokes production async executor; TCS-delayed IOException at writer delegate");
-                pending = (Task)executor.Invoke(_page, new object?[] { 4, false })!;
+                Log("Start direct focused rating executor and hold its completion", "bound production async executor; TCS-delayed IOException at writer delegate");
+                pending = executeRating(4);
                 FavoriteAssetKey startedKey = await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 Require(startedKey == expectedKey && receivedValue == 4 && !pending.IsCompleted,
                     "Delayed write must start with frozen A key and requested value");

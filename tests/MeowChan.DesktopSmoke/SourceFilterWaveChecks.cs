@@ -26,6 +26,7 @@ internal static class SourceFilterWaveChecks
     private const string HashPlugin = "meowchan.filter.hash-blocklist";
     private const string InvalidHashes = "not-a-sha256\n";
     private static readonly string ValidHashes = new string('a', 64) + "\n" + new string('B', 64);
+    private static readonly TimeSpan CloseDeadline = TimeSpan.FromSeconds(15);
 
     internal static async Task RunAsync(MainWindow parent)
     {
@@ -37,11 +38,12 @@ internal static class SourceFilterWaveChecks
             MaxParallelDownloads = 1, MinimumFreeSpaceGiB = 0, WorkspaceMode = "Barebones",
             Language = "en", Theme = "Dark" }.SaveConfig(profile);
         using BlockedHttp http = new();
-        await using DesktopSessionHost host = CreateHost(profile, http);
-        await using MainWindow window = new(host);
-        window.Show(parent);
+        await using Program.FixtureShell fixture = await Program.FixtureShell.CreateAsync(() => CreateHost(profile, http), CloseDeadline);
+        MainWindow window = fixture.Window;
+        DesktopSessionHost host = window.SessionHost;
         try
         {
+            window.Show(parent);
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(60));
             await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready && C<Button>(window, "AddUrlButton").IsEnabled);
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
@@ -119,9 +121,7 @@ internal static class SourceFilterWaveChecks
 
             Require(http.RequestCount == 0 && host.GetThreadWorkSnapshots().Count == 0,
                 "Local activation/forms started HTTP or a watch.");
-            window.Close();
-            await Program.WaitUntilAsync(() => !window.IsVisible);
-            await host.DisposeAsync(); // Release this profile lease before a distinct real Host opens it.
+            await fixture.CloseAsync(); // Complete shell close and release the lease before a distinct real Host opens it.
             await using DesktopSessionHost restarted = CreateHost(profile, http);
             await restarted.StartAsync().WaitAsync(TimeSpan.FromSeconds(60));
             Require(restarted.State == DesktopSessionState.Ready, "Restart Host failed.");
@@ -133,12 +133,16 @@ internal static class SourceFilterWaveChecks
             Console.WriteLine("SOURCE_FILTER_WAVE_GUI PASS: delivered worker Describes, four real rule forms/Saves, retained invalid multiline hash with worker error, exact restart persistence, strict 2ch vs explicit Leftypol consent, EN/DE Light/Dark at actual scale "
                 + window.RenderScaling + "; HTTP=0; no live provider, IME or physical-keyboard claim.");
         }
+        catch (Exception error) { fixture.RecordJourneyFailure(error); throw; }
         finally
         {
-            foreach (ExperimentalActivationDialog modal in window.OwnedWindows.OfType<ExperimentalActivationDialog>().ToArray()) modal.Close();
-            if (window.IsVisible) window.Close();
-            await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(45));
-            Texts.SetLanguage(languageBefore); Application.Current.RequestedThemeVariant = themeBefore;
+            await SmokeCleanup.RunAsync(fixture.JourneyFailure, async () =>
+            {
+                foreach (ExperimentalActivationDialog modal in window.OwnedWindows.OfType<ExperimentalActivationDialog>().ToArray()) modal.Close();
+                await fixture.DisposeAsync();
+            }, error => Console.Error.WriteLine("SMOKE cleanup failed in SourceFilterWaveChecks: " + error));
+            Texts.SetLanguage(languageBefore);
+            Application.Current.RequestedThemeVariant = themeBefore;
         }
     }
 

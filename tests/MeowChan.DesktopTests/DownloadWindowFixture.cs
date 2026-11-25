@@ -18,7 +18,8 @@ internal sealed class DownloadWindowFixture(MainWindow window, DesktopSessionHos
     internal DataGrid Threads => Find<DataGrid>("ThreadsDataGrid");
     internal T Find<T>(string name) where T : Control => Window.FindControl<T>(name)!;
 
-    internal static void Run(Func<DownloadWindowFixture, Task> exercise, Action? preparePlatform = null) =>
+    internal static void Run(Func<DownloadWindowFixture, Task> exercise, Action? preparePlatform = null,
+        string workspaceMode = "Advanced") =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -26,7 +27,7 @@ internal sealed class DownloadWindowFixture(MainWindow window, DesktopSessionHos
             using TempDirectory profile = new();
             new Config
             {
-                DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1, WorkspaceMode = "Advanced",
+                DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1, WorkspaceMode = workspaceMode,
                 Language = "en", WindowWidth = 1240, WindowHeight = 900, SaveUrlsOnExit = false
             }.SaveConfig(profile.Path);
             BooruComponentDispatcher.Wait(RunAsync());

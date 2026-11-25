@@ -589,7 +589,7 @@ public partial class ArchivePage
     {
         if (ArchiveMediaTab.IsSelected)
         {
-            VisibleMediaList.Focus();
+            FocusSelectedMedia();
             return;
         }
         ListBox posts = ArchivePosts;

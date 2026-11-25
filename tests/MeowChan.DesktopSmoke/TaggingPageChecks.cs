@@ -305,8 +305,8 @@ internal static class TaggingPageChecks
                 active.Focus();
                 Press(active, Key.S);
                 await Program.WaitUntilAsync(() => !tagging.IsBusy && tagging.Queue.Items[0].State == TagQueueState.Skipped);
-                tagging.SelectionMoreButton.Focus();
-                Press(tagging.SelectionMoreButton, Key.Escape);
+                Require(tagging.SelectionTagButton.Focus(), "The selection bar has no keyboard target.");
+                Press(tagging.SelectionTagButton, Key.Escape);
                 Require(tagging.SelectedCount == 0 && tagging.ShownList.IsKeyboardFocusWithin, "Esc in the selection bar did not return to results.");
                 await window.SessionHost.SetTagQueueStatesAsync(keys.Select(key => KeyValuePair.Create(key, TagQueueState.Open)).ToArray());
                 tagging.Refresh();
@@ -342,11 +342,13 @@ internal static class TaggingPageChecks
         Button trigger = tagging.StampButton;
         TextBox input = tagging.StampInput;
         Require(!tagging.StampOpen, "An old Open profile value opened the editor.");
-        trigger.Focus();
+        Require(!trigger.Focusable, "The stamp opener is a tab stop.");
+        tagging.FocusContent();
+        Control row = (Control)window.FocusManager!.GetFocusedElement()!;
         foreach (KeyModifiers modifiers in new[] { KeyModifiers.Meta, KeyModifiers.Control, KeyModifiers.Control | KeyModifiers.Alt })
-            PressSpace(trigger, modifiers);
+            PressSpace(row, modifiers);
         Require(!tagging.StampOpen, "A system Space chord opened the stamp.");
-        PressSpace(trigger);
+        PressStampShortcut(tagging, window);
         await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused);
 
         if (!await ClipboardChecks.PasteFixtureTextAsync(input, "surface\nreview\nkeep"))
@@ -364,12 +366,12 @@ internal static class TaggingPageChecks
         await Program.WaitUntilAsync(() => feedback.Text == Texts.T("tagging.page.stamp.already", "surface"));
         Require(window.SessionHost.GetTagQueue()!.Stamp.Count == 0, "The shared stamp went into tag-queue.json.");
         Press(input, Key.Escape);
-        await Program.WaitUntilAsync(() => !tagging.StampOpen && trigger.IsFocused);
+        await Program.WaitUntilAsync(() => !tagging.StampOpen && QueueRowHasFocus(window, tagging));
         Require(Config.LoadConfig().TaggingStampBlock == "Open", "Toggling the flyout wrote a legacy view preference.");
         if (OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1")
         {
             using var native = new MediaNativeInput(window);
-            Press(trigger, Key.Enter);
+            await native.ClickAsync(trigger);
             await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused);
             await native.KeyAsync(MediaNativeInput.Space);
             await Program.WaitUntilAsync(() => input.Text == " ", () => "Stamp input after Space: '" + input.Text + "'");
@@ -385,16 +387,14 @@ internal static class TaggingPageChecks
         await window.SessionHost.SetTagQueueGroupStampAsync(second, ["bbb", "ccc"]);
         tagging.Refresh();
         tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == first);
-        trigger.Focus();
-        Press(trigger, Key.Enter);
+        PressStampShortcut(tagging, window);
         await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused && tagging.StampChips.Children.Count == 1);
         input.Text = "uncommitted";
         tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == second);
         Require(!tagging.StampOpen && string.IsNullOrEmpty(input.Text) && tagging.StampChips.Children.Count == 2
             && AutomationProperties.GetName(trigger)?.Contains("Stamp B", StringComparison.Ordinal) == true,
             "Group A → B retained the old editor, draft or scope.");
-        trigger.Focus();
-        Press(trigger, Key.Enter);
+        PressStampShortcut(tagging, window);
         await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused);
         input.Text = "BBB";
         Press(input, Key.Enter);
@@ -449,8 +449,7 @@ internal static class TaggingPageChecks
             await ResizeAsync(window, 1400);
             CheckHeaderGeometry(tagging, 1, "at breakpoint");
             double tableTop = tagging.ColumnHeader.TranslatePoint(default, tagging)!.Value.Y;
-            tagging.StampButton.Focus(NavigationMethod.Tab);
-            Press(tagging.StampButton, Key.Enter);
+            PressStampShortcut(tagging, window);
             await Program.WaitUntilAsync(() => tagging.StampOpen && tagging.StampInput.IsFocused);
             tagging.StampInput.Text = "resize draft";
             await ResizeAsync(window, 1399);
@@ -465,7 +464,7 @@ internal static class TaggingPageChecks
             Require(tagging.StampOpen && tagging.StampInput.IsFocused && tagging.StampInput.Text == "resize draft",
                 "Resizing closed the stamp or lost its input focus or draft.");
             Press(tagging.StampInput, Key.Escape);
-            await Program.WaitUntilAsync(() => !tagging.StampOpen && tagging.StampButton.IsFocused);
+            await Program.WaitUntilAsync(() => !tagging.StampOpen && QueueRowHasFocus(window, tagging));
 
             await ResizeAsync(window, 760);
             Program.CaptureWindow(window, "smoke-tagging-page-narrow-de.png");
@@ -652,7 +651,7 @@ internal static class TaggingPageChecks
                         await PresentationChecks.SwitchModeAsync(window, view.ToString());
                         foreach (int width in new[] { 1440, 1100, 760 })
                         {
-                            tagging.SelectionMoreButton.Focus(NavigationMethod.Tab);
+                            tagging.FocusContent();
                             await ResizeAsync(window, width);
                             string stage = $"{view}/{language}/{theme}/{width}";
                             CheckHeaderGeometry(tagging, width == 1440 ? 1 : 2, stage);
@@ -670,7 +669,7 @@ internal static class TaggingPageChecks
                             CheckSelection(tagging, selected, stage);
                             CheckSelectionAction(tagging.SelectionTagButton, tagging.SelectionDoneButton);
                             CheckSelectionAction(tagging.SelectionDoneButton, tagging.SelectionMoreButton);
-                            Require(tagging.SelectionMoreButton.IsFocused, "Resizing lost focus on More.");
+                            Require(QueueRowHasFocus(window, tagging), "Resizing lost focus in the queue.");
                             CheckSelectionAction(tagging.SelectionMoreButton, tagging.SelectionClearButton);
                             CheckSegments(tagging, SegmentLabelsVisible(tagging));
                             Program.CaptureWindow(window, $"smoke-tagging-{view}-{language}-{theme}-{width}.png");
@@ -745,7 +744,8 @@ internal static class TaggingPageChecks
             && window.Background is ISolidColorBrush surface && background.Color != surface.Color,
             theme + ": the empty progress track does not stand out from the page.");
         ToggleButton more = tagging.Actions.More ?? throw new InvalidOperationException("The page has no More button.");
-        Control[] stops = [tagging.AddButton, tagging.HelpButton, tagging.StampButton, tagging.GroupBox, tagging.FilterBox,
+        Require(!tagging.HelpButton.Focusable && !tagging.StampButton.Focusable, "A popup opener is a tab stop.");
+        Control[] stops = [tagging.AddButton, tagging.GroupBox, tagging.FilterBox,
             more, tagging.ColumnsButton, tagging.ViewToggle.First, tagging.SelectionTagButton];
         foreach (Control stop in stops)
         {
@@ -759,7 +759,7 @@ internal static class TaggingPageChecks
             if (ReferenceEquals(stop, more))
             {
                 await native.KeyAsync(MediaNativeInput.Space);
-                await Program.WaitUntilAsync(() => more.IsChecked == true && tagging.GroupManageButton.IsFocused);
+                await Program.WaitUntilAsync(() => more.IsChecked == true && tagging.ClearButton.IsFocused);
                 await native.KeyAsync(MediaNativeInput.Escape);
                 await Program.WaitUntilAsync(() => more.IsChecked == false && more.IsFocused);
             }
@@ -1369,6 +1369,17 @@ internal static class TaggingPageChecks
 
     private static void Press(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
         target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+
+    private static bool QueueRowHasFocus(MainWindow window, TaggingPage tagging) =>
+        tagging.ShownList.IsKeyboardFocusWithin && window.FocusManager?.GetFocusedElement() is Control { DataContext: TaggingQueueRow };
+
+    private static void PressStampShortcut(TaggingPage tagging, MainWindow window)
+    {
+        tagging.FocusContent();
+        Control source = (Control)window.FocusManager!.GetFocusedElement()!;
+        KeyGesture gesture = CommandBindings.Gesture(TaggingPage.StampCommandId)!;
+        Press(source, gesture.Key, gesture.KeyModifiers);
+    }
 
     private static void PressSpace(Control control, KeyModifiers modifiers = KeyModifiers.None)
     {

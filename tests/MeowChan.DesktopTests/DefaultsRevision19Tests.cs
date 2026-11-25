@@ -73,8 +73,9 @@ public sealed class DefaultsRevision19Tests : IDisposable
     [Theory, MemberData(nameof(Cases))]
     public void ABindingSavedForTheCommandItselfIsKeptAsItIs(string id, ShortcutPlatform platform)
     {
-        EffectiveShortcutBindings own = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(id, [ShortcutGesture.Parse("F9")]), platform);
-        Assert.Equal(new[] { "F9" }, own.For(id).Select(g => g.Key));
+        // Decision #125: an already saved binding survives a defaults update. Use a free key; F9 belongs to Stamp.
+        EffectiveShortcutBindings own = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(id, [ShortcutGesture.Parse("F8")]), platform);
+        Assert.Equal(new[] { "F8" }, own.For(id).Select(g => g.Key));
         Assert.Empty(own.Issues);
         EffectiveShortcutBindings unbound = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(id, []), platform);
         Assert.Empty(unbound.For(id));

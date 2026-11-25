@@ -42,6 +42,7 @@ internal static partial class SmokeScenarios
     internal const string NormalPass = "startup, rendered thread/board bindings, background update, normal close";
 
     private const string Video = "MEOWCHAN_VIDEO_FIXTURE={repo}/tests/Fixtures/gallery-playback-vp8.webm";
+    private const string VideoWithAudio = "MEOWCHAN_VIDEO_FIXTURE={repo}/tests/Fixtures/release102/playback-vp8-audio.webm";
     private const string Mp4 = "MEOWCHAN_MP4_FIXTURE={repo}/tests/Fixtures/release102/playback-h264-silent.mp4";
     // The registry run wraps such entries in scripts/with-private-null-audio.py, as CI does.
     internal const string FunctionalAudio = "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1";
@@ -97,7 +98,7 @@ internal static partial class SmokeScenarios
         Alternative("reader-display", "MEOWCHAN_READER_DISPLAY_ONLY", "--reader-ux"),
         Alternative("reader-media-sidebar", "MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY", "--reader-ux"),
         Alternative("reader-sidebar-header", "MEOWCHAN_READER_SIDEBAR_HEADER_ONLY", "--reader-ux"),
-        Alternative("reader-inline-video", "MEOWCHAN_READER_INLINE_VIDEO_ONLY", "--reader-ux") with { NightlyEnvironment = [Video] },
+        Alternative("reader-inline-video", "MEOWCHAN_READER_INLINE_VIDEO_ONLY", "--reader-ux") with { NightlyEnvironment = [VideoWithAudio, FunctionalAudio] },
         // The registry run uses the first requirement; under --reader-ux it acts only with READER_GROUPS.
         Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "MEOWCHAN_URSA_NATIVE_SUITE=groups", "--reader-ux"),
         Mode("selection", "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"),
@@ -216,7 +217,7 @@ internal static partial class SmokeScenarios
         Alternative("cross-root-migration", "MEOWCHAN_CROSS_ROOT_MIGRATION_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
         Alternative("native-overlay-visibility", "MEOWCHAN_NATIVE_OVERLAY_VISIBILITY_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
         Alternative("gallery-edge", "MEOWCHAN_GALLERY_EDGE_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
-        Root("gallery-mute", "MEOWCHAN_GALLERY_MUTE_ONLY", "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance") with { NightlyEnvironment = [Video, FunctionalAudio] },
+        Root("gallery-mute", "MEOWCHAN_GALLERY_MUTE_ONLY", "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance") with { NightlyEnvironment = [VideoWithAudio, FunctionalAudio] },
         Root("media-interaction", "MEOWCHAN_MEDIA_INTERACTION_ONLY", "media interaction: XTest pointer/key input on private Linux X11; decoder/slider sync, custom navigation, loop and retired gesture checks; NOT Windows acceptance") with { NightlySkip = "XTest input and its report run through scripts/test-media-interaction-smoke.py" },
         Root("native-ime", "MEOWCHAN_NATIVE_IME_ONLY", "IME product checkpoints completed; real engine and UI acceptance require the independent native driver") with { NightlySkip = ExternalDriver },
         Root("gallery-integrity-gui", "MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY", "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry") with { NightlyEnvironment = ["MEOWCHAN_GALLERY_INTEGRITY_EXPECT_SCALE=1"] },

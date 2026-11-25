@@ -94,7 +94,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
             Margin = new Thickness(Inset, 4), FileNameReserve = 40
         };
         _header.Meta.Name = "BooruMediaSummary";
-        _localActions = new MediaInfoBar(_rating, new Button { Name = "BooruMediaEditTags" }, _ => { })
+        _localActions = new MediaInfoBar(_rating, new Button { Name = "BooruMediaEditTags" }, _ => { }, showAllTags: () => { })
         {
             Name = "BooruMediaLocalActions"
         };

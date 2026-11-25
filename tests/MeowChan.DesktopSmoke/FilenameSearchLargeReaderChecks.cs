@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -143,14 +144,15 @@ internal static class FilenameSearchLargeReaderChecks
                 {
                     await f.ReattachAsync(); // Actual AttachReader legitimately rebuilds the post rows.
                     Require(ReferenceEquals(before, f.Page.CurrentThread)
-                        && f.Page.CurrentThread.Summary.Revision == revision && f.Rows().SequenceEqual(rows)
-                        && f.Posts.SelectedItem is ArchivePostRow { Id: Post },
-                        "Reattach itself lost old revision/list/selected post.");
+                        && f.Page.CurrentThread?.Summary.Revision == revision && f.Rows().SequenceEqual(rows)
+                        && f.Posts.SelectedItem is ArchivePostRow { Id: Post } && f.ReaderTabs.SelectedIndex == 0
+                        && ReferenceEquals(TopLevel.GetTopLevel(f.Posts), f.PageWindow),
+                        "Reattach lost the old revision, posts tab, list or selected post in the embedded host.");
                     selected = f.Posts.SelectedItem; // Exact post-boundary object must now survive late read return.
                 }
                 Require(token.IsCancellationRequested && !run.IsCompleted && f.Page.IsFilenameSearchOpen,
                     "Surface invalidation failed to retain/cancel held navigation owner.");
-                await f.Page.OpenFilenameSearchAsync(f.Pane).WaitAsync(Deadline);
+                await f.Page.OpenFilenameSearchAsync(f.ReaderTabs).WaitAsync(Deadline);
                 Require(ReferenceEquals(run, f.Page.FilenameSearchTask) && f.Shows == 1,
                     "Invalidated operation was replaced before its real return.");
                 navigation.Release.TrySetResult(true);
@@ -167,11 +169,11 @@ internal static class FilenameSearchLargeReaderChecks
                     Require(!run.IsCompleted && f.Page.IsFilenameSearchOpen && !dialog.IsVisible,
                         "Actual selected return was not held after native Close.");
                     // A reader content tab is NOT a workspace/surface invalidation. The pane survives.
-                    f.Named<TabControl>("ArchiveContentTabs").SelectedIndex = 1;
+                    f.ReaderTabs.SelectedIndex = 1;
                     await SmokeDispatcher.SettleAsync();
-                    Require(f.Named<TabControl>("ArchiveContentTabs").SelectedIndex == 1
-                        && f.Named<TabItem>("ArchiveMediaTab").IsSelected && f.Pane.IsEffectivelyVisible
-                        && ReferenceEquals(TopLevel.GetTopLevel(f.Pane), f.ReaderWindow)
+                    Require(f.ReaderTabs.SelectedIndex == 1
+                        && f.Named<TabItem>("ArchiveMediaTab").IsSelected && f.ReaderTabs.IsEffectivelyVisible
+                        && ReferenceEquals(TopLevel.GetTopLevel(f.ReaderTabs), f.ReaderWindow)
                         && ReferenceEquals(f.Page.CurrentThread, before) && !run.IsCompleted,
                         "Real tab switch replaced surface or prematurely applied held hit.");
                     f.DelayReturn!.TrySetResult(true);
@@ -193,17 +195,18 @@ internal static class FilenameSearchLargeReaderChecks
                         && attachment.OriginalFileName == hit.OriginalName
                         && attachment.AttachmentRevisionKey == hit.AttachmentRevisionKey,
                         "Large-reader return reconstructed a different attachment claim.");
-                    Require(f.ReaderWindow.IsVisible && f.Pane.IsEffectivelyVisible
-                        && ReferenceEquals(f.ReaderWindow.Content, f.Pane)
+                    Require(f.ReaderWindow.IsVisible && f.ReaderTabs.IsEffectivelyVisible
+                        && ReferenceEquals(f.ReaderWindow.Content, f.ReaderFrame)
+                        && ReferenceEquals(TopLevel.GetTopLevel(f.ReaderTabs), f.ReaderWindow)
                         && ReferenceEquals(TopLevel.GetTopLevel(f.Posts), f.ReaderWindow)
-                        && f.Named<TabControl>("ArchiveContentTabs").SelectedIndex == 0,
+                        && f.ReaderTabs.SelectedIndex == 0,
                         "Successful hit did not restore actual detached large-reader posts surface.");
                     if (scenario == "tab-return")
                     {
                         object? targetSelection = f.Posts.SelectedItem;
-                        f.Named<TabControl>("ArchiveContentTabs").SelectedIndex = 1;
+                        f.ReaderTabs.SelectedIndex = 1;
                         await SmokeDispatcher.SettleAsync();
-                        f.Named<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
+                        f.ReaderTabs.SelectedIndex = 0;
                         await SmokeDispatcher.SettleAsync();
                         Require(ReferenceEquals(view, f.Page.CurrentThread)
                             && ReferenceEquals(targetSelection, f.Posts.SelectedItem) && f.Rows().SequenceEqual(rows),
@@ -240,7 +243,8 @@ internal static class FilenameSearchLargeReaderChecks
         internal readonly ArchivePage Page;
         internal readonly Window ReaderWindow;
         internal readonly Window PageWindow;
-        internal readonly Control Pane;
+        internal readonly Control ReaderFrame;
+        internal readonly TabControl ReaderTabs;
         internal readonly TaskCompletionSource<FilenameSearchDialog> Shown = Signal<FilenameSearchDialog>();
         internal readonly TaskCompletionSource<bool> Returned = Signal<bool>();
         internal TaskCompletionSource<bool>? DelayReturn;
@@ -250,7 +254,7 @@ internal static class FilenameSearchLargeReaderChecks
         private readonly List<Barrier> _barriers = new();
         private bool _attached;
         internal ListBox Posts => Named<ListBox>("ArchivePosts");
-        internal T Named<T>(string name) where T : Control => FilenameSearchLargeReaderChecks.Named<T>(_attached ? (Control)Page : Pane, name);
+        internal T Named<T>(string name) where T : Control => FilenameSearchLargeReaderChecks.Named<T>(_attached ? (Control)Page : ReaderFrame, name);
         internal string[] Rows() => Posts.ItemsSource!.Cast<ArchivePostRow>().Select(row => row.Id).ToArray();
 
         private Fixture()
@@ -263,17 +267,18 @@ internal static class FilenameSearchLargeReaderChecks
             Page.OpenMediaGallery = (_, _, _) => { ExternalActions++; return Task.CompletedTask; };
             Page.OpenResultsGallery = (_, _, _) => { ExternalActions++; return Task.CompletedTask; };
             Page.FullscreenRequested = () => ExternalActions++;
-            Pane = Page.DetachReader();
+            ReaderFrame = Page.DetachReader();
+            ReaderTabs = Named<TabControl>("ArchiveContentTabs");
             PageWindow = new Window { Content = Page, Width = 1120, Height = 820, ShowInTaskbar = false,
                 Title = "Synthetic filename archive backing page" };
-            ReaderWindow = new Window { Content = Pane, Width = 1120, Height = 820, ShowInTaskbar = false,
+            ReaderWindow = new Window { Content = ReaderFrame, Width = 1120, Height = 820, ShowInTaskbar = false,
                 Title = "Synthetic actual detached filename reader" };
             Page.CloseReaderRequested = () => ReaderWindow.Close();
             Page.FilenameSearchShowForTests = async (dialog, window) =>
             {
                 Shows++;
                 Require(ReferenceEquals(window, ReaderWindow) && Page.IsFilenameSearchOpen
-                    && ReferenceEquals(TopLevel.GetTopLevel(Pane), ReaderWindow), "Filename host selected backing page/incorrect owner.");
+                    && ReferenceEquals(TopLevel.GetTopLevel(ReaderTabs), ReaderWindow), "Filename host selected backing page/incorrect owner.");
                 NativeShow = dialog.ShowDialog<ArchiveFilenameHit?>(window);
                 Require(dialog.IsVisible && ReferenceEquals(dialog.Owner, ReaderWindow)
                     && ReaderWindow.OwnedWindows.Contains(dialog)
@@ -312,7 +317,7 @@ internal static class FilenameSearchLargeReaderChecks
                 await SmokeDispatcher.SettleAsync();
                 f.ReaderWindow.UpdateLayout();
                 Require(f.ReaderWindow.IsVisible && f.ReaderWindow.TryGetPlatformHandle()?.Handle is nint handle && handle != 0
-                    && f.Pane.IsEffectivelyVisible && ReferenceEquals(TopLevel.GetTopLevel(f.Pane), f.ReaderWindow)
+                    && f.ReaderTabs.IsEffectivelyVisible && ReferenceEquals(TopLevel.GetTopLevel(f.ReaderTabs), f.ReaderWindow)
                     && !ReferenceEquals(TopLevel.GetTopLevel(f.Page), f.ReaderWindow)
                     && f.Named<Button>("ArchiveCloseReader").IsVisible
                     && f.Named<Button>("ReaderFindOpen").IsEffectivelyVisible,
@@ -345,12 +350,15 @@ internal static class FilenameSearchLargeReaderChecks
             // AttachReader re-renders rows; restoring an actual captured origin is not assigning fake fields.
             Action restore = Page.CaptureGalleryOrigin(restoreReaderFocus: false);
             ReaderWindow.Content = null;
-            // The fixture crosses two native layout roots. Let the old window finish detaching the pane.
+            // Let the old window finish detaching the frame before moving the reader content to the page.
             await SmokeDispatcher.SettleAsync();
-            Page.AttachReader(Pane);
+            Page.AttachReader(ReaderFrame);
             _attached = true;
             restore();
-            await UntilAsync(() => ReferenceEquals(TopLevel.GetTopLevel(Pane), PageWindow));
+            await UntilAsync(() => ReferenceEquals(TopLevel.GetTopLevel(ReaderTabs), PageWindow));
+            await SmokeDispatcher.SettleAsync();
+            Require(ReaderTabs.IsEffectivelyVisible && ReferenceEquals(PageWindow.Content, Page)
+                && ReaderWindow.Content == null, "The reattached reader content is not owned by the archive window.");
         }
         internal async Task ReplaceTargetAsync()
         {
@@ -396,7 +404,11 @@ internal static class FilenameSearchLargeReaderChecks
     private static T Named<T>(Control root, string name) where T : Control
     {
         Control[] matches = root.GetVisualDescendants().OfType<Control>().Prepend(root)
-            .Where(control => string.Equals(control.Name, name, StringComparison.Ordinal)).ToArray();
+            .Where(control =>
+            {
+                string? id = AutomationProperties.GetAutomationId(control);
+                return string.Equals(string.IsNullOrEmpty(id) ? control.Name : id, name, StringComparison.Ordinal);
+            }).ToArray();
         Require(matches.Length == 1, "Expected unique actual large-reader control: " + name + "; count=" + matches.Length);
         return matches[0] is T typed ? typed : throw new InvalidOperationException("Wrong control type: " + name);
     }

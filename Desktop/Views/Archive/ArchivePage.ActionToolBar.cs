@@ -42,10 +42,22 @@ public partial class ArchivePage
     // or mode changes, without reopening the popup or executing any action.
     internal Control? GalleryOriginFocusTarget(Control? origin) => ActionOriginFocusTarget(origin);
 
-    // Works for every ActionToolBar item of this page (results and reader toolbars).
     internal Control? ActionOriginFocusTarget(Control? origin)
     {
         if (origin == null) return null;
+        // Resolve against item membership even when the button is parked outside the visual tree.
+        if (origin is Button)
+        {
+            if (ArchiveResultActions.Items.Contains(origin))
+                return _threadTable ? ArchiveThreadTable : ItemOrList(ArchiveThreads, ArchiveLead);
+            if (ReaderToolbar.Items.Contains(origin) || ReaderMediaTools.Items.Contains(origin)
+                || ReaderMediaActions.Items.Contains(origin) || ArchiveMediaFooter.IsVisualAncestorOf(origin))
+            {
+                if (ArchiveMediaTab.IsSelected) return SelectedMediaFocusTarget();
+                ListBox list = ArchiveReferencesTab.IsSelected ? ArchiveReferences : ArchivePosts;
+                return ItemOrList(list, list.SelectedItem);
+            }
+        }
         // Items stay logical children of their toolbar in the direct panel and in a closed popup alike.
         if (origin.GetLogicalAncestors().OfType<ActionToolBar>().FirstOrDefault() is not { } toolbar
             || !toolbar.Items.Contains(origin)) return origin;
@@ -63,6 +75,9 @@ public partial class ArchivePage
         return root == null ? origin : toolbar.Items.OfType<Control>().FirstOrDefault(item =>
             item.Focusable && item.IsEffectivelyVisible && item.IsEffectivelyEnabled && ReferenceEquals(TopLevel.GetTopLevel(item), root));
     }
+
+    private static Control ItemOrList(ListBox list, object? item) =>
+        item == null ? list : list.ContainerFromItem(item) ?? (Control)list;
 
     // What each results-bar action was last presented for: its disabled reason and the language. The presentation is rewritten
     // only when that changes (shortcut changes reach it through the CommandBindings observer).

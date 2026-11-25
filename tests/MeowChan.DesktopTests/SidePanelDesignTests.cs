@@ -404,15 +404,26 @@ public sealed class SidePanelDesignTests
                 }
             }
             BooruReviewTestPlatform.Resize(window, 320);
-            panel.SetTags(Enumerable.Range(1, 40).Select(i => "tag " + i).ToArray(), null);
+            string[] tags = Enumerable.Range(1, 40).Select(i => "tag " + i).ToArray();
+            panel.SetTags(tags, null);
             Settle(window);
             var chips = Find<Panel>("ReaderMediaSidebarTags");
             Button extra = Find<Button>("ReaderMediaSidebarMoreTags");
             int displayed = chips.Children.Count(c => c.IsEffectivelyVisible && c != extra);
             Assert.InRange(displayed, 1, 39);
             Assert.Equal("+" + (40 - displayed).ToString(Texts.Culture), extra.Content);
+            editorAnchor = null;
             extra.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Assert.Same(extra, editorAnchor);
+            Settle(window);
+            var allTags = Find<WrapPanel>("ReaderMediaSidebarAllTags");
+            Assert.True(allTags.IsEffectivelyVisible);
+            Assert.Equal(tags, allTags.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text));
+            Assert.Same(Find<Control>("ReaderMediaSidebarFrame"), window.FocusManager!.GetFocusedElement());
+            Assert.Null(editorAnchor);
+            edit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Same(edit, editorAnchor);
+            Find<ToggleButton>("ReaderMediaSidebarExpand").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Settle(window);
             double expandedHeight = bar.Bounds.Height;
             ToggleButton toggle = Find<ToggleButton>("ReaderMediaSidebarTagsToggle");
             // Tom, 17:55: “Buttons ... sind nicht fokussierbar”. Use the pointer as in the application.

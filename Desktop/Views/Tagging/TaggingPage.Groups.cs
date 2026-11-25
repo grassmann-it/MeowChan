@@ -69,9 +69,11 @@ public sealed partial class TaggingPage
             _queueWork.SelectGroup(_selectedGroupId, _ungroupedSelected);
             Render();
         };
-        _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent(),
-            resolveOrigin: () => _groupManage.IsAttachedToVisualTree() ? _groupManage : _actions.More ?? (Control)_groupManage);
-        _groupManage.Click += (_, _) => _groupManageHost?.Show(atPointer: false);
+        PopupToggle.Prepare(_groupManage);
+        _groupManageHost = new ContextMenuHost(_group, ComposeGroupManageMenu, fallbackFocus: () => FocusContent(),
+            resolveOrigin: () => _groupManage.IsEffectivelyVisible && _groupManage.IsAttachedToVisualTree() ? _groupManage : _group,
+            acceptSource: _ => !_group.IsDropDownOpen, toggle: true, allowNativeContextKey: true);
+        _groupManage.Click += (_, _) => _groupManageHost?.Activate();
         RenderGroups();
     }
 

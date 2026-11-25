@@ -74,6 +74,7 @@ public partial class SettingsEditor
         _searchSession = new SettingsSearchSession(() => { EnsureSearchIndex(); return _searchIndex!; }, CommitSearchHit);
         // UX-LEDGER-09: the field fills the content-column header, leaving room only for the More button.
         _searchBox = new SearchBox { Name = "SettingsSearchBox", MaxLength = 100, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        AutomationProperties.SetAutomationId(_searchBox, "SettingsSearchBox");
         SettingsSearchSession.Configure(_searchBox);
         AddHandler(TextBox.TextChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
         AddHandler(Avalonia.Controls.Primitives.ToggleButton.IsCheckedChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -248,6 +249,9 @@ public partial class SettingsEditor
         if (_isClosed || string.IsNullOrEmpty(id)) return false;
         EnsureSearchIndex();
         if (!_searchTargetsById.TryGetValue(id, out SearchTarget? target)) return false;
+        // An older empty query releases the groups opened by the previous search visit.
+        // Finish it before this explicit jump opens the new target's group.
+        _searchBox?.FlushQuery();
         JumpToSearchTarget(target, focus: true);
         return true;
     }

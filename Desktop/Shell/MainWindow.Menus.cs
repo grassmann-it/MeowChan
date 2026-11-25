@@ -116,6 +116,11 @@ public partial class MainWindow
         Add("watch.remove", async () => await RemoveWatchesWithUndoAsync(frozen.WatchIds,
             frozen.Boards, id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
         builder.Populate(menu);
+        if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "thread.details")) is { } details)
+        {
+            details.ToggleType = MenuItemToggleType.CheckBox;
+            details.IsChecked = ShowsDownloadDetails(frozen);
+        }
         foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(item => item.Tag is "priority.menuHigh" or "priority.menuNormal"))
             item.Icon = CommandBindings.Icon(Equals(item.Tag, "priority.menuHigh") ? "reader.previous-post" : "reader.next-post");
     }
@@ -140,15 +145,25 @@ public partial class MainWindow
         await ArchivePage.OpenReaderOnThreadAsync(frozen.Lead, () => OpenLargeReader(origin, frozen.Scope));
     }
 
+    private bool ShowsDownloadDetails(DownloadMenuTarget target) =>
+        WorkspaceInspector.IsEffectivelyVisible && (GetWorkspaceSelection() switch
+        {
+            BoardRow selected => target.Boards && selected.WatchId == target.LeadWatch,
+            ThreadRow selected => !target.Boards && selected.WatchId == target.LeadWatch,
+            _ => false
+        });
+
     private void OpenFrozenDetails(DownloadMenuTarget frozen)
     {
         DataGrid grid = DownloadList(frozen.Boards);
+        bool sameTarget = ShowsDownloadDetails(frozen);
         if (frozen.Boards && _boardRows.TryGetValue(frozen.LeadWatch, out BoardRow? board) && VisibleBoards.Contains(board))
         { _boardLeadId = board.WatchId; if (!grid.SelectedItems.Contains(board)) grid.SelectedItem = board; }
         else if (!frozen.Boards && _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? thread) && VisibleThreads.Contains(thread))
         { _threadLeadId = thread.WatchId; if (!grid.SelectedItems.Contains(thread)) grid.SelectedItem = thread; }
         else return;
-        OpenWorkspaceDetails();
+        if (sameTarget) ToggleWorkspaceDetails();
+        else OpenWorkspaceDetails();
     }
 
     private void EditFrozenRules(ResourceId id)
