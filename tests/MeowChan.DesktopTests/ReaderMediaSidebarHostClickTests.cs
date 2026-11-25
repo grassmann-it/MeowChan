@@ -24,9 +24,10 @@ public sealed class ReaderMediaSidebarHostClickTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void PostSelectionDrivesTheSidebarAndRateAndTagUsesTheFocusedCard(bool largeReader) => BooruComponentDispatcher.Run(async () =>
+    public void PostSelectionDrivesTheSidebarAndRateAndTagSurvivesThePostLayout(bool largeReader) => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
+        TransientPopupPolicy.Install();
         using TempDirectory profile = new();
         using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
         ArchivedThreadView thread = RateAndTagWindowFixture.View(media);
@@ -77,9 +78,14 @@ public sealed class ReaderMediaSidebarHostClickTests
             Assert.True(card.Focus());
             QuickTagPopover editor = await RateAndTagWindowFixture.OpenEditorAsync(window);
             var edit = Assert.Single(opened);
-            Assert.Same(card, edit.Anchor);
+            Assert.Same(posts, edit.Anchor);
             Assert.Equal(picture.Id, edit.Entry.Post?.PostId);
             Assert.Equal(media.Asset.AssetId, edit.Entry.Asset.AssetId);
+
+            window.Height -= 80;
+            window.UpdateLayout();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Assert.True(editor.IsOpen);
 
             editor.Surface!.Input.Dismiss();
             RateAndTagWindowFixture.Escape(window);

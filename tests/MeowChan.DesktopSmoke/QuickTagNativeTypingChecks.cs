@@ -107,6 +107,14 @@ internal static partial class QuickTagNativeTypingChecks
                     cases.Add(await ArchiveCaseAsync(window, page, input, trace, "archive", entry, medium));
             cases.Add(await PopoverKeysAsync(window, page, input, trace));
             await RecordSidebarCheckAsync(cases, "archive", () => ReaderSidebarTagRaceAsync(window, page, input));
+            // A failed sidebar case can leave its underlying post action open. The next
+            // journey needs an uncovered reader, as it would when opened from Downloads.
+            if (page.IsObscuredByGallery)
+            {
+                Console.WriteLine("SMOKE quick-tag-native-typing: closing the gallery left by the archive sidebar case.");
+                typeof(MainWindow).GetMethod("CloseGallery", Private)!.Invoke(window, [false]);
+                await Program.WaitUntilAsync(() => !page.IsObscuredByGallery);
+            }
 
             // B: the large reader (opened the Downloads way), its sidebar playing the video.
             Navigate(window, "Downloads", activate: true);

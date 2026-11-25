@@ -102,11 +102,9 @@ public partial class ArchivePage
         ReaderMediaSidebarToggle.AttachedToVisualTree += SubscribeLayout;
         ReaderMediaSidebarToggle.DetachedFromVisualTree += UnsubscribeLayout;
         RefreshMediaSidebarToggle();
-        // The post list moves between hosts. Follow its selection directly, independent of the routed event.
-        ArchivePosts.PropertyChanged += (_, change) =>
+        ArchivePosts.SelectionChanged += (_, _) =>
         {
-            if (change.Property == ListBox.SelectedItemProperty && !ArchiveMediaTab.IsSelected)
-                OnMediaSidebarSelectionChanged();
+            if (!ArchiveMediaTab.IsSelected) OnMediaSidebarSelectionChanged();
         };
         // The archive view: the pane gets posts, splitter and sidebar columns.
         // Reader chrome stays over the posts only; the sidebar owns its full-height
