@@ -354,6 +354,11 @@ public sealed class TaggingPagePanelTests
 
         fixture.ClickEntry(1);
         fixture.ClickEntry(2, RawInputModifiers.Control);
+        if (windowsFileSharing)
+        {
+            await fixture.ShowsAsync(2);
+            await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap, "the video poster before moving the cursor");
+        }
         fixture.Key(PhysicalKey.ArrowDown, RawInputModifiers.Control);
         await fixture.ShowsAsync(3);
         if (width == 1000) BooruReviewTestPlatform.Resize(fixture.Window, 1400);

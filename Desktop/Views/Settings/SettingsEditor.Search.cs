@@ -74,6 +74,7 @@ public partial class SettingsEditor
         _searchSession = new SettingsSearchSession(() => { EnsureSearchIndex(); return _searchIndex!; }, CommitSearchHit);
         // UX-LEDGER-09: the field fills the content-column header, leaving room only for the More button.
         _searchBox = new SearchBox { Name = "SettingsSearchBox", MaxLength = 100, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        AutomationProperties.SetAutomationId(_searchBox, "SettingsSearchBox");
         SettingsSearchSession.Configure(_searchBox);
         AddHandler(TextBox.TextChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
         AddHandler(Avalonia.Controls.Primitives.ToggleButton.IsCheckedChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);

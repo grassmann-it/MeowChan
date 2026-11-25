@@ -11,6 +11,7 @@ using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Updates;
@@ -146,11 +147,13 @@ public sealed class HeaderTaglineLayoutTests
         });
 
     [Theory]
-    [InlineData("booru", "booru", true)]
-    [InlineData("removed-quip", "cats", true)]
-    [InlineData("booru", "booru", false)]
-    [InlineData("removed-quip", "cats", false)]
-    public void HostedFixedPickerKeepsTheProfileChoiceAndSavesTheNewQuip(string storedId, string effectiveId, bool overlayPopups) =>
+    [InlineData("booru", "booru", true, false)]
+    [InlineData("removed-quip", "cats", true, false)]
+    [InlineData("booru", "booru", false, false)]
+    [InlineData("removed-quip", "cats", false, false)]
+    [InlineData("booru", "booru", true, true)]
+    [InlineData("removed-quip", "cats", true, true)]
+    public void HostedFixedPickerKeepsTheProfileChoiceAndSavesTheNewQuip(string storedId, string effectiveId, bool overlayPopups, bool pendingEmptySearch) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter(overlayPopups);
@@ -177,6 +180,14 @@ public sealed class HeaderTaglineLayoutTests
                 BooruResultActionsTests.Click(window.FindControl<Button>("SettingsNavigationButton")!);
                 Assert.True(window.SettingsPageVisible);
                 SettingsEditor editor = window.SettingsEditor;
+                SearchBox search = Assert.Single(editor.GetVisualDescendants().OfType<SearchBox>(),
+                    field => AutomationProperties.GetAutomationId(field) == "SettingsSearchBox");
+                if (pendingEmptySearch)
+                {
+                    search.Text = "tagline";
+                    search.Text = string.Empty;
+                    Assert.True(search.IsQueryPending);
+                }
                 Assert.True(editor.RevealSetting(nameof(Config.HeaderTaglineFixedId)));
                 Settle();
                 ComboBox picker = Assert.Single(editor.GetVisualDescendants().OfType<ComboBox>(),
@@ -185,6 +196,7 @@ public sealed class HeaderTaglineLayoutTests
                 Assert.True(picker.Focus());
                 Assert.Same(picker, window.FocusManager?.GetFocusedElement());
                 window.KeyPress(Key.F4, RawInputModifiers.None, PhysicalKey.F4, null);
+                if (pendingEmptySearch) search.FlushQuery();
                 Settle();
                 Assert.True(picker.IsDropDownOpen, $"F4: focus={window.FocusManager?.GetFocusedElement()}, visible={picker.IsEffectivelyVisible}, active={window.IsActive}");
                 AssertGroups("en");
