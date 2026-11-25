@@ -191,12 +191,12 @@ public sealed class PluralCountTextTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", 1, 1, "Page 1 of at most 1 · Results per page: 1", "Search limits (pages: 1, results per page: 1).")]
-    [InlineData("en", 1, 2, "Page 1 of at most 1 · Results per page: 2", "Search limits (pages: 1, results per page: 2).")]
-    [InlineData("en", 2, 1, "Page 1 of at most 2 · Results per page: 1", "Search limits (pages: 2, results per page: 1).")]
-    [InlineData("de", 1, 1, "Seite 1 von höchstens 1 · Treffer pro Seite: 1", "Suchlimits (Seiten: 1, Treffer pro Seite: 1).")]
-    [InlineData("de", 1, 2, "Seite 1 von höchstens 1 · Treffer pro Seite: 2", "Suchlimits (Seiten: 1, Treffer pro Seite: 2).")]
-    [InlineData("de", 2, 1, "Seite 1 von höchstens 2 · Treffer pro Seite: 1", "Suchlimits (Seiten: 2, Treffer pro Seite: 1).")]
+    [InlineData("en", 1, 1, "Page 1 of 1 · Results per page: 1", "Search limits (pages: 1, results per page: 1).")]
+    [InlineData("en", 1, 2, "Page 1 of 1 · Results per page: 2", "Search limits (pages: 1, results per page: 2).")]
+    [InlineData("en", 2, 1, "Page 1 of 2 · Results per page: 1", "Search limits (pages: 2, results per page: 1).")]
+    [InlineData("de", 1, 1, "Seite 1 von 1 · Treffer pro Seite: 1", "Suchlimits (Seiten: 1, Treffer pro Seite: 1).")]
+    [InlineData("de", 1, 2, "Seite 1 von 1 · Treffer pro Seite: 2", "Suchlimits (Seiten: 1, Treffer pro Seite: 2).")]
+    [InlineData("de", 2, 1, "Seite 1 von 2 · Treffer pro Seite: 1", "Suchlimits (Seiten: 2, Treffer pro Seite: 1).")]
     public void BooruPagerAndLimitMessageHandleSinglePagesAndResults(string code, int pages, int results,
         string pager, string limit)
     {

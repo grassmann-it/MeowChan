@@ -104,8 +104,10 @@ public sealed class FavoritesEverywhereTests : IDisposable
                 Assert.Equal(action, FavoriteKeys.Classify(id => bindings.Matches(new KeyEventArgs { Key = Enum.Parse<Key>(key), KeyModifiers = KeyModifiers.None }, id, "reader")));
     }
 
-    [Fact]
-    public void TheStarTooltipNamesTheClickThenItsKeysOnOneLine() => BooruComponentDispatcher.Run(() =>
+    [Theory]
+    [InlineData(Key.F8)]
+    [InlineData(Key.F9)]
+    public void TheStarTooltipNamesTheClickThenItsKeysOnOneLine(Key reboundKey) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ShortcutService.Publish(new());
@@ -119,14 +121,21 @@ public sealed class FavoritesEverywhereTests : IDisposable
         Assert.Equal(Texts.T("viewer.favorite.remove") + " · F / U", Assert.IsType<string>(ToolTip.GetTip(star)));
 
         Texts.SetLanguage("de");
-        var rebound = new ShortcutBindingsSection().Set(FavoriteKeys.ToggleId, [ShortcutGesture.Parse("F8")]);
+        var rebound = new ShortcutBindingsSection().Set(FavoriteKeys.ToggleId, [ShortcutGesture.Parse(reboundKey.ToString())]);
         ShortcutService.Publish(rebound);
         // Help.md, macOS shortcuts: F-keys are shown as “F5 (Fn)”.
         string remove = Texts.T("viewer.favorite.remove");
-        string mac = remove + " · F8 (Fn) / U";
-        string other = remove + " · F8 / U";
-        Assert.Equal(mac, FavoriteKeys.Tooltip(true, "reader", EffectiveShortcutBindings.Build(rebound, ShortcutPlatform.MacOS)));
-        Assert.Equal(other, FavoriteKeys.Tooltip(true, "reader", EffectiveShortcutBindings.Build(rebound, ShortcutPlatform.Linux)));
+        string mac = $"{remove} · {reboundKey} (Fn) / U";
+        string other = $"{remove} · {reboundKey} / U";
+        foreach (ShortcutPlatform os in Enum.GetValues<ShortcutPlatform>())
+        {
+            EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(rebound, os);
+            Assert.Equal(os == ShortcutPlatform.MacOS ? mac : other, FavoriteKeys.Tooltip(true, "reader", bindings));
+            KeyEventArgs key = new() { Key = reboundKey };
+            Assert.Equal(FavoriteKeyAction.Toggle, FavoriteKeys.Classify(id => bindings.Matches(key, id, "reader")));
+            Assert.True(bindings.Matches(key, FavoriteKeys.ToggleId, "tagging"));
+            Assert.False(bindings.Matches(key, "tagging.stamp", "tagging"));
+        }
         Assert.Equal(OperatingSystem.IsMacOS() ? mac : other, Assert.IsType<string>(ToolTip.GetTip(star)));
     });
 

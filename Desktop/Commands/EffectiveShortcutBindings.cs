@@ -299,8 +299,7 @@ public sealed class EffectiveShortcutBindings
     private static readonly HashSet<string> MacOnlyDefaultChanges = new(StringComparer.Ordinal)
     {
         "window.fullscreen", "viewer.shortcut-help", "watch.remove", "archive.delete-permanently", "thread.details",
-        "watch.check", "watch.retry-media", "archive.previous-page", "archive.next-page", "media.return", "window.minimize",
-        "tagging.stamp", "settings.more"
+        "watch.check", "watch.retry-media", "archive.previous-page", "archive.next-page", "media.return", "window.minimize"
     };
     /// <summary>Whether the default of <paramref name="id"/> yields to saved bindings on <paramref name="platform"/>.</summary>
     public static bool YieldsOn(string id, ShortcutPlatform platform) =>
