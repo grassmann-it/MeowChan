@@ -249,6 +249,16 @@ namespace MeowChan
         internal const int BoardSuggestionScanThreadsDefault = 5_000;
         internal const int BoardSuggestionScanThreadsMinimum = 100;
         internal const int BoardSuggestionScanThreadsMaximum = Archive.ArchiveReader.BoardTitleHistoryMaximum;
+        [JsonInclude]
+        internal int BoardArchiveCacheLimit { get; set; } = BoardArchiveCacheLimitDefault;
+        internal const int BoardArchiveCacheLimitDefault = 8;
+        internal const int BoardArchiveCacheLimitMinimum = 1;
+        internal const int BoardArchiveCacheLimitMaximum = 64;
+        [JsonInclude]
+        internal int BooruHiddenTagTooltipLimit { get; set; } = BooruHiddenTagTooltipLimitDefault;
+        internal const int BooruHiddenTagTooltipLimitDefault = 60;
+        internal const int BooruHiddenTagTooltipLimitMinimum = 1;
+        internal const int BooruHiddenTagTooltipLimitMaximum = 200;
         /// <summary>Most slash-marker suggestions offered, without changing the text/token scan ceilings.</summary>
         public int SlashTagSuggestionCount { get; set; } = SlashTagSuggestionCountDefault;
         internal const int SlashTagSuggestionCountDefault = Tags.SlashTagSuggestions.DefaultSuggestionCount;
@@ -1128,6 +1138,8 @@ namespace MeowChan
             BoardSuggestionMinThreads = Math.Clamp(BoardSuggestionMinThreads, BoardSuggestionMinThreadsMinimum, BoardSuggestionMinThreadsMaximum);
             BoardSuggestionLimit = Math.Clamp(BoardSuggestionLimit, BoardSuggestionLimitMinimum, BoardSuggestionLimitMaximum);
             BoardSuggestionScanThreads = Math.Clamp(BoardSuggestionScanThreads, BoardSuggestionScanThreadsMinimum, BoardSuggestionScanThreadsMaximum);
+            BoardArchiveCacheLimit = Math.Clamp(BoardArchiveCacheLimit, BoardArchiveCacheLimitMinimum, BoardArchiveCacheLimitMaximum);
+            BooruHiddenTagTooltipLimit = Math.Clamp(BooruHiddenTagTooltipLimit, BooruHiddenTagTooltipLimitMinimum, BooruHiddenTagTooltipLimitMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
             GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
             // A hand-edited file or a newer version with another range must not make the whole profile invalid (Validate throws): clamp like the seek step.
@@ -1765,6 +1777,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BoardSuggestionLimit));
             if (BoardSuggestionScanThreads is < BoardSuggestionScanThreadsMinimum or > BoardSuggestionScanThreadsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BoardSuggestionScanThreads));
+            if (BoardArchiveCacheLimit is < BoardArchiveCacheLimitMinimum or > BoardArchiveCacheLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardArchiveCacheLimit), $"Board archive cache size must be between {BoardArchiveCacheLimitMinimum} and {BoardArchiveCacheLimitMaximum} boards.");
+            if (BooruHiddenTagTooltipLimit is < BooruHiddenTagTooltipLimitMinimum or > BooruHiddenTagTooltipLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruHiddenTagTooltipLimit), $"The Booru tooltip tag limit must be between {BooruHiddenTagTooltipLimitMinimum} and {BooruHiddenTagTooltipLimitMaximum} tags.");
             if (SlashTagSuggestionCount is < SlashTagSuggestionCountMinimum or > SlashTagSuggestionCountMaximum)
                 throw new ArgumentOutOfRangeException(nameof(SlashTagSuggestionCount), "SlashTagSuggestionCount is outside its supported range (" + SlashTagSuggestionCountMinimum + " to " + SlashTagSuggestionCountMaximum + ").");
             if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
@@ -2073,6 +2089,8 @@ namespace MeowChan
                 BoardSuggestionMinThreads = BoardSuggestionMinThreads,
                 BoardSuggestionLimit = BoardSuggestionLimit,
                 BoardSuggestionScanThreads = BoardSuggestionScanThreads,
+                BoardArchiveCacheLimit = BoardArchiveCacheLimit,
+                BooruHiddenTagTooltipLimit = BooruHiddenTagTooltipLimit,
                 SlashTagSuggestionCount = SlashTagSuggestionCount,
                 ShrinkWindowForBarebones = ShrinkWindowForBarebones,
                 PrivateTagLimit = PrivateTagLimit,
@@ -2377,6 +2395,8 @@ namespace MeowChan
             BoardSuggestionMinThreads = source.BoardSuggestionMinThreads;
             BoardSuggestionLimit = source.BoardSuggestionLimit;
             BoardSuggestionScanThreads = source.BoardSuggestionScanThreads;
+            BoardArchiveCacheLimit = source.BoardArchiveCacheLimit;
+            BooruHiddenTagTooltipLimit = source.BooruHiddenTagTooltipLimit;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
@@ -2631,6 +2651,8 @@ namespace MeowChan
             BoardSuggestionMinThreads = source.BoardSuggestionMinThreads;
             BoardSuggestionLimit = source.BoardSuggestionLimit;
             BoardSuggestionScanThreads = source.BoardSuggestionScanThreads;
+            BoardArchiveCacheLimit = source.BoardArchiveCacheLimit;
+            BooruHiddenTagTooltipLimit = source.BooruHiddenTagTooltipLimit;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;

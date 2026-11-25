@@ -113,6 +113,8 @@ public static class SettingsTransfer
             BoardSuggestionMinThreads = source.BoardSuggestionMinThreads,
             BoardSuggestionLimit = source.BoardSuggestionLimit,
             BoardSuggestionScanThreads = source.BoardSuggestionScanThreads,
+            BoardArchiveCacheLimit = source.BoardArchiveCacheLimit,
+            BooruHiddenTagTooltipLimit = source.BooruHiddenTagTooltipLimit,
             SlashTagSuggestionCount = source.SlashTagSuggestionCount,
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones,
             PrivateTagLimit = source.PrivateTagLimit,
