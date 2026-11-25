@@ -294,7 +294,9 @@ public partial class ArchivePage
         }
         // Q (KB-04): the Media page's and the gallery's key, on the medium the focus stands for. Several selected files of the Media tab go together
         // (the selection bar's "Add to tagging queue"), as on the Media page; otherwise the menu's own entry runs under its gates.
-        ArchiveAssetRow[]? several = SeveralSelectedWith(asset, attachment);
+        Control mediaList = _mediaTiles ? ArchiveMediaTiles : ArchiveMediaGrid;
+        ArchiveAssetRow[]? several = !queue || mediaList.IsEffectivelyVisible && ancestors.Contains(mediaList)
+            ? SeveralSelectedWith(asset, attachment) : null;
         if (queue && several != null)
         {
             e.Handled = true;
@@ -428,9 +430,19 @@ public partial class ArchivePage
                 new QuickTagPopoverOptions { IsCurrent = PopoverCurrent, FocusFallback = FocusAfterRateAndTag });
             return;
         }
-        if (TagPopoverAsync != null)
-            await TagPopoverAsync(subject.TagEntry ?? target, origin, QuickTagPopoverContext.ContextOf(subject.TagEntry ?? target, subject.GalleryEntries, thread.Summary.Title),
+        if (TagPopoverAsync is { } openPopover)
+        {
+            using CancellationTokenSource? popoverWrites = sidebarToken.CanBeCanceled ? new() : null;
+            Task editing = openPopover(subject.TagEntry ?? target, origin, QuickTagPopoverContext.ContextOf(subject.TagEntry ?? target, subject.GalleryEntries, thread.Summary.Title),
                 PopoverCurrent, new RateAndTagRequest(initialFocus, subject.TagsBlocked, FocusAfterRateAndTag, sidebarToken));
+            // The host shows the popover before awaiting its result. Its writes end at Closed, while Advanced still uses the sidebar target's lifetime.
+            if (popoverWrites != null && QuickTagPopover.Current is { Surface: { } surface } popover && ReferenceEquals(popover.Anchor, origin))
+            {
+                surface.WriteToken = popoverWrites.Token;
+                popover.WhenClosed(popoverWrites.Cancel);
+            }
+            await editing;
+        }
         else if (subject.TagEntry != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(subject.TagEntry);
         else QuickTagPopover.OpenBlocked(origin, target.Asset.OriginalFileName ?? string.Empty, subject.TagsBlocked ?? MediaMenuReasons.Unavailable,
             new QuickTagPopoverOptions { IsCurrent = PopoverCurrent, FocusFallback = FocusAfterRateAndTag });

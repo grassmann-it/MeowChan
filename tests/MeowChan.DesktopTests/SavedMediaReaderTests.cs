@@ -166,18 +166,19 @@ public sealed class SavedMediaReaderTests
     });
 
     [Theory]
+    [InlineData(false, true, null)]
+    [InlineData(true, true, null)]
+    [InlineData(false, false, null)]
+    [InlineData(true, false, null)]
     [InlineData(false, true, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
     [InlineData(false, true, true)]
-    public void SidebarTagWriteIsRevokedDuringLocalValidation(bool advanced, bool openGallery, bool dismissFirst) =>
+    public void SidebarTagWriteIsRevokedDuringLocalValidation(bool advanced, bool openGallery, bool? advanceDuringValidation) =>
         RunWithShell(async (page, window, host, subjects) =>
         {
             page.UseManualReaderTicks(static () => 0);
-            ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
-            page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
-            ArchiveAssetRow selected = ShownRows(page, grid: true).Single(row => Path.GetFileName(row.Asset.Path) == "b.png");
+            SelectTab(window, ById<TabItem>(window, "ArchiveMediaTab"));
+            ListBox tiles = ById<ListBox>(window, "ArchiveMediaTiles");
+            ArchiveAssetRow selected = tiles.ItemsSource!.Cast<ArchiveAssetRow>().Single(row => Path.GetFileName(row.Asset.Path) == "b.png");
             tiles.SelectedItem = selected;
             ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
             await ShowSidebarSelectionAsync(page, window, sidebar, selected.Version);
@@ -185,20 +186,18 @@ public sealed class SavedMediaReaderTests
             MediaTagDialog? dialog = null;
             if (advanced)
             {
-                Button advancedButton = ById<Button>(editor.Frame, "ArchiveTagPopoverAdvanced");
-                Click(Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(advancedButton)), advancedButton);
+                OpenAdvancedEditor(editor);
                 await BooruTestSupport.WaitAsync(() => window.GalleryMediaTagWindow?.IsVisible == true, "the advanced tag dialog");
                 dialog = window.GalleryMediaTagWindow!;
             }
 
             TaskCompletionSource<(LocalMediaObservation Observation, CancellationToken Token)> validating =
                 new(TaskCreationOptions.RunContinuationsAsynchronously);
-            TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            host.LocalMediaChecksForTests = async (observations, token) =>
+            TaskCompletionSource<IReadOnlyList<LocalMediaCheck>> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.LocalMediaChecksForTests = (observations, token) =>
             {
                 validating.SetResult((Assert.Single(observations), token));
-                await release.Task;
-                return [LocalMediaCheck.Verified];
+                return release.Task;
             };
 
             PrivateTagStoreSnapshot before = ReadTags(host);
@@ -213,13 +212,28 @@ public sealed class SavedMediaReaderTests
                 (LocalMediaObservation observation, CancellationToken token) = await validating.Task.WaitAsync(BooruComponentDispatcher.Cancellation);
                 Assert.Equal(Assert.IsType<MediaTagSubject.Local>(subjects['b']).Observation, observation);
 
-                if (dismissFirst)
+                if (advanceDuringValidation is bool openAdvanced)
                 {
-                    TopLevel root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(editor.Frame));
-                    // Esc clears the draft before it closes the editor.
-                    PressKey(root, PhysicalKey.Escape);
-                    if (editor.IsOpen) PressKey(root, PhysicalKey.Escape);
-                    Assert.Equal(QuickTagPopoverCloseReason.Closed, await editor.Result.WaitAsync(BooruComponentDispatcher.Cancellation));
+                    bool revokedAtClose = false;
+                    editor.Closed += _ =>
+                    {
+                        revokedAtClose = token.IsCancellationRequested;
+                        // Finish local validation before Closed returns and the editor's Result can resume its awaiters.
+                        release.TrySetResult([LocalMediaCheck.Verified]);
+                    };
+                    if (openAdvanced) OpenAdvancedEditor(editor);
+                    else
+                    {
+                        TopLevel root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(editor.Frame));
+                        // Esc clears the draft before it closes the editor.
+                        PressKey(root, PhysicalKey.Escape);
+                        if (editor.IsOpen) PressKey(root, PhysicalKey.Escape);
+                    }
+                    QuickTagPopoverCloseReason expected = openAdvanced ? QuickTagPopoverCloseReason.Advanced : QuickTagPopoverCloseReason.Closed;
+                    Assert.Equal(expected, await editor.Result.WaitAsync(BooruComponentDispatcher.Cancellation));
+                    Assert.True(revokedAtClose);
+                    if (openAdvanced)
+                        await BooruTestSupport.WaitAsync(() => window.GalleryMediaTagWindow?.IsVisible == true, "the advanced tag dialog after revocation");
                 }
                 if (openGallery)
                 {
@@ -233,11 +247,12 @@ public sealed class SavedMediaReaderTests
                 }
                 Assert.True(token.IsCancellationRequested);
             }
-            finally { release.TrySetResult(); }
+            finally { release.TrySetResult([LocalMediaCheck.Verified]); }
 
             await BooruTestSupport.WaitAsync(() => dialog == null ? !editor.Surface!.Session.Busy : !dialog.Session.Busy,
                 "the rejected host write to finish");
             Assert.False(dialog?.IsVisible ?? editor.IsOpen);
+            Assert.False(window.GalleryMediaTagWindow?.IsVisible == true);
             AssertTagsUnchanged(host, before);
             Assert.All(subjects.Values, subject => Assert.Empty(ReadTags(host).TagsOf(subject)));
         });
@@ -427,6 +442,12 @@ public sealed class SavedMediaReaderTests
         return editor;
     }
 
+    private static void OpenAdvancedEditor(QuickTagPopover editor)
+    {
+        Button button = ById<Button>(editor.Frame, "ArchiveTagPopoverAdvanced");
+        Click(Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(button)), button);
+    }
+
     private static T ById<T>(Visual root, string id, ArchiveAssetRow? row = null) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id
             && (row == null || ReferenceEquals(control.DataContext, row)));
@@ -527,6 +548,42 @@ public sealed class SavedMediaReaderTests
             Assert.NotEmpty(outlines);
             Assert.All(outlines, outline => Assert.Equal(0, outline.Opacity));
         }
+    }, gridPreference: grid);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void QueueShortcutUsesTheShownRevisionFromTheSidebarAndTheSelectionFromTheList(bool grid) => Run((page, window) =>
+    {
+        ListBox tiles = ById<ListBox>(window, "ArchiveMediaTiles");
+        DataGrid table = ById<DataGrid>(window, "ArchiveMediaGrid");
+        Control list = grid ? tiles : table;
+        string rowId = grid ? "ArchiveMediaTile" : "ArchiveMediaTableRow";
+        ArchiveAssetRow[] rows = (grid ? tiles.ItemsSource : table.ItemsSource)!.Cast<ArchiveAssetRow>().ToArray();
+        Control first = ById<Control>(list, rowId, rows[0]);
+        Control second = ById<Control>(list, rowId, rows[1]);
+        List<string[]> queued = [];
+        page.AddToTagQueue = entries =>
+        {
+            queued.Add(entries.Select(entry => entry.Asset.Path).ToArray());
+            return Task.FromResult(string.Empty);
+        };
+
+        Click(window, first, local: new Point(16, grid ? 32 : first.Bounds.Height / 2));
+        RawInputModifiers toggle = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+        Click(window, second, toggle, new Point(16, grid ? 32 : second.Bounds.Height / 2));
+        Assert.Equal(rows, page.SelectedMediaRows());
+        ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+        TextBlock heading = ById<TextBlock>(sidebar, "ReaderMediaSidebarHeading");
+        WaitUntil(() => heading.IsEffectivelyVisible && heading.Text == rows[1].Version);
+
+        Assert.True(list.IsKeyboardFocusWithin);
+        PressKey(window, PhysicalKey.Q);
+        FocusSidebarFrame(sidebar);
+        PressKey(window, PhysicalKey.Q);
+        Assert.Collection(queued,
+            paths => Assert.Equal(rows.Select(row => row.Asset.Path), paths),
+            paths => Assert.Equal(rows[1].Asset.Path, Assert.Single(paths)));
     }, gridPreference: grid);
 
     [Theory]
@@ -768,8 +825,7 @@ public sealed class SavedMediaReaderTests
             window.Show();
             window.PlatformImpl!.Activated?.Invoke();
             Layout(window);
-            page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
-            Layout(window);
+            SelectTab(window, ById<TabItem>(window, "ArchiveMediaTab"));
             test(page, window);
         }
         finally
@@ -815,7 +871,7 @@ public sealed class SavedMediaReaderTests
                 page.MediaTilesPreference = true;
                 Layout(window);
                 Assert.True(page.IsMediaSidebarShown);
-                page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 0;
+                SelectTab(window, ById<TabItem>(window, "ArchivePostsTab"));
                 Dictionary<char, MediaTagSubject> subjects = GallerySelection.Build(thread, [manifest], allSavedVersions: true, includeOtherMedia: true)
                     .Entries.ToDictionary(entry => Path.GetFileName(entry.Asset.Path)[0],
                         entry => Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry)));
