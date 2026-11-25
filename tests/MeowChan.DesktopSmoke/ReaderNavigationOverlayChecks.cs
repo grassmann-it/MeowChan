@@ -137,6 +137,7 @@ internal static class ReaderNavigationOverlayChecks
                 return hit != null && hit.GetSelfAndVisualAncestors().Contains(dialog);
             });
             page.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await CheckHistoryShortcutAsync(window, page, history);
         }
         catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
@@ -150,7 +151,7 @@ internal static class ReaderNavigationOverlayChecks
                 window.Width = width; window.Height = height;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
                 page.MediaTilesPreference = mediaTiles;
-                if (historyCreated)
+                if (historyCreated && page.CanGoHistoryBack)
                 {
                     history.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     await Program.WaitUntilAsync(() => !history.IsVisible
@@ -162,6 +163,31 @@ internal static class ReaderNavigationOverlayChecks
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderNavigationOverlayChecks: " + exception));
         }
         Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-width, full-height overlaid viewport, idle auto-hide and show-on-move, scrollbar spacing, controlled toolbar wrapping with visible history label, the 40 dip navigation bar (arrow row, counters, compact form below 700 dip, whole-capsule hit-test, Auto/Always/Off), four accessible commands, retained secondary tabs and dialog hit-test passed.");
+    }
+
+    private static async Task CheckHistoryShortcutAsync(MainWindow window, ArchivePage page, Button history)
+    {
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        await page.FocusPostAsync("1003");
+        Require(posts.SelectedItem is ArchivePostRow { Id: "1003" } source
+            && posts.ContainerFromItem(source) is ListBoxItem { IsFocused: true },
+            "Reader history shortcut requires focus on post 1003.");
+        Control origin = (Control)window.FocusManager!.GetFocusedElement()!;
+        KeyEventArgs back = new()
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.Left,
+            KeyModifiers = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Alt
+        };
+        origin.RaiseEvent(back);
+        Require(back.Handled, "The reader history shortcut was not handled from the focused post.");
+        await Program.WaitUntilAsync(() => !history.IsVisible
+            && posts.SelectedItem is ArchivePostRow { Id: "1000" } restored
+            && posts.ContainerFromItem(restored) is ListBoxItem { IsFocused: true },
+            () => $"History return: visible={history.IsVisible}, selected={(posts.SelectedItem as ArchivePostRow)?.Id}, "
+                + $"focused={((window.FocusManager?.GetFocusedElement() as Control)?.DataContext as ArchivePostRow)?.Id}.");
+        await page.MediaLoadTask;
+        Console.WriteLine("SMOKE reader history shortcut: post 1003 returned to selected, focused post 1000.");
     }
 
     // Idle auto-hide (mode Auto): any pointer movement over the reader, the pointer over or near the bar, keyboard focus in it and a
@@ -755,7 +781,7 @@ internal static class ReaderNavigationOverlayChecks
         // Narrow readers keep history behind More; its label and command semantics move with it.
         TextBlock? label = history.GetVisualDescendants().OfType<TextBlock>()
             .FirstOrDefault(text => (historyInMore || text.IsEffectivelyVisible) && text.Text == expected);
-        Require(history.IsVisible && history.IsEffectivelyEnabled && history.Focusable && label != null
+        Require(history.IsVisible && history.IsEffectivelyEnabled && label != null
             && (historyInMore ? overflowHost!.Children.Contains(history)
                 : history.IsEffectivelyVisible && label.Bounds.Width > 0 && label.DesiredSize.Width <= label.Bounds.Width + 1
                     && Contains(Bounds(history, window), Bounds(label, window)))

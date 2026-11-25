@@ -321,6 +321,13 @@ public partial class ArchivePage
             if (ReaderSelectionOwnsActivationKey(e)) return;
             if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e);
         }, RoutingStrategies.Tunnel);
+        // Once the post and its children have had Enter, a missing medium must not open the toolbar's thread gallery.
+        posts.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && IsMediumGalleryKey(e)
+                && e.Source is Visual source && !ReaderMediaBelongsToNativeControl(source, posts)
+                && !ClaimedByOtherReaderCommand(e)) e.Handled = true;
+        }, RoutingStrategies.Bubble);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(KeyDownEvent, (_, e) =>
