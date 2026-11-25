@@ -17,6 +17,54 @@ public sealed class ReaderReplyRestoreTests
     private static readonly ResourceId OtherThread = new("4chan", "g", "200");
     private const string FilteredText = "Text hidden after the first visit";
 
+    [Fact]
+    public async Task QuoteBackRestoresTheScrollAnchorAndSelectedRepliesIndependently()
+    {
+        using ReaderArchiveTestFixture fixture = new();
+        ArchivedThreadView view = await fixture.CaptureAsync(Thread, "Reply anchors",
+            Enumerable.Range(100, 80).Select(id => new CapturedPost(id.ToString(), id - 100, PostFieldPresence.All,
+                Html: id switch
+                {
+                    141 => "<a href='#p140' class='quotelink'>&gt;&gt;140</a> Reply to the reading anchor",
+                    143 => "<a href='#p142' class='quotelink'>&gt;&gt;142</a> Reply to the selected post",
+                    _ => "Post " + id
+                })).ToArray());
+        await fixture.CaptureAsync(OtherThread, "Quote target", [new("200", 0, PostFieldPresence.All, Html: "Other thread")]);
+
+        fixture.Run(page =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Window window = new() { Content = page, Width = 1320, Height = 760 };
+            try
+            {
+                page.IsAvailable = true;
+                window.Show();
+                ReaderArchiveTestFixture.Load(page, view);
+                ListBox list = Posts(window);
+                BooruComponentDispatcher.Wait(page.ResumeReadingPositionAsync(new("4chan", "g", "100", "140", -16, "142")));
+                page.ReaderExpandRepliesPreference = true;
+                ArchivePostRow Row(string id) => (ArchivePostRow)list.Items[page.Projection!.PositionOf(id)]!;
+                bool AtPlace() => page.CurrentThread?.Summary.Id == Thread
+                    && list.SelectedItem is ArchivePostRow { Id: "142", RepliesExpanded: true, RepliesLoaded: true }
+                    && page.CurrentReaderAnchor is ("140", >= -18 and <= -14);
+                BooruComponentDispatcher.WaitUntil(AtPlace, "the distinct reading anchor and its selected post");
+
+                ArchiveQuoteRow jump = new(new ArchiveQuote(new(Thread, "140"), new(OtherThread, "200"), ">>200", null));
+                foreach (bool expanded in new[] { true, false })
+                {
+                    BooruComponentDispatcher.Wait(page.SetRepliesExpandedAsync(Row("140"), expanded));
+                    BooruComponentDispatcher.Wait(page.NavigateQuoteAsync(jump));
+                    Assert.Equal(OtherThread, page.CurrentThread?.Summary.Id);
+                    page.GoHistoryBackByShortcut();
+                    BooruComponentDispatcher.WaitUntil(AtPlace, "the reading anchor after quote back");
+                    Assert.Equal(expanded, Row("140").RepliesExpanded);
+                    Assert.Equal("141", Assert.Single(Row("140").Replies).Quote.Origin.PostId);
+                }
+            }
+            finally { window.Close(); }
+        });
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
