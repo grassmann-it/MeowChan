@@ -16,6 +16,7 @@ using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Storage;
 using MeowChan.Tags;
+using Microsoft.Data.Sqlite;
 
 namespace MeowChan.DesktopTests;
 
@@ -1210,6 +1211,13 @@ public sealed class SidebarContextGestureTests
             ArchivedThreadView view = new(new(Thread, "https://fixture.invalid/g/thread/42", "Legacy files", directory,
                 ThreadSourceState.Archived, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 1, 1), [post], [directory], true);
             await RateAndTagWindowFixture.SeedAsync(profile, view);
+            // Today's writer stamps every capture. Restore the two rows as they were stored by a legacy archive.
+            using (var database = ArchiveSql.OpenConnection(Path.Combine(profile, "archive.db"), SqliteOpenMode.ReadWrite))
+            using (var unstamped = database.CreateCommand())
+            {
+                unstamped.CommandText = "UPDATE archive_attachments SET attachment_revision_key = NULL WHERE post = '43'";
+                Assert.Equal(2, unstamped.ExecuteNonQuery());
+            }
             MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
             return GallerySelection.Build(view, [manifest], allSavedVersions: true).Entries.OrderBy(entry => entry.Asset.Path)
                 .Select(entry => new SavedFile(entry.Asset.Path, Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry)))).ToArray();
