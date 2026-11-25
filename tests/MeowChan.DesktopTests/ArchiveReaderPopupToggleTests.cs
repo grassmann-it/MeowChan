@@ -225,9 +225,10 @@ public sealed class ArchiveReaderPopupToggleTests
         var more = Find<ToggleButton>(fixture.Window, "ReaderToolbarMore");
         Assert.False(more.IsChecked);
         Assert.False(toolbar.IsVisualAncestorOf(opener));
-        Assert.True(posts.Focus());
-        if (rebind)
-            ShortcutService.Publish(ShortcutService.CurrentSection.Set("reader.thread-menu", [ShortcutGesture.Parse("Primary+Shift+U")]));
+        FocusPost(posts);
+        var bindings = ShortcutService.CurrentSection.Set("reader.quick-settings", []);
+        if (rebind) bindings = bindings.Set("reader.thread-menu", [ShortcutGesture.Parse("Primary+F9")]);
+        ShortcutService.Publish(bindings);
         KeyGesture key = Assert.IsType<KeyGesture>(CommandBindings.Gesture("reader.thread-menu"));
         Press(fixture, key);
         Assert.True(more.ContextMenu?.IsOpen);
@@ -251,7 +252,7 @@ public sealed class ArchiveReaderPopupToggleTests
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         var gesture = Assert.Single(bindings.For("reader.thread-menu"));
         KeyGesture key = gesture.Resolve(platform);
-        Assert.Equal(Key.B, key.Key);
+        Assert.Equal(Key.J, key.Key);
         Assert.Equal(KeyModifiers.Shift | (platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Control), key.KeyModifiers);
         Assert.Null(EffectiveShortcutBindings.InvalidReason(gesture, platform));
         Assert.DoesNotContain(CommandCatalog.All, command => command.Id != "reader.thread-menu"
@@ -287,7 +288,7 @@ public sealed class ArchiveReaderPopupToggleTests
         var toolbar = Find<ActionToolBar>(fixture.Window, "ArchiveResultActions");
         var columns = Assert.Single(toolbar.Items.OfType<Button>(), b => AutomationProperties.GetAutomationId(b) == "ArchiveThreadColumnsButton");
         Assert.True(table.IsEffectivelyVisible && posts.IsEffectivelyVisible);
-        Assert.True(posts.Focus());
+        FocusPost(posts);
         var shared = new KeyGesture(Key.J, KeyModifiers.Shift | (OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control));
         Press(fixture, shared);
         Assert.True(page.IsQuickSettingsOpen);
@@ -298,6 +299,29 @@ public sealed class ArchiveReaderPopupToggleTests
         Assert.True(columns.ContextMenu?.IsOpen);
         Assert.False(page.IsQuickSettingsOpen);
     });
+
+    [Fact]
+    public void ColumnsShortcutFromPostsCannotOpenTheOtherPanesTable() => WithArchive(async fixture =>
+    {
+        ArchivePage page = await OpenReader(fixture, large: false);
+        page.ArchiveLayoutPreference = "Table";
+        fixture.Layout();
+        var toolbar = Find<ActionToolBar>(fixture.Window, "ArchiveResultActions");
+        var columns = Assert.Single(toolbar.Items.OfType<Button>(), b => AutomationProperties.GetAutomationId(b) == "ArchiveThreadColumnsButton");
+        var posts = Find<ListBox>(fixture.Window, "ArchivePosts");
+        FocusPost(posts);
+        Press(fixture, Assert.IsType<KeyGesture>(CommandBindings.Gesture("table.choose-columns")));
+        Assert.Null(columns.ContextMenu);
+        Assert.True(posts.IsKeyboardFocusWithin);
+    });
+
+    private static void FocusPost(ListBox posts)
+    {
+        posts.SelectedItem = Assert.Single(posts.Items);
+        var post = Assert.IsAssignableFrom<Control>(posts.ContainerFromItem(posts.SelectedItem));
+        Assert.True(post.Focus());
+        Assert.True(posts.IsKeyboardFocusWithin);
+    }
 
     [Fact]
     public void HiddenTagsOfTheSelectedThreadAreUncheckedAndReopenItsReader() => WithArchive(async fixture =>

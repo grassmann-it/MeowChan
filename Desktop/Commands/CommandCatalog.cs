@@ -318,6 +318,7 @@ public static class CommandCatalog
         new("reader.view.hover-enlarge", "command.reader.view.hover-enlarge", "Enlarge image on hover", "Bild beim Überfahren vergrößern", "zoom-in", null, CommandScope.Reader, new[] { "reader-settings" }),
         new("reader.post-filters", "command.reader.post-filters", "Post filters…", "Postfilter…", "filter", null, CommandScope.Reader, new[] { "reader-settings" }),
         // The reader's settings popover (R7, the toolbar's gear since RL1); a user shortcut opens it too.
+        new("reader.thread-menu", "reader.thread.menu", "Thread", "Thread", "file-text", "Primary+Shift+J", CommandScope.Reader, new[] { "reader-toolbar" }),
         new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "settings", null, CommandScope.Reader, new[] { "reader-settings" }),
         // R8: the media sidebar of the large reader (a settings-popover switch) and its steps through the focused post's media.
         new("media.sidebar.autohide", "command.media.sidebar.autohide", "Auto-hide sidebar controls", "Leisten automatisch ausblenden", "eye-off", "Shift+A", CommandScope.Reader | CommandScope.Media | CommandScope.Gallery, new[] { "reader", "media", "gallery-keyboard", "tagging" }, new[] { "reader", "media", "gallery", "tagging" }),
