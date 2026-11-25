@@ -298,7 +298,7 @@ internal static class FilenameSearchLargeReaderChecks
                 f.ReaderWindow.Show(owner);
                 f.Page.IsAvailable = true;
                 var counts = Signal<bool>();
-                f.Page.BeforeInlineReplyCountsPublicationAsync = _ => { counts.TrySetResult(true); return Task.CompletedTask; };
+                f.Page.BeforeInlineReplyCountsPublicationAsync = (_, _, _) => { counts.TrySetResult(true); return Task.CompletedTask; };
                 await f.Page.LoadThreadAsync(Origin).WaitAsync(Deadline);
                 await counts.Task.WaitAsync(Deadline);
                 Require(f.Page.CurrentThread is { PostCount: 251 }
