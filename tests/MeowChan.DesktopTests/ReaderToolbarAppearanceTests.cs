@@ -20,8 +20,10 @@ public sealed class ReaderToolbarAppearanceTests
 {
     private static readonly Thickness ActionPadding = new(8, 4);
 
-    [Fact]
-    public void ArchiveAndReaderActionsShareTheFlatStyleAcrossWorkViews() => BooruComponentDispatcher.Run(() =>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ArchiveAndReaderActionsShareTheFlatStyleAcrossWorkViews(bool tiles) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
@@ -32,8 +34,10 @@ public sealed class ReaderToolbarAppearanceTests
             window.Show();
             var tabs = ByAutomationId<TabControl>(page, "ArchiveContentTabs");
             tabs.IsVisible = true;
+            Settle(window);
             tabs.SelectedItem = ByAutomationId<TabItem>(page, "ArchiveMediaTab");
-            page.MediaTilesPreference = false;
+            if (!tiles) page.MediaTilesPreference = false;
+            Assert.Equal(tiles, page.MediaTilesPreference);
 
             var find = ByAutomationId<ToggleButton>(page, "ReaderFindOpen");
             var tags = ByAutomationId<ToggleButton>(page, "ReaderTagsOpen");
@@ -47,7 +51,13 @@ public sealed class ReaderToolbarAppearanceTests
                 AssertBarActions(page, "ArchiveHeaderActions", mayBeEmpty: view == WorkView.Barebones);
                 AssertBarActions(page, "ArchiveResultActions");
                 AssertBarActions(page, "ReaderToolbar");
-                AssertBarActions(page, "ReaderMediaTools", mayBeEmpty: view == WorkView.Barebones);
+                Button[] mediaTools = AssertBarActions(page, "ReaderMediaTools", mayBeEmpty: view == WorkView.Barebones);
+                // AP5 §1.5 (WV3) puts the favorite filter directly in Simple and Advanced.
+                // F01 puts Columns on the table layout, and WV3 puts it on the bar only in Advanced.
+                Assert.Equal(view != WorkView.Barebones,
+                    mediaTools.Any(action => AutomationProperties.GetAutomationId(action) == "ArchiveFavoritesFilter"));
+                Assert.Equal(!tiles && view == WorkView.Advanced,
+                    mediaTools.Any(action => AutomationProperties.GetAutomationId(action) == "ArchiveMediaColumnsButton"));
                 AssertBarActions(page, "ReaderMediaActions", mayBeEmpty: view == WorkView.Barebones);
 
                 Assert.Equal(view == WorkView.Barebones, find.Classes.Contains(ActionToolBarPanel.ReducedPseudoClass));
@@ -112,7 +122,7 @@ public sealed class ReaderToolbarAppearanceTests
         window.UpdateLayout();
     }
 
-    private static void AssertBarActions(ArchivePage page, string name, bool mayBeEmpty = false)
+    private static Button[] AssertBarActions(ArchivePage page, string name, bool mayBeEmpty = false)
     {
         var bar = ByAutomationId<ActionToolBar>(page, name);
         Assert.True(bar.IsEffectivelyVisible, name);
@@ -123,6 +133,7 @@ public sealed class ReaderToolbarAppearanceTests
         if (!mayBeEmpty) Assert.True(actions.Length > 0, $"No visible flat actions in {name} for {page.ReaderWorkView}.");
         foreach (Button action in actions)
             AssertFlatAction(action, ActionPadding);
+        return actions;
     }
 
     private static T ByAutomationId<T>(Visual root, string id) where T : Control =>
