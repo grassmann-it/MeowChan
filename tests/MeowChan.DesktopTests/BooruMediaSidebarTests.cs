@@ -265,8 +265,8 @@ public sealed class BooruMediaSidebarTests
         Assert.Equal(("102", BooruLoadOrigin.Search), Assert.Single(harness.Queue.Loads));
         Settle(window);
         Assert.True(ById<Button>(Hit(view, "102"), "BooruShowInMedia:102").IsEnabled);
-        Assert.False(ById<Control>(sidebar, "BooruMediaLocalActions").IsVisible);
-        Assert.False(ById<Button>(sidebar, "BooruMediaFavorite").IsVisible);
+        // Tom, 25.11. 14:48: no local rating, tag count or tag editor in the Booru sidebar, saved or not.
+        AssertNoLocalEditing(sidebar);
         Click(ById<Button>(sidebar, "BooruPanelBooruShowInMedia:102"));
         Assert.Equal("102", Assert.Single(shown));
     });
@@ -379,12 +379,15 @@ public sealed class BooruMediaSidebarTests
                     AssertActionLabelFits(button, requireLabel: false);
                 });
 
-                // Variante A, §2: “Icon zuerst, Label nur bei Platz”. Give all three labels room to check the secondary buttons too.
+                // Variante A, §2: “Icon zuerst, Label nur bei Platz”. Give the labels room to check the secondary buttons too;
+                // Tom, 25.11. 14:55: “das kleine Icon ‚Im Browser öffnen‘” stays an icon at any width.
                 if (width == 1840)
                 {
                     sidebar.Width = 800;
                     Settle(window);
-                    Assert.All(buttons, button => AssertActionLabelFits(button, requireLabel: true));
+                    Assert.All(new[] { buttons[0], buttons[2] }, button => AssertActionLabelFits(button, requireLabel: true));
+                    Assert.False(ById<TextBlock>(buttons[1], "BooruPanelBooruOpenPost:101:Label").IsEffectivelyVisible);
+                    Assert.Equal(buttons[1].Bounds.Height, buttons[1].Bounds.Width);
                     sidebar.Width = 360;
                     Settle(window);
                 }
@@ -485,19 +488,8 @@ public sealed class BooruMediaSidebarTests
         Assert.True(info.IsChecked);
         Assert.True(hit.IsFocused);
 
-        Control[] local =
-        [
-            ById<Control>(sidebar, "BooruMediaFavorite"),
-            ById<Control>(sidebar, "BooruMediaDecisionRating3"),
-            ById<Control>(sidebar, "ReaderMediaSidebarTagsEmpty"),
-            ById<Control>(sidebar, "BooruMediaEditTags")
-        ];
-        Assert.All(local, control =>
-        {
-            Assert.True(control.IsEffectivelyVisible);
-            Assert.False(control.IsEffectivelyEnabled);
-            Assert.Contains("saved", AutomationProperties.GetHelpText(control), StringComparison.OrdinalIgnoreCase);
-        });
+        // Tom, 25.11. 14:48: the disabled local stars, the tag count "0" and "Edit tags…" were useless here and are gone.
+        AssertNoLocalEditing(sidebar);
         Assert.True(ById<Button>(sidebar, "BooruPanelTag:blue_eyes").IsEffectivelyEnabled);
 
         foreach (int width in new[] { 280, 320 })
@@ -546,7 +538,17 @@ public sealed class BooruMediaSidebarTests
         Assert.False(config.BooruMediaSidebar);
     });
 
-    private static void InWindow(Action<BooruUiHarness, BooruWorkbenchModel, BooruWorkbenchView, Window> test) =>
+    /// <summary>No visible local rating, favorite, tag count or tag editor anywhere in the Booru sidebar.</summary>
+    internal static void AssertNoLocalEditing(Control sidebar)
+    {
+        string[] local = ["BooruMediaLocalActions", "BooruMediaEditTags", "BooruMediaFavorite", "ReaderMediaSidebarInfoBar",
+            "ReaderMediaSidebarTagsEmpty", "ReaderMediaSidebarTagsToggle", "ReaderMediaSidebarTags", "ReaderMediaSidebarExpand"];
+        Assert.DoesNotContain(sidebar.GetVisualDescendants().OfType<Control>(), control => control.IsEffectivelyVisible
+            && AutomationProperties.GetAutomationId(control) is { } id
+            && (local.Contains(id) || id.StartsWith("BooruMediaDecision", StringComparison.Ordinal)));
+    }
+
+    internal static void InWindow(Action<BooruUiHarness, BooruWorkbenchModel, BooruWorkbenchView, Window> test) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -564,7 +566,7 @@ public sealed class BooruMediaSidebarTests
             finally { window.Close(); }
         });
 
-    private static void Search(BooruWorkbenchModel model, BooruWorkbenchView view)
+    internal static void Search(BooruWorkbenchModel model, BooruWorkbenchView view)
     {
         BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(model.Search, "cat"));
         BooruComponentDispatcher.WaitUntil(() => !model.Search.View.Rows.IsEmpty
@@ -572,31 +574,32 @@ public sealed class BooruMediaSidebarTests
             && Sidebar(view).IsVisible, "the sidebar and result previews");
     }
 
-    private static void Settle(Window window)
+    internal static void Settle(Window window)
     {
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();
     }
 
-    private static void Resize(Window window, int width)
+    internal static void Resize(Window window, int width)
     {
         BooruReviewTestPlatform.Resize(window, width);
         Settle(window);
     }
 
-    private static BooruMediaSidebar Sidebar(BooruWorkbenchView view) => ById<BooruMediaSidebar>(view, "BooruMediaSidebar");
+    internal static BooruMediaSidebar Sidebar(BooruWorkbenchView view) => ById<BooruMediaSidebar>(view, "BooruMediaSidebar");
 
-    private static T ById<T>(Control root, string id) where T : Control => SidePanelDesignTests.ById<T>(root, id);
+    internal static T ById<T>(Control root, string id) where T : Control => SidePanelDesignTests.ById<T>(root, id);
 
-    private static Rect In(Control control, Control root) => new(control.TranslatePoint(default, root)!.Value, control.Bounds.Size);
+    internal static Rect In(Control control, Control root) => new(control.TranslatePoint(default, root)!.Value, control.Bounds.Size);
 
-    private static void AssertActionLabelFits(Button button, bool requireLabel)
+    internal static void AssertActionLabelFits(Button button, bool requireLabel)
     {
         TextBlock label = ById<TextBlock>(button, AutomationProperties.GetAutomationId(button) + ":Label");
         if (!label.IsEffectivelyVisible)
         {
             Assert.False(requireLabel, $"The action label '{label.Text}' should be visible when there is room.");
-            Assert.Equal(button.Height, button.Width);
+            // Tom, 25.11. 14:55: the labeled actions share the row's width, so an icon-only one keeps at least a square.
+            Assert.True(button.Bounds.Width >= button.Bounds.Height - 0.5, $"{button.Name} is narrower than its height.");
             return;
         }
 
@@ -631,7 +634,7 @@ public sealed class BooruMediaSidebarTests
 
     private static void Focus(Control control) => Assert.True(control.Focus(NavigationMethod.Directional));
 
-    private static Border Hit(BooruWorkbenchView view, string id) => ById<Border>(view, "BooruResult:" + id);
+    internal static Border Hit(BooruWorkbenchView view, string id) => ById<Border>(view, "BooruResult:" + id);
 
     private static byte[] Png(int width, int height)
     {
