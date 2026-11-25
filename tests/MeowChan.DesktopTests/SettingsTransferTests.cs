@@ -11,6 +11,7 @@ public sealed class SettingsTransferTests
 {
     private static readonly string[] ExcludedKeys =
     [
+        nameof(Config.BooruNewSearchTarget),
         nameof(Config.WindowWidth), nameof(Config.WindowHeight), nameof(Config.WindowPositionX), nameof(Config.WindowPositionY),
         nameof(Config.WindowMaximized), nameof(Config.FirstRunSetupPending), nameof(Config.FirstRunSetupVersion),
         nameof(Config.WorkViewNoticePending), nameof(Config.SourceMediaIntegrityPermissions), nameof(Config.DownloadsPaused),

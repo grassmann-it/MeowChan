@@ -66,9 +66,10 @@ internal static class BooruGalleryStatus
 internal sealed partial class BooruGalleryPanel : Border, IDisposable
 {
     internal const string PanelName = "BooruGallery";
+    internal const string ImageName = "BooruGalleryImage";
 
     private readonly BooruGallerySampleLoader _sample = new();
-    private readonly Image _image = new() { Name = "BooruGalleryImage", Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both };
+    private readonly Image _image = new() { Name = ImageName, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both };
     private readonly TextBlock _placeholder = new() { Name = "BooruGalleryPlaceholder", Classes = { "workspace-meta" }, TextAlignment = TextAlignment.Center,
         TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _stage = new() { Name = "BooruGalleryStage", Focusable = true, IsTabStop = true, ClipToBounds = true, MinHeight = 320 };
@@ -104,6 +105,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         AddHandler(KeyDownEvent, (_, e) => RouteKey(e), RoutingStrategies.Tunnel);
         _stage.Classes.Add("booru-stage");
         AutomationProperties.SetControlTypeOverride(_stage, AutomationControlType.Image);
+        AutomationProperties.SetAutomationId(_image, ImageName);
         AutomationProperties.SetAccessibilityView(_image, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(_placeholder, AccessibilityView.Raw);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);

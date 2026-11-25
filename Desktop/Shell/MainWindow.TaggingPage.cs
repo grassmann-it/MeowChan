@@ -71,6 +71,7 @@ public partial class MainWindow
             ShowInThread = ShowTaggingEntryInThreadAsync,
             ShowInMedia = ShowTaggingEntryInMediaAsync,
             ShowInFolder = ShowTaggingEntryInFolderAsync,
+            OpenExternal = OpenTaggingEntryExternallyAsync,
             CopyPath = CopyTaggingEntryPathAsync,
             SaveViewMode = mode => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPageView = mode.ToString()),
             SavePreviewColumn = visible => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPreviewColumn = visible),
@@ -80,23 +81,74 @@ public partial class MainWindow
                 return MediaTileMetrics.For(layout.TileSize, layout.Caption);
             },
             ReadMediaTileSize = () => CurrentMediaLayout().TileSize,
-            ChooseMediaTileSize = ChooseSharedTileSize
+            ChooseMediaTileSize = ChooseSharedTileSize,
+            ReadPanelLayout = CurrentMediaLayout,
+            SavePanelWidth = ChooseSharedPanelWidth,
+            SavePanelEnabled = enabled => OpenActions.Start(
+                () => _session.SaveViewPreferencesAsync(config => config.TaggingPagePanel = enabled), "tagging.panel"),
+            SavePanelSetting = update => OpenActions.Start(async () =>
+            {
+                bool previous = _config.SidebarFactsVisible;
+                await SaveQuickSettingsAsync(update);
+                if (previous != _config.SidebarFactsVisible)
+                    _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
+            }, "media.sidebar.info"),
+            ExecutePanelDecisionAsync = ExecuteTaggingPanelDecisionAsync
         };
         _taggingPage.RestoreViewMode(TaggingViewModes.Parse(_session.Config.TaggingPageView));
         _taggingPage.RestorePreviewColumn(_session.Config.TaggingPreviewColumn);
+        _taggingPage.RestorePanelEnabled(_session.Config.TaggingPagePanel);
+        _taggingPage.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
         _taggingPage.ApplyWorkView(_workViews.Current);
+        TaggingPageHost.PropertyChanged += (_, change) =>
+        {
+            if (change.Property == Avalonia.Visual.IsVisibleProperty && change.NewValue is false) _taggingPage.StopPanel();
+        };
         TaggingPageHost.Content = _taggingPage;
+        RegisterTaggingPanelCommands(_taggingPage);
+    }
+
+    private void RegisterTaggingPanelCommands(TaggingPage page)
+    {
+        bool Active() => _selectedPage == WorkspacePage.Tagging && TaggingEntryCurrent() && !_largeReaderOpen && !HasBlockingPageDecision();
+        _shortcutRouter?.RegisterOwned(new CommandRegistration(MediaPanelKeys.ToggleCommandId, page,
+            Active, () => true, page.TogglePanel, Priority: 100));
+        foreach (string id in new[] { "media.sidebar.info", "media.sidebar.autohide" })
+            _shortcutRouter?.RegisterOwned(new CommandRegistration(id, page,
+                Active, () => true, () => page.RunPanelBarCommand(id), Priority: 100));
+    }
+
+    private Task ExecuteTaggingPanelDecisionAsync(string id, MediaLibraryEntry entry, Func<bool> presentationCurrent)
+    {
+        int visit = _taggingPageVisit;
+        return ExecuteMediaLibraryMenuActionAsync(id, entry, presentationCurrent,
+            () => _selectedPage == WorkspacePage.Tagging && visit == _taggingPageVisit && TaggingEntryCurrent());
     }
 
     // The tagging grid and the media page show one tile size, the media page's setting (inside MediaLayout). The media page, once it exists, holds the
     // live layout (a change is shown there before the saved settings confirm it); before that the size chosen on the tagging grid stands in for the
     // settings that are still being written.
     private MediaTileSize? _tileSizeChosenInTagging;
+    private int? _panelWidthChosenInTagging;
 
     private MediaPageLayout CurrentMediaLayout()
     {
         MediaPageLayout saved = _mediaPage?.PageLayout ?? MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode);
-        return _mediaPage == null && _tileSizeChosenInTagging is { } size ? saved with { TileSize = size } : saved;
+        return _mediaPage == null ? saved with
+        {
+            TileSize = _tileSizeChosenInTagging ?? saved.TileSize,
+            PanelWidth = _panelWidthChosenInTagging ?? saved.PanelWidth
+        } : saved;
+    }
+
+    private void ChooseSharedPanelWidth(int width)
+    {
+        if (_isClosing) return;
+        _panelWidthChosenInTagging = width;
+        _mediaPage?.ApplySavedPanelWidth(width);
+        OpenActions.Start(() => _session.SaveViewPreferencesAsync(config =>
+            config.MediaLayout = (MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode) with { PanelWidth = width }).Format()),
+            "media.panel.resize");
     }
 
     // Ctrl+wheel and Ctrl+Plus / Minus / 0 over the tagging grid: the media page's tile size changes (it shows it at once when it exists) and is
@@ -112,7 +164,11 @@ public partial class MainWindow
     }
 
     // Called by NavigateWorkspace after the page became the shown one.
-    private void ActivateTaggingPage() => _ = _taggingPage?.ActivateAsync();
+    private void ActivateTaggingPage()
+    {
+        _taggingPage?.ApplyPanelLayout();
+        _ = _taggingPage?.ActivateAsync();
+    }
 
     private void AddToTaggingQueueFromPage()
     {
@@ -127,7 +183,8 @@ public partial class MainWindow
     private async Task<GalleryEntry?> ResolveTaggingEntryAsync(TagQueueItem item)
     {
         GalleryEntry? entry = await MediaMenuIdentity.ResolveAsync(item.ToLibraryEntry(), _session.OpenArchiveReaderAsync,
-            Storage.MediaAssetReader.OpenAsync, TaggingEntryCurrent, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog);
+            Storage.MediaAssetReader.OpenAsync, TaggingEntryCurrent, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog,
+            fromTagQueue: true);
         if (entry == null && TaggingEntryCurrent())
             ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "tagging.menu");
         return entry;
@@ -194,6 +251,11 @@ public partial class MainWindow
     private async Task ShowTaggingEntryInFolderAsync(TagQueueItem item)
     {
         if (await ResolveTaggingEntryAsync(item) is { } entry && Path.GetDirectoryName(entry.Asset.Path) is string directory) OpenDirectory(directory);
+    }
+
+    private async Task OpenTaggingEntryExternallyAsync(TagQueueItem item)
+    {
+        if (await ResolveTaggingEntryAsync(item) is { } entry) await OpenMediaFileExternallyAsync(entry);
     }
 
     private async Task CopyTaggingEntryPathAsync(TagQueueItem item)

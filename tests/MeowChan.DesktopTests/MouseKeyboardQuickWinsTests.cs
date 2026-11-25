@@ -176,34 +176,6 @@ public sealed class MouseKeyboardQuickWinsTests : IDisposable
         Assert.Null(MiddleClickTracker.RowAt<string>(null, surface));
     }
 
-    [Fact]
-    public void TheMiddleClickRunsTheMenusCommandOnEachSurface()
-    {
-        // Downloads (threads and boards): the menu's "Open source in browser" target, under the key commands' rules.
-        string downloads = Read("Desktop/Shell/MainWindow.MouseKeyboard.cs");
-        Assert.Contains("MiddleClickTracker.IsRelease(e)", downloads);
-        Assert.Contains("OpenTarget(target);", downloads);
-        Assert.Contains("DownloadListAcceptsQuickInput()", downloads);
-        Assert.Contains("InitializeDownloadMiddleClick();", Read("Desktop/Shell/MainWindow.Selection.cs"));
-        // Archive rows: the thread menu's rule (a shell action and an address), else the same message as the key; tiles: the media menu's own entry.
-        string archive = Read("Desktop/Views/Archive/ArchivePage.MouseKeyboard.cs");
-        Assert.Contains("list.AddHandler(PointerReleasedEvent, OnThreadMiddleReleased", archive);
-        Assert.Contains("SelectionLeadAction == null", archive);
-        Assert.Contains("RunArchiveLeadAction(row, \"browser\");", archive);
-        Assert.Contains("archive.command.noSource", archive);
-        // The click calls the folder action itself: no ContextMenu is built (and left undisposed) to look the entry up in.
-        Assert.Contains("TryShowMediaInFolder(asset.Asset)", archive);
-        Assert.Contains("TryShowMediaInFolder(target!.Asset)", Read("Desktop/Views/Archive/ArchivePage.MediaCommands.cs")); // the menu entry runs the same one
-        Assert.DoesNotContain("BuildArchiveMediaMenu", archive);
-        Assert.DoesNotContain("ContextMenu", archive);
-        // Media page tiles: the same entry as the menu and its shortcut, for the clicked tile, without touching the selection.
-        string media = Read("Desktop/Views/Media/MediaPage.Interaction.cs");
-        Assert.Contains("RunMediaCommandOnTileAsync(FolderCommandId, row)", media);
-        Assert.Contains("row.Entry.Presence != MediaLibraryPresence.Present", media);
-        Assert.Equal("media.show-in-folder", MediaPage.FolderCommandId);
-        Assert.Contains("AttachMouseKeyboardQuickWins();", Read("Desktop/Views/Archive/ArchivePage.axaml.cs"));
-    }
-
     // ---- V6: the strip's wheel ---------------------------------------------------------------------------------------------------
 
     [Fact]

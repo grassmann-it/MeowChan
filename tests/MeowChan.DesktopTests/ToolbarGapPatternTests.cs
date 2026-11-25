@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
@@ -254,11 +255,16 @@ public sealed class ToolbarGapPatternTests
     [Fact]
     public void TheTaggingHeaderEndsWithThePageOverflowThenTheJoinedViewControls() => TaggingLayoutRhythmTests.WithPage(page =>
     {
-        ActionToolBar presentation = Assert.IsType<ActionToolBar>(page.Header.Children[^1]);
-        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
-        Assert.Same(page.Actions, page.Header.Children[^2]);
+        ActionToolBar FindBar(string id) => Assert.Single(page.Header.Children.OfType<ActionToolBar>(),
+            bar => AutomationProperties.GetAutomationId(bar) == id);
+        ActionToolBar presentation = FindBar("TaggingListPresentation");
+        ActionToolBar actions = FindBar("TaggingActions");
+        // W112-73 spec §1: "Knopf TaggingPanelToggle in _listPresentation rechts neben TaggingViewToggle".
+        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle, page.PanelToggle }, presentation.Items.Cast<Control>());
+        Assert.Same(page.Actions, actions);
+        Assert.Equal(new Control[] { actions, presentation }, page.Header.Children.TakeLast(2));
         Assert.Equal(new Control[] { page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
-            page.Actions.Items.Cast<Control>());
+            actions.Items.Cast<Control>());
     });
 
     [Fact]

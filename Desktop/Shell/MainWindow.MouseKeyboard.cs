@@ -57,7 +57,7 @@ public partial class MainWindow
     private void OnDownloadMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (sender is not DataGrid grid || !MiddleClickTracker.IsRelease(e)) return;
-        object? row = DownloadRowAt(e.Source, grid);
+        object? row = DownloadRowAt(MiddleClickTracker.HitAt(e, grid), grid);
         if (!_downloadMiddleClick.Released(row) || !DownloadListAcceptsQuickInput()) return;
         // The menu's rule for a row that is no longer in the list (it was removed or replaced between press and release): nothing opens.
         string? target = row switch

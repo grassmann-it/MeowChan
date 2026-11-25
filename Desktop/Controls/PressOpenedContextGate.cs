@@ -16,6 +16,7 @@ internal sealed class PressOpenedContextGate
 {
     private readonly Action<Action> _afterRelease;
     private int _gesture;
+    private MouseButton _openingButton;
 
     /// <param name="afterRelease">How the end of the gate is deferred past the release's own <c>ContextRequested</c>; the default posts it on a
     /// Background tick of the UI thread, a test passes a capture.</param>
@@ -29,13 +30,13 @@ internal sealed class PressOpenedContextGate
     internal void BeginPress() { IsPending = false; ++_gesture; }
 
     /// <summary>The press opened the menu: the request of its release is consumed once.</summary>
-    internal void MenuOpenedByPress() { IsPending = true; ++_gesture; }
+    internal void MenuOpenedByPress(MouseButton button = MouseButton.Right) { _openingButton = button; IsPending = true; ++_gesture; }
 
-    /// <summary>The release of a pointer button went through the press path. Only the right button ends the gate, and only after the request that
+    /// <summary>The release of a pointer button went through the press path. Only the opening button ends the gate, and only after the request that
     /// Avalonia sends with it (it comes through the handlers after this one), so the end is deferred.</summary>
     internal void Released(MouseButton button)
     {
-        if (!IsPending || button != MouseButton.Right) return;
+        if (!IsPending || button != _openingButton) return;
         int gesture = _gesture; // a press that came before the deferred end belongs to the next gesture
         _afterRelease(() => { if (gesture == _gesture) IsPending = false; });
     }

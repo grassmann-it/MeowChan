@@ -154,7 +154,7 @@ internal static partial class SectionComparisonChecks
             (_, _) => throw new InvalidOperationException("Comparison must not describe a worker"),
             (_, _, _) => { workerCalls++; throw new InvalidOperationException("Comparison must reject invalid input before worker execution"); },
             (_, _, _, _, _) => throw new InvalidOperationException("Comparison must not query a site"));
-        var page = new PluginsPage(); page.Attach(services);
+        using var page = new PluginsPage(); page.Attach(services);
         using var scenario = new Scenario(owner, page, variant, task,
             null, page.FindControl<ScrollViewer>("PluginDetailsPane")!,
             null,

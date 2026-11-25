@@ -23,12 +23,20 @@ internal sealed partial class BooruWorkbenchView
         view.ExecutedQuery is { } query ? Texts.T("booru.ui.query.sent", query)
         : view.ExecutedPostId is { } postId ? Texts.T("booru.ui.post.sent", postId) : null;
 
-    private static string? DraftSearchText(BooruSearchView view) => view.Parsed.Kind switch
+    private static string? DraftSearchText(BooruSearchView view)
     {
-        BooruInputKind.Tags when view.Parsed.Canonical != view.ExecutedQuery => Texts.T("booru.ui.query.draft", view.Parsed.Canonical),
-        BooruInputKind.Post when view.Parsed.PostId != view.ExecutedPostId => Texts.T("booru.ui.query.draft", "#" + view.Parsed.PostId),
-        _ => null
-    };
+        string? draft = view.Parsed.Kind switch
+        {
+            BooruInputKind.Tags when !string.Equals(view.Parsed.Canonical, view.ExecutedQuery, StringComparison.OrdinalIgnoreCase)
+                => view.Parsed.Canonical,
+            BooruInputKind.Post when view.Parsed.PostId != view.ExecutedPostId => "#" + view.Parsed.PostId,
+            BooruInputKind.Invalid => view.Input.Trim(),
+            BooruInputKind.Empty when view.ExecutedQuery != null || view.ExecutedPostId != null =>
+                Texts.T("booru.ui.query.draftEmpty"),
+            _ => null
+        };
+        return string.IsNullOrEmpty(draft) ? null : Texts.T("booru.ui.query.draft", draft);
+    }
 
     private sealed class SearchToolbar : Panel
     {

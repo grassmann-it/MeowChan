@@ -73,7 +73,12 @@ public sealed class BoardAdmissionStore
             {
                 SchemaVersion = CurrentSchemaVersion,
                 Boards = next.ToDictionary(pair => pair.Key, pair => new BoardPolicyDocument
-                { Rules = pair.Value.Rules.ToArray(), Exceptions = new(pair.Value.Exceptions, StringComparer.Ordinal) }, StringComparer.Ordinal)
+                {
+                    Rules = pair.Value.Rules.ToArray(),
+                    Exceptions = new(pair.Value.Exceptions, StringComparer.Ordinal),
+                    WatcherName = pair.Value.WatcherName,
+                    WatcherIntervalMinutes = pair.Value.WatcherIntervalMinutes
+                }, StringComparer.Ordinal)
             };
             string json = JsonSerializer.Serialize(document, BoardAdmissionJsonContext.Default.BoardAdmissionDocument);
             if (Encoding.UTF8.GetByteCount(json) > maximumBytes) throw SizeFailure();
@@ -138,7 +143,8 @@ public sealed class BoardAdmissionStore
         {
             var document = root.Deserialize(BoardAdmissionJsonContext.Default.BoardAdmissionDocument)!;
             foreach (var pair in document.Boards)
-                result.Add(pair.Key, new BoardAdmissionPolicy(pair.Value.Rules, pair.Value.Exceptions));
+                result.Add(pair.Key, new BoardAdmissionPolicy(pair.Value.Rules, pair.Value.Exceptions,
+                    pair.Value.WatcherName, pair.Value.WatcherIntervalMinutes));
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException) { throw Damaged(); }
         return result;
@@ -159,6 +165,10 @@ internal sealed class BoardPolicyDocument
 {
     public required ThreadTextRule[] Rules { get; init; }
     public required Dictionary<string, ThreadAdmissionException> Exceptions { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WatcherName { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? WatcherIntervalMinutes { get; init; }
 }
 [JsonSourceGenerationOptions(AllowDuplicateProperties = false)]
 [JsonSerializable(typeof(BoardAdmissionDocument))]

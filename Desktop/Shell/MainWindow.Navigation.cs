@@ -152,6 +152,7 @@ public partial class MainWindow
         {
             await _session.SaveViewPreferencesAsync(change);
             _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
+            _taggingPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
             _settingsEditor?.RefreshConfirmedSettings(fields);
         };
         _archivePage.FullscreenRequested = ToggleFullscreen;
@@ -166,8 +167,10 @@ public partial class MainWindow
         _archivePage.EditArchiveMediaTagsAsync = entry => EditGalleryMediaTagsAsync(entry);
         _archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync;
         _archivePage.TagPopoverOptions = TagPopoverDefaults;
+        _archivePage.BuildPanelTagMenu = BuildSidebarTagMenu;
         _archivePage.DecisionFor = DecisionFor;
         _archivePage.CopyFilePathAsync = CopyFilePathAsync;
+        _archivePage.OpenMediaExternallyAsync = OpenMediaFileExternallyAsync;
         _archivePage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         _archivePage.IsArchiveFavorite = _session.IsFavorite;
         _archivePage.ArchiveFavoritesUnreadable = () => _session.FavoritesUnreadable;

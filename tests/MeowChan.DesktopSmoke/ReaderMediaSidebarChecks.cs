@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -41,6 +42,8 @@ internal static class ReaderMediaSidebarChecks
         // On by default: the large reader shows the sidebar at once. It is switched off once for the plain-pane checks and back on below.
         await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.MediaSidebar!.IsEffectivelyVisible);
         ReaderMediaSidebar sidebar = page.MediaSidebar!;
+        T Find<T>(string id) where T : Control => sidebar.GetVisualDescendants().OfType<T>()
+            .Single(control => AutomationProperties.GetAutomationId(control) == id);
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
         // A post with media: its picture (or an explaining placeholder) shows, decoded through the gallery cache.
         ArchivePostRow[] rows = posts.Items.OfType<ArchivePostRow>().ToArray();
@@ -51,17 +54,46 @@ internal static class ReaderMediaSidebarChecks
         await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
         await page.MediaSidebarTask;
         Require(sidebar.Shown != null || sidebar.StatusText.Length > 0, "The sidebar shows neither the medium nor a reason.");
-        // The position pill fills the gap between the tabs and the close button.
+        // W112-72, Fable variant A §§1 and 2.1: “Position vorn in der Dateizeile, keine Pill”.
         Require(sidebar.HeaderLine.Contains(withMedia!.Id, StringComparison.Ordinal) && !sidebar.HeaderLine.Contains('\n', StringComparison.Ordinal),
             "The sidebar header does not name the post.");
-        Require(sidebar.Open.IsEffectivelyVisible && sidebar.Close.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
+        void CheckHeaderGeometry(bool requireSingleRow)
+        {
+            Control header = Find<Control>("ReaderMediaSidebarHeaderRow");
+            Button gallery = Find<Button>("ReaderMediaSidebarOpen"), closeButton = Find<Button>("ReaderMediaSidebarClose");
+            TextBlock position = Find<TextBlock>("ReaderMediaSidebarPosition");
+            Require(gallery.IsEffectivelyVisible && closeButton.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
+            Rect InHeader(Control control) => new(control.TranslatePoint(default, header)!.Value, control.Bounds.Size);
+            Rect title = InHeader(Find<TextBlock>("ReaderMediaSidebarHeading")), positionBounds = InHeader(position), close = InHeader(closeButton);
+            Rect file = InHeader(Find<TextBlock>("ReaderMediaSidebarMeta"));
+            bool belowTitle = positionBounds.Top >= title.Bottom - 1;
+            Require(!requireSingleRow || !belowTitle, "The wide reader header did not fit in one row.");
+            Require(position.IsEffectivelyVisible && !string.IsNullOrWhiteSpace(position.Text) && positionBounds.Width > 0
+                && Math.Abs(title.Left) <= 1 && Math.Abs(close.Right - header.Bounds.Width) <= 1
+                && Math.Abs(positionBounds.Top - file.Top) <= 1 && positionBounds.Right <= file.Left + 1
+                && (belowTitle ? Math.Abs(positionBounds.Left) <= 1 : title.Right <= positionBounds.Left + 1),
+                "The reader header title, position, filename and close button are misaligned.");
+            if (belowTitle) return;
+
+            // W112-72, Fable variant A §2.1: “Datei · Größe · Rest frei · Knöpfe”.
+            Button[] actions = [Find<Button>("ReaderMediaSidebarFavorite"), Find<Button>("ReaderMediaSidebarInfoToggle"),
+                gallery, Find<Button>("ReaderMediaSidebarSettings"), closeButton];
+            double firstActionLeft = actions.Where(action => action.IsEffectivelyVisible).Min(action => InHeader(action).Left);
+            Require(file.Right <= firstActionLeft + 1, "The reader header filename overlaps the first visible action button.");
+        }
+
         await Flush();
-        Rect InHeader(Control control) => new(control.TranslatePoint(default, sidebar.HeaderRow)!.Value, control.Bounds.Size);
-        Rect tabs = InHeader(sidebar.Title), pill = InHeader(sidebar.PositionPill), close = InHeader(sidebar.Close);
-        Require(sidebar.PositionPill.IsEffectivelyVisible && pill.Width > 0
-            && Math.Abs(tabs.Left) <= 1 && Math.Abs(close.Right - sidebar.HeaderRow.Bounds.Width) <= 1
-            && Math.Abs(pill.Center.X - (tabs.Right + InHeader(sidebar.FavoriteButton).Left) / 2) <= 1,
-            "The reader header title, leading position pill and close button are misaligned.");
+        CheckHeaderGeometry(requireSingleRow: false);
+        ReaderMediaPreferences headerPreferences = page.ReaderMedia;
+        try
+        {
+            // Fable overlay spec §9.5 uses 831 DIP to exercise the single-row header.
+            page.ApplyReaderMediaPreferences(headerPreferences with { SidebarWidth = 831 });
+            await Flush();
+            CheckHeaderGeometry(requireSingleRow: true);
+        }
+        finally { page.ApplyReaderMediaPreferences(headerPreferences); }
+        await Flush();
         using (MediaNativeInput native = new(window))
         {
             await native.MoveAsync(sidebar.Frame);
@@ -70,7 +102,7 @@ internal static class ReaderMediaSidebarChecks
         }
         if (!sidebar.Details.IsVisible) Click(sidebar.InfoToggle);
         await Flush();
-        Button edit = sidebar.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ReaderMediaSidebarEditTags");
+        Button edit = Find<Button>("ReaderMediaSidebarEditTags");
         Click(edit);
         await Program.WaitUntilAsync(() => QuickTagPopover.Current?.Anchor == edit);
         QuickTagPopover.Current!.Close();

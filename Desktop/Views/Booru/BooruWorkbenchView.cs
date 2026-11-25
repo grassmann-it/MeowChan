@@ -85,7 +85,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TextBlock _title = new() { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap };
     private readonly HelpButton _searchHelp = new() { Name = SearchHelpName };
     private readonly TabControl _tabs = new() { Name = TabsName, Classes = { "booru-tabs" } };
-    private readonly TabItem _searchTab = new() { Tag = BooruSearchTabs.PrimaryId, Classes = { "booru-tab" } };
     private readonly TabItem _watchersTab = new() { Name = WatchersTabName };
     private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 136 };
     // Escape empties the typed query first (SearchBox); in an empty field it closes the window as before. No debounce: a search goes out only on "Search".
@@ -155,6 +154,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _ownsModel = ownsModel;
         Name = "BooruWorkbenchView";
+        AutomationProperties.SetAutomationId(_input, InputName);
+        AutomationProperties.SetAutomationId(_submit, SubmitName);
+        AutomationProperties.SetAutomationId(_cancel, CancelName);
+        AutomationProperties.SetAutomationId(_retry, RetryName);
+        AutomationProperties.SetAutomationId(_more, "BooruMore");
         InstallTagDraftStyles();
         // Every key of the workbench, on the Danbooru page and in its window, runs in the "booru" context (S3 P2-4): a default that a saved binding took
         // away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
@@ -312,9 +316,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildBody()
     {
-        _searchTab.Content = BuildSearchTab();
         _watchersTab.Content = BuildWatchersTab();
-        _tabs.ItemsSource = CreateTabItems();
+        InitializeSearchTabs(BuildSearchTab());
         return _tabs;
     }
 
@@ -326,6 +329,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildSearchTab()
     {
+        AutomationProperties.SetAutomationId(_input, InputName);
+        AutomationProperties.SetAutomationId(_submit, SubmitName);
         _mode.SelectionChanged += (_, _) =>
         {
             if (_applying || _mode.SelectedItem is not ComboBoxItem { Tag: BooruInputMode mode }) return;
@@ -390,9 +395,16 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Grid.SetIsSharedSizeScope(_results, true);
         _resultsArea.Children.Add(_results);
         _resultsArea.Children.Add(BuildBottomBar());
+        AutomationProperties.SetAutomationId(_resultScroll, _resultScroll.Name);
         _resultScroll.Content = _resultsArea;
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 8, Children = { tab, _resultScroll } };
+        Grid layout = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,*"),
+            RowSpacing = 8, Children = { tab, _resultScroll }
+        };
+        Grid.SetColumnSpan(tab, 2);
         Grid.SetRow(_resultScroll, 1);
+        InstallMediaSidebar(layout);
         return layout;
     }
 
@@ -451,7 +463,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.Post(() =>
     {
-        if (!_closed) Render(force: true);
+        if (_closed) return;
+        _more.ContextMenu?.Close();
+        foreach (SearchTabControl tab in _searchItems.Values) tab.CloseMenu();
+        Render(force: true);
     });
 
     /// <summary>A pause or cooldown that ran out only re-renders the controls; it never sends anything.</summary>
@@ -504,7 +519,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private void RenderChrome()
     {
         _title.Text = Texts.T("booru.ui.title");
-        _searchTab.Header = Texts.T("booru.ui.tab.search");
         if (_linkNoteScope is { } scope && !IsCurrentResultLink(scope))
         {
             _linkNoteScope = null;
@@ -635,6 +649,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             PruneBitmaps(view.Rows);
         }
         RenderTagDraft(view);
+        RenderMediaSidebar(view);
     }
 
     private void RenderWatchers(BooruWatcherListView view, bool force)
@@ -933,12 +948,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             Width = size, Height = size, VerticalAlignment = VerticalAlignment.Top, ClipToBounds = true,
             CornerRadius = new CornerRadius(5)
         };
+        AutomationProperties.SetAutomationId(frame, frame.Name);
         if (row.Preview == BooruPreviewState.Ready && PreviewBitmap(row, decodeWidth) is { } bitmap)
         {
             // D3: the thumbnail is flat on the card (no box, no edge of its own); only the placeholder has a quiet slot.
             // Decorative next to the card's title line; not a second "Post #n".
             // Never enlarged beyond its own pixels: a small thumbnail stays small (and sharp) in a big frame.
             Image image = new() { Source = bitmap, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly };
+            AutomationProperties.SetAutomationId(image, "BooruPreview:" + row.Post.PostId);
             AutomationProperties.SetAccessibilityView(image, AccessibilityView.Raw);
             frame.Child = image;
         }
@@ -1192,11 +1209,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _closed = true;
         DismissResultViewer();
         _gallery.Dispose();
+        DisposeMediaSidebar();
         Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;
         _keyContextHost.Dispose();
         DisposeResultTagMenus();
+        foreach (SearchTabControl tab in _searchItems.Values) tab.Dispose();
+        _model.Search.EnsureSearchTab = null;
         ChromeChanged = null;
         ReviewCurrentBuild = null;
         ReviewUnavailableReason = null;

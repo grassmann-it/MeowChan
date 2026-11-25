@@ -7,7 +7,7 @@ using MeowChan.Desktop;
 namespace MeowChan;
 
 /// <summary>
-/// Network and disk statistics in the tray, text only (tooltip and three menu lines). The logic is <see cref="TrayStatsPresenter"/>;
+/// Network and disk statistics in the tray tooltip and menu. The logic is <see cref="TrayStatsPresenter"/>;
 /// this file connects it to the window. Nothing here owns a timer.
 /// </summary>
 public partial class MainWindow
@@ -29,7 +29,10 @@ public partial class MainWindow
             Downloads: TrayDownloadState,
             SetTooltip: tip => { if (_trayIcon != null && _trayIcon.ToolTipText != tip) _trayIcon.ToolTipText = tip; },
             OpenStatistics: () => { RestoreWindow(); ShowStatisticsFromTray(); },
-            Post: action => Dispatcher.UIThread.Post(action)));
+            Post: action => Dispatcher.UIThread.Post(action)),
+            // DBusMenu resets the root layout on property changes and provides no menu lifecycle events.
+            // Windows keeps the existing three-line live mode through header bindings, without menu lifecycle events.
+            useStatisticsShortcut: OperatingSystem.IsLinux());
     }
 
     private void DisposeTrayStats()
