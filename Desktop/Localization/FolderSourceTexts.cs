@@ -36,7 +36,7 @@ internal static class FolderSourceTexts
         ("folderSource.row.rename", "Rename…", "Umbenennen…"),
         ("folderSource.row.remove", "Remove source…", "Ordnerquelle entfernen…"),
         ("folderSource.remove.ask", "Remove “{0}” from the media folder list? The folder and its files stay on disk. Their tags, favorites and ratings are kept and shown under unavailable files.",
-            "„{0}“ aus der Liste der Medienordner nehmen? Der Ordner und seine Dateien bleiben auf dem Datenträger. Ihre Tags, Favoriten und Bewertungen bleiben gespeichert und werden unter nicht verfügbaren Dateien angezeigt."),
+            "„{0}“ aus der Liste der Medienordner nehmen? Der Ordner und seine Dateien bleiben auf dem Datenträger. Tags, Favoriten und Bewertungen dieser Dateien bleiben gespeichert und werden unter nicht verfügbaren Dateien angezeigt."),
         ("folderSource.remove.confirm", "Remove folder source", "Ordnerquelle entfernen"),
         ("folderSource.remove.keep", "Keep", "Behalten"),
 
