@@ -326,6 +326,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildSearchTab()
     {
+        AutomationProperties.SetAutomationId(_input, InputName);
+        AutomationProperties.SetAutomationId(_submit, SubmitName);
         _mode.SelectionChanged += (_, _) =>
         {
             if (_applying || _mode.SelectedItem is not ComboBoxItem { Tag: BooruInputMode mode }) return;
@@ -390,9 +392,16 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Grid.SetIsSharedSizeScope(_results, true);
         _resultsArea.Children.Add(_results);
         _resultsArea.Children.Add(BuildBottomBar());
+        AutomationProperties.SetAutomationId(_resultScroll, _resultScroll.Name);
         _resultScroll.Content = _resultsArea;
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 8, Children = { tab, _resultScroll } };
+        Grid layout = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,*"),
+            RowSpacing = 8, Children = { tab, _resultScroll }
+        };
+        Grid.SetColumnSpan(tab, 2);
         Grid.SetRow(_resultScroll, 1);
+        InstallMediaSidebar(layout);
         return layout;
     }
 
@@ -635,6 +644,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             PruneBitmaps(view.Rows);
         }
         RenderTagDraft(view);
+        RenderMediaSidebar(view);
     }
 
     private void RenderWatchers(BooruWatcherListView view, bool force)
@@ -933,12 +943,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             Width = size, Height = size, VerticalAlignment = VerticalAlignment.Top, ClipToBounds = true,
             CornerRadius = new CornerRadius(5)
         };
+        AutomationProperties.SetAutomationId(frame, frame.Name);
         if (row.Preview == BooruPreviewState.Ready && PreviewBitmap(row, decodeWidth) is { } bitmap)
         {
             // D3: the thumbnail is flat on the card (no box, no edge of its own); only the placeholder has a quiet slot.
             // Decorative next to the card's title line; not a second "Post #n".
             // Never enlarged beyond its own pixels: a small thumbnail stays small (and sharp) in a big frame.
             Image image = new() { Source = bitmap, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly };
+            AutomationProperties.SetAutomationId(image, "BooruPreview:" + row.Post.PostId);
             AutomationProperties.SetAccessibilityView(image, AccessibilityView.Raw);
             frame.Child = image;
         }
@@ -1192,6 +1204,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _closed = true;
         DismissResultViewer();
         _gallery.Dispose();
+        DisposeMediaSidebar();
         Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;

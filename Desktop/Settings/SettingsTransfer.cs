@@ -286,6 +286,7 @@ public static class SettingsTransfer
             ArchiveMediaTileSize = source.ArchiveMediaTileSize,
             TaggingPageView = source.TaggingPageView,
             BooruPageView = source.BooruPageView,
+            BooruMediaSidebar = source.BooruMediaSidebar,
             BooruTileSize = source.BooruTileSize,
             TaggingPreviewColumn = source.TaggingPreviewColumn,
             TaggingStampBlock = source.TaggingStampBlock,
