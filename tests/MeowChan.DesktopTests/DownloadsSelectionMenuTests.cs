@@ -21,6 +21,7 @@ using MeowChan.Diagnostics;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using Semi.Avalonia.DataGrid;
+using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using static MeowChan.DesktopTests.DownloadWindowFixture;
 
 namespace MeowChan.DesktopTests;
