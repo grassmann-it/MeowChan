@@ -2,9 +2,9 @@
 """Linux CI: --report PATH -- COMMAND [ARG ...].
 
 Requires dbus-daemon, pactl and either a private PulseAudio binary or the
-pipewire/pipewire-pulse pair. Backend selection is explicit and never uses
-WirePlumber or a user/system service. Runs real process-owned software audio,
-NOT a mocked availability flag. Only a muted null sink and its monitor are
+pipewire/pipewire-pulse pair with pw-dump and pw-link. Backend selection is
+explicit and never uses WirePlumber or a user/system service. Runs real
+process-owned software audio, NOT a mocked availability flag. Only a muted null sink and its monitor are
 allowed. No inherited session, display or audio environment is used. The child
 may start its own GUI bus/Xvfb; its absolute Pulse socket/cookie remain usable
 across that bus change.
@@ -30,6 +30,7 @@ PULSE_MODULES = {'module-native-protocol-unix', 'module-null-sink'}
 PIPEWIRE_MODULES = {
     'libpipewire-module-access',
     'libpipewire-module-adapter',
+    'libpipewire-module-client-node',
     'libpipewire-module-link-factory',
     'libpipewire-module-metadata',
     'libpipewire-module-protocol-native',
@@ -118,6 +119,8 @@ context.spa-libs = {
 context.modules = [
     { name = libpipewire-module-protocol-native }
     { name = libpipewire-module-access args = { access.legacy = true } }
+    # pipewire-pulse exports playback streams into this core.
+    { name = libpipewire-module-client-node }
     { name = libpipewire-module-spa-node-factory }
     { name = libpipewire-module-adapter }
     { name = libpipewire-module-metadata }
@@ -180,6 +183,13 @@ pulse.properties = {
     pulse.default.tlength = 96000/48000
 }
 pulse.cmd = [ ]
+stream.rules = [
+    { matches = [ { media.class = "Stream/Output/Audio" } ]
+      actions = { update-props = {
+        adapter.auto-port-config = { mode = dsp position = preserve }
+      } }
+    }
+]
 """
         (base/'pipewire-pulse.conf').write_text(
             pulse_config.replace('__PULSE_SOCKET__', str(base/'runtime/pulse/native')))
@@ -242,6 +252,46 @@ def pulse_proof(env):
             'modules': sorted(PULSE_MODULES)}
 
 
+def route_pipewire_playback(env, graph, sink_id, stream_ids):
+    # There is no session manager to connect the Pulse stream adapters.
+    ports = {obj['id']: obj['info']['props'] for obj in graph
+             if obj['type'] == 'PipeWire:Interface:Port'}
+    sink_ports = {props['audio.channel']: port_id for port_id, props in ports.items()
+                  if props.get('node.id') == sink_id and props.get('port.direction') == 'in'}
+    pending = set()
+    for port_id, props in ports.items():
+        if props.get('node.id') not in stream_ids or props.get('port.direction') != 'out':
+            continue
+        channel = props.get('audio.channel')
+        if channel == 'MONO':
+            pending.update((port_id, target) for target in sink_ports.values())
+        elif channel in sink_ports:
+            pending.add((port_id, sink_ports[channel]))
+
+    active = 0
+    for obj in graph:
+        if obj['type'] != 'PipeWire:Interface:Link':
+            continue
+        link = obj['info']
+        pair = (link['output-port-id'], link['input-port-id'])
+        if pair not in pending or link['state'] == 'error':
+            raise RuntimeError('unexpected PipeWire playback link')
+        pending.remove(pair)
+        active += link['state'] == 'active'
+
+    for output, target in sorted(pending):
+        if run(env, ['pw-link', str(output), str(target)]).returncode == 0:
+            continue
+        # A seek or media change can remove the stream between dump and link.
+        # Compare serials so a newly allocated port with the old ID can retry.
+        serial = ports[output]['object.serial']
+        fresh_graph = json.loads(checked(env, ['pw-dump', '-N']))
+        if any(obj['type'] == 'PipeWire:Interface:Port'
+               and obj['info']['props'].get('object.serial') == serial for obj in fresh_graph):
+            raise RuntimeError('could not link playback to the private null sink')
+    return active
+
+
 def pipewire_proof(env):
     # pactl gives the Pulse compatibility view; pw-dump independently proves
     # that the backing graph is our exact process-owned software graph.
@@ -266,22 +316,31 @@ def pipewire_proof(env):
     }
     if module_names != PIPEWIRE_MODULES:
         raise RuntimeError('unexpected PipeWire module set')
-    nodes = [obj.get('info', {}).get('props', {}) for obj in graph
-             if obj.get('type') == 'PipeWire:Interface:Node']
-    if {node.get('node.name') for node in nodes} != {'Dummy-Driver', SINK}:
+    if any(obj['type'] == 'PipeWire:Interface:Device' for obj in graph):
+        raise RuntimeError('PipeWire graph exposes a device')
+    nodes = [(obj.get('id'), obj['info']['props']) for obj in graph
+             if obj['type'] == 'PipeWire:Interface:Node']
+    # Verify the two permanent nodes separately from ephemeral Pulse playback.
+    streams = {node_id for node_id, props in nodes
+               if node_id is not None and props.get('client.api') == 'pipewire-pulse'
+               and props.get('media.class') == 'Stream/Output/Audio'
+               and props.get('target.object') in (None, SINK)}
+    permanent = [props for node_id, props in nodes if node_id not in streams]
+    if len(permanent) != 2 or {node.get('node.name') for node in permanent} != {'Dummy-Driver', SINK}:
         raise RuntimeError('unexpected PipeWire node set')
-    null_nodes = [node for node in nodes if node.get('node.name') == SINK]
-    if len(null_nodes) != 1 or null_nodes[0].get('factory.name') != 'support.null-audio-sink':
+    sink = next(node for node in permanent if node['node.name'] == SINK)
+    if sink.get('factory.name') != 'support.null-audio-sink':
         raise RuntimeError('sink is not owned by the private null factory')
-    if null_nodes[0].get('media.class') != 'Audio/Sink':
+    if sink.get('media.class') != 'Audio/Sink':
         raise RuntimeError('private node is not an audio sink')
     forbidden_prefixes = ('api.', 'device.', 'object.path', 'sysfs.')
-    if any(any(key.startswith(prefix) for prefix in forbidden_prefixes)
-           for node in nodes for key in node):
+    if any(key.startswith(forbidden_prefixes) for _, props in nodes for key in props):
         raise RuntimeError('PipeWire graph exposes a device-backed node')
+    active = route_pipewire_playback(native_env, graph, sink.get('object.id'), streams)
     return {'sink_count': 1, 'sink': SINK, 'muted': True, 'default_sink': default,
             'source_count': 1, 'hardware_cards': 0,
-            'modules': sorted(PIPEWIRE_MODULES), 'graph_nodes': 2}
+            'modules': sorted(PIPEWIRE_MODULES), 'graph_nodes': len(nodes),
+            'active_playback_links': active}
 
 
 def proof(env, backend=BACKEND_PULSEAUDIO):
@@ -407,14 +466,20 @@ def execute(command, report_path, backend=BACKEND_PULSEAUDIO):
                 report['status'] = 'ready'
                 save()
                 child = spawn('child', command, env)
-                next_proof = time.monotonic()+.5
+                # Link new PipeWire streams promptly so VLC can finish opening audio.
+                proof_interval = .05 if backend == BACKEND_PIPEWIRE else .5
+                peak_links = 0
+                next_proof = time.monotonic()+proof_interval
                 while child.poll() is None:
                     alive()
                     if time.monotonic() >= next_proof:
-                        proof(env, backend)
+                        observed = proof(env, backend)
+                        peak_links = max(peak_links, observed.get('active_playback_links', 0))
                         report['readiness']['during_checks'] += 1
-                        next_proof = time.monotonic()+.5
-                    time.sleep(.1)
+                        next_proof = time.monotonic()+proof_interval
+                    time.sleep(min(.1, proof_interval))
+                if backend == BACKEND_PIPEWIRE:
+                    report['readiness']['peak_playback_links'] = peak_links
                 code = child.returncode if child.returncode >= 0 else 128-child.returncode
                 report['child_exit_code'] = code
                 alive()
@@ -449,7 +514,10 @@ def main(argv=None):
     args = cli(sys.argv[1:] if argv is None else argv)
     if sys.platform != 'linux':
         raise SystemExit('private null audio requires Linux')
-    return execute(args.command, args.report.resolve(), detect_backend())
+    backend = detect_backend()
+    if backend == BACKEND_PIPEWIRE and not shutil.which('pw-link'):
+        raise RuntimeError('private PipeWire audio requires pw-link')
+    return execute(args.command, args.report.resolve(), backend)
 
 
 if __name__ == '__main__':
