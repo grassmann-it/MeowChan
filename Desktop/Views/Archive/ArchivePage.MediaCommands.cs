@@ -140,11 +140,11 @@ public partial class ArchivePage
 
     private void OnArchiveMediaControlPress(object? sender, PointerPressedEventArgs e)
     {
-        if (e.Source is not Control source || !ContextClick.IsMacControlPress(e, this)) return;
+        if (sender is not Control surface || e.Source is not Control source || !ContextClick.IsMacControlPress(e, surface)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
             || SidebarStripContext(path) != null)
-            ContextClick.RequestOnMacControlPress(e, this);
+            ContextClick.RequestOnMacControlPress(e, surface);
     }
 
     // The rating caption of a tile (dead-affordance audit 15.11.) opens "Rate and tag" on that tile.

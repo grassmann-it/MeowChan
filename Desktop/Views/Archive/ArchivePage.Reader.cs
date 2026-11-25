@@ -395,6 +395,7 @@ public partial class ArchivePage
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         ReaderHostingStep("wire.01");
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        pane.AddHandler(PointerPressedEvent, OnArchiveMediaControlPress, RoutingStrategies.Tunnel);
         ReaderHostingStep("wire.02");
         pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
         ReaderHostingStep("wire.03");
@@ -417,6 +418,7 @@ public partial class ArchivePage
         _readerKeyContext = null;
         pane.RemoveHandler(KeyDownEvent, OnReaderKeyDown);
         pane.RemoveHandler(ContextRequestedEvent, OnArchiveMediaContextRequested);
+        pane.RemoveHandler(PointerPressedEvent, OnArchiveMediaControlPress);
         pane.RemoveHandler(KeyDownEvent, OnArchiveMediaContextKey);
         pane.RemoveHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
     }
