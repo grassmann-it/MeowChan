@@ -3,10 +3,13 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
@@ -34,7 +37,6 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderFocusedMediaScalePercent), "settings.reader.focusedScale", nameof(SettingsEditor.ReaderFocusedMediaScalePercentMinimum), nameof(SettingsEditor.ReaderFocusedMediaScalePercentMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderHoverEnlargeSize), "settings.reader.hoverSize", nameof(SettingsEditor.ReaderHoverEnlargeSizeMinimum), nameof(SettingsEditor.ReaderHoverEnlargeSizeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderHoverEnlargeDelayMs), "settings.reader.hoverDelay", nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMinimum), nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMaximum), "SettingsReadingMediaPage"),
-        (nameof(Config.MediaSidebarInfoMinimumFree), "settings.reader.mediaSidebarInfoMinimumFree", nameof(SettingsEditor.MediaSidebarInfoMinimumFreeMinimum), nameof(SettingsEditor.MediaSidebarInfoMinimumFreeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaSidebarWidth), "settings.reader.mediaSidebarWidth", nameof(SettingsEditor.ReaderMediaSidebarWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaSidebarMinimumWidth), "settings.reader.mediaSidebarMinimumWidth", nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderInlineVideoMaxPlayers), "settings.reader.inlineVideoPlayers", nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMinimum), nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMaximum), "SettingsReadingMediaPage"),
@@ -404,6 +406,37 @@ public sealed class ReaderSettingsEditorTests : IDisposable
     }
 
     [Fact]
+    public void RetiredMinimumFreeHeightIsAbsentFromSettingsAndReaderQuickOptions() => BooruComponentDispatcher.Run(() =>
+    {
+        // Fable #3: remove the free-height control from both surfaces, keeping the facts setting.
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Config config = new() { ReaderMediaSidebar = true };
+        using SettingsEditor editor = new(config, applySettings: _ => Task.CompletedTask);
+        Assert.Contains(editor.GetLogicalDescendants().OfType<Control>(), control => AutomationId(control) == "MediaSidebarInfoInput");
+        Assert.DoesNotContain(editor.GetLogicalDescendants().OfType<Control>(), control => AutomationId(control) == "MediaSidebarInfoMinimumFreeInput");
+
+        ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
+        page.QuickSettingsHost = new QuickSettingsHost { CurrentConfig = () => config, SaveAsync = _ => Task.CompletedTask };
+        Window window = new() { Width = 1440, Height = 840, Content = page };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            page.OpenReaderQuickSettings();
+            QuickSettingsSurface surface = Assert.IsType<QuickSettingsPopover>(page.ReaderQuickSettings).Surface;
+            Assert.Contains(surface.Editors, row => AutomationId(row.Editor) == "ReaderQuickSettingsMediaSidebarInfo");
+            Assert.DoesNotContain(surface.Editors, row => AutomationId(row.Editor) == "ReaderQuickSettingsMediaSidebarInfoMinimumFree");
+        }
+        finally
+        {
+            page.EndLifetime();
+            window.Close();
+        }
+
+        static string? AutomationId(Control control) => ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId();
+    });
+
+    [Fact]
     public void SavingTheSplitterWidthKeepsUncommittedInfoSettings() => ReaderMediaSidebarLayoutTests.OnDispatcher(() =>
     {
         SettingsEditor editor = CreateValidDraft();
@@ -412,9 +445,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         saved.ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways;
         saved.ReaderMediaSidebarMinimumWidth = Config.ReaderMediaSidebarMinimumWidthMinimum;
         saved.ReaderMediaSidebarWidth = 320;
-        editor.MediaSidebarInfoMinimumFree = 200;
-        GetInput(editor, nameof(Config.MediaSidebarInfoMinimumFree)).Value = 200;
-        editor.SelectedMediaSidebarInfo = new SettingsChoice("Always", "Always");
+        editor.SelectedMediaSidebarInfo = new SettingsChoice("Off", "Off");
         ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
         try
         {
@@ -436,8 +467,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
             splitter.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Right });
             Assert.Equal(380, saved.ReaderMediaSidebarWidth);
             Assert.Equal(380m, editor.ReaderMediaSidebarWidth);
-            Assert.Equal(200m, GetInput(editor, nameof(Config.MediaSidebarInfoMinimumFree)).Value);
-            Assert.Equal("Always", editor.SelectedMediaSidebarInfo!.Value);
+            Assert.Equal("Off", editor.SelectedMediaSidebarInfo!.Value);
         }
         finally { page.EndLifetime(); }
     });

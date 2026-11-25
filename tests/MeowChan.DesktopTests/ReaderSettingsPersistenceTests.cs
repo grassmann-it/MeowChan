@@ -31,7 +31,6 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderFocusedPostTopPaddingPercent), 8, 0, 25 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeSize), 640, 240, 1600 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeDelayMs), 350, 100, 2000 };
-        yield return new object[] { nameof(Config.MediaSidebarInfoMinimumFree), 104, 64, 480 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarWidth), 480, 240, 1200 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarMinimumWidth), 1280, 800, 3840 };
         yield return new object[] { nameof(Config.ReaderInlineVideoMaxPlayers), 2, 1, 4 };
@@ -56,7 +55,7 @@ public sealed class ReaderSettingsPersistenceTests
         foreach (int value in new[] { int.MinValue, min - 1, max + 1, int.MaxValue })
         {
             Config config = new(); property.SetValue(config, value);
-            if (name is nameof(Config.MediaSidebarInfoMinimumFree) or nameof(Config.SidebarPreviewMaximumPixels))
+            if (name is nameof(Config.SidebarPreviewMaximumPixels))
                 Assert.Equal(Math.Clamp(value, min, max), property.GetValue(config));
             else
             {
@@ -66,6 +65,26 @@ public sealed class ReaderSettingsPersistenceTests
             Config loaded = JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(config))!;
             Assert.Equal(Math.Clamp(value, min, max), property.GetValue(loaded));
         }
+    }
+
+    [Fact]
+    public void ObsoleteMinimumFreeHeightIsIgnoredWhenLoadingAndExportingAProfile()
+    {
+        // Fable #3: the old value is ignored, while the profile and its other settings still load.
+        using TempDirectory directory = new();
+        File.WriteAllText(Path.Combine(directory.Path, "settings.json"),
+            """{"MediaSidebarInfoMinimumFree":200,"ReaderMediaSidebarWidth":700,"MediaSidebarInfoMaximumShare":57}""");
+        Config config = Config.LoadConfig(directory.Path);
+        Assert.Null(config.LoadWarning);
+        Assert.Equal(700, config.ReaderMediaSidebarWidth);
+        Assert.Equal(57, config.MediaSidebarInfoMaximumShare);
+
+        var exported = SettingsTransfer.Export(config, "1.1.2");
+        Assert.False(exported.ContainsKey("MediaSidebarInfoMinimumFree"));
+        Assert.Equal(700, exported[nameof(Config.ReaderMediaSidebarWidth)]!.GetValue<int>());
+        config.SaveConfig(directory.Path);
+        using JsonDocument saved = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory.Path, "settings.json")));
+        Assert.False(saved.RootElement.TryGetProperty("MediaSidebarInfoMinimumFree", out _));
     }
 
     [Fact]

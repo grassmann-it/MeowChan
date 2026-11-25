@@ -30,7 +30,6 @@ internal sealed class ReaderDisplayPreferences
     internal const int HoverEnlargeDelayMaximum = 2000;
     // The media sidebar of the large reader (R8): its width (also dragged with the splitter) and the reader width below which it
     // gives way to the posts. In device-independent pixels.
-    internal const int MediaSidebarInfoMinimumFreeDefault = 104, MediaSidebarInfoMinimumFreeMinimum = 64, MediaSidebarInfoMinimumFreeMaximum = 480;
     internal const int MediaSidebarInfoMaximumShareDefault = 40, MediaSidebarInfoMaximumShareMinimum = 20, MediaSidebarInfoMaximumShareMaximum = 60;
     internal const int MediaSidebarWidthDefault = 480;
     internal const int MediaSidebarWidthMinimum = 240;
@@ -157,7 +156,6 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
     internal bool MediaSidebarPinned { get; init; }
     internal bool MediaSidebarFacts { get; init; } = true;
     internal string MediaSidebarInfo { get; init; } = "Auto";
-    internal int MediaSidebarInfoMinimumFree { get; init; } = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeDefault;
     internal int MediaSidebarInfoMaximumShare { get; init; } = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareDefault;
     internal bool SidebarRight { get; init; }
     internal int SidebarWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarWidthDefault;
@@ -185,7 +183,6 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         MediaSidebarFacts = config.MediaSidebarFacts,
         MediaSidebarPinned = config.MediaSidebarPinned,
         MediaSidebarInfo = config.MediaSidebarInfo,
-        MediaSidebarInfoMinimumFree = config.MediaSidebarInfoMinimumFree,
         MediaSidebarInfoMaximumShare = config.MediaSidebarInfoMaximumShare,
         SidebarWidth = config.ReaderMediaSidebarWidth,
         SidebarMinimumReaderWidth = config.ReaderMediaSidebarMinimumWidth,
@@ -204,7 +201,6 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         HoverSize = Math.Clamp(HoverSize, ReaderDisplayPreferences.HoverEnlargeSizeMinimum, ReaderDisplayPreferences.HoverEnlargeSizeMaximum),
         HoverDelayMs = Math.Clamp(HoverDelayMs, ReaderDisplayPreferences.HoverEnlargeDelayMinimum, ReaderDisplayPreferences.HoverEnlargeDelayMaximum),
         MediaSidebarInfo = Config.NormalizeSidebarInfo(MediaSidebarInfo),
-        MediaSidebarInfoMinimumFree = Math.Clamp(MediaSidebarInfoMinimumFree, Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum),
         MediaSidebarInfoMaximumShare = Math.Clamp(MediaSidebarInfoMaximumShare, Config.MediaSidebarInfoMaximumShareMinimum, Config.MediaSidebarInfoMaximumShareMaximum),
         SidebarWidth = Math.Clamp(SidebarWidth, ReaderDisplayPreferences.MediaSidebarWidthMinimum, ReaderDisplayPreferences.MediaSidebarWidthMaximum),
         SidebarMinimumReaderWidth = Math.Clamp(SidebarMinimumReaderWidth, ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum,

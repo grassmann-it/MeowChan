@@ -226,7 +226,6 @@ public static class SettingsTransfer
             MediaSidebarFacts = source.MediaSidebarFacts,
             MediaSidebarPinned = source.MediaSidebarPinned,
             MediaSidebarInfo = source.MediaSidebarInfo,
-            MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree,
             MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare,
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide,
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth,

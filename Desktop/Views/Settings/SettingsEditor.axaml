@@ -553,18 +553,6 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <TextBlock x:Name="MediaSidebarInfoMinimumFreeFieldLabel" Text="{Binding MediaSidebarInfoMinimumFreeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding MediaSidebarInfoMinimumFreeHint}" Classes="workspace-help" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <desktop:SettingsNumberInput x:Name="MediaSidebarInfoMinimumFreeInput" Value="{Binding MediaSidebarInfoMinimumFree, Mode=TwoWay}" Minimum="{Binding MediaSidebarInfoMinimumFreeMinimum}" Maximum="{Binding MediaSidebarInfoMinimumFreeMaximum}" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoMinimumFreeFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoMinimumFreeLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoMinimumFreeHelp}" />
-                                        <TextBlock x:Name="MediaSidebarInfoMinimumFreeInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                            <Border Classes="settings-divider">
-                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <TextBlock x:Name="ReaderMediaSidebarMinimumWidthFieldLabel" Text="{Binding ReaderMediaSidebarMinimumWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderMediaSidebarMinimumWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
