@@ -321,10 +321,12 @@ public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
             var gesture = new KeyGesture(Key.F8);
             Press(fixture, overflow, gesture);
             var menu = Assert.IsType<ContextMenu>(columns.ContextMenu);
-            Assert.True(menu.IsOpen, "The shortcut opens the nested columns menu.");
+            Assert.True(menu.IsOpen, "The shortcut opens the columns menu.");
+            Assert.False(more.IsChecked);
+            // The shortcut uses the visible More anchor while Columns stays out of the focus order.
+            Assert.Same(more, menu.PlacementTarget);
             Assert.True(menu.IsKeyboardFocusWithin,
-                $"The nested columns menu receives focus. Focused: {overflow.FocusManager?.GetFocusedElement()}");
-            Assert.Same(columns, menu.PlacementTarget);
+                $"The columns menu receives focus. Focused: {fixture.Window.FocusManager?.GetFocusedElement()}");
             Press(fixture, TopLevel.GetTopLevel(menu)!, gesture);
             Assert.False(menu.IsOpen);
         }

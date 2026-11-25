@@ -25,9 +25,9 @@ public partial class MainWindow
         CommandBindings.Apply(DownloadsColumnsButton, "table.choose-columns", iconWithLabel: true);
     }
 
-    private void ToggleDownloadColumns() => ToggleDownloadColumns(focusMenu: false);
+    private void ToggleDownloadColumns() => ToggleDownloadColumns(anchor: null);
 
-    private void ToggleDownloadColumns(bool focusMenu)
+    private void ToggleDownloadColumns(Control? anchor)
     {
         var button = DownloadsColumnsButton;
         if (PopupToggle.ConsumeActivation(button))
@@ -39,7 +39,7 @@ public partial class MainWindow
         ContextMenu menu = BuildDownloadColumnsMenu(boards ? "BoardsDataGrid" : "ThreadsDataGrid");
         // Barebones and Simple keep "Columns" under "More": with that list closed the button is not on screen, and the shortcut
         // opens the menu at the visible "More" of the same bar (or at the table when the bar shows no "More").
-        Control anchor = DownloadColumnsAnchor(button, boards);
+        anchor ??= DownloadColumnsAnchor(button, boards);
         if (!ReferenceEquals(anchor, button))
         {
             menu.PlacementTarget = anchor;
@@ -56,15 +56,6 @@ public partial class MainWindow
             button.IsChecked = false;
             ReturnFocusFromDownloadColumns(anchor);
         };
-        if (focusMenu)
-        {
-            menu.Opened += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                if (!menu.IsOpen || menu.IsKeyboardFocusWithin) return;
-                menu.Items.OfType<MenuItem>().FirstOrDefault(item => item.IsEffectivelyEnabled && item.Focusable)
-                    ?.Focus(NavigationMethod.Tab);
-            }, Avalonia.Threading.DispatcherPriority.Loaded);
-        }
         menu.AddHandler(InputElement.KeyDownEvent, (_, key) =>
         {
             if (ShortcutService.IsCapturing) return;
@@ -125,7 +116,20 @@ public partial class MainWindow
         if (ShortcutService.IsCapturing || !CanFocusDownloadSearch || !DownloadsColumnsButton.IsVisible
             || !CanExecuteShellPowerCommand(e.Source, e.Key) || !DownloadsMatches(e, "table.choose-columns")) return;
         e.Handled = true;
-        ToggleDownloadColumns(focusMenu: true);
+        ToggleDownloadColumnsFromShortcut();
+    }
+
+    private void ToggleDownloadColumnsFromShortcut()
+    {
+        if (WorkspaceListActions.More is { IsChecked: true } more
+            && WorkspaceListActions.OverflowHost?.Children.Contains(DownloadsColumnsButton) == true)
+        {
+            // An independent popup rooted in More's popup cannot take keyboard focus on every platform.
+            more.IsChecked = false;
+            ToggleDownloadColumns(more);
+            return;
+        }
+        ToggleDownloadColumns();
     }
 
     /// <summary>The column menu of a downloads table: one switch per offered column (the last visible one cannot be hidden), then the reset.</summary>
