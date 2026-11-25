@@ -105,36 +105,46 @@ public sealed class TaggingPageShellTests
     });
 
     [Fact]
-    public void SavingReaderQuickSettingsUpdatesBothExistingSidebarControllers() => WithTaggingPage(true, async (window, session, key) =>
+    public void SavingReaderQuickSettingsUpdatesBothExistingSidebarControllers()
     {
-        TaggingPage tagging = Assert.IsType<TaggingPage>(window.TaggingPage);
-        ShowPage("MediaNavigationButton");
-        MediaPage media = Assert.IsType<MediaPage>(window.MediaPageForTests);
-        foreach (ReaderInlineVideoController controller in new[] { tagging.PanelVideoController, media.PanelVideoController })
-            Assert.Equal((true, true, false), SidebarOptions(controller));
+        string waitingFor = "the Tagging queue in the shell";
+        WithTaggingPage(true, async (window, session, key) =>
+        {
+            TaggingPage tagging = Assert.IsType<TaggingPage>(window.TaggingPage);
+            waitingFor = "the Media page to open";
+            ShowPage("MediaNavigationButton");
+            MediaPage media = Assert.IsType<MediaPage>(window.MediaPageForTests);
+            foreach (ReaderInlineVideoController controller in new[] { tagging.PanelVideoController, media.PanelVideoController })
+                Assert.Equal((true, true, false), SidebarOptions(controller));
 
-        ShowPage("ArchiveNavigationButton");
-        ArchivePage reader = window.ArchivePage;
-        await reader.LoadThreadAsync(key.Thread);
-        window.UpdateLayout();
-        reader.OpenReaderQuickSettings();
-        Assert.True(reader.IsQuickSettingsOpen);
-        QuickSettingsSurface surface = reader.ReaderQuickSettings!.Surface;
-        Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoAutoplay).IsChecked = false;
-        Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoLoop).IsChecked = false;
-        Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoStartMuted).IsChecked = true;
-        Find<Button>(surface, "ReaderQuickSettingsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        await reader.FlushQuickSettingsAsync();
+            waitingFor = "the archive reader to load the thread";
+            ShowPage("ArchiveNavigationButton");
+            ArchivePage reader = window.ArchivePage;
+            await reader.LoadThreadAsync(key.Thread);
+            window.UpdateLayout();
+            waitingFor = "the Reader quick settings popover";
+            reader.OpenReaderQuickSettings();
+            Assert.True(reader.IsQuickSettingsOpen);
+            QuickSettingsSurface surface = reader.ReaderQuickSettings!.Surface;
+            Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoAutoplay).IsChecked = false;
+            Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoLoop).IsChecked = false;
+            Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoStartMuted).IsChecked = true;
+            Find<Button>(surface, "ReaderQuickSettingsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            waitingFor = "the Reader quick settings save";
+            await reader.FlushQuickSettingsAsync();
 
-        Assert.Equal((false, false, true), (session.Config.ReaderSidebarVideoAutoplay, session.Config.ReaderSidebarVideoLoop,
-            session.Config.ReaderSidebarVideoStartMuted));
-        Assert.Equal((false, false, true), SidebarOptions(tagging.PanelVideoController));
-        Assert.Equal((false, false, true), SidebarOptions(media.PanelVideoController));
+            Assert.Equal((false, false, true), (session.Config.ReaderSidebarVideoAutoplay, session.Config.ReaderSidebarVideoLoop,
+                session.Config.ReaderSidebarVideoStartMuted));
+            Assert.Equal((false, false, true), SidebarOptions(tagging.PanelVideoController));
+            Assert.Equal((false, false, true), SidebarOptions(media.PanelVideoController));
 
-        void ShowPage(string id) => Find<Button>(window, id).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        static (bool Autoplay, bool Loop, bool Muted) SidebarOptions(ReaderInlineVideoController controller) =>
-            (controller.Options.SidebarAutoplay, controller.Options.SidebarLoop, controller.Options.SidebarStartMuted);
-    });
+            waitingFor = "the shell to shut down after the quick settings save";
+
+            void ShowPage(string id) => Find<Button>(window, id).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            static (bool Autoplay, bool Loop, bool Muted) SidebarOptions(ReaderInlineVideoController controller) =>
+                (controller.Options.SidebarAutoplay, controller.Options.SidebarLoop, controller.Options.SidebarStartMuted);
+        }, () => waitingFor);
+    }
 
     private sealed class HeldPlayer : IReaderInlineVideoPlayer
     {
@@ -152,7 +162,8 @@ public sealed class TaggingPageShellTests
         }
     }
 
-    private static void WithTaggingPage(bool panelEnabled, Func<MainWindow, DesktopSessionHost, FavoriteAssetKey, Task> test) =>
+    private static void WithTaggingPage(bool panelEnabled, Func<MainWindow, DesktopSessionHost, FavoriteAssetKey, Task> test,
+        Func<string>? waitingFor = null) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -192,7 +203,7 @@ public sealed class TaggingPageShellTests
                 FavoriteAssetKey key = FavoriteAssetKey.From(item.Thread, media.Asset);
                 await test(window, session, key);
             }
-        });
+        }, waitingFor);
 
     private static T Find<T>(Visual root, string id) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control =>
