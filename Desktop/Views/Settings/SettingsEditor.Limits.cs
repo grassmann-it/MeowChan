@@ -35,7 +35,7 @@ public partial class SettingsEditor
         SettingsNumberInput input = new() { Name = name + "Input", Minimum = minimum, Maximum = maximum };
         input.PropertyChanged += (_, change) =>
         {
-            if (_isClosed || change.Property != NumericUpDown.TextProperty) return;
+            if (_isClosed || (change.Property != NumericUpDown.TextProperty && change.Property != NumericUpDown.ValueProperty)) return;
             _draftRevision++;
             RetireSavedStatus();
             _destinationWait?.Cancel();
