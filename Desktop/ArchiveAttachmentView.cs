@@ -70,7 +70,9 @@ public sealed class ArchiveAttachmentView : UserControl
     }
 
     private readonly MediaFramePanel _slot = new();
-    private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false };
+    private readonly LetterboxPanel _preview = new() { MarksOnSlot = true };
+    // The frame's aspect fixes the picture geometry even when a higher-resolution decode has a different pixel rounding.
+    private readonly Image _image = new() { Stretch = Stretch.Fill, IsVisible = false };
     private readonly TextBlock _status = new TextBlock { TextWrapping = TextWrapping.Wrap, IsHitTestVisible = false,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }.MetaText();
     private readonly Button _retry = new() { HorizontalAlignment = HorizontalAlignment.Center, IsVisible = false };
@@ -433,9 +435,9 @@ public sealed class ArchiveAttachmentView : UserControl
         _placeholder.Bind(IsVisibleProperty, _status.GetObservable(IsVisibleProperty));
         // Flat: no raised box around the thumbnail. Semi's hover/pressed tint and the shared focus adorner remain the interaction
         // feedback of the native button; the button is the frame, so both run around the drawn picture and nothing else.
-        Grid surface = new();
-        surface.Children.Add(_placeholder); surface.Children.Add(_image);
-        _button = new MediumButton(this) { Content = surface, Padding = new Thickness(0), Background = Brushes.Transparent,
+        _preview.Children.Add(_placeholder);
+        _preview.Children.Add(_image);
+        _button = new MediumButton(this) { Content = _preview, Padding = new Thickness(0), Background = Brushes.Transparent,
             BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
         _button.Click += (_, _) => ActivateMedium();
@@ -689,6 +691,7 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         if (_slot.Large == large && _slot.Aspect == aspect) return;
         _slot.Large = large; _slot.Aspect = aspect;
+        _preview.Aspect = aspect;
         // MediaFramePanel is nested in AttachmentColumn. Invalidation of the child
         // alone does not make every Avalonia panel remeasure its parent on all
         // backends, so a late header aspect must invalidate the block itself too.
