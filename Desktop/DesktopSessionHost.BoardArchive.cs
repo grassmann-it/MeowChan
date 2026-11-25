@@ -45,7 +45,7 @@ internal sealed partial class DesktopSessionHost
         {
             EnsureBoardArchiveReady();
             return ReadArchiveWhenAdmittedAsync(
-                cancellation => ArchiveSource(board.Uri).ReadBoardArchiveAsync(board.Uri, cancellation), token);
+                cancellation => ArchiveSource(board.Uri).ReadBoardArchiveAsync(board.Uri, BoardArchiveCacheLimit, cancellation), token);
         }, token);
 
     internal Task<BoardArchiveThreadDetails?> ReadBoardArchiveThreadAsync(BoardArchiveThread thread, CancellationToken token)
@@ -108,6 +108,17 @@ internal sealed partial class DesktopSessionHost
 
     private PluginSourceImageBoard ArchiveSource(Uri uri) => _registry.FindAdmissionProvider(uri) as PluginSourceImageBoard
         ?? throw new InvalidOperationException("The board archive source is unavailable.");
+
+    private int BoardArchiveCacheLimit() => (Volatile.Read(ref _confirmedConfig) ?? Config).BoardArchiveCacheLimit;
+
+    private void TrimBoardArchiveCaches()
+    {
+        // Settings persistence limits are also applied while the host is still being constructed.
+        if (_registry is null) return;
+        int limit = BoardArchiveCacheLimit();
+        foreach (var provider in _registry.AdmissionProviders)
+            if (provider is PluginSourceImageBoard source) source.TrimBoardArchiveCache(limit);
+    }
 
     private void EnsureBoardArchiveReady()
     {
