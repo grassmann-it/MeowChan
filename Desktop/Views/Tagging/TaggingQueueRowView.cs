@@ -196,8 +196,8 @@ internal sealed class TaggingQueueRowView : Grid
         (bool favorite, int? rating, string? decisions) = row != null && _decisionOf != null ? _decisionOf(row.Item) : default;
         _favoriteMark.IsVisible = favorite;
         _ratingMark.IsVisible = _ratingValue.IsVisible = rating.HasValue;
-        if (favorite) _favoriteMark.Content ??= CommandBindings.IconFromKey("heart-filled", 12);
-        if (rating.HasValue) _ratingMark.Content ??= CommandBindings.IconFromKey("star-half", 12);
+        if (favorite) _favoriteMark.Content ??= CommandBindings.TintedIcon("heart-filled", 12, FavoriteStar.Token);
+        if (rating.HasValue) _ratingMark.Content ??= CommandBindings.TintedIcon("star-half", 12, RatingStar.Token);
         _ratingValue.Text = rating?.ToString(Localization.Texts.Culture);
         ToolTip.SetTip(_name, decisions == null ? row?.Name : row?.Name + " · " + decisions);
     }

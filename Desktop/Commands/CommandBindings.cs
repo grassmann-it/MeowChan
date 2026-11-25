@@ -460,6 +460,17 @@ public static class CommandBindings
         return icon;
     }
 
+    /// <summary>
+    /// A catalog icon in a theme colour of its own instead of the text colour: the favourite heart (<c>Workspace.Favorite</c>) and the rating
+    /// star (<c>Workspace.Rating</c>) where they are catalog masks.
+    /// </summary>
+    internal static Control TintedIcon(string icon, int size, string token)
+    {
+        Control visual = IconFromKey(icon, size);
+        visual[!Border.BackgroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension(token);
+        return visual;
+    }
+
     /// <summary>Draws <paramref name="icon"/> in the colour of the text it stands beside, when that text has a colour of its own (muted, a state style).</summary>
     internal static Control FollowLabel(Control icon, TextBlock label)
     {

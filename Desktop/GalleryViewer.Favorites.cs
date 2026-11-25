@@ -50,6 +50,8 @@ internal sealed partial class GalleryViewer
         return (WorkspaceIcons.KeyOf(panel.Children[0]) == WorkspaceIcons.HeartFilled, panel.Children[1].IsVisible);
     }
 
+    private static readonly IBrush SavedFavoriteInk = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(VideoPlayMark.FavoriteColor);
+
     // The toggle's checked state is the saved state (a screen reader reads "Favorite, on / off"); the name adds " · saving" while a write is
     // pending. The enabled state stays on while pending so the focus is not lost under a keyboard user; the click is ignored then.
     private static void ShowFavoriteBadgeState(ToggleButton badge, bool saved, bool pending, string label, string tip)
@@ -57,7 +59,8 @@ internal sealed partial class GalleryViewer
         StackPanel panel = (StackPanel)badge.Content!;
         Avalonia.Controls.Shapes.Path star = (Avalonia.Controls.Shapes.Path)panel.Children[0];
         star.Tag = saved ? WorkspaceIcons.HeartFilled : WorkspaceIcons.Heart;
-        IBrush ink = saved ? Brushes.Gold : Brushes.White;
+        // On the dark scrim of the viewer in both themes: the saved heart is the red of the tile badges (it was gold, the stars' colour).
+        IBrush ink = saved ? SavedFavoriteInk : Brushes.White;
         star.Stroke = ink;
         star.Fill = saved ? ink : Brushes.Transparent;
         panel.Children[1].IsVisible = pending;
