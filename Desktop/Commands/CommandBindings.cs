@@ -195,6 +195,19 @@ public static class CommandBindings
     {
         Track(button, id);
         Observe(button, () => Apply(button, id, unavailableReason, iconOnly, iconSize, iconWithLabel));
+        PresentButton(button, id, unavailableReason, iconOnly, iconSize, iconWithLabel);
+    }
+
+    // The owning view routes this key from its working control. A visible sibling's button must never claim it.
+    internal static void ApplyLocallyRoutedButton(Button button, string id)
+    {
+        Observe(button, () => ApplyLocallyRoutedButton(button, id));
+        PresentButton(button, id, null, iconOnly: false, iconSize: 16, iconWithLabel: true);
+    }
+
+    private static void PresentButton(Button button, string id, Func<string?>? unavailableReason,
+        bool iconOnly, int iconSize, bool iconWithLabel)
+    {
         string label = CommandCatalog.Label(id);
         button.Classes.Set("command-icon", iconOnly || iconWithLabel);
         if (iconOnly || iconWithLabel)

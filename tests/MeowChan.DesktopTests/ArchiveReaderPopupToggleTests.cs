@@ -255,8 +255,14 @@ public sealed class ArchiveReaderPopupToggleTests
         Assert.Equal(Key.J, key.Key);
         Assert.Equal(KeyModifiers.Shift | (platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Control), key.KeyModifiers);
         Assert.Null(EffectiveShortcutBindings.InvalidReason(gesture, platform));
+        var press = new KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers };
         Assert.DoesNotContain(CommandCatalog.All, command => command.Id != "reader.thread-menu"
-            && bindings.For(command.Id).Any(other => other.Resolve(platform).Equals(key)));
+            && bindings.Matches(press, command.Id));
+
+        var saved = new ShortcutBindingsSection().Set("reader.quick-settings", [gesture]);
+        var rebound = EffectiveShortcutBindings.Build(saved, platform);
+        Assert.True(rebound.Matches(press, "reader.quick-settings", "reader"));
+        Assert.False(rebound.Matches(press, "reader.thread-menu", "reader"));
     }
 
     [Fact]
@@ -298,6 +304,22 @@ public sealed class ArchiveReaderPopupToggleTests
         Press(fixture, shared);
         Assert.True(columns.ContextMenu?.IsOpen);
         Assert.False(page.IsQuickSettingsOpen);
+        Press(fixture, new KeyGesture(Key.Escape));
+
+        page.MediaTilesPreference = false;
+        Find<TabItem>(fixture.Window, "ArchiveMediaTab").IsSelected = true;
+        fixture.Layout();
+        var media = Find<DataGrid>(fixture.Window, "ArchiveMediaGrid");
+        var mediaTools = Find<ActionToolBar>(fixture.Window, "ReaderMediaTools");
+        var mediaColumns = Assert.Single(mediaTools.Items.OfType<Button>(),
+            b => AutomationProperties.GetAutomationId(b) == "ArchiveMediaColumnsButton");
+        Assert.True(media.Focus());
+        Press(fixture, shared);
+        Assert.True(mediaColumns.ContextMenu?.IsOpen);
+        Assert.Null(columns.ContextMenu);
+        Assert.False(page.IsQuickSettingsOpen);
+        Press(fixture, shared);
+        Assert.Null(mediaColumns.ContextMenu);
     });
 
     [Fact]

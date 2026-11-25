@@ -156,8 +156,8 @@ public partial class ArchivePage
 
     private void LocalizeArchiveColumns()
     {
-        CommandBindings.Apply(ArchiveThreadColumnsButton, "table.choose-columns", iconWithLabel: true);
-        CommandBindings.Apply(ArchiveMediaColumnsButton, "table.choose-columns", iconWithLabel: true);
+        CommandBindings.ApplyLocallyRoutedButton(ArchiveThreadColumnsButton, "table.choose-columns");
+        CommandBindings.ApplyLocallyRoutedButton(ArchiveMediaColumnsButton, "table.choose-columns");
         DataGrid threads = ArchiveThreadTable;
         for (int i = 0; i < ThreadColumnKeys.Length; i++)
             SetThreadColumnHeader(threads.Columns[i], ThreadColumnKeys[i]);

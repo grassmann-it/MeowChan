@@ -49,9 +49,10 @@ public partial class ArchivePage
         if (_ended || IsReaderDialogOpen || e.Source is not Visual source) return false;
         using var context = EffectiveShortcutBindings.EnterKeyContext("archive");
         if (!CommandBindings.Matches(e, "table.choose-columns")) return false;
-        bool reader = source.GetSelfAndVisualAncestors().Contains(ArchiveReaderPane);
-        Button button = reader && ArchiveMediaTab.IsSelected ? ArchiveMediaColumnsButton : ArchiveThreadColumnsButton;
-        DataGrid table = reader && ArchiveMediaTab.IsSelected ? ArchiveMediaGrid : ArchiveThreadTable;
+        bool media = ArchiveMediaTab.Content is Visual mediaView && (source == mediaView || mediaView.IsVisualAncestorOf(source));
+        if (!media && source != ArchiveListPane && !ArchiveListPane.IsVisualAncestorOf(source)) return false;
+        Button button = media ? ArchiveMediaColumnsButton : ArchiveThreadColumnsButton;
+        DataGrid table = media ? ArchiveMediaGrid : ArchiveThreadTable;
         if (button.ContextMenu is { IsOpen: true } open) { open.Close(); return true; }
         if (!button.IsVisible || !button.IsEffectivelyEnabled || !table.IsEffectivelyVisible || CommandRouter.HasOpenPopup(this)) return false;
         OnArchiveColumnsClick(button, e);
