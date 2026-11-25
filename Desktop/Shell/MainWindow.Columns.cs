@@ -26,9 +26,9 @@ public partial class MainWindow
     private void ToggleDownloadColumns()
     {
         var button = DownloadsColumnsButton;
-        if (button.ContextMenu is { IsOpen: true } open)
+        if (PopupToggle.ConsumeActivation(button))
         {
-            open.Close();
+            button.IsChecked = false;
             return;
         }
         ContextMenu menu = BuildDownloadColumnsMenu(DownloadsTabs.SelectedIndex == 1 ? "BoardsDataGrid" : "ThreadsDataGrid");
@@ -47,6 +47,7 @@ public partial class MainWindow
             key.Handled = true;
             menu.Close();
         }, RoutingStrategies.Tunnel);
+        PopupToggle.Track(button, menu);
         menu.Open(button);
         button.IsChecked = menu.IsOpen;
     }

@@ -162,7 +162,8 @@ public sealed class DownloadHeaderToggleTests
             Click(fixture, button);
             Assert.True(panel.IsVisible && button.IsChecked == true);
             Click(fixture, button);
-            Assert.True(!panel.IsVisible && button.IsChecked == false);
+            Assert.True(!panel.IsVisible && button.IsChecked == false,
+                $"width={width}, panel.IsVisible={panel.IsVisible}, button.IsChecked={button.IsChecked}");
 
             Assert.True(fixture.Threads.Focus());
             KeyGesture details = CommandBindings.Gesture("thread.details")!;
@@ -189,7 +190,9 @@ public sealed class DownloadHeaderToggleTests
         Assert.True(threadsMenu.IsOpen && columns.IsChecked == true);
         Assert.Contains(threadsMenu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "ThreadsDataGrid.ThreadNumber"));
         Click(fixture, columns);
-        Assert.True(!threadsMenu.IsOpen && columns.IsChecked == false);
+        Assert.True(!threadsMenu.IsOpen && columns.IsChecked == false,
+            $"width={fixture.Window.Width}, threadsMenu.IsOpen={threadsMenu.IsOpen}, columns.IsChecked={columns.IsChecked}, " +
+            $"columns.ContextMenu != null={columns.ContextMenu != null}");
         Assert.Null(columns.ContextMenu);
 
         fixture.Find<TabControl>("DownloadsTabs").SelectedIndex = 1;

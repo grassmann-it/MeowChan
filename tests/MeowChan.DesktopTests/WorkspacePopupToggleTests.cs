@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -184,7 +185,10 @@ public sealed class WorkspacePopupToggleTests
             Button cancel = Assert.Single(window.OpenedPopups.SelectMany(popup =>
                     popup.Child?.GetVisualDescendants().OfType<Button>() ?? []),
                 button => AutomationProperties.GetAutomationId(button) == "settings.reset.cancel");
-            Assert.True(cancel.IsFocused);
+            IInputElement? focused = window.FocusManager?.GetFocusedElement();
+            string? focusedId = focused is StyledElement element ? AutomationProperties.GetAutomationId(element) : null;
+            Assert.True(cancel.IsFocused,
+                $"Reset cancellation focus: type={focused?.GetType().Name ?? "<none>"}, AutomationId={focusedId ?? "<none>"}");
             PressAtFocus(window, Key.Enter);
             Assert.False(cancel.IsEffectivelyVisible);
             Assert.True(editor.IsKeyboardFocusWithin);
@@ -411,13 +415,77 @@ public sealed class WorkspacePopupToggleTests
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
         Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
-        Click(TopLevel.GetTopLevel(opener) ?? window, opener);
-        Assert.False(isOpen());
+        string route = TracePopupClick(window, opener);
+        Assert.False(isOpen(), route);
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
         PressAtFocus(window, Key.Escape);
         Assert.False(isOpen());
         Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(opener));
+    }
+
+    private static string TracePopupClick(Window window, Button opener)
+    {
+        Popup? before = AnchoredPopup();
+        List<string> route = [PopupState("Before", before)];
+        int clicks = 0, opened = 0, closed = 0;
+        window.AddHandler(InputElement.PointerPressedEvent, LogPointer,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        window.AddHandler(InputElement.PointerReleasedEvent, LogPointer,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        opener.AddHandler(Button.ClickEvent, LogClick, handledEventsToo: true);
+        if (before != null)
+        {
+            before.Opened += OnOpened;
+            before.Closed += OnClosed;
+        }
+        try
+        {
+            Click(TopLevel.GetTopLevel(opener) ?? window, opener);
+            Popup? after = AnchoredPopup();
+            if (after != null && !ReferenceEquals(after, before)) opened++;
+            route.Add(PopupState("After", after));
+            route.Add($"Click={clicks}, Opened={opened}, Closed={closed}");
+        }
+        finally
+        {
+            window.RemoveHandler(InputElement.PointerPressedEvent, LogPointer);
+            window.RemoveHandler(InputElement.PointerReleasedEvent, LogPointer);
+            opener.RemoveHandler(Button.ClickEvent, LogClick);
+            if (before != null)
+            {
+                before.Opened -= OnOpened;
+                before.Closed -= OnClosed;
+            }
+        }
+        return string.Join(Environment.NewLine, route);
+
+        void LogPointer(object? sender, PointerEventArgs e) => LogEvent(e);
+
+        void LogClick(object? sender, RoutedEventArgs e)
+        {
+            clicks++;
+            LogEvent(e);
+        }
+
+        void LogEvent(RoutedEventArgs e) =>
+            route.Add($"{e.RoutedEvent?.Name} {e.Route}: Source={e.Source?.GetType().Name ?? "<none>"}, Handled={e.Handled}");
+
+        void OnOpened(object? sender, EventArgs e) => opened++;
+        void OnClosed(object? sender, EventArgs e) => closed++;
+
+        Popup? AnchoredPopup() => window.OpenedPopups.FirstOrDefault(popup => ReferenceEquals(popup.PlacementTarget, opener));
+
+        string PopupState(string phase, Popup? popup) =>
+            $"{phase}: OpenedPopups.Count={window.OpenedPopups.Count}, OverlayPopupHost={popup?.IsUsingOverlayLayer}, " +
+            $"opener.Bounds={BoundsInWindow(opener)}, menu.Bounds={BoundsInWindow(popup?.Child)}";
+
+        Rect? BoundsInWindow(Visual? visual)
+        {
+            if (visual == null) return null;
+            Point InWindow(Point point) => visual.TranslatePoint(point, window) ?? window.PointToClient(visual.PointToScreen(point));
+            return new Rect(InWindow(default), InWindow(new Point(visual.Bounds.Width, visual.Bounds.Height)));
+        }
     }
 
     private static ContextMenu? MenuFor(Window window, Button opener) => window.OpenedPopups

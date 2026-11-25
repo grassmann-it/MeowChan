@@ -96,7 +96,7 @@ public static class WorkViewMoreSurface
     /// <summary>Opens the menu under <paramref name="more"/>; nothing opens when no entry is left.</summary>
     public static void Open(Button more, IEnumerable<Entry> entries)
     {
-        if (PopupToggle.Close(more)) return;
+        if (PopupToggle.ConsumeActivation(more)) return;
         Entry[] current = entries.ToArray();
         if (current.Length == 0) return;
         ContextMenu menu = CreateMenu(current, more);

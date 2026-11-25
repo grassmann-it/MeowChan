@@ -102,6 +102,7 @@ internal sealed class ContextMenuHost : IDisposable
     {
         Control origin = _resolveOrigin?.Invoke() ?? _origin;
         if (_toggle && ReferenceEquals(_openOn, origin) && OpenMenu != null) { Close(); return; }
+        if (_toggle && origin is Button anchor && PopupToggle.ConsumeActivation(anchor)) return;
         Show(atPointer);
     }
 
