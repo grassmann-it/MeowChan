@@ -5,6 +5,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
+using MeowChan.Tests.Shared;
 using static MeowChan.DesktopTests.BooruMediaSidebarTests;
 
 namespace MeowChan.DesktopTests;
