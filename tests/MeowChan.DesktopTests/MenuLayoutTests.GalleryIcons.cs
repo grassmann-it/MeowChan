@@ -28,6 +28,96 @@ public sealed partial class MenuIconLayoutTests
     public void GalleryLayoutFlyoutAndContextMenuShareActionMasks() => OnUi(() =>
         BooruComponentDispatcher.Wait(ExerciseLayoutIconsAsync()));
 
+    [Fact]
+    public void OverflowMenuRowsShareOneInsetAndTheTooltipIsTheLabelNotTheRowGrid() => OnUi(() =>
+        BooruComponentDispatcher.Wait(ExerciseSettingsRowsAsync()));
+
+    private static async Task ExerciseSettingsRowsAsync()
+    {
+        await using var viewer = new GalleryViewer();
+        viewer.ApplyWorkView(WorkView.Advanced);
+        viewer.ConfigurePlayback(new GalleryPlaybackPreferences(Mode: GalleryPlaybackMode.Slideshow, OverlayControls: false));
+        viewer.SetPosition("1 of 8", true, true);
+        Texts.SetLanguage("en");
+        WithWindow(viewer, window =>
+        {
+            window.SetRenderScaling(1.5);
+            BooruReviewTestPlatform.Resize(window, 760);
+            viewer.SetOverflowOpen(true);
+            var menu = viewer.OverflowMenuContent;
+            TopLevel.GetTopLevel(menu)!.SetRenderScaling(1.5);
+            Settle(menu);
+            ToggleButton repeat = ById<ToggleButton>(menu, "video.loop");
+            var repeatEntry = Assert.IsType<GalleryViewer.OverflowItem>(repeat.Tag);
+            Assert.Contains(repeatEntry.Label.Text!, Assert.IsType<string>(ToolTip.GetTip(repeat)));
+            AssertAt(48, repeatEntry.Label, repeat);
+            TextBlock playback = ById<TextBlock>(menu, "GalleryMenuPlayback");
+            TextBlock view = ById<TextBlock>(menu, "GalleryMenuView");
+            AssertAt(16, playback, menu);
+            AssertAt(16, view, menu);
+            Assert.False(playback.Focusable);
+            Assert.False(view.Focusable);
+            ComboBox mode = ById<ComboBox>(menu, "GalleryPlaybackModeSelector");
+            var seconds = ById<NumericUpDown>(menu, "GallerySlideshowSecondsInput");
+            ComboBox videos = ById<ComboBox>(menu, "GallerySlideshowVideoRuleSelector");
+            foreach (var language in Texts.Languages)
+            {
+                Texts.SetLanguage(language.Code);
+                Settle(menu);
+                Assert.Equal(Texts.T("viewer.playback.group.playback"), playback.Text);
+                Assert.Equal(Texts.T("viewer.playback.group.view"), view.Text);
+                CheckSetting(mode, "viewer.playback.menu.mode");
+                CheckSetting(seconds, "viewer.playback.menu.seconds");
+                CheckSetting(videos, "viewer.playback.menu.videos");
+            }
+            Assert.True(repeat.Focus(NavigationMethod.Directional));
+            Press(repeat, Key.Down);
+            Assert.True(mode.IsKeyboardFocusWithin);
+            Press(mode, Key.Down);
+            Assert.True(seconds.IsKeyboardFocusWithin);
+            decimal value = seconds.Value!.Value;
+            SendMenuKey((Control)Focused(seconds)!, Key.Up, KeyModifiers.Alt);
+            Assert.Equal(value + 1, seconds.Value);
+            Press(seconds, Key.Down);
+            Assert.True(videos.IsKeyboardFocusWithin);
+            Press(videos, Key.Up);
+            Assert.True(seconds.IsKeyboardFocusWithin);
+            Press(seconds, Key.Escape);
+            Assert.False(viewer.IsOverflowOpen);
+
+            Texts.SetLanguage("en");
+            menu.MaxWidth = 280;
+            viewer.SetOverflowOpen(true);
+            Settle(menu);
+            TextBlock shortLabel = ById<TextBlock>(menu, "GallerySlideshowSecondsInputLabel");
+            Assert.Equal(TextTrimming.CharacterEllipsis, shortLabel.TextTrimming);
+            Assert.True(MenuLayout.TextWidth(shortLabel, shortLabel.Text!) > shortLabel.Bounds.Width);
+            Assert.Equal(shortLabel.Text, ToolTip.GetTip(shortLabel));
+            Assert.InRange(seconds.Bounds.Width, 143, 145);
+            Assert.Equal(Texts.T("gallery.slideshow.secondsLabel"), AutomationProperties.GetName(seconds));
+            viewer.SetOverflowOpen(false);
+
+            Assert.True(viewer.SetSlideshowMenuOpen(true));
+            Settle(viewer.SlideshowSettingsPanel);
+            Assert.Same(mode, ById<ComboBox>(viewer.SlideshowSettingsPanel, "GalleryPlaybackModeSelector"));
+            Assert.Same(playback, ById<TextBlock>(viewer.SlideshowSettingsPanel, "GalleryMenuPlayback"));
+            viewer.SetSlideshowMenuOpen(false);
+
+            void CheckSetting(Control input, string resource)
+            {
+                var row = ById<Grid>(menu, input.Name + "Row");
+                var label = ById<TextBlock>(row, input.Name + "Label");
+                Assert.Equal(Texts.T(resource), label.Text);
+                AssertAt(48, label, menu);
+                Assert.InRange(row.Bounds.Height, 39, 41);
+                Assert.InRange(input.Bounds.Width, 143, 145);
+                Assert.InRange(input.Bounds.Height, 31, 33);
+                double right = RelativeBounds(input, menu).Right - RelativeBounds(repeatEntry.Gesture, menu).Right;
+                Assert.InRange(right, -1, 1);
+            }
+        });
+    }
+
     private static async Task ExerciseCompactGalleryIconsAsync()
     {
         await using var viewer = new GalleryViewer();
@@ -81,8 +171,7 @@ public sealed partial class MenuIconLayoutTests
                 }
             }
 
-            ToggleButton Toggle(string id) => Assert.IsType<ToggleButton>(
-                Assert.Single(viewer.OverflowItems, row => row.Tag is GalleryViewer.OverflowItem entry && entry.Id == id));
+            ToggleButton Toggle(string id) => ById<ToggleButton>(viewer.OverflowMenuContent, id);
 
             void Flip(string id, string key, bool wasChecked)
             {
@@ -200,12 +289,10 @@ public sealed partial class MenuIconLayoutTests
                 MenuItem row = Item(menu, model.Id);
                 if (model.Kind == LayoutMenuRowKind.Choice)
                 {
-                    Assert.Equal(MenuItemToggleType.Radio, row.ToggleType);
-                    Assert.Equal(model.Checked, row.IsChecked);
-                    Assert.Null(MenuIcons.KeyOf(row));
+                    AssertMenuChip(row, MenuItemToggleType.Radio, null, model.Checked);
                 }
                 else if (model.Kind == LayoutMenuRowKind.Toggle)
-                    AssertSemi(row, MenuItemToggleType.CheckBox, keys[model.Id], model.Checked);
+                    AssertMenuChip(row, MenuItemToggleType.CheckBox, keys[model.Id], model.Checked);
                 else
                     AssertMask(row, Assert.IsType<Border>(row.Icon), keys[model.Id]);
             }
