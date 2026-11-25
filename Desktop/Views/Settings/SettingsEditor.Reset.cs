@@ -301,6 +301,7 @@ public partial class SettingsEditor
         Config defaults = ResetDefaults.Values;
         SaveUrlsOnExit = defaults.SaveUrlsOnExit;
         ShowBoardAdmissionWizard = defaults.ShowBoardAdmissionWizard;
+        LoadBoardSuggestionDraft(defaults);
         MonitorClipboardUrls = defaults.MonitorClipboardUrls;
         MinimizeToTray = defaults.MinimizeToTray;
         CloseToTray = defaults.CloseToTray;

@@ -1,12 +1,23 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using MeowChan.Admission;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Archive;
 
 internal static partial class ArchiveSql
 {
+    internal static void EnsureBoardTitleHistoryIndex(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
+    {
+        using var command = Command(connection, transaction, """
+            CREATE INDEX IF NOT EXISTS archive_board_title_history
+            ON archive_threads(source, board, first_seen_at DESC, thread) WHERE title<>''
+            """);
+        token.ThrowIfCancellationRequested();
+        command.ExecuteNonQuery();
+    }
+
     internal static ArchiveIdentityPage<string> ReadSourceIdentities(SqliteConnection connection, SqliteTransaction transaction, int limit, CancellationToken token)
     {
         if (limit < 1 || limit > 256) throw new ArgumentOutOfRangeException(nameof(limit));
@@ -50,5 +61,29 @@ internal static partial class ArchiveSql
         }
         token.ThrowIfCancellationRequested();
         return new(items, false);
+    }
+
+    internal static IReadOnlyList<BoardTitleHistory> ReadBoardTitleHistory(SqliteConnection connection,
+        SqliteTransaction transaction, string source, string board, int limit, CancellationToken token)
+    {
+        using var command = Command(connection, transaction, """
+            SELECT thread, title, first_seen_at, last_captured_at FROM archive_threads
+            WHERE source=$source AND board=$board AND title<>''
+            ORDER BY first_seen_at DESC, thread LIMIT $limit
+            """);
+        command.Parameters.AddWithValue("$source", source);
+        command.Parameters.AddWithValue("$board", board);
+        command.Parameters.AddWithValue("$limit", limit);
+        using var cancel = token.Register(command.Cancel);
+        using var reader = command.ExecuteReader();
+        var rows = new List<BoardTitleHistory>();
+        while (reader.Read())
+        {
+            token.ThrowIfCancellationRequested();
+            rows.Add(new(reader.GetString(0), reader.GetString(1), ParseDate(reader.GetString(2)),
+                reader.IsDBNull(3) ? null : ParseDate(reader.GetString(3))));
+        }
+        token.ThrowIfCancellationRequested();
+        return rows.AsReadOnly();
     }
 }
