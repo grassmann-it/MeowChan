@@ -156,6 +156,7 @@ public partial class SettingsEditor
         cancel.Click += (_, _) => flyout.Hide();
         flyout.Closed += (_, _) =>
         {
+            panel.IsVisible = false;
             if (!ReferenceEquals(_resetConfirmation, flyout)) return;
             _resetConfirmation = null;
             if (IsEffectivelyVisible && !_isClosed && !origin.Focus()) FocusSettingsContent();
