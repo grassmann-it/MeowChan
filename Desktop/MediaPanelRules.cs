@@ -73,11 +73,23 @@ internal static class MediaPanelKeys
         return false;
     }
 
+    /// <summary>Whether one of the Tagging page's own commands has the key: the panel's video keys give way to it there, as they do on the Media page.</summary>
+    internal static bool TaggingClaims(Func<string, bool> matches)
+    {
+        ArgumentNullException.ThrowIfNull(matches);
+        foreach (string id in TaggingCommands.Value)
+            if (matches(id)) return true;
+        return false;
+    }
+
     // Every command that runs on the Media page and competes there for its gestures: not the video keys themselves (they give way).
-    private static readonly Lazy<string[]> PageCommands = new(() => CommandCatalog.All
+    private static readonly Lazy<string[]> PageCommands = new(() => CommandsOf("media"));
+    private static readonly Lazy<string[]> TaggingCommands = new(() => CommandsOf("tagging"));
+
+    private static string[] CommandsOf(string context) => CommandCatalog.All
         .Where(command => command.IsImplemented && !ReaderVideoKeys.IsVideoCommand(command.Id)
-            && EffectiveShortcutBindings.ConflictContexts(command.Id).Contains("media", StringComparer.Ordinal))
-        .Select(command => command.Id).ToArray());
+            && EffectiveShortcutBindings.ConflictContexts(command.Id).Contains(context, StringComparer.Ordinal))
+        .Select(command => command.Id).ToArray();
 
     /// <summary>Whether a medium can play in the panel: a saved video, with the player enabled for it.</summary>
     internal static bool CanOfferVideo(bool enabled, bool present, bool isVideo) => enabled && present && isVideo;

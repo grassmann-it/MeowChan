@@ -99,6 +99,8 @@ public partial class MainWindow
         _taggingPage.RestorePreviewColumn(_session.Config.TaggingPreviewColumn);
         _taggingPage.RestorePanelEnabled(_session.Config.TaggingPagePanel);
         _taggingPage.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
+        _taggingPage.PlaybackGate = _playbackGate;
+        ConfigureTaggingPanelVideo();
         _taggingPage.ApplyWorkView(_workViews.Current);
         TaggingPageHost.PropertyChanged += (_, change) =>
         {
@@ -106,6 +108,14 @@ public partial class MainWindow
         };
         TaggingPageHost.Content = _taggingPage;
         RegisterTaggingPanelCommands(_taggingPage);
+    }
+
+    // The tagging sidebar's player follows the same shared options as the Media page's panel and the reader's sidebar (and the profile's scrub cache).
+    private void ConfigureTaggingPanelVideo()
+    {
+        if (_taggingPage is not { } page) return;
+        page.ConfigurePanelVideo(ReaderInlineVideoOptions.From(_session.Config));
+        page.ConfigureScrubPreviewCache(_galleryScrubHost?.Cache);
     }
 
     private void RegisterTaggingPanelCommands(TaggingPage page)
