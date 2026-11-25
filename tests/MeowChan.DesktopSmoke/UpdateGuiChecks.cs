@@ -28,14 +28,15 @@ internal static class UpdateGuiChecks
         using Handler handler = new();
         string? disabled = null;
         using HttpClient updateClient = new(handler);
-        await using DesktopSessionHost host = new(profile, [], updateSessionFactory: (path, settings) =>
-            new UpdateSession(path, settings, updateClient, disableEnvironment: () => disabled));
-        await using MainWindow window = new(host);
+        await using Program.FixtureShell fixture = await Program.FixtureShell.CreateAsync(
+            () => new DesktopSessionHost(profile, [], updateSessionFactory: (path, settings) =>
+                new UpdateSession(path, settings, updateClient, disableEnvironment: () => disabled)), TimeSpan.FromSeconds(15));
+        MainWindow window = fixture.Window;
+        DesktopSessionHost host = window.SessionHost;
         AboutWindow? about = null;
-        window.Show(owner);
-        Exception? failureBeforeCleanup = null;
         try
         {
+            window.Show(owner);
             await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready && window.IsVisible);
             Require(handler.Requests == 0, "Update startup performed HTTP before its 30-second delay.");
             MenuItem check = window.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.OfType<MenuItem>()
@@ -163,14 +164,13 @@ internal static class UpdateGuiChecks
             about = null;
             Console.WriteLine("SMOKE Updates: fixture Help/About/status integration, EN/DE × Dark/Light × B/S/A, minimum sizes, exact browser handoff, settings draft/save/discard, skip, manual errors and distribution override passed.");
         }
-        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
+        catch (Exception thrown) { fixture.RecordJourneyFailure(thrown); throw; }
         finally
         {
-            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            await SmokeCleanup.RunAsync(fixture.JourneyFailure, async () =>
             {
                 about?.Close();
-                window.Close();
-                await Program.WaitUntilAsync(() => !window.IsVisible);
+                await fixture.CloseAsync();
                 Texts.SetLanguage(owner.SessionHost.Config.Language);
                 Application.Current!.RequestedThemeVariant = owner.SessionHost.Config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in UpdateGuiChecks: " + exception));

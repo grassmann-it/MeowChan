@@ -33,9 +33,11 @@ internal static class ShutdownOrderingChecks
         try
         {
             window.FindControl<MenuItem>("ExitMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Require(!window.IsVisible, "Accepted shutdown did not hide the main window promptly.");
             await fixture.Transport.MediaCancelled.WaitAsync(deadline);
-            Require(!releaseCleanup.Task.IsCompleted && !closed.Task.IsCompleted && window.IsVisible,
+            Require(!releaseCleanup.Task.IsCompleted,
                 "Native/gallery drain was not still pending when download cancellation was observed.");
+            Require(!closed.Task.IsCompleted, "The window closed while native/gallery drain was held.");
             Require(!File.Exists(saved), "A canceled incomplete transfer was published during shutdown.");
             Task<DesktopAdmissionResult> add = window.SessionHost.AddAsync("https://boards.4chan.org/g/thread/123");
             bool rejected = false;
@@ -46,14 +48,15 @@ internal static class ShutdownOrderingChecks
             try { using ProfileLease unexpected = ProfileLease.Acquire(profile); }
             catch (IOException) { leaseHeld = true; }
             Require(leaseHeld, "The profile lease was released before real gallery cleanup completed.");
+            Require(!closed.Task.IsCompleted, "The window closed before the fixture released gallery cleanup.");
             releaseCleanup.TrySetResult();
             await closed.Task.WaitAsync(deadline);
-            Require(window.SessionHost.State == DesktopSessionState.Stopped,
-                "Normal close did not finish engine drain.");
+            Require(window.SessionHost.State == DesktopSessionState.Stopped && window.SessionHost.IsProfileReleased,
+                "Normal close did not finish engine drain and release the profile.");
             using (ProfileLease released = ProfileLease.Acquire(profile)) { }
             Require(Math.Abs(Config.LoadConfig(profile).WindowWidth - 1120) <= 1,
                 "Shutdown lost the last pending window preference.");
-            Console.WriteLine("SMOKE shutdown ordering: active HTTP cancellation and mutation closure before held gallery drain; lease retained, final preference saved, then true close passed.");
+            Console.WriteLine("SMOKE shutdown ordering: prompt hide, active HTTP cancellation and mutation closure before held gallery drain; Closed withheld and lease retained until release, final preference saved, then true close passed.");
         }
         finally { releaseCleanup.TrySetResult(); fixture.Transport.AllowMedia(); }
     }

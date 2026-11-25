@@ -302,12 +302,30 @@ internal static class StartupPreviewChecks
 
     private static async Task CheckTerminalAsync(MainWindow owner, StartupPreviewSmokeApp app, bool failRestore)
     {
-        string name = failRestore ? "failure" : "stop";
-        string profile = CaseProfile(owner.SessionHost.ProfileDirectory, name);
+        string profile = CaseProfile(owner.SessionHost.ProfileDirectory, failRestore ? "failure" : "stop");
         byte[] before = File.ReadAllBytes(CachePath(profile));
         StartupPreviewBarrier barrier = new() { HoldCancellationDrain = !failRestore };
-        await using DesktopSessionHost ownedHost = app.CreateHost(profile, barrier, failRestore, out var store);
-        DesktopSessionHost host = ownedHost;
+        bool ownershipVerified = false;
+        try
+        {
+            await using DesktopSessionHost host = app.CreateHost(profile, barrier, failRestore, out var store);
+            await CheckTerminalWindowAsync(owner, host, barrier, store, failRestore, before);
+            ownershipVerified = true;
+        }
+        catch (AggregateException error) when (failRestore && ownershipVerified
+            && error.Message.StartsWith("Session shutdown reported failures. (", StringComparison.Ordinal)
+            && error.InnerExceptions is [InvalidOperationException
+                { Message: "Final preferences unavailable: Transition failed: " + StartupPreviewObservedStore.Failure, InnerException: null }])
+        {
+            Console.WriteLine("SMOKE startup failure: owner disposal repeated the acknowledged synthetic final preference error after Closed and lease reacquisition.");
+        }
+    }
+
+    private static async Task CheckTerminalWindowAsync(MainWindow owner, DesktopSessionHost host, StartupPreviewBarrier barrier,
+        StartupPreviewObservedStore store, bool failRestore, byte[] before)
+    {
+        string name = failRestore ? "failure" : "stop";
+        string profile = host.ProfileDirectory;
         await using MainWindow window = new(host);
         window.Show(owner);
         try
