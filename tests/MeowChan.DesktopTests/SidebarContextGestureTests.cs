@@ -540,6 +540,189 @@ public sealed class SidebarContextGestureTests
         }
     }
 
+    [Theory]
+    [InlineData("right-click")]
+    [InlineData("menu-key")]
+    [InlineData("favorite")]
+    [InlineData("mark")]
+    [InlineData("unmark")]
+    [InlineData("enter")]
+    [InlineData("double-click")]
+    public void ReaderThumbnailActsOnlyForThePostAndAttachmentItShows(string input) => Run(async (window, media) =>
+    {
+        long now = 0;
+        window.ArchivePage.UseManualReaderTicks(() => now);
+        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
+        ListBox posts = SidePanelDesignTests.ById<ListBox>(page, "ArchivePosts");
+        ArchivePostRow next = Assert.Single(posts.Items.OfType<ArchivePostRow>(), post => post.Id == "44");
+        ListBoxItem previousThumbnail = SidebarSecondThumbnail(sidebar);
+        Assert.Contains("b.png", AutomationProperties.GetName(previousThumbnail));
+        List<GalleryEntryKey> gallery = [];
+        page.OpenGallery = (_, entry, _) =>
+        {
+            gallery.Add(Assert.IsType<GalleryEntryKey>(entry));
+            return Task.CompletedTask;
+        };
+
+        List<string> favorites = [];
+        bool marked = input == "unmark";
+        page.IsArchiveFavorite = _ => marked;
+        page.EffectiveArchiveFavorite = _ => marked;
+        page.ToggleArchiveFavoriteAsync = entry =>
+        {
+            favorites.Add(entry.Asset.Path);
+            marked = !marked;
+            return Task.CompletedTask;
+        };
+        page.SetArchiveFavoriteAsync = (entry, value) =>
+        {
+            favorites.Add(entry.Asset.Path);
+            marked = value;
+            return Task.CompletedTask;
+        };
+
+        posts.SelectedItem = next;
+        ContextGestures.Settle(window);
+        Assert.Same(next, posts.SelectedItem);
+        Assert.Contains("a.png", sidebar.HeaderLine);
+        Assert.Same(previousThumbnail, SidebarSecondThumbnail(sidebar));
+
+        Invoke(previousThumbnail);
+        await page.FavoriteKeyTask;
+        Assert.False(page.ArchiveMediaMenu?.IsOpen == true);
+        Assert.Empty(favorites);
+        Assert.Empty(gallery);
+        Assert.Contains("a.png", sidebar.HeaderLine);
+        Assert.Equal(0, sidebar.StripCurrent);
+        Assert.All(media, file => Assert.Empty(ReadSavedTags(window).TagsOf(file.Subject)));
+
+        now += ReaderMediaSidebarRules.FollowIntervalMs;
+        page.TickMediaSidebarFollow();
+        await BooruTestSupport.WaitAsync(() => sidebar.HeaderLine.Contains("c.png", StringComparison.Ordinal)
+            && Picture(sidebar).IsEffectivelyVisible && !sidebar.IsDimmed, "the Reader to present the next post");
+        ListBoxItem thumbnail = SidebarSecondThumbnail(sidebar);
+        Assert.Contains("d.png", AutomationProperties.GetName(thumbnail));
+        Invoke(thumbnail);
+        await page.FavoriteKeyTask;
+        switch (input)
+        {
+            case "right-click":
+            case "menu-key":
+                QuickTagSurface editor = await OpenTagsAsync(page.ArchiveMediaMenu);
+                editor.Input.Text = "shown-thumbnail";
+                Assert.True(await editor.CommitTypedAsync());
+                PrivateTagStoreSnapshot tags = ReadSavedTags(window);
+                Assert.Equal("shown-thumbnail", Assert.Single(tags.TagsOf(media[3].Subject)).Name.Display);
+                Assert.All(media.Take(3), file => Assert.Empty(tags.TagsOf(file.Subject)));
+                break;
+            case "enter":
+            case "double-click":
+                await BooruTestSupport.WaitAsync(() => gallery.Count != 0, "the thumbnail to open in the gallery");
+                GalleryEntryKey entry = Assert.Single(gallery);
+                Assert.Equal("44", entry.PostId);
+                Assert.Equal(1, entry.AttachmentPosition);
+                MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(entry.Asset.Directory);
+                MediaAssetReference target = Assert.Single(manifest.GetPage(), candidate => candidate.AssetId == entry.Asset.AssetId);
+                Assert.Equal(media[3].Path, target.Path);
+                break;
+            default:
+                Assert.Equal(media[3].Path, Assert.Single(favorites));
+                Assert.Equal(input != "unmark", marked);
+                break;
+        }
+
+        void Invoke(ListBoxItem thumbnail)
+        {
+            switch (input)
+            {
+                case "right-click": ContextGestures.RightClick(thumbnail); break;
+                case "menu-key": ContextGestures.MenuKey(thumbnail); break;
+                case "favorite": ContextGestures.KeyStroke(thumbnail, Key.F, PhysicalKey.F); break;
+                case "mark": ContextGestures.KeyStroke(thumbnail, Key.M, PhysicalKey.M); break;
+                case "unmark": ContextGestures.KeyStroke(thumbnail, Key.U, PhysicalKey.U); break;
+                case "enter": ContextGestures.KeyStroke(thumbnail, Key.Enter, PhysicalKey.Enter); break;
+                case "double-click": ContextGestures.DoubleClick(thumbnail); break;
+            }
+        }
+    }, readerStrip: true);
+
+    [Fact]
+    public void ReaderThumbnailWithAnOldAttachmentRevisionCannotOpenTheReplacement() => Run(async (window, _) =>
+    {
+        long now = 0;
+        window.ArchivePage.UseManualReaderTicks(() => now);
+        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
+        await page.MediaSidebarStripTask;
+        ListBox posts = SidePanelDesignTests.ById<ListBox>(page, "ArchivePosts");
+        ArchivePostRow post = Assert.IsType<ArchivePostRow>(posts.SelectedItem);
+        ArchiveAttachmentRow old = Assert.Single(post.Attachments, item => item.Attachment.Position == 1);
+        ListBoxItem thumbnail = SidebarSecondThumbnail(sidebar);
+        Assert.Contains("b.png", AutomationProperties.GetName(thumbnail));
+        Assert.True(sidebar.HasStripPicture(1));
+
+        List<string> opened = [];
+        page.OpenGallery = (_, _, _) => { opened.Add("b.png"); return Task.CompletedTask; };
+        TaskCompletionSource loading = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ArchiveAttachmentRow replacement = old with
+        {
+            Attachment = old.Attachment with { OriginalFileName = "b-revised.png", AttachmentRevisionKey = "revised" },
+            OpenPreview = () => opened.Add("b-revised.png"),
+            LoadStripThumbnail = async (_, _, token) => { await loading.Task.WaitAsync(token); return null; }
+        };
+        ArchivePostRow revised = post with { Attachments = [.. post.Attachments.Select(row => ReferenceEquals(row, old) ? replacement : row)] };
+        try
+        {
+            posts.ItemsSource = new[] { revised };
+            posts.SelectedItem = revised;
+            ContextGestures.Settle(window);
+            Assert.Same(thumbnail, SidebarSecondThumbnail(sidebar));
+
+            ContextGestures.DoubleClick(thumbnail);
+            Assert.Empty(opened);
+
+            now += ReaderMediaSidebarRules.FollowIntervalMs;
+            page.TickMediaSidebarFollow();
+            ContextGestures.Settle(window);
+            ListBoxItem current = SidebarSecondThumbnail(sidebar);
+            Assert.Contains("b-revised.png", AutomationProperties.GetName(current));
+            Assert.False(sidebar.HasStripPicture(1));
+
+            ContextGestures.KeyStroke(current, Key.Enter, PhysicalKey.Enter);
+            Assert.Equal("b-revised.png", Assert.Single(opened));
+        }
+        finally { loading.TrySetResult(); }
+    });
+
+    [Fact]
+    public void ReaderPictureOpensTheDisplayedAttachmentBeforeTheNextFollowTick() => Run(async (window, media) =>
+    {
+        long now = 0;
+        window.ArchivePage.UseManualReaderTicks(() => now);
+        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
+        ListBox posts = SidePanelDesignTests.ById<ListBox>(page, "ArchivePosts");
+        GalleryEntryKey? opened = null;
+        page.OpenGallery = (_, entry, _) => { opened = entry; return Task.CompletedTask; };
+
+        posts.SelectedItem = Assert.Single(posts.Items.OfType<ArchivePostRow>(), post => post.Id == "44");
+        ContextGestures.Settle(window);
+        Assert.Contains("a.png", sidebar.HeaderLine);
+        ContextGestures.DoubleClick(Picture(sidebar));
+
+        await BooruTestSupport.WaitAsync(() => opened != null, "the displayed picture to open in the gallery");
+        GalleryEntryKey entry = Assert.IsType<GalleryEntryKey>(opened);
+        Assert.Equal("43", entry.PostId);
+        Assert.Equal(0, entry.AttachmentPosition);
+        MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(entry.Asset.Directory);
+        Assert.Equal(media[0].Path, Assert.Single(manifest.GetPage(), asset => asset.AssetId == entry.Asset.AssetId).Path);
+    }, readerStrip: true);
+
+    private static ListBoxItem SidebarSecondThumbnail(ReaderMediaSidebar sidebar)
+    {
+        Border thumbnail = Assert.Single(sidebar.GetVisualDescendants().OfType<Border>(), control =>
+            Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId() == "ReaderMediaSidebarThumbnail2");
+        return Assert.IsType<ListBoxItem>(ItemActivation.ContainerAt(thumbnail, sidebar.Strip));
+    }
+
     private static Image Picture(ReaderMediaSidebar sidebar) => SidePanelDesignTests.ById<Image>(sidebar, "ReaderMediaSidebarPicture");
 
     private static async Task<(ReaderMediaSidebar Sidebar, Action Next, Func<ContextMenu?> Menu)> OpenPreviewAsync(MainWindow window, bool reader)
@@ -648,7 +831,7 @@ public sealed class SidebarContextGestureTests
 
     private sealed record SavedFile(string Path, MediaTagSubject Subject);
 
-    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false, bool identicalOccurrences = false) => BooruComponentDispatcher.Run(() =>
+    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false, bool identicalOccurrences = false, bool readerStrip = false) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruComponentDispatcher.Wait(ExerciseAsync());
@@ -663,7 +846,7 @@ public sealed class SidebarContextGestureTests
                 WorkspaceMode = "Advanced", Language = "en", ReaderMediaSidebarScope = "Always", ReaderMediaSidebarMinimumWidth = 1000,
                 MediaSidebarAutoHide = true, MediaSidebarInfo = "Always", MediaSidebarPinned = false
             }.SaveConfig(profile.Path);
-            SavedFile[] media = await SeedAsync(profile.Path, directory.Path, loose, identicalOccurrences);
+            SavedFile[] media = await SeedAsync(profile.Path, directory.Path, loose, identicalOccurrences, readerStrip);
             await using DesktopSessionHost host = new(profile.Path, [],
                 updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
             await using MainWindow window = new(host) { Width = 1700, Height = 900, Classes = { MotionPolicy.OffClass } };
@@ -675,46 +858,59 @@ public sealed class SidebarContextGestureTests
         }
     });
 
-    private static async Task<SavedFile[]> SeedAsync(string profile, string directory, bool loose, bool identicalOccurrences)
+    private static async Task<SavedFile[]> SeedAsync(string profile, string directory, bool loose, bool identicalOccurrences, bool readerStrip)
     {
         const string first = "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAE0lEQVR4nGNgmMlAMhrVM6oHiADlWm/EglqV/gAAAABJRU5ErkJggg==";
         const string second = "iVBORw0KGgoAAAANSUhEUgAAABMAAAANCAIAAADE7sJwAAAAFklEQVR4nGMwdgklDzGM6hzVOQR1AgDPR8TVSHrz+wAAAABJRU5ErkJggg==";
+        if (readerStrip)
+        {
+            const string third = "iVBORw0KGgoAAAANSUhEUgAAABcAAAARCAIAAAC5EaDqAAAAGklEQVR4nGMw36hIOWIYNWXUlFFTRk2hkSkAFVCUz4rmaxkAAAAASUVORK5CYII=";
+            const string fourth = "iVBORw0KGgoAAAANSUhEUgAAAB0AAAATCAIAAADj+5EoAAAAHklEQVR4nGO4J69NC8Qwau6ouaPmjpo7au6ouUQgAIQrfTfBcPqEAAAAAElFTkSuQmCC";
+            return await SeedThreadAsync(profile, directory, Thread, loose: false,
+                ("43", [("a.png", first), ("b.png", second)]), ("44", [("c.png", third), ("d.png", fourth)]));
+        }
         if (!identicalOccurrences)
-            return await SeedThreadAsync(profile, directory, Thread, "43", [("a.png", first), ("b.png", second)], loose);
+            return await SeedThreadAsync(profile, directory, Thread, loose, ("43", [("a.png", first), ("b.png", second)]));
 
-        SavedFile[] original = await SeedThreadAsync(profile, Path.Combine(directory, "first"), Thread, "43", [("a.png", first)], loose: false);
-        SavedFile[] duplicate = await SeedThreadAsync(profile, Path.Combine(directory, "second"), new("fixture", "g", "44"), "45",
-            [("b.png", first)], loose: false);
+        SavedFile[] original = await SeedThreadAsync(profile, Path.Combine(directory, "first"), Thread, loose: false, ("43", [("a.png", first)]));
+        SavedFile[] duplicate = await SeedThreadAsync(profile, Path.Combine(directory, "second"), new("fixture", "g", "44"),
+            loose: false, ("45", [("b.png", first)]));
         return [.. original, .. duplicate];
     }
 
-    private static async Task<SavedFile[]> SeedThreadAsync(string profile, string directory, ResourceId threadId, string postId,
-        (string Name, string Encoded)[] pictures, bool loose)
+    private static async Task<SavedFile[]> SeedThreadAsync(string profile, string directory, ResourceId threadId, bool loose,
+        params (string PostId, (string Name, string Encoded)[] Pictures)[] fixtures)
     {
         Directory.CreateDirectory(directory);
         Dictionary<string, object> entries = new();
-        List<CapturedAttachment> attachments = [];
-        for (int i = 0; i < pictures.Length; i++)
+        List<CapturedPost> posts = [];
+        foreach (var (postId, pictures) in fixtures)
         {
-            (string name, string encoded) = pictures[i];
-            string id = i == 0 ? "777" : "778";
-            string url = "https://fixture.invalid/" + name;
-            byte[] bytes = Convert.FromBase64String(encoded);
-            string sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-            string md5 = Convert.ToBase64String(MD5.HashData(bytes));
-            await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
-            entries.Add(name, new { MediaIdentifier = id, Variant = "original", SourceUrl = url, FileName = name,
-                Length = bytes.Length, Sha256 = sha256, Md5 = md5, OriginalFileName = name });
-            MediaProviderMetadata provider = new(id, "original", url, name, bytes.Length, md5, null);
-            attachments.Add(new(i, id, Url: url, OriginalFileName: name, ExpectedSize: bytes.Length, ExpectedMd5: md5)
-            { AttachmentRevisionKey = MediaRevisionKeys.CreateAttachmentKey(threadId, postId, i, provider) });
+            List<CapturedAttachment> attachments = [];
+            for (int index = 0; index < pictures.Length; index++)
+            {
+                (string name, string encoded) = pictures[index];
+                string id = (777 + entries.Count).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                string url = "https://fixture.invalid/" + name;
+                byte[] bytes = Convert.FromBase64String(encoded);
+                string sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                string md5 = Convert.ToBase64String(MD5.HashData(bytes));
+                await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
+                entries.Add(name, new { MediaIdentifier = id, Variant = "original", SourceUrl = url, FileName = name,
+                    Length = bytes.Length, Sha256 = sha256, Md5 = md5, OriginalFileName = name });
+                MediaProviderMetadata provider = new(id, "original", url, name, bytes.Length, md5, null);
+                attachments.Add(new(index, id, Url: url, OriginalFileName: name, ExpectedSize: bytes.Length, ExpectedMd5: md5)
+                { AttachmentRevisionKey = MediaRevisionKeys.CreateAttachmentKey(threadId, postId, index, provider) });
+            }
+            posts.Add(new(postId, posts.Count, PostFieldPresence.All, Html: "Two pictures", Attachments: attachments));
         }
         string manifestPath = Path.Combine(directory, ".meowchan-manifest.json");
         await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(new { Version = 1, Entries = entries }));
         MediaAssetSnapshot legacy = await MediaAssetReader.OpenAsync(directory);
         Dictionary<string, object> assets = new();
         Dictionary<string, MediaAttachmentBinding> bindings = new();
-        foreach (CapturedAttachment attachment in attachments)
+        foreach (CapturedPost post in posts)
+        foreach (CapturedAttachment attachment in post.Attachments!)
         {
             MediaAssetReference saved = Assert.Single(legacy.GetPage(), asset => asset.MediaIdentifier == attachment.MediaId);
             assets.Add(saved.AssetId, new { RequestedFileName = saved.RequestedFileName, Entry = entries[saved.RequestedFileName] });
@@ -722,14 +918,14 @@ public sealed class SidebarContextGestureTests
                 attachment.ExpectedSize, attachment.ExpectedMd5, null);
             string key = attachment.AttachmentRevisionKey!;
             if (!loose)
-                bindings.Add(key, new(new(threadId, postId, attachment.Position, key), MediaRevisionKeys.CreateAcquisitionKey(threadId, provider), saved.AssetId,
+                bindings.Add(key, new(new(threadId, post.PostId, attachment.Position, key), MediaRevisionKeys.CreateAcquisitionKey(threadId, provider), saved.AssetId,
                     provider, new(saved.Length, saved.Md5, saved.Sha256), new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UnixEpoch)));
         }
         await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(new { Version = 3, Entries = entries, Assets = assets, AttachmentBindings = bindings }));
         MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
         ArchivedThreadView thread = new(new(threadId, "https://fixture.invalid/g/thread/" + threadId.Thread, "Sidebar gesture fixture", directory,
-            ThreadSourceState.Archived, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 1, 1),
-            [new CapturedPost(postId, 0, PostFieldPresence.All, Html: "Two pictures", Attachments: loose ? null : attachments)], [directory], decimalPostOrder: true);
+            ThreadSourceState.Archived, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, posts.Count, 1),
+            loose ? posts.Select(post => post with { Attachments = null }).ToArray() : posts, [directory], decimalPostOrder: true);
         await RateAndTagWindowFixture.SeedAsync(profile, thread);
         return GallerySelection.Build(thread, [manifest], allSavedVersions: true, includeOtherMedia: loose).Entries.OrderBy(entry => entry.Asset.RequestedFileName)
             .Select(entry => new SavedFile(entry.Asset.Path, Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry)))).ToArray();
