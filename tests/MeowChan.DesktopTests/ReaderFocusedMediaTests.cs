@@ -3,6 +3,8 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -212,6 +214,95 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 window.Close();
             }
         });
+    }
+
+    [Theory]
+    [InlineData(960, 540, false)]
+    [InlineData(540, 960, true)]
+    public async Task ClickingAPictureInThePostFillsItsColumnWithinTheViewportAndCollapsesAgain(
+        int width, int height, bool viewportLimited)
+    {
+        const string postId = "100";
+        const int thumbnailWidth = 240;
+        const int embeddedMediaColumnWidth = 268;
+        using TempDirectory profile = new();
+        MediaAssetSnapshot media = WritePicture(profile.Path, width, height);
+        await CaptureThreadAsync(profile.Path, 100, embedded: true, width, height);
+
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token),
+                (_, _) => Task.CompletedTask, _ => { }, (_, _) => Task.FromResult(media))
+            {
+                IsReadable = true
+            };
+            Window window = new() { Width = 1920, Height = 620, Content = page };
+            try
+            {
+                Config config = new()
+                {
+                    ReaderThumbnailWidth = thumbnailWidth,
+                    ReaderTextlessLargeImages = false,
+                    ReaderExpandReplies = false,
+                    ReaderMediaSidebar = true,
+                    ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways
+                };
+                config.ChooseReaderMediaClick(ReaderMediaClickMode.Post);
+                ReaderSettingsPreferences.Apply(page, config);
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                BooruComponentDispatcher.Wait(page.LoadThreadAsync(ThreadId));
+                BooruComponentDispatcher.Wait(page.MediaLoadTask);
+                BooruComponentDispatcher.Wait(page.FocusPostAsync(postId));
+
+                ListBox posts = Posts(window);
+                ArchivePostRow row = Assert.IsType<ArchivePostRow>(posts.SelectedItem);
+                Assert.Equal(postId, row.Id);
+                BooruComponentDispatcher.WaitUntil(() =>
+                {
+                    window.UpdateLayout();
+                    return posts.ContainerFromItem(row) is ListBoxItem card
+                        && Picture(card) is { IsArrangeValid: true, Bounds.Width: > 0, Bounds.Height: > 0 };
+                }, "the clickable picture to be laid out");
+                Assert.True(page.IsMediaSidebarShown);
+
+                Image CurrentPicture() => Assert.IsType<Image>(Picture(Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromItem(row))));
+                Image picture = CurrentPicture();
+                Size thumbnail = picture.Bounds.Size;
+                ArchiveAttachmentView view = Assert.IsType<ArchiveAttachmentView>(picture.FindAncestorOfType<ArchiveAttachmentView>());
+                double viewportWidthLimit = view.VisibleFrameHeight() * width / height;
+                Assert.Equal(viewportLimited, viewportWidthLimit < embeddedMediaColumnWidth);
+                double expectedWidth = Math.Min(embeddedMediaColumnWidth, viewportWidthLimit);
+
+                ClickPicture(window, picture);
+                Size expanded = CurrentPicture().Bounds.Size;
+                output.WriteLine($"Thumbnail {thumbnail} → expanded {expanded} DIP, expected width {expectedWidth:0.##} DIP.");
+                Assert.True(expanded.Width > thumbnail.Width, $"The first click changed the picture from {thumbnail} to {expanded} DIP.");
+                Assert.InRange(expanded.Width, expectedWidth - 1, expectedWidth + 1);
+
+                ClickPicture(window, CurrentPicture());
+                Size collapsed = CurrentPicture().Bounds.Size;
+                Assert.InRange(collapsed.Width, thumbnail.Width - 0.5, thumbnail.Width + 0.5);
+                Assert.InRange(collapsed.Height, thumbnail.Height - 0.5, thumbnail.Height + 0.5);
+            }
+            finally
+            {
+                page.EndLifetime();
+                window.Close();
+            }
+        });
+    }
+
+    private static void ClickPicture(Window window, Image image)
+    {
+        Point center = new(image.Bounds.Width / 2, image.Bounds.Height / 2);
+        Point at = Assert.IsType<Point>(image.TranslatePoint(center, window));
+        window.MouseMove(at);
+        window.MouseDown(at, MouseButton.Left);
+        window.MouseUp(at, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
     }
 
     private static ListBox Posts(Window window) => window.GetVisualDescendants().OfType<ListBox>()
