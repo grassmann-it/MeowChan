@@ -20,6 +20,39 @@ namespace MeowChan.DesktopTests;
 public sealed class BooruSearchDestinationTests
 {
     [Fact]
+    public void ClickingActiveWatchersReturnsToTheSameSearchAndItsInput() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = new();
+        using BooruPage page = new(harness.Services);
+        Window window = new() { Content = page, Width = 900, Height = 550 };
+        try
+        {
+            window.Show();
+            window.Activate();
+            BooruWorkbenchView view = page.View;
+            Assert.True(view.TryShowQueryInNewTab("cat"));
+            Settle(window);
+            TabControl tabs = FindVisual<TabControl>(view, BooruWorkbenchView.TabsName);
+            object? search = tabs.SelectedItem;
+            Button button = FindWatchersButton(page);
+            Click(button);
+            Settle(window);
+            TabItem watchers = FindVisual<TabItem>(view, BooruWorkbenchView.WatchersTabName);
+            Assert.Same(watchers, tabs.SelectedItem);
+            Click(button);
+            Settle(window);
+            Assert.Same(search, tabs.SelectedItem);
+            Assert.DoesNotContain(watchers, tabs.Items);
+            TextBox input = SearchControl<TextBox>(view, BooruWorkbenchView.InputName);
+            Assert.Equal("cat", input.Text);
+            Assert.True(input.IsKeyboardFocusWithin);
+            Assert.False(button.Focusable);
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
     public void WatchersButtonCountsActiveLocalWatchersAndFollowsLanguageChanges() => BooruComponentDispatcher.Run(() =>
     {
         BooruUiHarness harness = new();
