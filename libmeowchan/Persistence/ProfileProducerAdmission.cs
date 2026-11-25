@@ -15,11 +15,6 @@ internal sealed class ProfileProducerEpoch(ProfileAdmissionToken? admission) : I
     private TaskCompletionSource _drained = Completed();
     internal ProfileAdmissionToken? Admission { get; } = admission;
 
-    private ProfileProducerEpoch(ProfileAdmission? authority) : this((ProfileAdmissionToken?)null) =>
-        Admission = authority?.EnterOrdinaryWriter();
-
-    internal static ProfileProducerEpoch Open(ProfileAdmission? authority) => new(authority);
-
     internal Use Enter()
     {
         lock (_sync)
