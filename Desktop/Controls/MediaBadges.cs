@@ -291,6 +291,14 @@ internal static class MediaBadgeLayout
         _ => VideoPlayMark.GlyphColor
     };
 
+    /// <summary>The colour a badge's icon is drawn in now: heart and star follow the Dark tone of the theme colours in use (preset or own colour).</summary>
+    internal static Color CurrentIconColor(MediaBadgeId id) => id switch
+    {
+        MediaBadgeId.Favorite => VideoPlayMark.CurrentFavoriteColor,
+        MediaBadgeId.Rating => VideoPlayMark.CurrentRatingColor,
+        _ => VideoPlayMark.GlyphColor
+    };
+
     /// <summary>What a picture of this shorter side can carry under these limits.</summary>
     internal static MediaBadgeMode ModeFor(double shortSide, MediaBadgeLimits limits)
     {
@@ -597,6 +605,8 @@ internal sealed partial class MediaBadgeView : Control
         VerticalAlignment = VerticalAlignment.Center;
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
         _limitsChanged = OnLimitsChanged;
+        // Heart and star are drawn in the favourite and rating colour in use: a new palette (preset, own colour) repaints them.
+        Theming.ThemeRuntime.FollowApplied(this, InvalidateVisual);
         InitializeHitZones();
     }
 
@@ -723,7 +733,7 @@ internal sealed partial class MediaBadgeView : Control
                 context.DrawEllipse(new SolidColorBrush(MeowChan.Desktop.MediaLabelText.Of(this, badge.Icon[MediaBadgeIcons.LabelPrefix.Length..])), null, target.Center, target.Width / 2, target.Height / 2);
             else
             {
-                Bitmap mask = MediaBadgeIconBitmaps.Get(badge.Icon, MediaBadgeLayout.IconColor(badge.Id));
+                Bitmap mask = MediaBadgeIconBitmaps.Get(badge.Icon, MediaBadgeLayout.CurrentIconColor(badge.Id));
                 using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality }))
                     context.DrawImage(mask, new Rect(mask.Size), target);
             }
