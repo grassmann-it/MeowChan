@@ -25,7 +25,9 @@ public partial class MainWindow
         CommandBindings.Apply(DownloadsColumnsButton, "table.choose-columns", iconWithLabel: true);
     }
 
-    private void ToggleDownloadColumns(bool focusMenu = false)
+    private void ToggleDownloadColumns() => ToggleDownloadColumns(focusMenu: false);
+
+    private void ToggleDownloadColumns(bool focusMenu)
     {
         var button = DownloadsColumnsButton;
         if (PopupToggle.ConsumeActivation(button))
