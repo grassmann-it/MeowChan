@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -250,21 +251,33 @@ internal static class ReaderGalleryShortcutParityChecks
                 await Scene(mode + "-button-native-Enter", async () =>
                 {
                     await Setup(large);
-                    int opens = 0;
-                    page.OpenGallery = (_, _, _) => { opens++; return Task.CompletedTask; };
-                    // An actual action button, not the medium preview implemented as a Button.
-                    // Its native Click opens the gallery; the tunnel must not bypass Click.
-                    Button source = page.MediaSidebar!.Open; Focus(window, source);
-                    int clicks = 0;
+                    Control readerHost = large ? host : page;
+                    Button source = readerHost.GetVisualDescendants().OfType<Button>().Single(button =>
+                        AutomationProperties.GetAutomationId(button) == "ArchiveOpenGallery");
+                    Require(source.IsEffectivelyVisible && source.IsEffectivelyEnabled,
+                        "The reader toolbar Gallery button is hidden or disabled.");
+                    Focus(window, source);
+                    int opens = 0, clicks = 0;
+                    ResourceId? openedResource = null;
+                    Control? openedFrom = null;
+                    page.OpenGallery = (resource, _, origin) =>
+                    {
+                        opens++;
+                        openedResource = resource;
+                        openedFrom = origin;
+                        return Task.CompletedTask;
+                    };
                     void Clicked(object? sender, RoutedEventArgs e) => clicks++;
-                    // The sidebar's own Click handler consumes the event after opening the gallery.
                     source.AddHandler(Button.ClickEvent, Clicked, RoutingStrategies.Bubble, handledEventsToo: true);
                     try
                     {
                         Press(source, Key.Enter);
                         Require(clicks == 1, "Enter did not perform exactly one native button click");
                         await Program.WaitUntilAsync(() => opens > 0);
-                        Require(opens == 1 && source.IsFocused, "Enter was stolen or activated twice");
+                        await SmokeDispatcher.SettleAsync();
+                        Require(clicks == 1 && opens == 1 && openedResource == Fixture
+                            && ReferenceEquals(openedFrom, source) && source.IsFocused,
+                            $"Enter must keep focus and open the current thread once from the Gallery button (clicks={clicks}, opens={opens}).");
                     }
                     finally { source.RemoveHandler(Button.ClickEvent, Clicked); }
                 });
