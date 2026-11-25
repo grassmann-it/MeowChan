@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -294,6 +295,88 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EnlargedPostAlignsOnEnableAndFocusChangeAndStaysWhereTheReaderScrolls(bool tallPost)
+    {
+        const int post = 108;
+        const string postId = "108";
+        const int defaultPaddingPercent = 8;
+        using TempDirectory profile = new();
+        MediaAssetSnapshot media = WritePicture(profile.Path);
+        string body = tallPost ? string.Join("<br>", Enumerable.Repeat("A line in the selected post.", 48)) : "A short post.";
+        await CaptureThreadAsync(profile.Path, post, embedded: true, pictureBody: body);
+
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token),
+                (_, _) => Task.CompletedTask, _ => { }, (_, _) => Task.FromResult(media)) { IsReadable = true };
+            Window window = new() { Width = 1920, Height = 800, Content = page };
+            try
+            {
+                Config config = new() { ReaderMediaSidebar = false, ReaderExpandReplies = tallPost, ReaderFoldLines = 100 };
+                ReaderSettingsPreferences.Apply(page, config);
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                BooruComponentDispatcher.Wait(page.LoadThreadAsync(ThreadId));
+                BooruComponentDispatcher.Wait(page.MediaLoadTask);
+                BooruComponentDispatcher.Wait(page.FocusPostAsync(postId));
+
+                ListBox posts = Posts(window);
+                ArchivePostRow row = Assert.IsType<ArchivePostRow>(posts.SelectedItem);
+                Assert.Equal(postId, row.Id);
+                BooruComponentDispatcher.WaitUntil(() =>
+                {
+                    window.UpdateLayout();
+                    return posts.ContainerFromItem(row) is ListBoxItem card && Picture(card) is { IsArrangeValid: true }
+                        && (!tallPost || (row.RepliesExpanded && row.Replies.Count == ReplyCount));
+                }, "the focused card, picture and automatic replies to lay out");
+                ScrollViewer scroll = Assert.IsType<ScrollViewer>(posts.Scroll);
+
+                void AssertAlignment(string operation)
+                {
+                    ListBoxItem card = Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromItem(row));
+                    Assert.Same(row, posts.SelectedItem);
+                    Point at = Assert.IsType<Point>(card.TranslatePoint(default, scroll));
+                    double viewportHeight = scroll.Viewport.Height;
+                    Assert.Equal(tallPost, card.Bounds.Height > viewportHeight);
+                    double expected = tallPost ? viewportHeight * defaultPaddingPercent / 100 : (viewportHeight - card.Bounds.Height) / 2;
+                    Assert.True(Math.Abs(expected - at.Y) <= 2,
+                        $"{operation} placed a {card.Bounds.Height:0.##} DIP post at {at.Y:0.##} DIP in a {viewportHeight:0.##} DIP viewport. Expected {expected:0.##} DIP.");
+                }
+
+                config.ReaderFocusedMediaEnlarge = true;
+                ReaderSettingsPreferences.Apply(page, config);
+                window.UpdateLayout();
+                Dispatcher.UIThread.RunJobs();
+                AssertAlignment("Enabling focused media enlargement");
+
+                BooruComponentDispatcher.Wait(page.FocusPostAsync("107"));
+                Assert.Equal("107", page.CurrentReaderPostId);
+                BooruComponentDispatcher.Wait(page.FocusPostAsync(postId));
+                AssertAlignment("Changing the focused post");
+
+                double alignedOffset = scroll.Offset.Y;
+                Point pointer = Assert.IsType<Point>(scroll.TranslatePoint(new Point(scroll.Viewport.Width / 2, scroll.Viewport.Height / 2), window));
+                window.MouseWheel(pointer, new Vector(0, -1), RawInputModifiers.None);
+                window.UpdateLayout();
+                double scrolledOffset = scroll.Offset.Y;
+                Assert.True(scrolledOffset > alignedOffset + 2, "The wheel should scroll the focused card away from its alignment.");
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+                Assert.InRange(scroll.Offset.Y, scrolledOffset - 1, scrolledOffset + 1);
+                Assert.Same(row, posts.SelectedItem);
+            }
+            finally
+            {
+                page.EndLifetime();
+                window.Close();
+            }
+        });
+    }
+
     private static void ClickPicture(Window window, Image image)
     {
         Point center = new(image.Bounds.Width / 2, image.Bounds.Height / 2);
@@ -315,7 +398,8 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
     private static int VisibleReplyCards(ListBoxItem card) => card.GetVisualDescendants().OfType<Button>()
         .Count(button => button.IsEffectivelyVisible && button.Classes.Contains("reader-reply-card"));
 
-    private static async Task CaptureThreadAsync(string directory, int picturePost, bool embedded, int width = 960, int height = 540)
+    private static async Task CaptureThreadAsync(string directory, int picturePost, bool embedded, int width = 960, int height = 540,
+        string? pictureBody = null)
     {
         CapturedAttachment picture = new(0, "picture", Url: PictureUrl, OriginalFileName: FileName) { Width = width, Height = height };
         List<CapturedPost> posts = [];
@@ -325,7 +409,7 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
             int index = number - 100;
             if (number == picturePost)
                 posts.Add(new(number.ToString(), index, PostFieldPresence.All,
-                    Html: embedded ? string.Empty : "Opening post with a picture", Attachments: [picture]));
+                    Html: pictureBody ?? (embedded ? string.Empty : "Opening post with a picture"), Attachments: [picture]));
             else if (number > picturePost && number <= picturePost + ReplyCount)
                 posts.Add(new(number.ToString(), index, PostFieldPresence.All,
                     Html: $"<a href='#p{picturePost}' class='quotelink'>&gt;&gt;{picturePost}</a><br>" +
