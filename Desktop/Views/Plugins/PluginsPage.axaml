@@ -63,9 +63,9 @@
         </ScrollViewer>
       </Grid>
       <ContentControl x:Name="SourceContentHost" Grid.ColumnSpan="2" />
-      <!-- One detail card with a scrolling body and a fixed draft footer. -->
+      <!-- The draft footer joins the scrolling body when the card is too short to show the primary actions. -->
       <Border x:Name="PluginDetailCard" Grid.Column="1" Classes="workspace-section" IsVisible="False">
-        <Grid RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
+        <Grid x:Name="PluginDetailLayout" RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
           <ScrollViewer x:Name="PluginDetailsPane">
             <StackPanel x:Name="PluginDetailContent" Spacing="{StaticResource Workspace.Space.12}">
               <Border x:Name="PluginPurposeCard">

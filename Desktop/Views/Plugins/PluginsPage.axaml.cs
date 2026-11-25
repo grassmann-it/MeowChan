@@ -97,6 +97,7 @@ public partial class PluginsPage : UserControl, IDisposable
         InitializeComponent();
         InitializePluginDetails();
         InitializePluginActions();
+        C<Grid>("PluginDetailLayout").LayoutUpdated += FitPluginDraftFooter;
         KeyDown += (_, args) =>
         {
             if (args.Handled || args.Key != Key.Escape) return;
@@ -572,6 +573,24 @@ public partial class PluginsPage : UserControl, IDisposable
         C<Expander>("PluginGrantExpander").IsVisible = entry.Description?.Filters.Count > 0;
     }
     private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+
+    private void FitPluginDraftFooter(object? sender, EventArgs e)
+    {
+        Grid layout = C<Grid>("PluginDetailLayout");
+        if (_ended || !layout.IsEffectivelyVisible || layout.Bounds.Height <= 0) return;
+        Border footer = C<Border>("PluginDraftFooter");
+        double actionsHeight = C<WrapPanel>("PluginPrimaryActions").DesiredSize.Height;
+        bool pinFooter = layout.Bounds.Height - footer.DesiredSize.Height - layout.RowSpacing >= actionsHeight;
+        if (pinFooter == ReferenceEquals(footer.Parent, layout) || footer.Parent is not Panel parent) return;
+
+        Control? focus = TopLevel.GetTopLevel(footer)?.FocusManager?.GetFocusedElement() as Control;
+        bool restoreFocus = focus != null && footer.IsVisualAncestorOf(focus);
+        Panel destination = pinFooter ? layout : C<StackPanel>("PluginDetailContent");
+        parent.Children.Remove(footer);
+        destination.Children.Add(footer);
+        if (restoreFocus && focus!.Focus()) focus.BringIntoView();
+    }
+
     private void ApplyPaneVisibility()
     {
         bool hasSelection = Selected != null && Included(Selected);

@@ -621,6 +621,58 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         return new(new(new("fixture", "g", "42"), directory, asset.AssetId), manifest, asset, null, null, false, false);
     }
 
+    [Fact]
+    public void PluginDetailMoreIsFullyClickableAtMinimumWindowSizeInGerman() => OnUi(async () =>
+    {
+        Texts.SetLanguage("de");
+        using TempDirectory temp = new();
+        PluginManagementServices services = await TwoSourcePluginAsync(Path.Combine(temp.Path, "plugin-fixture"));
+        SourcesPage sources = new();
+        PluginsPage plugins = sources.PluginManagement;
+        plugins.Attach(services);
+        plugins.ApplyWorkView(WorkView.Barebones, true);
+        Window window = new()
+        {
+            Width = 640,
+            Height = 480,
+            RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark,
+            Content = new Border { Padding = new Thickness(0, 48, 0, 78), Child = sources },
+            Classes = { MotionPolicy.OffClass }
+        };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await sources.ActivateAsync();
+            sources.SelectSource(TwoSourcePluginSource + "-a");
+            plugins.SelectSourcePlugin(TwoSourcePluginKey, details: true);
+            Layout(window);
+            Assert.True(plugins.ShowingSourcePluginDetails);
+            Button opener = Find<Button>(window, "PluginMoreActions");
+            Assert.True(opener.IsEffectivelyEnabled);
+            Assert.False(opener.Focusable);
+
+            await BooruTestSupport.WaitAsync(() =>
+            {
+                opener.BringIntoView();
+                window.UpdateLayout();
+                return opener.IsEffectivelyVisible && opener.Bounds.Height > 0
+                    && FullyInside(window, window.ClientSize)
+                    && opener.GetVisualAncestors().OfType<ScrollViewer>().All(scroll => FullyInside(scroll, scroll.Viewport));
+            }, "the full plugin More actions button inside the detail viewport");
+
+            Click(window, opener);
+            ContextMenu menu = Assert.IsType<ContextMenu>(plugins.PluginActionMenu);
+            Assert.True(menu.IsOpen);
+            Assert.Single(menu.Items.OfType<MenuItem>(), item => AutomationProperties.GetAutomationId(item) == "plugins.watches");
+
+            bool FullyInside(Visual surface, Size size) => opener.TranslatePoint(default, surface) is { } point
+                && point.X >= -1 && point.Y >= -1 && point.X + opener.Bounds.Width <= size.Width + 1
+                && point.Y + opener.Bounds.Height <= size.Height + 1;
+        }
+        finally { window.Close(); }
+    });
+
     private const string TwoSourcePluginKey = "toggle-two-sources";
     private const string TwoSourcePluginSource = "toggle-source";
 
