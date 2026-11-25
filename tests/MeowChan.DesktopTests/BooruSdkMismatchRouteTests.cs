@@ -117,119 +117,6 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
         Assert.Equal(0, store.Writes);
     }
 
-    // ---- the page --------------------------------------------------------------------------------------------
-
-    [BooruSharedFact]
-    public async Task TheMismatchStatusStatesTheWholeRouteOnBothTabsAndOffersTheSharedReviewName()
-    {
-        using Fixture f = await Fixture.MismatchAsync();
-        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable, ReleasesPin: true);
-        var search = f.View.SearchRepairForTests;
-        string text = search.Text.Text!;
-        Assert.Contains("(sdk-mismatch)", text);
-        Assert.Contains("open “Review bundled repairs”, confirm the current bundled Danbooru build there and restart MeowChan", text);
-        Assert.Contains("confirming releases the pin and replaces the pinned build with the current bundled one", text);
-        Assert.Contains("stays in the backup", text);
-        Assert.DoesNotContain("not changed automatically", text);
-        Assert.True(search.Host.Classes.Contains("workspace-error"));
-        Assert.Equal(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(search.Text));
-        Assert.True(search.Review.IsVisible);
-        Assert.True(search.Review.IsEnabled);
-        Assert.True(search.Review.Focusable && search.Review.IsTabStop); // Tab reaches it; Enter/Space are the Button's own activation
-        Assert.Equal("Review bundled repairs", search.Review.Content);
-        Assert.Equal("Review bundled repairs", AutomationProperties.GetName(search.Review));
-        Assert.False(search.Retry.IsVisible); // searching again before the restart fails the same way
-        Assert.False(search.Open.IsVisible);
-
-        var watchers = f.View.WatcherRepairForTests;
-        Assert.True(watchers.Host.IsVisible);
-        Assert.Equal(text, watchers.Text.Text);
-        Assert.True(watchers.Review.IsVisible && watchers.Review.IsEnabled);
-        Assert.Equal("Review bundled repairs", AutomationProperties.GetName(watchers.Review));
-    }
-
-    [BooruSharedFact]
-    public async Task AConfirmedRepairShowsTheCalmRestartNoticeWithoutSearchAgainOrReview()
-    {
-        using Fixture f = await Fixture.MismatchAsync();
-        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.ConfirmedPending);
-        var search = f.View.SearchRepairForTests;
-        Assert.StartsWith("Repair confirmed. Restart MeowChan to use the current Danbooru build.", search.Text.Text);
-        Assert.Contains("Quit MeowChan completely", search.Text.Text);
-        Assert.False(search.Host.Classes.Contains("workspace-error"));
-        Assert.True(search.Host.Classes.Contains("workspace-status"));
-        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(search.Text));
-        Assert.False(search.Retry.IsVisible);
-        Assert.False(search.Review.IsVisible);
-        Assert.False(search.Open.IsVisible);
-        Assert.StartsWith("Repair confirmed.", f.View.WatcherRepairForTests.Text.Text);
-        Assert.False(f.View.WatcherRepairForTests.Review.IsVisible);
-    }
-
-    [BooruSharedFact]
-    public void TheSessionObservationAloneShowsTheRouteWhenThePageIsOpenedLater()
-    {
-        // A fresh page of the same session: nothing was searched here, the session observed the mismatch earlier.
-        BooruUiHarness h = new();
-        using BooruWorkbenchModel model = new(h.Services);
-        using BooruWorkbenchView view = new(model, ownsModel: false) { ReviewCurrentBuild = () => Task.CompletedTask };
-        Assert.False(view.WatcherRepairForTests.Host.IsVisible);
-        Assert.StartsWith("Enter tags and press Search", view.SearchRepairForTests.Text.Text);
-        view.Repair = new BooruBuildRepair(true, BooruRepairStage.ConfirmedPending);
-        Assert.StartsWith("Repair confirmed. Restart MeowChan", view.SearchRepairForTests.Text.Text);
-        Assert.True(view.WatcherRepairForTests.Host.IsVisible);
-    }
-
-    [BooruSharedFact]
-    public async Task ABlockedPreviewNamesTheReasonAndTheNextStepInsteadOfOpeningAnEmptyDialog()
-    {
-        using Fixture f = await Fixture.MismatchAsync();
-        f.View.OpenPluginDetails = () => Task.CompletedTask;
-        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Blocked, BlockedReasonKey: "plugins.reselection.blocked.pinned");
-        var search = f.View.SearchRepairForTests;
-        Assert.Contains("cannot be confirmed from here: " + Texts.T("plugins.reselection.blocked.pinned"), search.Text.Text);
-        Assert.Contains("Next: open the Danbooru plugin under Plugins", search.Text.Text);
-        Assert.False(search.Review.IsVisible);
-        Assert.True(search.Open.IsVisible);
-        Assert.Equal("Open Danbooru plugin", AutomationProperties.GetName(search.Open));
-        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Blocked, BlockedReasonKey: BooruBuildRepair.NothingToReviewKey);
-        Assert.Contains("No current bundled Danbooru build is waiting for review.", search.Text.Text);
-    }
-
-    [BooruSharedFact]
-    public async Task TheReviewIsDisabledWithAVisibleReasonWhileTheRouteCannotRunAndANoticeIsShownAndCleared()
-    {
-        using Fixture f = await Fixture.MismatchAsync();
-        string? reason = "booru.ui.repair.busy";
-        f.View.ReviewUnavailableReason = () => reason;
-        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable);
-        var search = f.View.SearchRepairForTests;
-        Assert.True(search.Review.IsVisible);
-        Assert.False(search.Review.IsEnabled);
-        Assert.Equal(Texts.T("booru.ui.repair.busy"), ToolTip.GetTip(search.Review));
-        Assert.Equal(Texts.T("booru.ui.repair.busy"), AutomationProperties.GetHelpText(search.Review));
-        Assert.True(search.Note.IsVisible);
-        Assert.Equal(Texts.T("booru.ui.repair.busy"), search.Note.Text);
-        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(search.Note));
-        reason = null;
-        f.View.RefreshRepairPresentation();
-        Assert.True(search.Review.IsEnabled);
-        Assert.False(search.Note.IsVisible);
-        f.View.ShowRepairNotice("booru.ui.repair.notOpened", Texts.T("plugins.repair.review"));
-        Assert.Equal("The review did not open. Open Plugins and choose “Review bundled repairs” there.", search.Note.Text);
-        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable);
-        Assert.False(search.Note.IsVisible); // a new reading retires the transient notice
-    }
-
-    [BooruSharedFact]
-    public async Task WithoutAHostRouteNoReviewButtonIsOffered()
-    {
-        using Fixture f = await Fixture.MismatchAsync(route: false);
-        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable);
-        Assert.False(f.View.SearchRepairForTests.Review.IsVisible);
-        Assert.False(f.View.SearchRepairForTests.Retry.IsVisible);
-    }
-
     [Fact]
     public void AWatcherCheckOfAMismatchedBuildSaysWhatItIsInsteadOfDisabledOrNotRunning()
     {
@@ -350,28 +237,6 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
 
     // ---- fixtures --------------------------------------------------------------------------------------------
 
-    private sealed class Fixture : IDisposable
-    {
-        private Fixture(BooruUiHarness harness, BooruWorkbenchModel model, BooruWorkbenchView view) { Harness = harness; Model = model; View = view; }
-        internal BooruUiHarness Harness { get; }
-        internal BooruWorkbenchModel Model { get; }
-        internal BooruWorkbenchView View { get; }
-
-        internal static async Task<Fixture> MismatchAsync(bool route = true)
-        {
-            BooruUiHarness h = new();
-            h.Search.OnSearch = (_, _, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Failed, BooruText.SdkMismatchCode));
-            BooruWorkbenchModel model = new(h.Services);
-            BooruWorkbenchView view = new(model, ownsModel: false);
-            if (route) view.ReviewCurrentBuild = () => Task.CompletedTask;
-            await BooruTestSupport.SearchAsync(model.Search, "cat");
-            Assert.True(BooruText.CanReviewCurrentBuild(model.Search.View), "the fixture search did not fail with sdk-mismatch");
-            return new Fixture(h, model, view);
-        }
-
-        public void Dispose() { View.Dispose(); Model.Dispose(); }
-    }
-
     private static PluginActivationSnapshot Plugin(PluginReleaseSnapshot? active, PluginReleaseSnapshot? pending = null,
         PluginReleaseSnapshot? pinned = null, string? problem = null) =>
         new(PluginId, true, 1, "bundled-danbooru", active, pending, null, pinned, [Candidate(Current)], problem);
@@ -422,5 +287,142 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
         public Task<PluginProfileSnapshot> SetEnabledAsync(string pluginId, bool enabled, long expectedRevision, CancellationToken cancellationToken = default) => Write();
         public Task<PluginProfileSnapshot> SetGrantAsync(string pluginId, string filterKey, PluginGrantScope scope, FilterDataAccess access, long expectedRevision, CancellationToken cancellationToken = default) => Write();
         public Task<PluginProfileSnapshot> ReportActivationFailureAsync(string pluginId, string executionRevision, string problem, long expectedRevision, CancellationToken cancellationToken = default) => Write();
+    }
+}
+
+[Collection("Localization")]
+public sealed class BooruSdkMismatchPageTests
+{
+    [BooruSharedFact]
+    public void TheMismatchStatusStatesTheWholeRouteOnBothTabsAndOffersTheSharedReviewName() => BooruComponentDispatcher.Run(async () =>
+    {
+        using Fixture f = await Fixture.MismatchAsync();
+        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable, ReleasesPin: true);
+        var search = f.View.SearchRepairForTests;
+        string text = search.Text.Text!;
+        Assert.Contains("(sdk-mismatch)", text);
+        Assert.Contains("open “Review bundled repairs”, confirm the current bundled Danbooru build there and restart MeowChan", text);
+        Assert.Contains("confirming releases the pin and replaces the pinned build with the current bundled one", text);
+        Assert.Contains("stays in the backup", text);
+        Assert.DoesNotContain("not changed automatically", text);
+        Assert.True(search.Host.Classes.Contains("workspace-error"));
+        Assert.Equal(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(search.Text));
+        Assert.True(search.Review.IsVisible);
+        Assert.True(search.Review.IsEnabled);
+        Assert.True(search.Review.Focusable && search.Review.IsTabStop); // Tab reaches it; Enter/Space are the Button's own activation
+        Assert.Equal("Review bundled repairs", search.Review.Content);
+        Assert.Equal("Review bundled repairs", AutomationProperties.GetName(search.Review));
+        Assert.False(search.Retry.IsVisible); // searching again before the restart fails the same way
+        Assert.False(search.Open.IsVisible);
+
+        var watchers = f.View.WatcherRepairForTests;
+        Assert.True(watchers.Host.IsVisible);
+        Assert.Equal(text, watchers.Text.Text);
+        Assert.True(watchers.Review.IsVisible && watchers.Review.IsEnabled);
+        Assert.Equal("Review bundled repairs", AutomationProperties.GetName(watchers.Review));
+    });
+
+    [BooruSharedFact]
+    public void AConfirmedRepairShowsTheCalmRestartNoticeWithoutSearchAgainOrReview() => BooruComponentDispatcher.Run(async () =>
+    {
+        using Fixture f = await Fixture.MismatchAsync();
+        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.ConfirmedPending);
+        var search = f.View.SearchRepairForTests;
+        Assert.StartsWith("Repair confirmed. Restart MeowChan to use the current Danbooru build.", search.Text.Text);
+        Assert.Contains("Quit MeowChan completely", search.Text.Text);
+        Assert.False(search.Host.Classes.Contains("workspace-error"));
+        Assert.True(search.Host.Classes.Contains("workspace-status"));
+        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(search.Text));
+        Assert.False(search.Retry.IsVisible);
+        Assert.False(search.Review.IsVisible);
+        Assert.False(search.Open.IsVisible);
+        Assert.StartsWith("Repair confirmed.", f.View.WatcherRepairForTests.Text.Text);
+        Assert.False(f.View.WatcherRepairForTests.Review.IsVisible);
+    });
+
+    [BooruSharedFact]
+    public void TheSessionObservationAloneShowsTheRouteWhenThePageIsOpenedLater() => BooruComponentDispatcher.Run(() =>
+    {
+        // A fresh page of the same session: nothing was searched here, the session observed the mismatch earlier.
+        BooruUiHarness h = new();
+        using BooruWorkbenchModel model = new(h.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false) { ReviewCurrentBuild = () => Task.CompletedTask };
+        Assert.False(view.WatcherRepairForTests.Host.IsVisible);
+        Assert.StartsWith("Enter tags and press Search", view.SearchRepairForTests.Text.Text);
+        view.Repair = new BooruBuildRepair(true, BooruRepairStage.ConfirmedPending);
+        Assert.StartsWith("Repair confirmed. Restart MeowChan", view.SearchRepairForTests.Text.Text);
+        Assert.True(view.WatcherRepairForTests.Host.IsVisible);
+    });
+
+    [BooruSharedFact]
+    public void ABlockedPreviewNamesTheReasonAndTheNextStepInsteadOfOpeningAnEmptyDialog() => BooruComponentDispatcher.Run(async () =>
+    {
+        using Fixture f = await Fixture.MismatchAsync();
+        f.View.OpenPluginDetails = () => Task.CompletedTask;
+        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Blocked, BlockedReasonKey: "plugins.reselection.blocked.pinned");
+        var search = f.View.SearchRepairForTests;
+        Assert.Contains("cannot be confirmed from here: " + Texts.T("plugins.reselection.blocked.pinned"), search.Text.Text);
+        Assert.Contains("Next: open the Danbooru plugin under Plugins", search.Text.Text);
+        Assert.False(search.Review.IsVisible);
+        Assert.True(search.Open.IsVisible);
+        Assert.Equal("Open Danbooru plugin", AutomationProperties.GetName(search.Open));
+        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Blocked, BlockedReasonKey: BooruBuildRepair.NothingToReviewKey);
+        Assert.Contains("No current bundled Danbooru build is waiting for review.", search.Text.Text);
+    });
+
+    [BooruSharedFact]
+    public void TheReviewIsDisabledWithAVisibleReasonWhileTheRouteCannotRunAndANoticeIsShownAndCleared() => BooruComponentDispatcher.Run(async () =>
+    {
+        using Fixture f = await Fixture.MismatchAsync();
+        string? reason = "booru.ui.repair.busy";
+        f.View.ReviewUnavailableReason = () => reason;
+        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable);
+        var search = f.View.SearchRepairForTests;
+        Assert.True(search.Review.IsVisible);
+        Assert.False(search.Review.IsEnabled);
+        Assert.Equal(Texts.T("booru.ui.repair.busy"), ToolTip.GetTip(search.Review));
+        Assert.Equal(Texts.T("booru.ui.repair.busy"), AutomationProperties.GetHelpText(search.Review));
+        Assert.True(search.Note.IsVisible);
+        Assert.Equal(Texts.T("booru.ui.repair.busy"), search.Note.Text);
+        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(search.Note));
+        reason = null;
+        f.View.RefreshRepairPresentation();
+        Assert.True(search.Review.IsEnabled);
+        Assert.False(search.Note.IsVisible);
+        f.View.ShowRepairNotice("booru.ui.repair.notOpened", Texts.T("plugins.repair.review"));
+        Assert.Equal("The review did not open. Open Plugins and choose “Review bundled repairs” there.", search.Note.Text);
+        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable);
+        Assert.False(search.Note.IsVisible); // a new reading retires the transient notice
+    });
+
+    [BooruSharedFact]
+    public void WithoutAHostRouteNoReviewButtonIsOffered() => BooruComponentDispatcher.Run(async () =>
+    {
+        using Fixture f = await Fixture.MismatchAsync(route: false);
+        f.View.Repair = new BooruBuildRepair(true, BooruRepairStage.Reviewable);
+        Assert.False(f.View.SearchRepairForTests.Review.IsVisible);
+        Assert.False(f.View.SearchRepairForTests.Retry.IsVisible);
+    });
+
+    private sealed class Fixture : IDisposable
+    {
+        private Fixture(BooruUiHarness harness, BooruWorkbenchModel model, BooruWorkbenchView view) { Harness = harness; Model = model; View = view; }
+        internal BooruUiHarness Harness { get; }
+        internal BooruWorkbenchModel Model { get; }
+        internal BooruWorkbenchView View { get; }
+
+        internal static async Task<Fixture> MismatchAsync(bool route = true)
+        {
+            BooruUiHarness h = new();
+            h.Search.OnSearch = (_, _, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Failed, BooruText.SdkMismatchCode));
+            BooruWorkbenchModel model = new(h.Services);
+            BooruWorkbenchView view = new(model, ownsModel: false);
+            if (route) view.ReviewCurrentBuild = () => Task.CompletedTask;
+            await BooruTestSupport.SearchAsync(model.Search, "cat");
+            Assert.True(BooruText.CanReviewCurrentBuild(model.Search.View), "the fixture search did not fail with sdk-mismatch");
+            return new Fixture(h, model, view);
+        }
+
+        public void Dispose() { View.Dispose(); Model.Dispose(); }
     }
 }
