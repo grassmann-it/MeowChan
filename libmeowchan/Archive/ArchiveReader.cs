@@ -17,8 +17,13 @@ public sealed partial class ArchiveReader : IAsyncDisposable
     private int _disposed;
     private readonly object _readGate = new();
     private readonly HashSet<Task> _reads = new();
-    private ArchiveReader(string path) { DatabasePath = path; }
+    private ArchiveReader(string path, bool hasIndexedBacklinks)
+    {
+        DatabasePath = path;
+        HasIndexedBacklinks = hasIndexedBacklinks;
+    }
     public string DatabasePath { get; }
+    internal bool HasIndexedBacklinks { get; }
 
     public static Task<ArchiveReader> OpenAsync(string profileDirectory, CancellationToken cancellationToken = default)
     {
@@ -31,9 +36,10 @@ public sealed partial class ArchiveReader : IAsyncDisposable
             using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadOnly);
             using SqliteTransaction validation = connection.BeginTransaction(deferred: true);
             ArchiveSql.ValidateSchema(connection, validation);
+            bool hasIndexedBacklinks = ArchiveSql.GetPragma(connection, "user_version", validation) > 1;
             validation.Commit();
             cancellationToken.ThrowIfCancellationRequested();
-            return new ArchiveReader(path);
+            return new ArchiveReader(path, hasIndexedBacklinks);
         }, cancellationToken);
     }
 
@@ -142,6 +148,24 @@ public sealed partial class ArchiveReader : IAsyncDisposable
 
     public Task<ArchiveQuotePage> GetBacklinksAsync(ArchivePostId post, int offset = 0, int limit = 100,
         CancellationToken cancellationToken = default) => QuotePageAsync(post, true, offset, limit, cancellationToken);
+
+    // Each prefix is bounded by the number of replies already loaded by the reader, which may span many pages.
+    internal Task<ArchiveQuotePage[]> ReadBacklinkPrefixesAsync(ResourceId thread,
+        IReadOnlyList<(string PostId, int Length)> prefixes, CancellationToken cancellationToken) =>
+        ReadAsync((connection, transaction) =>
+        {
+            ArchiveQuotePage[] pages = new ArchiveQuotePage[prefixes.Count];
+            for (int i = 0; i < pages.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                (string postId, int length) = prefixes[i];
+                ArchivePostId post = new(thread, postId);
+                ValidatePostId(post);
+                ArgumentOutOfRangeException.ThrowIfNegative(length);
+                pages[i] = ArchiveSql.ReadQuotes(connection, transaction, post, true, 0, length, cancellationToken);
+            }
+            return pages;
+        }, cancellationToken);
 
     private Task<ArchiveQuotePage> QuotePageAsync(ArchivePostId post, bool backlinks, int offset, int limit, CancellationToken cancellationToken)
     {

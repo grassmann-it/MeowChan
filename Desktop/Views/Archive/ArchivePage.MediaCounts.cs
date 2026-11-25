@@ -35,7 +35,11 @@ public partial class ArchivePage
         if (_obscuredByGallery == obscured) return;
         _obscuredByGallery = obscured;
         ArchiveAttachmentView.SetLoadingSuspended(this, obscured);
-        if (obscured) _ = PauseInlineVideos(); // R10: the gallery's video is the one that plays
+        if (obscured)
+        {
+            _mediaSidebar?.InvalidateTagEditor();
+            _ = PauseInlineVideos(); // R10: the gallery's video is the one that plays
+        }
         ReaderCoverageChanged();
         if (obscured) CancelArchiveMediaCounts();
         else { NotifyArchiveMediaCountsChanged(); ResumeMediaSidebar(); }

@@ -22,6 +22,10 @@ public partial class ArchivePage
     private ArchiveAssetRow? SavedMediaSidebarRow => ArchiveMediaTab.IsSelected && _shownMediaThread == _selectedThread
         && ReferenceEquals(_savedMediaSidebarRow, SelectedMediaRow()) ? _savedMediaSidebarRow : null;
 
+    private ArchiveAssetRow? ActionableSavedMediaSidebarRow => !_ended && _available && _mediaSidebarShown
+        && _mediaSidebar is { IsEffectivelyVisible: true } && !_obscuredByGallery && !IsReaderDialogOpen
+        && _thread != null && _thread.Summary.Id == _selectedThread ? SavedMediaSidebarRow : null;
+
     private void FollowSavedMediaSelection()
     {
         if (ArchiveMediaTab.IsSelected) OnMediaSidebarSelectionChanged();

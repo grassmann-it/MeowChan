@@ -177,7 +177,6 @@ public partial class ArchivePage
         CancelMediaLoad();
         CancelPendingGalleryOpen();
         CancelReferences();
-        CancelInlineReplies();
         ClosePreview();
         _mediaMenuPresenter.Invalidate();
         _ = ReleaseInlineVideos();

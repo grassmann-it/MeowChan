@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.IO;
 using System.Linq;
@@ -45,7 +46,7 @@ public partial class MainWindow
         if (!Current() || _mediaTagDialogOpen) return;
         // Sidebar requests can be replaced while resolving. Only the one that reaches the UI owns the open flag.
         bool sidebar = request.SidebarToken.CanBeCanceled;
-        using CancellationTokenSource? popoverWrites = sidebar ? CancellationTokenSource.CreateLinkedTokenSource(request.SidebarToken) : null;
+        using CancellationTokenSource? popoverWrites = sidebar ? new() : null;
         bool ownsDialog = !sidebar;
         if (ownsDialog) _mediaTagDialogOpen = true;
         Control? origin = FocusManager?.GetFocusedElement() as Control;
@@ -61,7 +62,6 @@ public partial class MainWindow
         {
             if (released) return;
             released = true;
-            popoverWrites?.Cancel();
             if (shown != null && ReferenceEquals(MediaPageTagPopover, shown)) MediaPageTagPopover = null;
             if (ownsDialog) _mediaTagDialogOpen = false;
         }
@@ -86,16 +86,27 @@ public partial class MainWindow
             {
                 Decision = decision, TooltipKeyContext = "media", FocusFallback = request.FocusFallback
             };
-            if (target != null) session = NewTargetedMediaTagSession(target, Current, popoverWrites?.Token ?? default);
+            if (target != null) session = NewPopoverTagSession(target, Current, request.SidebarToken);
             using QuickTagSession? quickSession = session == null ? null : options.NewSession(QuickTagTarget.For(session));
-            // A medium that cannot be tagged can still be rated.
-            QuickTagPopover popover = quickSession == null
-                ? QuickTagPopover.OpenBlocked(anchor, label, request.TagsBlocked
-                    ?? MediaMenuReasons.Tags(unavailable, BooruMediaIdentity.IsBooruThread(match.Key.Thread)), options)
-                : QuickTagPopover.Open(anchor, quickSession, label, options);
+            QuickTagPopover popover;
+            if (quickSession == null)
+            {
+                // A medium that cannot be tagged (a Danbooru medium, no bound version) can still be rated: the stars and the reason as text.
+                popover = QuickTagPopover.OpenBlocked(anchor, label, request.TagsBlocked
+                    ?? MediaMenuReasons.Tags(unavailable, BooruMediaIdentity.IsBooruThread(match.Key.Thread)), options);
+            }
+            else
+            {
+                popover = QuickTagPopover.Open(anchor, quickSession, label, options);
+            }
             origin = popover.Origin ?? origin;
             shown = popover;
             MediaPageTagPopover = popover;
+            if (popoverWrites != null && popover.Surface is { } surface)
+            {
+                surface.WriteToken = popoverWrites.Token;
+                popover.WhenClosed(popoverWrites.Cancel);
+            }
             popover.WhenClosed(Release);
             reason = await popover.Result;
         }
@@ -143,8 +154,6 @@ public partial class MainWindow
                 new QuickTagPopoverOptions { IsCurrent = isCurrent, Decision = decision, TooltipKeyContext = "reader", FocusFallback = request.FocusFallback });
             return;
         }
-        using CancellationTokenSource? popoverWrites = request.SidebarToken.CanBeCanceled
-            ? CancellationTokenSource.CreateLinkedTokenSource(request.SidebarToken) : null;
         _galleryTagDialogOpen = true;
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         Control? origin = null;
@@ -155,13 +164,12 @@ public partial class MainWindow
         {
             if (released) return;
             released = true;
-            popoverWrites?.Cancel();
             if (shown == null || ReferenceEquals(ArchiveTagPopover, shown)) ArchiveTagPopover = null;
             _galleryTagDialogOpen = false;
         }
         try
         {
-            MediaTagSession session = NewTargetedMediaTagSession(target, isCurrent, popoverWrites?.Token ?? default);
+            MediaTagSession session = NewPopoverTagSession(target, isCurrent, request.SidebarToken);
             QuickTagPopoverOptions options = PopoverOptions(context, isCurrent, restoreFocus: true, "ArchiveTagPopover") with
             {
                 Decision = decision, TooltipKeyContext = "reader", FocusFallback = request.FocusFallback
@@ -179,14 +187,13 @@ public partial class MainWindow
             await EditGalleryMediaTagsAsync(entry, origin, isCurrent, request.SidebarToken);
     }
 
-    private MediaTagSession NewTargetedMediaTagSession(MediaTagSubject target, Func<bool> current, CancellationToken sidebarToken)
+    private MediaTagSession NewPopoverTagSession(MediaTagSubject target, Func<bool> current, CancellationToken sidebarToken)
     {
         if (!sidebarToken.CanBeCanceled)
             return new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
 
         async Task<PrivateTagCommit> WriteAsync(CancellationToken token, Func<CancellationToken, Task<PrivateTagCommit>> write)
         {
-            sidebarToken.ThrowIfCancellationRequested();
             if (!current()) throw new OperationCanceledException();
             using CancellationTokenSource writeLifetime = CancellationTokenSource.CreateLinkedTokenSource(token, sidebarToken);
             return await write(writeLifetime.Token);
@@ -226,22 +233,36 @@ public partial class MainWindow
     {
         if (_isClosing || targets.Count == 0) return null;
         GalleryEntry[] frozen = targets.ToArray();
-        PopoverDecisionOwner owner = new(this);
-        // The decision session belongs to the popover. A caller that never shows the row has no session to release.
-        Lazy<GalleryDecisionSession> session = new(() => new GalleryDecisionSession(owner));
-        return new QuickTagPopoverDecision
+        return new ArchivePopoverDecision(this, frozen, initialFocus);
+    }
+
+    private sealed record ArchivePopoverDecision : QuickTagPopoverDecision, IDisposable
+    {
+        private readonly MainWindow _window;
+        private readonly PopoverDecisionOwner _owner;
+        private readonly GalleryDecisionSession _session;
+
+        [SetsRequiredMembers]
+        internal ArchivePopoverDecision(MainWindow window, GalleryEntry[] targets, QuickTagInitialFocus initialFocus)
         {
-            View = () => session.Value.View(frozen),
-            SetRating = value => session.Value.SetRatingAsync(frozen, value),
-            SetFavorite = selected => session.Value.SetFavoriteAsync(frozen, selected),
-            InitialFocus = initialFocus,
-            HasChanged = () => owner.Changed,
-            Release = () =>
-            {
-                if (session.IsValueCreated) session.Value.Dispose();
-                if (owner.Changed && !_isClosing) { _archivePage?.RefreshMediaRatings(); RefreshGalleryRating(); }
-            }
-        };
+            _window = window;
+            _owner = new(window);
+            _session = new(_owner);
+            View = () => _session.View(targets);
+            SetRating = value => _session.SetRatingAsync(targets, value);
+            SetFavorite = selected => _session.SetFavoriteAsync(targets, selected);
+            InitialFocus = initialFocus;
+            HasChanged = () => _owner.Changed;
+            Release = Dispose;
+        }
+
+        public void Dispose()
+        {
+            _session.Dispose();
+            if (!_owner.Changed || _window._isClosing) return;
+            _window._archivePage?.RefreshMediaRatings();
+            _window.RefreshGalleryRating();
+        }
     }
 
     /// <summary>

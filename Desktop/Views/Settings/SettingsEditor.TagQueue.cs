@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -172,6 +173,7 @@ public partial class SettingsEditor
         ResetNumber(TagQueueConfirmAboveInput, TagQueueConfirmAbove.Value);
         MediaTagListTop = config.MediaTagListTop;
         ResetNumber(MediaTagListTopInput, MediaTagListTop.Value);
+        AutomationProperties.SetAutomationId(BooruResultTagsShownInput, BooruResultTagsShownInput.Name);
         BooruResultTagsShown = config.BooruResultTagsShown;
         ResetNumber(BooruResultTagsShownInput, BooruResultTagsShown.Value);
         BooruSearchTabs = config.BooruSearchTabs;

@@ -150,13 +150,13 @@ internal sealed class ContextMenuHost : IDisposable
             if (_disposed || _menu != null || menu.IsOpen) return;
             TopLevel? top = TopLevel.GetTopLevel(origin);
             if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible)) return;
-            static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
+            static bool Usable(Control? control) => control is { Focusable: true } && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
             // Focus held by something else that can take it (the page an entry opened) stays; focus left in the closed menu returns.
             object? focused = top?.FocusManager?.GetFocusedElement();
             if (focused is Control current && Usable(current) && !current.GetSelfAndVisualAncestors().OfType<ContextMenu>().Any()) return;
-            if (Usable(previous)) previous!.Focus();
-            else if (Usable(origin)) origin.Focus();
-            else _fallbackFocus?.Invoke();
+            if (Usable(previous) && previous!.Focus()) return;
+            if (Usable(origin) && origin.Focus()) return;
+            _fallbackFocus?.Invoke();
         }, DispatcherPriority.Background);
     }
 

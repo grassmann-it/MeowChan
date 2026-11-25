@@ -388,11 +388,16 @@ public partial class MainWindow
                     NotificationType.Warning, operation: "media.tags");
                 return;
             }
-            MediaTagSession session = NewTargetedMediaTagSession(target, Current, sidebarToken);
+            MediaTagSession session = NewPopoverTagSession(target, Current, sidebarToken);
             using MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), _session.ReadBooruCatalog);
-            using CancellationTokenRegistration closeOnTargetChange = sidebarToken.Register(() => Dispatcher.UIThread.Post(dialog.CloseForLifetime));
             MediaPageTagWindow = dialog;
-            await dialog.ShowDialog(this);
+            Task shown = dialog.ShowDialog(this);
+            using CancellationTokenRegistration closeOnTargetChange = sidebarToken.Register(() =>
+            {
+                if (Dispatcher.UIThread.CheckAccess()) dialog.CloseForLifetime();
+                else Dispatcher.UIThread.Post(dialog.CloseForLifetime);
+            });
+            await shown;
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
             or Microsoft.Data.Sqlite.SqliteException)

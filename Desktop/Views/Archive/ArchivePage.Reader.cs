@@ -290,7 +290,14 @@ public partial class ArchivePage
         };
         ArchiveExportDialog.PropertyChanged += (_, e) =>
         {
-            if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
+            if (e.Property != Visual.IsVisibleProperty) return;
+            CancelReaderMediaActivation();
+            if (ArchiveExportDialog.IsVisible) _mediaSidebar?.InvalidateTagEditor();
+        };
+        ReaderLinkDialog.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Visual.IsVisibleProperty && ReaderLinkDialog.IsVisible)
+                _mediaSidebar?.InvalidateTagEditor();
         };
         ArchiveContentTabs.SelectionChanged += (_, e) =>
         {
@@ -810,6 +817,17 @@ public partial class ArchivePage
     private long _readerNavigationLastActivity;
     private DispatcherTimer? _readerNavigationIdleTimer;
     private int _readerNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsDefault;
+    private Func<long>? _manualReaderClock;
+
+    private long ReaderMonotonicMilliseconds() => _manualReaderClock?.Invoke() ?? Environment.TickCount64;
+
+    internal void UseManualReaderTicks(Func<long> clock)
+    {
+        _manualReaderClock = clock;
+        _readerNavigationIdleTimer?.Stop();
+        _readerNavigationIdleTimer = null;
+        _sidebarFollowTimer?.Stop();
+    }
 
     /// <summary>Idle time before the bar fades out; clamped to its minimum and maximum.</summary>
     internal int ReaderNavigationIdleDelayMs
@@ -888,13 +906,13 @@ public partial class ArchivePage
     internal void ShowReaderNavigation(bool fromPointer = false)
     {
         if (!CanShowReaderNavigation || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;
-        _readerNavigationLastActivity = Environment.TickCount64;
+        _readerNavigationLastActivity = ReaderMonotonicMilliseconds();
         _readerNavigationActivityFromPointer = fromPointer;
         _readerNavigationActive = true;
-        if (_readerNavigationIdleTimer == null)
+        if (_manualReaderClock == null && _readerNavigationIdleTimer == null)
         {
             _readerNavigationIdleTimer = new DispatcherTimer();
-            _readerNavigationIdleTimer.Tick += (_, _) => OnReaderNavigationIdleTick();
+            _readerNavigationIdleTimer.Tick += (_, _) => TickReaderNavigationIdle();
         }
         // A tab/layout update can hide the capsule while activity is still valid.
         // Pointer/keyboard activity is an explicit request to show it again; do not
@@ -905,24 +923,28 @@ public partial class ArchivePage
         // Restart rather than only changing the interval. A queued tick from an earlier,
         // shorter delay can otherwise fire immediately after a new pointer/keyboard reveal
         // and hide the capsule before the UI has observed the reveal.
-        _readerNavigationIdleTimer.Stop();
-        _readerNavigationIdleTimer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
-        _readerNavigationIdleTimer.Start();
+        if (_readerNavigationIdleTimer is { } timer)
+        {
+            timer.Stop();
+            timer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
+            timer.Start();
+        }
         // Refresh the hit-test state even when the timer was already armed. Layout/theme/tab
         // changes can hide the bar while the activity flag remains true; a fresh pointer move
         // or keyboard command must restore the whole capsule, including its gap surface.
         UpdateReaderNavigationShown();
     }
 
-    private void OnReaderNavigationIdleTick()
+    internal void TickReaderNavigationIdle()
     {
-        double remaining = _readerNavigationIdleDelayMs - (Environment.TickCount64 - _readerNavigationLastActivity);
+        if (_readerNavigationMode != Config.ReaderNavigationModeAuto || !_readerNavigationActive) return;
+        long remaining = _readerNavigationIdleDelayMs - (ReaderMonotonicMilliseconds() - _readerNavigationLastActivity);
         if (remaining > 1)
         {
-            _readerNavigationIdleTimer!.Interval = TimeSpan.FromMilliseconds(remaining);
+            if (_readerNavigationIdleTimer is { } timer) timer.Interval = TimeSpan.FromMilliseconds(remaining);
             return;
         }
-        _readerNavigationIdleTimer!.Stop();
+        _readerNavigationIdleTimer?.Stop();
         _readerNavigationActive = false;
         UpdateReaderNavigationShown();
     }
@@ -1404,9 +1426,10 @@ public partial class ArchivePage
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
         // A post step behind another tab takes precedence over the old realization until Posts is shown again.
         if (_postsAnchorOnShow is { } pending && pending.Thread == _thread.Summary.Id) return pending;
+        ReaderPostRows? source = list.ItemsSource as ReaderPostRows;
         var visible = list.GetRealizedContainers()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(item => item.Item.DataContext is ArchivePostRow candidate && ReferenceEquals(FindPostRow(candidate.Id), candidate)
+            .Where(item => item.Item.DataContext is ArchivePostRow candidate && source?.IndexOf(candidate) is >= 0
                 && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)
