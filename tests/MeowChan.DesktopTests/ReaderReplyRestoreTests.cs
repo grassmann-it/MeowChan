@@ -91,6 +91,7 @@ public sealed class ReaderReplyRestoreTests
 
                 Assert.Equal(origin.Summary.Revision, page.CurrentThread?.Summary.Revision);
                 ArchivePostRow restored = Parent(list);
+                Assert.NotSame(parent, restored);
                 AssertTwoPages(restored);
                 Assert.Equal(parent.Replies.ToArray(), restored.Replies.ToArray());
             }
@@ -98,14 +99,68 @@ public sealed class ReaderReplyRestoreTests
         });
     }
 
-    private static Task<ArchivedThreadView> CaptureRepliesAsync(ReaderArchiveTestFixture fixture) =>
-        fixture.CaptureAsync(Thread, "Reply pages",
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task ContinuingRefreshesReplyPagesAfterACaptureInAnotherThread(int originalReplyCount)
+    {
+        using ReaderArchiveTestFixture fixture = new();
+        ArchivedThreadView origin = await CaptureRepliesAsync(fixture, originalReplyCount);
+        ResourceId earlierThread = new("4chan", "g", "10");
+        await fixture.CaptureAsync(earlierThread, "Earlier thread", [new("10", 0, PostFieldPresence.All, Html: "Another opening post")]);
+
+        fixture.Run(page =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Window window = new() { Content = page, Width = 1320, Height = 760 };
+            try
+            {
+                window.Show();
+                page.IsAvailable = true;
+                ReaderArchiveTestFixture.Load(page, origin);
+                ListBox list = Posts(window);
+                ArchivePostRow parent = LoadTwoPages(page, window, list, originalReplyCount);
+
+                BooruComponentDispatcher.Wait(fixture.CaptureAsync(earlierThread, "Earlier thread",
+                [
+                    new("110", 1, PostFieldPresence.All,
+                        Html: "<a href='/g/thread/100#p100' class='quotelink'>&gt;&gt;100</a> New cross-thread reply")
+                ]));
+                BooruComponentDispatcher.Wait(page.ResumeReadingPositionAsync(new("4chan", "g", "100", "100", 0, "100")));
+                BooruComponentDispatcher.Wait(page.WaitForReaderViewAsync());
+
+                Assert.Equal(Thread, page.CurrentThread?.Summary.Id);
+                Assert.Equal(origin.Summary.Revision, page.CurrentThread?.Summary.Revision);
+                Assert.Equal(origin.PostCount, page.CurrentThread?.PostCount);
+                ArchivePostRow restored = Parent(list);
+                Assert.NotSame(parent, restored);
+                Assert.True(restored.RepliesExpanded);
+                Assert.Equal(originalReplyCount + 1, restored.BacklinkCount);
+                Assert.Equal(1, restored.RepliesOffset);
+                ArchivePostId[] expected = [new(earlierThread, "110"), new(Thread, "101"), new(Thread, "102")];
+                Assert.Equal(expected[..2], restored.Replies.Select(reply => reply.Quote.Origin));
+                Assert.True(restored.HasMoreReplies);
+
+                LoadNextReplyPage(window, restored);
+                Assert.Equal(expected, restored.Replies.Select(reply => reply.Quote.Origin));
+                Assert.Equal(2, restored.RepliesOffset);
+                Assert.Equal(originalReplyCount > 2, restored.HasMoreReplies);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    private static Task<ArchivedThreadView> CaptureRepliesAsync(ReaderArchiveTestFixture fixture, int replyCount = 3)
+    {
+        CapturedPost[] posts =
         [
             new("100", 0, PostFieldPresence.All, Html: "Parent post"),
             new("101", 1, PostFieldPresence.All, Html: Reply("Visible reply")),
             new("102", 2, PostFieldPresence.All, Html: Reply(FilteredText)),
             new("103", 3, PostFieldPresence.All, Html: Reply("A third reply"))
-        ]);
+        ];
+        return fixture.CaptureAsync(Thread, "Reply pages", posts[..(replyCount + 1)]);
+    }
 
     private static string Reply(string text) => $"<p><a href=\"#p100\" class=\"quotelink\">&gt;&gt;100</a> {text}</p>";
 
@@ -125,32 +180,39 @@ public sealed class ReaderReplyRestoreTests
     private static ArchivePostRow Parent(ListBox list) =>
         list.Items.OfType<ArchivePostRow>().Single(row => row.Id == "100");
 
-    private static ArchivePostRow LoadTwoPages(ArchivePage page, Window window, ListBox list)
+    private static ArchivePostRow LoadTwoPages(ArchivePage page, Window window, ListBox list, int totalReplies = 3)
     {
         page.InlineReplyPageSize = ReaderDisplayLimits.ReplyStepMinimum;
         ArchivePostRow parent = Parent(list);
         BooruComponentDispatcher.Wait(page.SetRepliesExpandedAsync(parent, true));
         Assert.Equal("101", Assert.Single(parent.Replies).Quote.Origin.PostId);
-        BooruComponentDispatcher.WaitUntil(() => FindMore() != null, "the first page's More replies button");
-        FindMore()!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        BooruComponentDispatcher.WaitUntil(() => parent.Replies.Count == 2, "the second reply page");
-        AssertTwoPages(parent);
+        LoadNextReplyPage(window, parent);
+        AssertTwoPages(parent, totalReplies);
         return parent;
+    }
+
+    private static void LoadNextReplyPage(Window window, ArchivePostRow parent)
+    {
+        int expected = parent.Replies.Count + 1;
+        BooruComponentDispatcher.WaitUntil(() => FindMore() != null, "the More replies button for the parent post");
+        FindMore()!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        BooruComponentDispatcher.WaitUntil(() => parent.Replies.Count == expected, "the next reply page");
 
         Button? FindMore()
         {
             window.UpdateLayout();
             return window.GetVisualDescendants().OfType<Button>()
-                .SingleOrDefault(button => button.IsEffectivelyVisible && AutomationProperties.GetAutomationId(button) == "ReaderMoreReplies");
+                .SingleOrDefault(button => button.IsEffectivelyVisible && ReferenceEquals(button.DataContext, parent)
+                    && AutomationProperties.GetAutomationId(button) == "ReaderMoreReplies");
         }
     }
 
-    private static void AssertTwoPages(ArchivePostRow parent)
+    private static void AssertTwoPages(ArchivePostRow parent, int totalReplies = 3)
     {
         Assert.True(parent.RepliesExpanded);
-        Assert.Equal(3, parent.BacklinkCount);
+        Assert.Equal(totalReplies, parent.BacklinkCount);
         Assert.Equal(new[] { "101", "102" }, parent.Replies.Select(reply => reply.Quote.Origin.PostId));
         Assert.Equal(1, parent.RepliesOffset);
-        Assert.True(parent.HasMoreReplies);
+        Assert.Equal(totalReplies > 2, parent.HasMoreReplies);
     }
 }

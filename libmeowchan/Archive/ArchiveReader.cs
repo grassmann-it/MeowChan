@@ -149,6 +149,24 @@ public sealed partial class ArchiveReader : IAsyncDisposable
     public Task<ArchiveQuotePage> GetBacklinksAsync(ArchivePostId post, int offset = 0, int limit = 100,
         CancellationToken cancellationToken = default) => QuotePageAsync(post, true, offset, limit, cancellationToken);
 
+    // Each prefix is bounded by the number of replies already loaded by the reader, which may span many pages.
+    internal Task<ArchiveQuotePage[]> ReadBacklinkPrefixesAsync(ResourceId thread,
+        IReadOnlyList<(string PostId, int Length)> prefixes, CancellationToken cancellationToken) =>
+        ReadAsync((connection, transaction) =>
+        {
+            ArchiveQuotePage[] pages = new ArchiveQuotePage[prefixes.Count];
+            for (int i = 0; i < pages.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                (string postId, int length) = prefixes[i];
+                ArchivePostId post = new(thread, postId);
+                ValidatePostId(post);
+                ArgumentOutOfRangeException.ThrowIfNegative(length);
+                pages[i] = ArchiveSql.ReadQuotes(connection, transaction, post, true, 0, length, cancellationToken);
+            }
+            return pages;
+        }, cancellationToken);
+
     private Task<ArchiveQuotePage> QuotePageAsync(ArchivePostId post, bool backlinks, int offset, int limit, CancellationToken cancellationToken)
     {
         ValidatePostId(post);

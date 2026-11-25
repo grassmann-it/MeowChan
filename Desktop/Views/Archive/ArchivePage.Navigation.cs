@@ -20,7 +20,7 @@ public partial class ArchivePage
 {
     private ArchiveSearchSpec _query = new ArchiveSearchSpec();
     private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
-        int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error, bool AutoExpanded = false);
+        int Offset, IReadOnlyList<ArchiveQuote> Replies, string? Error, bool AutoExpanded = false);
     private sealed record InlineRepliesSnapshot(InlineReplyState[] Pages, string[] CollapsedPosts);
     private sealed record ReaderHistoryEntry(ArchivedThreadView View, ReaderAnchor? Anchor, InlineRepliesSnapshot Replies);
 
@@ -33,7 +33,7 @@ public partial class ArchivePage
     private ArchivedThreadView? _postInteractionThread;
 
     private static InlineReplyState ReplyState(ArchivePostRow row) => new(row.Id, row.RepliesExpanded, row.RepliesLoaded,
-        row.BacklinkCount, row.RepliesOffset, row.Replies, row.RepliesError, row.RepliesAutoExpanded);
+        row.BacklinkCount, row.RepliesOffset, row.Replies.Select(reply => reply.Quote).ToArray(), row.RepliesError, row.RepliesAutoExpanded);
 
     private InlineRepliesSnapshot CaptureInlineReplyState()
     {
@@ -66,7 +66,7 @@ public partial class ArchivePage
         // Rebuild the displayed reply cards against the current filter before expanding the saved pages.
         if (state.Loaded)
         {
-            ArchiveQuoteRow[] replies = state.Replies.Select(reply => ReplyCard(reply.Quote, thread)).ToArray();
+            ArchiveQuoteRow[] replies = state.Replies.Select(quote => ReplyCard(quote, thread)).ToArray();
             row.SetReplies(Array.AsReadOnly(replies), state.Count ?? replies.Length, state.Offset);
         }
         else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
