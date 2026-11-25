@@ -142,7 +142,15 @@ public sealed class TaglineTests : IDisposable
                 TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 0), baseline).Select(entry => entry.Id));
             Assert.Equal(["boorutabs", "downloadall", "taglinesfeature", "tagquickfix", "threadswitch"],
                 TaglinePicker.ReleaseCandidates(pool, previous, baseline).Select(entry => entry.Id));
-            Assert.Equal("sortedquips", Assert.Single(TaglinePicker.ReleaseCandidates(pool, current, previous)).Id);
+            Assert.Empty(TaglinePicker.ReleaseCandidates(pool, current, previous));
+            foreach (string mode in new[] { TaglinePicker.ModeDaily, TaglinePicker.ModePerStart, TaglinePicker.ModeInterval })
+            {
+                TaglinePick first = TaglinePicker.Pick(mode, "cats", pool, Day, current, previous, true, new Random(3));
+                TaglinePick normal = TaglinePicker.Pick(mode, "cats", pool, Day, current, current, true, new Random(3));
+                Assert.NotNull(first.Entry);
+                Assert.False(first.ReleaseHighlight);
+                Assert.Equal(normal.Entry, first.Entry);
+            }
             Assert.Empty(TaglinePicker.ReleaseCandidates(pool, baseline, null));
             Assert.Equal(TaglineCategory.General, pool.Single(entry => entry.Id == "tabsbreed").Category);
             Assert.Equal(["snowed", "trickorthread"], pool.Where(entry => entry.Category == TaglineCategory.Seasonal).Select(entry => entry.Id));

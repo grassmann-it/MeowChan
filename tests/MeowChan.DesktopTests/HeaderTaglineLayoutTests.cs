@@ -149,6 +149,7 @@ public sealed class HeaderTaglineLayoutTests
     [Theory]
     [InlineData("booru", "booru", true, false)]
     [InlineData("removed-quip", "cats", true, false)]
+    [InlineData("sortedquips", "cats", true, false)]
     [InlineData("booru", "booru", false, false)]
     [InlineData("removed-quip", "cats", false, false)]
     [InlineData("booru", "booru", true, true)]

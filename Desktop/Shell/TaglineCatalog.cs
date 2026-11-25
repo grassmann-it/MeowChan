@@ -84,7 +84,6 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         new("fetchthem", new Version(1, 1, 2), TaglineTone.Playful),
         new("tabsbreed", new Version(1, 1, 2), TaglineTone.Playful),
         new("pawprint", new Version(1, 1, 2), TaglineTone.Playful),
-        new("sortedquips", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Release),
         new("snowed", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal),
         new("trickorthread", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal),
     ];
