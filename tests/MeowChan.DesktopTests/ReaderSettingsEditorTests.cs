@@ -129,7 +129,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
     {
         SettingsEditor editor = CreateValidDraft();
         var draft = typeof(SettingsEditor).GetProperty(name)!;
-        var persisted = typeof(Config).GetProperty(name)!;
+        var persisted = ReaderSettingsPersistenceTests.ConfigNumber(name);
         Assert.Equal((decimal)fallback, draft.GetValue(editor));
         foreach (int number in new[] { min, max })
         {
@@ -269,7 +269,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            typeof(Config).GetProperty(name)!.SetValue(saved, (int)row[2] + 1);
+            ReaderSettingsPersistenceTests.ConfigNumber(name).SetValue(saved, (int)row[2] + 1);
             GetInput(editor, name).Text = "rejected draft";
             typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, null);
         }
@@ -463,7 +463,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            int value = (int)typeof(Config).GetProperty(name)!.GetValue(desired)!;
+            int value = (int)ReaderSettingsPersistenceTests.ConfigNumber(name).GetValue(desired)!;
             typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)value);
             GetInput(editor, name).Value = value;
             GetInput(editor, name).Text = value.ToString(CultureInfo.InvariantCulture);
@@ -482,7 +482,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            int value = (int)typeof(Config).GetProperty(name)!.GetValue(defaults)!;
+            int value = (int)ReaderSettingsPersistenceTests.ConfigNumber(name).GetValue(defaults)!;
             typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)value);
             Set(editor, name + "Input", new SettingsNumberInput
             {

@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
@@ -7,6 +8,9 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class ReaderSettingsPersistenceTests
 {
+    internal static PropertyInfo ConfigNumber(string name) =>
+        typeof(Config).GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
+
     public static IEnumerable<object[]> Numbers()
     {
         yield return new object[] { nameof(Config.ReaderThumbnailWidth), 240, 120, 480 };
@@ -32,6 +36,7 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderMediaSidebarMinimumWidth), 1280, 800, 3840 };
         yield return new object[] { nameof(Config.ReaderInlineVideoMaxPlayers), 2, 1, 4 };
         yield return new object[] { nameof(Config.ReaderInlineVideoMaxFileMiB), 256, 1, 4096 };
+        yield return new object[] { nameof(Config.SidebarPreviewMaximumPixels), 80_000_000, 1_000_000, 80_000_000 };
         yield return new object[] { nameof(Config.ReaderMediaStripLimit), 12, 2, 40 };
         yield return new object[] { nameof(Config.ReaderMediaGridTextLimit), 280, 0, 2000 };
         yield return new object[] { nameof(Config.ReaderPreviewPrefetchPosts), 8, 0, 50 };
@@ -42,7 +47,7 @@ public sealed class ReaderSettingsPersistenceTests
     [MemberData(nameof(Numbers))]
     public void DefaultsAndInclusiveBoundsMatchTheComponents(string name, int fallback, int min, int max)
     {
-        var property = typeof(Config).GetProperty(name)!;
+        var property = ConfigNumber(name);
         Assert.Equal(fallback, property.GetValue(new Config()));
         foreach (int value in new[] { min, max })
         {
@@ -51,7 +56,7 @@ public sealed class ReaderSettingsPersistenceTests
         foreach (int value in new[] { int.MinValue, min - 1, max + 1, int.MaxValue })
         {
             Config config = new(); property.SetValue(config, value);
-            if (name == nameof(Config.MediaSidebarInfoMinimumFree))
+            if (name is nameof(Config.MediaSidebarInfoMinimumFree) or nameof(Config.SidebarPreviewMaximumPixels))
                 Assert.Equal(Math.Clamp(value, min, max), property.GetValue(config));
             else
             {
@@ -68,7 +73,7 @@ public sealed class ReaderSettingsPersistenceTests
     {
         using TempDirectory directory = new();
         Config config = new() { ReaderDateStyle = "SinceOp", ReaderSpoilers = "Hover", GalleryFitUpscaleLimited = true };
-        foreach (object[] row in Numbers()) typeof(Config).GetProperty((string)row[0])!.SetValue(config, row[3]);
+        foreach (object[] row in Numbers()) ConfigNumber((string)row[0]).SetValue(config, row[3]);
         Config clone = config.Clone(), copy = new(), settings = new();
         copy.CopyFrom(clone); settings.CopySettingsFieldsFrom(copy);
         settings.SaveConfig(directory.Path);
@@ -79,7 +84,7 @@ public sealed class ReaderSettingsPersistenceTests
         {
             Assert.Equal("SinceOp", current.ReaderDateStyle); Assert.Equal("Hover", current.ReaderSpoilers);
             Assert.True(current.GalleryFitUpscaleLimited);
-            foreach (object[] row in Numbers()) Assert.Equal(row[3], typeof(Config).GetProperty((string)row[0])!.GetValue(current));
+            foreach (object[] row in Numbers()) Assert.Equal(row[3], ConfigNumber((string)row[0]).GetValue(current));
         }
     }
 
@@ -120,7 +125,7 @@ public sealed class ReaderSettingsPersistenceTests
     public void AbsentOrUnknownPresentationChoicesKeepTheOldBehavior()
     {
         Config old = JsonSerializer.Deserialize<Config>("{}")!;
-        foreach (object[] row in Numbers()) Assert.Equal(row[1], typeof(Config).GetProperty((string)row[0])!.GetValue(old));
+        foreach (object[] row in Numbers()) Assert.Equal(row[1], ConfigNumber((string)row[0]).GetValue(old));
         Assert.Equal(ReaderDateStyle.System, ReaderSettingsPreferences.DateStyle(old));
         Assert.Equal(ReaderSpoilerMode.Hide, ReaderSettingsPreferences.Spoilers(old));
         Assert.False(ReaderSettingsPreferences.Gallery(old).Limit);
@@ -138,7 +143,7 @@ public sealed class ReaderSettingsPersistenceTests
         await using DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>());
         await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
         Config draft = host.Config.Clone();
-        foreach (object[] row in Numbers()) typeof(Config).GetProperty((string)row[0])!.SetValue(draft, row[3]);
+        foreach (object[] row in Numbers()) ConfigNumber((string)row[0]).SetValue(draft, row[3]);
         draft.ReaderDateStyle = "Long";
         draft.ReaderSpoilers = "Always";
         draft.GalleryFitUpscaleLimited = true;
@@ -150,7 +155,7 @@ public sealed class ReaderSettingsPersistenceTests
         try
         {
             await Assert.ThrowsAnyAsync<Exception>(() => host.ApplySettingsAsync(draft).WaitAsync(TimeSpan.FromSeconds(15)));
-            foreach (object[] row in Numbers()) Assert.Equal(row[1], typeof(Config).GetProperty((string)row[0])!.GetValue(host.Config));
+            foreach (object[] row in Numbers()) Assert.Equal(row[1], ConfigNumber((string)row[0]).GetValue(host.Config));
             Assert.Equal("System", host.Config.ReaderDateStyle);
             Assert.Equal("Hide", host.Config.ReaderSpoilers);
             Assert.False(host.Config.GalleryFitUpscaleLimited);
@@ -166,8 +171,8 @@ public sealed class ReaderSettingsPersistenceTests
         Config reloaded = Config.LoadConfig(directory.Path);
         foreach (object[] row in Numbers())
         {
-            Assert.Equal(row[3], typeof(Config).GetProperty((string)row[0])!.GetValue(host.Config));
-            Assert.Equal(row[3], typeof(Config).GetProperty((string)row[0])!.GetValue(reloaded));
+            Assert.Equal(row[3], ConfigNumber((string)row[0]).GetValue(host.Config));
+            Assert.Equal(row[3], ConfigNumber((string)row[0]).GetValue(reloaded));
         }
         Assert.Equal(draft.PostFilterRuleLimit, host.StoreLimits.PostFilterRules);
         Assert.Equal(draft.HiddenPostLimit, host.StoreLimits.HiddenPosts);
