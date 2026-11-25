@@ -723,6 +723,147 @@ public sealed class SidebarContextGestureTests
         return Assert.IsType<ListBoxItem>(ItemActivation.ContainerAt(thumbnail, sidebar.Strip));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SidebarVideoPointerActivationBelongsToTheDisplayedMedium(bool crossesPresentation) => Run(async (window, media) =>
+    {
+        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
+        ReaderInlineVideoSlot slot = Assert.IsType<ReaderInlineVideoSlot>(page.SidebarInlineVideo);
+        ReaderInlineVideoController controller = page.InlineVideo;
+        await controller.ConfigureAsync(controller.Options with { Enabled = true, SidebarAutoplay = false });
+        GalleryEntry video = await VideoEntryAsync(media[1].Path);
+        MediaAssetReference poster = Assert.Single(video.Manifest.GetPage(), entry => entry.Path == media[1].Path);
+        (Avalonia.Media.Imaging.Bitmap bitmap, GalleryImageInfo _) = await GalleryImageCache.DecodeAsync(video with { Asset = poster },
+            new GalleryDecodeRequest.Fit(120, 120), CancellationToken.None);
+        TaskCompletionSource<ReaderMediaSidebarContent> posterReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Image picture = Picture(sidebar);
+        object? old = picture.Source;
+        int galleryRequests = 0;
+        page.OpenGallery = (_, _, _) => Task.CompletedTask;
+        sidebar.GalleryRequested += (_, _) => galleryRequests++;
+        int resolved = 0;
+        TestVideoPlayer fake = new(Task.CompletedTask);
+        Task presentation = Task.CompletedTask;
+        try
+        {
+            if (crossesPresentation) ContextGestures.Click(picture);
+            ReaderMediaLoadTicket ticket = sidebar.Load.Begin("next-video", (120, 120));
+            sidebar.Describe("43", "b.mp4", string.Empty, true, mediumKey: "next-video");
+            slot.Offer(controller, "next-video", _ =>
+            {
+                resolved++;
+                return Task.FromResult<GalleryEntry?>(video);
+            }, "b.mp4", () => galleryRequests++);
+            Assert.True(await controller.PlayAsync(slot, () => fake));
+
+            ReaderMediaSidebarImageLoad load = new(sidebar, "next-video", ticket, new GalleryFitPreferences(), () => true, CancellationToken.None);
+            presentation = load.RunAsync(_ => posterReady.Task);
+            Assert.Same(old, picture.Source);
+            Assert.True(sidebar.IsDimmed);
+            if (!crossesPresentation)
+            {
+                ContextGestures.Click(picture);
+                await slot.ActivationTask;
+                Assert.Equal(0, galleryRequests);
+                Assert.Equal(0, resolved);
+            }
+
+            posterReady.TrySetResult(new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, Playable: true));
+            await presentation;
+            Assert.Same(bitmap, picture.Source);
+            if (crossesPresentation)
+            {
+                ContextGestures.Click(picture);
+                await slot.ActivationTask;
+                Assert.Equal(0, galleryRequests);
+                Assert.Equal(0, resolved);
+            }
+
+            Point center = new Rect(picture.Bounds.Size).Center;
+            ContextGestures.Click(picture, point: new Point(center.X + picture.Bounds.Width / 3, center.Y));
+            await slot.ActivationTask;
+            Assert.Equal(1, resolved);
+            Assert.Equal(1, fake.Plays);
+            Assert.Equal(0, galleryRequests);
+        }
+        finally
+        {
+            if (posterReady.TrySetResult(new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, Playable: true)))
+                await presentation;
+            await controller.ReleaseAllAsync();
+        }
+    });
+
+    [Fact]
+    public void InlineVideoOfferChangingDuringFactoryYieldDoesNotRegisterTheOldPlayer() => Run(async (window, media) =>
+    {
+        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
+        ReaderInlineVideoSlot slot = Assert.IsType<ReaderInlineVideoSlot>(page.SidebarInlineVideo);
+        ReaderInlineVideoController controller = page.InlineVideo;
+        await controller.ConfigureAsync(controller.Options with { Enabled = true, SidebarAutoplay = false, MaxPlayers = 2 });
+        GalleryEntry a = await VideoEntryAsync(media[0].Path);
+        GalleryEntry b = await VideoEntryAsync(media[1].Path);
+        TaskCompletionSource finishPausing = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TestVideoPlayer blocker = new(finishPausing.Task);
+        Assert.True(await controller.PlayAsync(new TestVideoOwner(), () => blocker));
+        long created = controller.Created;
+        TaskCompletionSource resumeFactory = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task activation = Task.CompletedTask;
+        try
+        {
+            sidebar.Describe("43", "a.mp4", string.Empty, true, mediumKey: "video-a");
+            slot.Offer(controller, "video-a", _ => Task.FromResult<GalleryEntry?>(a), "a.mp4");
+            SynchronizationContext? previous = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(new HeldPresentation(resumeFactory.Task));
+            try { activation = slot.PlayAsync(); }
+            finally { SynchronizationContext.SetSynchronizationContext(previous); }
+            Assert.Equal(created, controller.Created);
+
+            sidebar.Describe("43", "b.mp4", string.Empty, true, mediumKey: "video-b");
+            slot.Offer(controller, "video-b", _ => Task.FromResult<GalleryEntry?>(b), "b.mp4");
+            resumeFactory.TrySetResult();
+            await BooruTestSupport.WaitAsync(() => activation.IsCompleted || controller.Created != created,
+                "the activation to return from the factory yield");
+            Assert.Equal(created, controller.Created);
+            Assert.False(slot.IsLive);
+            Assert.False(controller.IsLive(slot));
+        }
+        finally
+        {
+            resumeFactory.TrySetResult();
+            await slot.ReleaseAsync();
+            finishPausing.TrySetResult();
+            await activation;
+            await controller.ReleaseAllAsync();
+        }
+    });
+
+    private static async Task<GalleryEntry> VideoEntryAsync(string path)
+    {
+        MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(Path.GetDirectoryName(path)!);
+        MediaAssetReference asset = Assert.Single(manifest.GetPage(), entry => entry.Path == path);
+        return new GalleryEntry(new GalleryAssetKey(Thread, manifest.Directory, asset.AssetId), manifest,
+            asset with { OriginalFileName = Path.GetFileNameWithoutExtension(path) + ".mp4" }, null, null, false, true);
+    }
+
+    private sealed class TestVideoPlayer(Task finishPausing) : IReaderInlineVideoPlayer
+    {
+        internal int Plays { get; private set; }
+        public bool IsPlaying { get; private set; }
+        public Task StartAsync() { IsPlaying = true; return Task.CompletedTask; }
+        public Task PlayAsync() { Plays++; IsPlaying = true; return Task.CompletedTask; }
+        public async Task PauseAsync() { await finishPausing; IsPlaying = false; }
+        public ValueTask DisposeAsync() { IsPlaying = false; return ValueTask.CompletedTask; }
+    }
+
+    private sealed class TestVideoOwner : IReaderInlineVideoOwner
+    {
+        public void PlayerReleased() { }
+        public void CurrentChanged(bool current) { }
+        public void PlaybackChanged(bool playing) { }
+    }
+
     private static Image Picture(ReaderMediaSidebar sidebar) => SidePanelDesignTests.ById<Image>(sidebar, "ReaderMediaSidebarPicture");
 
     private static async Task<(ReaderMediaSidebar Sidebar, Action Next, Func<ContextMenu?> Menu)> OpenPreviewAsync(MainWindow window, bool reader)
