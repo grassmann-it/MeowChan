@@ -476,13 +476,14 @@ internal static class ComparisonCaptures
                 throw new InvalidOperationException("Full context menu was not laid out: " + menuGeometry, exception);
             }
             bool dark = window.ActualThemeVariant == ThemeVariant.Dark;
-            // The expectation follows the active theme's Workspace.Text token instead of a duplicated hex value.
-            Color expected = SmokeThemeResources.Color(window, "Workspace.Text");
+            // Variant C (24b432e91), for action icons: "Foreground = IsEffectivelyEnabled ? text : muted".
             foreach (MenuItem item in items)
             {
-                // Shared masks use Workspace.Text, independently of the vendor menu text brushes.
-                if (((Border)item.Icon!).Background is not ISolidColorBrush ink || ink.Color != expected)
-                    throw new InvalidOperationException("Context icon does not match the active Workspace.Text palette: " + item.Header);
+                string token = item.IsEffectivelyEnabled ? "Workspace.Text" : "Workspace.Muted";
+                Color expected = SmokeThemeResources.Color(window, token);
+                IBrush? background = ((Border)item.Icon!).Background;
+                if (background is not ISolidColorBrush ink || ink.Color != expected)
+                    throw new InvalidOperationException($"Context icon for '{item.Header}' in {window.ActualThemeVariant}: expected {token} ({expected}), got {background}.");
                 if (item.IsEnabled && (dark ? Luminance(ink.Color) < 0.5 : Luminance(ink.Color) > 0.2))
                     throw new InvalidOperationException("Enabled context icon did not resolve readable ink for the active theme: " + item.Header);
             }
@@ -493,7 +494,7 @@ internal static class ComparisonCaptures
                 new Vector(96 * scale, 96 * scale));
             screenshot.Render(menu);
             screenshot.Save(Path.Combine(AppContext.BaseDirectory, fileName), PngBitmapEncoderOptions.Default);
-            Console.WriteLine("SMOKE context menu render: " + fileName + "; icons=" + icons.Length + "; Workspace.Text inks=" + colors + "; scale=" + scale);
+            Console.WriteLine("SMOKE context menu render: " + fileName + "; icons=" + icons.Length + "; icon inks=" + colors + "; scale=" + scale);
         }
         finally
         {
