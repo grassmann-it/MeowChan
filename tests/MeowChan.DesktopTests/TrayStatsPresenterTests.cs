@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Reflection;
 using Avalonia.Controls;
 using MeowChan.Desktop;
@@ -33,7 +34,8 @@ public sealed class TrayStatsPresenterTests : IDisposable
         internal string? Tooltip;
         internal int TooltipSets;
 
-        internal Harness(bool shown = true, bool tooltipOn = true, bool menuOn = true, int backgroundMs = 5000)
+        internal Harness(bool shown = true, bool tooltipOn = true, bool menuOn = true, int backgroundMs = 5000,
+            bool useStatisticsShortcut = false)
         {
             Shown = shown; TooltipOn = tooltipOn; MenuOn = menuOn;
             Hub = new IoStatsHub(Source, Clock, new IoStatsOptions { Persist = false, BackgroundIntervalMs = backgroundMs, TrayTooltip = tooltipOn });
@@ -41,12 +43,18 @@ public sealed class TrayStatsPresenterTests : IDisposable
             Menu.Items.Add(new NativeMenuItem { Header = "Open" });
             Presenter = new TrayStatsPresenter(Hub, Menu, new TrayStatsHost(
                 () => TooltipOn, () => MenuOn, () => Shown, () => Closing, () => (Paused, Paused ? 0 : Active),
-                tip => { Tooltip = tip; TooltipSets++; }, () => Opened++, action => action()), Clock);
+                tip => { Tooltip = tip; TooltipSets++; }, () => Opened++, action => action()), useStatisticsShortcut, Clock);
             Menu.Items.Add(new NativeMenuItem { Header = "Pause" });
         }
 
         internal void Activity(int active) { Active = active; Hub.NotifyActivityChanged(); }
-        internal void OpenMenu() => Invoke(Menu, "INativeMenuExporterEventsImplBridge.RaiseNeedsUpdate");
+        internal void OpenMenu()
+        {
+            Invoke(Menu, "INativeMenuExporterEventsImplBridge.RaiseNeedsUpdate");
+            Invoke(Menu, "INativeMenuExporterEventsImplBridge.RaiseOpening");
+        }
+
+        internal void CloseMenu() => Invoke(Menu, "INativeMenuExporterEventsImplBridge.RaiseClosed");
         internal void Click(NativeMenuItem item) => Invoke(item, "INativeMenuItemExporterEventsImplBridge.RaiseClicked");
 
         private static void Invoke(object target, string suffix)
@@ -224,11 +232,9 @@ public sealed class TrayStatsPresenterTests : IDisposable
         using Harness h = new();
         Assert.Collection(h.Menu.Items,
             item => Assert.Equal("Open", Assert.IsType<NativeMenuItem>(item).Header),
-            item => Assert.IsType<NativeMenuItemSeparator>(item),
             item => Assert.Same(h.Presenter.RatesItem, item),
             item => Assert.Same(h.Presenter.DiskItem, item),
             item => Assert.Same(h.Presenter.DetailItem, item),
-            item => Assert.IsType<NativeMenuItemSeparator>(item),
             item => Assert.Equal("Pause", Assert.IsType<NativeMenuItem>(item).Header));
         Assert.True(h.Presenter.RatesItem.IsEnabled && h.Presenter.DiskItem.IsEnabled && h.Presenter.DetailItem.IsEnabled);
         Assert.All(h.Menu.Items.OfType<NativeMenuItem>(), item => Assert.True(item.IsVisible));
@@ -256,6 +262,75 @@ public sealed class TrayStatsPresenterTests : IDisposable
         Assert.Equal("Netzwerk ↓ 4 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
         Assert.Equal("Datenträger L 0 B/s S 3 MiB/s", h.Presenter.DiskItem.Header);
         Assert.Equal("3 Downloads aktiv · 4 wartend · Heute ↓ 30,0 MiB", h.Presenter.DetailItem.Header);
+    }
+
+    [Fact]
+    public void SamplesLeaveTheOpenMenuUntouchedAndTheNextRefreshAfterCloseCatchesUp()
+    {
+        using Harness h = new(shown: false);
+        h.Presenter.Refresh();
+        h.Activity(3);
+        h.Source.Add("4chan", net: 5 * MiB, diskWritten: 5 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(5));
+        h.OpenMenu();
+        NativeMenuItem[] items = h.Menu.Items.Cast<NativeMenuItem>().ToArray();
+        string?[] headers = items.Select(item => item.Header).ToArray();
+        int menuChanges = 0;
+        ((INotifyCollectionChanged)h.Menu.Items).CollectionChanged += (_, _) => menuChanges++;
+        foreach (NativeMenuItem item in items) item.PropertyChanged += (_, _) => menuChanges++;
+
+        h.MenuOn = false;
+        for (int i = 0; i < 10; i++)
+        {
+            h.Source.Add("4chan", net: 10 * MiB, diskWritten: 15 * MiB);
+            h.Clock.Advance(TimeSpan.FromSeconds(5));
+            h.Presenter.Refresh();
+        }
+
+        Assert.Equal(0, menuChanges);
+        Assert.Equal(items, h.Menu.Items);
+        Assert.Equal(headers, items.Select(item => item.Header));
+        Assert.All(items, item => Assert.True(item.IsVisible));
+        Assert.Equal("MeowChan · Network ↓ 2 MiB/s ↑ 0 B/s · Disk R 0 B/s W 3 MiB/s · 3 downloads active", h.Tooltip);
+
+        h.MenuOn = true;
+        h.Presenter.Refresh();
+        Assert.Equal(0, menuChanges);
+        h.CloseMenu();
+        h.Presenter.Refresh(); // The clock has not moved since the last refresh.
+        Assert.Equal(items, h.Menu.Items);
+        Assert.Equal("Network ↓ 2 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
+        Assert.Equal("Disk R 0 B/s W 3 MiB/s", h.Presenter.DiskItem.Header);
+        Assert.Equal("3 downloads active · 4 waiting · Today ↓ 105.0 MiB", h.Presenter.DetailItem.Header);
+    }
+
+    [Fact]
+    public void WithoutMenuLifecycleEventsTheStatisticsShortcutStaysFixedWhileTheTooltipFollowsSamples()
+    {
+        using Harness h = new(shown: false, useStatisticsShortcut: true);
+        h.Presenter.Refresh();
+        NativeMenuItem[] items = h.Menu.Items.Cast<NativeMenuItem>().ToArray();
+        NativeMenuItem shortcut = Assert.Single(items, item => item.Header == "Statistics");
+        Assert.True(shortcut.IsVisible);
+        Assert.True(shortcut.IsEnabled);
+        int menuChanges = 0;
+        ((INotifyCollectionChanged)h.Menu.Items).CollectionChanged += (_, _) => menuChanges++;
+        foreach (NativeMenuItem item in items) item.PropertyChanged += (_, _) => menuChanges++;
+
+        h.Activity(3);
+        for (int i = 1; i <= 10; i++)
+        {
+            h.Source.Add("4chan", net: i * 5 * MiB);
+            h.Clock.Advance(TimeSpan.FromSeconds(5));
+            h.Presenter.Refresh();
+            Assert.Contains($"Network ↓ {i} MiB/s", h.Tooltip);
+        }
+
+        Assert.Equal(0, menuChanges);
+        Assert.Equal(items, h.Menu.Items);
+        Assert.Equal("Statistics", shortcut.Header);
+        h.Click(shortcut);
+        Assert.Equal(1, h.Opened);
     }
 
     [Fact]
@@ -308,28 +383,38 @@ public sealed class TrayStatsPresenterTests : IDisposable
         Assert.Equal("Pausiert", h.Presenter.RatesItem.Header);
     }
 
-    [Fact]
-    public void TheMenuSettingHidesAndShowsTheLinesWithoutRestartAndTheTooltipSettingIsIndependent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheMenuSettingHidesAndShowsTheSameItemsAndTheTooltipSettingIsIndependent(bool useStatisticsShortcut)
     {
-        using Harness h = new(shown: false, menuOn: false, tooltipOn: false);
-        NativeMenuItemBase[] actions = h.Menu.Items.ToArray();
+        using Harness h = new(shown: false, menuOn: false, tooltipOn: false, useStatisticsShortcut: useStatisticsShortcut);
+        NativeMenuItem[] items = h.Menu.Items.Cast<NativeMenuItem>().ToArray();
+        NativeMenuItem[] actions = items.Where(item => item.IsVisible).ToArray();
+        NativeMenuItem[] stats = items[1..^1];
+        Assert.Equal(useStatisticsShortcut ? 1 : 3, stats.Length);
+        int structureChanges = 0;
+        ((INotifyCollectionChanged)h.Menu.Items).CollectionChanged += (_, _) => structureChanges++;
         Assert.Equal(2, actions.Length);
         h.Source.Add("4chan", net: MiB);
         h.OpenMenu();
-        Assert.Null(h.Presenter.RatesItem.Header); // hidden lines are not computed
+        Assert.Equal(actions, items.Where(item => item.IsVisible));
+        if (!useStatisticsShortcut) Assert.Null(h.Presenter.RatesItem.Header); // hidden lines are not computed
         Assert.Equal("MeowChan · Image Downloader", h.Tooltip);
+        h.CloseMenu();
         h.MenuOn = true;
         h.Presenter.Refresh();
-        Assert.Equal(7, h.Menu.Items.Count);
         Assert.Same(actions[0], h.Menu.Items[0]);
         Assert.Same(actions[1], h.Menu.Items[^1]);
-        Assert.Equal("Idle", h.Presenter.RatesItem.Header);
-        Assert.Equal("Today ↓ 1.0 MiB", h.Presenter.DiskItem.Header);
-        Assert.Equal("Disk: 0 B written", h.Presenter.DetailItem.Header);
+        Assert.Equal(items, items.Where(item => item.IsVisible));
+        string[] expectedHeaders = useStatisticsShortcut ? ["Statistics"] : ["Idle", "Today ↓ 1.0 MiB", "Disk: 0 B written"];
+        Assert.Equal(expectedHeaders, stats.Select(item => item.Header));
         Assert.Equal("MeowChan · Image Downloader", h.Tooltip);
         h.MenuOn = false;
         h.Presenter.Refresh();
-        Assert.Equal(actions, h.Menu.Items);
+        Assert.Equal(actions, items.Where(item => item.IsVisible));
+        Assert.Equal(items, h.Menu.Items);
+        Assert.Equal(0, structureChanges);
     }
 
     [Fact]
