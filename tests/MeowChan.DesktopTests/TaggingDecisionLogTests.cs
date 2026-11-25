@@ -412,11 +412,16 @@ public sealed class TaggingDecisionLogTests : IDisposable
                     .Set(TaggingCardCommands.Card(2), [ShortcutGesture.Parse("F9")]));
                 Dispatcher.UIThread.RunJobs();
                 Button backCard = viewer.TaggingCardButtons[1];
-                Assert.Equal(Texts.T("cards.name", Texts.T("tagging.back.undoSkip"), "F9"), AutomationProperties.GetName(backCard));
-                Assert.Equal("F9", AutomationProperties.GetAcceleratorKey(backCard));
+                // Help.md, macOS shortcuts: F-keys are shown as “F5 (Fn)”.
+                string card = TaggingCardCommands.Card(2);
+                Assert.Equal("F9 (Fn)", CommandCatalog.ShortcutTooltipDisplay(card, true, "gallery-tagging"));
+                Assert.Equal("F9", CommandCatalog.ShortcutTooltipDisplay(card, false, "gallery-tagging"));
+                string expectedKey = OperatingSystem.IsMacOS() ? "F9 (Fn)" : "F9";
+                Assert.Equal(Texts.T("cards.name", Texts.T("tagging.back.undoSkip"), expectedKey), AutomationProperties.GetName(backCard));
+                Assert.Equal(expectedKey, AutomationProperties.GetAcceleratorKey(backCard));
                 StackPanel cardContent = Assert.IsType<StackPanel>(backCard.Content);
                 Assert.NotNull(Assert.IsType<Border>(Assert.IsType<Grid>(cardContent.Children[0]).Children[0]).OpacityMask);
-                Assert.Equal("F9", Assert.IsType<TextBlock>(Assert.IsType<Border>(cardContent.Children[1]).Child).Text);
+                Assert.Equal(expectedKey, Assert.IsType<TextBlock>(Assert.IsType<Border>(cardContent.Children[1]).Child).Text);
                 Assert.False(Assert.IsType<Border>(Assert.IsType<StackPanel>(viewer.TaggingCardButtons[0].Content).Children[1]).IsVisible);
                 window.Activate();
                 viewer.Focus();

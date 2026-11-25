@@ -95,6 +95,8 @@ public sealed class FooterDisplayInteractionTests
         await BooruTestSupport.WaitAsync(() => network.Text?.Contains("2 MiB/s", StringComparison.Ordinal) == true, "network sample in footer");
 
         Point freeNavigation = FreeSpace(navigation, window);
+        Assert.Equal(OperatingSystem.IsMacOS(), window.UseMacFooterContextClick);
+        window.UseMacFooterContextClick = false;
         Click(window, freeNavigation, MouseButton.Left, RawInputModifiers.Control);
         Assert.Null(navigation.ContextMenu);
         window.UseMacFooterContextClick = true;

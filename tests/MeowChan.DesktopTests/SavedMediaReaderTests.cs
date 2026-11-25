@@ -499,10 +499,26 @@ public sealed class SavedMediaReaderTests
         PressKey(window, PhysicalKey.Enter);
     }
 
+    // Help.md, "In a thread's media tab you select several files as on the Media page: Ctrl/Cmd+click".
+    private static void ToggleSelection(Window window, Control row, Point position, bool macOS)
+    {
+        KeyModifiers command = macOS ? KeyModifiers.Meta : KeyModifiers.Control;
+        AvaloniaLocator.CurrentMutable.Bind<PlatformHotkeyConfiguration>().ToConstant(new PlatformHotkeyConfiguration(command));
+        bool? previous = ContextClick.MacOSForTests;
+        try
+        {
+            ContextClick.MacOSForTests = macOS;
+            Click(window, row, macOS ? RawInputModifiers.Meta : RawInputModifiers.Control, position);
+        }
+        finally { ContextClick.MacOSForTests = previous; }
+    }
+
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ClicksArrowsAndMultiSelectionMakeTheOpenSidebarFollowTheExactRevision(bool grid) => Run((page, window) =>
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ClicksArrowsAndMultiSelectionMakeTheOpenSidebarFollowTheExactRevision(bool grid, bool macOS) => Run((page, window) =>
     {
         ListBox tiles = ById<ListBox>(window, "ArchiveMediaTiles");
         DataGrid table = ById<DataGrid>(window, "ArchiveMediaGrid");
@@ -527,8 +543,7 @@ public sealed class SavedMediaReaderTests
         Assert.Equal(1, grid ? tiles.SelectedIndex : table.SelectedIndex);
         AssertShown(1, new(19, 13));
 
-        RawInputModifiers toggle = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
-        Click(window, Target(rows[0]), toggle, rowPoint);
+        ToggleSelection(window, Target(rows[0]), rowPoint, macOS);
         Assert.Equal(rows, page.SelectedMediaRows());
         if (grid) Assert.True(ById<Border>(Target(rows[0]), "ArchiveMediaSelected").IsEffectivelyVisible);
         AssertShown(0, new(17, 11));
@@ -553,9 +568,11 @@ public sealed class SavedMediaReaderTests
     }, gridPreference: grid);
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void QueueShortcutUsesTheShownRevisionFromTheSidebarAndTheSelectionFromTheList(bool grid) => Run((page, window) =>
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void QueueShortcutUsesTheShownRevisionFromTheSidebarAndTheSelectionFromTheList(bool grid, bool macOS) => Run((page, window) =>
     {
         ListBox tiles = ById<ListBox>(window, "ArchiveMediaTiles");
         DataGrid table = ById<DataGrid>(window, "ArchiveMediaGrid");
@@ -572,8 +589,7 @@ public sealed class SavedMediaReaderTests
         };
 
         Click(window, first, local: new Point(16, grid ? 32 : first.Bounds.Height / 2));
-        RawInputModifiers toggle = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
-        Click(window, second, toggle, new Point(16, grid ? 32 : second.Bounds.Height / 2));
+        ToggleSelection(window, second, new Point(16, grid ? 32 : second.Bounds.Height / 2), macOS);
         Assert.Equal(rows, page.SelectedMediaRows());
         ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
         TextBlock heading = ById<TextBlock>(sidebar, "ReaderMediaSidebarHeading");
