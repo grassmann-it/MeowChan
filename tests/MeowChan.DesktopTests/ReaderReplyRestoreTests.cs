@@ -37,7 +37,8 @@ public sealed class ReaderReplyRestoreTests
                 ListBox list = Posts(window);
                 ArchivePostRow parent = LoadTwoPages(page, window, list);
                 string originalExcerpt = parent.Replies[0].ReplyExcerpt;
-                Assert.Contains(FilteredText, parent.Replies[1].ReplyExcerpt);
+                string filteredExcerpt = parent.Replies[1].ReplyExcerpt;
+                Assert.Contains(FilteredText, filteredExcerpt);
 
                 Action? returnFromGallery = fromGallery ? page.CaptureGalleryOrigin() : null;
                 ArchiveQuoteRow jump = new(new ArchiveQuote(new(Thread, "100"), new(OtherThread, "200"), ">>200", null));
@@ -57,6 +58,13 @@ public sealed class ReaderReplyRestoreTests
                 AssertTwoPages(restored);
                 Assert.Equal(originalExcerpt, restored.Replies[0].ReplyExcerpt);
                 Assert.Equal(Texts.T("postFilter.hiddenReply"), restored.Replies[1].ReplyExcerpt);
+
+                page.PostFilter.Update(PostFilterSnapshot.Empty(PostFilterStoreState.Ready));
+                page.RequestProjectionRebuild();
+                BooruComponentDispatcher.Wait(page.WaitForReaderViewAsync());
+                ArchivePostRow unfiltered = Parent(list);
+                AssertTwoPages(unfiltered);
+                Assert.Equal(filteredExcerpt, unfiltered.Replies[1].ReplyExcerpt);
             }
             finally { window.Close(); }
         });

@@ -704,7 +704,7 @@ public partial class ArchivePage : UserControl
             ConfigureReaderAttachmentFavorite(context.Thread.Summary, context.Media, row.Id, attachment);
             if (row.ShowsMedia) ReservePreviewSize(threadId, row.Id, attachment);
         }
-        RestorePostInteraction(row, context.Interaction);
+        RestorePostInteraction(row, context.Interaction, threadId);
         return row;
     }
 

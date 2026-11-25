@@ -360,11 +360,13 @@ internal static class ReaderViewChecks
         ListBox list = fixture.List;
         await ToggleAsync(fixture, "reader.view.media-only");
         page.InlineReplyPageSize = ReaderDisplayLimits.ReplyStepMinimum;
-        // Continue reading is a jump that renders the thread anew, so the place is taken before the reply pages are loaded.
+        // Start with distinct scroll and selection targets before opening the reply pages.
         LocalReadingPosition place = new("4chan", "g", ThreadId, anchor, -16, selection);
+        bool AtPlace() => page.CurrentThread?.Summary.Id == fixture.Id && !page.IsProjectionPending
+            && Selected(fixture) == selection && page.CurrentReaderAnchor is { } position
+            && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2;
         await page.ResumeReadingPositionAsync(place);
-        await Program.WaitUntilAsync(() => !page.IsProjectionPending && Selected(fixture) == selection
-            && page.CurrentReaderAnchor is { } position && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2,
+        await Program.WaitUntilAsync(AtPlace,
             () => $"Selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.");
         ArchivePostRow Parent() => (ArchivePostRow)list.Items[page.Projection!.PositionOf(anchor)]!;
         ArchivePostRow parent = Parent();
@@ -372,12 +374,20 @@ internal static class ReaderViewChecks
         Require(parent.Replies.Count == 1 && parent.HasMoreReplies, "The first reply page did not offer a second page.");
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         Control card = (Control)list.ContainerFromItem(parent)!;
-        Button more = card.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, parent.MoreRepliesLabel));
+        Button more = card.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetAutomationId(button) == "ReaderMoreReplies");
         more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => parent.Replies.Count == 2);
         ArchiveQuoteRow[] loaded = parent.Replies.ToArray();
         Require(loaded.Select(reply => reply.Quote.Origin.PostId).SequenceEqual(new[] { "5501", "5503" })
             && loaded.All(reply => !string.IsNullOrWhiteSpace(reply.ReplyExcerpt)), "The two reply pages did not have the seeded content.");
+        await page.ResumeReadingPositionAsync(place);
+        await Program.WaitUntilAsync(AtPlace,
+            () => $"Continue reading selected {Selected(fixture)}; anchor {page.CurrentReaderAnchor}.");
+        ArchivePostRow continued = Parent();
+        Require(continued.RepliesExpanded && continued.Replies.SequenceEqual(loaded) && continued.RepliesOffset == 1,
+            "Continue reading lost the two loaded reply pages or their offset.");
+
         page.ReaderExpandRepliesPreference = true;
         ArchiveQuoteRow jump = new(new ArchiveQuote(new ArchivePostId(fixture.Id, anchor),
             new ArchivePostId(replacement, selection), ">>" + selection, null));
@@ -387,9 +397,7 @@ internal static class ReaderViewChecks
             await page.NavigateQuoteAsync(jump);
             Require(page.CurrentThread?.Summary.Id == replacement && page.CanGoHistoryBack, "The quote did not reach the other thread.");
             page.GoHistoryBackByShortcut();
-            await Program.WaitUntilAsync(() => page.CurrentThread?.Summary.Id == fixture.Id && !page.IsProjectionPending
-                && Selected(fixture) == selection && page.CurrentReaderAnchor is { } position
-                && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2);
+            await Program.WaitUntilAsync(AtPlace);
             ArchivePostRow returned = Parent();
             Require(returned.RepliesExpanded == expanded && returned.Replies.SequenceEqual(loaded) && returned.RepliesOffset == 1,
                 $"Back lost loaded reply pages or changed their expanded state. Wanted expanded {expanded}; row expanded {returned.RepliesExpanded}, "
@@ -400,13 +408,11 @@ internal static class ReaderViewChecks
         Action galleryReturn = page.CaptureGalleryOrigin();
         await page.NavigateQuoteAsync(jump);
         galleryReturn();
-        await Program.WaitUntilAsync(() => page.CurrentThread?.Summary.Id == fixture.Id && !page.IsProjectionPending
-            && Selected(fixture) == selection && page.CurrentReaderAnchor is { } position
-            && position.PostId == anchor && Math.Abs(position.Top + 16) <= 2);
+        await Program.WaitUntilAsync(AtPlace);
         Require(Parent().Replies.SequenceEqual(loaded) && !Parent().RepliesExpanded, "Gallery return lost the closed reply pages.");
         page.ReaderExpandRepliesPreference = false;
         await ToggleAsync(fixture, "reader.view.media-only");
-        Console.WriteLine("SMOKE quote back and gallery return restored reply pages, selection, and offset through the active filter.");
+        Console.WriteLine("SMOKE Continue reading, quote back and gallery return restored reply pages, selection, and offset through the active filter.");
     }
 
     private static async Task CheckReplyCountGenerationAsync(Fixture fixture, ResourceId replacement, string selection)

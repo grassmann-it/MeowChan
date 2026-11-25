@@ -47,8 +47,11 @@ public partial class ArchivePage
     private void BeginPostInteraction(ResourceId? threadId, InlineRepliesSnapshot? restored)
     {
         _replyAutoExpand.SwitchThread(threadId);
+        bool sameSnapshot = ReferenceEquals(_postInteractionThread, _thread);
+        if (restored == null && sameSnapshot && ArchivePosts.ItemsSource is ReaderPostRows)
+            restored = CaptureInlineReplyState();
         // A pending projection has no rows yet. Keep its seeded reply pages until the first rows are built.
-        if (restored != null || !ReferenceEquals(_postInteractionThread, _thread) || ArchivePosts.ItemsSource != null)
+        if (restored != null || !sameSnapshot || ArchivePosts.ItemsSource != null)
             _postInteraction = new();
         _postInteractionThread = _thread;
         if (restored == null) return;
@@ -56,12 +59,16 @@ public partial class ArchivePage
         foreach (InlineReplyState state in restored.Pages) _postInteraction.Replies[state.PostId] = state;
     }
 
-    private void RestorePostInteraction(ArchivePostRow row, PostInteraction interaction)
+    private void RestorePostInteraction(ArchivePostRow row, PostInteraction interaction, ResourceId thread)
     {
         if (row.IsStub || row.SuppressReplyToggle) return;
         if (!interaction.Replies.Remove(row.Id, out InlineReplyState? state)) return;
-        // Restore loaded pages before expanding, including when an origin is realized after returning from a quote.
-        if (state.Loaded) row.SetReplies(state.Replies, state.Count ?? state.Replies.Count, state.Offset);
+        // Rebuild the displayed reply cards against the current filter before expanding the saved pages.
+        if (state.Loaded)
+        {
+            ArchiveQuoteRow[] replies = state.Replies.Select(reply => ReplyCard(reply.Quote, thread)).ToArray();
+            row.SetReplies(Array.AsReadOnly(replies), state.Count ?? replies.Length, state.Offset);
+        }
         else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
         row.SetRepliesError(state.Error);
         row.RepliesExpanded = state.Expanded && (!state.AutoExpanded || _replyAutoExpand.Enabled);
