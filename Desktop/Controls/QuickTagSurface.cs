@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -1290,9 +1291,16 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     internal bool FieldHasComposition => _input.IsKeyboardFocusWithin && _input.IsComposing;
 
+    // Any editor inside the surface, the host's extra content included (the gallery's thread tag field): its composition
+    // owns Esc and the command keys, exactly as the main field's does.
+    private bool FocusedEditorHasComposition() => FieldHasComposition
+        || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
+            && this.IsVisualAncestorOf(focused)
+            && focused.GetSelfAndVisualDescendants().OfType<TextPresenter>().Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
+
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing || FieldHasComposition) return;
+        if (e.Handled || ShortcutService.IsCapturing || FocusedEditorHasComposition()) return;
         QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.HasSuggestionList,
             string.IsNullOrEmpty(_input.Text), NavigationEnabled, ShortcutService.Current);
         if (Execute(route)) e.Handled = true;
