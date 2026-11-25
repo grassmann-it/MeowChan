@@ -145,7 +145,7 @@ internal sealed partial class BooruWorkbenchView
         if (_sidebarContent != content)
         {
             _sidebarContent = content;
-            _mediaSidebar.Present(target, row, saved, maximumPixels);
+            _mediaSidebar.Present(target, row, saved, maximumPixels, view.ProviderName);
             BuildSidebarActions(row, result);
         }
         if (_sidebarTagContent != (target, Texts.Language))
@@ -161,7 +161,7 @@ internal sealed partial class BooruWorkbenchView
                 {
                     if (SidebarResultIsCurrent(result) && result.CurrentRow() is { } current)
                         _mediaSidebar.Present(target, current, result.IsAvailable(ResultAction.ShowInMedia, current),
-                            ReadGallerySampleSettings().MaximumPixels);
+                            ReadGallerySampleSettings().MaximumPixels, _model.Search.View.ProviderName);
                 });
     }
 
@@ -176,9 +176,10 @@ internal sealed partial class BooruWorkbenchView
         ResultCommand[] commands = result.Commands(row).ToArray();
         ResultCommand? primary = commands.FirstOrDefault(command => command.Action == ResultAction.ShowInMedia)
             ?? commands.FirstOrDefault(command => command.Action is ResultAction.Load or ResultAction.Cancel or ResultAction.Retry);
+        // Tom, 25.11. 14:55: download first, then copy post link, then the small open-in-browser icon at the end.
         if (primary != null) Add(primary, primary: true);
-        foreach (ResultCommand command in commands.Where(command => command.Action is ResultAction.Open or ResultAction.Copy))
-            Add(command, primary: false);
+        foreach (ResultAction action in new[] { ResultAction.Copy, ResultAction.Open })
+            if (commands.FirstOrDefault(command => command.Action == action) is { } link) Add(link, primary: false);
 
         void Add(ResultCommand command, bool primary)
         {
@@ -195,7 +196,15 @@ internal sealed partial class BooruWorkbenchView
             ToolTip.SetShowOnDisabled(button, true);
             button.Click += (_, _) => { if (SidebarResultIsCurrent(result)) result.Run(command.Action); };
             if (command.WorkViewId is { } id) RegisterWorkViewAction(button, id, _sidebarWorkViewButtons);
-            _mediaSidebar.AddAction(button, command.Icon, command.Label);
+            string? shortLabel = command.Action switch
+            {
+                ResultAction.Load => Texts.T("booru.ui.result.short.load"),
+                ResultAction.Retry => Texts.T("booru.ui.result.short.again"),
+                ResultAction.Copy => Texts.T("booru.ui.result.short.copy"),
+                ResultAction.ShowInMedia => Texts.T("booru.ui.result.short.media"),
+                _ => null
+            };
+            _mediaSidebar.AddAction(button, command.Icon, command.Label, shortLabel, compact: command.Action == ResultAction.Open);
         }
     }
 

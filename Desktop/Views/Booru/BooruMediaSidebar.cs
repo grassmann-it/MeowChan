@@ -16,7 +16,6 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
-using MeowChan.Desktop.MediaActions;
 using MeowChan.PluginSdk;
 using SkiaSharp;
 
@@ -35,10 +34,14 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis
     };
     private readonly MediaPositionPill _position = new("BooruMediaPosition");
-    private readonly ArchiveFavoriteButton _favorite = new() { Name = "BooruMediaFavorite" };
-    private readonly GalleryDecisionRow _rating = new("BooruMediaDecision", compact: true, favorite: false, sidebar: true);
-    private readonly MediaInfoBar _localActions;
+    // Required by the shared header, but a local favorite has no meaning for a provider hit in 1.1.2 (Tom, 25.11. 14:48).
+    private readonly ArchiveFavoriteButton _favorite = new() { Name = "BooruMediaFavorite", IsVisible = false };
     private readonly MediaCompactHeader _header;
+    private readonly TextBlock _ratingStat = StatText("BooruMediaStatRating");
+    private readonly TextBlock _scoreStat = StatText("BooruMediaStatScore");
+    private readonly TextBlock _tagCount = StatText("BooruMediaStatTagCount");
+    private readonly StackPanel _tagStat = new() { Name = "BooruMediaStatTags", Orientation = Orientation.Horizontal, Spacing = 4 };
+    private readonly WrapPanel _stats = new() { Name = "BooruMediaStats", ItemSpacing = 16, LineSpacing = 4, Margin = new Thickness(Inset, 0) };
     private readonly Image _image = new() { Name = "BooruMediaPreview", Stretch = Stretch.Uniform };
     private readonly TextBlock _placeholder = new()
     {
@@ -53,7 +56,6 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     };
     private readonly BooruGallerySampleLoader _sample = new();
     private readonly List<Visual> _visibilityAncestors = new();
-    private readonly List<(Button Button, TextBlock Label)> _actionLabels = new();
     private BooruResultTarget? _target;
     private byte[]? _previewBytes;
     private int _previewMaximumPixels;
@@ -74,7 +76,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
         VerticalAlignment = VerticalAlignment.Center
     };
-    internal PanelActionStack Actions { get; } = new("BooruMediaActions") { Margin = new Thickness(Inset, 0) };
+    internal BooruActionRow Actions { get; } = new() { Name = "BooruMediaActions", Margin = new Thickness(Inset, 0) };
     internal ScrollViewer Tags { get; } = new()
     {
         Name = "BooruMediaTags", Margin = new Thickness(Inset, 0), Focusable = false, IsTabStop = false,
@@ -94,26 +96,21 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
             Margin = new Thickness(Inset, 4), FileNameReserve = 40
         };
         _header.Meta.Name = "BooruMediaSummary";
-        _localActions = new MediaInfoBar(_rating, new Button { Name = "BooruMediaEditTags" }, _ => { })
-        {
-            Name = "BooruMediaLocalActions"
-        };
-        _localActions.Expand.IsVisible = false;
-        _rating.AttachedToVisualTree += (_, _) => ExplainUnavailableRating();
+        _tagStat.Children.AddRange([CommandBindings.IconFromKey("tag", 16), _tagCount]);
+        _stats.Children.AddRange([_ratingStat, _scoreStat, _tagStat]);
         Info.Click += (_, _) => ShowFacts(Info.IsChecked == true);
         _kind.Margin = new Thickness(0, 4, 4, 0);
         OpenGallery.Content = new Panel { Children = { _image, _placeholder, _kind } };
         AutomationProperties.SetAccessibilityView(_image, AccessibilityView.Raw);
-        foreach (Control control in new Control[] { this, _title, _header.Meta, _favorite, Info, Close, OpenGallery, _image, Actions, _localActions, Tags, _facts })
+        foreach (Control control in new Control[] { this, _title, _header.Meta, _favorite, Info, Close, OpenGallery, _image, Actions, _stats, _ratingStat, _scoreStat, _tagStat, _tagCount, Tags, _facts })
             AutomationProperties.SetAutomationId(control, control.Name);
         AutomationProperties.SetAutomationId(_header.Position, _position.Name);
-        foreach (Button star in _rating.StarButtons) AutomationProperties.SetAutomationId(star, star.Name);
         SetRow(OpenGallery, 1);
         SetRow(Actions, 2);
-        SetRow(_localActions, 3);
+        SetRow(_stats, 3);
         SetRow(Tags, 4);
         SetRow(_facts, 5);
-        Children.AddRange([_header, OpenGallery, Actions, _localActions, Tags, _facts]);
+        Children.AddRange([_header, OpenGallery, Actions, _stats, Tags, _facts]);
         AutomationProperties.SetControlTypeOverride(this, Avalonia.Automation.Peers.AutomationControlType.Group);
         AttachedToVisualTree += (_, _) => ObserveVisibility();
         DetachedFromVisualTree += (_, _) => StopObservingVisibility();
@@ -129,7 +126,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         _header.InvalidateMeasure();
     }
 
-    internal void Present(BooruResultTarget target, BooruResultRowView row, bool saved, int maximumPixels)
+    internal void Present(BooruResultTarget target, BooruResultRowView row, bool saved, int maximumPixels, string provider)
     {
         if (_target != target)
         {
@@ -151,11 +148,6 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         BooruPostView post = row.Post;
         _title.Text = Texts.T("booru.ui.post.title", post.PostId);
         _header.Localize();
-        _favorite.IsVisible = _localActions.IsVisible = !saved;
-        _favorite.Refresh();
-        _localActions.Localize();
-        _localActions.SetTags(null, MediaMenuReasons.NotSaved, canEdit: false);
-        ExplainUnavailableRating();
         AutomationProperties.SetName(this, Texts.T("media.layout.panel"));
         AutomationProperties.SetName(Tags, Texts.T("booru.tags.sourceLabel"));
         AutomationProperties.SetName(OpenGallery, CommandCatalog.Label("gallery.open") + " · " + _title.Text);
@@ -187,7 +179,9 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         string? favorites = post.FavoriteCount?.ToString(Texts.Culture);
         string file = post.Original?.Url is { IsAbsoluteUri: true } url
             ? Uri.UnescapeDataString(Path.GetFileName(url.AbsolutePath)) : "";
-        _header.Describe(file.Length > 0 ? file : extension ?? "", bytesText ?? "", hasPostTitle: true);
+        _header.Describe(file.Length > 0 ? file : extension ?? "",
+            string.Join(" · ", new[] { provider, bytesText }.Where(part => !string.IsNullOrWhiteSpace(part))), hasPostTitle: true);
+        PresentStats(post, rating, score);
 
         MediaFactGrid facts = new("BooruMediaFactGrid");
         AddFact("booru.ui.post.field.rating", rating, "BooruMediaRating");
@@ -210,18 +204,36 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         }
     }
 
-    private void ExplainUnavailableRating()
+    /// <summary>
+    /// The provider's own numbers for the post, in place of the local rating and tag editor (Tom, 25.11. 14:48): only
+    /// what the provider delivered, no empty placeholders.
+    /// </summary>
+    private void PresentStats(BooruPostView post, string? rating, string? score)
     {
-        string reason = MediaMenuReasons.NotSaved;
-        ToolTip.SetTip(_rating.RatingGroup, reason);
-        AutomationProperties.SetHelpText(_rating.RatingGroup, reason);
-        foreach (Button star in _rating.StarButtons)
+        Show(_ratingStat, rating, rating is null ? null : Texts.T("booru.ui.post.rating", rating));
+        Show(_scoreStat, score is null ? null : Texts.T("booru.ui.result.short.score", score),
+            score is null ? null : Texts.T("booru.ui.post.score", score));
+        bool tags = post.Post.Fields.HasFlag(BooruFieldPresence.Tags);
+        _tagCount.Text = post.Tags.Length.ToString(Texts.Culture);
+        string tagName = Texts.Count("booru.media.gallery.tags", post.Tags.Length);
+        _tagStat.IsVisible = tags;
+        AutomationProperties.SetName(_tagStat, tags ? tagName : null);
+        ToolTip.SetTip(_tagStat, tags ? tagName : null);
+        _stats.IsVisible = _ratingStat.IsVisible || _scoreStat.IsVisible || _tagStat.IsVisible;
+
+        static void Show(TextBlock stat, string? text, string? name)
         {
-            ToolTip.SetShowOnDisabled(star, true);
-            ToolTip.SetTip(star, reason);
-            AutomationProperties.SetHelpText(star, reason);
+            stat.Text = text;
+            stat.IsVisible = text is not null;
+            AutomationProperties.SetName(stat, name);
+            ToolTip.SetTip(stat, name);
         }
     }
+
+    private static TextBlock StatText(string name) => new()
+    {
+        Name = name, Classes = { "workspace-meta", "tnum" }, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center
+    };
 
     internal void ToggleFacts() => ShowFacts(!_facts.IsVisible);
 
@@ -272,58 +284,23 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         _picture = picture;
     }
 
-    internal void ClearActions()
-    {
-        Actions.Children.Clear();
-        _actionLabels.Clear();
-    }
+    internal void ClearActions() => Actions.Clear();
 
-    internal void AddAction(Button button, string icon, string label)
-    {
-        TextBlock text = new() { Text = label, Classes = { "panel-action-label" }, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
-        AutomationProperties.SetAutomationId(text, button.Name + ":Label");
-        StackPanel line = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
-        line.Children.Add(text);
-        button.AttachedToVisualTree += (_, _) =>
-        {
-            if (line.Children.Count == 1) line.Children.Insert(0, CommandBindings.NamedIcon(icon));
-        };
-        PanelActionStack.SizeButton(button, compactSpacing: true);
-        button.MinWidth = 0;
-        button.Content = line;
-        _actionLabels.Add((button, text));
-        Actions.Children.Add(button);
-    }
+    /// <summary>A labeled action shares the row's width with the others; a compact one stays a 32 DIP icon at its place.</summary>
+    internal void AddAction(Button button, string icon, string label, string? shortLabel = null, bool compact = false) =>
+        Actions.Add(button, icon, label, shortLabel, compact);
 
     protected override Size MeasureOverride(Size availableSize)
     {
         double width = Math.Min(Width, availableSize.Width);
         if (!double.IsFinite(width)) width = Config.MediaPanelWidthDefault;
-        double room = Math.Max(0, width - 2 * Inset);
-        int visibleActions = _actionLabels.Count(action => action.Button.IsVisible);
-        double extra = room - visibleActions * WorkspaceMetrics.InputHeight - Math.Max(0, visibleActions - 1) * Actions.ItemSpacing;
-        foreach (var (button, label) in _actionLabels)
-        {
-            if (!button.IsVisible) continue;
-            FormattedText text = new(label.Text ?? string.Empty, Texts.Culture, label.FlowDirection,
-                new Typeface(label.FontFamily, label.FontStyle, label.FontWeight, label.FontStretch), label.FontSize, label.Foreground);
-            double chrome = 16 + 4 + 2 * Inset + button.BorderThickness.Left + button.BorderThickness.Right;
-            double full = Math.Ceiling(text.Width + chrome);
-            double added = Math.Max(0, full - WorkspaceMetrics.InputHeight);
-            bool showLabel = added <= extra;
-            button.Width = showLabel ? Math.Max(WorkspaceMetrics.InputHeight, full) : WorkspaceMetrics.InputHeight;
-            label.IsVisible = showLabel;
-            button.Padding = showLabel ? new Thickness(Inset, 0) : default;
-            if (showLabel) extra -= added;
-        }
-
         Size row = new(width, double.PositiveInfinity);
         _header.Measure(row);
         Actions.Measure(row);
-        _localActions.Measure(row);
+        _stats.Measure(row);
         _facts.Measure(row);
         double bars = _header.DesiredSize.Height + Actions.DesiredSize.Height
-            + _localActions.DesiredSize.Height + _facts.DesiredSize.Height + 5 * RowSpacing;
+            + _stats.DesiredSize.Height + _facts.DesiredSize.Height + 5 * RowSpacing;
         OpenGallery.Height = Math.Min(width / _aspect, Math.Max(0, availableSize.Height - bars - TagRoom));
         return base.MeasureOverride(availableSize);
     }
@@ -366,5 +343,115 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         _disposed = true;
         StopObservingVisibility();
         Release();
+    }
+}
+
+/// <summary>
+/// The Booru sidebar's action row (Tom, 25.11. 14:55): the labeled actions share the row's width in equal parts, a compact
+/// action stays a square icon in its place, and a hidden action takes no room. A label that does not fit its share falls
+/// back to the short label, then to the icon alone; it is never clipped.
+/// </summary>
+internal sealed class BooruActionRow : Panel
+{
+    internal const double Gap = 8;
+    private const double LabelPadding = 8;
+    private const double IconGap = 4;
+    private readonly List<Entry> _actions = new();
+
+    private sealed record Entry(Button Button, TextBlock Label, string Full, string? Short, bool Compact);
+
+    internal void Clear()
+    {
+        Children.Clear();
+        _actions.Clear();
+    }
+
+    internal void Add(Button button, string icon, string label, string? shortLabel, bool compact)
+    {
+        TextBlock text = new()
+        {
+            Text = label, Classes = { "panel-action-label" }, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center,
+            IsVisible = !compact
+        };
+        AutomationProperties.SetAutomationId(text, button.Name + ":Label");
+        StackPanel line = new()
+        {
+            Orientation = Orientation.Horizontal, Spacing = IconGap, HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        line.Children.Add(text);
+        button.AttachedToVisualTree += (_, _) =>
+        {
+            if (line.Children.Count == 1) line.Children.Insert(0, CommandBindings.NamedIcon(icon));
+        };
+        button.Classes.Set("panel-action", true);
+        if (compact) button.Classes.Set(WorkspaceIcons.SquareClass, true);
+        button.Height = WorkspaceMetrics.InputHeight;
+        button.MinWidth = 0;
+        button.HorizontalAlignment = HorizontalAlignment.Stretch;
+        button.HorizontalContentAlignment = HorizontalAlignment.Center;
+        button.Content = line;
+        _actions.Add(new Entry(button, text, label, shortLabel, compact));
+        Children.Add(button);
+    }
+
+    private (double Labeled, int Visible) Shares(double width)
+    {
+        int visible = 0, compact = 0;
+        foreach (Entry action in _actions)
+        {
+            if (!action.Button.IsVisible) continue;
+            visible++;
+            if (action.Compact) compact++;
+        }
+        int labeled = visible - compact;
+        double room = width - Math.Max(0, visible - 1) * Gap - compact * WorkspaceMetrics.InputHeight;
+        return (labeled == 0 ? 0 : Math.Max(WorkspaceMetrics.InputHeight, room / labeled), visible);
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        double width = double.IsFinite(availableSize.Width) ? availableSize.Width : 0;
+        (double share, int visible) = Shares(width);
+        foreach (Entry action in _actions)
+        {
+            if (!action.Button.IsVisible) continue;
+            if (action.Compact)
+            {
+                action.Button.Padding = default;
+                action.Button.Measure(new Size(WorkspaceMetrics.InputHeight, WorkspaceMetrics.InputHeight));
+                continue;
+            }
+            Button button = action.Button;
+            double chrome = 2 * LabelPadding + 16 + IconGap + button.BorderThickness.Left + button.BorderThickness.Right;
+            string? text = Fits(action.Full) ? action.Full : action.Short is { } brief && Fits(brief) ? brief : null;
+            action.Label.Text = text ?? action.Full;
+            action.Label.IsVisible = text is not null;
+            button.Padding = text is null ? default : new Thickness(LabelPadding, 0);
+            button.Measure(new Size(share, WorkspaceMetrics.InputHeight));
+
+            bool Fits(string candidate)
+            {
+                TextBlock label = action.Label;
+                FormattedText measured = new(candidate, Texts.Culture, label.FlowDirection,
+                    new Typeface(label.FontFamily, label.FontStyle, label.FontWeight, label.FontStretch), label.FontSize, label.Foreground);
+                return Math.Ceiling(measured.WidthIncludingTrailingWhitespace) + chrome <= share;
+            }
+        }
+        return new Size(width, visible == 0 ? 0 : WorkspaceMetrics.InputHeight);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        (double share, _) = Shares(finalSize.Width);
+        double x = 0;
+        foreach (Entry action in _actions)
+        {
+            if (!action.Button.IsVisible) continue;
+            double width = action.Compact ? WorkspaceMetrics.InputHeight : share;
+            action.Button.Arrange(new Rect(x, 0, width, WorkspaceMetrics.InputHeight));
+            x += width + Gap;
+        }
+        return finalSize;
     }
 }
