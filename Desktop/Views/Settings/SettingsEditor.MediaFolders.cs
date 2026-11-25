@@ -40,6 +40,8 @@ public partial class SettingsEditor
     /// <summary>Shows the folder sources again (after a change the host announced).</summary>
     internal void RefreshFolderSources() => _mediaFolders?.Refresh();
 
+    internal bool TryDismissFolderSourceRemoval() => _mediaFolders?.TryDismissRemoveConfirmation() == true;
+
     private void EnsureMediaFolders()
     {
         if (_mediaFolders != null || _folderSourceServices == null || _isClosed) return;
