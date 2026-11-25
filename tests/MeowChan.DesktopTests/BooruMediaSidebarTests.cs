@@ -534,7 +534,7 @@ public sealed class BooruMediaSidebarTests
 
     private static void Focus(Control control) => Assert.True(control.Focus(NavigationMethod.Directional));
 
-    private static Border Hit(BooruWorkbenchView view, string id) => Find<Border>(view, "BooruResult:" + id);
+    private static Border Hit(BooruWorkbenchView view, string id) => ById<Border>(view, "BooruResult:" + id);
 
     private static byte[] Png(int width, int height)
     {
