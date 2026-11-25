@@ -4333,6 +4333,8 @@
     "reader.view.focusedEnlarge.inSidebar": "メディアサイドバーがオンのときは、代わりにサイドバーが選択した投稿のメディアを表示します。この設定はサイドバーを非表示にしているときに適用されます。",
     "settings.reader.focusedScale": "選択中の投稿のメディアの拡大率（%）",
     "settings.reader.focusedScale.hint": "100は変更なしを意味します。",
+    "settings.reader.focusedTopPadding": "高さのある選択中の投稿の上余白（%）",
+    "settings.reader.focusedTopPadding.hint": "選択中の投稿のメディアを拡大したとき、投稿が表示領域より高い場合は、リーダーの高さに対するこの割合を投稿の上の余白にします。",
     "settings.reader.hoverEnlarge": "ポインターを置いている間、画像を拡大",
     "settings.reader.hoverEnlarge.hint": "少し待つと、画像の横により大きなプレビューを表示します。既定ではオフです。リーダーの「表示」メニューにもあります。",
     "settings.reader.hoverSize": "ホバープレビューのサイズ（px）",

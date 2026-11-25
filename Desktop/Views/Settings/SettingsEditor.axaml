@@ -454,6 +454,18 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ReaderFocusedPostTopPaddingPercentFieldLabel" Text="{Binding ReaderFocusedPostTopPaddingPercentLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ReaderFocusedPostTopPaddingPercentHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderFocusedPostTopPaddingPercentInput" AutomationProperties.AutomationId="ReaderFocusedPostTopPaddingPercentInput" Value="{Binding ReaderFocusedPostTopPaddingPercent, Mode=TwoWay}" Minimum="{Binding ReaderFocusedPostTopPaddingPercentMinimum}" Maximum="{Binding ReaderFocusedPostTopPaddingPercentMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderFocusedPostTopPaddingPercentFieldLabel}" AutomationProperties.Name="{Binding ReaderFocusedPostTopPaddingPercentLabel}" AutomationProperties.HelpText="{Binding ReaderFocusedPostTopPaddingPercentHelp}" />
+                                        <TextBlock x:Name="ReaderFocusedPostTopPaddingPercentInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <TextBlock x:Name="ReaderHoverEnlargeFieldLabel" Text="{Binding ReaderHoverEnlargeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderHoverEnlargeHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>

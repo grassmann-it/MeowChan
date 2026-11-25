@@ -4375,6 +4375,8 @@
     "reader.view.focusedEnlarge.inSidebar": "Mientras la barra lateral de medios está activada, muestra en su lugar los medios de la publicación seleccionada; este ajuste se aplica cuando la barra lateral está oculta.",
     "settings.reader.focusedScale": "Ampliación de los medios de la publicación activa (%)",
     "settings.reader.focusedScale.hint": "100 significa sin cambios.",
+    "settings.reader.focusedTopPadding": "Margen superior para publicaciones activas altas (%)",
+    "settings.reader.focusedTopPadding.hint": "Si se amplían los medios de la publicación activa y esta supera la altura del área visible, se deja libre por encima esta proporción de la altura del lector.",
     "settings.reader.hoverEnlarge": "Ampliar una imagen mientras el cursor está sobre ella",
     "settings.reader.hoverEnlarge.hint": "Muestra una vista previa más grande junto a la imagen tras un breve retraso. Desactivado de forma predeterminada. También está en el menú Vista del lector.",
     "settings.reader.hoverSize": "Tamaño de la vista previa al pasar el cursor (px)",

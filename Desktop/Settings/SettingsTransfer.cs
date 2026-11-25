@@ -211,6 +211,7 @@ public static class SettingsTransfer
             ProfileRegistryLimit = source.ProfileRegistryLimit,
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge,
             ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent,
+            ReaderFocusedPostTopPaddingPercent = source.ReaderFocusedPostTopPaddingPercent,
             ReaderHoverEnlarge = source.ReaderHoverEnlarge,
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs,
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize,

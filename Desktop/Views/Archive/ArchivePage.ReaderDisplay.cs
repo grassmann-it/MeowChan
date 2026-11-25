@@ -15,7 +15,7 @@ public partial class ArchivePage
     private ReaderSettingsApply? _readerSettingsApply;
     private int _readerSettingsRequest;
     private sealed record ReaderSettingsApply(ReaderAnchor? Anchor, ResourceId Thread, int Content, int Interaction,
-        int Focus, int Tab, int Request, TaskCompletionSource Completion);
+        int Focus, int Tab, int Request, int FocusScaleBefore, TaskCompletionSource Completion);
 
     /// <summary>Deterministic gate after final projection realization, before passive selection/top correction.</summary>
     internal Func<Task>? BeforeReaderSettingsRestoreAsync { get; set; }
@@ -49,15 +49,15 @@ public partial class ArchivePage
         bool postImagesSame = nextMedia.SamePostImages(_readerDisplayPreferences.Media);
         bool liveOnly = width == ReaderThumbnailWidth && style == ReaderDateStyle
             && depth == ReaderThreadingDepth && postImagesSame;
+        int previousScale = ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty);
         if (nextMedia != _readerDisplayPreferences.Media)
         {
-            // A live switch (enlargement, hover, sidebar on/off, its side and width) resizes the focused card or re-wraps every card
-            // without a rebuild: the selected card keeps its place in the viewport over the following layout passes. A rebuild has
-            // its own settings anchor below.
+            // Live settings preserve the selected card's place across layout passes. Changing the inline enlargement aligns it
+            // once at the new size. A rebuild has its own settings anchor below.
             Func<Task>? keepSelected = liveOnly ? CaptureReaderCountLayoutCorrection() : null;
             _readerDisplayPreferences.Media = nextMedia;
             ApplyReaderMediaLive();
-            if (keepSelected != null) _ = keepSelected();
+            if (liveOnly && !TryAlignChangedFocusScale(previousScale) && keepSelected != null) _ = keepSelected();
         }
         if (liveOnly) return;
 
@@ -66,7 +66,7 @@ public partial class ArchivePage
         {
             _readerSettingsApply = new(CaptureReaderAnchor(), _thread.Summary.Id, _contentRequest,
                 _readerInteractionRevision, _readerFocusRequest, ArchiveContentTabs.SelectedIndex,
-                ++_readerSettingsRequest, new(TaskCreationOptions.RunContinuationsAsynchronously));
+                ++_readerSettingsRequest, previousScale, new(TaskCreationOptions.RunContinuationsAsynchronously));
             ReaderViewTask = _readerSettingsApply.Completion.Task;
             // No competing view restore may capture the intermediate layout or activate the Posts tab.
             _projectionAnchor = null;
@@ -77,6 +77,16 @@ public partial class ArchivePage
         if (_conversationOrdering != null) _conversationOrdering.Depth = depth;
         ArchivePosts.SetValue(ReaderPostLayout.ThumbnailWidthProperty, width);
         RequestProjectionRebuild();
+    }
+
+    private bool TryAlignChangedFocusScale(int previousScale)
+    {
+        if (!FocusedMediaEnlarged || previousScale == ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty)
+            || !MayRefreshReaderNow || !ArchivePosts.IsEffectivelyVisible || ReaderJumpOwnsScroll
+            || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } focused) return false;
+        if (ArchivePosts.ContainerFromItem(focused) == null) ArchivePosts.ScrollIntoView(ArchivePosts.SelectedIndex);
+        AnchorFocusedCard(centre: true);
+        return true;
     }
 
     private bool ReaderSettingsApplyCurrent(ReaderSettingsApply apply) => !_ended && !IsFilenameSearchOpen
@@ -133,9 +143,11 @@ public partial class ArchivePage
                 if (!Current()) return;
                 ++_readerLayoutRevision;
                 ArchivePostRow? selected = FindPostRow(anchor.SelectedPostId);
-                list.SelectedItem = selected;
+                using (_readerScrollOwner.BeginJump(_readerInteractionRevision))
+                    list.SelectedItem = selected;
                 _readerPostId = selected?.Id ?? row.Id;
                 list.UpdateLayout();
+                if (TryAlignChangedFocusScale(apply.FocusScaleBefore)) return;
                 ScrollViewer? currentScroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
                 if (currentScroll != null && list.ContainerFromItem(row) is Control container
                     && container.TranslatePoint(default, list) is Point position)

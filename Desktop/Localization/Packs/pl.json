@@ -4424,6 +4424,8 @@
     "reader.view.focusedEnlarge.inSidebar": "Gdy panel boczny mediów jest włączony, pokazuje zamiast tego media zaznaczonego posta; to ustawienie obowiązuje, gdy panel jest ukryty.",
     "settings.reader.focusedScale": "Powiększenie mediów aktywnego postu (%)",
     "settings.reader.focusedScale.hint": "100 oznacza brak zmiany.",
+    "settings.reader.focusedTopPadding": "Górny odstęp dla wysokich aktywnych postów (%)",
+    "settings.reader.focusedTopPadding.hint": "Jeśli media aktywnego postu są powiększone, a post jest wyższy niż widoczny obszar, nad postem pozostaje wolna ta część wysokości czytnika.",
     "settings.reader.hoverEnlarge": "Powiększ obraz, gdy wskaźnik na nim spoczywa",
     "settings.reader.hoverEnlarge.hint": "Po krótkim opóźnieniu pokazuje obok obrazu większy podgląd. Domyślnie wyłączone. Jest też w menu Widok czytnika.",
     "settings.reader.hoverSize": "Rozmiar podglądu po najechaniu (px)",

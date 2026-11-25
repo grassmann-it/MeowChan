@@ -296,13 +296,14 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task EnlargedPostAlignsOnEnableAndFocusChangeAndStaysWhereTheReaderScrolls(bool tallPost)
+    [InlineData(false, 8)]
+    [InlineData(true, 0)]
+    [InlineData(true, 8)]
+    [InlineData(true, 25)]
+    public async Task EnlargedPostAlignsOnEnableAndFocusChangeAndStaysWhereTheReaderScrolls(bool tallPost, int paddingPercent)
     {
         const int post = 108;
         const string postId = "108";
-        const int defaultPaddingPercent = 8;
         using TempDirectory profile = new();
         MediaAssetSnapshot media = WritePicture(profile.Path);
         string body = tallPost ? string.Join("<br>", Enumerable.Repeat("A line in the selected post.", 48)) : "A short post.";
@@ -316,7 +317,13 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
             Window window = new() { Width = 1920, Height = 800, Content = page };
             try
             {
-                Config config = new() { ReaderMediaSidebar = false, ReaderExpandReplies = tallPost, ReaderFoldLines = 100 };
+                Config config = new()
+                {
+                    ReaderMediaSidebar = false,
+                    ReaderExpandReplies = tallPost,
+                    ReaderFoldLines = 100,
+                    ReaderFocusedPostTopPaddingPercent = paddingPercent
+                };
                 ReaderSettingsPreferences.Apply(page, config);
                 window.Show();
                 window.PlatformImpl!.Activated?.Invoke();
@@ -342,7 +349,7 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                     Point at = Assert.IsType<Point>(card.TranslatePoint(default, scroll));
                     double viewportHeight = scroll.Viewport.Height;
                     Assert.Equal(tallPost, card.Bounds.Height > viewportHeight);
-                    double expected = tallPost ? viewportHeight * defaultPaddingPercent / 100 : (viewportHeight - card.Bounds.Height) / 2;
+                    double expected = tallPost ? viewportHeight * paddingPercent / 100 : (viewportHeight - card.Bounds.Height) / 2;
                     Assert.True(Math.Abs(expected - at.Y) <= 2,
                         $"{operation} placed a {card.Bounds.Height:0.##} DIP post at {at.Y:0.##} DIP in a {viewportHeight:0.##} DIP viewport. Expected {expected:0.##} DIP.");
                 }

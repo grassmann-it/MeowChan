@@ -52,6 +52,8 @@ internal static class ReaderSettingsCatalog
         ("reader.view.focusedEnlarge.inSidebar", "While the media sidebar is on, it shows the focused post’s media instead; this setting applies when the sidebar is hidden.", "Solange die Medienleiste an ist, zeigt sie stattdessen die Medien des markierten Posts; diese Einstellung gilt, wenn die Leiste ausgeblendet ist."),
         ("settings.reader.focusedScale", "Enlargement of the focused post’s media (%)", "Vergrößerung der Medien des markierten Posts (%)"),
         ("settings.reader.focusedScale.hint", "100 means no change.", "100 bedeutet keine Änderung."),
+        ("settings.reader.focusedTopPadding", "Top padding for tall focused posts (%)", "Oberer Abstand für hohe markierte Posts (%)"),
+        ("settings.reader.focusedTopPadding.hint", "When the focused post’s media is enlarged and the post is taller than the viewport, leave this share of the reader height above it.", "Wenn die Medien des markierten Posts vergrößert sind und der Post höher als der Sichtbereich ist, bleibt dieser Anteil der Reader-Höhe darüber frei."),
         ("settings.reader.hoverEnlarge", "Enlarge an image while the pointer rests on it", "Bild vergrößern, solange der Zeiger darauf ruht"),
         ("settings.reader.hoverEnlarge.hint", "Shows a larger preview beside the image after a short delay. Off by default. Also in the reader’s View menu.", "Zeigt nach kurzer Verzögerung eine größere Vorschau neben dem Bild. Standardmäßig aus. Auch im Ansicht-Menü des Readers."),
         ("settings.reader.hoverSize", "Hover preview size (px)", "Größe der Hover-Vorschau (px)"),
