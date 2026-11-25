@@ -291,11 +291,18 @@ public sealed class BooruMediaSidebarTests
         Settle(window);
         PressPointer(window, blueEyes);
         Assert.Contains("blue_eyes", model.Search.View.Input.Split(' '));
+        blueEyes = ById<Button>(Sidebar(view), "BooruPanelTag:blue_eyes");
+        blueEyes.BringIntoView();
+        Settle(window);
+        PressPointer(window, blueEyes, RawInputModifiers.Alt);
+        Assert.Equal("cat -blue_eyes", model.Search.View.Input);
+
         Button artist = ById<Button>(Sidebar(view), "BooruPanelTag:sky");
         artist.BringIntoView();
         Settle(window);
         PressPointer(window, artist, RawInputModifiers.Alt);
-        Assert.Contains("-sky", model.Search.View.Input.Split(' '));
+        // DanbooruTagQuery.MaximumTagTerms limits the draft to two tag terms.
+        Assert.Equal("cat -blue_eyes", model.Search.View.Input);
         Assert.True(Hit(view, "101").IsFocused);
         Assert.Equal(1, harness.Search.Requests);
         Assert.Empty(harness.Previews.SampleRequests);
