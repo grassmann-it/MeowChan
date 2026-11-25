@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
@@ -86,11 +87,11 @@ internal static class ReaderStabilityChecks
         object? items = posts.ItemsSource;
         await page.FocusPostAsync("1050");
         page.ShowReaderNavigation();
-        Button nextPost = page.FindControl<Button>("ReaderNextPost")!;
-        Require(nextPost.Focus(), "The post navigator could not be focused.");
-        nextPost.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down });
-        await page.ReaderNavigationTask;
-        await Flush(window);
+        Button nextPost = window.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetAutomationId(button) == "ReaderNextPost");
+        // Reader navigation buttons are pointer actions. Keyboard navigation starts at the selected post.
+        Require(!nextPost.Focus() && posts.IsKeyboardFocusWithin, "The post navigator took focus from the working list.");
+        await Navigate(Key.Down, "1051");
         Require((posts.SelectedItem as ArchivePostRow)?.Id == "1051" && ReferenceEquals(items, posts.ItemsSource),
             "Down did not continue from the selected post in the same list.");
         Visible(posts, "1051", "continuous-down");
