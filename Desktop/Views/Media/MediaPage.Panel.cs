@@ -589,9 +589,10 @@ public sealed partial class MediaPage
         _panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came
         if (_panel is { } panel && _panelRow is { } row && ContextClick.IsKey(e) && OwnsPanelMenu(e.Source, panel))
         {
+            e.Handled = true;
+            if (panel.HasPreviousPicture) return;
             OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard: true);
             ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
-            e.Handled = true;
             return;
         }
         if (!TryDismissPanelTagEditor(e) && !TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
@@ -632,7 +633,7 @@ public sealed partial class MediaPage
         if (MiddleClickTracker.IsPress(e, panel) && panel.IsCurrentMediaSurface(e.Source, position, _panelVideo))
             _panelMiddleClick.Pressed(row);
         if (!ContextClick.IsPress(e, panel) || !OwnsPanelMenu(e.Source, panel)) return;
-        if (!panel.IsStalePictureHit(e.Source, position))
+        if (!panel.HasPreviousPicture)
         {
             panel.Frame.Focusable = true;
             panel.Frame.Focus();
@@ -657,10 +658,9 @@ public sealed partial class MediaPage
     private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (e.Handled || _panel is not { } panel || !OwnsPanelMenu(e.Source, panel)) return;
-        if (_panelPointerContext.TryConsume()) { e.Handled = true; return; }
+        if (_panelPointerContext.TryConsume() || panel.HasPreviousPicture) { e.Handled = true; return; }
         if (_panelRow is not { } row) return;
-        bool keyboard = !e.TryGetPosition(panel, out Point position);
-        if (!keyboard && panel.IsStalePictureHit(e.Source, position)) { e.Handled = true; return; }
+        bool keyboard = !e.TryGetPosition(panel, out _);
         if (!keyboard)
         {
             panel.Frame.Focusable = true;

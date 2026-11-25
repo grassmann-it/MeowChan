@@ -372,8 +372,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             || video is not null && InBar(video.Activator, visual)
             || _factPlayer is not null && InBar(_factPlayer, visual));
 
-    internal bool IsStalePictureHit(object? source, Point position) =>
-        PictureIsStale && source is Visual visual && InBar(_frame, visual) && PictureContains(position);
+    internal bool HasPreviousPicture => _bitmap != null && _image.IsEffectivelyVisible && PictureIsStale;
 
     internal bool IsCurrentMediaSurface(object? source, Point position, ReaderInlineVideoSlot? video) => source is Visual visual
         && (video?.Player is { } player && InBar(player, visual)

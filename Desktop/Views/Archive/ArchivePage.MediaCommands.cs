@@ -167,9 +167,13 @@ public partial class ArchivePage
     private void OnArchiveMediaContextKey(object? sender, KeyEventArgs e)
     {
         _sidebarPointerContext.Reset(); // a key ends a pointer gesture whose release never came
-        if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)
-            || _mediaSidebar is { } sidebar && IsMediaSidebarSource(source) && SidebarChildOwnsContext(source, sidebar)) return;
+        if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (_mediaSidebar is { } sidebar && IsMediaSidebarSource(source))
+        {
+            if (SidebarChildOwnsContext(source, sidebar)) return;
+            if (sidebar.HasPreviousPicture && !path.Contains(sidebar.Strip)) { e.Handled = true; return; }
+        }
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
             && SidebarMediaContext(path) == null && SidebarStripContext(path) == null
             && (SavedMediaSidebarRow == null || !IsMediaSidebarSource(source))) return;
@@ -193,9 +197,12 @@ public partial class ArchivePage
             || !ContextClick.IsPress(e, sidebar) || SidebarChildOwnsContext(source, sidebar)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;
-        ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
-        source.RaiseEvent(request);
-        if (!request.Handled) return;
+        if (!sidebar.HasPreviousPicture)
+        {
+            ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
+            source.RaiseEvent(request);
+            if (!request.Handled) return;
+        }
         e.Handled = true;
         _sidebarPointerContext.MenuOpenedByPress(ContextClick.Button(e, sidebar));
     }
@@ -219,21 +226,15 @@ public partial class ArchivePage
         if (e.Handled || _ended || !_available || e.Source is not Control source) return;
         // Text inputs and selectable text keep their own native menu.
         if (MediaMenuPresenter.IsNativeTextSource(source)) return;
+        Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (_mediaSidebar is { } sidebar && IsMediaSidebarSource(source))
         {
             if (SidebarChildOwnsContext(source, sidebar)) return;
-            if (e.TryGetPosition(sidebar, out Point position) && sidebar.IsStalePictureHit(source, position))
+            if (_sidebarPointerContext.TryConsume() || sidebar.HasPreviousPicture && !ancestors.Contains(sidebar.Strip))
             {
                 e.Handled = true;
                 return;
             }
-        }
-        Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
-        if (_sidebarPointerContext.IsPending && _mediaSidebar != null && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
-            && _sidebarPointerContext.TryConsume()) // the menu opened with the press
-        {
-            e.Handled = true;
-            return;
         }
         ArchiveAttachmentView? attachmentView = ancestors.OfType<ArchiveAttachmentView>().FirstOrDefault();
         ArchiveAttachmentRow? attachment = attachmentView?.DataContext as ArchiveAttachmentRow;
