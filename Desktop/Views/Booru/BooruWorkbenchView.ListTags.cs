@@ -76,8 +76,7 @@ internal sealed partial class BooruWorkbenchView
             else _expandedTagPosts.Add(post.PostId);
             Render(force: true);
         };
-        return new BooruListTagFlow(post.PostId, ordered, items, buttons, toggle, expanded,
-            _listProfile?.BooruHiddenTagTooltipLimit ?? Config.BooruHiddenTagTooltipLimitDefault);
+        return new BooruListTagFlow(post.PostId, ordered, items, buttons, toggle, expanded, HiddenTagTooltipLimit);
     }
 }
 

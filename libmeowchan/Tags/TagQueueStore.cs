@@ -171,16 +171,16 @@ internal sealed class TagQueueStore
     });
 
     /// <summary>
-    /// Removes every entry (<paramref name="finishedOnly"/> false) or only the finished ones. On an unreadable file the damaged file is
-    /// preserved next to it and a fresh empty queue is written, so a damaged queue can always be cleared; a file of a newer version is
-    /// refused.
+    /// Removes every entry (<paramref name="finishedOnly"/> false) or only the finished ones. With explicit reset confirmation,
+    /// a readable queue is returned unchanged. An unreadable file is preserved next to it and replaced with a fresh empty queue.
     /// </summary>
-    internal TagQueueSnapshot Clear(bool finishedOnly, CancellationToken token = default) => _lease.RunExclusive(() =>
+    internal TagQueueSnapshot Clear(bool finishedOnly, CancellationToken token = default, bool resetDamaged = false) => _lease.RunExclusive(() =>
     {
         token.ThrowIfCancellationRequested();
+        bool resetOnly = resetDamaged && !finishedOnly;
         TagQueueSnapshot current;
-        try { current = ReadWritable(); }
-        catch (InvalidDataException) when (!finishedOnly)
+        try { current = resetOnly ? ReadCore() : ReadWritable(); }
+        catch (InvalidDataException) when (resetOnly)
         {
             // The recovery save never rotates damaged bytes into the backup: WriteAllText without a backup preserves them next to the
             // file (one .corrupt-* copy), then the empty queue replaces them.
@@ -191,7 +191,7 @@ internal sealed class TagQueueStore
             AtomicJsonFile.WriteAllText(_path, empty, backupCurrentFile: false, token);
             return new TagQueueSnapshot(1, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready, Array.Empty<TagQueueGroup>());
         }
-        if (current.Count == 0) return current;
+        if (resetOnly || current.Count == 0) return current;
         List<TagQueueItem> list = finishedOnly ? current.Items.Where(item => item.State != TagQueueState.Done).ToList() : new();
         if (list.Count == current.Count) return current;
         int cursor = finishedOnly ? current.Items.Take(current.Cursor).Count(item => item.State != TagQueueState.Done) : 0;

@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using MeowChan.Desktop;
 using MeowChan.Desktop.WorkViews;
 
@@ -19,6 +20,8 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_list, "tagging.list");
         WorkViewElement.SetId(_error, "tagging.error");
         WorkViewElement.SetId(_filter, "tagging.filter");
+        AutomationProperties.SetAutomationId(_list, "tagging.list");
+        AutomationProperties.SetAutomationId(_filter, "tagging.filter");
         WorkViewElement.SetId(_group, "tagging.group");
         WorkViewElement.SetId(_help, "tagging.help");
         WorkViewElement.SetId(_viewToggle, "tagging.view-toggle");
