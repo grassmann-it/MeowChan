@@ -107,7 +107,7 @@ public static class CommandCatalog
         new("plugins.disable", "plugins.disable", "Disable plugin", "Plugin deaktivieren", "power", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.details", "plugins.details", "Show details", "Details anzeigen", "info", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.show-settings", "plugins.showSettings", "Open settings", "Einstellungen öffnen", "sliders", null, CommandScope.Settings, new[] { "plugins" }),
-        new("plugins.watches", "plugins.watches", "Show in Plugins", "In Plugins zeigen", "list", null, CommandScope.Settings, new[] { "plugins" }),
+        new("plugins.watches", "plugins.watches", "Show in Plugins", "In Plugins zeigen", "list", "Primary+J", CommandScope.Settings, new[] { "plugins" }),
         new("plugins.select-candidate", "plugins.selectCandidate", "Use this version next start", "Diese Fassung beim nächsten Start verwenden", "check", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.rollback", "plugins.rollback", "Use last good saved build next start", "Letzte gute gespeicherte Fassung beim nächsten Start verwenden", "rotate-ccw", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.show-grants", "plugins.showGrants", "View permissions", "Zugriffsrechte ansehen", "sliders", null, CommandScope.Settings, new[] { "plugins" }),

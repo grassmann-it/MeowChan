@@ -503,7 +503,10 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             // Sources overview: "Actions" of the selected source's plugin.
             Button sourceMore = Find<Button>(window, "SourcePluginMore");
             Assert.True(sourceMore.IsEffectivelyVisible && sourceMore.IsEffectivelyEnabled, "SourcePluginMore is offered: " + State());
-            VerifyPopup(window, sourceMore, MenuOpen, output.WriteLine);
+            VerifyThreeClicks(sourceMore);
+            PressAtFocus(window, Key.Escape);
+            Assert.False(MenuOpen(), State());
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(sourceMore));
 
             // Plugin detail: "Actions" beside the detail buttons.
             plugins.SetFilter(SourcesPluginsFilter.AllPlugins);
@@ -511,25 +514,66 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             Layout(window);
             Button more = Find<Button>(window, "PluginMoreActions");
             Assert.True(more.IsEffectivelyVisible && more.IsEffectivelyEnabled, "PluginMoreActions is offered: " + State());
-            VerifyPopup(window, more, MenuOpen, output.WriteLine);
+            VerifyThreeClicks(more);
+            PressAtFocus(window, Key.Escape);
+            Assert.False(MenuOpen(), State());
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(more));
 
             // "Show in Plugins" of a plugin with two sources opens the source chooser.
-            Button watches = plugins.FindControl<Button>("PluginWatches")!;
+            Button watches = Find<Button>(window, "PluginWatches");
             Assert.True(watches.IsEffectivelyVisible && watches.IsEffectivelyEnabled, "PluginWatches is offered: " + State());
+            VerifyThreeClicks(watches, () => Assert.Equal(2, plugins.PluginActionMenu!.Items.OfType<MenuItem>().Count()));
+
+            PressCommand(window, "plugins.watches");
+            Assert.False(MenuOpen(), State());
             Click(window, watches);
-            ContextMenu chooser = Assert.IsType<ContextMenu>(plugins.PluginActionMenu);
-            Assert.True(chooser.IsOpen && ReferenceEquals(chooser.PlacementTarget, watches), State());
-            Assert.Equal(2, chooser.Items.OfType<MenuItem>().Count());
-            Click(window, watches);
-            Assert.False(MenuOpen(), "The second click on the chooser's button closes it: " + State());
-            Click(window, watches);
-            Assert.True(MenuOpen() && ReferenceEquals(plugins.PluginActionMenu!.PlacementTarget, watches), State());
+            Assert.True(MenuOpen(), State());
 
             // The press that dismisses the chooser is not the Actions button's own: its click opens the other menu.
             Click(window, more);
             Assert.True(MenuOpen() && ReferenceEquals(plugins.PluginActionMenu!.PlacementTarget, more), State());
             PressAtFocus(window, Key.Escape);
             Assert.False(MenuOpen(), State());
+
+            void VerifyThreeClicks(Button opener, Action? verifyMenu = null)
+            {
+                Assert.False(opener.Focusable);
+                Assert.False(MenuOpen());
+                SourcesPluginsFilter filter = plugins.Filter;
+                Rect Bounds() => new(opener.TranslatePoint(default, window)!.Value, opener.Bounds.Size);
+                Rect original = Bounds();
+                Point point = original.Center;
+                int clicks = 0;
+                void CountClick(object? sender, RoutedEventArgs e) => clicks++;
+                opener.AddHandler(Button.ClickEvent, CountClick, handledEventsToo: true);
+                try
+                {
+                    window.MouseMove(point);
+                    for (int click = 1; click <= 3; click++)
+                    {
+                        window.MouseDown(point, MouseButton.Left);
+                        Layout(window);
+                        Assert.Equal(original, Bounds());
+                        window.MouseUp(point, MouseButton.Left);
+                        Layout(window);
+                        Assert.Equal(click, clicks);
+                        Assert.True(opener.IsEffectivelyVisible, State());
+                        Assert.Equal(original, Bounds());
+                        Assert.Equal(filter, plugins.Filter);
+                        Assert.Equal(TwoSourcePluginKey, plugins.Selected?.Key);
+                        bool open = click != 2;
+                        Assert.Equal(open, MenuOpen());
+                        Assert.Equal(Texts.T(open ? "shortcuts.group.expanded" : "shortcuts.group.collapsed"),
+                            AutomationProperties.GetItemStatus(opener));
+                        if (open)
+                        {
+                            Assert.Same(opener, plugins.PluginActionMenu!.PlacementTarget);
+                            verifyMenu?.Invoke();
+                        }
+                    }
+                }
+                finally { opener.RemoveHandler(Button.ClickEvent, CountClick); }
+            }
         }
         finally
         {
@@ -537,6 +581,17 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             sources.EndLifetime();
         }
     });
+
+    [Theory]
+    [InlineData(ShortcutPlatform.MacOS, KeyModifiers.Meta)]
+    [InlineData(ShortcutPlatform.Windows, KeyModifiers.Control)]
+    [InlineData(ShortcutPlatform.Linux, KeyModifiers.Control)]
+    public void ShowPluginSourcesHasAPlatformShortcut(ShortcutPlatform platform, KeyModifiers modifiers)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        using var context = EffectiveShortcutBindings.EnterKeyContext("plugins");
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.J, KeyModifiers = modifiers }, "plugins.watches"));
+    }
 
     [Theory]
     [InlineData("input.focus-diagnostics-search", "Primary+F")]
