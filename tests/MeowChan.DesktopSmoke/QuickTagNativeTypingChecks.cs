@@ -107,6 +107,14 @@ internal static partial class QuickTagNativeTypingChecks
                     cases.Add(await ArchiveCaseAsync(window, page, input, trace, "archive", entry, medium));
             cases.Add(await PopoverKeysAsync(window, page, input, trace));
             await RecordSidebarCheckAsync(cases, "archive", () => ReaderSidebarTagRaceAsync(window, page, input));
+            // A failed sidebar case can leave its underlying post action open. The next
+            // journey needs an uncovered reader, as it would when opened from Downloads.
+            if (page.IsObscuredByGallery)
+            {
+                Console.WriteLine("SMOKE quick-tag-native-typing: closing the gallery left by the archive sidebar case.");
+                typeof(MainWindow).GetMethod("CloseGallery", Private)!.Invoke(window, [false]);
+                await Program.WaitUntilAsync(() => !page.IsObscuredByGallery);
+            }
 
             // B: the large reader (opened the Downloads way), its sidebar playing the video.
             Navigate(window, "Downloads", activate: true);
@@ -161,7 +169,8 @@ internal static partial class QuickTagNativeTypingChecks
             string VideoState()
             {
                 ReaderInlineVideoSlot? videoSlot = page.SidebarInlineVideo;
-                return $"selected={(list.SelectedItem as ArchivePostRow)?.Id} postsShown={page.ReaderShowsPosts} sidebar shown={page.IsMediaSidebarShown}"
+                return $"selected={(list.SelectedItem as ArchivePostRow)?.Id} readerPost={page.CurrentReaderPostId} postsShown={page.ReaderShowsPosts}"
+                    + $" sidebar shown={page.IsMediaSidebarShown} covered={page.IsObscuredByGallery}"
                     + $" header={page.MediaSidebar?.HeaderLine} offered={videoSlot?.IsOffered} live={videoSlot?.IsLive}"
                     + $" playback={videoSlot?.Player?.PlaybackMode} error={videoSlot?.ErrorText}";
             }
@@ -218,7 +227,11 @@ internal static partial class QuickTagNativeTypingChecks
             {
                 Console.WriteLine($"SMOKE quick-tag-native-typing R target {surface}/{medium}: {target.EntryKey}, "
                     + $"anchor={Describe(anchor)}, current={current()}, blocked={request.TagsBlocked ?? "no"}");
-                await openPopover(target, anchor, context, current, request);
+                Task editing = openPopover(target, anchor, context, current, request);
+                if (window.ArchiveTagPopover is { } popover)
+                    popover.Closed += reason => Console.WriteLine($"SMOKE quick-tag-native-typing R closed {surface}/{medium}: {reason}");
+                else Console.WriteLine($"SMOKE quick-tag-native-typing R no editor {surface}/{medium}: attached={anchor.IsAttachedToVisualTree()}, visible={anchor.IsEffectivelyVisible}");
+                await editing;
             };
         }
         try

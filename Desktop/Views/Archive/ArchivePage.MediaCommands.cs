@@ -389,8 +389,7 @@ public partial class ArchivePage
         if ((tab != ArchivePostsTab && tab != ArchiveReferencesTab) || _displayedSidebarMedium is not { } shown)
             return Task.CompletedTask;
         bool Current() => SidebarCurrent() && ReferenceEquals(ArchiveContentTabs.SelectedItem, tab)
-            && ReferenceEquals(_thread, shown.Thread) && _selectedThread == shown.Thread.Summary.Id
-            && _displayedSidebarMedium == shown;
+            && _selectedThread == shown.Thread.Summary.Id && IsSelectedSidebarMedium(shown);
         if (!Current()) return Task.CompletedTask;
         string postId = shown.Post.Id;
         ArchiveAssetRow? asset = FindMatchingAsset(shown.Thread.Summary.Id, postId, shown.Attachment.Attachment, _assets);
@@ -558,8 +557,9 @@ public partial class ArchivePage
         if (SelectedPostRateAndTagMedium() is { } medium)
         {
             ArchiveMediaSubject subject = ResolveArchiveMediaSubject(medium.Asset, medium.Attachment, medium.PostId);
+            (Control anchor, Func<bool>? current) = RateAndTagKeyAnchor(medium.Origin);
             Action<string> report = CaptureActionErrorReporter();
-            try { await OpenRateAndTagAsync(subject, medium.Origin, null, initialFocus: QuickTagInitialFocus.TagInput, medium.Attachment.Label); }
+            try { await OpenRateAndTagAsync(subject, anchor, null, QuickTagInitialFocus.TagInput, medium.Attachment.Label, current); }
             catch (Exception error) { report(error.Message); }
             return;
         }
@@ -685,11 +685,26 @@ public partial class ArchivePage
             return;
         }
         ArchiveMediaSubject subject = ResolveArchiveMediaSubject(focused.Asset, focused.Attachment, focused.PostId);
-        Control origin = focused.Origin;
+        (Control origin, Func<bool>? current) = RateAndTagKeyAnchor(focused.Origin);
         if (buttonAnchor != null && ReferenceEquals(origin, buttonAnchor)) origin = RatingMenuAnchor(buttonAnchor);
         Action<string> reportError = CaptureActionErrorReporter();
-        try { await OpenRateAndTagAsync(subject, origin, SeveralSelectedWith(focused.Asset, focused.Attachment), initialFocus); }
+        try { await OpenRateAndTagAsync(subject, origin, SeveralSelectedWith(focused.Asset, focused.Attachment), initialFocus, current: current); }
         catch (Exception error) { reportError(error.Message); }
+    }
+
+    // Post-level shortcuts open on the list, outside its scrolling content. A pending
+    // layout pass of a post card must not light-dismiss the editor on opening.
+    // The resolved attachment and the focused card still own the action and focus return.
+    private (Control Anchor, Func<bool>? Current) RateAndTagKeyAnchor(Control origin)
+    {
+        ListBox posts = ArchivePosts;
+        if (origin is ArchiveAttachmentView && posts.SelectedItem is ArchivePostRow post
+            && posts.ContainerFromItem(post) is Control card
+            && TopLevel.GetTopLevel(card)?.FocusManager?.GetFocusedElement() is Visual focus
+            && (ReferenceEquals(card, focus) || card.IsVisualAncestorOf(focus))
+            && !ReferenceEquals(origin, focus) && !origin.IsVisualAncestorOf(focus))
+            return (posts, () => ReferenceEquals(posts.SelectedItem, post));
+        return (origin, null);
     }
 
     private (ContextMenu Menu, MediaMenuSession Session) BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment,

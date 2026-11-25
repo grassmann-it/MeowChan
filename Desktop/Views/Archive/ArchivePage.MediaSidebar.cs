@@ -741,6 +741,10 @@ public partial class ArchivePage
         // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
+    private bool IsSelectedSidebarMedium((ArchivedThreadView Thread, ArchivePostRow Post, ArchiveAttachmentRow Attachment) shown) =>
+        _displayedSidebarMedium == shown && ReferenceEquals(_thread, shown.Thread)
+        && ReferenceEquals(ArchivePosts.SelectedItem, shown.Post) && ReferenceEquals(CurrentSidebarAttachment(), shown.Attachment);
+
     private void RefreshPostMediaSidebarDecisions()
     {
         if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || _displayedSidebarMedium is not { } shown
@@ -754,7 +758,7 @@ public partial class ArchivePage
         {
             FavoriteAssetKey key = FavoriteAssetKey.From(resource, saved.Asset);
             bool Current() => !_ended && _available && _mediaSidebarShown && !_obscuredByGallery
-                && ReferenceEquals(_thread, thread) && _displayedSidebarMedium == shown;
+                && IsSelectedSidebarMedium(shown);
             sidebar.ConfigureRating(() => Current() && !saved.RatingUnavailable && _mediaRatingError == null && GetMediaRating != null
                 && SetMediaRatingAsync != null && CanChangeMediaRating?.Invoke(key) == true, () => saved.Rating,
                 value => SetMediaRatingAsync?.Invoke(key, value) ?? Task.CompletedTask);
