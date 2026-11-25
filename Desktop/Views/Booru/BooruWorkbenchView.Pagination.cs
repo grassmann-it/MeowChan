@@ -47,7 +47,7 @@ internal sealed partial class BooruWorkbenchView
     private Task JumpAsync() => JumpTarget(_model.Search.View) is { } page
         ? ChangePageAsync(page - _model.Search.View.Page) : Task.CompletedTask;
 
-    private async void OnPageKeyDown(object? sender, KeyEventArgs e)
+    private void OnPageKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _closed || ShortcutServiceCapturing() || !_pager.IsEffectivelyVisible
             || !IsSearchItem(_tabs.SelectedItem) || _mode.IsDropDownOpen) return;
@@ -55,7 +55,7 @@ internal sealed partial class BooruWorkbenchView
         if (!previous && !ShortcutService.Current.Matches(e, "pagination.next", "booru")) return;
         if (!(previous ? _previous : _next).IsEnabled) return;
         e.Handled = true;
-        await ChangePageAsync(previous ? -1 : 1);
+        OpenActions.Start(() => ChangePageAsync(previous ? -1 : 1), previous ? "pagination.previous" : "pagination.next");
     }
 
     private void RenderPager(BooruSearchView view)
