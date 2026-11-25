@@ -4,11 +4,14 @@ using System.Linq;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Automation;
+using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using Ursa.Controls;
 using MeowChan.Desktop.WorkViews;
 
@@ -16,6 +19,39 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
+    private void InitializeToolbarPopupAnchor(ActionToolBar toolbar)
+    {
+        toolbar.TemplateApplied += (_, _) =>
+        {
+            if (toolbar.More is not { } more) return;
+            AutomationProperties.SetAutomationId(more, toolbar.Name + "More");
+            more.Click += (_, _) =>
+            {
+                if (PopupToggle.ConsumeActivation(more)
+                    || ReferenceEquals(_readerQuickSettings?.Flyout.Target, more) && DismissReaderQuickSettings())
+                    more.IsChecked = false;
+            };
+        };
+    }
+
+    private static Control ToolbarPopupAnchor(Button opener, ActionToolBar toolbar, Control fallback)
+    {
+        if (opener.IsEffectivelyVisible && toolbar.IsVisualAncestorOf(opener)) return opener;
+        return toolbar.More is { IsEffectivelyVisible: true } more && more.IsAttachedToVisualTree() ? more : fallback;
+    }
+
+    private void ReturnFocusFromToolbarPopup(Control anchor, ActionToolBar toolbar, Control workTarget, Action restoreFocus)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_ended || !workTarget.IsEffectivelyVisible || CommandRouter.HasOpenPopup(this)) return;
+            if (TopLevel.GetTopLevel(workTarget)?.FocusManager?.GetFocusedElement() is Avalonia.Visual focused
+                && focused.IsAttachedToVisualTree() && !ReferenceEquals(focused, anchor)
+                && !focused.IsVisualAncestorOf(anchor) && !toolbar.IsVisualAncestorOf(focused)) return;
+            restoreFocus();
+        }, DispatcherPriority.Input);
+    }
+
     private bool ResultActionsReady => _available && !_busy && !_ended && !IsFilenameSearchOpen;
     private bool CanExportResults => ResultActionsReady && !_urlTextExportBusy && _openReader != null && _listTotal > 0
         && !ArchiveExportDialog.IsVisible;
@@ -24,6 +60,7 @@ public partial class ArchivePage
     {
         Bind("ArchiveLayoutList", OnArchiveLayoutClick);
         Bind("ArchiveLayoutTable", OnArchiveLayoutClick);
+        Bind("ArchiveThreadColumnsButton", OnArchiveColumnsClick);
         Bind("ArchiveResultsGallery", OnResultsGalleryClick, () => ResultActionsReady && _listTotal > 0);
         Bind("ArchiveResultsOpenInMedia", OnResultsOpenInMediaClick, () => CanOpenResultsInMedia);
         Bind("ArchiveFavoritesOverview", OnFavoritesOverviewClick, () => ResultActionsReady);
@@ -41,10 +78,22 @@ public partial class ArchivePage
     // or mode changes, without reopening the popup or executing any action.
     internal Control? GalleryOriginFocusTarget(Control? origin) => ActionOriginFocusTarget(origin);
 
-    // Works for every ActionToolBar item of this page (results and reader toolbars).
     internal Control? ActionOriginFocusTarget(Control? origin)
     {
         if (origin == null) return null;
+        // Resolve against item membership even when the button is parked outside the visual tree.
+        if (origin is Button)
+        {
+            if (ArchiveResultActions.Items.Contains(origin))
+                return _threadTable ? ArchiveThreadTable : ItemOrList(ArchiveThreads, ArchiveLead);
+            if (ReaderToolbar.Items.Contains(origin) || ReaderMediaTools.Items.Contains(origin)
+                || ReaderMediaActions.Items.Contains(origin) || ArchiveMediaFooter.IsVisualAncestorOf(origin))
+            {
+                if (ArchiveMediaTab.IsSelected) return SelectedMediaFocusTarget();
+                ListBox list = ArchiveReferencesTab.IsSelected ? ArchiveReferences : ArchivePosts;
+                return ItemOrList(list, list.SelectedItem);
+            }
+        }
         // Items stay logical children of their toolbar in the direct panel and in a closed popup alike.
         if (origin.GetLogicalAncestors().OfType<ActionToolBar>().FirstOrDefault() is not { } toolbar
             || !toolbar.Items.Contains(origin)) return origin;
@@ -62,6 +111,9 @@ public partial class ArchivePage
         return root == null ? origin : toolbar.Items.OfType<Control>().FirstOrDefault(item =>
             item.Focusable && item.IsEffectivelyVisible && item.IsEffectivelyEnabled && ReferenceEquals(TopLevel.GetTopLevel(item), root));
     }
+
+    private static Control ItemOrList(ListBox list, object? item) =>
+        item == null ? list : list.ContainerFromItem(item) ?? (Control)list;
 
     // What each results-bar action was last presented for: its disabled reason and the language. The presentation is rewritten
     // only when that changes (shortcut changes reach it through the CommandBindings observer).

@@ -46,8 +46,9 @@ public partial class ArchivePage
         if (_ended || IsReaderDialogOpen || QuickSettingsHost is not { } host) return;
         if (DismissReaderQuickSettings()) return;
         _readerQuickSettings ??= CreateReaderQuickSettings(host);
-        Control anchor = QuickSettingsAnchor();
+        Control anchor = ToolbarPopupAnchor(ReaderSettingsOpen, ReaderToolbar, ReaderToolbar);
         if (ReferenceEquals(anchor, ReaderToolbar.More)) ReaderToolbar.More!.IsChecked = false;
+        _readerQuickSettings.Flyout.OverlayInputPassThroughElement = anchor;
         _readerQuickSettings.Show(anchor);
     }
 
@@ -55,8 +56,8 @@ public partial class ArchivePage
     {
         QuickSettingsPopover popover = new(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), host,
             "ReaderQuickSettings", ReaderSettingsSession, restoreContentFocus: FocusSelectedPostOrList);
-        popover.Flyout.Opened += (_, _) => PopupToggle.Present(ReaderSettingsOpen, true);
-        popover.Flyout.Closed += (_, _) => PopupToggle.Present(ReaderSettingsOpen, false);
+        popover.Flyout.Opened += (_, _) => Present(true);
+        popover.Flyout.Closed += (_, _) => Present(false);
         popover.Surface.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (e.Handled || ShortcutService.IsCapturing || ReaderInputIsComposing(e.Source)
@@ -65,6 +66,13 @@ public partial class ArchivePage
             e.Handled = DismissReaderQuickSettings();
         }, RoutingStrategies.Bubble);
         return popover;
+
+        void Present(bool open)
+        {
+            PopupToggle.Present(ReaderSettingsOpen, open);
+            if (ReferenceEquals(popover.Flyout.Target, ReaderToolbar.More) && ReaderToolbar.More is { } more)
+                PopupToggle.Present(more, open);
+        }
     }
 
     private bool DismissReaderQuickSettings()
@@ -75,17 +83,6 @@ public partial class ArchivePage
     }
 
     private void OnReaderSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => OpenReaderQuickSettings();
-
-    // Overflow items keep their logical visibility even while detached; while open the gear
-    // belongs to a temporary PopupRoot that the toolbar dismisses after its Click bubbles.
-    // In both cases anchor to the stable More button, not to the overflow's gear.
-    private Control QuickSettingsAnchor() => ReaderPopupAnchor(ReaderSettingsOpen);
-
-    private Control ReaderPopupAnchor(Button opener) =>
-        ReaderToolbar.OverflowHost?.Children.Contains(opener) != true
-            && opener.IsAttachedToVisualTree() && opener.IsEffectivelyVisible ? opener
-        : ReaderToolbar.More is { IsEffectivelyVisible: true } more && more.IsAttachedToVisualTree() ? more
-        : ReaderToolbar;
 
     /// <summary>
     /// S4 F3: saves what the reader popover and the font steps (Ctrl+wheel, Ctrl+Plus/Minus/0) still wait to save, without their pause;

@@ -7,6 +7,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
+using Ellipse = Avalonia.Controls.Shapes.Ellipse;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -25,9 +26,11 @@ public sealed class GalleryVideoPlayerMenuTests
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
     [Theory]
-    [InlineData(1)]
-    [InlineData(1.5)]
-    public void CatalogIconsAndLocalizedLabelsFitThePlayerMenuAcrossBundledLanguages(double scale) => WithPlayer((player, anchor) =>
+    [InlineData(1, false)]
+    [InlineData(1.5, false)]
+    [InlineData(1, true)]
+    [InlineData(1.5, true)]
+    public void CatalogIconsAndLocalizedLabelsFitThePlayerMenuAcrossBundledLanguages(double scale, bool largerText) => WithPlayer((player, anchor) =>
     {
         TopLevel.GetTopLevel(anchor)!.SetRenderScaling(scale);
         var viewer = new GalleryViewer();
@@ -36,9 +39,12 @@ public sealed class GalleryVideoPlayerMenuTests
             var overflowRepeat = Assert.IsType<GalleryViewer.OverflowItem>(
                 Assert.Single(viewer.OverflowItems, item => item.Name == "GalleryVideoRepeatToggle").Tag);
             player.ObserveAudioTracks([new(1, "Original"), new(2, "")], 1);
+            if (largerText)
+                foreach (MenuItem item in player.PlayerMenu.Items.OfType<MenuItem>()) item.FontSize = 20;
 
             foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
             {
+                ReaderFonts.Apply(Application.Current!, language);
                 Texts.SetLanguage(language);
                 Assert.Equal(language, Texts.Language);
                 MenuItem[] rows = Open(player, anchor);
@@ -50,6 +56,8 @@ public sealed class GalleryVideoPlayerMenuTests
                 Assert.Equal(commands.Select(id => CommandCatalog.Get(id).Icon), rows.Select(MenuIcons.KeyOf));
                 Assert.Equal(overflowRepeat.IconKey, MenuIcons.KeyOf(rows[4]));
                 Assert.Equal(MenuItemToggleType.CheckBox, rows[4].ToggleType);
+                MenuItem repeat = Assert.Single(rows, row => MenuIcons.KeyOf(row) == overflowRepeat.IconKey);
+                Assert.Equal(repeat.IsChecked, AssertChipLayout(repeat).Background != null);
 
                 AssertLayout(rows[0], Texts.T("viewer.video.speedMenu"));
                 AssertLayout(rows[1], Texts.T("viewer.video.audioTrack"));
@@ -60,7 +68,14 @@ public sealed class GalleryVideoPlayerMenuTests
                 Assert.True(rows[0].Focus(NavigationMethod.Directional));
                 SendKey(rows[0], Key.Right);
                 Assert.True(rows[0].IsSubMenuOpen);
-                AssertChoices(rows[0], VideoRates.Choices.Select(GalleryVideoPlayer.RateLabel), "1×");
+                var rates = AssertChoices(rows[0], VideoRates.Choices.Select(GalleryVideoPlayer.RateLabel), "1×");
+                foreach (MenuItem rate in rates)
+                {
+                    MenuStateChip chip = AssertChipLayout(rate);
+                    Assert.Equal(rate.IsChecked, chip.Background != null);
+                    Assert.NotNull(chip.BorderBrush);
+                    Assert.Equal(rate.IsChecked, Assert.Single(chip.GetVisualDescendants().OfType<Ellipse>()).IsEffectivelyVisible);
+                }
                 SendKey(Assert.IsType<MenuItem>(rows[0].Items[0]), Key.Left);
                 Assert.False(rows[0].IsSubMenuOpen);
                 Assert.True(rows[0].IsFocused);
@@ -207,11 +222,24 @@ public sealed class GalleryVideoPlayerMenuTests
         Assert.InRange(icon.Bounds.Width, 15, 17);
         Assert.InRange(icon.Bounds.Height, 15, 17);
         Assert.True(icon.TranslatePoint(new Point(icon.Bounds.Width, 0), row)!.Value.X <= label.TranslatePoint(default, row)!.Value.X + 1);
-        Assert.True(MenuLayout.TextWidth(label, expectedLabel) <= label.Bounds.Width + 1);
+        double required = MenuLayout.TextWidth(label, expectedLabel);
+        Assert.True(required <= label.Bounds.Width + 1,
+            $"{Texts.Language}: {expectedLabel} needs {required} DIP, has {label.Bounds.Width} at {label.FontSize} DIP.");
+        Assert.False(Assert.Single(label.TextLayout.TextLines).HasCollapsed, expectedLabel);
         Control chevron = Assert.Single(row.GetVisualDescendants().OfType<Control>(), part => part.Name == "PART_ExpandIcon");
         Assert.True(chevron.IsEffectivelyVisible);
         Assert.True(label.TranslatePoint(new Point(label.Bounds.Width, 0), row)!.Value.X <= chevron.TranslatePoint(default, row)!.Value.X + 1);
         Assert.InRange(row.Bounds.Width, icon.Bounds.Width + label.Bounds.Width, MenuLayout.DefaultMaximumWidth);
+    }
+
+    private static MenuStateChip AssertChipLayout(MenuItem row)
+    {
+        var chip = Assert.Single(row.GetVisualDescendants().OfType<MenuStateChip>());
+        var header = Assert.Single(row.GetVisualDescendants().OfType<ContentPresenter>(), part => part.Name == "PART_HeaderPresenter");
+        Assert.InRange(chip.Bounds.Width, 23, 25);
+        Assert.InRange(chip.TranslatePoint(default, row)!.Value.X, 15, 17);
+        Assert.InRange(header.TranslatePoint(default, row)!.Value.X, 47, 49);
+        return chip;
     }
 
     private static void CaptureMenu(TopLevel popup, string language, double scale)

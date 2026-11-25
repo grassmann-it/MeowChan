@@ -16,7 +16,7 @@ using Serilog;
 
 namespace MeowChan.Desktop.Booru;
 
-internal sealed record BooruTabSnapshot(string ProviderId, int ActiveIndex, BooruSearchView?[] Tabs);
+internal sealed record BooruTabSnapshot(string ProviderId, int ActiveIndex, BooruSearchView?[] Tabs, BooruSearchView? Draft = null);
 
 /// <summary>Private, profile-local search history. Calls that schedule work belong to the workspace dispatcher.</summary>
 internal sealed class BooruSearchTabStore(ProfileLease lease)
@@ -35,7 +35,8 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
         RespectRequiredConstructorParameters = true
     };
 
-    private sealed record SavedFile(int Version, string ProviderId, int ActiveIndex, SavedTab?[] Tabs);
+    private sealed record SavedFile(int Version, string ProviderId, int ActiveIndex, SavedTab?[] Tabs,
+        bool AllTabsClosable = false, SavedTab? Draft = null);
     private sealed record SavedTab(BooruInputMode Mode, string Input, string? Query, string? PostId,
         int Page, bool IsEnd, bool Empty, JsonElement[] Rows,
         int MaximumPage = Config.BooruSearchPagesDefault, int PostsPerPage = Config.BooruSearchPostsPerPageDefault);
@@ -43,29 +44,34 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
 
     private readonly string _path = Path.Combine(lease.ProfileDirectory, FileName);
     private long _saveRevision;
-    internal Task PendingSave { get; private set; } = Task.CompletedTask;
+    private bool _examinedExisting;
+    private bool _preserveExisting;
+    internal Task<bool> PendingSave { get; private set; } = Task.FromResult(false);
 
-    internal BooruTabSnapshot? Load(BooruSearchView current, int tabLimit, int resultLimit, SourceDescription? source)
+    internal BooruTabSnapshot? Load(BooruSearchView current, int resultLimit, SourceDescription? source)
     {
         try
         {
             // A replaced page may have just queued its final snapshot.
             PendingSave.GetAwaiter().GetResult();
             using ProfileAdmissionToken admission = lease.Admission.EnterOrdinaryWriter();
-            return lease.RunStoreWrite(admission, () => ReadOrQuarantine(current, tabLimit, resultLimit, source));
+            return lease.RunStoreWrite(admission, () => ReadOrQuarantine(current, resultLimit, source));
         }
         catch (FileNotFoundException) { return null; }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            _preserveExisting = true;
             Log.Warning("The local Booru search tabs could not be read.");
             return null;
         }
     }
 
-    internal void Save(BooruTabSnapshot snapshot, int resultLimit) =>
-        PendingSave = SaveAfterAsync(PendingSave, snapshot, resultLimit);
+    internal void Save(BooruTabSnapshot snapshot, int resultLimit)
+    {
+        PendingSave = _preserveExisting ? Task.FromResult(false) : SaveAfterAsync(PendingSave, snapshot, resultLimit);
+    }
 
-    private async Task SaveAfterAsync(Task previous, BooruTabSnapshot snapshot, int resultLimit)
+    private async Task<bool> SaveAfterAsync(Task previous, BooruTabSnapshot snapshot, int resultLimit)
     {
         try
         {
@@ -73,14 +79,22 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
             using ProfileAdmissionToken admission = lease.Admission.EnterOrdinaryWriter();
             long revision = Interlocked.Increment(ref _saveRevision);
             await previous.ConfigureAwait(false);
-            if (revision != Interlocked.Read(ref _saveRevision)) return;
-            await Task.Run(() =>
+            if (revision != Interlocked.Read(ref _saveRevision)) return false;
+            return await Task.Run(() =>
             {
-                SavedTab?[] tabs = Array.ConvertAll(snapshot.Tabs, view => view is null ? null : SaveTab(view, resultLimit));
-                string json = JsonSerializer.Serialize(new SavedFile(Version, snapshot.ProviderId, snapshot.ActiveIndex, tabs), Json);
-                lease.RunStoreWrite(admission, () =>
+                bool empty = snapshot.Tabs.Length == 0;
+                // Older readers accept the V1 placeholder. It also represents an empty strip for this reader.
+                SavedTab?[] tabs = empty ? [null] : Array.ConvertAll(snapshot.Tabs, view => view is null ? null : SaveTab(view, resultLimit));
+                SavedTab? draft = empty && snapshot.Draft is { } view && (view.Input.Length > 0 || view.Mode != BooruInputMode.Tags)
+                    ? SaveTab(view, 0) : null;
+                string json = JsonSerializer.Serialize(new SavedFile(Version, snapshot.ProviderId, empty ? 0 : snapshot.ActiveIndex,
+                    tabs, AllTabsClosable: true, Draft: draft), Json);
+                return lease.RunStoreWrite(admission, () =>
                 {
+                    // A workspace opened with restore disabled has never inspected its prior snapshot.
+                    if (!_examinedExisting && File.Exists(_path)) return false;
                     AtomicJsonFile.ReplaceAllText(_path, json, CancellationToken.None);
+                    _examinedExisting = true;
                     return true;
                 });
             }).ConfigureAwait(false);
@@ -91,14 +105,21 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
             await previous.ConfigureAwait(false);
             // Neither errors raised by the serializer nor data from this file belong in diagnostics.
             Log.Warning("The local Booru search tabs could not be saved.");
+            return false;
         }
     }
 
-    private BooruTabSnapshot? ReadOrQuarantine(BooruSearchView current, int tabLimit, int resultLimit, SourceDescription? source)
+    private BooruTabSnapshot? ReadOrQuarantine(BooruSearchView current, int resultLimit, SourceDescription? source)
     {
+        _examinedExisting = true;
+        _preserveExisting = false;
         try
         {
-            if (new FileInfo(_path).LinkTarget is not null) return null;
+            if (new FileInfo(_path).LinkTarget is not null)
+            {
+                _preserveExisting = true;
+                return null;
+            }
             byte[] bytes;
             using (FileStream stream = File.OpenRead(_path))
             {
@@ -107,30 +128,61 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
                 stream.ReadExactly(bytes);
             }
             using JsonDocument document = JsonDocument.Parse(bytes, new JsonDocumentOptions { AllowDuplicateProperties = false });
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("version", out JsonElement version)
-                || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out int value) || value != Version)
-                throw new InvalidDataException();
-            SavedFile? file = document.RootElement.Deserialize<SavedFile>(Json);
-            if (file is null || string.IsNullOrWhiteSpace(file.ProviderId)
-                || file.Tabs is not { Length: > 0 and <= Config.BooruSavedTabsMaximum }
-                || file.ActiveIndex < 0 || file.ActiveIndex >= file.Tabs.Length)
-                throw new InvalidDataException();
-            if (file.ProviderId != current.ProviderId) return null;
+            JsonElement root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException();
+            if (IsScopedLegacyFile(root) || (ReadVersion(root) is int newer && newer > Version))
+            {
+                // The scoped source/instance store in 1.2 owns its V2 and its earlier scoped V1 format.
+                _preserveExisting = true;
+                return null;
+            }
+            if (ReadVersion(root) != Version) throw new InvalidDataException();
 
-            int[] indices = BooruSearchTabs.RetainedIndices(file.Tabs.Length, file.ActiveIndex, tabLimit);
-            BooruSearchView?[] tabs = new BooruSearchView?[indices.Length];
-            for (int index = 0; index < indices.Length; index++)
-                if (file.Tabs[indices[index]] is { } tab)
-                    tabs[index] = RestoreTab(tab, current, resultLimit, source);
-            return new BooruTabSnapshot(file.ProviderId, Array.IndexOf(indices, file.ActiveIndex), tabs);
+            SavedFile? file = root.Deserialize<SavedFile>(Json);
+            if (file is null || string.IsNullOrWhiteSpace(file.ProviderId)
+                || file.Tabs is not { Length: <= Config.BooruSavedTabsMaximum }
+                || (file.Tabs.Length == 0 ? file.ActiveIndex != -1 : file.ActiveIndex < 0 || file.ActiveIndex >= file.Tabs.Length))
+                throw new InvalidDataException();
+            if (file.ProviderId != current.ProviderId)
+            {
+                _preserveExisting = true;
+                return null;
+            }
+
+            if (file.Tabs.Length == 0 || (file.AllTabsClosable && file.Tabs is [null]))
+            {
+                BooruSearchView? draft = file.Draft is { } savedDraft ? RestoreTab(savedDraft, current, 0, source) : null;
+                return new BooruTabSnapshot(file.ProviderId, -1, [], draft);
+            }
+
+            // Migrate before creating session IDs. A draft in the old permanent slot is a real tab.
+            BooruSearchView?[] tabs = Array.ConvertAll(file.Tabs,
+                tab => tab is null ? null : RestoreTab(tab, current, resultLimit, source));
+            int activeIndex = file.ActiveIndex;
+            if (!file.AllTabsClosable && IsLegacyPlaceholder(tabs[0]))
+            {
+                tabs = tabs[1..];
+                activeIndex = tabs.Length == 0 ? -1 : Math.Max(0, activeIndex - 1);
+            }
+            return new BooruTabSnapshot(file.ProviderId, activeIndex, tabs);
         }
         catch (Exception error) when (error is JsonException or InvalidDataException or EndOfStreamException or FormatException or InvalidOperationException)
         {
-            AtomicJsonFile.SetAsideDamagedBackup(_path);
+            _preserveExisting = AtomicJsonFile.SetAsideDamagedBackup(_path) is null;
             return null;
         }
     }
+
+    private static int? ReadVersion(JsonElement root, string property = "version") =>
+        root.TryGetProperty(property, out JsonElement version) && version.ValueKind == JsonValueKind.Number
+            && version.TryGetInt32(out int value) ? value : null;
+
+    private static bool IsScopedLegacyFile(JsonElement root) =>
+        ReadVersion(root, "Version") >= Version
+            && root.TryGetProperty("State", out JsonElement state) && state.ValueKind == JsonValueKind.Object;
+
+    private static bool IsLegacyPlaceholder(BooruSearchView? view) =>
+        view is null || view is { Input.Length: 0, Mode: BooruInputMode.Tags, ExecutedQuery: null, ExecutedPostId: null };
 
     private static SavedTab SaveTab(BooruSearchView view, int resultLimit)
     {

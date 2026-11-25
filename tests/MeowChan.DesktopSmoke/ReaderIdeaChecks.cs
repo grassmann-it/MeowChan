@@ -69,7 +69,7 @@ internal static partial class ReaderIdeaChecks
         fixture.Window.Show(owner);
         page.IsAvailable = true;
         await page.LoadThreadAsync(id);
-        await Program.WaitUntilAsync(() => !page.IsBusy && fixture.List.ItemsSource is ArchivePostRow[]);
+        await Program.WaitUntilAsync(() => !page.IsBusy && fixture.List.ItemCount > 0);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         return fixture;
     }
@@ -483,7 +483,7 @@ internal static partial class ReaderIdeaChecks
         Program.CaptureWindow(fixture.Window, "smoke-reader-i6-expanded.png");
         // The state is remembered per post: a rebuilt page shows 331 unfolded and 333 folded.
         await page.LoadThreadAsync(fixture.Id);
-        await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemsSource is ArchivePostRow[]);
+        await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemCount > 0);
         rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
         Require(rows.Single(row => row.Id == "331").Expanded && !rows.Single(row => row.Id == "333").Expanded, "A rebuilt page forgot which posts were expanded.");
         longPost = rows.Single(row => row.Id == "331"); needlePost = rows.Single(row => row.Id == "333");

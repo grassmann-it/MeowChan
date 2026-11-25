@@ -35,7 +35,7 @@ internal sealed class MediaInfoBar : Grid
     private bool _canEdit;
     private bool _inline;
 
-    internal MediaInfoBar(GalleryDecisionRow rating, Button editTags, Action<Control> edit)
+    internal MediaInfoBar(GalleryDecisionRow rating, Button editTags, Action<Control> edit, Action showAllTags)
     {
         Name = "ReaderMediaSidebarInfoBar";
         RowDefinitions = new RowDefinitions("Auto,Auto");
@@ -65,7 +65,7 @@ internal sealed class MediaInfoBar : Grid
             button.VerticalAlignment = VerticalAlignment.Center;
             ToolTip.SetShowOnDisabled(button, true);
         }
-        _chips = new TagLine(edit) { Name = "ReaderMediaSidebarTags" };
+        _chips = new TagLine(showAllTags, (chip, tag) => TagChipCreated?.Invoke(chip, tag)) { Name = "ReaderMediaSidebarTags" };
         foreach (Control control in new Control[] { _edit, _toggle, _empty, _chips })
             AutomationProperties.SetAutomationId(control, control.Name);
         _toggle.Click += (_, _) =>
@@ -92,9 +92,27 @@ internal sealed class MediaInfoBar : Grid
 
     internal Control EditorAnchor => _edit;
 
+    /// <summary>Called for each tag chip of the line when it is made; the owner gives it the tag's menu.</summary>
+    internal Action<Button, string>? TagChipCreated { get; init; }
+
+    /// <summary>A tag as a compact chip that owns its pointer input, so the panel's media menu yields to the tag's own menu.</summary>
+    internal static Button CreateTagChip(string name, string tag)
+    {
+        Button chip = new()
+        {
+            Name = name, Height = 24, MinHeight = 0, MinWidth = 0, Padding = new Thickness(8, 0), Focusable = true, IsTabStop = true,
+            Classes = { WorkspaceChips.Chip, WorkspaceChips.Compact },
+            Content = new TextBlock { Text = tag, Classes = { WorkspaceChips.Label }, TextWrapping = TextWrapping.NoWrap }
+        };
+        AutomationProperties.SetName(chip, tag);
+        AutomationProperties.SetAutomationId(chip, name);
+        return chip;
+    }
+
     internal void SetTags(IReadOnlyList<string>? tags, string? blocked, bool canEdit)
     {
         _tagCount = tags?.Count ?? 0;
+        Expand.Focusable = Expand.IsTabStop = _tagCount != 0;
         _blocked = blocked;
         _canEdit = canEdit;
         _edit.IsEnabled = canEdit;
@@ -141,7 +159,6 @@ internal sealed class MediaInfoBar : Grid
             AutomationProperties.SetName(button, label);
             AutomationProperties.SetHelpText(button, button.IsEnabled ? (_tagCount == 0 ? Texts.T("tags.quick.assigned.empty") : label) : reason);
         }
-        _chips.IsEnabled = _blocked == null && _canEdit;
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -205,16 +222,18 @@ internal sealed class MediaInfoBar : Grid
         private double _lastWidth = double.NaN;
 
         private string[] _tags = [];
+        private readonly Action<Button, string> _chipCreated;
 
-        internal TagLine(Action<Control> edit)
+        internal TagLine(Action showAllTags, Action<Button, string> chipCreated)
         {
+            _chipCreated = chipCreated;
             AutomationProperties.SetAutomationId(_rest, _rest.Name);
             _rest.Focusable = _rest.IsTabStop = false;
             Children.Add(_rest);
             Height = 24;
             Orientation = Orientation.Horizontal;
             Spacing = 8;
-            _rest.Click += (_, _) => edit(_rest);
+            _rest.Click += (_, _) => showAllTags();
         }
 
         internal void SetTags(IReadOnlyList<string>? tags)
@@ -229,7 +248,7 @@ internal sealed class MediaInfoBar : Grid
 
         internal void RefreshLanguage()
         {
-            ToolTip.SetTip(_rest, CommandBindings.Tooltip("media.tags.edit"));
+            ToolTip.SetTip(_rest, Texts.T("media.sidebar.showAllTags"));
             _lastWidth = double.NaN;
             InvalidateMeasure();
         }
@@ -246,7 +265,11 @@ internal sealed class MediaInfoBar : Grid
                 for (; visible < count; visible++)
                 {
                     if (visible == Children.Count - 1)
-                        Children.Insert(visible, WorkspaceChips.CreateBadge("ReaderMediaSidebarTag", _tags[visible], compact: true));
+                    {
+                        Button made = CreateTagChip("ReaderMediaSidebarTag", _tags[visible]);
+                        _chipCreated(made, _tags[visible]);
+                        Children.Insert(visible, made);
+                    }
                     Control chip = Children[visible];
                     chip.IsVisible = true;
                     chip.Measure(Size.Infinity);
@@ -267,7 +290,7 @@ internal sealed class MediaInfoBar : Grid
                 for (int i = visible; i < Children.Count - 1; i++) Children[i].IsVisible = false;
                 _rest.IsVisible = visible < count;
                 _rest.Content = "+" + (count - visible).ToString(Texts.Culture);
-                AutomationProperties.SetName(_rest, _rest.Content + " · " + CommandCatalog.Label("media.tags.edit"));
+                AutomationProperties.SetName(_rest, _rest.Content + " · " + Texts.T("media.sidebar.showAllTags"));
             }
             return base.MeasureOverride(availableSize);
         }

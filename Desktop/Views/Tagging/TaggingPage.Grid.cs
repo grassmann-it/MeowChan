@@ -74,8 +74,8 @@ public sealed partial class TaggingPage
             TaggingQueueRow? row = e.Container.DataContext as TaggingQueueRow ?? (e.Index >= 0 && e.Index < _rows.Count ? _rows[e.Index] : null);
             if (e.Container is ListBoxItem item && row != null) AutomationProperties.SetName(item, row.TileName(TagCountOf(row.Item)));
         };
-        _gridMenuHost = new ContextMenuHost(_grid, ComposeRowMenu, fallbackFocus: () => FocusContent());
-        _grid.AddHandler(PointerPressedEvent, OnContextPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _gridMenuHost = new ContextMenuHost(_grid, ComposeFocusedRowMenu, fallbackFocus: () => FocusContent());
+        InstallRowContext(_grid);
         _grid.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         // Like the list: a double-click that cannot continue says why (ExecuteRowCommandAsync explains) instead of doing nothing.
         _grid.DoubleTapped += (_, e) =>
@@ -114,7 +114,7 @@ public sealed partial class TaggingPage
             ColumnWidth = _tileAppearance.CellWidth,
             ItemHeight = _tileAppearance.CellHeight
         });
-        _grid.ItemTemplate = new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueTileView(_thumbnails, TagCountOf, _tileAppearance));
+        _grid.ItemTemplate = new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueTileView(_thumbnails, TagCountOf, _tileAppearance, DecisionOf));
         _grid.InvalidateMeasure();
         if (anchor is { } kept)
             Dispatcher.UIThread.Post(() =>

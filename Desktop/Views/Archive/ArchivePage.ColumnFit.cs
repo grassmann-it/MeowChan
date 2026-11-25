@@ -7,7 +7,6 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -35,8 +34,8 @@ public partial class ArchivePage
     {
         PopupToggle.Prepare(ArchiveThreadColumnsButton);
         PopupToggle.Prepare(ArchiveMediaColumnsButton);
-        ArchiveThreadColumnsButton.Click += OnArchiveColumnToggleClick;
-        ArchiveMediaColumnsButton.Click += OnArchiveColumnToggleClick;
+        InitializeToolbarPopupAnchor(ArchiveResultActions);
+        InitializeToolbarPopupAnchor(ReaderMediaTools);
         // Tunnel: the table's own selection menu would otherwise take the request first. Column headers are not focusable, so the
         // keyboard reaches the same commands through the "Columns…" button.
         foreach (DataGrid grid in new[] { ArchiveThreadTable, ArchiveMediaGrid })
@@ -45,31 +44,17 @@ public partial class ArchivePage
         ArchiveThreadTable.AttachedToVisualTree += (_, _) => ApplyArchiveColumns();
     }
 
-    private void OnArchiveColumnToggleClick(object? sender, RoutedEventArgs e)
-    {
-        if (_ended || sender is not Button button || PopupToggle.Close(button)) return;
-        OnArchiveColumnsClick(button, e);
-        if (button.ContextMenu is not { } menu) return;
-        menu.AddHandler(KeyDownEvent, (_, key) =>
-        {
-            if (!PopupToggle.CanToggleMenuFromKey(menu, key) || !ShortcutService.Current.Matches(key, "table.choose-columns")) return;
-            key.Handled = PopupToggle.Close(button);
-        }, RoutingStrategies.Tunnel);
-    }
-
     internal bool TryToggleArchiveColumnsByKey(KeyEventArgs e)
     {
-        if (_ended || IsReaderDialogOpen || e.Source is not Visual source || !CommandBindings.Matches(e, "table.choose-columns")) return false;
+        if (_ended || IsReaderDialogOpen || e.Source is not Visual source) return false;
+        using var context = EffectiveShortcutBindings.EnterKeyContext("archive");
+        if (!CommandBindings.Matches(e, "table.choose-columns")) return false;
         bool reader = source.GetSelfAndVisualAncestors().Contains(ArchiveReaderPane);
         Button button = reader && ArchiveMediaTab.IsSelected ? ArchiveMediaColumnsButton : ArchiveThreadColumnsButton;
-        if (PopupToggle.Close(button)) return true;
-        if ((_largeReader && !ReferenceEquals(button, ArchiveMediaColumnsButton)) || !button.IsVisible
-            || !button.IsEffectivelyEnabled || CommandRouter.HasOpenPopup(this)) return false;
-        // A shortcut can reach an action that has moved under the toolbar's More button.
-        if (!button.IsAttachedToVisualTree() && ActionOriginFocusTarget(button) is Avalonia.Controls.Primitives.ToggleButton more)
-            more.IsChecked = true;
-        if (!button.IsAttachedToVisualTree()) return false;
-        OnArchiveColumnToggleClick(button, e);
+        DataGrid table = reader && ArchiveMediaTab.IsSelected ? ArchiveMediaGrid : ArchiveThreadTable;
+        if (button.ContextMenu is { IsOpen: true } open) { open.Close(); return true; }
+        if (!button.IsVisible || !button.IsEffectivelyEnabled || !table.IsEffectivelyVisible || CommandRouter.HasOpenPopup(this)) return false;
+        OnArchiveColumnsClick(button, e);
         return true;
     }
 

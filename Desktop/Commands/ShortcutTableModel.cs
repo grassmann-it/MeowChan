@@ -16,11 +16,11 @@ public sealed class ShortcutTableRow
 {
     internal ShortcutTableRow(CommandDefinition command, int catalogIndex, string group, IReadOnlyList<string> areas,
         IReadOnlyList<ShortcutGesture> gestures, IReadOnlyList<string> gestureTexts, ShortcutRowStatus status,
-        IReadOnlyList<ShortcutConflict> conflicts, IReadOnlyList<ShortcutIssue> problems, bool underMore, int preference)
+        IReadOnlyList<ShortcutConflict> conflicts, IReadOnlyList<ShortcutIssue> problems, bool underMore, int preference, string? area)
     {
         Command = command; CatalogIndex = catalogIndex; Group = group; Areas = areas; Gestures = gestures; GestureTexts = gestureTexts;
         Status = status; Conflicts = conflicts; Problems = problems; UnderMore = underMore; Preference = preference;
-        Label = command.Label;
+        Label = ShortcutHelp.ActionLabel(command.Id, area);
         SearchText = string.Join("\n", new[] { Label, command.Id, string.Join(" ", command.ExecutionContexts) }.Concat(gestureTexts))
             .ToLower(CultureInfo.InvariantCulture);
     }
@@ -116,7 +116,7 @@ public sealed class ShortcutTableModel
                 conflicts.TryGetValue(command.Id, out var c) ? c.DistinctBy(x => (x.OtherCommandId, x.BlocksSave)).ToArray() : Array.Empty<ShortcutConflict>(),
                 problems.TryGetValue(command.Id, out var p) ? p.ToArray() : Array.Empty<ShortcutIssue>(),
                 underMore?.Invoke(command.Id) == true,
-                preference.TryGetValue(command.Id, out int rank) ? rank : int.MaxValue));
+                preference.TryGetValue(command.Id, out int rank) ? rank : int.MaxValue, currentArea));
         }
         return new ShortcutTableModel(currentArea, platform, rows.AsReadOnly());
 

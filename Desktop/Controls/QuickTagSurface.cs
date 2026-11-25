@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -365,6 +367,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _stripHost.Name = _name + "SuggestionsHost"; _upper.Name = _name + "Body"; _flow.Name = _name + "Scroll";
         _stripEmpty.Name = _name + "SuggestionsEmpty"; _assignedEmpty.Name = _name + "AssignedEmpty";
         _markedClear.Name = _name + "MarkedClear";
+        AutomationProperties.SetAutomationId(_input, _input.Name);
+        AutomationProperties.SetAutomationId(_advanced, _advanced.Name);
 
         _markedBadge = WorkspaceChips.CreateBadge(_name + "Marked", string.Empty, compact: true);
         _markedLabel = (TextBlock)_markedBadge.Child!;
@@ -659,6 +663,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     /// <summary>Puts the focus into the field when the surface is shown (both hosts want it; off for tests and special hosts).</summary>
     internal bool FocusOnAttach { get; set; } = true;
+
+    /// <summary>The optional lifetime of writes started from this surface.</summary>
+    internal CancellationToken WriteToken { get; set; }
 
     internal event Action? CloseRequested;
     /// <summary>The marks button was pressed: the host clears its marks and retargets the surface.</summary>
@@ -1151,7 +1158,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 if (_session.Snapshot != null) _deferredAdd = (name, thenNext);
                 return false;
             }
-            await Guard(() => _session.AddAsync(name), "tags.quick.add");
+            await Guard(() => _session.AddAsync(name, WriteToken), "tags.quick.add");
             if (_disposed || _session.Status.IsError) return false;
             if (string.Equals(_input.Text, name, StringComparison.Ordinal)) _input.Text = string.Empty;
         }
@@ -1183,12 +1190,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     /// <summary>Toggles suggestion <paramref name="index"/> (0-based), as a click, Alt+n or n in the strip does.</summary>
     internal Task ToggleSuggestionAsync(int index) =>
-        index < 0 || index >= _shown.Count ? Task.CompletedTask : Guard(() => _session.AcceptAsync(_shown[index]), "tags.quick.suggestion");
+        index < 0 || index >= _shown.Count ? Task.CompletedTask : Guard(() => _session.AcceptAsync(_shown[index], WriteToken), "tags.quick.suggestion");
 
     private async void OnAssignedClick(object? sender, RoutedEventArgs e)
     {
         if (_assignedChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip)
-            await OpenActions.RunAsync(() => Guard(() => _session.ToggleAsync(chip.Tag), "tags.quick.toggle"), "tags.quick.toggle.click");
+            await OpenActions.RunAsync(() => Guard(() => _session.ToggleAsync(chip.Tag, WriteToken), "tags.quick.toggle"), "tags.quick.toggle.click");
     }
 
     private async void OnRemoveClick(object? sender, RoutedEventArgs e)
@@ -1200,7 +1207,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         int index = _assignedChips.IndexOf(chip);
         _pendingAssignedFocus = index;
-        await Guard(() => _session.RemoveAsync(chip.Tag), "tags.quick.remove");
+        await Guard(() => _session.RemoveAsync(chip.Tag, WriteToken), "tags.quick.remove");
     }
 
     private int? _pendingAssignedFocus;
@@ -1220,7 +1227,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (extra.CanUndo) Announce(await extra.UndoAsync());
             return;
         }
-        await _session.UndoAsync();
+        await _session.UndoAsync(WriteToken);
     }, "tags.quick.undo");
 
     private void OnMarkedClear(object? sender, RoutedEventArgs e) => MarksClearRequested?.Invoke();
@@ -1231,7 +1238,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal async Task<QuickTagStampResult> ApplyStampAsync()
     {
         QuickTagStampResult result = QuickTagStampResult.None;
-        await Guard(async () => result = await _session.ApplyStampWithOutcomeAsync(), "tags.quick.stamp");
+        await Guard(async () => result = await _session.ApplyStampWithOutcomeAsync(WriteToken), "tags.quick.stamp");
         if (!_disposed && result.Attempted) StampApplied?.Invoke(result);
         return result;
     }
@@ -1247,18 +1254,33 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     // Right click, Menu key or Shift+F10 on a chip of an own tag: put it into the stamp or take it out. The menu is filled when it
     // opens (on the UI thread, and always with the current stamp), so a chip needs no item collection while the strip is rebuilt.
+    internal Action<TagId>? FilterMediaByTag { get; set; }
+
     private void AttachStampMenu(Button chip, TagId tag)
     {
         ContextMenu menu = new();
-        menu.Opening += (_, _) => menu.ItemsSource = StampMenuItems(tag);
+        menu.Opening += (_, e) =>
+        {
+            ContextMenuBuilder builder = new();
+            IReadOnlyList<MenuItem> stamp = StampMenuItems(tag);
+            if (_session.Snapshot?.Find(tag) is { } definition)
+            {
+                builder = OwnTagChipMenu.IdentityActions(chip, definition.Name.Display, tag, FilterMediaByTag);
+                builder.Append(new Separator());
+            }
+            e.Cancel = !builder.Append(stamp.ToArray()).Populate(menu);
+        };
         chip.ContextMenu = menu;
+        chip.AddHandler(InputElement.PointerPressedEvent, (_, e) => ContextClick.RequestOnMacControlPress(e, chip), RoutingStrategies.Tunnel);
     }
 
     /// <summary>The context menu entries of the chip of <paramref name="tag"/>: "Add to stamp" or "Remove from stamp".</summary>
     internal IReadOnlyList<MenuItem> StampMenuItems(TagId tag)
     {
         bool inStamp = _session.InStamp(tag);
-        MenuItem item = new() { Header = Texts.T(inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd"), Name = _name + (inStamp ? "StampRemove" : "StampAdd") };
+        string key = inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd";
+        MenuItem item = new() { Header = Texts.T(key), Tag = key, Name = _name + (inStamp ? "StampRemove" : "StampAdd"),
+            Icon = CommandBindings.IconFromKey(inStamp ? "minus" : "plus") };
         item.Click += (_, _) => { if (inStamp) _session.RemoveFromStamp(tag); else _session.AddToStamp(tag); };
         return new[] { item };
     }
@@ -1284,9 +1306,16 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     internal bool FieldHasComposition => _input.IsKeyboardFocusWithin && _input.IsComposing;
 
+    // Any editor inside the surface, the host's extra content included (the gallery's thread tag field): its composition
+    // owns Esc and the command keys, exactly as the main field's does.
+    private bool FocusedEditorHasComposition() => FieldHasComposition
+        || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
+            && this.IsVisualAncestorOf(focused)
+            && focused.GetSelfAndVisualDescendants().OfType<TextPresenter>().Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
+
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing || FieldHasComposition) return;
+        if (e.Handled || ShortcutService.IsCapturing || FocusedEditorHasComposition()) return;
         QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.HasSuggestionList,
             string.IsNullOrEmpty(_input.Text), NavigationEnabled, ShortcutService.Current);
         if (Execute(route)) e.Handled = true;
@@ -1311,7 +1340,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 return Move(route);
             case QuickTagKeyAction.ToggleFocused:
                 if (FocusedSuggestion() is { } suggestion) { OpenActions.Start(() => ToggleSuggestionAsync(suggestion.Index), "tags.quick.suggestion.key"); return true; }
-                if (FocusedAssigned() is { } toggled) { OpenActions.Start(() => Guard(() => _session.ToggleAsync(toggled.Tag), "tags.quick.toggle"), "tags.quick.toggle.key"); return true; }
+                if (FocusedAssigned() is { } toggled) { OpenActions.Start(() => Guard(() => _session.ToggleAsync(toggled.Tag, WriteToken), "tags.quick.toggle"), "tags.quick.toggle.key"); return true; }
                 return false;
             case QuickTagKeyAction.RemoveFocused:
                 if (FocusedAssigned() is not { } removed) return false;
@@ -1586,6 +1615,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (suggestion.Reason == QuickTagReason.Stamp) { content.Children.Add(StampBadge()); keyed = true; }
             content.Children.Add(ChipLabel(display));
             Button button = new() { Name = name, Focusable = true };
+            AutomationProperties.SetAutomationId(button, name);
             if (suggestion.CreatesTag)
             {
                 // A provider tag or a new name: the dashed source chip (I8), never mistaken for an own tag.

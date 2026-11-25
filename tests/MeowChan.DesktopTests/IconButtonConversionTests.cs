@@ -98,7 +98,7 @@ public sealed class IconButtonConversionTests
             AssertIconExists(icon);
         }
         Assert.Equal(new[] { "ArchiveAddBoard", "ArchiveAddSource", "ArchiveEditRatingButton", "ArchiveEmptySearchInMedia", "ArchiveFavoritesFilter",
-            "ArchiveFilterApply", "ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveManageRatingsButton",
+            "ArchiveFilterApply", "ArchiveFilterClose", "ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveManageRatingsButton",
             "ArchiveMediaLayoutTable", "ArchiveMediaLayoutTiles",
             "ArchiveMediaSelectionClear", "ArchiveMediaSelectionExport", "ArchiveMediaSelectionGallery", "ArchiveMediaSelectionQueue",
             "ArchiveMediaSelectionTag", "ArchiveResetFilters", "ArchiveRetrySearch", "ArchiveRetrySuggestions", "ArchiveTagManage",

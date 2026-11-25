@@ -870,8 +870,12 @@ public partial class MainWindow
                 else CloseDownloadSearch();
                 return;
             }
+            if (_selectedPage == WorkspacePage.Settings && _settingsEditor?.TryDismissFolderSourceRemoval() == true)
+            { e.Handled = true; return; }
             if (_selectedPage == WorkspacePage.Settings && _gallery == null && !_largeReaderOpen
                 && _settingsEditor?.TryDismissSectionNavigation() == true)
+            { e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Tagging && _taggingPage?.TryDismissClearQuestion() == true)
             { e.Handled = true; return; }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }

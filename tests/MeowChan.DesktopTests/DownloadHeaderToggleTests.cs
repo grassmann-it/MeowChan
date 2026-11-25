@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
@@ -12,12 +13,13 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Views.Shortcuts;
 using Semi.Avalonia.DataGrid;
+using Xunit.Abstractions;
 using static MeowChan.DesktopTests.DownloadWindowFixture;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Localization")]
-public sealed class DownloadHeaderToggleTests
+public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
 {
     [Fact]
     public void SearchClickShortcutAndEscapeFoldOnlyTheEditor() => RunWithGrid(async fixture =>
@@ -161,8 +163,29 @@ public sealed class DownloadHeaderToggleTests
             if (panel.IsVisible) Click(fixture, button);
             Click(fixture, button);
             Assert.True(panel.IsVisible && button.IsChecked == true);
-            Click(fixture, button);
-            Assert.True(!panel.IsVisible && button.IsChecked == false);
+
+            Point point = button.TranslatePoint(new Rect(button.Bounds.Size).Center, fixture.Window)!.Value;
+            IInputElement? hit = fixture.Window.InputHitTest(point);
+            bool hitsToggle = hit is Visual visual && (ReferenceEquals(button, visual) || button.IsVisualAncestorOf(visual));
+            StyledElement? hitElement = hit as StyledElement;
+            string hitMessage = $"width={width}, hit={hit?.GetType().Name ?? "<none>"}, " +
+                $"AutomationId={(hitElement == null ? null : AutomationProperties.GetAutomationId(hitElement)) ?? "<none>"}, " +
+                $"Name={hitElement?.Name ?? "<none>"}, toggle.Bounds={BoundsInWindow(button)}, inspector.Bounds={BoundsInWindow(panel)}";
+            output.WriteLine(hitMessage);
+            if (width == 1240)
+            {
+                Assert.True(hitsToggle, hitMessage);
+                Click(fixture, button);
+            }
+            else
+            {
+                Assert.False(hitsToggle, hitMessage);
+                Button close = Assert.Single(fixture.Window.GetVisualDescendants().OfType<Button>(), candidate =>
+                    ControlAutomationPeer.CreatePeerForElement(candidate)?.GetAutomationId() == "InspectorCloseButton");
+                Click(fixture, close);
+            }
+            Assert.True(!panel.IsVisible && button.IsChecked == false,
+                $"width={width}, panel.IsVisible={panel.IsVisible}, button.IsChecked={button.IsChecked}");
 
             Assert.True(fixture.Threads.Focus());
             KeyGesture details = CommandBindings.Gesture("thread.details")!;
@@ -176,6 +199,9 @@ public sealed class DownloadHeaderToggleTests
             Assert.True(!panel.IsVisible && fixture.Threads.IsKeyboardFocusWithin);
         }
         return Task.CompletedTask;
+
+        Rect BoundsInWindow(Control control) =>
+            new(control.TranslatePoint(default, fixture.Window)!.Value, control.Bounds.Size);
     });
 
     [Fact]
@@ -189,7 +215,9 @@ public sealed class DownloadHeaderToggleTests
         Assert.True(threadsMenu.IsOpen && columns.IsChecked == true);
         Assert.Contains(threadsMenu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "ThreadsDataGrid.ThreadNumber"));
         Click(fixture, columns);
-        Assert.True(!threadsMenu.IsOpen && columns.IsChecked == false);
+        Assert.True(!threadsMenu.IsOpen && columns.IsChecked == false,
+            $"width={fixture.Window.Width}, threadsMenu.IsOpen={threadsMenu.IsOpen}, columns.IsChecked={columns.IsChecked}, " +
+            $"columns.ContextMenu != null={columns.ContextMenu != null}");
         Assert.Null(columns.ContextMenu);
 
         fixture.Find<TabControl>("DownloadsTabs").SelectedIndex = 1;
@@ -217,6 +245,49 @@ public sealed class DownloadHeaderToggleTests
         finally { ShortcutService.Publish(original); }
         return Task.CompletedTask;
     });
+
+    [Theory]
+    [InlineData("Barebones")]
+    [InlineData("Simple")]
+    public void ColumnsShortcutOpensAtAVisibleAnchorWhileColumnsSitsUnderTheClosedMore(string mode) => RunWithGrid(fixture =>
+    {
+        fixture.ShowThreads([Thread(1), Thread(2)]);
+        fixture.Select(1);
+        var columns = fixture.Find<ToggleButton>("DownloadsColumnsButton");
+        Assert.True(columns.IsVisible && !columns.IsAttachedToVisualTree(),
+            $"{mode}: Columns is expected under the closed More (IsVisible={columns.IsVisible}, attached={columns.IsAttachedToVisualTree()}).");
+
+        ShortcutBindingsSection original = ShortcutService.CurrentSection;
+        try
+        {
+            ShortcutService.Publish(original.Set("table.choose-columns", [ShortcutGesture.Parse("F8")]));
+            var gesture = new KeyGesture(Key.F8);
+            foreach (KeyGesture closing in new[] { gesture, new KeyGesture(Key.Escape) })
+            {
+                Assert.True(fixture.Threads.Focus());
+                Press(fixture, fixture.Window, gesture);
+                var menu = Assert.IsType<ContextMenu>(columns.ContextMenu);
+                Control? anchor = menu.PlacementTarget;
+                Assert.True(menu.IsOpen && anchor is { IsEffectivelyVisible: true } && anchor.IsAttachedToVisualTree()
+                    && anchor.Bounds.Width > 0 && anchor.Bounds.Height > 0,
+                    $"{mode}: menu.IsOpen={menu.IsOpen}, anchor={Describe(anchor)}, attached={anchor?.IsAttachedToVisualTree()}, " +
+                    $"visible={anchor?.IsEffectivelyVisible}, bounds={anchor?.Bounds}");
+                Assert.Contains(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "archive.columnsReset"));
+                Assert.True(menu.IsKeyboardFocusWithin, $"{mode}: the opened menu takes the keyboard, focus is on {Focused()}.");
+
+                Press(fixture, TopLevel.GetTopLevel(menu)!, closing);
+                Assert.True(!menu.IsOpen && columns.IsChecked == false && columns.ContextMenu == null,
+                    $"{mode}, {closing}: menu.IsOpen={menu.IsOpen}, columns.IsChecked={columns.IsChecked}");
+                Assert.True(fixture.Threads.IsKeyboardFocusWithin, $"{mode}, {closing}: focus returns to the table, it is on {Focused()}.");
+            }
+        }
+        finally { ShortcutService.Publish(original); }
+        return Task.CompletedTask;
+
+        string Focused() => Describe(fixture.Window.FocusManager?.GetFocusedElement() as Control);
+        static string Describe(Control? control) => control == null ? "<none>"
+            : $"{control.GetType().Name}#{AutomationProperties.GetAutomationId(control) ?? control.Name ?? "<unnamed>"}";
+    }, mode);
 
     [Fact]
     public void TheReadingHistoryArrowContextShortcutAndEscapeKeepTheSameOpenState() => RunWithGrid(async fixture =>
@@ -281,8 +352,8 @@ public sealed class DownloadHeaderToggleTests
             Assert.Single(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS).For("input.focus-download-search"))
                 .Resolve(ShortcutPlatform.MacOS));
 
-    private static void RunWithGrid(Func<DownloadWindowFixture, Task> exercise) =>
-        Run(exercise, () => Application.Current!.Styles.Insert(1, new DataGridSemiTheme()));
+    private static void RunWithGrid(Func<DownloadWindowFixture, Task> exercise, string workspaceMode = "Advanced") =>
+        Run(exercise, () => Application.Current!.Styles.Insert(1, new DataGridSemiTheme()), workspaceMode);
 
     private static T ById<T>(Visual root, string id) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);

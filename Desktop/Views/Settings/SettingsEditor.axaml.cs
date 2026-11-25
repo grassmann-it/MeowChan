@@ -754,6 +754,7 @@ namespace MeowChan
         {
             if (!disposing || _isClosed) return;
             _isClosed = true;
+            SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
             _destinationWait?.Cancel();
             _destinationWait?.Dispose();
             _destinationWait = null;
@@ -919,6 +920,18 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
+
+                TextBox? input = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as TextBox;
+                Rect visibleInput = default;
+                if (input is { IsEffectivelyVisible: true }
+                    && SettingsScrollViewer.IsVisualAncestorOf(input)
+                    && input.FindAncestorOfType<NumericUpDown>() != null
+                    && input.FindAncestorOfType<Avalonia.Controls.Presenters.ScrollContentPresenter>() is { } presenter
+                    && presenter.TranslatePoint(default, input) is Point viewportOrigin)
+                {
+                    visibleInput = new Rect(input.Bounds.Size).Intersect(new Rect(viewportOrigin, presenter.Viewport));
+                }
+
                 RefreshChoiceLabels();
                 // Refresh only labels/help; a language change is not a numeric Value change.
                 foreach (string property in new[]
@@ -978,6 +991,19 @@ namespace MeowChan
                 finally { _refreshingLanguageLabels = false; }
                 ApplyCommandIcons();
                 RefreshSectionNavigation();
+
+                if (input != null && visibleInput is { Width: > 0, Height: > 0 })
+                {
+                    // Translated labels can move the text box while it keeps keyboard focus.
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!_isClosed && input is { IsFocused: true, IsEffectivelyVisible: true }
+                            && SettingsScrollViewer.IsVisualAncestorOf(input))
+                        {
+                            input.BringIntoView(visibleInput.Intersect(new Rect(input.Bounds.Size)));
+                        }
+                    }, DispatcherPriority.Loaded);
+                }
             }
 
             if (Dispatcher.UIThread.CheckAccess())
@@ -1008,13 +1034,12 @@ namespace MeowChan
             string readerPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
             string headerTagline = SelectedHeaderTagline?.Value ?? _config.HeaderTagline;
             string headerTaglineFixed = SelectedHeaderTaglineFixed?.Value ?? _config.HeaderTaglineFixedId;
-            string booruSearchTarget = SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
             try
             {
                 RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth, headerTagline, headerTaglineFixed);
-                RefreshBooruSearchChoices(booruSearchTarget);
+                RefreshBooruSearchLabels();
             }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
@@ -1448,7 +1473,7 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedBooruNewSearchTarget) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
                     or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode) or nameof(SelectedGalleryFilmstripFlagUntagged) or nameof(SelectedGalleryWheelMode)
                     or nameof(SelectedTaggingCard1) or nameof(SelectedTaggingCard2) or nameof(SelectedTaggingCard3) or nameof(SelectedTaggingCard4) or nameof(SelectedTaggingCard5);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))

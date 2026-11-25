@@ -33,7 +33,7 @@ public partial class SettingsEditor
     {
         Button origin = SettingsMoreButton;
         if (_isClosed || !IsEditable || !origin.IsEffectivelyVisible) return;
-        if (PopupToggle.Close(origin)) return;
+        if (PopupToggle.ConsumeActivation(origin)) return;
         // The two entries of the head's More button: the export (a download) and the rare, destructive "Reset all", set apart by a separator.
         var export = new MenuItem { Header = Texts.T("settings.transfer.export"), Icon = CommandBindings.NamedIcon("download") };
         AutomationProperties.SetAutomationId(export, "settings.transfer.export");

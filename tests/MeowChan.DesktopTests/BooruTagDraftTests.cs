@@ -87,7 +87,7 @@ public sealed class BooruTagDraftTests
         using Fixture fixture = new(separate);
         fixture.Seed(draft: "other");
         Assert.True(fixture.View.TryShowQueryInNewTab("1Boy"));
-        int origin = fixture.View.SearchTabs.ActiveId;
+        int origin = Assert.IsType<int>(fixture.View.SearchTabs.ActiveId);
         fixture.Seed(draft: "1Boy");
         fixture.Window.SetRenderScaling(1.5);
         fixture.Settle();
@@ -113,7 +113,7 @@ public sealed class BooruTagDraftTests
 
         ContextMenu popup = fixture.OpenMenu(solo);
         MenuItem stale = BooruResultActionsTests.Item(popup, BooruWorkbenchView.MenuTagRemove);
-        fixture.Select(BooruSearchTabs.PrimaryId);
+        fixture.Select(fixture.View.SearchTabs.Ids[0]);
         Assert.Equal("other", fixture.Input.Text);
         Assert.False(popup.IsOpen);
         Assert.False(stale.Command!.CanExecute(null));
@@ -249,7 +249,6 @@ public sealed class BooruTagDraftTests
             Window.Activate();
             Window.PlatformImpl!.Resize(new Size(1152, 700), WindowResizeReason.User);
             View = _page?.View ?? Assert.Single(Window.GetVisualDescendants().OfType<BooruWorkbenchView>());
-            View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
             View.RestoreResultView(BooruResultView.List, Desktop.MediaTileSize.Medium);
             Settle();
         }
@@ -257,6 +256,7 @@ public sealed class BooruTagDraftTests
         internal void Seed(BooruInputMode mode = BooruInputMode.Tags, string draft = "")
         {
             // A restored result is rendered through the production list without requiring an initial provider request.
+            if (View.SearchTabs.ActiveId is null) View.SearchTabs.Add(copyCurrent: false);
             var search = View.Model.Search;
             search.Restore(search.View with
             {

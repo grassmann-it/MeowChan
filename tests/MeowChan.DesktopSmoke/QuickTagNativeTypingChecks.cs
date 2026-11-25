@@ -158,13 +158,20 @@ internal static partial class QuickTagNativeTypingChecks
         await Settle(window);
         if (video)
         {
-            await Program.WaitUntilAsync(() => page.SidebarInlineVideo?.IsOffered == true, () => $"sidebar shown={page.IsMediaSidebarShown} offered={page.SidebarInlineVideo?.IsOffered}");
+            string VideoState()
+            {
+                ReaderInlineVideoSlot? videoSlot = page.SidebarInlineVideo;
+                return $"selected={(list.SelectedItem as ArchivePostRow)?.Id} postsShown={page.ReaderShowsPosts} sidebar shown={page.IsMediaSidebarShown}"
+                    + $" header={page.MediaSidebar?.HeaderLine} offered={videoSlot?.IsOffered} live={videoSlot?.IsLive}"
+                    + $" playback={videoSlot?.Player?.PlaybackMode} error={videoSlot?.ErrorText}";
+            }
+            await Program.WaitUntilAsync(() => page.SidebarInlineVideo?.IsOffered == true, VideoState);
             ReaderInlineVideoSlot slot = page.SidebarInlineVideo!;
             if (!slot.IsPlaying)
             {
                 if (slot.Activator.IsEffectivelyVisible) await input.ClickAsync(slot.Activator);
                 await slot.ActivationTask;
-                await Program.WaitUntilAsync(() => slot.IsPlaying);
+                await Program.WaitUntilAsync(() => slot.IsPlaying, VideoState);
             }
         }
         ListBoxItem? card = list.ContainerFromItem(post) as ListBoxItem;
@@ -204,8 +211,22 @@ internal static partial class QuickTagNativeTypingChecks
             return true;
         }
         Console.WriteLine($"SMOKE quick-tag-native-typing focus-before {surface}/{entry}/{medium}: {Describe(window.FocusManager?.GetFocusedElement())} card={Describe(card)}");
-        return await PopoverCaseAsync(window, input, trace, surface, entry, medium, Open, () => !video || page.SidebarInlineVideo?.IsPlaying == true,
-            () => ArchiveState(window, page), card);
+        var openPopover = page.TagPopoverAsync;
+        if (entry == "R" && openPopover != null)
+        {
+            page.TagPopoverAsync = async (target, anchor, context, current, request) =>
+            {
+                Console.WriteLine($"SMOKE quick-tag-native-typing R target {surface}/{medium}: {target.EntryKey}, "
+                    + $"anchor={Describe(anchor)}, current={current()}, blocked={request.TagsBlocked ?? "no"}");
+                await openPopover(target, anchor, context, current, request);
+            };
+        }
+        try
+        {
+            return await PopoverCaseAsync(window, input, trace, surface, entry, medium, Open, () => !video || page.SidebarInlineVideo?.IsPlaying == true,
+                () => ArchiveState(window, page), card);
+        }
+        finally { page.TagPopoverAsync = openPopover; }
     }
 
     // The keys of the popover itself, with OS input: Shift+3 and Shift+0 on the stars (R), Alt+1 and Ctrl+Z on an empty field, Backspace and Ctrl+A.

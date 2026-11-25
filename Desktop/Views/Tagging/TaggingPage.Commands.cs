@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -13,7 +14,9 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.Gallery;
 using MeowChan.Tags;
 using Ursa.Controls;
 
@@ -31,6 +34,7 @@ public sealed partial class TaggingPage
     private readonly TextBlock _clearQuestion = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _clearYes = new() { Name = "TaggingClearYes", Classes = { "danger" } };
     private readonly Button _clearNo = new() { Name = "TaggingClearNo" };
+    private bool _clearResetsDamagedQueue;
     private ContextMenuHost? _menuHost;
     private ListBoxItem? _spaceRow;
 
@@ -51,6 +55,7 @@ public sealed partial class TaggingPage
     internal Func<TagQueueItem, Task>? ShowInMedia { get; set; }
     /// <summary>Opens the folder of the entry's file.</summary>
     internal Func<TagQueueItem, Task>? ShowInFolder { get; set; }
+    internal Func<TagQueueItem, Task>? OpenExternal { get; set; }
     /// <summary>Copies the path of the entry's file.</summary>
     internal Func<TagQueueItem, Task>? CopyPath { get; set; }
     /// <summary>
@@ -71,6 +76,8 @@ public sealed partial class TaggingPage
             _actions.Items.Add(item);
         _listPresentation.Items.Add(_columnsButton);
         _listPresentation.Items.Add(_viewToggle);
+        _listPresentation.Items.Add(_panelToggle);
+        InitializePanel();
 
         // Ursa's More toggle precedes its items in the visual tree. Keep tab
         // order local to the header and follow the visual order across lines.
@@ -79,16 +86,19 @@ public sealed partial class TaggingPage
         for (int i = 0; i < stops.Length; i++) stops[i].TabIndex = 2 * i;
         _actions.TemplateApplied += (_, _) =>
         {
-            if (_actions.More is { } more) more.TabIndex = _filter.TabIndex + 1;
+            if (_actions.More is not { } more) return;
+            more.TabIndex = _filter.TabIndex + 1;
+            AutomationProperties.SetAutomationId(more, "tagging.actions.more");
         };
         // The error banner's "Retry" reads the queue file again (RetryLoadAsync is a no-op unless the page may reload now).
+        AutomationProperties.SetAutomationId(_retryLoad, "tagging.retry");
         _retryLoad.Click += (_, _) => OpenActions.Start(RetryLoadAsync, "tagging.retry");
         _clearYes.Click += async (_, _) => await ClearAllAsync();
         _clearNo.Click += (_, _) => CloseClearQuestion(focusClear: true);
-        _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseClearQuestion(focusClear: true); } };
+        _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) e.Handled = TryDismissClearQuestion(); };
 
-        _menuHost = new ContextMenuHost(_list, ComposeRowMenu, fallbackFocus: () => FocusContent());
-        _list.AddHandler(PointerPressedEvent, OnContextPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _menuHost = new ContextMenuHost(_list, ComposeFocusedRowMenu, fallbackFocus: () => FocusContent());
+        InstallRowContext(_list);
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyUpEvent, OnResultSpaceUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         // A double-click on an entry runs "Continue here" like Enter; one that cannot (a finished entry, a busy queue) says why in the status line
@@ -117,17 +127,57 @@ public sealed partial class TaggingPage
             TaggingHeader.InvalidateGroupMeasure(second);
     }
 
-    // Dead-affordance audit: the middle click on an entry runs "Show in folder", as on the Media page's tiles and the other lists. It acts on the
-    // entry that was clicked (the selection stays as it is), with the menu entry's own rules.
+    // A middle click opens the clicked entry's file with the default program.
     private readonly MiddleClickTracker _middleClick = new();
+    private readonly PressOpenedContextGate _rowContextGate = new();
+    private bool _openingPointerMenu;
 
-    private void OnContextPointerPressed(object? sender, PointerPressedEventArgs e)
+    private void InstallRowContext(ListBox surface)
     {
-        if (sender is not ListBox surface || !e.GetCurrentPoint(surface).Properties.IsRightButtonPressed
+        surface.AddHandler(PointerPressedEvent, OnRowContextPressed, RoutingStrategies.Tunnel);
+        surface.AddHandler(PointerReleasedEvent, (_, e) => _rowContextGate.Released(e.InitialPressMouseButton),
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+        surface.AddHandler(ContextRequestedEvent, OnRowContextRequested, RoutingStrategies.Tunnel);
+    }
+
+    private void OnRowContextPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _rowContextGate.BeginPress();
+        if (sender is not ListBox surface || !ContextClick.IsPress(e, surface)
             || !MainWindow.IsListCommandSource(e.Source, surface)) return;
-        ListBoxItem? item = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+        _rowContextGate.MenuOpenedByPress(ContextClick.Button(e, surface));
+        e.Handled = true;
+        if (ItemActivation.ItemAt<TaggingQueueRow>(e.Source, surface) is not { } row)
+        {
+            ActiveMenuHost?.Close();
+            return;
+        }
+        SetContextLead(surface, row);
+        (surface.ContainerFromItem(row) as Control)?.Focus();
+        _openingPointerMenu = true;
+        try { ActiveMenuHost?.Show(atPointer: true); }
+        finally { _openingPointerMenu = false; }
+    }
+
+    private void OnRowContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not ListBox surface || !e.TryGetPosition(surface, out Point position)) return;
+        if (_rowContextGate.TryConsume()) { e.Handled = true; return; }
+        if (!MainWindow.IsListCommandSource(e.Source, surface)) return;
+        ListBoxItem? item = (surface.InputHitTest(position) as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
             .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), surface));
-        if (item?.DataContext is not TaggingQueueRow row) return;
+        if (item?.DataContext is not TaggingQueueRow row)
+        {
+            ActiveMenuHost?.Close();
+            e.Handled = true;
+            return;
+        }
+        SetContextLead(surface, row);
+        item.Focus();
+    }
+
+    private static void SetContextLead(ListBox surface, TaggingQueueRow row)
+    {
         TaggingQueueRow[] selected = surface.SelectedItems?.OfType<TaggingQueueRow>().ToArray() ?? Array.Empty<TaggingQueueRow>();
         if (!selected.Contains(row)) surface.SelectedItem = row;
         else if (!ReferenceEquals(surface.SelectedItem, row))
@@ -135,7 +185,6 @@ public sealed partial class TaggingPage
             surface.SelectedItem = row;
             foreach (TaggingQueueRow kept in selected.Where(kept => !ReferenceEquals(kept, row))) surface.SelectedItems?.Add(kept);
         }
-        item.Focus();
     }
 
     private void InstallMiddleClick(ListBox surface)
@@ -148,24 +197,44 @@ public sealed partial class TaggingPage
         surface.AddHandler(PointerReleasedEvent, (_, e) =>
         {
             if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-            TaggingQueueRow? row = MiddleClickTracker.RowAt<TaggingQueueRow>(e.Source, surface);
+            TaggingQueueRow? row = MiddleClickTracker.RowAt<TaggingQueueRow>(MiddleClickTracker.HitAt(e, surface), surface);
             if (!_middleClick.Released(row) || row == null) return;
             e.Handled = true;
-            OpenActions.Start(() => ShowInFolderOfAsync(row), "tagging.middleClick");
+            if (!_queueWork.Ended && Queue.Contains(row.Key))
+                OpenActions.Start(() => Leaving(OpenExternal, row.Item), "tagging.middleClick");
         }, RoutingStrategies.Tunnel);
     }
 
-    /// <summary>"Show in folder" for one entry, with the rules of the menu entry for a selection of just that entry; refused silently when it does not apply.</summary>
-    internal Task ShowInFolderOfAsync(TaggingQueueRow row)
+    /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>
+    private ContextMenuBuilder? ComposeFocusedRowMenu()
     {
-        if (_queueWork.Ended) return Task.CompletedTask;
-        TaggingCommandContext context = new(_queueWork.Queue, Filter, new[] { row }, row, Capabilities, _effectiveScope);
-        return TaggingRowCommands.Evaluate(TaggingCommands.ShowInFolder, context).Available ? Leaving(ShowInFolder, row.Item) : Task.CompletedTask;
+        ListBox surface = ActiveList;
+        if (!_openingPointerMenu && ItemActivation.ItemAt<TaggingQueueRow>(TopLevel.GetTopLevel(surface)?.FocusManager?.GetFocusedElement(), surface) is { } row)
+            SetContextLead(surface, row);
+        return ComposeRowMenu();
     }
 
-    /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>
-    private ContextMenuBuilder? ComposeRowMenu() =>
-        Lead == null ? null : TaggingQueueMenu.Compose(CommandContext(), id => () => OpenActions.Start(() => ExecuteRowCommandAsync(id), "tagging.menu"));
+    private ContextMenuBuilder? ComposeRowMenu()
+    {
+        TaggingCommandContext context = CommandContext();
+        if (context.Lead == null) return null;
+        string names = SelectionFileNames(context.Selected);
+        TagQueueKey[] keys = context.Selected.Select(row => row.Key).ToArray();
+        TagQueueKey lead = context.Lead.Key;
+        return TaggingQueueMenu.Compose(context, id => () => OpenActions.Start(() =>
+        {
+            if (_queueWork.Ended) return Task.CompletedTask;
+            if (id == TaggingCommands.CopyFileName) return MenuClipboard.CopyAsync(this, names, ShowStatus);
+            if (id == TaggingCommands.Remove)
+                return CanChange && keys.All(Queue.Contains)
+                    ? AfterAsync(_queueWork.RemoveAsync(keys), select: RowAfter(context.Selected)?.Key) : Task.CompletedTask;
+            if (Lead?.Key != lead || !keys.SequenceEqual(Selected.Select(row => row.Key))) return Task.CompletedTask;
+            return ExecuteRowCommandAsync(id);
+        }, "tagging.menu"));
+    }
+
+    private static string SelectionFileNames(IReadOnlyList<TaggingQueueRow> selected) =>
+        string.Join(Environment.NewLine, selected.Select(row => MeowChan.Desktop.MediaActions.MediaFileActions.FileName(row.Item.Name)));
 
     /// <summary>The menu as plain data (smoke and test seam); null without a selection.</summary>
     internal ContextMenuModel? ListMenuModel() => ComposeRowMenu()?.ToModel();
@@ -182,7 +251,11 @@ public sealed partial class TaggingPage
     private Border BuildClearConfirmation()
     {
         WorkViewElement.SetId(_clearConfirm, "tagging.clear-confirm");
-        StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _clearYes, _clearNo } };
+        AutomationProperties.SetAutomationId(_clear, "tagging.clear");
+        AutomationProperties.SetAutomationId(_clearQuestion, "tagging.clear-question");
+        AutomationProperties.SetAutomationId(_clearNo, "tagging.clear-cancel");
+        AutomationProperties.SetAutomationId(_clearYes, "tagging.clear-confirm-action");
+        StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _clearNo, _clearYes } };
         _clearConfirm.Child = new StackPanel { Spacing = 8, Children = { _clearQuestion, buttons } };
         return _clearConfirm;
     }
@@ -190,9 +263,7 @@ public sealed partial class TaggingPage
     private void LocalizeCommands()
     {
         ApplyToolbarIcons();
-        _clearYes.Content = Texts.T("tagging.page.clear.yes");
         _clearNo.Content = Texts.T("queue.ask.no");
-        if (_clearConfirm.IsVisible) _clearQuestion.Text = Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
         _help.Source = () =>
         {
             HelpContent content = HelpContent.FromKeys("help.taggingPage");
@@ -227,6 +298,7 @@ public sealed partial class TaggingPage
     {
         foreach (Button button in new[] { _add, _clearDone, _clear })
             if (button.Command is DelegateCommand command) { button.IsEnabled = command.CanExecute(null); command.RaiseCanExecuteChanged(); }
+        if (ClearQuestionOpen) RefreshClearQuestionText();
     }
 
     private TaggingQueueRow? Lead => ActiveList.SelectedItem as TaggingQueueRow
@@ -277,6 +349,7 @@ public sealed partial class TaggingPage
             TaggingCommands.ShowInMedia => Leaving(ShowInMedia, lead.Item),
             TaggingCommands.ShowInFolder => Leaving(ShowInFolder, lead.Item),
             TaggingCommands.CopyPath => Leaving(CopyPath, lead.Item),
+            TaggingCommands.CopyFileName => MenuClipboard.CopyAsync(this, SelectionFileNames(selected), ShowStatus),
             TaggingCommands.MoveUp => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, -1, _effectiveScope), select: lead.Key),
             TaggingCommands.MoveDown => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, 1, _effectiveScope), select: lead.Key),
             TaggingCommands.MoveFirst => AfterAsync(_queueWork.MoveToEdgeAsync(lead.Key, toEnd: false), select: lead.Key),
@@ -342,6 +415,7 @@ public sealed partial class TaggingPage
             else OpenActions.Start(() => ExecuteRowCommandAsync(command, explain: true), "tagging.list.key");
             return;
         }
+        if (TryPanelDecisionKey(e, PanelCursor(), restrictSelection: true)) return;
         // Claim only plain Space on a focused item, after all configurable shortcuts.
         if (e.Key == Key.Space && e.KeyModifiers == KeyModifiers.None && ResultItem(e.Source) is { IsFocused: true } result)
         {
@@ -355,6 +429,126 @@ public sealed partial class TaggingPage
     private ListBoxItem? ResultItem(object? source) =>
         (source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
             .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), ActiveList));
+
+    private void OnPanelKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _tagBusy || ShortcutService.IsCapturing || _taggingPanel is not { } panel
+            || CommandRouter.IsNativeInput(e.Source, e.Key)) return;
+        if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Escape or Key.Up or Key.Down)
+        {
+            e.Handled = true;
+            FocusContent(_panelRow?.Key);
+            if (e.Key != Key.Escape && TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Control row)
+                row.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = e.Key, KeyModifiers = e.KeyModifiers,
+                    PhysicalKey = e.PhysicalKey, KeyDeviceType = e.KeyDeviceType });
+            return;
+        }
+        if (e.Key == Key.Enter && ReferenceEquals(e.Source, panel.Frame))
+        {
+            e.Handled = true;
+            OpenPanelGallery();
+            return;
+        }
+        if (ShortcutService.Current.Matches(e, "media.rating.edit", "tagging"))
+        {
+            e.Handled = true;
+            OpenActions.Start(panel.EditTagsFromShortcutAsync, "tagging.panel.tags");
+            return;
+        }
+        TryPanelDecisionKey(e, _panelRow, restrictSelection: false);
+    }
+
+    private static readonly string[] PanelDecisionCommands = ["favorites.toggle", "media.rating.clear",
+        .. Enumerable.Range(1, 5).Select(number => "media.rating.set-" + number)];
+
+    private (bool Favorite, int? Rating, string? Description) DecisionOf(TagQueueItem item)
+    {
+        if (_userData is not { } data) return default;
+        MediaLibraryEntry entry = EntryOf(item);
+        bool favorite = data.FavoritesAvailable && data.IsFavorite(entry);
+        int? rating = data.RatingsAvailable ? data.RatingOf(entry) : null;
+        string description = ReaderMediaSidebarRules.HeaderText(favorite ? Texts.T("media.badge.favorite") : string.Empty,
+            rating is int value ? Texts.T("media.badge.rating", value) : string.Empty, string.Empty);
+        return (favorite, rating, description.Length > 0 ? description : null);
+    }
+
+    private bool TryPanelDecisionKey(KeyEventArgs e, TaggingQueueRow? row, bool restrictSelection)
+    {
+        string? id = PanelDecisionCommands.FirstOrDefault(command => ShortcutService.Current.Matches(e, command, "tagging"));
+        if (id == null) return false;
+        e.Handled = true;
+        if (restrictSelection && SelectedCount > 1)
+        {
+            ShowStatus(Texts.T("tagging.page.panel.multi", Shortcut("media.rating.edit")));
+            return true;
+        }
+        if (id == "favorites.toggle")
+        {
+            _panelFavoriteKey.Observe(this);
+            if (_panelFavoriteKey.IsRepeat(e.Key)) return true;
+        }
+        if (row != null) OpenActions.Start(() => WritePanelDecisionAsync(id, row), "tagging.panel.decision");
+        return true;
+    }
+
+    private async Task WritePanelDecisionAsync(string id, TaggingQueueRow row)
+    {
+        if (_tagBusy || _panelWriting || ExecutePanelDecisionAsync is not { } execute || _queueWork.Ended) return;
+        MediaLibraryEntry entry = EntryOf(row.Item);
+        MediaLibraryUserData? data = _userData;
+        if (MediaLibraryFilterEngine.AssetKey(entry) == null || data == null
+            || !(id == "favorites.toggle" ? data.FavoritesAvailable : data.RatingsAvailable)) return;
+        if (_panelRow?.Key == row.Key && _panelFileAvailable != true) return;
+        _panelWriting = true;
+        try
+        {
+            await execute(id, entry, () => !_queueWork.Ended && RowForPanel(row.Key) != null);
+        }
+        finally
+        {
+            _panelWriting = false;
+            if (!_queueWork.Ended) Show();
+        }
+    }
+
+    private void RefreshPanelActions()
+    {
+        if (_taggingPanel is not { } panel || _panelRow is not { } row) return;
+        MediaLibraryEntry entry = EntryOf(row.Item);
+        MediaLibraryEntryState state = MediaLibraryEntryState.Of(entry, _userData ?? MediaLibraryUserData.Unavailable);
+        bool Current() => !_queueWork.Ended && !_tagBusy && _panelFileAvailable == true && !_panelWriting && IsPanelShown;
+        bool Writable() => Current() && ExecutePanelDecisionAsync != null;
+        panel.Open.IsEnabled = OpenGallery != null && Current();
+        panel.ConfigureFavorite(() => Writable() && state.Favorite != MediaLibraryFlag.Unknown,
+            () => state.Favorite == MediaLibraryFlag.Yes, () => WritePanelDecisionAsync("favorites.toggle", row));
+        panel.ConfigureRating(() => Writable() && state.RatingKnown, () => state.UserRating,
+            value => WritePanelDecisionAsync(value is int stars ? "media.rating.set-" + stars : "media.rating.clear", row));
+        panel.SetTags(state.CanEditMediaTags ? state.MediaTags : null, PanelTagBlocked(entry));
+    }
+
+    private string? PanelTagBlocked(MediaLibraryEntry entry)
+    {
+        if (entry.BooruPostId != null || BooruMediaIdentity.IsBooruThread(entry.Thread))
+            return Texts.T("booru.media.tags.unavailable");
+        if (_panelFileAvailable != true)
+            return _panelFileAvailable == false ? MediaMenuReasons.NotSaved : Texts.T("reader.sidebar.loading");
+        MediaLibraryEntryState state = MediaLibraryEntryState.Of(entry, _userData ?? MediaLibraryUserData.Unavailable);
+        if (!state.TagsKnown) return MediaMenuReasons.TagsUnknown;
+        if (!state.CanEditMediaTags) return Texts.T("tags.media.unsupported");
+        return TagServices == null ? MediaMenuReasons.Unavailable : null;
+    }
+
+    private void OpenPanelGallery() => OpenActions.Start(OpenPanelGalleryAsync, "tagging.panel.gallery");
+
+    private async Task OpenPanelGalleryAsync()
+    {
+        if (_tagBusy || _panelOpening || _panelFileAvailable != true || _panelRow is not { } row || OpenGallery is not { } open) return;
+        int index = PanelIndex(row.Key);
+        if (index < 0) return;
+        _panelOpening = true;
+        try { await open(_rows.Select(candidate => Effective(candidate.Item)).ToArray(), index); }
+        finally { _panelOpening = false; }
+    }
 
     private void OnResultSpaceUp(object? sender, KeyEventArgs e)
     {
@@ -397,25 +591,41 @@ public sealed partial class TaggingPage
     private void AskClear()
     {
         if (_queueWork.Ended || _queueWork.Busy) return;
-        _clearQuestion.Text = Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
+        _clearResetsDamagedQueue = _queueWork.LoadError != null;
+        RefreshClearQuestionText();
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: true);
         _clearNo.Focus();
+    }
+
+    private void RefreshClearQuestionText()
+    {
+        _clearQuestion.Text = _clearResetsDamagedQueue ? Texts.T("tagging.page.reset.ask")
+            : Texts.T("tagging.page.clear.ask", _queueWork.Queue.Count);
+        _clearYes.Content = Texts.T(_clearResetsDamagedQueue ? "tagging.page.reset.yes" : "tagging.page.clear.yes");
     }
 
     private void CloseClearQuestion(bool focusClear)
     {
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: false);
         if (!focusClear) return;
-        if (_clear.IsEffectivelyVisible) _clear.Focus();
-        else FocusContent();
+        if (!_clear.IsEffectivelyVisible || !_clear.Focus()) FocusContent();
     }
 
-    /// <summary>Empties the queue. A damaged file is kept next to its place and replaced by an empty queue (the store's recovery).</summary>
-    internal async Task ClearAllAsync()
+    internal bool TryDismissClearQuestion()
     {
+        if (!_clearConfirm.IsEffectivelyVisible) return false;
+        CloseClearQuestion(focusClear: true);
+        return true;
+    }
+
+    private async Task ClearAllAsync()
+    {
+        if (!ClearQuestionOpen) return;
+        bool resetDamaged = _clearResetsDamagedQueue;
         CloseClearQuestion(focusClear: false);
-        await AfterAsync(_queueWork.ClearAllAsync());
-        FocusContent();
+        await AfterAsync(_queueWork.ClearAllAsync(resetDamaged));
+        if (!resetDamaged && _queueWork.LoadError != null && IsEffectivelyVisible) AskClear();
+        else FocusContent();
     }
 
     /// <summary>Waits for one controller command, then shows the queue it committed (or kept) and the sentence it left.</summary>

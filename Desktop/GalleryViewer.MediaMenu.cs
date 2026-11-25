@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 
@@ -68,6 +71,9 @@ internal sealed partial class GalleryViewer
             QueueBlocked = TagQueueActions.BlockedReason(true, provider),
             FolderWired = ShowInFolderRequested != null,
             CopyPathWired = CopyPathRequested != null,
+            HasFileNames = !string.IsNullOrWhiteSpace(MediaFileActions.FileName(entry.Asset.OriginalFileName, entry.Asset.Path)),
+            OpenExternalWired = OpenExternalRequested != null,
+            OpenExternalBlocked = MediaFileActions.DefaultProgramBlockedReason(entry.Asset.Path),
             DetailsWired = DetailsRequested != null,
             Posts = entry.Post != null ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
             ShowInThreadWired = ReadPostRequested != null,
@@ -82,7 +88,7 @@ internal sealed partial class GalleryViewer
     /// same composed actions on its entry, without the favorite (it reads the shown medium's own state) and without a playback group; its
     /// "Rate and tag…" opens the popover on the filmstrip for that tile's medium. It stays valid until the next navigation, like the shown medium's.
     /// </summary>
-    private void ShowMediaMenu(GalleryEntry? tile = null)
+    private void ShowMediaMenu(GalleryEntry? tile = null, Control? anchor = null, bool keyboard = false)
     {
         HoldSlideshowAdvance();
         RevealOverlayControls();
@@ -95,6 +101,8 @@ internal sealed partial class GalleryViewer
                 : item with { Available = RateAndTagTileRequested != null, Reason = RateAndTagTileRequested != null ? null : MediaMenuReasons.Unavailable }).ToArray() };
         MediaMenuSession session = new(model.Surface, model.Target, () => !_terminalRetirement && navigation == _navigationId
             && (!shown || _entry is { } current && MediaMenuTarget.Of(current) == model.Target));
+        Control owner = anchor ?? (!shown ? _filmstrip : _nativeOverlayActive ? _nativeVideoOverlay : _viewport);
+        string? fileName = MediaFileActions.FileName(entry.Asset.OriginalFileName, entry.Asset.Path);
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
             [MediaMenuAction.Favorite] = Sync(() => FavoriteToggleRequested?.Invoke(entry)),
@@ -103,6 +111,8 @@ internal sealed partial class GalleryViewer
             [MediaMenuAction.Export] = Sync(() => ExportOriginalRequested?.Invoke(entry)),
             [MediaMenuAction.ShowInFolder] = Sync(() => ShowInFolderRequested?.Invoke(entry)),
             [MediaMenuAction.CopyPath] = Sync(() => CopyPathRequested?.Invoke(entry)),
+            [MediaMenuAction.CopyFileName] = () => MenuClipboard.CopyAsync(owner, fileName!, MenuExplanationRequested),
+            [MediaMenuAction.OpenExternal] = Sync(() => OpenExternalRequested?.Invoke(entry)),
             [MediaMenuAction.Details] = Sync(() => DetailsRequested?.Invoke(entry)),
             [MediaMenuAction.ShowInThread] = Sync(() => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); }),
             [MediaMenuAction.OpenProviderPost] = Sync(() => ProviderPostOpenRequested?.Invoke(entry)),
@@ -115,16 +125,36 @@ internal sealed partial class GalleryViewer
             ReaderPlaybackMenu.GalleryExtras.Playback(true, CanUseVideoTransport, video.IsPlaybackRequested, video.Muted, video.LoopEnabled,
                 video.HasAudio, video.CanToggleLoopNow),
             action => ExecuteVideoMenuAction(video, action), run);
-        List<Control>? context = null;
+        List<Control> context = new();
         if (ReaderPlaybackMenu.GalleryExtras.OffersPostBookmark(entry.Post != null))
-            context = new() { MediaMenuBuilder.PostBookmarkItem(session, Sync(() => RequestPostBookmark(entry)),
-                () => !_terminalRetirement && PostBookmarkRequested != null, run) };
+            context.Add(MediaMenuBuilder.PostBookmarkItem(session, Sync(() => RequestPostBookmark(entry)),
+                () => !_terminalRetirement && PostBookmarkRequested != null, run));
+        if (shown && _overflowButton.IsEffectivelyVisible)
+        {
+            MenuItem more = MediaMenuBuilder.ContextItem(session, "gallery.overflow.label", Sync(OpenMore),
+                () => _overflowButton.IsEffectivelyVisible, run, icon: "more-horizontal");
+            AutomationProperties.SetAutomationId(more, "gallery.overflow.label");
+            context.Add(more);
+        }
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
             text => MenuExplanationRequested?.Invoke(text), playback);
-        Control owner = !shown ? _filmstrip : _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
+        if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();
         _mediaMenuPresenter.Show(menu, session, owner, attachToOrigin: true, fallbackFocus: FocusGallerySurface);
+
+        void OpenMore()
+        {
+            if (!ReferenceEquals(MediaMenuSession, session)) return;
+            MediaMenu?.Close();
+            // Let the context menu finish returning focus before the first overflow row takes it.
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (session.IsCurrent && ReferenceEquals(MediaMenuSession, session) && !_viewerInteractionStopped
+                    && IsGalleryWindowActive && !HasGalleryDialog && !HasGalleryPopup && _overflowButton.IsEffectivelyVisible)
+                    SetOverflowOpen(true);
+            }, DispatcherPriority.Background);
+        }
     }
 
     private void RequestPostBookmark(GalleryEntry entry)

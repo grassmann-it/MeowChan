@@ -33,9 +33,11 @@ public partial class ArchivePage
         if (IsExternalLinkDialogOpen) { CloseExternalLinkDialog(); return true; }
         if (IsFilenameSearchOpen) { InvalidateFilenameSearch(); return true; }
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
+        // Escape inside the media sidebar only leaves it (R8): the focus goes back to the selected post, before any reader-wide dismissal. Whether the
+        // sidebar is on is a stored layout choice that the × button, the View menu and Primary+Shift+M change; Escape never switches it off (RD-01).
         if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source))
         {
-            if (_mediaSidebar?.InvalidateTagEditor() != true) CloseMediaSidebar();
+            if (_mediaSidebar?.InvalidateTagEditor() != true) FocusSelectedPostOrList();
             return true;
         }
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
@@ -285,7 +287,14 @@ public partial class ArchivePage
         };
         ArchiveExportDialog.PropertyChanged += (_, e) =>
         {
-            if (e.Property == Visual.IsVisibleProperty) CancelReaderMediaActivation();
+            if (e.Property != Visual.IsVisibleProperty) return;
+            CancelReaderMediaActivation();
+            if (ArchiveExportDialog.IsVisible) _mediaSidebar?.InvalidateTagEditor();
+        };
+        ReaderLinkDialog.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Visual.IsVisibleProperty && ReaderLinkDialog.IsVisible)
+                _mediaSidebar?.InvalidateTagEditor();
         };
         ArchiveContentTabs.SelectionChanged += (_, e) =>
         {
@@ -322,6 +331,13 @@ public partial class ArchivePage
         // The automatic scroll stays off for jumps and the pointer; a control inside a realized card that the keyboard focuses
         // (Tab to a link below the view) is brought in explicitly, so keyboard users never lose sight of the focus.
         posts.AddHandler(GotFocusEvent, OnReaderPostsGotFocus, RoutingStrategies.Bubble);
+        // Once the post and its children have had Enter, a missing medium must not open the toolbar's thread gallery.
+        posts.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && IsMediumGalleryKey(e)
+                && e.Source is Visual source && !ReaderMediaBelongsToNativeControl(source, posts)
+                && !ClaimedByOtherReaderCommand(e)) e.Handled = true;
+        }, RoutingStrategies.Bubble);
     }
 
     private void OnReaderPostsGotFocus(object? sender, FocusChangedEventArgs e)
@@ -383,6 +399,7 @@ public partial class ArchivePage
         pane.AddHandler(KeyDownEvent, OnReaderKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         ReaderHostingStep("wire.01");
         pane.AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        pane.AddHandler(PointerPressedEvent, OnArchiveMediaControlPress, RoutingStrategies.Tunnel);
         ReaderHostingStep("wire.02");
         pane.AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
         ReaderHostingStep("wire.03");
@@ -405,6 +422,7 @@ public partial class ArchivePage
         _readerKeyContext = null;
         pane.RemoveHandler(KeyDownEvent, OnReaderKeyDown);
         pane.RemoveHandler(ContextRequestedEvent, OnArchiveMediaContextRequested);
+        pane.RemoveHandler(PointerPressedEvent, OnArchiveMediaControlPress);
         pane.RemoveHandler(KeyDownEvent, OnArchiveMediaContextKey);
         pane.RemoveHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
     }
@@ -616,7 +634,7 @@ public partial class ArchivePage
             // enlarged the card is centred in the viewport instead (ReaderMediaFit.JumpOffset), and it stays centred when its size
             // changes late (HoldFocusedCard).
             double offset = ReaderMediaFit.JumpOffset(scroll!.Offset.Y, position.Y, container.Bounds.Height, scroll.Viewport.Height,
-                scroll.Extent.Height, row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0, FocusedMediaEnlarged);
+                scroll.Extent.Height, row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0, FocusedMediaEnlarged, ReaderMedia.FocusedPostTopPaddingPercent);
             if (Math.Abs(offset - scroll.Offset.Y) > 1)
             {
                 scroll.Offset = new Vector(scroll.Offset.X, offset);
@@ -805,6 +823,17 @@ public partial class ArchivePage
     private long _readerNavigationLastActivity;
     private DispatcherTimer? _readerNavigationIdleTimer;
     private int _readerNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsDefault;
+    private Func<long>? _manualReaderClock;
+
+    private long ReaderMonotonicMilliseconds() => _manualReaderClock?.Invoke() ?? Environment.TickCount64;
+
+    internal void UseManualReaderTicks(Func<long> clock)
+    {
+        _manualReaderClock = clock;
+        _readerNavigationIdleTimer?.Stop();
+        _readerNavigationIdleTimer = null;
+        _sidebarFollowTimer?.Stop();
+    }
 
     /// <summary>Idle time before the bar fades out; clamped to its minimum and maximum.</summary>
     internal int ReaderNavigationIdleDelayMs
@@ -883,13 +912,13 @@ public partial class ArchivePage
     internal void ShowReaderNavigation(bool fromPointer = false)
     {
         if (!CanShowReaderNavigation || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;
-        _readerNavigationLastActivity = Environment.TickCount64;
+        _readerNavigationLastActivity = ReaderMonotonicMilliseconds();
         _readerNavigationActivityFromPointer = fromPointer;
         _readerNavigationActive = true;
-        if (_readerNavigationIdleTimer == null)
+        if (_manualReaderClock == null && _readerNavigationIdleTimer == null)
         {
             _readerNavigationIdleTimer = new DispatcherTimer();
-            _readerNavigationIdleTimer.Tick += (_, _) => OnReaderNavigationIdleTick();
+            _readerNavigationIdleTimer.Tick += (_, _) => TickReaderNavigationIdle();
         }
         // A tab/layout update can hide the capsule while activity is still valid.
         // Pointer/keyboard activity is an explicit request to show it again; do not
@@ -900,30 +929,34 @@ public partial class ArchivePage
         // Restart rather than only changing the interval. A queued tick from an earlier,
         // shorter delay can otherwise fire immediately after a new pointer/keyboard reveal
         // and hide the capsule before the UI has observed the reveal.
-        _readerNavigationIdleTimer.Stop();
-        _readerNavigationIdleTimer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
-        _readerNavigationIdleTimer.Start();
+        if (_readerNavigationIdleTimer is { } timer)
+        {
+            timer.Stop();
+            timer.Interval = TimeSpan.FromMilliseconds(_readerNavigationIdleDelayMs);
+            timer.Start();
+        }
         // Refresh the hit-test state even when the timer was already armed. Layout/theme/tab
         // changes can hide the bar while the activity flag remains true; a fresh pointer move
         // or keyboard command must restore the whole capsule, including its gap surface.
         UpdateReaderNavigationShown();
     }
 
-    private void OnReaderNavigationIdleTick()
+    internal void TickReaderNavigationIdle()
     {
-        double remaining = _readerNavigationIdleDelayMs - (Environment.TickCount64 - _readerNavigationLastActivity);
+        if (_readerNavigationMode != Config.ReaderNavigationModeAuto || !_readerNavigationActive) return;
+        long remaining = _readerNavigationIdleDelayMs - (ReaderMonotonicMilliseconds() - _readerNavigationLastActivity);
         if (remaining > 1)
         {
-            _readerNavigationIdleTimer!.Interval = TimeSpan.FromMilliseconds(remaining);
+            if (_readerNavigationIdleTimer is { } timer) timer.Interval = TimeSpan.FromMilliseconds(remaining);
             return;
         }
-        _readerNavigationIdleTimer!.Stop();
+        _readerNavigationIdleTimer?.Stop();
         _readerNavigationActive = false;
         UpdateReaderNavigationShown();
     }
 
     // Hidden means transparent and not hit-tested (the fade comes from the reader-cross style and is skipped under reduced
-    // motion); the buttons stay in the visual tree, so keyboard focus and automation still reach them and show the bar.
+    // motion); the bar itself stays a keyboard stop, and automation can still reach its buttons.
     private void UpdateReaderNavigationShown()
     {
         bool shown = ReaderNavigationShown;
@@ -950,6 +983,7 @@ public partial class ArchivePage
             return;
         }
         if (!_largeReader || IsReaderDialogOpen) return;
+        if (SuppressReaderActionArrows(e)) return;
         // An open quote preview is dismissed first: Escape must not also close the reader.
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsQuotePreviewOpen)
         {
@@ -1028,11 +1062,25 @@ public partial class ArchivePage
     internal bool TryNavigateReaderByKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || !_largeReader || _busy || _ended || IsReaderDialogOpen) return false;
+        if (SuppressReaderActionArrows(e)) return true;
         int post = ShortcutService.Current.Matches(e, "reader.previous-post") ? -1 : ShortcutService.Current.Matches(e, "reader.next-post") ? 1 : 0;
         int thread = ShortcutService.Current.Matches(e, "reader.previous-thread") ? -1 : ShortcutService.Current.Matches(e, "reader.next-thread") ? 1 : 0;
         if (post == 0 && thread == 0) return false;
         e.Handled = true;
         ReaderNavigationTask = NavigateReaderAsync(post, thread);
+        return true;
+    }
+
+    private bool SuppressReaderActionArrows(KeyEventArgs e)
+    {
+        if (e.KeyModifiers is not (KeyModifiers.None or KeyModifiers.Shift)
+            || e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down) || e.Source is not Visual source
+            || SidebarToggleGroup.IsSegmentArrow(e)) return false;
+        var path = source.GetSelfAndVisualAncestors();
+        if (!path.Contains(ReaderNavigation)
+            && !(path.Any(visual => visual is Button)
+                && (path.Contains(ReaderToolbar) || path.Contains(ArchiveMediaFooter)))) return false;
+        e.Handled = true;
         return true;
     }
 
@@ -1398,9 +1446,10 @@ public partial class ArchivePage
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
         // A post step behind another tab takes precedence over the old realization until Posts is shown again.
         if (_postsAnchorOnShow is { } pending && pending.Thread == _thread.Summary.Id) return pending;
+        ReaderPostRows? source = list.ItemsSource as ReaderPostRows;
         var visible = list.GetRealizedContainers()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(item => item.Item.DataContext is ArchivePostRow candidate && ReferenceEquals(FindPostRow(candidate.Id), candidate)
+            .Where(item => item.Item.DataContext is ArchivePostRow candidate && source?.IndexOf(candidate) is >= 0
                 && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)

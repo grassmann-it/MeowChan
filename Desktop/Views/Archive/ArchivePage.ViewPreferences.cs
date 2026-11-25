@@ -170,16 +170,32 @@ public partial class ArchivePage
 
     private void OnArchiveColumnsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is not Button button) return;
-        DataGrid grid = button.Name == "ArchiveMediaColumnsButton"
-            ? ArchiveMediaGrid : ArchiveThreadTable;
+        if (_ended || sender is not Button button || PopupToggle.ConsumeActivation(button)) return;
+        bool media = ReferenceEquals(button, ArchiveMediaColumnsButton);
+        DataGrid grid = media ? ArchiveMediaGrid : ArchiveThreadTable;
+        ActionToolBar toolbar = media ? ReaderMediaTools : ArchiveResultActions;
+        Control anchor = ToolbarPopupAnchor(button, toolbar, grid);
+        if (anchor is Avalonia.Controls.Primitives.ToggleButton more) more.IsChecked = false;
         // The button has no column under it, so only the commands for all columns are offered here; the header's own menu adds "Fit column".
         ContextMenu menu = BuildArchiveColumnsMenu(grid, null);
-        PopupToggle.Track(button, menu);
+        menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+        if (anchor is Button opener) PopupToggle.Track(opener, menu);
         button.ContextMenu = menu;
         // Its checks and fit entries describe the table now: not kept for a later right-click.
-        menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };
-        ShowColumnMenu(menu, button);
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null;
+            ReturnFocusFromToolbarPopup(anchor, toolbar, grid, () => grid.Focus());
+        };
+        menu.AddHandler(InputElement.KeyDownEvent, (_, key) =>
+        {
+            if (!PopupToggle.CanToggleMenuFromKey(menu, key)) return;
+            using var context = EffectiveShortcutBindings.EnterKeyContext("archive");
+            if (!ShortcutService.Current.Matches(key, "table.choose-columns")) return;
+            key.Handled = true;
+            menu.Close();
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        ShowColumnMenu(menu, anchor);
     }
 
     /// <summary>
@@ -202,7 +218,8 @@ public partial class ArchivePage
             bool available = !(key == "name" || (key is "identity" or "title"
                 && !ColumnVisible(grid, key == "identity" ? "title" : "identity")));
             builder.Check("archive.column." + key, Texts.T("archive.columns." + key), visible,
-                () => _ = ToggleArchiveColumnAsync(grid, key, !visible), available: available);
+                () => _ = ToggleArchiveColumnAsync(grid, key, !visible),
+                available: available, reason: available ? null : Texts.T("archive.columns.required"));
         }
         builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
             () => _ = ResetArchiveColumnsAsync(grid));

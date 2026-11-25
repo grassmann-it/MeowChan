@@ -82,7 +82,10 @@ internal static class GalleryExifOrientationChecks
             await window.GalleryCleanupTask.WaitAsync(TimeSpan.FromSeconds(15));
         }
 
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        string? archiveRoute = SmokeNavigation.Route(window, MainWindow.WorkspacePage.Archive);
+        Require(archiveRoute is "footer" or "more", "Archive is not reachable via the visible footer or More menu.");
+        await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Archive);
+        Console.WriteLine("SMOKE EXIF Archive navigation: " + archiveRoute);
         ArchivePage archive = window.ArchivePage;
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Archive && !archive.IsBusy);
         await archive.LoadThreadAsync(ExifOrientationFixture.Resource).WaitAsync(TimeSpan.FromSeconds(15));
@@ -142,6 +145,6 @@ internal static class GalleryExifOrientationChecks
         : c.Green > 160 && c.Red < 96 && c.Blue < 96 ? 'G' : c.Blue > 160 && c.Red < 96 && c.Green < 96 ? 'B'
         : c.Red > 160 && c.Green > 160 && c.Blue < 96 ? 'Y' : '?';
     private static T Find<T>(Control root, string name) where T : Control => root.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
-    private static void Click(Control control) => control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));
+    private static void Click(Button control) => control.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

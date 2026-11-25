@@ -57,7 +57,7 @@ public partial class DiagnosticsPage
     private bool _diagnosticContextPrepared;
     private void OnDiagnosticContextPointer(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not DataGrid grid || !e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
+        if (sender is not DataGrid grid || !ContextClick.IsPress(e, grid)) return;
         DataGridRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridRow>().FirstOrDefault();
         _diagnosticPointerContextHandled = true;
         if (row?.DataContext is DiagnosticEntry entry)

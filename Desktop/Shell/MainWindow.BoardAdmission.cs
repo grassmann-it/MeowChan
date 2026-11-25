@@ -21,14 +21,21 @@ public partial class MainWindow
     {
         if (urls.Count == 0) return new(new Dictionary<string, BoardAdmissionPolicy>(), !_config.ShowBoardAdmissionWizard);
         if (!_config.ShowBoardAdmissionWizard && !forceWizard)
-            return DirectBoardAdmissions(urls, _session.GetBoardAdmissionPolicy);
-        using var dialog = new BoardAdmissionWindow(urls, _session.GetBoardAdmissionPolicy, _session.PreviewBoardAdmissionAsync, _config.ShowBoardAdmissionWizard, ConfiguredWorkView);
+            return DirectBoardAdmissions(urls, _session.GetBoardAdmissionPolicy, _config.BoardWatcherIntervalMinutes);
+        using var dialog = new BoardAdmissionWindow(urls, _session.GetBoardAdmissionPolicy, _session.PreviewBoardAdmissionAsync,
+            _config.ShowBoardAdmissionWizard, ConfiguredWorkView, _session.ReadBoardTitleSuggestionsAsync, alreadyWatching: forceWizard,
+            defaultWatcherInterval: _config.BoardWatcherIntervalMinutes);
         return await dialog.ShowDialog<BoardAdmissionSelection?>(this);
     }
 
-    internal static BoardAdmissionSelection DirectBoardAdmissions(IEnumerable<string> urls, Func<string, BoardAdmissionPolicy> readPolicy)
-        => new(urls.Distinct(StringComparer.Ordinal).ToDictionary(url => url,
-            url => new BoardAdmissionPolicy(Array.Empty<ThreadTextRule>(), readPolicy(url).Exceptions), StringComparer.Ordinal), true);
+    internal static BoardAdmissionSelection DirectBoardAdmissions(IEnumerable<string> urls, Func<string, BoardAdmissionPolicy> readPolicy,
+        int? defaultWatcherInterval = null)
+        => new(urls.Distinct(StringComparer.Ordinal).ToDictionary(url => url, url =>
+        {
+            BoardAdmissionPolicy saved = readPolicy(url);
+            int? interval = ReferenceEquals(saved, BoardAdmissionPolicy.All) ? defaultWatcherInterval : saved.WatcherIntervalMinutes;
+            return new BoardAdmissionPolicy(Array.Empty<ThreadTextRule>(), saved.Exceptions, saved.WatcherName, interval);
+        }, StringComparer.Ordinal), true);
 
     private async Task<bool> SubmitAdmissionBatchAsync(string? input)
     {

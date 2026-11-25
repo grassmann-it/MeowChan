@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -16,6 +17,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.Motion;
 
 namespace MeowChan.Desktop;
@@ -78,7 +80,9 @@ internal sealed partial class ReaderMediaSidebar
     private readonly Popup _hoverPopup = new() { Placement = PlacementMode.TopEdgeAlignedLeft, IsLightDismissEnabled = false };
     private readonly MenuFlyout _settingsMenu = new() { Placement = PlacementMode.BottomEdgeAlignedRight };
     private bool _hovered;
+    private int? _expandedTagsRevision;
     private bool Pinned => _infoPreferences.MediaSidebarPinned;
+    private bool TagsRequested => _expandedTagsRevision == _mediumRevision;
     private bool FactsVisible => _infoPreferences.MediaSidebarInfo != "Off" && _infoPreferences.MediaSidebarFacts;
     private bool SizesDiffer => _savedBytes.HasValue && _sourceBytes.HasValue && _savedBytes != _sourceBytes;
     private readonly Grid _layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
@@ -145,19 +149,41 @@ internal sealed partial class ReaderMediaSidebar
 
     private void InitializeSettingsMenu()
     {
+        // MenuFlyout's presenter takes the backing collection before Opening.
+        MenuItem autoHide = AddCheck("autoHide", "ReaderMediaSidebarSettingsAutoHide", ToggleAutoHide);
+        MenuItem facts = AddCheck("facts", "ReaderMediaSidebarSettingsFacts", ToggleDetails);
         SettingsButton.Flyout = _settingsMenu;
         _settingsMenu.OverlayInputPassThroughElement = SettingsButton;
         _settingsMenu.Opening += (_, _) =>
         {
-            var menu = new ContextMenuBuilder()
-                .Check("autoHide", CommandBindings.Tooltip("media.sidebar.autohide", keyContext: _decision.KeyContext),
-                    _infoPreferences.MediaSidebarAutoHide, ToggleAutoHide)
-                .Check("facts", CommandBindings.Tooltip("media.sidebar.info", keyContext: _decision.KeyContext),
-                    FactsVisible, ToggleDetails);
-            _settingsMenu.ItemsSource = ContextMenuBuilder.BuildItems(menu.ToModel());
+            RefreshCheck(autoHide, "media.sidebar.autohide", Texts.T("viewer.playback.autoHide"), _infoPreferences.MediaSidebarAutoHide);
+            RefreshCheck(facts, "media.sidebar.info", CommandCatalog.Label("media.sidebar.info"), FactsVisible);
         };
         _settingsMenu.Opened += (_, _) => SettingsButton.IsChecked = true;
         _settingsMenu.Closed += (_, _) => SettingsButton.IsChecked = false;
+
+        MenuItem AddCheck(string tag, string automationId, Action toggle)
+        {
+            MenuItem item = new() { Tag = tag, ToggleType = MenuItemToggleType.CheckBox, Command = new DelegateCommand(toggle) };
+            AutomationProperties.SetAutomationId(item, automationId);
+            _settingsMenu.Items.Add(item);
+            return item;
+        }
+
+        void RefreshCheck(MenuItem item, string commandId, string label, bool isChecked)
+        {
+            string? keyContext = _decision.KeyContext;
+            var bindings = ShortcutService.Current;
+            item.Header = label;
+            item.Icon ??= CommandBindings.Icon(commandId);
+            item.IsChecked = isChecked;
+            item.InputGesture = bindings.For(commandId)
+                .FirstOrDefault(gesture => keyContext == null || ShortcutHelp.ActsHere(commandId, gesture, keyContext, bindings))?.Resolve(bindings.Platform);
+            string tip = CommandBindings.Tooltip(commandId, visibleLabel: label, keyContext: keyContext);
+            ToolTip.SetTip(item, tip);
+            AutomationProperties.SetName(item, label);
+            AutomationProperties.SetHelpText(item, tip);
+        }
     }
 
     internal bool RouteInfoKey(KeyEventArgs e)
@@ -175,7 +201,7 @@ internal sealed partial class ReaderMediaSidebar
     internal bool IsInfoMenuSource(object? source) =>
         source is Visual visual && (InBar(InfoToggle, visual) || InBar(SettingsButton, visual));
 
-    private bool IsOverlaySource(object? source) => source is Visual visual &&
+    internal bool IsOverlaySource(object? source) => source is Visual visual &&
         (InBar(_headBar, visual) || InBar(_details, visual) || InBar(_closeFace, visual));
 
     private static bool InBar(Visual bar, Visual source) => bar == source || bar.IsVisualAncestorOf(source);
@@ -199,11 +225,24 @@ internal sealed partial class ReaderMediaSidebar
         _layout.Children.Add(_hoverPopup);
         _infoBar.Expand.Click += (_, _) =>
         {
+            if (TagsRequested && !Pinned)
+            {
+                _expandedTagsRevision = null;
+                UpdateExpansion();
+                return;
+            }
             bool pinned = !Pinned;
+            bool focusTags = pinned && _infoBar.Expand.IsFocused;
+            _expandedTagsRevision = null;
             _hovered = false;
             _expansionTimer.Stop();
             ConfigureInfo(_infoPreferences with { MediaSidebarPinned = pinned });
             SaveSidebarSetting?.Invoke(config => config.MediaSidebarPinned = pinned);
+            if (focusTags && _allTags.Children.FirstOrDefault() is Button chip)
+            {
+                TopLevel.GetTopLevel(this)?.UpdateLayout();
+                if (chip.Focus(NavigationMethod.Tab)) chip.BringIntoView();
+            }
         };
         foreach (Control surface in new[] { _details, _hoverSurface })
         {
@@ -249,6 +288,10 @@ internal sealed partial class ReaderMediaSidebar
         AddHandler(PointerCaptureLostEvent, (_, e) => _pressedPointers.Remove(e.Pointer),
             RoutingStrategies.Direct, handledEventsToo: true);
         GotFocus += (_, _) => RevealBars();
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (_barsHidden && e.Key == Key.Tab) RevealBars();
+        }, RoutingStrategies.Tunnel);
         AttachedToVisualTree += (_, _) => RevealBars();
         DetachedFromVisualTree += (_, _) => _pressedPointers.Clear();
         PropertyChanged += (_, change) =>
@@ -269,15 +312,49 @@ internal sealed partial class ReaderMediaSidebar
     private void ScheduleExpansion()
     {
         _expansionTimer.Stop();
-        if (Pinned || !_details.IsVisible || !_infoBar.Expand.IsVisible) return;
+        if (Pinned || TagsRequested || !_details.IsVisible || !_infoBar.Expand.IsVisible) return;
         _expansionTimer.Start();
+    }
+
+    private void ShowAllTags()
+    {
+        if (_tags is not { Count: > 0 }) return;
+        _expandedTagsRevision = _mediumRevision;
+        _expansionTimer.Stop();
+        _hovered = false;
+        RevealBars();
+        _expandedRows.Offset = default;
+        _frame.Focus();
+    }
+
+    internal MenuItem? ExpandedTagsMenuItem(MediaMenuSession session, Func<Func<Task>, Task> run)
+    {
+        if (_tags is not { Count: > 0 }) return null;
+        const string id = "media.sidebar.showAllTags";
+        bool collapse = TagsRequested && !Pinned;
+        int revision = _mediumRevision;
+        return MediaMenuBuilder.ContextItem(session, id, Texts.T(collapse ? "action.hideDetails" : id), () =>
+        {
+            if (revision != _mediumRevision) return Task.CompletedTask;
+            if (collapse)
+            {
+                CloseHover();
+                _frame.Focus();
+            }
+            else ShowAllTags();
+            return Task.CompletedTask;
+        }, () => revision == _mediumRevision, run, icon: "tag");
     }
 
     private void PopulateExpandedTags()
     {
         _allTags.Children.Clear();
         foreach (string tag in _tags ?? Array.Empty<string>())
-            _allTags.Children.Add(WorkspaceChips.CreateBadge("ReaderMediaSidebarExpandedTag", tag, compact: true));
+        {
+            Button chip = MediaInfoBar.CreateTagChip("ReaderMediaSidebarExpandedTag", tag);
+            InstallTagMenu(chip, tag);
+            _allTags.Children.Add(chip);
+        }
         _allTags.IsVisible = _allTags.Children.Count > 0;
     }
 
@@ -285,21 +362,23 @@ internal sealed partial class ReaderMediaSidebar
     {
         _expansionTimer.Stop();
         _hovered = false;
+        _expandedTagsRevision = null;
         UpdateExpansion();
     }
 
     private void UpdateExpansion(bool refreshFacts = false)
     {
         bool content = _fileName.Length > 0 && (_tags?.Count > 0 || !FactsVisible || !_facts.ShowsFileAndSize ||
-            SizesDiffer || _sourceHint != null || !string.IsNullOrEmpty(_provenance) || _historical);
-        bool open = content && _details.IsVisible && (Pinned || _hovered);
-        bool hover = open && !Pinned;
+            SizesDiffer || _sourceHint != null || !string.IsNullOrEmpty(_provenance) || _historical || !string.IsNullOrEmpty(_hash));
+        bool docked = Pinned || TagsRequested;
+        bool open = content && _details.IsVisible && (docked || _hovered);
+        bool hover = open && !docked;
         if (open && !_expandedRows.IsVisible) PopulateExpandedTags();
         if (open && (!_expandedRows.IsVisible || refreshFacts)) RefreshAdditionalFacts();
         _extraFacts.IsVisible = _extraGrid.Children.Count > 0 || _provenanceNote.IsVisible;
         _expandedRows.MaxHeight = Math.Max(0, Bounds.Height * _infoPreferences.MediaSidebarInfoMaximumShare / 100);
         _expandedRows.IsVisible = open;
-        // A separate popup also layers above native video. Only pinning contributes to the docked height.
+        // The hover popup layers above native video. Explicit expansion shares the pinned layout.
         if (!hover) _hoverPopup.IsOpen = false;
         Border parent = hover ? _hoverSurface : _dockedExpansion;
         if (!ReferenceEquals(parent.Child, _expandedRows))
@@ -309,7 +388,7 @@ internal sealed partial class ReaderMediaSidebar
         }
         if (hover) _hoverPopup.IsOpen = true;
         _infoBar.Expand.IsVisible = content;
-        _infoBar.ShowExpansion(open, Pinned);
+        _infoBar.ShowExpansion(open, docked);
     }
 
     private bool HasBarPopup() => _cancelTagEditor != null || TopLevel.GetTopLevel(this)?.OpenedPopups.Any(p =>
@@ -369,7 +448,7 @@ internal sealed partial class ReaderMediaSidebar
     internal void ObserveIdle(long now)
     {
         if (!UseOverlayBars) return;
-        bool popup = (Pinned && _expandedRows.IsVisible) || _hoverPopup.IsOpen || HasBarPopup() || _details.IsKeyboardFocusWithin;
+        bool popup = ((Pinned || TagsRequested) && _expandedRows.IsVisible) || _hoverPopup.IsOpen || HasBarPopup() || _details.IsKeyboardFocusWithin;
         _idle = _idle.Observe(now, _infoPreferences.ControlsIdleHideMs, _headBar.IsPointerOver || _details.IsPointerOver || _closeFace.IsPointerOver,
             _pressedPointers.Count != 0, popup, out bool hide);
         if (!hide || _decisionError.IsVisible || _status.IsVisible)

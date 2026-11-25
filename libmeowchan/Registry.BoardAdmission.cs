@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Admission;
+using MeowChan.Boards.Base;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 
@@ -23,6 +24,7 @@ public sealed partial class Registry
             if (lease != null && !ReferenceEquals(lease, store.ProfileLease))
                 throw new InvalidOperationException("Admission storage belongs to a different profile lease.");
             _boardAdmission = store;
+            _queue.BoardWatcherInterval = board => store.Get(board.BoardUri.AbsoluteUri).WatcherInterval;
         }
         if (store.LoadWarning != null) Warn(store.LoadWarning);
     }
@@ -34,6 +36,10 @@ public sealed partial class Registry
         if (Resolve(url, out Resource? resource) != AdmissionStatus.Added || resource == null) return null;
         lock (_state) return new(resource.Url, resource.Board != null, _watches.ContainsKey(resource.Key));
     }
+
+    internal ResourceId? ResolveBoardAdmissionIdentity(string url) =>
+        Resolve(url, out Resource? resource) == AdmissionStatus.Added && resource is { Board: not null }
+            ? new(resource.Key.Source, resource.Key.Board) : null;
 
     /// <summary>Only catalog HTTP; never starts a watch, persists intent, or fetches thread/media endpoints.</summary>
     public async Task<BoardAdmissionPreview> PreviewBoardAdmissionAsync(string url, CancellationToken cancellationToken = default)
@@ -50,7 +56,8 @@ public sealed partial class Registry
                 thread.Title, thread.CatalogOpeningText, _suppressed.Contains(Key(thread))
                     || _workResources.TryGetValue(Key(thread), out WorkResource? work) && work.Intent == WorkIntent.Suppressed,
                 _watches.ContainsKey(Key(thread)), _watches.ContainsKey(Key(thread)) && !_session.DiscoveredThreadUrls.Contains(thread.ThreadUri.AbsoluteUri, StringComparer.Ordinal))).ToArray();
-            return new(resource.Url, board.NiceName, _boardAdmission?.Get(resource.Url) ?? BoardAdmissionPolicy.All, Array.AsReadOnly(threads));
+            return new(resource.Url, board.NiceName, GetBoardAdmissionPolicy(resource.Url), Array.AsReadOnly(threads))
+            { BoardCode = board.BoardCode };
         }
         finally { _gate.Release(); }
     }
@@ -80,9 +87,16 @@ public sealed partial class Registry
                     || candidate.Url != exception || Key(candidate.Thread.Board) != resource.Key) throw new ArgumentException("Thread choices must belong to this board.");
             }
             if (_boardAdmission == null) throw new InvalidOperationException("Durable board admission storage is not configured.");
+            int? previousInterval = _boardAdmission.Get(resource.Url).WatcherIntervalMinutes;
             if (admission != null) _boardAdmission.SaveAdmitted(resource.Url, policy, admission);
             else _boardAdmission.Save(resource.Url, policy);
-
+            if (previousInterval != policy.WatcherIntervalMinutes)
+            {
+                IBoard? watched;
+                lock (_state) watched = _watches.TryGetValue(resource.Key, out Watch? watch) && !watch.Stopping ? watch.Board : null;
+                if (watched != null && watched is not BaseBoard)
+                    watched.UpdateMonitoringInterval(ResolveBoardMonitoringInterval(watched, _boardInterval));
+            }
         }
         finally { _gate.Release(); }
         foreach (var choice in policy.Exceptions.Where(pair => pair.Value == ThreadAdmissionException.Include
@@ -98,4 +112,9 @@ public sealed partial class Registry
         BoardAdmissionPolicy policy = _boardAdmission?.Get(board.BoardUri.AbsoluteUri) ?? BoardAdmissionPolicy.All;
         return policy.Evaluate(new(thread.ThreadId, thread.ThreadUri.AbsoluteUri, thread.Title, thread.CatalogOpeningText)).Included;
     }
+
+    // BaseBoard reads the live override when scheduling the next wait, so its setter keeps the fallback.
+    private TimeSpan ResolveBoardMonitoringInterval(IBoard board, TimeSpan globalInterval) => board is BaseBoard
+        ? globalInterval
+        : GetBoardAdmissionPolicy(board.BoardUri.AbsoluteUri).WatcherInterval ?? globalInterval;
 }

@@ -15,6 +15,25 @@ public sealed class CommandLabelLocalizationTests : IDisposable
     public CommandLabelLocalizationTests() => Texts.Initialize();
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage(_language); }
 
+    [Fact]
+    public void RemovalLabelsAndConsequencesArePresentInEveryLanguage()
+    {
+        string[] keys = ["command.watch.remove", "watch.removed", "command.archive.delete-permanently",
+            "archive.delete.confirm", "archive.delete.effects", "folderSource.row.remove", "folderSource.remove.ask",
+            "folderSource.remove.confirm", "tags.manage.confirmDelete", "tagging.page.group.delete",
+            "tagging.page.clear.ask", "tagging.page.clear.yes"];
+        foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
+        {
+            Texts.SetLanguage(language);
+            Assert.Equal(language, Texts.Language);
+            Assert.Empty(Texts.Warnings);
+            foreach (string key in keys)
+                Assert.False(string.IsNullOrWhiteSpace(Texts.Own(key)), $"{language}: missing {key}");
+            Assert.Contains("Test folder", Texts.T("folderSource.remove.ask", "Test folder"));
+            Assert.Contains("42", Texts.T("tagging.page.clear.ask", 42));
+        }
+    }
+
     [Theory]
     [InlineData("en")]
     [InlineData("de")]

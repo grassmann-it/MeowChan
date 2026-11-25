@@ -18,6 +18,7 @@ internal static class GalleryMutePersistenceChecks
     internal static async Task RunAsync(MainWindow window)
     {
         Config saved = window.SessionHost.Config.Clone();
+        var docked = new GalleryPlaybackPreferences().WithControlsOverlay(false);
         GalleryViewer? viewer = null;
         using var native = new MediaNativeInput(window);
         try
@@ -30,7 +31,7 @@ internal static class GalleryMutePersistenceChecks
             await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
             await WaitAsync(p => p.State == "Paused");
             await ClickMuteAsync(true, "Paused");
-            viewer!.ConfigurePlayback(new GalleryPlaybackPreferences { VideoRepeat = true });
+            viewer!.ConfigurePlayback(docked with { VideoRepeat = true });
 
             // Exercise changed-value Configure, not just an idempotent settings echo. AudioReady
             // also reconciles after these operations; hold observations beyond a single sample.
@@ -39,7 +40,7 @@ internal static class GalleryMutePersistenceChecks
             await HoldAsync(true, "Paused");
             Require(Named<ToggleButton>("GalleryVideoMute").IsChecked == true, "Mute UI disagrees with the decoder.");
 
-            // Hold the normal native-operation semaphore, not an alternate player/decoder.
+            // Hold the same gate that serializes production decoder operations.
             // A queued positive volume application must see the LATER accepted mute intent.
             await ClickMuteAsync(false, "Paused");
             await QueueVolumeThenMuteAsync(54, navigateWhilePending: false);
@@ -66,7 +67,7 @@ internal static class GalleryMutePersistenceChecks
             await WaitAsync(p => p.AudioAvailable && !p.Muted && p.State == "Playing");
             await HoldAsync(false, "Playing");
 
-            // Existing explicit user-volume unmute behavior, via actual Up/Down input.
+            // The gallery volume shortcuts unmute without resuming playback.
             await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
             await WaitAsync(p => p.State == "Paused");
             foreach (var (key, expectedVolume) in new[] { (MediaNativeInput.Up, 43), (MediaNativeInput.Down, 42) })
@@ -75,7 +76,7 @@ internal static class GalleryMutePersistenceChecks
                 await native.ClickAsync(
                     () => NativeTargetAsync<Slider>("GalleryVideoSeek"),
                     current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.TrackPoint(current, .20)));
-                await native.KeyAsync(key);
+                await native.ShiftKeyAsync(key);
                 await WaitAsync(p => !p.Muted && p.Volume == expectedVolume && p.State == "Paused");
                 await HoldAsync(false, "Paused");
             }
@@ -90,7 +91,7 @@ internal static class GalleryMutePersistenceChecks
             await HoldAsync(saved.VideoStartMuted, "Playing");
             Require(window.SessionHost.Config.VideoStartMuted == saved.VideoStartMuted,
                 "Gallery runtime mute changed the saved startup policy.");
-            Console.WriteLine("SMOKE gallery mute persistence: native mute/unmute, held production volume/mute and retirement races, changed Configure volume, video/image/video Next/Prev, Repeat retained, explicit Up/Down unmute without resume, and fresh-gallery startup policy passed. Decoder observations only; no physical audio-output acceptance.");
+            Console.WriteLine("SMOKE gallery mute persistence: native mute/unmute, held production volume/mute and retirement races, changed Configure volume, video/image/video Next/Prev, Repeat retained, Shift+Up/Shift+Down unmute without resume, and fresh-gallery startup policy passed. Decoder observations only; no physical audio-output acceptance.");
         }
         finally
         {
@@ -122,7 +123,7 @@ internal static class GalleryMutePersistenceChecks
             await window.OpenGalleryAsync(VideoGalleryChecks.Id);
             viewer = (GalleryViewer)window.FindControl<ContentControl>("GalleryHost")!.Content!;
             Require(viewer.CaptureState().PostId == "2000", "Mute fixture must start at video A.");
-            viewer.ConfigurePlayback(new GalleryPlaybackPreferences().WithControlsOverlay(false)); // Docked, no hidden native input targets.
+            viewer.ConfigurePlayback(docked);
             await WaitAsync(p => p.HasPlayback);
             // Fixture setup only: saved autoplay may be off; make audio readiness observable.
             await Player().PlayAsync();
@@ -143,9 +144,10 @@ internal static class GalleryMutePersistenceChecks
         async Task QueueVolumeThenMuteAsync(int volume, bool navigateWhilePending)
         {
             GalleryVideoPlayer player = Player();
-            var operations = (SemaphoreSlim)typeof(GalleryVideoPlayer).GetField("_operations",
+            var operations = (VideoOperationGate)typeof(GalleryVideoPlayer).GetField("_operations",
                 BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(player)!;
-            Require(await operations.WaitAsync(TimeSpan.FromSeconds(4)), "Could not hold the native operation boundary.");
+            using var gateTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            await operations.WaitAsync(gateTimeout.Token);
             try
             {
                 // Direct Slider.Value event is controlled USER input here; the native
@@ -218,8 +220,10 @@ internal static class GalleryMutePersistenceChecks
             {
                 await Task.Delay(100);
                 var evidence = await SampleAsync();
-                Require(evidence.Muted == muted && evidence.State == state,
+                Require(evidence.AudioAvailable && evidence.Muted == muted && evidence.State == state,
                     "Mute or playback state changed during readiness/readback hold: " + evidence);
+                if (i == 4)
+                    Console.WriteLine($"SMOKE gallery mute post={viewer!.CaptureState().PostId} state={evidence.State} muted={evidence.Muted} volume={evidence.Volume} audioTracks={evidence.AudioTracks} playedAudioBuffers={evidence.PlayedAudioBuffers}");
             }
         }
     }

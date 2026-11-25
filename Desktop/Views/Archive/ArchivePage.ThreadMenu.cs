@@ -30,8 +30,8 @@ public partial class ArchivePage
     private void OnReaderThreadMenuClick(object? sender, RoutedEventArgs e)
     {
         if (_ended || sender is not Button origin) return;
-        Button anchor = ReaderPopupAnchor(origin) as Button ?? origin;
-        if (PopupToggle.Close(anchor)) return;
+        Button anchor = ToolbarPopupAnchor(origin, ReaderToolbar, origin) as Button ?? origin;
+        if (PopupToggle.ConsumeActivation(anchor)) return;
         if (ReferenceEquals(anchor, ReaderToolbar.More)) ReaderToolbar.More!.IsChecked = false;
         ContextMenu menu = BuildReaderThreadMenu();
         menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
@@ -42,7 +42,11 @@ public partial class ArchivePage
             menu.Opened += (_, _) => PopupToggle.Present(origin, true);
             menu.Closed += (_, _) => PopupToggle.Present(origin, false);
         }
-        menu.Closed += (_, _) => { if (ReferenceEquals(anchor.ContextMenu, menu)) anchor.ContextMenu = null; };
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(anchor.ContextMenu, menu)) anchor.ContextMenu = null;
+            ReturnFocusFromToolbarPopup(anchor, ReaderToolbar, ArchiveReaderPane, FocusSelectedPostOrList);
+        };
         ShowThreadMenu(menu, anchor);
     }
 
@@ -120,6 +124,7 @@ public partial class ArchivePage
     private void InitializeReaderThreadKeys()
     {
         PopupToggle.Prepare(ReaderThreadOpen);
+        InitializeToolbarPopupAnchor(ReaderToolbar);
         ArchiveReaderPane.AddHandler(KeyDownEvent, (_, e) => TryRouteReaderThreadKey(e), RoutingStrategies.Bubble);
     }
 

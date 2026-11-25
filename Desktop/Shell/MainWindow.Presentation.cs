@@ -323,7 +323,6 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(InspectorOpenFolderButton, "location.open-folder", Texts.T("action.openFolder"));
         CommandBindings.ApplyLabeled(InspectorOpenBrowserButton, "location.open-source", Texts.T("action.openBrowser"));
         CommandBindings.ApplyLabeled(InspectorMediaRetryButton, "watch.retry-media", Texts.T("work.retry"));
-        CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", Texts.T("action.remove"));
         // Offers and notices of the shell that carried a word only: the same catalog icons as the rest of the page.
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionAccept, "plus");
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionDismiss, "x");
@@ -470,6 +469,15 @@ public partial class MainWindow
         bool hasSelection = selected != null;
         InspectorEmptyState.IsVisible = !hasSelection;
         InspectorSelection.IsVisible = hasSelection;
+        int removeCount = selected switch
+        {
+            ThreadRow => SelectedThreads().Length,
+            BoardRow => SelectedBoards().Length,
+            _ => 0
+        };
+        string removeLabel = CommandCatalog.Label("watch.remove");
+        if (removeCount > 1) removeLabel += $" ({removeCount})";
+        CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", removeLabel);
         if (selected == null)
         {
             BindInspectorCopyValues(null, null, null);
@@ -660,11 +668,6 @@ public partial class MainWindow
         RefreshWorkspace();
     }
 
-    private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_refreshingDownloadSearch) return;
-        RefreshWorkspace();
-    }
     private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_workspaceInitialized && ReferenceEquals(e.Source, DownloadsTabs))

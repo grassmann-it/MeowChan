@@ -69,7 +69,7 @@ internal static class ArchiveFilterSurfaceChecks
         Border results = page.FindControl<Border>("ArchiveResultsSurface")!;
         Grid listPane = page.FindControl<Grid>("ArchiveListPane")!;
         TextBox search = page.FindControl<TextBox>("ArchiveSearchText")!;
-        Button apply = page.FindControl<Button>("ArchiveFilterApply")!, close = page.FindControl<Button>("ArchiveFilterSurfaceClose")!;
+        Button apply = page.FindControl<Button>("ArchiveFilterApply")!, close = page.FindControl<Button>("ArchiveFilterClose")!;
         await Program.WaitUntilAsync(() =>
         {
             host.UpdateLayout();

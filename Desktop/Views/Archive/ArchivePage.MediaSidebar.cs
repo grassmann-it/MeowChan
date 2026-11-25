@@ -1,7 +1,5 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,7 +43,6 @@ public partial class ArchivePage
     private IDisposable? _frameTabScope;
     private bool _tabScopeOnFrame;
     private readonly ReaderMediaFollowThrottle _sidebarThrottle = new();
-    private readonly Stopwatch _sidebarClock = Stopwatch.StartNew();
     private DispatcherTimer? _sidebarFollowTimer, _sidebarAnnounceTimer;
     private CancellationTokenSource? _sidebarLoading;
     private CancellationTokenSource? _sidebarStripLoading;
@@ -174,12 +171,18 @@ public partial class ArchivePage
         return frame;
     }
 
+    internal Func<Control, string, MeowChan.Desktop.Controls.ContextMenuBuilder>? BuildPanelTagMenu { get; set; }
+
     private ReaderMediaSidebar EnsureMediaSidebar()
     {
         if (_mediaSidebar is { } existing) return existing;
         // Publish only a fully configured sidebar: a failed reader move must
         // not leave an incomplete cached sidebar poisoning the next attempt.
-        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false, DecisionKeyContext = "reader" };
+        ReaderMediaSidebar sidebar = new ReaderMediaSidebar
+        {
+            IsVisible = false, DecisionKeyContext = "reader",
+            BuildTagMenu = (chip, tag) => BuildPanelTagMenu?.Invoke(chip, tag)
+        };
         if (_largeReader) ReaderHostingStep("sidebar.created");
         GridSplitter splitter = new GridSplitter
         {
@@ -462,6 +465,7 @@ public partial class ArchivePage
     // without its strip, until the new host shows the sidebar (the same medium then needs no placeholder) or ReleaseKeptMediaSidebarPicture.
     private void HideMediaSidebarContent(bool keepPicture = false)
     {
+        _mediaSidebar?.InvalidateTagEditor();
         CancelMediaSidebarLoad();
         _sidebarFollowTimer?.Stop();
         _sidebarAnnounceTimer?.Stop();
@@ -586,7 +590,7 @@ public partial class ArchivePage
     {
         if (ArchiveMediaTab.IsSelected)
         {
-            VisibleMediaList.Focus();
+            FocusSelectedMedia();
             return;
         }
         ListBox posts = ArchivePosts;
@@ -639,8 +643,8 @@ public partial class ArchivePage
     private bool ShowTileInMediaSidebar(ArchiveAttachmentRow row)
     {
         if (!_mediaSidebarShown || _ended || IsReaderDialogOpen || _mediaSidebar == null) return false;
-        ArchivePostRow? post = ArchivePosts.SelectedItem is ArchivePostRow selected && selected.Attachments.Contains(row)
-            ? selected : ArchivePosts.Items.OfType<ArchivePostRow>().FirstOrDefault(candidate => candidate.Attachments.Contains(row));
+        ArchivePostRow? post = (ArchivePosts.ItemsSource as ReaderPostRows)?.Materialized
+            .FirstOrDefault(candidate => candidate.Attachments.Any(attachment => ReferenceEquals(attachment, row)));
         if (post == null || !post.ShowsMedia) return false;
         int index = -1;
         for (int i = 0; i < post.Attachments.Count; i++) if (ReferenceEquals(post.Attachments[i], row)) { index = i; break; }
@@ -673,27 +677,31 @@ public partial class ArchivePage
         if (!_mediaSidebarShown || _ended) return;
         if (selectionChanged)
         {
-            _mediaSidebar?.InvalidateDecisionTarget();
+            if (ArchiveMediaTab.IsSelected && _displayedSidebarMedium != null) SetDisplayedSidebarMedium(null);
+            else _mediaSidebar?.InvalidateDecisionTarget();
             // Throttle starting the next decode, not retiring the previous selection. Otherwise an old completion can still publish
             // a picture/error (or a strip thumbnail) in the interval before the follow timer runs.
             CancelMediaSidebarLoad();
             CancelSidebarStripLoad();
         }
-        long now = _sidebarClock.ElapsedMilliseconds;
+        long now = ReaderMonotonicMilliseconds();
         // A selection that is only cleared (a page or thread being rebuilt) waits for the tick: the picture does not flash away.
         bool hasSelection = ArchiveMediaTab.IsSelected ? SelectedMediaRow() != null : ArchivePosts.SelectedItem != null;
         if (!hasSelection) _sidebarThrottle.MarkPending();
         else if (_sidebarThrottle.Request(now)) { RefreshMediaSidebar(); return; }
-        DispatcherTimer timer = _sidebarFollowTimer ??= CreateSidebarTimer(() =>
-        {
-            if (_sidebarThrottle.Tick(_sidebarClock.ElapsedMilliseconds)) RefreshMediaSidebar();
-        });
+        if (_manualReaderClock != null) return;
+        DispatcherTimer timer = _sidebarFollowTimer ??= CreateSidebarTimer(TickMediaSidebarFollow);
         if (!timer.IsEnabled)
         {
             timer.Interval = TimeSpan.FromMilliseconds(!hasSelection
                 ? ReaderMediaSidebarRules.FollowIntervalMs : _sidebarThrottle.Remaining(now));
             timer.Start();
         }
+    }
+
+    internal void TickMediaSidebarFollow()
+    {
+        if (_sidebarThrottle.Tick(ReaderMonotonicMilliseconds())) RefreshMediaSidebar();
     }
 
     private static DispatcherTimer CreateSidebarTimer(Action tick)
@@ -772,7 +780,7 @@ public partial class ArchivePage
         sidebar.SetTags(tags, blocked ?? (subject == null ? MediaMenuReasons.NotSaved : null));
         sidebar.SetSourceFacts(resource.Source + " /" + resource.Board + "/ · " + resource.Thread, post.Author, post.Posted,
             saved?.Asset.Length, row.Attachment.ExpectedSize, row.Attachment.ProviderSizeHint,
-            MediaProvenanceText.Summary(resolved?.Binding), saved?.Asset.IsCurrent == false);
+            MediaProvenanceText.Summary(resolved?.Binding), saved?.Asset.IsCurrent == false, hash: saved?.Asset.Sha256);
     }
 
     private void RefreshMediaSidebar()
@@ -892,6 +900,7 @@ public partial class ArchivePage
             ? (thread, post, attachment) : null;
         if (_displayedSidebarMedium == next) return;
         _displayedSidebarMedium = next;
+        InvalidateSidebarMediaMenu();
         _mediaSidebar?.InvalidateDecisionTarget();
     }
 
@@ -990,6 +999,7 @@ public partial class ArchivePage
             if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
             if (entry.Kind == SavedMediaKind.Image)
             {
+                if (sidebar.BeforePreviewDecodeForTests is { } beforeDecode) await beforeDecode(entry.Asset.Path, ct);
                 (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry,
                     new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
                 return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
@@ -1024,11 +1034,10 @@ public partial class ArchivePage
     {
         List<ArchiveAttachmentRow> neighbours = new();
         if (_sidebarIndex + 1 < post.Attachments.Count) neighbours.Add(post.Attachments[_sidebarIndex + 1]);
-        if (ArchivePosts.ItemsSource is IList items)
+        if (ArchivePosts.ItemsSource is ReaderPostRows rows && rows.IndexOf(post) is >= 0 and var at)
         {
-            int at = items.IndexOf(post);
             foreach (int index in new[] { at + 1, at - 1 })
-                if (at >= 0 && index >= 0 && index < items.Count && items[index] is ArchivePostRow { ShowsMedia: true } near)
+                if (rows.MaterializedAt(index) is { ShowsMedia: true } near)
                     neighbours.Add(near.Attachments[0]);
         }
         GalleryDecodeRequest.Fit fit = new(target.Width, target.Height);

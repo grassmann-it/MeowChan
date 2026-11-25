@@ -7,6 +7,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -33,7 +34,6 @@ public partial class MainWindow
     // The "New every N minutes" mode: one timer of the window, started only in that mode, stopped when the mode changes and at shutdown.
     private DispatcherTimer? _taglineRotationTimer;
     private int _appliedTaglineMinutes;
-    private MenuItem? _taglineAnotherItem, _taglineHideItem, _taglineSettingsItem;
 
     /// <summary>The form of the tagline currently shown (None while it is hidden or switched off); read by the smokes.</summary>
     internal HeaderTaglineStage TaglineStage { get; private set; } = HeaderTaglineStage.None;
@@ -48,7 +48,9 @@ public partial class MainWindow
         WorkspaceTaglineHost.SizeChanged += OnTaglineHostSizeChanged;
         WorkspaceSubtitle.PropertyChanged += OnTaglineTypographyChanged;
         ScalingChanged += OnTaglineScalingChanged;
-        BuildTaglineMenu();
+        WorkspaceSubtitle.Focusable = true;
+        WorkspaceSubtitle.AttachedToVisualTree += OnTaglineAttached;
+        if (WorkspaceSubtitle.IsAttachedToVisualTree()) ContextMenuHost.Install(WorkspaceSubtitle, ComposeTaglineMenu);
         ChooseHeaderTagline(atStart: true);
         UpdateHeaderTagline();
         RefreshTaglineRotation();
@@ -61,8 +63,13 @@ public partial class MainWindow
         WorkspaceSubtitle.PropertyChanged -= OnTaglineTypographyChanged;
         ScalingChanged -= OnTaglineScalingChanged;
         StopTaglineRotation();
+        WorkspaceSubtitle.AttachedToVisualTree -= OnTaglineAttached;
+        ContextMenuHost.Uninstall(WorkspaceSubtitle);
         _taglineStarted = false;
     }
+
+    private void OnTaglineAttached(object? sender, VisualTreeAttachmentEventArgs e) =>
+        ContextMenuHost.Install(WorkspaceSubtitle, ComposeTaglineMenu);
 
     // SizeChanged fires only for a real change of the column, so the text is measured (or served from the cache) once per resize step.
     private void OnTaglineHostSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -146,7 +153,7 @@ public partial class MainWindow
             if (same != null) _tagline = same;
             else if (_tagline != null) ChooseHeaderTagline(atStart: false);
         }
-        LocalizeTaglineMenu();
+        WorkspaceSubtitle.ContextMenu?.Close();
         UpdateHeaderTagline();
     }
 
@@ -198,6 +205,7 @@ public partial class MainWindow
         {
             if (WorkspaceSubtitle.IsVisible) WorkspaceSubtitle.IsVisible = false;
             ToolTip.SetTip(WorkspaceSubtitle, null);
+            WorkspaceSubtitle.ContextMenu?.Close();
             return;
         }
         string shown = stage == HeaderTaglineStage.Full ? full : quipForm;
@@ -209,30 +217,11 @@ public partial class MainWindow
         if (!WorkspaceSubtitle.IsVisible) WorkspaceSubtitle.IsVisible = true;
     }
 
-    private void BuildTaglineMenu()
-    {
-        ContextMenuBuilder builder = new ContextMenuBuilder();
-        builder.Item("tagline.another", Texts.T("shell.tagline.menuAnother"),
-            () => OnTaglineAnotherClick(null, new RoutedEventArgs()), available: _taglinePool.Count > 1);
-        builder.Item("tagline.hide", Texts.T("shell.tagline.menuHide"), () => OnTaglineHideClick(null, new RoutedEventArgs()));
-        builder.Section().Item("tagline.settings", CommandCatalog.Label("navigation.settings"),
-            () => NavigateWorkspace(WorkspacePage.Settings));
-        ContextMenu menu = builder.Build()!;
-        _taglineAnotherItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.another"));
-        _taglineHideItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.hide"));
-        _taglineSettingsItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.settings"));
-        WorkspaceSubtitle.ContextMenu = menu;
-        LocalizeTaglineMenu();
-    }
-
-    private void LocalizeTaglineMenu()
-    {
-        if (_taglineAnotherItem == null || _taglineHideItem == null || _taglineSettingsItem == null) return;
-        _taglineAnotherItem.Header = Texts.T("shell.tagline.menuAnother");
-        _taglineAnotherItem.IsEnabled = _taglinePool.Count > 1;
-        _taglineHideItem.Header = Texts.T("shell.tagline.menuHide");
-        _taglineSettingsItem.Header = CommandCatalog.Label("navigation.settings");
-    }
+    private ContextMenuBuilder ComposeTaglineMenu() => new ContextMenuBuilder()
+        .Item("tagline.another", Texts.T("shell.tagline.menuAnother"), () => OnTaglineAnotherClick(null, new RoutedEventArgs()),
+            available: _taglinePool.Count > 1, icon: "refresh-cw")
+        .Item("tagline.hide", Texts.T("shell.tagline.menuHide"), () => OnTaglineHideClick(null, new RoutedEventArgs()), icon: "eye-off")
+        .Section().Command("navigation.settings", () => NavigateWorkspace(WorkspacePage.Settings), entryId: "tagline.settings", showShortcut: false);
 
     // Only for this session: the setting and the stored quip stay as they are.
     private void OnTaglineAnotherClick(object? sender, RoutedEventArgs e)

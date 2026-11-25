@@ -106,6 +106,7 @@ internal static class StartupPreviewChecks
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     private const string CachedTitle = "OLD TITLE — display only, never a restored watch";
+    private static readonly string[] CachedProgressText = ["12", "/", "25"];
     private static readonly string[] ChildCases = ["failure", "stop", "foreign", "malformed", "future", "oversize"];
     private static string CaseProfile(string profile, string name) => Path.Combine(profile, "startup-preview-cases", name);
     private static string CachePath(string profile) => Path.Combine(profile, "startup-preview.json");
@@ -197,7 +198,8 @@ internal static class StartupPreviewChecks
         DataGrid grid = Control<DataGrid>(window, "ThreadsDataGrid");
         Require(ReferenceEquals(grid.ItemsSource, window.HistoricThreads) && Control<Grid>(window, "WorkspaceBody").IsVisible,
             "The cached session is not shown in the normal Downloads table.");
-        ThreadRow cached = Require1(window.HistoricThreads);
+        Require(window.HistoricThreads.Count == 1, "Expected exactly one cached row, found " + window.HistoricThreads.Count);
+        ThreadRow cached = window.HistoricThreads[0];
         Require(cached.IsHistorical && cached.CompletedMedia == 12 && cached.KnownMedia == 25 && cached.Title == CachedTitle
             && cached.WatchId < 0 && cached.Status == Texts.T("shell.lastKnownStatus"), "Cached display data changed or claims live state.");
         await Program.WaitUntilAsync(() => grid.Bounds.Height > 0 && grid.GetVisualDescendants().OfType<TextBlock>()
@@ -206,7 +208,7 @@ internal static class StartupPreviewChecks
             "Last-known marking not rendered by the real DataTemplate.");
         // The counts the former preview list rendered through Inlines ("12 / 25") are three TextBlocks in the table's progress cell.
         Require(grid.GetVisualDescendants().OfType<StackPanel>().Any(cell => cell.IsEffectivelyVisible
-                && cell.Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(new[] { "12", "/", "25" })),
+                && cell.Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(CachedProgressText)),
             "Cached counts not rendered by the real DataTemplate.");
         Require(!grid.GetVisualDescendants().OfType<Button>().Any(button => button.IsEffectivelyVisible && button.Name != null && button.Name.Contains("Retry")),
             "Display-only rows acquired an action control.");
@@ -302,12 +304,31 @@ internal static class StartupPreviewChecks
 
     private static async Task CheckTerminalAsync(MainWindow owner, StartupPreviewSmokeApp app, bool failRestore)
     {
-        string name = failRestore ? "failure" : "stop";
-        string profile = CaseProfile(owner.SessionHost.ProfileDirectory, name);
+        string profile = CaseProfile(owner.SessionHost.ProfileDirectory, failRestore ? "failure" : "stop");
         byte[] before = File.ReadAllBytes(CachePath(profile));
         StartupPreviewBarrier barrier = new() { HoldCancellationDrain = !failRestore };
-        await using DesktopSessionHost ownedHost = app.CreateHost(profile, barrier, failRestore, out var store);
-        DesktopSessionHost host = ownedHost;
+        string expectedReason = failRestore ? "Transition failed: " + StartupPreviewObservedStore.Failure : "Stopping without authority.";
+        bool ownershipVerified = false;
+        try
+        {
+            await using DesktopSessionHost host = app.CreateHost(profile, barrier, failRestore, out var store);
+            await CheckTerminalWindowAsync(owner, host, barrier, store, failRestore, before);
+            ownershipVerified = true;
+        }
+        catch (AggregateException error) when (ownershipVerified
+            && error.Message.StartsWith("Session shutdown reported failures. (", StringComparison.Ordinal)
+            && error.InnerExceptions is [InvalidOperationException { InnerException: null } failure]
+            && failure.Message == "Final preferences unavailable: " + expectedReason)
+        {
+            Console.WriteLine($"SMOKE startup: owner disposal repeated the acknowledged final preference error after Closed and lease reacquisition: {expectedReason}");
+        }
+    }
+
+    private static async Task CheckTerminalWindowAsync(MainWindow owner, DesktopSessionHost host, StartupPreviewBarrier barrier,
+        StartupPreviewObservedStore store, bool failRestore, byte[] before)
+    {
+        string name = failRestore ? "failure" : "stop";
+        string profile = host.ProfileDirectory;
         await using MainWindow window = new(host);
         window.Show(owner);
         try
@@ -495,10 +516,5 @@ internal static class StartupPreviewChecks
         => (T?) (owner.GetType().GetField(field, Private) ?? throw new InvalidOperationException("Missing lifecycle observation: " + field)).GetValue(owner);
     private static void Refresh(MainWindow window) => (typeof(MainWindow).GetMethod("RefreshSession", Private)
         ?? throw new InvalidOperationException("Missing real shell refresh boundary.")).Invoke(window, null);
-    private static ThreadRow Require1(System.Collections.Generic.IReadOnlyList<ThreadRow> rows)
-    {
-        Require(rows.Count == 1, "Expected exactly one cached row, found " + rows.Count);
-        return rows[0];
-    }
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

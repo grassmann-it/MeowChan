@@ -171,12 +171,14 @@ public partial class DownloadQueue
             lock (_stateLock)
             {
                 if (_stopping) throw new QueueStoppingException(cancellationToken);
-                if (!_paused && !_producerSuspended) return;
+                if (!_paused && !_producerSuspended) break;
                 resumed = _producerSuspended ? _producerResumed.Task : _resumed.Task;
             }
             await resumed.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
+
+    internal Func<IBoard, TimeSpan?>? BoardWatcherInterval { get; set; }
 
     /// <summary>Acquires one of four session metadata slots, at most one per source. Release before cooldown waits.</summary>
     public async Task<IDisposable> AcquireMetadataAsync(string sourceId, DownloadPriority priority,

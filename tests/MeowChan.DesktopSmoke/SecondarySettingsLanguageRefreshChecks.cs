@@ -2,6 +2,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
@@ -102,6 +103,8 @@ internal static class SecondarySettingsLanguageRefreshChecks
             // No focus, selection, draft reset, editor reload or BringIntoView
             // between notification and preservation assertions.
             trace.ResetEvents();
+            if (language == "es")
+                Program.CaptureWindow(window, "smoke-secondary-settings-language-before-es.png");
             trace.Capture(language + ":before-notification");
             Texts.SetLanguage(language);
             trace.Capture(language + ":after-notification");
@@ -111,8 +114,13 @@ internal static class SecondarySettingsLanguageRefreshChecks
             Require(Texts.Language == language && ReferenceEquals(window.Editor, editor), language + ": gallery editor was replaced.");
             Require(DraftState(editor) == draft && InputState.Read(raw) == input,
                 language + ": gallery semantic/raw draft, caret or selection changed.");
-            Require(ReferenceEquals(window.FocusManager?.GetFocusedElement(), raw) && raw.IsFocused && Visible(window, raw),
-                language + ": gallery language refresh stole visible numeric input focus.");
+            Require(ReferenceEquals(window.FocusManager?.GetFocusedElement(), raw) && raw.IsFocused,
+                language + ": gallery language refresh moved numeric input focus.");
+            Rect visible = GalleryInputIntersection(window, raw);
+            Require(Visible(window, raw) && visible.Width >= raw.Bounds.Width - 1 && visible.Height >= raw.Bounds.Height - 1,
+                $"{language}: gallery numeric TextBox was clipped after reflow. Visible intersection: {visible}, TextBox size: {raw.Bounds.Size}.");
+            if (language == "es")
+                Program.CaptureWindow(window, "smoke-secondary-settings-language-after-es.png");
             Require(editor.SelectedSectionId == "settings.reading-media", language + ": gallery category changed.");
             AssertText(Need<TextBlock>(editor, "SettingsGalleryPlaybackHeading"), "settings.galleryPlayback.title");
             AssertText(Need<TextBlock>(editor, "GalleryPlaybackModeFieldLabel"), "settings.galleryPlayback.mode");
@@ -512,6 +520,7 @@ internal static class SecondarySettingsLanguageRefreshChecks
             FocusedIsRaw = ReferenceEquals(_window.FocusManager?.GetFocusedElement(), _raw), _raw.IsFocused,
             FocusedControl = FocusName(), RawVisible = _raw.IsEffectivelyVisible,
             NumericVisible = _seconds.IsEffectivelyVisible, RawInViewport = Visible(_window, _raw),
+            RawBoundsSize = _raw.Bounds.Size.ToString(), RawVisibleIntersection = GalleryInputIntersection(_window, _raw).ToString(),
             RawAttachedToWindow = ReferenceEquals(TopLevel.GetTopLevel(_raw), _window),
             SameTemplateTextBox = _seconds.GetTemplateDescendants().OfType<TextBox>().Any(part => ReferenceEquals(part, _raw))
         };
@@ -585,6 +594,17 @@ internal static class SecondarySettingsLanguageRefreshChecks
             if (scroll.TranslatePoint(default, window) is Point point) viewport = viewport.Intersect(new Rect(point, scroll.Bounds.Size));
         return bounds.Left >= viewport.Left - 1 && bounds.Top >= viewport.Top - 1
             && bounds.Right <= viewport.Right + 1 && bounds.Bottom <= viewport.Bottom + 1;
+    }
+    private static Rect GalleryInputIntersection(Window window, TextBox input)
+    {
+        if (!input.IsEffectivelyVisible || input.TranslatePoint(default, window) is not Point origin) return default;
+        Rect intersection = new Rect(origin, input.Bounds.Size).Intersect(new Rect(window.ClientSize));
+        foreach (Visual clip in input.GetVisualAncestors().Where(ancestor => ancestor.ClipToBounds || ancestor is ScrollContentPresenter))
+        {
+            if (clip.TranslatePoint(default, window) is not Point point) return default;
+            intersection = intersection.Intersect(new Rect(point, clip.Bounds.Size));
+        }
+        return intersection;
     }
     private static bool SameGesture(KeyGesture? actual, KeyGesture expected) => actual?.Key == expected.Key && actual.KeyModifiers == expected.KeyModifiers;
     private static void Press(Control source, KeyGesture gesture) => source.RaiseEvent(new KeyEventArgs

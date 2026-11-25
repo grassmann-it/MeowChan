@@ -81,11 +81,12 @@ public partial class DiagnosticsPage
     // The entries are built when the menu opens, so their enabled state and counts are the buttons' current ones.
     private void OnDiagnosticMoreClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended || PopupToggle.Close(MoreButton)) return;
+        if (_ended || PopupToggle.ConsumeActivation(MoreButton)) return;
         string Label(Button button) => AutomationProperties.GetName(button) is { Length: > 0 } name ? name
             : WorkViewElement.GetId(button) is { } id && WorkViewPolicy.Get(id).CommandId is { } command ? CommandCatalog.Label(command) : string.Empty;
         ContextMenu menu = ContextMenuBuilder.Empty();
         if (WorkViewOverflow.Populate(menu, ReducibleActions, _workView, Label) == 0) return;
+        menu.Placement = PlacementMode.BottomEdgeAlignedRight;
         PopupToggle.Track(MoreButton, menu);
         menu.Open(MoreButton);
     }

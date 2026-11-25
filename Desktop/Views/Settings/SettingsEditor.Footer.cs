@@ -27,6 +27,9 @@ public partial class SettingsEditor
     public string FooterNetworkLabel => IoStatsDisplay.NetworkTitle();
     public string FooterDiskLabel => IoStatsDisplay.DiskTitle();
     public string FooterStatusLabel => Texts.T("settings.footer.statusLines");
+    public string FooterNetworkHint => Texts.T("settings.footer.network.hint");
+    public string FooterDiskHint => Texts.T("settings.footer.disk.hint");
+    public string FooterStatusHint => Texts.T("settings.footer.statusLines.hint");
 
     private bool _showFooterNetwork, _showFooterDisk, _showFooterStatus;
     public bool ShowFooterNetwork
@@ -108,12 +111,19 @@ public partial class SettingsEditor
 
     internal void RefreshConfirmedFooterDisplays()
     {
-        if (_isClosed || _resetFooterDisplaysRequested) return;
+        if (_isClosed) return;
         FooterDisplayPreferences displays = FooterDisplayPreferences.FromConfig(_config);
-        if (ShowFooterNetwork == _footerDisplaysBaseline.Network) ShowFooterNetwork = displays.Network;
-        if (ShowFooterDisk == _footerDisplaysBaseline.Disk) ShowFooterDisk = displays.Disk;
-        if (ShowFooterStatus == _footerDisplaysBaseline.Status) ShowFooterStatus = displays.Status;
+        if (!_resetFooterDisplaysRequested)
+        {
+            if (ShowFooterNetwork == _footerDisplaysBaseline.Network) ShowFooterNetwork = displays.Network;
+            if (ShowFooterDisk == _footerDisplaysBaseline.Disk) ShowFooterDisk = displays.Disk;
+            if (ShowFooterStatus == _footerDisplaysBaseline.Status) ShowFooterStatus = displays.Status;
+        }
         _footerDisplaysBaseline = displays;
+        RefreshToggleGroupBaseline(ShowFooterNetworkInput, displays.Network);
+        RefreshToggleGroupBaseline(ShowFooterDiskInput, displays.Disk);
+        RefreshToggleGroupBaseline(ShowFooterStatusInput, displays.Status);
+        QueueGroupSweep();
     }
 
     private void ResetFooterDraft()
@@ -139,7 +149,8 @@ public partial class SettingsEditor
     {
         if (_isClosed) return;
         foreach (string property in new[] { nameof(FooterLayoutLabel), nameof(FooterLayoutHelp), nameof(FooterLayoutBooruHint),
-            nameof(ShowBooruActionsLabel), nameof(ShowBooruActionsHint), nameof(FooterDisplaysLabel), nameof(FooterNetworkLabel), nameof(FooterDiskLabel), nameof(FooterStatusLabel) })
+            nameof(ShowBooruActionsLabel), nameof(ShowBooruActionsHint), nameof(FooterDisplaysLabel), nameof(FooterNetworkLabel), nameof(FooterDiskLabel), nameof(FooterStatusLabel),
+            nameof(FooterNetworkHint), nameof(FooterDiskHint), nameof(FooterStatusHint) })
             PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(property));
     }
 }

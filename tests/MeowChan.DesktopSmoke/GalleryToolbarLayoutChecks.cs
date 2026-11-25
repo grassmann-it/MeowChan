@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -11,6 +12,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -31,8 +33,10 @@ internal static partial class GalleryToolbarLayoutChecks
         string language = Texts.Language;
         ThemeVariant theme = Application.Current!.RequestedThemeVariant ?? ThemeVariant.Default;
         Size originalSize = window.ClientSize;
+        ShortcutBindingsSection originalBindings = ShortcutService.CurrentSection;
         try
         {
+            ShortcutService.Publish(originalBindings.Set(GalleryLayoutMenu.OpenCommandId, [ShortcutGesture.Parse("Primary+Shift+J")]));
             Texts.SetLanguage("en");
             GalleryEntry first = await EntryAsync(Path.Combine(root, "one"), "first.png", "1", "81", 0);
             GalleryEntry second = await EntryAsync(Path.Combine(root, "two"), "second.png", "2", "82", 1);
@@ -88,10 +92,10 @@ internal static partial class GalleryToolbarLayoutChecks
 
                 // The "⋯" menu: all rare commands, same controls, labelled, and the menu keeps within the window.
                 RequireOverflow(viewer);
-                await OpenOverflowAsync(window, viewer);
+                await OpenOverflowFromPictureAsync(window, viewer);
                 CapturePopup(viewer, Path.Combine(output, $"smoke-gallery-toolbar-{tag}-menu.png"));
                 Program.CaptureWindow(window, $"smoke-gallery-toolbar-{tag}-menu-window.png", output);
-                // Down moves through the rows (even over the playback choice). Escape returns focus to the picture.
+                // Down moves through the rows (even over the playback choice), Escape returns focus to the picture.
                 IInputElement? firstRow = TopLevel.GetTopLevel(viewer.OverflowMenuContent)!.FocusManager!.GetFocusedElement();
                 PressKey((Control)firstRow!, Key.Down);
                 Require(!ReferenceEquals(firstRow, TopLevel.GetTopLevel(viewer.OverflowMenuContent)!.FocusManager!.GetFocusedElement()),
@@ -105,7 +109,7 @@ internal static partial class GalleryToolbarLayoutChecks
                 PressKey((Control)TopLevel.GetTopLevel(viewer.OverflowMenuContent)!.FocusManager!.GetFocusedElement()!, Key.Escape);
                 await UntilAsync(() => !viewer.IsOverflowOpen);
                 await UntilAsync(() => window.FocusManager?.GetFocusedElement() == viewer);
-                await OpenOverflowAsync(window, viewer);
+                await OpenOverflowFromPictureAsync(window, viewer);
                 if (tag.StartsWith("760x500-dark-en"))
                 {
                     // A zoom step keeps the menu open.
@@ -118,7 +122,7 @@ internal static partial class GalleryToolbarLayoutChecks
                     Click(Find<Button>(viewer, "GalleryFit"));
                     viewer.SetOverflowOpen(false);
                     // Opening a command row (full screen is not safe here; the overlay choice is) closes the menu.
-                    await OpenOverflowAsync(window, viewer);
+                    await OpenOverflowFromPictureAsync(window, viewer);
                     ToggleButton overlayChoice = Find<ToggleButton>(viewer, "GalleryOverlayToggle");
                     bool before = overlayChoice.IsChecked == true;
                     Click(overlayChoice);
@@ -175,6 +179,7 @@ internal static partial class GalleryToolbarLayoutChecks
         }
         finally
         {
+            ShortcutService.Publish(originalBindings);
             Texts.SetLanguage(language);
             Application.Current!.RequestedThemeVariant = theme;
             window.Width = originalSize.Width; window.Height = originalSize.Height;
@@ -242,11 +247,17 @@ internal static partial class GalleryToolbarLayoutChecks
         Require(shortcuts.All(name => ToolTip.GetTip(Find<Button>(viewer, name)) is string { Length: > 0 }), "A menu row lost its tooltip.");
     }
 
-    private static async Task OpenOverflowAsync(MainWindow window, GalleryViewer viewer)
+    private static async Task OpenOverflowFromPictureAsync(MainWindow window, GalleryViewer viewer)
     {
-        Button more = viewer.OverflowButton;
-        Require(!more.Focusable, "The gallery More button is a tab stop.");
-        viewer.SetOverflowOpen(true);
+        Require(!viewer.OverflowButton.Focusable, "The gallery More button is a tab stop.");
+        Require(viewer.Focus(NavigationMethod.Tab), "The picture could not take keyboard focus.");
+        PressKey(viewer, Key.F10, KeyModifiers.Shift);
+        await UntilAsync(() => viewer.MediaMenu?.IsOpen == true);
+        ContextMenu media = viewer.MediaMenu!;
+        MenuItem more = media.Items.OfType<MenuItem>().Single(item => AutomationProperties.GetAutomationId(item) == "gallery.overflow.label");
+        Require(more.Focus(NavigationMethod.Directional), "The More item could not take menu focus.");
+        PressKey(more, Key.Enter);
+        await UntilAsync(() => !media.IsOpen);
         await UntilAsync(() => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsEffectivelyVisible && viewer.OverflowMenuContent.Bounds.Height > 0);
         await LayoutAsync(window);
         Control content = viewer.OverflowMenuContent;
@@ -277,10 +288,10 @@ internal static partial class GalleryToolbarLayoutChecks
         Console.WriteLine("SMOKE popup render: " + path);
     }
 
-    private static void PressKey(Control target, Key key)
+    private static void PressKey(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None)
     {
-        target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
-        target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key });
+        target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+        target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key, KeyModifiers = modifiers });
     }
 
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

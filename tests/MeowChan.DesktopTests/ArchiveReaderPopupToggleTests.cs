@@ -70,13 +70,18 @@ public sealed class ArchiveReaderPopupToggleTests
     public void ArchiveFilterOpenerAndShortcutCloseTheSurfaceAndFocusTheResults() => WithArchive(fixture =>
     {
         MainWindow window = fixture.Window;
+        window.ArchivePage.ArchiveLayoutPreference = "List";
+        fixture.Layout();
         var opener = Find<ToggleButton>(window, "ArchiveFilters");
         var results = Find<ListBox>(window, "ArchiveThreads");
+        Rect bounds = new(results.TranslatePoint(default, window)!.Value, results.Bounds.Size);
         Assert.False(opener.Focusable);
         Click(fixture, opener);
         Assert.True(opener.IsChecked);
+        Assert.Equal(bounds, new Rect(results.TranslatePoint(default, window)!.Value, results.Bounds.Size));
         Click(fixture, opener);
         Assert.False(opener.IsChecked);
+        Assert.Equal(bounds, new Rect(results.TranslatePoint(default, window)!.Value, results.Bounds.Size));
         Assert.True(results.IsKeyboardFocusWithin);
 
         KeyGesture gesture = CommandBindings.Gesture("archive.filters-toggle")!;
@@ -139,7 +144,7 @@ public sealed class ArchiveReaderPopupToggleTests
         fixture.Window.Width = 920;
         fixture.Layout();
         var toolbar = Find<ActionToolBar>(fixture.Window, "ReaderToolbar");
-        ToggleButton more = Assert.IsType<ToggleButton>(toolbar.More);
+        var more = Find<ToggleButton>(fixture.Window, "ReaderToolbarMore");
 
         Click(fixture, more);
         Click(fixture, Find<Button>(TopLevel.GetTopLevel(toolbar.OverflowHost!)!, "ReaderThreadOpen"));

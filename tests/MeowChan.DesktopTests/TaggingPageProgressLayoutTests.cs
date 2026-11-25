@@ -61,7 +61,8 @@ public sealed class TaggingPageProgressLayoutTests
 
             TaggingPage page = window.TaggingPage!;
             TaggingHeader header = page.Header;
-            ProgressBar bar = header.GetVisualDescendants().OfType<ProgressBar>().Single();
+            ProgressBar bar = header.GetVisualDescendants().OfType<ProgressBar>()
+                .Single(control => AutomationProperties.GetAutomationId(control) == "TaggingProgressBar");
             ToolTip.SetShowDelay(bar, 0);
             TextBlock count = page.ProgressText;
             string[] languages = ["en", "de", .. Texts.BundledPackCodes()];
@@ -73,15 +74,12 @@ public sealed class TaggingPageProgressLayoutTests
                 Assert.InRange(window.Bounds.Width, width - 1 / scale, width + 1 / scale);
                 page.StartButton.Focus(NavigationMethod.Tab);
                 Assert.True(page.StartButton.IsFocused);
+                bool translatedWhileOpen = false;
                 foreach (string language in languages)
                 {
-                    // A language change can move the track. Enter its current position for each change.
-                    window.MouseMove(new Point(1, 1));
-                    window.MouseMove(BoundsIn(bar, window).Center);
-                    Assert.True(bar.IsPointerOver);
-                    Assert.True(ToolTip.GetIsOpen(bar));
-                    Popup popup = Assert.Single(window.OpenedPopups, popup => ReferenceEquals(popup.PlacementTarget, bar));
-                    ToolTip openTip = Assert.IsType<ToolTip>(popup.Child);
+                    HoverTrack();
+                    ToolTip before = VisibleTip();
+                    string beforeText = Assert.IsType<string>(before.Content);
 
                     ReaderFonts.Apply(Application.Current!, language);
                     Texts.SetLanguage(language);
@@ -103,7 +101,12 @@ public sealed class TaggingPageProgressLayoutTests
                     Assert.Equal(percent + " · " + breakdown, ToolTip.GetTip(bar));
                     Assert.Equal(label + " · " + percent + " · " + breakdown, AutomationProperties.GetHelpText(bar));
                     Assert.Equal(200d / 201, bar.Value, 8);
+                    // A font or language change can move the track away from the pointer and retire its popup.
+                    bool stayedOpen = ToolTip.GetIsOpen(bar);
+                    if (!stayedOpen) HoverTrack();
+                    ToolTip openTip = VisibleTip();
                     Assert.Equal(percent + " · " + breakdown, openTip.Content);
+                    translatedWhileOpen |= stayedOpen && ReferenceEquals(before, openTip) && !Equals(beforeText, openTip.Content);
 
                     CheckGeometry(header, bar, count, page.StartButton, $"{language}/{width}/{scale}");
                     if (width == 760)
@@ -117,7 +120,22 @@ public sealed class TaggingPageProgressLayoutTests
                         window.UpdateLayout();
                     }
                 }
+                Assert.True(translatedWhileOpen, $"No visible tooltip changed language at {width} DIP and scale {scale}.");
                 window.MouseMove(new Point(1, 1));
+            }
+
+            void HoverTrack()
+            {
+                window.MouseMove(new Point(1, 1));
+                window.MouseMove(BoundsIn(bar, window).Center);
+                Assert.True(bar.IsPointerOver);
+                Assert.True(ToolTip.GetIsOpen(bar));
+            }
+
+            ToolTip VisibleTip()
+            {
+                Popup popup = Assert.Single(window.OpenedPopups, popup => ReferenceEquals(popup.PlacementTarget, bar));
+                return Assert.IsType<ToolTip>(popup.Child);
             }
         }
     });

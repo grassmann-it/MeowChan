@@ -34,7 +34,7 @@ public sealed class MediaMenuCompositionTests : IDisposable
     public void EverySurfaceListsTheSameCommonActionsInTheSameOrder()
     {
         string[] expected = { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original",
-            "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
+            "media.copy-path", "media.copy-file-name", "media.show-in-folder", "media.open-external", "media.details", "gallery.show-in-thread" };
         // The media page opens with the same single gallery command (Enter) as every other surface.
         foreach (MediaMenuSurface surface in All.Where(item => item is not (MediaMenuSurface.Gallery or MediaMenuSurface.NativeVideoOverlay)))
             Assert.Equal(expected, Ids(MediaMenuComposition.Compose(Full(surface))));
@@ -202,14 +202,14 @@ public sealed class MediaMenuCompositionTests : IDisposable
         string reason = Texts.T("media.menu.reason.severalSelected");
         // MD-01/KB-06: the one-file entries (gallery, thread, provider post, folder, path, details) say that they need a single item.
         foreach (MediaMenuAction action in new[] { MediaMenuAction.Open, MediaMenuAction.ShowInThread, MediaMenuAction.OpenProviderPost, MediaMenuAction.CopyProviderPost,
-            MediaMenuAction.ShowInFolder, MediaMenuAction.CopyPath, MediaMenuAction.Details })
+            MediaMenuAction.ShowInFolder, MediaMenuAction.OpenExternal, MediaMenuAction.CopyPath, MediaMenuAction.Details })
         {
             MediaMenuItemModel item = model.Items.Single(entry => entry.Action == action);
             Assert.False(item.Available, action.ToString());
             Assert.Equal(reason, item.Reason);
         }
         // The entries that act on the whole selection stay available (favourite, rate and tag, queue, export).
-        foreach (MediaMenuAction action in new[] { MediaMenuAction.Favorite, MediaMenuAction.RateAndTag, MediaMenuAction.Queue, MediaMenuAction.Export })
+        foreach (MediaMenuAction action in new[] { MediaMenuAction.Favorite, MediaMenuAction.RateAndTag, MediaMenuAction.Queue, MediaMenuAction.Export, MediaMenuAction.CopyFileName })
             Assert.True(model.Items.Single(item => item.Action == action).Available, action.ToString());
     }
 
@@ -252,10 +252,10 @@ public sealed class MediaMenuCompositionTests : IDisposable
     }
 
     [Fact]
-    public void TheCommonActionsAreGroupedIntoThreeSectionsByTheirDeclaredGroup()
+    public void TheCommonActionsAreGroupedByTheirDeclaredGroup()
     {
         MediaMenuModel model = MediaMenuComposition.Compose(Full(MediaMenuSurface.MediaPage) with { ProviderMedia = true, ProviderPostKnown = true });
-        Assert.Equal(new[] { 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2 }, model.Items.Select(item => item.Group));
+        Assert.Equal(new[] { 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3 }, model.Items.Select(item => item.Group));
     }
 
     [Fact]

@@ -11,6 +11,7 @@ using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Updates;
@@ -21,6 +22,55 @@ namespace MeowChan.DesktopTests;
 public sealed class HeaderTaglineLayoutTests
 {
     private static readonly double[] WindowWidths = [760, 900, 1100, 1400, 1800];
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheVisibleTaglineKeepsItsMenuOpenForBothKeysAndRestoresFocus(bool reattach) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        new Config { DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1, HeaderTagline = "PerStart" }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            await using DesktopSessionHost session = new(profile.Path, [],
+                updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            await using MainWindow window = new(session) { Height = 600, Classes = { MotionPolicy.OffClass } };
+            window.Show();
+            await window.StartupTimingRestoreTask;
+            BooruReviewTestPlatform.Resize(window, 1800);
+            TextBlock subtitle = window.FindControl<TextBlock>("WorkspaceSubtitle")!;
+            if (reattach)
+            {
+                ContextGestures.MenuKey(subtitle);
+                ContextMenu oldMenu = Assert.IsType<ContextMenu>(subtitle.ContextMenu);
+                Assert.True(oldMenu.IsOpen);
+                Panel host = window.FindControl<Panel>("WorkspaceTaglineHost")!;
+                host.Children.Remove(subtitle);
+                ContextGestures.Settle(window);
+                Assert.False(oldMenu.IsOpen);
+                Assert.Null(subtitle.ContextMenu);
+                host.Children.Add(subtitle);
+                ContextGestures.Settle(window);
+            }
+            Assert.True(subtitle.Focus(NavigationMethod.Tab));
+            foreach (Action<Control> open in new Action<Control>[] { ContextGestures.MenuKey, ContextGestures.ShiftF10 })
+            {
+                open(subtitle);
+                ContextMenu menu = Assert.IsType<ContextMenu>(subtitle.ContextMenu);
+                Assert.True(menu.IsOpen);
+                Assert.Equal(new[] { "tagline.another", "tagline.hide", "tagline.settings" }, MenuProbe.Entries(menu).Select(item => item.Id));
+                TopLevel popup = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(menu));
+                popup.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+                popup.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+                ContextGestures.Settle(window);
+                Assert.False(menu.IsOpen);
+                Assert.Same(subtitle, window.FocusManager?.GetFocusedElement());
+            }
+        }
+    });
 
     [Theory]
     [InlineData("Off", true)]
@@ -97,12 +147,16 @@ public sealed class HeaderTaglineLayoutTests
         });
 
     [Theory]
-    [InlineData("booru", "booru")]
-    [InlineData("removed-quip", "cats")]
-    public void HostedFixedPickerKeepsTheProfileChoiceAndSavesTheNewQuip(string storedId, string effectiveId) =>
+    [InlineData("booru", "booru", true, false)]
+    [InlineData("removed-quip", "cats", true, false)]
+    [InlineData("booru", "booru", false, false)]
+    [InlineData("removed-quip", "cats", false, false)]
+    [InlineData("booru", "booru", true, true)]
+    [InlineData("removed-quip", "cats", true, true)]
+    public void HostedFixedPickerKeepsTheProfileChoiceAndSavesTheNewQuip(string storedId, string effectiveId, bool overlayPopups, bool pendingEmptySearch) =>
         BooruComponentDispatcher.Run(() =>
         {
-            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using IDisposable platform = BooruReviewTestPlatform.Enter(overlayPopups);
             using TempDirectory profile = new();
             new Config
             {
@@ -126,21 +180,32 @@ public sealed class HeaderTaglineLayoutTests
                 BooruResultActionsTests.Click(window.FindControl<Button>("SettingsNavigationButton")!);
                 Assert.True(window.SettingsPageVisible);
                 SettingsEditor editor = window.SettingsEditor;
+                SearchBox search = Assert.Single(editor.GetVisualDescendants().OfType<SearchBox>(),
+                    field => AutomationProperties.GetAutomationId(field) == "SettingsSearchBox");
+                if (pendingEmptySearch)
+                {
+                    search.Text = "tagline";
+                    search.Text = string.Empty;
+                    Assert.True(search.IsQueryPending);
+                }
                 Assert.True(editor.RevealSetting(nameof(Config.HeaderTaglineFixedId)));
-                ComboBox picker = editor.FindControl<ComboBox>("HeaderTaglineFixedIdInput")!;
                 Settle();
+                ComboBox picker = Assert.Single(editor.GetVisualDescendants().OfType<ComboBox>(),
+                    input => AutomationProperties.GetAutomationId(input) == "HeaderTaglineFixedIdInput");
                 Assert.Equal(effectiveId, Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
                 Assert.True(picker.Focus());
+                Assert.Same(picker, window.FocusManager?.GetFocusedElement());
                 window.KeyPress(Key.F4, RawInputModifiers.None, PhysicalKey.F4, null);
+                if (pendingEmptySearch) search.FlushQuery();
                 Settle();
-                Assert.True(picker.IsDropDownOpen);
+                Assert.True(picker.IsDropDownOpen, $"F4: focus={window.FocusManager?.GetFocusedElement()}, visible={picker.IsEffectivelyVisible}, active={window.IsActive}");
                 AssertGroups("en");
 
                 try
                 {
                     Texts.SetLanguage("de");
                     Settle();
-                    Assert.True(picker.IsDropDownOpen);
+                    Assert.True(picker.IsDropDownOpen, $"Language refresh: focus={window.FocusManager?.GetFocusedElement()}, visible={picker.IsEffectivelyVisible}, active={window.IsActive}");
                     AssertGroups("de");
                     Assert.Equal(effectiveId, Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
                     Assert.EndsWith(Texts.T(BuiltInTaglineProvider.KeyFor(effectiveId)), subtitle.Text);

@@ -238,22 +238,12 @@ internal static class ArchiveExportChecks
         finally { Directory.Delete(profile, true); if (evidence == null) Directory.Delete(destinationRoot, true); }
         Console.WriteLine("SMOKE HTML export: real shared library writer, verified PNG, retained reply, internal quote, relocation and no-overwrite conflict passed.");
     }
-    // The origin is the toolbar action itself while it is a visible direct item. In a closed
-    // More popup it has no window presentation and cannot hold focus, so the visible More
-    // toggle that carries it is the real origin; focus must never be left on nothing.
     private static void RequireExportOriginFocus(ArchivePage page, string message)
     {
-        Button origin = page.FindControl<Button>("ExportArchiveButton")!;
-        ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
-        bool direct = origin.IsEffectivelyVisible && origin.Bounds.Width > 0 && origin.Bounds.Height > 0
-            && origin.GetVisualAncestors().Contains(toolbar);
-        bool overflowed = toolbar.OverflowHost?.Children.Contains(origin) == true;
-        Control? expected = direct ? origin : overflowed ? toolbar.More : null;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        Control expected = posts.SelectedItem is { } selected && posts.ContainerFromItem(selected) is Control row ? row : posts;
         object? focused = TopLevel.GetTopLevel(page)?.FocusManager?.GetFocusedElement();
-        string focusedName = (focused as Control)?.Name ?? focused?.GetType().Name ?? "none";
-        Require(expected != null && ReferenceEquals(focused, expected), message
-            + $" direct={direct}, overflowed={overflowed}, originBounds={origin.Bounds}, "
-            + $"moreVisible={toolbar.More?.IsEffectivelyVisible}, focused={focusedName}, window={TopLevel.GetTopLevel(page)?.Bounds}");
+        Require(ReferenceEquals(focused, expected), $"{message} Expected {expected}, focused {focused}.");
     }
     // Both presentations of the same action must return focus: wide enough to stay a direct
     // item, and narrow enough to sit in the closed More popup.

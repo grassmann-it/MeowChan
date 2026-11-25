@@ -168,8 +168,8 @@ internal static class LocalSearchLanguageRefreshChecks
             foreach (string code in Languages)
             {
                 Texts.SetLanguage(code); await SettleAsync(dialog);
-                Require(dialog.Title == Expected("mediahash.title", code)
-                    && ReferenceEquals(draft, dialog.Operation.Current) && query.Text == Hash.ToUpperInvariant()
+                CheckHashTitle(dialog, code);
+                Require(ReferenceEquals(draft, dialog.Operation.Current) && query.Text == Hash.ToUpperInvariant()
                     && query.SelectionStart == 1 && query.SelectionEnd == 9 && !shown.IsCompleted
                     && Named<StackPanel>(dialog, "MediaHashSearchResults").Children.Count == 0,
                     "hash unsubmitted draft changed/searched on refresh");
@@ -189,10 +189,11 @@ internal static class LocalSearchLanguageRefreshChecks
                 Texts.SetLanguage(code);
                 await WaitAsync(() => dialog.Title == Expected("mediahash.title", code));
                 await SettleAsync(dialog);
+                CheckHashTitle(dialog, code);
                 Require(ReferenceEquals(view, dialog.Operation.Current) && query.Text == Hash.ToUpperInvariant()
                     && query.SelectionStart == 1 && query.SelectionEnd == 9 && !shown.IsCompleted,
                     "hash refresh changed query/selection/request/result");
-                foreach (var pair in new[] { ("Heading", "title"), ("Scope", "scope"), ("InputLabel", "input") })
+                foreach (var pair in new[] { ("Scope", "scope"), ("InputLabel", "input") })
                     Require(Named<TextBlock>(dialog, "MediaHashSearch" + pair.Item1).Text == Expected("mediahash." + pair.Item2, code),
                         "hash fixed text stale: " + pair.Item1);
                 Require(AutomationProperties.GetName(query) == Expected("mediahash.input", code), "hash accessible input stale");
@@ -236,6 +237,18 @@ internal static class LocalSearchLanguageRefreshChecks
                 await shown.WaitAsync(Deadline); await dialog.TerminateAsync().WaitAsync(Deadline);
             }
             finally { Texts.SetLanguage(previous); }
+        }
+    }
+
+    private static void CheckHashTitle(Window dialog, string code)
+    {
+        string expected = Expected("mediahash.title", code);
+        Require(dialog.Title == expected, "hash window title stale: " + code);
+        if (WindowChrome.ShowsCaption(WindowChrome.Mode))
+        {
+            TextBlock caption = Named<TextBlock>(dialog, "WindowCaptionTitle");
+            CheckAttached(dialog, caption);
+            Require(caption.Text == expected, "hash displayed caption stale: " + code);
         }
     }
 
@@ -314,7 +327,8 @@ internal static class LocalSearchLanguageRefreshChecks
     private static Task WaitAsync(Func<bool> predicate) => Program.WaitUntilAsync(predicate);
     private static T Named<T>(Window window, string name) where T : Control
     {
-        Control[] controls = window.GetVisualDescendants().OfType<Control>().Prepend(window).Where(c => c.Name == name).ToArray();
+        Control[] controls = window.GetVisualDescendants().OfType<Control>().Prepend(window)
+            .Where(c => (AutomationProperties.GetAutomationId(c) ?? c.Name) == name).ToArray();
         Require(controls.Length == 1 && controls[0] is T, "missing/ambiguous actual control: " + name);
         return (T)controls[0];
     }

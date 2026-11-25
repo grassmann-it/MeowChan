@@ -63,8 +63,8 @@ public partial class ArchivePage
         ArchivePosts.SetValue(ArchiveAttachmentView.HoverEnlargeProperty, _hoverEnlarge);
         InitializeInlineVideo();
         ApplyReaderMediaLive();
-        // The focused card grows or shrinks with the selection; keep its top where it was so the list does not jump under the eyes.
-        ArchivePosts.SelectionChanged += (_, _) => AnchorFocusedCard();
+        // Moving between posts aligns the enlarged card. Rebuilding the list removes its selection before restoring it.
+        ArchivePosts.SelectionChanged += (_, e) => AnchorFocusedCard(centre: e.RemovedItems.Count > 0);
         // The enlarged media is capped by the list's visible height and kept whole in view (ReaderMediaFit).
         ArchivePosts.SizeChanged += (_, _) => UpdateReaderVisibleHeight();
         ArchivePosts.AddHandler(ScrollViewer.ScrollChangedEvent, (_, e) =>
@@ -165,8 +165,8 @@ public partial class ArchivePage
         if (_ended || list.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || list.SelectedItem is not { } item
             || list.ContainerFromItem(item) is not Control container) return;
         list.UpdateLayout();
-        // A card a jump centred is centred again by its new size: the same target as the jump, in one write.
-        if (ReferenceEquals(_alignedCardItem, item)) { RealignJumpedCard(item, container); return; }
+        // Use the same target after a late frame size change.
+        if (ReferenceEquals(_alignedCardItem, item)) { AlignFocusedCard(item, container); return; }
         double shift = 0;
         if (ReferenceEquals(_focusedCardItem, item) && double.IsFinite(_focusedCardTop)
             && list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is { } scroll
@@ -175,7 +175,7 @@ public partial class ArchivePage
         FitFocusedCard(item, container, shift);
     }
 
-    // The item of the card the latest reader jump aligned while the focused media is enlarged (null otherwise, and after any other selection).
+    // The item of the card most recently aligned while its media was enlarged.
     private object? _alignedCardItem;
 
     /// <summary>True while the focused card's media is drawn enlarged: a reader jump then centres the card (ReaderMediaFit.JumpOffset).</summary>
@@ -185,7 +185,7 @@ public partial class ArchivePage
     // virtualizer re-estimates the extent around the realized cards when one changes its height, so one write does not always land
     // where the measurement said: it is repeated in this turn (nothing is rendered in between) with the gain the last write showed,
     // a few times at most, until the card is where the jump would put it.
-    private void RealignJumpedCard(object item, Control container)
+    private void AlignFocusedCard(object item, Control container)
     {
         ListBox list = ArchivePosts;
         if (list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is not { } scroll) return;
@@ -196,7 +196,7 @@ public partial class ArchivePage
             if (list.ContainerFromItem(item) is Control current) container = current;
             if (container.TranslatePoint(default, scroll) is not Point top) return;
             double target = ReaderMediaFit.JumpOffset(scroll.Offset.Y, top.Y, container.Bounds.Height, scroll.Viewport.Height,
-                scroll.Extent.Height, lead, true);
+                scroll.Extent.Height, lead, true, ReaderMedia.FocusedPostTopPaddingPercent);
             double wanted = target - scroll.Offset.Y;
             if (Math.Abs(wanted) < 1) break;
             if (iteration > 0 && Math.Abs(previousWrite) >= 1) gain = Math.Clamp((previousWanted - wanted) / previousWrite, 0.25, 4);
@@ -238,28 +238,25 @@ public partial class ArchivePage
         _focusedCardTop = top.Y - moved;
     }
 
-    // Selection changes the focused card's size. Its top edge keeps its place in the viewport: measured before the change is laid out and
-    // again once it was, the scroll offset takes up the difference and brings the whole medium into view, in one write (FitFocusedCard).
-    // That happens in this very turn: a layout that ran first on its own (a posted pass) would let the presenter's scroll anchoring move
-    // the grown card (a card above the held one pushes it out of view) and the frame between would be rendered, a bounce. When the card
-    // is not realized yet, or the layout cannot run now (this was called from inside one), the same fit follows on the Loaded pass.
-    // Only while the enlargement is in effect; a second pass after other pending layout work holds the card there.
-    // A selection made by a reader jump (FocusPostAsync) is left to the jump, which aligns the card's top itself: the anchor is for a
-    // selection by the pointer or anything else that does not scroll.
-    private void AnchorFocusedCard()
+    // Align the enlarged card in the same turn as a pointer selection or an enlargement change to avoid showing an intermediate
+    // offset from the virtualizer. A reader jump owns its own alignment. If the card is still realizing, retry after layout.
+    private void AnchorFocusedCard(bool centre)
     {
         if (ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || ArchivePosts.SelectedItem is not { } item) return;
         ListBox list = ArchivePosts;
         _readerScrollOwner.OpenFitWindow(Environment.TickCount64, _readerInteractionRevision, FocusFitWindowMilliseconds);
         if (ReaderJumpOwnsScroll) return;
-        _alignedCardItem = null; // a selection the jump did not make: its top edge is held, not centred
+        centre = centre && item is ArchivePostRow { ShowsMedia: true };
+        _alignedCardItem = centre ? item : null;
+        if (centre) ++_readerLayoutRevision;
         Point? before = list.ContainerFromItem(item) is Control container ? container.TranslatePoint(default, list) : null;
         bool FitNow()
         {
             if (_ended || !ReferenceEquals(list.SelectedItem, item) || !MayRefitFocusedCard) return true;
             list.UpdateLayout();
             if (list.ContainerFromItem(item) is not Control current || current.TranslatePoint(default, list) is not Point after) return false;
-            FitFocusedCard(item, current, before is { } start ? after.Y - start.Y : 0);
+            if (centre) AlignFocusedCard(item, current);
+            else FitFocusedCard(item, current, before is { } start ? after.Y - start.Y : 0);
             return true;
         }
         if (before == null || !FitNow())

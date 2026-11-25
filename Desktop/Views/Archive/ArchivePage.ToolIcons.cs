@@ -16,7 +16,7 @@ public partial class ArchivePage
         ("ArchiveTagManage", "sliders"), ("ReaderTagManage", "sliders"),
         ("ArchiveUseDeviceZone", "check"),
         ("ArchiveRetrySearch", "refresh-cw"), ("ArchiveRetrySuggestions", "refresh-cw"),
-        ("ArchiveFilterApply", "check"),
+        ("ArchiveFilterApply", "check"), ("ArchiveFilterClose", "x"),
         ("ArchiveResetFilters", CommandCatalog.Get("media.filter.reset-all").Icon),
         ("ArchiveEmptySearchInMedia", CommandCatalog.Get("archive.open-results-in-media").Icon),
         ("ArchiveMediaSelectionTag", CommandCatalog.Get("tagging.tag-together").Icon),

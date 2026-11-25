@@ -45,6 +45,22 @@ internal static class PopupToggle
         return true;
     }
 
+    internal static bool ConsumeActivation(Button button)
+    {
+        return Close(button) || ConsumeAnchorPress(button);
+    }
+
+    /// <summary>
+    /// True once when the pointer press that light-dismissed the button's menu landed on the button itself: the click that
+    /// follows closes, it must not open the menu again. For owners that decide themselves whether an open menu closes.
+    /// </summary>
+    internal static bool ConsumeAnchorPress(Button button)
+    {
+        if (!Menus.TryGetValue(button, out ButtonMenu? state) || !state.AnchorPress) return false;
+        state.AnchorPress = false;
+        return true;
+    }
+
     internal static bool CanToggleMenuFromKey(ContextMenu menu, KeyEventArgs e) => !e.Handled && !ShortcutService.IsCapturing
         && !menu.Items.OfType<MenuItem>().Any(item => item.IsSubMenuOpen);
 
@@ -53,34 +69,52 @@ internal static class PopupToggle
         ButtonMenu state = Menus.GetValue(button, static anchor => new ButtonMenu(anchor));
         state.Menu = menu;
         TopLevel? root = TopLevel.GetTopLevel(button);
-        root?.AddHandler(InputElement.PointerPressedEvent, DismissOnAnchor, RoutingStrategies.Tunnel, handledEventsToo: true);
+        menu.Opened += (_, _) => root?.AddHandler(InputElement.PointerPressedEvent,
+            OnPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        root?.AddHandler(InputElement.PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
+        button.DetachedFromVisualTree += OnDetached;
         menu.Opened += (_, _) => Present(button, true);
         menu.Closed += (_, _) =>
         {
-            root?.RemoveHandler(InputElement.PointerPressedEvent, DismissOnAnchor);
+            if (!state.AnchorPress) RemoveHandlers();
             if (!ReferenceEquals(state.Menu, menu)) return;
             state.Menu = null;
             Present(button, false);
         };
 
-        void DismissOnAnchor(object? sender, PointerPressedEventArgs e)
+        void OnPointerPressed(object? sender, PointerPressedEventArgs e)
         {
-            if (!ReferenceEquals(state.Menu, menu) || !menu.IsOpen || e.Source is not Visual source
-                || !e.GetCurrentPoint(button).Properties.IsLeftButtonPressed) return;
-            // Before Avalonia's light-dismiss layer forwards the press, consume an activation on the anchor.
-            bool onAnchor = source.GetSelfAndVisualAncestors().Contains(button)
-                || root != null && new Rect(button.Bounds.Size).Contains(e.GetPosition(button))
-                    && root.InputHitTest(e.GetPosition(root), visual => !ReferenceEquals(visual, source)) is Visual underlying
-                    && underlying.GetSelfAndVisualAncestors().Contains(button);
-            if (!onAnchor) return;
-            e.Handled = true;
-            menu.Close();
+            if (ReferenceEquals(state.Menu, menu) && menu.IsOpen
+                && e.GetCurrentPoint(button).Properties.IsLeftButtonPressed
+                && new Rect(button.Bounds.Size).Contains(e.GetPosition(button)))
+                state.AnchorPress = true;
+        }
+
+        void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+        {
+            // The button's Click runs before the release bubbles back to the root.
+            state.AnchorPress = false;
+            if (!menu.IsOpen) RemoveHandlers();
+        }
+
+        void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            state.AnchorPress = false;
+            RemoveHandlers();
+        }
+
+        void RemoveHandlers()
+        {
+            root?.RemoveHandler(InputElement.PointerPressedEvent, OnPointerPressed);
+            root?.RemoveHandler(InputElement.PointerReleasedEvent, OnPointerReleased);
+            button.DetachedFromVisualTree -= OnDetached;
         }
     }
 
     private sealed class ButtonMenu
     {
         internal ContextMenu? Menu { get; set; }
+        internal bool AnchorPress { get; set; }
 
         internal ButtonMenu(Button button)
         {

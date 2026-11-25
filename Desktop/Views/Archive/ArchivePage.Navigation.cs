@@ -20,32 +20,59 @@ public partial class ArchivePage
 {
     private ArchiveSearchSpec _query = new ArchiveSearchSpec();
     private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
-        int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error, bool AutoExpanded = false);
-    private sealed record ReaderHistoryEntry(ArchivedThreadView View, ReaderAnchor? Anchor,
-        IReadOnlyList<InlineReplyState> Replies);
+        int Offset, IReadOnlyList<ArchiveQuote> Replies, string? Error, bool AutoExpanded = false);
+    private sealed record InlineRepliesSnapshot(InlineReplyState[] Pages, string[] CollapsedPosts);
+    private sealed record ReaderHistoryEntry(ArchivedThreadView View, ReaderAnchor? Anchor, InlineRepliesSnapshot Replies);
 
-    private InlineReplyState[] CaptureInlineReplyState() =>
-        (ArchivePosts.ItemsSource as IEnumerable<ArchivePostRow>)?
-            .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError)
-            .Select(row => new InlineReplyState(row.Id, row.RepliesExpanded, row.RepliesLoaded,
-                row.BacklinkCount, row.RepliesOffset, Array.AsReadOnly(row.Replies.ToArray()), row.RepliesError, row.RepliesAutoExpanded))
-            .ToArray() ?? Array.Empty<InlineReplyState>();
-
-    private void RestoreInlineReplyState(IReadOnlyList<InlineReplyState> states)
+    private sealed class PostInteraction
     {
-        if (ArchivePosts.ItemsSource is not IEnumerable<ArchivePostRow> rows) return;
-        Dictionary<string, InlineReplyState> byId = states.ToDictionary(state => state.PostId, StringComparer.Ordinal);
-        foreach (ArchivePostRow row in rows)
+        internal Dictionary<string, InlineReplyState> Replies { get; } = new(StringComparer.Ordinal);
+    }
+
+    private PostInteraction _postInteraction = new();
+    private ArchivedThreadView? _postInteractionThread;
+
+    private static InlineReplyState ReplyState(ArchivePostRow row) => new(row.Id, row.RepliesExpanded, row.RepliesLoaded,
+        row.BacklinkCount, row.RepliesOffset, row.Replies.Select(reply => reply.Quote).ToArray(), row.RepliesError, row.RepliesAutoExpanded);
+
+    private InlineRepliesSnapshot CaptureInlineReplyState()
+    {
+        IEnumerable<InlineReplyState> pages = _postInteraction.Replies.Values;
+        if (ArchivePosts.ItemsSource is ReaderPostRows rows)
+            pages = pages.Concat(rows.Materialized
+                .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError).Select(ReplyState));
+        return new(pages.ToArray(), _replyAutoExpand.CaptureCollapsedPosts());
+    }
+
+    private void BeginPostInteraction(ResourceId? threadId, InlineRepliesSnapshot? restored)
+    {
+        _replyAutoExpand.SwitchThread(threadId);
+        bool sameSnapshot = ReferenceEquals(_postInteractionThread, _thread);
+        if (restored == null && sameSnapshot && ArchivePosts.ItemsSource is ReaderPostRows)
+            restored = CaptureInlineReplyState();
+        // A pending projection has no rows yet. Keep its seeded reply pages until the first rows are built.
+        if (restored != null || !sameSnapshot || ArchivePosts.ItemsSource != null)
+            _postInteraction = new();
+        _postInteractionThread = _thread;
+        if (restored == null) return;
+        _replyAutoExpand.RestoreCollapsedPosts(restored.CollapsedPosts);
+        foreach (InlineReplyState state in restored.Pages) _postInteraction.Replies[state.PostId] = state;
+    }
+
+    private void RestorePostInteraction(ArchivePostRow row, PostInteraction interaction, ResourceId thread)
+    {
+        if (row.IsStub || row.SuppressReplyToggle) return;
+        if (!interaction.Replies.Remove(row.Id, out InlineReplyState? state)) return;
+        // Rebuild the displayed reply cards against the current filter before expanding the saved pages.
+        if (state.Loaded)
         {
-            if (!byId.TryGetValue(row.Id, out InlineReplyState? state)) continue;
-            // Restore all loaded pages before expanding so materialization cannot
-            // replace a 20+ reply origin with a freshly loaded first page.
-            if (state.Loaded) row.SetReplies(state.Replies, state.Count ?? state.Replies.Count, state.Offset);
-            else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
-            row.SetRepliesError(state.Error);
-            row.RepliesExpanded = state.Expanded;
-            row.RepliesAutoExpanded = state.Expanded && state.AutoExpanded;
+            ArchiveQuoteRow[] replies = state.Replies.Select(quote => ReplyCard(quote, thread)).ToArray();
+            row.SetReplies(Array.AsReadOnly(replies), state.Count ?? replies.Length, state.Offset);
         }
+        else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
+        row.SetRepliesError(state.Error);
+        row.RepliesExpanded = state.Expanded && (!state.AutoExpanded || _replyAutoExpand.Enabled);
+        row.RepliesAutoExpanded = row.RepliesExpanded && state.AutoExpanded;
     }
     private readonly LinkedList<ReaderHistoryEntry> _history = new();
     private ReaderAnchor? _backlinkOriginAnchor;
@@ -211,7 +238,9 @@ public partial class ArchivePage
         return LoadThreadAsync(id, resetPage: kept == null, preparedThread, null, entryAnchor: kept);
     }
 
-    private void ShowCapturedView(ArchivedThreadView view, string? postId)
+    private void ShowCapturedView(ArchivedThreadView view, string? postId) => ShowCapturedViewWithReplies(view, postId, null);
+
+    private void ShowCapturedViewWithReplies(ArchivedThreadView view, string? postId, InlineRepliesSnapshot? replies)
     {
         InvalidateFilenameSearch();
         if (_unreadMark?.Thread != view.Summary.Id) _unreadMark = null;
@@ -229,7 +258,7 @@ public partial class ArchivePage
         _postsAnchorOnShow = null;
         _assets = Array.Empty<ArchiveAssetRow>();
         _showReader = true;
-        RenderThread();
+        RenderThreadWithReplies(replies);
         UpdateLayoutMode();
         ArchiveContentTabs.SelectedIndex = 0;
         Message(string.Empty);
@@ -264,8 +293,7 @@ public partial class ArchivePage
         ReaderHistoryEntry previous = _history.Last.Value;
         _history.RemoveLast();
         CancelReferences();
-        ShowCapturedView(previous.View, previous.Anchor?.SelectedPostId ?? previous.Anchor?.PostId);
-        RestoreInlineReplyState(previous.Replies);
+        ShowCapturedViewWithReplies(previous.View, previous.Anchor?.SelectedPostId ?? previous.Anchor?.PostId, previous.Replies);
         if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
         ReaderPositionChanged(deliberate: true);
     }
@@ -284,22 +312,23 @@ public partial class ArchivePage
     private int? _referencesCount;
     private string ReferencesTabHeader() => _referencesCount is > 0 and var count
         ? Texts.T("archive.referencesCount", count.ToString(Texts.Culture)) : Texts.T("archive.references");
-    private async Task LoadBacklinksAsync()
+    internal async Task LoadBacklinksAsync(ArchivePostId post, int offset = 0)
     {
-        if (_busy || _ended || !CanRead || _openReader == null || _backlinkPost == null) return;
+        if (_busy || _ended || !CanRead || _openReader == null) return;
         int request = ++_referenceRequest;
         _referenceCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _referenceCancellation = loading;
         ClearOperationError("reference");
-        ArchivePostId post = _backlinkPost;
+        _backlinkPost = post;
+        _referenceOffset = offset;
         ShowReferencesTab(null, present: true); // present while loading, so the selection below is a visible tab
         ArchiveContentTabs.SelectedIndex = 2;
         ArchiveReferencesTitle.Text = Texts.T("archive.loading");
         try
         {
             await using ArchiveReader reader = await _openReader(loading.Token);
-            ArchiveQuotePage result = await reader.GetBacklinksAsync(post, _referenceOffset, PageSize, loading.Token);
+            ArchiveQuotePage result = await reader.GetBacklinksAsync(post, offset, PageSize, loading.Token);
             if (_ended || request != _referenceRequest) return;
             _referenceTotal = result.TotalCount;
             ArchiveReferences.ItemsSource = result.Items.Select(quote => new ArchiveQuoteRow(quote, true)).ToArray();
@@ -316,7 +345,7 @@ public partial class ArchivePage
         finally { if (ReferenceEquals(_referenceCancellation, loading)) _referenceCancellation = null; }
     }
     private async void OnPreviousReferences(object? sender, RoutedEventArgs e)
-    { _referenceOffset = Math.Max(0, _referenceOffset - PageSize); await LoadBacklinksAsync(); }
+    { if (_backlinkPost is { } post) await LoadBacklinksAsync(post, Math.Max(0, _referenceOffset - PageSize)); }
     private async void OnNextReferences(object? sender, RoutedEventArgs e)
-    { if (_referenceOffset + PageSize >= _referenceTotal) return; _referenceOffset += PageSize; await LoadBacklinksAsync(); }
+    { if (_backlinkPost is { } post && _referenceOffset + PageSize < _referenceTotal) await LoadBacklinksAsync(post, _referenceOffset + PageSize); }
 }

@@ -18,9 +18,15 @@ public partial class ArchivePage
 {
     private ArchiveAssetRow? _savedMediaSidebarRow;
     private (ArchivedThreadView Thread, IReadOnlyList<ArchiveAssetRow> Assets, Task<ILookup<GalleryAssetKey, GalleryEntry>> Entries)? _savedSidebarTags;
+    internal Func<GalleryEntry, GalleryDecodeRequest.Fit, CancellationToken, Task<ReaderMediaSidebarContent.Picture>> SavedSidebarImageLoaderForTests { get; set; }
+        = DecodeSavedSidebarImageAsync;
 
     private ArchiveAssetRow? SavedMediaSidebarRow => ArchiveMediaTab.IsSelected && _shownMediaThread == _selectedThread
         && ReferenceEquals(_savedMediaSidebarRow, SelectedMediaRow()) ? _savedMediaSidebarRow : null;
+
+    private ArchiveAssetRow? ActionableSavedMediaSidebarRow => !_ended && _available && _mediaSidebarShown
+        && _mediaSidebar is { IsEffectivelyVisible: true } && !_obscuredByGallery && !IsReaderDialogOpen
+        && _thread != null && _thread.Summary.Id == _selectedThread ? SavedMediaSidebarRow : null;
 
     private void FollowSavedMediaSelection()
     {
@@ -99,7 +105,9 @@ public partial class ArchivePage
 
     private void RefreshSavedMediaSidebar(ReaderMediaSidebar sidebar)
     {
-        _savedMediaSidebarRow = _shownMediaThread == _selectedThread ? SelectedMediaRow() : null;
+        ArchiveAssetRow? next = _shownMediaThread == _selectedThread ? SelectedMediaRow() : null;
+        if (!ReferenceEquals(_savedMediaSidebarRow, next)) InvalidateSidebarMediaMenu();
+        _savedMediaSidebarRow = next;
         CancelSidebarStripLoad();
         sidebar.ClearStrip();
         if (_thread is not { } thread || _savedMediaSidebarRow is not { } row)
@@ -116,7 +124,7 @@ public partial class ArchivePage
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(key, target);
         sidebar.Describe(row.Version, row.Name, ticket.SameMedium ? _sidebarShownDetail : string.Empty, OpenMediaGallery != null, mediumKey: key);
         sidebar.SetSourceFacts($"{entry.Key.Thread.Source} /{entry.Key.Thread.Board}/ · {entry.Key.Thread.Thread}",
-            null, null, row.Asset.Length, null, null);
+            null, null, row.Asset.Length, null, null, hash: row.Asset.Sha256);
         sidebar.SetTags(null, MediaMenuReasons.TagsUnknown);
         ConfigureSavedMediaSidebarDecisions(sidebar, thread, row);
         OfferSavedSidebarVideo(entry, key);
@@ -138,11 +146,7 @@ public partial class ArchivePage
             return load.RunAsync(async ct =>
             {
                 if (entry.Kind == SavedMediaKind.Image)
-                {
-                    (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry,
-                        new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
-                    return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new(info.Width, info.Height));
-                }
+                    return await SavedSidebarImageLoaderForTests(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
                 if (entry.Kind == SavedMediaKind.Video)
                 {
                     Bitmap? poster = await MediaTileThumbnails.LoadPosterAsync(row.Manifest, row.Asset,
@@ -158,6 +162,13 @@ public partial class ArchivePage
                 sidebar.SetDetail(_sidebarShownDetail);
             });
         });
+    }
+
+    private static async Task<ReaderMediaSidebarContent.Picture> DecodeSavedSidebarImageAsync(GalleryEntry entry,
+        GalleryDecodeRequest.Fit target, CancellationToken token)
+    {
+        (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, target, token);
+        return new(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new(info.Width, info.Height));
     }
 
     private void OfferSavedSidebarVideo(GalleryEntry entry, string key)

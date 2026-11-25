@@ -61,14 +61,13 @@ public partial class DiagnosticsPage
         if (sender is not DataGrid grid || e.Handled || ShortcutService.IsCapturing || !MainWindow.IsListCommandSource(e.Source, grid)
             || grid.SelectedItem is not DiagnosticEntry entry) return;
         // The rebindable "Open context menu" (Shift+F10 and the Menu key by default), like the Downloads, Archive and Plugins lists.
-        if (CommandBindings.Matches(e, "menu.context-open"))
+        if (ContextClick.IsKey(e))
         {
             e.Handled = true;
             OpenDiagnosticKeyboardMenu(grid);
+            ContextClick.ConsumeOpeningKeyRelease(grid.ContextMenu, e.Key, grid);
             return;
         }
-        // The Menu key stays native. A Shift+F10 that was rebound must not open the menu through its old native accelerator.
-        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (ItemActivation.IsPrimaryKey(e))
         {
             if (!HasPrimaryAction(entry) || grid.SelectedItems.Count != 1) return;

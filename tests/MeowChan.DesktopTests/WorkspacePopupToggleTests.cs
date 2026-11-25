@@ -5,6 +5,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -13,18 +15,26 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
+using MeowChan.Desktop.Plugins;
 using MeowChan.Desktop.Updates;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
+using MeowChan.PluginHost.Activation;
+using MeowChan.PluginHost.Compilation;
+using MeowChan.PluginHost.Configuration;
+using MeowChan.PluginHost.Contracts;
+using MeowChan.PluginHost.Installation;
+using MeowChan.PluginSdk;
 using MeowChan.Rules;
 using MeowChan.Storage;
 using MeowChan.Tags;
+using Xunit.Abstractions;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Avalonia global state")]
-public sealed class WorkspacePopupToggleTests
+public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData("RulesMoreButton")]
@@ -184,7 +194,10 @@ public sealed class WorkspacePopupToggleTests
             Button cancel = Assert.Single(window.OpenedPopups.SelectMany(popup =>
                     popup.Child?.GetVisualDescendants().OfType<Button>() ?? []),
                 button => AutomationProperties.GetAutomationId(button) == "settings.reset.cancel");
-            Assert.True(cancel.IsFocused);
+            IInputElement? focused = window.FocusManager?.GetFocusedElement();
+            string? focusedId = focused is StyledElement element ? AutomationProperties.GetAutomationId(element) : null;
+            Assert.True(cancel.IsFocused,
+                $"Reset cancellation focus: type={focused?.GetType().Name ?? "<none>"}, AutomationId={focusedId ?? "<none>"}");
             PressAtFocus(window, Key.Enter);
             Assert.False(cancel.IsEffectivelyVisible);
             Assert.True(editor.IsKeyboardFocusWithin);
@@ -211,11 +224,12 @@ public sealed class WorkspacePopupToggleTests
             ToggleButton more = Assert.IsAssignableFrom<ToggleButton>(page.Actions.More);
             Click(window, more);
             Button groupOpener = page.GroupManageButton;
-            VerifyPopup(window, groupOpener, () => groupOpener.ContextMenu?.IsOpen == true);
+            VerifyPopup(window, groupOpener, () => groupOpener.ContextMenu?.IsOpen == true,
+                logRoute: output.WriteLine, reopenParent: () => Click(window, more));
             more.IsChecked = false;
             Layout(window);
 
-            ComboBox groups = Find<ComboBox>(window, "TaggingGroup");
+            ComboBox groups = Find<ComboBox>(window, "tagging.group");
             Assert.True(groups.Focus());
             PressCommand(window, "menu.context-open");
             ContextMenu menu = Assert.Single(window.OpenedPopups.Select(popup => popup.Child).OfType<ContextMenu>());
@@ -223,7 +237,7 @@ public sealed class WorkspacePopupToggleTests
             Assert.True(create.Focus());
             PressCommand(window, "menu.context-open");
             Assert.False(menu.IsOpen);
-            foreach (string id in new[] { "TaggingStamp", "TaggingEmptyHow", "TaggingHelp" })
+            foreach (string id in new[] { "tagging.stamp", "TaggingEmptyHow", "TaggingHelp" })
             {
                 Button opener = Find<Button>(window, id);
                 VerifyPopup(window, opener, () => opener.Flyout is { IsOpen: true } flyout && ReferenceEquals(flyout.Target, opener));
@@ -232,8 +246,10 @@ public sealed class WorkspacePopupToggleTests
         finally { window.Close(); }
     });
 
-    [Fact]
-    public void GalleryLayoutAndOverflowCloseAtTheirOpenerAndLayoutAcceptsItsRebinding() => OnUi(async () =>
+    [Theory]
+    [InlineData(1280)]
+    [InlineData(760)]
+    public void GalleryLayoutAndMoreReturnToThePictureAndAcceptKeyboardInput(int width) => OnUi(async () =>
     {
         ShortcutBindingsSection before = ShortcutService.CurrentSection;
         ShortcutService.Publish(before.Set(GalleryLayoutMenu.OpenCommandId, [ShortcutGesture.Parse("Primary+Shift+J")]));
@@ -242,20 +258,56 @@ public sealed class WorkspacePopupToggleTests
         viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayControls: false, AutoHideControls: false));
         using TempDirectory temp = new();
         GalleryEntry entry = ImageEntry(temp.Path);
-        Window window = Show(viewer, 1280);
+        Window window = Show(viewer, width);
         try
         {
             await viewer.ShowAsync(entry, [entry], 1, CancellationToken.None);
             Layout(window);
+            Assert.Contains(viewer.GetVisualDescendants().OfType<Image>(), image => image.IsEffectivelyVisible
+                && image.Source is Bitmap picture && picture.PixelSize == new PixelSize(17, 11));
             Button layout = Find<Button>(window, "GalleryLayoutButton");
             Button more = Find<Button>(window, "GalleryMore");
-            VerifyPopup(window, layout, () => viewer.IsLayoutMenuOpen);
-            VerifyPopup(window, more, () => viewer.IsOverflowOpen);
-            viewer.Focus();
+            bool layoutOnBar = width == 1280;
+            Assert.Equal(layoutOnBar, layout.IsEffectivelyVisible);
+            Assert.False(layout.Focusable);
+            if (layoutOnBar)
+            {
+                VerifyPopup(window, layout, () => viewer.IsLayoutMenuOpen, returnFocus: viewer);
+            }
+            VerifyPopup(window, more, () => viewer.IsOverflowOpen, returnFocus: viewer);
+
+            Button layoutOpener = layoutOnBar ? layout : more;
             PressCommand(window, GalleryLayoutMenu.OpenCommandId);
-            Assert.True(viewer.IsLayoutMenuOpen);
+            Assert.Equal(layoutOnBar, viewer.IsLayoutMenuOpen);
+            Assert.Equal(!layoutOnBar, viewer.IsOverflowOpen);
+            Assert.Equal(!layoutOnBar, viewer.LayoutSection.IsEffectivelyVisible);
+            Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(layoutOpener));
             PressCommand(window, GalleryLayoutMenu.OpenCommandId);
             Assert.False(viewer.IsLayoutMenuOpen);
+            Assert.False(viewer.IsOverflowOpen);
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(layoutOpener));
+            Assert.Same(viewer, window.FocusManager?.GetFocusedElement());
+
+            PressAtFocus(window, Key.F10, RawInputModifiers.Shift);
+            ContextMenu media = Assert.IsType<ContextMenu>(viewer.MediaMenu);
+            Assert.True(media.IsOpen);
+            MenuItem openMore = Find<MenuItem>(media, "gallery.overflow.label");
+            Assert.Equal(Texts.T("gallery.overflow.label"), AutomationProperties.GetName(openMore));
+            for (int step = 0; !openMore.IsFocused && step < media.ItemCount; step++)
+                PressAtFocus(window, Key.Down);
+            Assert.True(openMore.IsFocused);
+            PressAtFocus(window, Key.Enter);
+            Assert.False(media.IsOpen);
+            Assert.True(viewer.IsOverflowOpen);
+            Button zoom = Find<Button>(viewer.OverflowMenuContent, "gallery.zoom-in");
+            Assert.True(zoom.IsEffectivelyEnabled);
+            var focused = window.FocusManager?.GetFocusedElement() as Control;
+            Assert.True(ReferenceEquals(zoom, focused),
+                $"Expected gallery.zoom-in at {width} DIP, got {(focused == null ? "<none>" : AutomationProperties.GetAutomationId(focused) ?? focused.Name ?? focused.GetType().Name)}.");
+            Assert.True(viewer.OverflowMenuContent.IsKeyboardFocusWithin);
+            PressAtFocus(window, Key.Escape);
+            Assert.False(viewer.IsOverflowOpen);
+            Assert.Same(viewer, window.FocusManager?.GetFocusedElement());
         }
         finally
         {
@@ -336,6 +388,211 @@ public sealed class WorkspacePopupToggleTests
         finally { window.Close(); }
     });
 
+    [Fact]
+    public void TheFirstMoreClickFromAnAssignedChipListsUnassignedTagsInTheEmptyField() => OnUi(async () =>
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry entry = QuickTagSurfaceTests.Entry("a", 'a');
+        MediaLibraryEntry elsewhere = QuickTagSurfaceTests.Entry("b", 'b');
+        store.DefineAndSetMediaSubjects("assigned", [new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(entry)!)], null, CancellationToken.None);
+        store.DefineAndSetMediaSubjects("browsable", [new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(elsewhere)!)], null, CancellationToken.None);
+        using QuickTagSession session = new(QuickTagTarget.For(QuickTagSurfaceTests.Single(store, entry)));
+        // The surface's own provider: an empty field lists tags only for an explicit request.
+        using QuickTagSurface surface = new(session, name: "TestQuickTag") { FocusOnAttach = false };
+        Window window = Show(surface);
+        try
+        {
+            Button more = Find<Button>(window, "TestQuickTagMore");
+            IdentitySuggestionBox input = Find<IdentitySuggestionBox>(window, "TestQuickTagInput");
+            surface.FocusField();
+            Layout(window);
+            Assert.True(input.IsKeyboardFocusWithin && string.IsNullOrEmpty(input.Text) && !input.HasSuggestionList);
+            PressAtFocus(window, Key.Up);
+            Assert.True(surface.FocusZone() == QuickTagFocus.Assigned && !input.IsKeyboardFocusWithin,
+                $"The assigned chip takes the focus first, the zone is {surface.FocusZone()}.");
+
+            Click(window, more);
+            using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
+            while (!input.IsDropDownOpen && !deadline.IsCancellationRequested)
+            {
+                await Task.Delay(10);
+                Layout(window);
+            }
+            IdentitySuggestion[] listed = input.ItemsSource?.OfType<IdentitySuggestion>().ToArray() ?? [];
+            Assert.True(input.IsDropDownOpen && input.IsKeyboardFocusWithin,
+                $"The first click lists tags: open={input.IsDropDownOpen}, pending={input.HasSuggestionList}, " +
+                $"field focused={input.IsKeyboardFocusWithin}, zone={surface.FocusZone()}, rows={listed.Length}.");
+            Assert.Contains(listed, row => row.Value == "browsable");
+            Assert.DoesNotContain(listed, row => row.Value == "assigned");
+
+            Click(window, more);
+            Assert.False(input.HasSuggestionList);
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void EscapeAndTheSectionShortcutStayWithAComposingThreadTagField() => OnUi(async () =>
+    {
+        using TempDirectory temp = new();
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        PrivateTagStore store = new(profile.Path, lease);
+        GalleryEntry entry = ImageEntry(temp.Path);
+        await using GalleryViewer viewer = new();
+        Window window = Show(viewer, 1280);
+        try
+        {
+            await viewer.ShowAsync(entry, [entry], 1, CancellationToken.None);
+            viewer.ShowTagPanel(new StoreGalleryTags(entry, store));
+            Layout(window);
+            Button opener = Find<Button>(window, "GalleryThreadTagsToggle");
+            Click(window, opener);
+            Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
+            IdentitySuggestionBox field = Assert.Single(viewer.GetVisualDescendants().OfType<IdentitySuggestionBox>(),
+                box => box.Name == "GalleryTagPanelThreadInput");
+            Assert.True(field.IsEffectivelyVisible && field.IsEffectivelyEnabled && field.IsKeyboardFocusWithin,
+                $"The thread tag field is editable and focused: visible={field.IsEffectivelyVisible}, enabled={field.IsEffectivelyEnabled}, " +
+                $"focused={field.IsKeyboardFocusWithin}.");
+            field.Text = "draft";
+            Layout(window);
+            TextPresenter presenter = Assert.Single(field.GetVisualDescendants().OfType<TextPresenter>());
+            presenter.SetCurrentValue(TextPresenter.PreeditTextProperty, "candidate");
+
+            PressAtFocus(window, Key.Escape);
+            Assert.True(viewer.IsTagPanelOpen, "Escape belongs to the composition: the tag panel stays open.");
+            Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
+            Assert.True(field.IsEffectivelyVisible && field.IsKeyboardFocusWithin);
+            Assert.Equal("draft", field.Text);
+            PressCommand(window, "tags.quick.thread-section");
+            Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
+            Assert.True(viewer.IsTagPanelOpen && field.IsKeyboardFocusWithin);
+
+            presenter.SetCurrentValue(TextPresenter.PreeditTextProperty, null);
+            field.Text = string.Empty;
+            Layout(window);
+            for (int press = 0; press < 3 && AutomationProperties.GetItemStatus(opener) == Texts.T("shortcuts.group.expanded"); press++)
+                PressAtFocus(window, Key.Escape); // a suggestion list, if one opened, closes first
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(opener));
+            Assert.True(viewer.IsTagPanelOpen, "Without a composition Escape folds only the thread section.");
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void PluginDetailActionsAndTheSourceChooserCloseOnTheSecondPointerClick() => OnUi(async () =>
+    {
+        using TempDirectory temp = new();
+        PluginManagementServices services = await TwoSourcePluginAsync(Path.Combine(temp.Path, "plugin-fixture"));
+        SourcesPage sources = new();
+        PluginsPage plugins = sources.PluginManagement;
+        plugins.Attach(services);
+        plugins.ApplyWorkView(WorkView.Advanced, true);
+        Window window = Show(sources, 1280);
+        try
+        {
+            await sources.ActivateAsync();
+            sources.SelectSource(TwoSourcePluginSource + "-a");
+            Layout(window);
+            bool MenuOpen() => plugins.PluginActionMenu is { IsOpen: true };
+            string State() => $"menu open={MenuOpen()}, selected={plugins.Selected?.Key ?? "<none>"}, filter={plugins.Filter}, " +
+                $"anchor={(plugins.PluginActionMenu?.PlacementTarget as Control)?.Name ?? "<none>"}";
+
+            // Sources overview: "Actions" of the selected source's plugin.
+            Button sourceMore = Find<Button>(window, "SourcePluginMore");
+            Assert.True(sourceMore.IsEffectivelyVisible && sourceMore.IsEffectivelyEnabled, "SourcePluginMore is offered: " + State());
+            VerifyThreeClicks(sourceMore);
+            PressAtFocus(window, Key.Escape);
+            Assert.False(MenuOpen(), State());
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(sourceMore));
+
+            // Plugin detail: "Actions" beside the detail buttons.
+            plugins.SetFilter(SourcesPluginsFilter.AllPlugins);
+            plugins.Select(TwoSourcePluginKey);
+            Layout(window);
+            Button more = Find<Button>(window, "PluginMoreActions");
+            Assert.True(more.IsEffectivelyVisible && more.IsEffectivelyEnabled, "PluginMoreActions is offered: " + State());
+            VerifyThreeClicks(more);
+            PressAtFocus(window, Key.Escape);
+            Assert.False(MenuOpen(), State());
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(more));
+
+            // "Show in Plugins" of a plugin with two sources opens the source chooser.
+            Button watches = Find<Button>(window, "PluginWatches");
+            Assert.True(watches.IsEffectivelyVisible && watches.IsEffectivelyEnabled, "PluginWatches is offered: " + State());
+            VerifyThreeClicks(watches, () => Assert.Equal(2, plugins.PluginActionMenu!.Items.OfType<MenuItem>().Count()));
+
+            PressCommand(window, "plugins.watches");
+            Assert.False(MenuOpen(), State());
+            Click(window, watches);
+            Assert.True(MenuOpen(), State());
+
+            // The press that dismisses the chooser is not the Actions button's own: its click opens the other menu.
+            Click(window, more);
+            Assert.True(MenuOpen() && ReferenceEquals(plugins.PluginActionMenu!.PlacementTarget, more), State());
+            PressAtFocus(window, Key.Escape);
+            Assert.False(MenuOpen(), State());
+
+            void VerifyThreeClicks(Button opener, Action? verifyMenu = null)
+            {
+                Assert.False(opener.Focusable);
+                Assert.False(MenuOpen());
+                SourcesPluginsFilter filter = plugins.Filter;
+                Rect Bounds() => new(opener.TranslatePoint(default, window)!.Value, opener.Bounds.Size);
+                Rect original = Bounds();
+                Point point = original.Center;
+                int clicks = 0;
+                void CountClick(object? sender, RoutedEventArgs e) => clicks++;
+                opener.AddHandler(Button.ClickEvent, CountClick, handledEventsToo: true);
+                try
+                {
+                    window.MouseMove(point);
+                    for (int click = 1; click <= 3; click++)
+                    {
+                        window.MouseDown(point, MouseButton.Left);
+                        Layout(window);
+                        Assert.Equal(original, Bounds());
+                        window.MouseUp(point, MouseButton.Left);
+                        Layout(window);
+                        Assert.Equal(click, clicks);
+                        Assert.True(opener.IsEffectivelyVisible, State());
+                        Assert.Equal(original, Bounds());
+                        Assert.Equal(filter, plugins.Filter);
+                        Assert.Equal(TwoSourcePluginKey, plugins.Selected?.Key);
+                        bool open = click != 2;
+                        Assert.Equal(open, MenuOpen());
+                        Assert.Equal(Texts.T(open ? "shortcuts.group.expanded" : "shortcuts.group.collapsed"),
+                            AutomationProperties.GetItemStatus(opener));
+                        if (open)
+                        {
+                            Assert.Same(opener, plugins.PluginActionMenu!.PlacementTarget);
+                            verifyMenu?.Invoke();
+                        }
+                    }
+                }
+                finally { opener.RemoveHandler(Button.ClickEvent, CountClick); }
+            }
+        }
+        finally
+        {
+            window.Close();
+            sources.EndLifetime();
+        }
+    });
+
+    [Theory]
+    [InlineData(ShortcutPlatform.MacOS, KeyModifiers.Meta)]
+    [InlineData(ShortcutPlatform.Windows, KeyModifiers.Control)]
+    [InlineData(ShortcutPlatform.Linux, KeyModifiers.Control)]
+    public void ShowPluginSourcesHasAPlatformShortcut(ShortcutPlatform platform, KeyModifiers modifiers)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        using var context = EffectiveShortcutBindings.EnterKeyContext("plugins");
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.J, KeyModifiers = modifiers }, "plugins.watches"));
+    }
+
     [Theory]
     [InlineData("input.focus-diagnostics-search", "Primary+F")]
     [InlineData("sections.open-navigation", "Primary+Alt+J")]
@@ -356,12 +613,87 @@ public sealed class WorkspacePopupToggleTests
     {
         const string file = "picture.png";
         string path = Path.Combine(directory, file);
-        byte[] png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAD9sSLAAAAFElEQVR4AWMYBWj1/z+uFpMTmn8AuGMCD9ugRsIAAAAASUVORK5CYII=");
+        byte[] png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
         File.WriteAllBytes(path, png);
         MediaAssetReference asset = new("picture", "picture", "original", file, path, png.Length,
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(png)), "", file, true);
         MediaAssetSnapshot manifest = new(directory, MediaManifestStatus.Available, 1, "fixture", [asset]);
         return new(new(new("fixture", "g", "42"), directory, asset.AssetId), manifest, asset, null, null, false, false);
+    }
+
+    private const string TwoSourcePluginKey = "toggle-two-sources";
+    private const string TwoSourcePluginSource = "toggle-source";
+
+    // Passive catalog data over the real profile store: nothing is compiled, described or started.
+    private static async Task<PluginManagementServices> TwoSourcePluginAsync(string root)
+    {
+        Directory.CreateDirectory(root);
+        PluginProfileStore store = new(root);
+        SettingsSchema empty = new("1", Array.Empty<SettingDefinition>());
+        SourceDescription Source(string suffix)
+        {
+            string id = TwoSourcePluginSource + "-" + suffix, host = id + ".example.test";
+            return new(id, "Fixture source " + suffix, new Uri("https://" + host + "/"),
+                SourceCapabilities.ThreadRead | SourceCapabilities.OriginalMedia,
+                new[] { new UrlRoute(SourceResourceKind.Thread, host, "/{board}/thread/{thread}", IsCanonical: true) },
+                new[] { new HttpHostDeclaration(host, HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia) }, empty);
+        }
+        PluginDescription description = new("toggle.two-sources", "Two fixture sources", "1.0.0", SdkContract.Version,
+            "Reads two fixture sites.", new[] { Source("a"), Source("b") }, Array.Empty<FilterDescription>(), empty,
+            Array.Empty<InformationEntry>());
+        string hash = new('a', 64), path = Path.Combine(root, "two-sources.cs");
+        PluginArtifact artifact = new(hash, hash, Path.Combine(root, hash + ".dll"), hash, hash, hash, Array.Empty<PluginArtifactResource>());
+        await store.ApplyStartupAsync(new[] { new PluginCandidateObservation(TwoSourcePluginKey, description.PluginId, artifact, description, CandidatePath: path) }, 0);
+        return new(store, new UnusedCompiler(),
+            new FixedInventory(new PluginInstallationCandidate(TwoSourcePluginKey, path, PluginCandidateKind.Source, 100, Array.Empty<PluginBuildDiagnostic>())),
+            root, (_, _) => throw new InvalidOperationException("The menu test described a worker."),
+            (_, _, _) => throw new InvalidOperationException("The menu test started a worker."),
+            (_, _, _, _, _) => throw new InvalidOperationException("The menu test probed a site."));
+    }
+
+    private sealed class FixedInventory(params PluginInstallationCandidate[] candidates) : IPluginInstallationInventory
+    {
+        public Task<PluginInventory> ScanAsync(string directory, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PluginInventory(candidates, false, Array.Empty<PluginBuildDiagnostic>()));
+    }
+
+    private sealed class UnusedCompiler : IPluginCompilationService
+    {
+        private static InvalidOperationException Fail() => new("The menu test invoked compilation or cache maintenance.");
+        public Task<PluginBuildResult> BuildAsync(string sourcePath, IReadOnlyList<PluginResourceInput>? resources = null,
+            CancellationToken cancellationToken = default) => throw Fail();
+        public Task<PluginArtifact?> FindArtifactAsync(string executionRevision, CancellationToken cancellationToken = default) => throw Fail();
+        public Task<PluginCacheCleanupResult> CleanupAsync(IReadOnlySet<string> retainedExecutionRevisions,
+            IReadOnlySet<string> retainedCompilationFingerprints, TimeSpan minimumAge,
+            CancellationToken cancellationToken = default) => throw Fail();
+    }
+
+    // Tags of the medium and of its thread over a real store, so the thread tag field is editable.
+    private sealed class StoreGalleryTags(GalleryEntry entry, PrivateTagStore store) : IGalleryTagPanelOwner
+    {
+        private readonly MediaTagSubject _subject = new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(QuickTagSurfaceTests.Entry("a", 'a'))!);
+        public IReadOnlyList<GalleryEntry> Entries { get; } = [entry];
+        public GalleryTagPanelPosition? Position => null;
+        public TagRecentList Recent { get; } = new();
+        public QuickTagOptions Options => QuickTagOptions.Default;
+        public TagContextOptions ContextOptions => TagContextOptions.Default;
+        public MediaTagSubject? SubjectOf(GalleryEntry selected, out string? unavailableReason)
+        {
+            unavailableReason = null;
+            return _subject;
+        }
+        public IQuickTagTarget? OpenTarget(GalleryEntry selected, out string? unavailableReason)
+        {
+            unavailableReason = null;
+            return QuickTagTarget.For(QuickTagSurfaceTests.Single(store, QuickTagSurfaceTests.Entry("a", 'a')));
+        }
+        public IQuickTagTarget? OpenSelectionTarget(IReadOnlyList<MediaTagSubject> subjects, out string? unavailableReason) =>
+            OpenTarget(Entries[0], out unavailableReason);
+        public BooruCatalogSnapshot? ReadSourceTags() => null;
+        public GalleryThreadTagModel OpenThreadTags(ResourceId thread) => new(thread,
+            () => new PrivateTagLoadSnapshot(PrivateTagLoadState.Ready, store.ReadSnapshot(), null),
+            (_, _) => throw new NotSupportedException(), (_, _, _, _) => throw new NotSupportedException());
+        public void OpenAdvanced(GalleryEntry selected) => throw new NotSupportedException();
     }
 
     private sealed class UnavailableGalleryTags(GalleryEntry entry) : IGalleryTagPanelOwner
@@ -404,20 +736,101 @@ public sealed class WorkspacePopupToggleTests
         return window;
     }
 
-    private static void VerifyPopup(Window window, Button opener, Func<bool> isOpen)
+    private static void VerifyPopup(Window window, Button opener, Func<bool> isOpen,
+        Action<string>? logRoute = null, Action? reopenParent = null, Control? returnFocus = null)
     {
         Assert.False(opener.Focusable);
         Assert.False(isOpen());
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
         Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
-        Click(TopLevel.GetTopLevel(opener) ?? window, opener);
-        Assert.False(isOpen());
+        string route = TracePopupClick(window, opener);
+        logRoute?.Invoke(route);
+        Assert.False(isOpen(), route);
+        if (returnFocus != null) Assert.Same(returnFocus, window.FocusManager?.GetFocusedElement());
+        if (!opener.IsAttachedToVisualTree()) reopenParent?.Invoke();
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
         PressAtFocus(window, Key.Escape);
         Assert.False(isOpen());
         Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(opener));
+        if (returnFocus != null) Assert.Same(returnFocus, window.FocusManager?.GetFocusedElement());
+    }
+
+    private static string TracePopupClick(Window window, Button opener)
+    {
+        Popup? before = AnchoredPopup(window.OpenedPopups);
+        List<string> route = [PopupState("Before", before)];
+        int clicks = 0, opened = 0, closed = 0;
+        window.AddHandler(InputElement.PointerPressedEvent, LogPointer,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        window.AddHandler(InputElement.PointerReleasedEvent, LogPointer,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        opener.AddHandler(Button.ClickEvent, LogClick, handledEventsToo: true);
+        if (before != null)
+        {
+            before.Opened += OnOpened;
+            before.Closed += OnClosed;
+        }
+        try
+        {
+            Click(TopLevel.GetTopLevel(opener) ?? window, opener);
+            Popup? after = AnchoredPopup(window.OpenedPopups);
+            if (after != null && !ReferenceEquals(after, before)) opened++;
+            route.Add(PopupState("After", after));
+            route.Add($"Click={clicks}, Opened={opened}, Closed={closed}");
+        }
+        finally
+        {
+            window.RemoveHandler(InputElement.PointerPressedEvent, LogPointer);
+            window.RemoveHandler(InputElement.PointerReleasedEvent, LogPointer);
+            opener.RemoveHandler(Button.ClickEvent, LogClick);
+            if (before != null)
+            {
+                before.Opened -= OnOpened;
+                before.Closed -= OnClosed;
+            }
+        }
+        return string.Join(Environment.NewLine, route);
+
+        void LogPointer(object? sender, PointerEventArgs e) => LogEvent(e);
+
+        void LogClick(object? sender, RoutedEventArgs e)
+        {
+            clicks++;
+            LogEvent(e);
+        }
+
+        void LogEvent(RoutedEventArgs e) =>
+            route.Add($"{e.RoutedEvent?.Name} {e.Route}: Source={e.Source?.GetType().Name ?? "<none>"}, Handled={e.Handled}");
+
+        void OnOpened(object? sender, EventArgs e) => opened++;
+        void OnClosed(object? sender, EventArgs e) => closed++;
+
+        Popup? AnchoredPopup(IEnumerable<Popup> popups)
+        {
+            foreach (Popup popup in popups)
+            {
+                if (popup.Child is ToolTip) continue;
+                if (ReferenceEquals(popup.PlacementTarget, opener)) return popup;
+                if (AnchoredPopup(popup.OpenedPopups) is { } nested) return nested;
+            }
+            return null;
+        }
+
+        string PopupState(string phase, Popup? popup) =>
+            $"{phase}: OpenedPopups.Count={window.OpenedPopups.Count}, OverlayPopupHost={popup?.IsUsingOverlayLayer}, " +
+            $"popup.Child={popup?.Child?.GetType().Name ?? "<none>"}, opener.Attached={opener.IsAttachedToVisualTree()}, " +
+            $"opener.Bounds={BoundsInWindow(opener)}, menu.Bounds={BoundsInWindow(popup?.Child)}";
+
+        string BoundsInWindow(Visual? visual)
+        {
+            if (visual == null) return "<none>";
+            if (!visual.IsAttachedToVisualTree() || visual.TranslatePoint(default, window) is not { } topLeft ||
+                visual.TranslatePoint(new Point(visual.Bounds.Width, visual.Bounds.Height), window) is not { } bottomRight)
+                return "<nicht eingehängt>";
+            return new Rect(topLeft, bottomRight).ToString();
+        }
     }
 
     private static ContextMenu? MenuFor(Window window, Button opener) => window.OpenedPopups
@@ -446,7 +859,7 @@ public sealed class WorkspacePopupToggleTests
         Layout(window);
     }
 
-    private static void PressCommand(Window window, string commandId)
+    internal static void PressCommand(Window window, string commandId)
     {
         KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture(commandId));
         PressAtFocus(window, gesture.Key, (RawInputModifiers)gesture.KeyModifiers);

@@ -156,7 +156,7 @@ public sealed class SearchScopeChip : Button
     /// <summary>Toggles the scope menu, focusing the current scope when opened.</summary>
     public void ShowMenu()
     {
-        if (PopupToggle.Close(this) || !IsEffectivelyEnabled) return;
+        if (PopupToggle.ConsumeActivation(this) || !IsEffectivelyEnabled) return;
         ContextMenuBuilder builder = new ContextMenuBuilder();
         foreach (SearchScope scope in _scopes.Length > 1 ? _scopes : Array.Empty<SearchScope>())
         {

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -93,10 +94,15 @@ public partial class SourcesPage
 
     private void OnWatchContextPointer(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not ListBox grid || !e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
+        if (sender is not ListBox grid || !ContextClick.IsPress(e, grid)) return;
         ListBoxItem? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
         grid.SelectedItem = row?.DataContext is SourceWatchRow watch ? watch : null;
-        if (row == null) grid.ContextMenu?.Close();
+        if (grid.ContextMenu is { } menu)
+        {
+            if (row == null) menu.Close();
+            else menu.Placement = PlacementMode.Pointer;
+        }
+        ContextClick.RequestOnMacControlPress(e, grid);
     }
 
     private void OnWatchContextRequested(object? sender, ContextRequestedEventArgs e)

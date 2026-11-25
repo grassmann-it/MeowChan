@@ -152,7 +152,7 @@ public partial class ArchivePage
         else
             Add("thread.show-in-media", () => ShowArchiveSelectionInMedia(ids, lead),
                 () => ShowThreadsInMediaRequested != null, null, count: () => ids.Length);
-        if (ids.Length == 1) Add("thread.tags", async () => await ToggleThreadTagsAsync(lead.Summary.Id));
+        if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id));
         // Post bookmarks are scoped to individual posts, but the manager is still useful from a
         // thread selection: it is the only place to review bookmarks when no post row is open.
         Add("post-bookmarks.open-manager", () => OpenPostBookmarks?.Invoke(),

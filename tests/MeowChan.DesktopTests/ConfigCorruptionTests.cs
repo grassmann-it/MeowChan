@@ -19,7 +19,6 @@ public sealed class ConfigCorruptionTests
     // bounds so the table cannot drift away from what Config.Validate enforces.
     private static readonly (string Property, long Minimum, long Maximum)[] Limits =
     {
-        (nameof(Config.BooruCatalogLimitMiB), Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB),
         (nameof(Config.PrivateTagLimit), Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit),
         (nameof(Config.PrivateTagFileLimitMiB), Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB),
         (nameof(Config.MediaIndexCacheLimitMiB), Config.MediaIndexCacheMinimumLimitMiB, Config.MediaIndexCacheMaximumLimitMiB),
@@ -39,7 +38,6 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.ImportMaxBatchGiB), Config.ImportMaxBatchGiBMinimum, Config.ImportMaxBatchGiBMaximum),
         (nameof(Config.ImportMaxFileMiB), Config.ImportMaxFileMiBMinimum, Config.ImportMaxFileMiBMaximum),
         (nameof(Config.ImportMaxTotalFiles), Config.ImportMaxTotalFilesMinimum, Config.ImportMaxTotalFilesMaximum),
-        (nameof(Config.ImportCatalogLimitMiB), Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum),
         (nameof(Config.ImportMaxTagsPerBatch), Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum),
         (nameof(Config.ImportMaxBatches), Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum),
         (nameof(Config.MediaIndexMaxEntries), Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum),
@@ -50,7 +48,7 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.TagQueueConfirmAbove), Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum),
         (nameof(Config.MediaTagListTop), Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum),
         (nameof(Config.BooruResultTagsShown), Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum),
-        (nameof(Config.BooruSearchTabs), Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum),
+        (nameof(Config.BooruSearchTabs), Config.BooruSearchTabsMinimum - 1, Config.BooruSearchTabsMaximum - 1),
         (nameof(Config.BooruGallerySampleMiB), Config.BooruGallerySampleMiBMinimum, Config.BooruGallerySampleMiBMaximum),
         (nameof(Config.BooruGalleryCacheMiB), Config.BooruGalleryCacheMiBMinimum, Config.BooruGalleryCacheMiBMaximum),
         (nameof(Config.MediaPanelMinimumPageWidth), Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum),
@@ -59,17 +57,31 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.FolderSourceHashParallelism), Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum),
         (nameof(Config.FolderSourceHashMaxFileGiB), Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum),
         (nameof(Config.FolderSourceRescanMinutes), Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum),
-        (nameof(Config.FolderSourceCatalogLimitMiB), Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum),
         (nameof(Config.FolderSourceGalleryHashWindow), Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum),
         (nameof(Config.TagQueueWalkWindow), Config.TagQueueWalkWindowMinimum, Config.TagQueueWalkWindowMaximum),
         (nameof(Config.TagQueueUndoDepth), Config.TagQueueUndoDepthMinimum, Config.TagQueueUndoDepthMaximum),
         (nameof(Config.TagStampSize), Config.TagStampSizeMinimum, Config.TagStampSizeMaximum)
     };
 
+    // FIX-112-LIM2: „Beim Laden auf Min/Max clampen, statt das Profil zu verwerfen.“
+    private static readonly (string Property, long Minimum, long Maximum)[] CatalogLimits =
+    {
+        (nameof(Config.BooruCatalogLimitMiB), Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB),
+        (nameof(Config.ImportCatalogLimitMiB), Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum),
+        (nameof(Config.FolderSourceCatalogLimitMiB), Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum),
+    };
+
     public static IEnumerable<object[]> LimitCases() =>
-        Limits.SelectMany(limit => new[] { limit.Minimum - 1, limit.Maximum + 1, 0, -1, int.MinValue, int.MaxValue }
-            .Distinct().Where(value => value < limit.Minimum || value > limit.Maximum)
+        Limits.SelectMany(limit => OutOfRangeValues(limit.Minimum, limit.Maximum)
             .Select(value => new object[] { limit.Property, value }));
+
+    public static IEnumerable<object[]> CatalogLimitCases() =>
+        CatalogLimits.SelectMany(limit => OutOfRangeValues(limit.Minimum, limit.Maximum)
+            .Select(value => new object[] { limit.Property, value, Math.Clamp(value, limit.Minimum, limit.Maximum) }));
+
+    private static IEnumerable<long> OutOfRangeValues(long minimum, long maximum) =>
+        new[] { minimum - 1, maximum + 1, 0, -1, int.MinValue, int.MaxValue }
+            .Distinct().Where(value => value < minimum || value > maximum);
 
     private sealed class Profile : IDisposable
     {
@@ -119,9 +131,10 @@ public sealed class ConfigCorruptionTests
     }
 
     [Fact]
-    public void BooruResultTagsShownDefaultsToTwelveAndIsCopied()
+    public void BooruResultTagsShownDefaultsToAvailableSpaceAndIsCopied()
     {
-        Assert.Equal((12, 0, 200), (new Config().BooruResultTagsShown, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum));
+        // Astra W112-69 B §4 gives automatic folding a distinct persisted value.
+        Assert.Equal((-1, -1, 200), (new Config().BooruResultTagsShown, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum));
         Config live = new();
         live.CopySettingsFieldsFrom(new Config { BooruResultTagsShown = 0 });
         Assert.Equal(0, live.BooruResultTagsShown);
@@ -244,6 +257,27 @@ public sealed class ConfigCorruptionTests
         AssertUntouched(profile, names, edited, profile.GoodBackup, property + "=" + value);
         Assert.Throws<InvalidOperationException>(() => config.SaveConfig(profile.Directory));
         AssertUntouched(profile, names, edited, profile.GoodBackup, property + "=" + value + " save");
+    }
+
+    [Theory]
+    [MemberData(nameof(CatalogLimitCases))]
+    public void AnOutOfRangeCatalogLimitClampsWithoutReplacingThePrimaryProfile(string property, long value, long expected)
+    {
+        using Profile profile = new();
+        JsonObject root = JsonNode.Parse(profile.GoodPrimary)!.AsObject();
+        root[property] = value;
+        root[nameof(Config.RecheckTimer)] = 120;
+        byte[] edited = Encoding.UTF8.GetBytes(root.ToJsonString());
+        File.WriteAllBytes(profile.Primary, edited);
+        string[] names = profile.Names();
+
+        Config config = Load(profile.Directory);
+
+        Assert.Equal(ProfileOrigin.ExistingValid, config.Origin);
+        Assert.Null(config.LoadWarning);
+        Assert.Equal(120, config.RecheckTimer);
+        Assert.Equal(expected, System.Text.Json.JsonSerializer.SerializeToElement(config).GetProperty(property).GetInt64());
+        AssertUntouched(profile, names, edited, profile.GoodBackup, property + "=" + value);
     }
 
     [Theory]

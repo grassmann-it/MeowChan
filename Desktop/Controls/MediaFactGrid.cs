@@ -4,7 +4,8 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Input.Platform;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using MeowChan.Desktop.Localization;
 
@@ -31,8 +32,46 @@ internal sealed class MediaFactGrid : Grid
             Text = value, Classes = { "media-fact-value" }, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2
         };
         text.Name = name;
+        if (name != null) AutomationProperties.SetAutomationId(text, name);
+        text.Background = Brushes.Transparent;
         text.TextAlignment = TextAlignment.Left;
+        text.Focusable = true;
+        text.IsTabStop = true;
+        AutomationProperties.SetName(text, value);
         ToolTip.SetTip(text, value);
+        ContextMenu menu = new ContextMenuBuilder().Named(label)
+            .Item("panel.copy-value", Texts.T("diagnostics.copy"),
+                () => OpenActions.Start(() => MenuClipboard.CopyAsync(text, value), "panel.copy-value"), icon: "copy").Build()!;
+        if (menu.Items[0] is MenuItem item) item.Name = "MediaFactCopy";
+        text.ContextMenu = menu;
+        text.DetachedFromVisualTree += (_, _) => menu.Close();
+        IPointer? controlClick = null;
+        text.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            if (!ContextClick.IsMacControlPress(e, text)) return;
+            controlClick = e.Pointer;
+            e.Pointer.Capture(text);
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        text.PointerCaptureLost += (_, _) => controlClick = null;
+        text.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
+        {
+            if (e.Pointer != controlClick || e.InitialPressMouseButton != MouseButton.Left) return;
+            controlClick = null;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            // A context click opens after release, so the opening left click cannot also choose Copy.
+            if (new Rect(text.Bounds.Size).Contains(e.GetPosition(text))) menu.Open(text);
+        }, RoutingStrategies.Tunnel);
+        text.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+        {
+            if (!ContextClick.IsKey(e)) return;
+            menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+            menu.Open(text);
+            ContextClick.ConsumeOpeningKeyRelease(menu, e.Key);
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        menu.Closed += (_, _) => menu.Placement = PlacementMode.Pointer;
         Children.Add(key);
         Children.Add(text);
         InvalidateMeasure();
@@ -75,15 +114,6 @@ internal sealed class MediaFactGrid : Grid
             TextWrapping = TextWrapping.NoWrap;
             TextTrimming = TextTrimming.CharacterEllipsis;
             MaxLines = 1;
-            AutomationProperties.SetName(this, fullName);
-            MenuItem copy = new() { Header = Texts.T("diagnostics.copy"), Name = "MediaFactCopy" };
-            copy.Click += (_, _) => OpenActions.Start(CopyAsync, "diagnostics.copy");
-            ContextMenu = new ContextMenu { Items = { copy } };
-        }
-
-        private async System.Threading.Tasks.Task CopyAsync()
-        {
-            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(_fullName);
         }
 
         protected override Size MeasureOverride(Size availableSize)

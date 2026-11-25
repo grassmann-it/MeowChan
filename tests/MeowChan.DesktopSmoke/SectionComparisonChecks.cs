@@ -14,8 +14,10 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
+using MeowChan.Desktop.Views.Shortcuts;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginHost.Configuration;
@@ -89,9 +91,12 @@ internal static partial class SectionComparisonChecks
             await scenario.PrepareAsync();
             if (presentation != null) { await SettingsPresentation(scenario, editor, config, () => commits); return; }
             if (Environment.GetEnvironmentVariable("MEOWCHAN_SECTION_COMPARISON_INTERACTIVE") == "1") { await scenario.WaitForManualClose(); return; }
-            scenario.Expect("Same actual integrated SettingsEditor, all 8 section IDs, top offset, clean draft; no commits.");
-            Require(scenario.Controller.Sections.Count == 8 && scenario.Controller.Sections.Any(s => s.Id == "settings.notifications") && scenario.Controller.Sections.Any(s => s.Id == "settings.shortcuts"),
-                "Comparison requires integrated Notifications and Shortcuts.");
+            string[] expectedSections = ["settings.interface", "settings.reading-media", "settings.downloads", "settings.worker-budgets",
+                "settings.updates", "settings.notifications", "settings.behavior", "settings.workviews", "settings.shortcuts"];
+            scenario.Expect("Same integrated SettingsEditor with all nine categories, including Notifications and the Shortcuts window launcher; top offset, clean draft, no commits.");
+            string[] actualSections = scenario.Controller.Sections.Select(section => section.Id).ToArray();
+            Require(actualSections.Length == expectedSections.Length && actualSections.ToHashSet(StringComparer.Ordinal).SetEquals(expectedSections),
+                "Unexpected Settings categories: " + string.Join(", ", actualSections));
             if (task.EndsWith("roundtrip"))
             {
                 await scenario.Navigate("settings.downloads");
@@ -103,6 +108,7 @@ internal static partial class SectionComparisonChecks
                 foreach (string id in new[] { "settings.shortcuts", "settings.notifications", "settings.downloads" })
                 {
                     await scenario.Navigate(id);
+                    if (id == "settings.shortcuts") await CheckShortcutsWindow(scenario, editor);
                     Require(timer.Text == "invalid timer comparison" && editor.DownloadPath == "relative unfinished ü folder" && commits == 0,
                         "Navigation lost raw text or committed settings.");
                 }
@@ -137,6 +143,25 @@ internal static partial class SectionComparisonChecks
         finally { editor.Dispose(); }
     }
 
+    private static async Task CheckShortcutsWindow(Scenario scenario, SettingsEditor editor)
+    {
+        var card = editor.FindControl<ShortcutEditor>("ShortcutsEditor")!;
+        Button open = card.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "SettingsShortcutsOpen");
+        scenario.Expect("Open the modeless Shortcuts window from its Settings card and close it with the Settings draft intact.");
+        try
+        {
+            await scenario.Click(open);
+            await Program.WaitUntilAsync(() => ShortcutsWindow.For(scenario.Window) is { IsVisible: true } window
+                && window.Editor.ActionList.IsEffectivelyVisible);
+            ShortcutsWindow shortcuts = ShortcutsWindow.For(scenario.Window)!;
+            Require(ReferenceEquals(shortcuts.Editor.Session, card.Session), "Shortcuts window did not share the Settings shortcut draft.");
+            shortcuts.RequestClose();
+            await Program.WaitUntilAsync(() => ShortcutsWindow.For(scenario.Window) == null && scenario.Window.IsActive);
+            scenario.Detail("shortcuts-window", new { sharedDraft = true, returnedToSettings = true });
+        }
+        finally { ShortcutsWindow.For(scenario.Window)?.CloseWithoutAsking(); }
+    }
+
     private static async Task Plugins(Window owner, string root, string variant, bool shortPage, PresentationCell? presentation = null)
     {
         string task = presentation != null ? "plugin-presentation-" + presentation.Id : shortPage ? "plugin-short" : "plugin-scope-error";
@@ -154,7 +179,7 @@ internal static partial class SectionComparisonChecks
             (_, _) => throw new InvalidOperationException("Comparison must not describe a worker"),
             (_, _, _) => { workerCalls++; throw new InvalidOperationException("Comparison must reject invalid input before worker execution"); },
             (_, _, _, _, _) => throw new InvalidOperationException("Comparison must not query a site"));
-        var page = new PluginsPage(); page.Attach(services);
+        using var page = new PluginsPage(); page.Attach(services);
         using var scenario = new Scenario(owner, page, variant, task,
             null, page.FindControl<ScrollViewer>("PluginDetailsPane")!,
             null,
@@ -265,11 +290,13 @@ internal static partial class SectionComparisonChecks
                 page.OpenSourceWatches = source => navigatedSource = source;
                 await scenario.OpenContents();
                 ContextMenu oldMenu = page.PluginActionMenu!;
-                MenuItem oldSource = oldMenu.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "plugins.watches"))
-                    .Items.OfType<MenuItem>().Single(item => item.Header as string == "Same source name · source-b");
+                SourceDescription sourceToRemove = description.Sources.Single(source => source.SourceId == "source-b");
+                SourceDescription sourceToKeep = description.Sources.Single(source => source.SourceId == "source-a");
+                MenuItem oldSource = WatchSourceItem(WatchesMenuItem(oldMenu), sourceToRemove)
+                    ?? throw new InvalidOperationException("The Watches submenu did not offer source-b.");
                 Require(oldSource.Command?.CanExecute(oldSource.CommandParameter) == true,
                     "Source-b removal fixture did not start with a current source action.");
-                var removed = description with { Sources = description.Sources.Where(source => source.SourceId != "source-b").ToArray() };
+                var removed = description with { Sources = description.Sources.Where(source => source.SourceId != sourceToRemove.SourceId).ToArray() };
                 PluginProfileSnapshot previous = await store.ReadAsync();
                 await store.ObserveCandidateAsync(new PluginCandidateObservation(Candidate, description.PluginId, artifact, removed,
                     CandidatePath: Path.Combine(profileRoot, "fixture.cs")), previous.Revision);
@@ -281,15 +308,18 @@ internal static partial class SectionComparisonChecks
                 oldSource.Command!.Execute(oldSource.CommandParameter); await Settle();
                 bool removedCannotNavigate = navigatedSource == null && HashFiles(profileRoot) == beforeStaleAction;
                 await scenario.OpenContents();
-                MenuItem watches = page.PluginActionMenu!.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "plugins.watches"));
-                bool stillOffered = watches.Items.OfType<MenuItem>().Any(item => (item.Header as string)?.EndsWith(" · source-b", StringComparison.Ordinal) == true);
+                MenuItem watches = WatchesMenuItem(page.PluginActionMenu!);
+                bool stillOffered = WatchSourceItem(watches, sourceToRemove) != null;
+                MenuItem? remainingSource = WatchSourceItem(watches, sourceToKeep);
+                bool remainingOffered = remainingSource?.Command?.CanExecute(remainingSource.CommandParameter) == true;
                 bool retainedRemovedDraft = ReferenceEquals(page.CurrentDraft?.Sources.GetValueOrDefault("source-b"), sourceDraft)
                     && sourceDraft.EditorFingerprint == fingerprint;
-                scenario.Detail("source-removal-observation", new { stillOffered, staleResolverInvalidated, removedCannotNavigate,
+                scenario.Detail("source-removal-observation", new { stillOffered, remainingOffered, staleResolverInvalidated, removedCannotNavigate,
                     retainedRemovedDraft, oldMenuClosed = !oldMenu.IsOpen,
                     explanation = "Dirty settings remain a draft; current watch menu and captured revisioned source commands must invalidate removed targets, never retarget the duplicate name." });
                 Require(!stillOffered && staleResolverInvalidated && removedCannotNavigate && !oldMenu.IsOpen,
                     "Removed source remains offered, its captured command is current, or an obsolete command navigated/wrote metadata.");
+                Require(remainingOffered, "Watches no longer offers the remaining source-a with the same display name.");
                 Require(retainedRemovedDraft, "Source target invalidation replaced or changed the retained dirty source-b draft.");
                 page.PluginActionMenu.Close();
             }
@@ -308,6 +338,14 @@ internal static partial class SectionComparisonChecks
         catch (Exception error) { scenario.Detail("exception", new { detail = error.ToString() }); await scenario.Capture("failure"); scenario.Result("fail", "undecided", error.Message); if (presentation != null) throw; }
         finally { page.EndLifetime(); Texts.SetLanguage("en"); }
     }
+
+    private static MenuItem WatchesMenuItem(ContextMenu menu) => menu.Items.OfType<MenuItem>()
+        .SingleOrDefault(item => AutomationProperties.GetAutomationId(item) == "plugins.watches")
+        ?? throw new InvalidOperationException("Plugin action menu is missing its Watches entry.");
+
+    // Source children expose the source ID in their accessible name, including when display names match.
+    private static MenuItem? WatchSourceItem(MenuItem watches, SourceDescription source) => watches.Items.OfType<MenuItem>()
+        .SingleOrDefault(item => AutomationProperties.GetName(item) == source.Name + " · " + source.SourceId);
 
     private static async Task ResizeGate(Scenario scenario)
     {

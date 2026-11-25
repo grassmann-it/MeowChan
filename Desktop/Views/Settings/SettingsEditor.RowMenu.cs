@@ -105,8 +105,6 @@ public partial class SettingsEditor
             Number(SourceHeapMiBInput, () => SourceHeapMiB, value => SourceHeapMiB = value, config => config.PluginSourceHeapMiB),
             Number(FilterHeapMiBInput, () => FilterHeapMiB, value => FilterHeapMiB = value, config => config.PluginFilterHeapMiB),
             Number(BooruCatalogMiBInput, () => BooruCatalogMiB, value => BooruCatalogMiB = value, config => config.BooruCatalogLimitMiB),
-            Choice(BooruNewSearchTargetInput, () => SelectedBooruNewSearchTarget?.Value,
-                value => SelectedBooruNewSearchTarget = Choice(BooruSearchTargetChoices, value), config => config.BooruNewSearchTarget),
             Flag(RestoreBooruSearchTabsInput, () => RestoreBooruSearchTabs, value => RestoreBooruSearchTabs = value, config => config.RestoreBooruSearchTabs),
             Number(BooruSearchPagesInput, () => BooruSearchPages, value => BooruSearchPages = value, config => config.BooruSearchPages),
             Number(BooruSearchPostsPerPageInput, () => BooruSearchPostsPerPage, value => BooruSearchPostsPerPage = value, config => config.BooruSearchPostsPerPage),
@@ -183,7 +181,8 @@ public partial class SettingsEditor
             Choice(StatsHeaderGraphInput, () => SelectedStatsHeaderGraph?.Value, value => SelectedStatsHeaderGraph = StatsHeaderGraphChoices.FirstOrDefault(item => item.Value == value) ?? SelectedStatsHeaderGraph, config => config.StatsHeaderGraph),
             Text(DownloadPathInput, () => DownloadPath, value => DownloadPath = value, config => config.DownloadPath),
             Text(ExportFilenameTemplateInput, () => ExportFilenameTemplate, value => ExportFilenameTemplate = value, config => config.ExportFilenameTemplate),
-    }.Concat(BooruListDefaults()).ToDictionary(setting => setting.Input, StringComparer.Ordinal);
+    }.Concat(BooruListDefaults()).Concat(BoardSuggestionDefaults()).Concat(CatalogLimitDefaults())
+        .ToDictionary(setting => setting.Input, StringComparer.Ordinal);
 
     /// <summary>The names of the inputs that can be reset (tests check that each one is an input of this page).</summary>
     internal IReadOnlyCollection<string> ResettableInputNames => DefaultSettings().Keys;

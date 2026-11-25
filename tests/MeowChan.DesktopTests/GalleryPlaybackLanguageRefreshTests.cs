@@ -20,26 +20,33 @@ public sealed class GalleryPlaybackLanguageRefreshTests : IDisposable
     [Fact]
     public void ViewerEntriesAreCompleteUniqueAndUseTheGlobalCatalog()
     {
-        // G1 added viewer.playback.status.tagHold (the slideshow waits while the tag panel is worked in); G2 added menu and menuHelp.
-        Assert.Equal(42, GalleryPlaybackCatalog.Entries.Length);
-        Assert.Equal(42, GalleryPlaybackCatalog.Entries.Select(entry => entry.Key).Distinct().Count());
-        foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
+        // FIX-112-MENU, design brief §3: „drei neue kurze Texte und zwei Überschriften („Playback“, „View“) in allen gebündelten Sprachen“.
+        string[] groupKeys = ["viewer.playback.group.playback", "viewer.playback.group.view",
+            "viewer.playback.menu.mode", "viewer.playback.menu.seconds", "viewer.playback.menu.videos"];
+        int expectedCount = 42 + groupKeys.Length;
+        string[] keys = GalleryPlaybackCatalog.Entries.Select(entry => entry.Key).ToArray();
+        Assert.Equal(expectedCount, keys.Length);
+        Assert.Equal(expectedCount, keys.Distinct().Count());
+        Assert.All(groupKeys, key => Assert.Contains(key, keys));
+        Assert.Equal(12, Texts.Languages.Count);
+        foreach (var language in Texts.Languages)
         {
-            Texts.Initialize(); // refresh the normal global catalog snapshot
-            Texts.SetLanguage(language);
+            string code = language.Code;
+            Texts.SetLanguage(code);
+            using Stream? stream = code is "en" or "de" ? null : typeof(Texts).Assembly.GetManifestResourceStream(
+                Texts.BundledPackResourcePrefix + code + ".json") ?? throw new InvalidOperationException("Missing bundled pack: " + code);
+            using var pack = stream == null ? null : JsonDocument.Parse(stream);
             foreach (var entry in GalleryPlaybackCatalog.Entries)
             {
                 Assert.StartsWith("viewer.playback.", entry.Key);
                 Assert.False(string.IsNullOrWhiteSpace(entry.English));
                 Assert.False(string.IsNullOrWhiteSpace(entry.German));
-                string expected;
-                if (language is "en" or "de")
-                    expected = language == "de" ? entry.German : entry.English;
-                else
+                string expected = code switch
                 {
-                    using var pack = JsonDocument.Parse(ReadSource("Desktop/Localization/Packs/" + language + ".json"));
-                    expected = pack.RootElement.GetProperty("strings").GetProperty(entry.Key).GetString()!;
-                }
+                    "en" => entry.English,
+                    "de" => entry.German,
+                    _ => pack!.RootElement.GetProperty("strings").GetProperty(entry.Key).GetString()!
+                };
                 Assert.Equal(expected, Texts.T(entry.Key));
                 Assert.Equal(expected, GalleryPlaybackCatalog.Get(entry.Key));
             }

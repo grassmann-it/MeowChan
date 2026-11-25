@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -16,7 +17,7 @@ namespace MeowChan.DesktopSmoke;
 // R7/RL1: the reader's settings popover (the gear "Settings") in a private profile with a detached reader. The host
 // stands in for the shell: it keeps a Config, saves a change into it and applies it to the page the way the shell does. Checked:
 // the gear, the popover under it with its fields, an edit applied to the reader within the live budget and
-// shown on the page, Escape closing only the popover with the focus back on the button, "All reader settings" naming a setting,
+// shown on the page, Escape closing the popover and returning focus to the posts, "All reader settings" naming a setting,
 // and a failed save keeping the confirmed value. A capture of the open popover in both themes is wanted from the central run.
 internal static class ReaderQuickSettingsChecks
 {
@@ -44,7 +45,7 @@ internal static class ReaderQuickSettingsChecks
             page.IsAvailable = true;
             await page.LoadThreadAsync(id);
             ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
-            await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemsSource is ArchivePostRow[] { Length: > 0 });
+            await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemCount > 0);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             await CheckAsync(page, window);
         }
@@ -138,11 +139,14 @@ internal static class ReaderQuickSettingsChecks
         }
         fail = null;
 
-        // Escape closes only the popover; the focus is back on the settings gear. The surface is still the open popover's.
+        // Tom's toggle rule: the opener stays out of keyboard focus, and Escape returns focus to the reader's work target.
+        Require(!view.Focusable, "The settings opener takes keyboard focus.");
         surface.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
         await Program.WaitUntilAsync(() => !page.IsQuickSettingsOpen, () => "Escape did not close the popover");
         Require(page.IsReaderDialogOpen == false, "Escape closed more than the popover.");
-        await Program.WaitUntilAsync(() => view.IsFocused || !view.IsEffectivelyVisible, () => "the focus did not return to the settings gear");
+        ListBox posts = window.GetVisualDescendants().OfType<ListBox>()
+            .Single(list => Avalonia.Automation.AutomationProperties.GetAutomationId(list) == "ArchivePosts");
+        await Program.WaitUntilAsync(() => posts.IsKeyboardFocusWithin, () => "the focus did not return to the reader posts");
 
         // "All reader settings" asks the shell for the last changed setting, and the popover is gone afterwards. The page keeps its one
         // popover (ArchivePage.OpenReaderQuickSettings), so the last edit is still the date style whose save failed above: the

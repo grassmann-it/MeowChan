@@ -21,14 +21,8 @@ using Ursa.Controls;
 
 namespace MeowChan;
 
-public partial class PluginsPage : IDisposable
+public partial class PluginsPage
 {
-    public void Dispose()
-    {
-        EndLifetime();
-        GC.SuppressFinalize(this);
-    }
-
     internal static readonly string[] PluginActionCommandIds =
     {
         "plugins.enable", "plugins.disable", "plugins.details", "plugins.show-settings", "plugins.watches",
@@ -53,6 +47,7 @@ public partial class PluginsPage : IDisposable
         // "Actions" as tooltip and (with the plugin's name) as accessible name. The menus and their commands are unchanged.
         Button more = C<Button>("PluginMoreActions");
         PopupToggle.Prepare(more);
+        PopupToggle.Prepare(C<Button>("PluginWatches"));
         CommandBindings.Apply(more, "plugins.actions", iconOnly: true);
     }
 
@@ -254,7 +249,7 @@ public partial class PluginsPage : IDisposable
     private void OnPluginActionPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         var list = C<SelectionList>("PluginCards");
-        if (!e.GetCurrentPoint(list).Properties.IsRightButtonPressed || !MainWindow.IsListCommandSource(e.Source, list)) return;
+        if (!ContextClick.IsPress(e, list) || !MainWindow.IsListCommandSource(e.Source, list)) return;
         e.Handled = true;
         SelectionListItem? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<SelectionListItem>().FirstOrDefault();
         string? key = row == null ? null : _cards.FirstOrDefault(pair => ReferenceEquals(pair.Value, row)).Key;
@@ -277,12 +272,14 @@ public partial class PluginsPage : IDisposable
 
     private bool TryHandlePluginActionKeyDown(KeyEventArgs e)
     {
-        if (e.Handled || !MainWindow.IsListCommandSource(e.Source, C<SelectionList>("PluginCards"))) return false;
-        if (CommandBindings.Matches(e, "menu.context-open"))
+        var list = C<SelectionList>("PluginCards");
+        if (e.Handled || ShortcutService.IsCapturing || !MainWindow.IsListCommandSource(e.Source, list)) return false;
+        if (CommandBindings.Matches(e, "menu.context-open") || e.Key == Key.Apps && e.KeyModifiers == KeyModifiers.None)
         {
             e.Handled = true;
-            if (_selectedKey is { } key && C<SelectionList>("PluginCards").SelectedItem != null)
+            if (_selectedKey is { } key && list.SelectedItem != null)
                 OpenPluginActionMenu(key, PluginActionOrigin(key), openerCommand: "menu.context-open");
+            ContextClick.ConsumeOpeningKeyRelease(PluginActionMenu, e.Key, list);
             return true;
         }
         // Menu remains native. A removed/rebound Shift+F10 must not invoke its old native accelerator.
@@ -294,7 +291,7 @@ public partial class PluginsPage : IDisposable
     {
         if (_ended || IsDiscardConfirmationOpen || !IsEffectivelyVisible || _catalog == null
             || _catalog.Entries.FirstOrDefault(entry => entry.Key == key) is not { } entry || !Included(entry)) return;
-        if (anchor == null && TryClosePluginMenu(origin, key, openerCommand)) return;
+        if (anchor == null && (TryClosePluginMenu(origin, key, openerCommand) || DismissedByOwnOpener(origin))) return;
         ClosePluginActionMenu();
         // Inspecting another row while busy must not call SelectCore, which cancels the operation.
         if (!_busy && _selectedKey != key) SelectCore(key, openDetails: false);
@@ -373,7 +370,7 @@ public partial class PluginsPage : IDisposable
 
     private void OpenPluginSourcesMenu(PluginActionTarget target, Control origin)
     {
-        if (TryClosePluginMenu(origin, target.Key, "plugins.watches")) return;
+        if (TryClosePluginMenu(origin, target.Key, "plugins.watches") || DismissedByOwnOpener(origin)) return;
         ClosePluginActionMenu();
         ContextMenuBuilder builder = new ContextMenuBuilder();
         int index = 0;
@@ -422,6 +419,10 @@ public partial class PluginsPage : IDisposable
         return true;
     }
 
+    // The press on the opener already light-dismissed its menu (Closed forgot it): the click of the same press only closes.
+    // Only that button's own menu records the press, so another plugin, row or command still opens its menu.
+    private static bool DismissedByOwnOpener(Control origin) => origin is Button opener && PopupToggle.ConsumeAnchorPress(opener);
+
     private void OpenPreparedPluginMenu(ContextMenu menu, PluginActionTarget target, Control origin, string command, Point? anchor = null)
     {
         PluginActionMenu = menu; _pluginMenuTarget = target; _pluginMenuCommand = command; _pluginMenuLanguage = Texts.Language;
@@ -431,10 +432,18 @@ public partial class PluginsPage : IDisposable
             ? TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control ?? C<SelectionList>("PluginCards")
             : origin;
         origin.BringIntoView();
-        menu.Placement = PlacementMode.AnchorAndGravity;
         menu.PlacementTarget = origin;
-        menu.PlacementRect = new Rect(anchor ?? new Point(0, origin.Bounds.Height), new Size(1, 1));
-        menu.PlacementAnchor = PopupAnchor.TopLeft; menu.PlacementGravity = PopupGravity.BottomRight;
+        if (anchor is { } pointer)
+        {
+            menu.Placement = PlacementMode.AnchorAndGravity;
+            menu.PlacementRect = new Rect(pointer, new Size(1, 1));
+            menu.PlacementAnchor = PopupAnchor.TopLeft;
+            menu.PlacementGravity = PopupGravity.BottomRight;
+        }
+        else
+        {
+            menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+        }
         // Long translated Next-start labels and version strings must fit beside the shortcut column.
         void WrapLabels()
         {

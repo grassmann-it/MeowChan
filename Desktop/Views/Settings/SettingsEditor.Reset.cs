@@ -154,14 +154,15 @@ public partial class SettingsEditor
             flyout.Hide();
         };
         cancel.Click += (_, _) => flyout.Hide();
-        flyout.Opened += (_, _) => cancel.Focus();
         flyout.Closed += (_, _) =>
         {
+            panel.IsVisible = false;
             if (!ReferenceEquals(_resetConfirmation, flyout)) return;
             _resetConfirmation = null;
             if (IsEffectivelyVisible && !_isClosed && !origin.Focus()) FocusSettingsContent();
         };
         flyout.ShowAt(origin);
+        if (flyout.IsOpen) cancel.Focus();
     }
 
     // Internal for the tests (SettingsResetCoverageTests): they run every scope against the real controls.
@@ -300,6 +301,7 @@ public partial class SettingsEditor
         Config defaults = ResetDefaults.Values;
         SaveUrlsOnExit = defaults.SaveUrlsOnExit;
         ShowBoardAdmissionWizard = defaults.ShowBoardAdmissionWizard;
+        LoadBoardSuggestionDraft(defaults);
         MonitorClipboardUrls = defaults.MonitorClipboardUrls;
         MinimizeToTray = defaults.MinimizeToTray;
         CloseToTray = defaults.CloseToTray;
