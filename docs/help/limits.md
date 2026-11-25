@@ -9,7 +9,7 @@ read as more than it is. Status of MeowChan 1.1.1.
   the source once for posts that carry both. It does not combine the results of two
   separate searches.
 - **A Danbooru search is limited.** At most two tags plus one optional `rating:` term,
-  20 results per page and at most 5 pages. MeowChan sends the terms exactly as typed
+  with a default budget of 5 pages and 20 results per page. Settings allows up to 1000 numbered pages. MeowChan sends the terms exactly as typed
   and adds no rating filter and no extra search terms.
 - **Loaded pages are not the whole source.** An empty page or the last allowed page
   only means that nothing more was loaded here. It does not say that the source has
