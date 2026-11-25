@@ -14,7 +14,9 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.Gallery;
 using MeowChan.Tags;
 using Ursa.Controls;
 
@@ -74,6 +76,8 @@ public sealed partial class TaggingPage
             _actions.Items.Add(item);
         _listPresentation.Items.Add(_columnsButton);
         _listPresentation.Items.Add(_viewToggle);
+        _listPresentation.Items.Add(_panelToggle);
+        InitializePanel();
 
         // Ursa's More toggle precedes its items in the visual tree. Keep tab
         // order local to the header and follow the visual order across lines.
@@ -411,6 +415,7 @@ public sealed partial class TaggingPage
             else OpenActions.Start(() => ExecuteRowCommandAsync(command, explain: true), "tagging.list.key");
             return;
         }
+        if (TryPanelDecisionKey(e, PanelCursor(), restrictSelection: true)) return;
         // Claim only plain Space on a focused item, after all configurable shortcuts.
         if (e.Key == Key.Space && e.KeyModifiers == KeyModifiers.None && ResultItem(e.Source) is { IsFocused: true } result)
         {
@@ -424,6 +429,126 @@ public sealed partial class TaggingPage
     private ListBoxItem? ResultItem(object? source) =>
         (source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
             .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), ActiveList));
+
+    private void OnPanelKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _tagBusy || ShortcutService.IsCapturing || _taggingPanel is not { } panel
+            || CommandRouter.IsNativeInput(e.Source, e.Key)) return;
+        if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Escape or Key.Up or Key.Down)
+        {
+            e.Handled = true;
+            FocusContent(_panelRow?.Key);
+            if (e.Key != Key.Escape && TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Control row)
+                row.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = e.Key, KeyModifiers = e.KeyModifiers,
+                    PhysicalKey = e.PhysicalKey, KeyDeviceType = e.KeyDeviceType });
+            return;
+        }
+        if (e.Key == Key.Enter && ReferenceEquals(e.Source, panel.Frame))
+        {
+            e.Handled = true;
+            OpenPanelGallery();
+            return;
+        }
+        if (ShortcutService.Current.Matches(e, "media.rating.edit", "tagging"))
+        {
+            e.Handled = true;
+            OpenActions.Start(panel.EditTagsFromShortcutAsync, "tagging.panel.tags");
+            return;
+        }
+        TryPanelDecisionKey(e, _panelRow, restrictSelection: false);
+    }
+
+    private static readonly string[] PanelDecisionCommands = ["favorites.toggle", "media.rating.clear",
+        .. Enumerable.Range(1, 5).Select(number => "media.rating.set-" + number)];
+
+    private (bool Favorite, int? Rating, string? Description) DecisionOf(TagQueueItem item)
+    {
+        if (_userData is not { } data) return default;
+        MediaLibraryEntry entry = EntryOf(item);
+        bool favorite = data.FavoritesAvailable && data.IsFavorite(entry);
+        int? rating = data.RatingsAvailable ? data.RatingOf(entry) : null;
+        string description = ReaderMediaSidebarRules.HeaderText(favorite ? Texts.T("media.badge.favorite") : string.Empty,
+            rating is int value ? Texts.T("media.badge.rating", value) : string.Empty, string.Empty);
+        return (favorite, rating, description.Length > 0 ? description : null);
+    }
+
+    private bool TryPanelDecisionKey(KeyEventArgs e, TaggingQueueRow? row, bool restrictSelection)
+    {
+        string? id = PanelDecisionCommands.FirstOrDefault(command => ShortcutService.Current.Matches(e, command, "tagging"));
+        if (id == null) return false;
+        e.Handled = true;
+        if (restrictSelection && SelectedCount > 1)
+        {
+            ShowStatus(Texts.T("tagging.page.panel.multi", Shortcut("media.rating.edit")));
+            return true;
+        }
+        if (id == "favorites.toggle")
+        {
+            _panelFavoriteKey.Observe(this);
+            if (_panelFavoriteKey.IsRepeat(e.Key)) return true;
+        }
+        if (row != null) OpenActions.Start(() => WritePanelDecisionAsync(id, row), "tagging.panel.decision");
+        return true;
+    }
+
+    private async Task WritePanelDecisionAsync(string id, TaggingQueueRow row)
+    {
+        if (_tagBusy || _panelWriting || ExecutePanelDecisionAsync is not { } execute || _queueWork.Ended) return;
+        MediaLibraryEntry entry = EntryOf(row.Item);
+        MediaLibraryUserData? data = _userData;
+        if (MediaLibraryFilterEngine.AssetKey(entry) == null || data == null
+            || !(id == "favorites.toggle" ? data.FavoritesAvailable : data.RatingsAvailable)) return;
+        if (_panelRow?.Key == row.Key && _panelFileAvailable != true) return;
+        _panelWriting = true;
+        try
+        {
+            await execute(id, entry, () => !_queueWork.Ended && RowForPanel(row.Key) != null);
+        }
+        finally
+        {
+            _panelWriting = false;
+            if (!_queueWork.Ended) Show();
+        }
+    }
+
+    private void RefreshPanelActions()
+    {
+        if (_taggingPanel is not { } panel || _panelRow is not { } row) return;
+        MediaLibraryEntry entry = EntryOf(row.Item);
+        MediaLibraryEntryState state = MediaLibraryEntryState.Of(entry, _userData ?? MediaLibraryUserData.Unavailable);
+        bool Current() => !_queueWork.Ended && !_tagBusy && _panelFileAvailable == true && !_panelWriting && IsPanelShown;
+        bool Writable() => Current() && ExecutePanelDecisionAsync != null;
+        panel.Open.IsEnabled = OpenGallery != null && Current();
+        panel.ConfigureFavorite(() => Writable() && state.Favorite != MediaLibraryFlag.Unknown,
+            () => state.Favorite == MediaLibraryFlag.Yes, () => WritePanelDecisionAsync("favorites.toggle", row));
+        panel.ConfigureRating(() => Writable() && state.RatingKnown, () => state.UserRating,
+            value => WritePanelDecisionAsync(value is int stars ? "media.rating.set-" + stars : "media.rating.clear", row));
+        panel.SetTags(state.CanEditMediaTags ? state.MediaTags : null, PanelTagBlocked(entry));
+    }
+
+    private string? PanelTagBlocked(MediaLibraryEntry entry)
+    {
+        if (entry.BooruPostId != null || BooruMediaIdentity.IsBooruThread(entry.Thread))
+            return Texts.T("booru.media.tags.unavailable");
+        if (_panelFileAvailable != true)
+            return _panelFileAvailable == false ? MediaMenuReasons.NotSaved : Texts.T("reader.sidebar.loading");
+        MediaLibraryEntryState state = MediaLibraryEntryState.Of(entry, _userData ?? MediaLibraryUserData.Unavailable);
+        if (!state.TagsKnown) return MediaMenuReasons.TagsUnknown;
+        if (!state.CanEditMediaTags) return Texts.T("tags.media.unsupported");
+        return TagServices == null ? MediaMenuReasons.Unavailable : null;
+    }
+
+    private void OpenPanelGallery() => OpenActions.Start(OpenPanelGalleryAsync, "tagging.panel.gallery");
+
+    private async Task OpenPanelGalleryAsync()
+    {
+        if (_tagBusy || _panelOpening || _panelFileAvailable != true || _panelRow is not { } row || OpenGallery is not { } open) return;
+        int index = PanelIndex(row.Key);
+        if (index < 0) return;
+        _panelOpening = true;
+        try { await open(_rows.Select(candidate => Effective(candidate.Item)).ToArray(), index); }
+        finally { _panelOpening = false; }
+    }
 
     private void OnResultSpaceUp(object? sender, KeyEventArgs e)
     {

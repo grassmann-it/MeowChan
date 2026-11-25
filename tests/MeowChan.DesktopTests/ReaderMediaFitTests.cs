@@ -286,21 +286,25 @@ public sealed class ReaderMediaFitTests : IDisposable
     [InlineData(300)]
     [InlineData(444)]
     [InlineData(620)]
-    [InlineData(780)] // viewport 800 minus the air (20): the largest card that is still centred
+    [InlineData(780)]
+    [InlineData(781)]
+    [InlineData(800)]
     public void ACardThatFitsIsCentredInTheViewport(double height)
     {
         double offset = ReaderMediaFit.JumpOffset(5000, 123, height, 800, 20000, 0, centre: true);
         Assert.Equal(400, CardCentreInViewport(5000, 123, height, offset), 1e-6);
     }
 
+    // FIX-112-ENL (Tom, 19:40): „vertikal zentriert … wenn er in den Sichtbereich passt. Passt er nicht, steht seine Oberkante mit einem Puffer am oberen Rand“.
     [Theory]
-    [InlineData(781)]
-    [InlineData(800)]
-    [InlineData(1500)]
-    public void ACardTallerThanTheViewportMinusAirKeepsItsTopAndHeader(double height)
+    [InlineData(801, 8)]
+    [InlineData(1500, 0)]
+    [InlineData(1500, 8)]
+    [InlineData(1500, 25)]
+    public void ACardTallerThanTheViewportUsesTheConfiguredTopPadding(double height, int paddingPercent)
     {
-        double offset = ReaderMediaFit.JumpOffset(5000, 123, height, 800, 20000, 0, centre: true);
-        Assert.Equal(5000 + 123 - ReaderMediaFit.AlignedTop, offset, 1e-6);
+        double offset = ReaderMediaFit.JumpOffset(5000, 123, height, 800, 20000, 0, centre: true, topPaddingPercent: paddingPercent);
+        Assert.Equal(5000 + 123 - 800 * paddingPercent / 100d, offset, 1e-6);
         Assert.False(ReaderMediaFit.FitsCentred(height, 800));
     }
 
@@ -318,8 +322,8 @@ public sealed class ReaderMediaFitTests : IDisposable
         double offset = ReaderMediaFit.JumpOffset(5000, 123, 400, 800, 20000, 30, centre: true);
         // The region from the line to the card's bottom (430) sits in the middle: 185 above, 185 below; the card starts below the line.
         Assert.Equal(123 - (offset - 5000), 185 + 30, 1e-6);
-        // A card that fits only without the line falls back to the top alignment with the line visible.
-        Assert.Equal(5000 + 123 - ReaderMediaFit.AlignedTop - 30, ReaderMediaFit.JumpOffset(5000, 123, 760, 800, 20000, 30, centre: true), 1e-6);
+        // A card that exceeds the viewport with the line keeps that line visible above the card.
+        Assert.Equal(5000 + 123 - 64 - 30, ReaderMediaFit.JumpOffset(5000, 123, 780, 800, 20000, 30, centre: true), 1e-6);
     }
 
     [Fact]

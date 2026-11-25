@@ -59,8 +59,8 @@ public sealed class SettingsResetCoverageTests : IDisposable
         try { test(editor, defaults); }
         finally
         {
-            editor.EndLifetime();
-            defaults.EndLifetime();
+            editor.Dispose();
+            defaults.Dispose();
         }
     });
 

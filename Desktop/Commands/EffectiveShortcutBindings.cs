@@ -706,7 +706,8 @@ public sealed class EffectiveShortcutBindings
         // The colour labels (keys 6 to 9) run where the rating digits run, except in the reader (not wired there yet).
         if (id.StartsWith("media.label.", StringComparison.Ordinal)) return new[] { "media", "gallery" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
-            return new[] { "media", "reader", "gallery" };
+            return new[] { "media", "reader", "gallery", "tagging" };
+        if (id == "favorites.toggle") return new[] { "reader", "gallery", "media", "archive", "tagging" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help" or "workspace.view-cycle") return new[] { "shell" };
         // The large reader owns thread find; the archive search box is not reachable from it.
         if (id is "reader.find" or "reader.find-next" or "reader.find-previous") return new[] { "large-reader" };

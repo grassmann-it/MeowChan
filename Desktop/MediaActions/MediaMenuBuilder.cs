@@ -99,6 +99,7 @@ internal static class MediaMenuBuilder
             ToolTip.SetTip(item, executable ? entry.Label : entry.Label + " · " + (entry.Reason ?? MediaMenuReasons.Unavailable));
         }
         item.Tag = entry.Id;
+        AutomationProperties.SetAutomationId(item, entry.Id);
         item.Click += (_, _) => RetireIfStale(session);
         // A disabled item must still say why, so its tooltip is shown on the disabled control as well.
         ToolTip.SetShowOnDisabled(item, true);
@@ -129,6 +130,7 @@ internal static class MediaMenuBuilder
         }
         bool CanExecute() => available() && session.IsCurrent;
         MenuItem item = new() { Header = Texts.T(textKey), Tag = textKey, Command = new DelegateCommand(Execute, CanExecute) };
+        AutomationProperties.SetAutomationId(item, textKey);
         if (icon != null) item.Icon = CommandBindings.IconFromKey(icon);
         item.IsEnabled = CanExecute();
         item.Click += (_, _) => RetireIfStale(session);
@@ -152,6 +154,7 @@ internal static class MediaMenuBuilder
         }
         bool CanExecute() => available() && session.IsCurrent;
         MenuItem item = new() { Header = label, Tag = id, Command = new DelegateCommand(Execute, CanExecute) };
+        AutomationProperties.SetAutomationId(item, id);
         if (icon != null) item.Icon = CommandBindings.IconFromKey(icon);
         item.IsEnabled = CanExecute();
         item.Click += (_, _) => RetireIfStale(session);
@@ -195,6 +198,7 @@ internal static class MediaMenuBuilder
         bool CanExecute() => available() && session.IsCurrent;
         MenuItem item = CommandBindings.CreateMenuItem(commandId, Execute, CanExecute, () => CanExecute() ? null : unavailableReason, () => label);
         item.Tag = commandId;
+        AutomationProperties.SetAutomationId(item, commandId);
         item.Click += (_, _) => RetireIfStale(session);
         ToolTip.SetShowOnDisabled(item, true);
         return item;
@@ -228,6 +232,7 @@ internal static class MediaMenuBuilder
     {
         // The note is a sentence: it wraps inside the menu instead of being cut at the menu's edge.
         MenuItem note = new() { Header = new TextBlock { Text = text, TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 320 }, IsEnabled = false, Tag = "media.menu.note" };
+        AutomationProperties.SetAutomationId(note, "media.menu.note");
         AutomationProperties.SetName(note, text);
         ToolTip.SetTip(note, text);
         ToolTip.SetShowOnDisabled(note, true);

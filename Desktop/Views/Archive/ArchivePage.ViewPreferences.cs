@@ -201,7 +201,8 @@ public partial class ArchivePage
             bool available = !(key == "name" || (key is "identity" or "title"
                 && !ColumnVisible(grid, key == "identity" ? "title" : "identity")));
             builder.Check("archive.column." + key, Texts.T("archive.columns." + key), visible,
-                () => _ = ToggleArchiveColumnAsync(grid, key, !visible), available: available);
+                () => _ = ToggleArchiveColumnAsync(grid, key, !visible),
+                available: available, reason: available ? null : Texts.T("archive.columns.required"));
         }
         builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
             () => _ = ResetArchiveColumnsAsync(grid));

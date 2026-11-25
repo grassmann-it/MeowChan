@@ -24,6 +24,7 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReadingHistoryMenuEntries), 10, 3, 25 };
         yield return new object[] { nameof(Config.ReaderTextlessMediaWidth), 360, 120, 960 };
         yield return new object[] { nameof(Config.ReaderFocusedMediaScalePercent), 200, 100, 400 };
+        yield return new object[] { nameof(Config.ReaderFocusedPostTopPaddingPercent), 8, 0, 25 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeSize), 640, 240, 1600 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeDelayMs), 350, 100, 2000 };
         yield return new object[] { nameof(Config.MediaSidebarInfoMinimumFree), 104, 64, 480 };

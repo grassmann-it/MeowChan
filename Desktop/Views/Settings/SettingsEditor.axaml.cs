@@ -20,7 +20,7 @@ using MeowChan.Desktop.Updates;
 
 namespace MeowChan
 {
-    public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost
+    public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost, IDisposable
     {
         /// <summary>The limits of the tag panel's suggestion box, read by the XAML so it never repeats the numbers (the Config constants are internal).</summary>
         public static decimal QuickTagPanelSuggestionLimitMinimum => Config.QuickTagPanelSuggestionLimitMinimum;
@@ -742,18 +742,29 @@ namespace MeowChan
             }, DispatcherPriority.Loaded);
         }
 
-        public void EndLifetime()
+        public void EndLifetime() => Dispose();
+
+        public void Dispose()
         {
-            if (_isClosed) return;
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || _isClosed) return;
             _isClosed = true;
+            SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
+            _destinationWait?.Cancel();
+            _destinationWait?.Dispose();
+            _destinationWait = null;
+            EndSettingsTransferLifetime();
             EndSearchVisit();
             _conditionalReveal.Release(keepEdited: false);
             _rowMenu?.Dispose();
-            _destinationWait?.Cancel();
             DownloadDestinationValidator.Shared.CleanupFailed -= OnDestinationCleanupFailed;
             _sectionNavigation?.Dispose();
             EndResetLifetime();
-            EndSettingsTransferLifetime();
             EndWorkViewOverviewLifetime();
             Texts.Changed -= OnLanguageChanged;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
@@ -998,13 +1009,12 @@ namespace MeowChan
             string readerPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
             string headerTagline = SelectedHeaderTagline?.Value ?? _config.HeaderTagline;
             string headerTaglineFixed = SelectedHeaderTaglineFixed?.Value ?? _config.HeaderTaglineFixedId;
-            string booruSearchTarget = SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
             try
             {
                 RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth, headerTagline, headerTaglineFixed);
-                RefreshBooruSearchChoices(booruSearchTarget);
+                RefreshBooruSearchLabels();
             }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
@@ -1438,7 +1448,7 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedBooruNewSearchTarget) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
                     or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode) or nameof(SelectedGalleryFilmstripFlagUntagged) or nameof(SelectedGalleryWheelMode)
                     or nameof(SelectedTaggingCard1) or nameof(SelectedTaggingCard2) or nameof(SelectedTaggingCard3) or nameof(SelectedTaggingCard4) or nameof(SelectedTaggingCard5);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))

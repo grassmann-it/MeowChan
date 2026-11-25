@@ -111,7 +111,7 @@ public sealed class ToolbarVisualIconAuditTests
         using TestWindow window = new(page);
         BooruComponentDispatcher.Wait(page.ActivateAsync());
         Settle(window);
-        Audit(Bar(page, "BooruSearchActions"), BooruWorkbenchView.AlternateSubmitName, BooruWorkbenchView.DownloadAllName);
+        Audit(Bar(page, "BooruSearchActions"), BooruWorkbenchView.DownloadAllName);
         Assert.Equal("download", IconButtons.KeyOf(Bar<Button>(page, BooruWorkbenchView.DownloadAllName)));
         Button watchers = Bar<Button>(page.View.Header, BooruWorkbenchView.OpenWatchersName);
         Assert.True(HasRenderedIcon(watchers));
@@ -232,7 +232,7 @@ public sealed class ToolbarVisualIconAuditTests
             rules.EndLifetime();
             status.EndLifetime();
             diagnostics.EndLifetime();
-            settings.EndLifetime();
+            settings.Dispose();
         }
     });
 

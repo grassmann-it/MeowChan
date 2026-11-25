@@ -121,15 +121,17 @@ public sealed class BooruHitKeyboardTests
                 Assert.Equal(AutomationProperties.GetSizeOfSet(card), 3);
             }
             Assert.Equal(new[] { 1, 2, 3 }, cards.Select(AutomationProperties.GetPositionInSet));
-            Assert.Equal("BooruResult:101", AutomationProperties.GetName(cards[0]));
-            Assert.Equal("BooruResult:102", AutomationProperties.GetName(cards[1]));
+            Assert.Equal("BooruResult:101", AutomationProperties.GetAutomationId(cards[0]));
+            Assert.Equal("BooruResult:102", AutomationProperties.GetAutomationId(cards[1]));
+            Assert.Contains("General", AutomationProperties.GetName(cards[0]));
             Assert.Equal("Post #101, rating General, local copy: yes", AutomationProperties.GetHelpText(cards[0]));
             Assert.Equal("Post #102, rating General, local copy: no", AutomationProperties.GetHelpText(cards[1]));
             Texts.SetLanguage("de");
             try
             {
                 await Task.Delay(30); // the view renders the language change on a posted callback
-                Assert.Equal("BooruResult:102", AutomationProperties.GetName(Cards(view)[1]));
+                Assert.Equal("BooruResult:102", AutomationProperties.GetAutomationId(Cards(view)[1]));
+                Assert.Contains("Allgemein", AutomationProperties.GetName(Cards(view)[1]));
                 Assert.Equal("Post #102, Einstufung Allgemein, lokale Kopie: nein", AutomationProperties.GetHelpText(Cards(view)[1]));
             }
             finally { Texts.SetLanguage("en"); }
@@ -268,7 +270,7 @@ public sealed class BooruHitKeyboardTests
         TappedEventArgs onCard = DoubleTap(card, card);
         Raise(card, onCard);
         Assert.True(onCard.Handled);
-        Assert.NotEqual(BooruSearchTabs.PrimaryId, view.SearchTabs.ActiveId);
+        Assert.NotNull(view.SearchTabs.ActiveId);
         Assert.Equal(view.SearchTabs.ActiveId, Assert.IsType<TabItem>(tabs.SelectedItem).Tag);
         Assert.Equal("cat blue_eyes", input.Text);
         Assert.Equal("cat blue_eyes", model.Search.View.Input);
@@ -369,7 +371,7 @@ public sealed class BooruHitKeyboardTests
         KeyEventArgs enter = Press(Avalonia.Input.Key.Enter, first);
         Raise(first, enter);
         Assert.True(enter.Handled);
-        Assert.NotEqual(BooruSearchTabs.PrimaryId, view.SearchTabs.ActiveId);
+        Assert.NotNull(view.SearchTabs.ActiveId);
         Assert.Equal(view.SearchTabs.ActiveId, Assert.IsType<TabItem>(tabs.SelectedItem).Tag);
         Assert.Equal("cat blue_eyes", Field<SearchBox>(view, "_input").Text);
         Assert.Equal(requests, harness.ProviderRequests);

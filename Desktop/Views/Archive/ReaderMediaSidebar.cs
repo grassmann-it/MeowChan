@@ -509,7 +509,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, SettingsButton, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _header.ReserveCloseSpace(Close);
         foreach (Control control in new Control[] { _header, _heading, _header.Meta, _headerFavorite, InfoToggle, Open, SettingsButton,
-            Close, _details, _decision, _facts, _infoBar, _card, _videoRow })
+            Close, _details, _decision, _facts, _infoBar, _card, _videoRow, _play, _badges })
             AutomationProperties.SetAutomationId(control, control.Name);
         AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
         AutomationProperties.SetAutomationId(_image, "ReaderMediaSidebarPicture");

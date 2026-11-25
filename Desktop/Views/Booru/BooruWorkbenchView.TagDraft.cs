@@ -136,15 +136,18 @@ internal sealed partial class BooruWorkbenchView
 
     private sealed class DraftTagButton : Button
     {
+        private KeyModifiers? _pointerClickModifiers;
+
         protected override Type StyleKeyOverride => typeof(Button);
-        internal bool ExcludeOnClick { get; private set; }
+        internal bool IsPointerClick => _pointerClickModifiers.HasValue;
+        internal bool ExcludeOnClick => (_pointerClickModifiers.GetValueOrDefault() & (KeyModifiers.Alt | KeyModifiers.Shift)) != 0;
 
         protected override void OnPointerReleased(PointerReleasedEventArgs e)
         {
             // Let Button decide whether this is a click, including pointer capture and release outside the chip.
-            ExcludeOnClick = (e.KeyModifiers & (KeyModifiers.Alt | KeyModifiers.Shift)) != 0;
+            _pointerClickModifiers = e.KeyModifiers;
             try { base.OnPointerReleased(e); }
-            finally { ExcludeOnClick = false; }
+            finally { _pointerClickModifiers = null; }
         }
     }
 }

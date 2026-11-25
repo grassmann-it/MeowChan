@@ -23,7 +23,8 @@ internal sealed class TaggingQueueRowView : Grid
     /// <summary>Layout limits of the table's columns (the file and source widths stand in a 3 : 2 ratio between them).</summary>
     internal const double FileMinWidth = 160, SourceMinWidth = 120, SourceMaxWidth = 420;
     /// <summary>The compact table keeps every column but gives the text columns less room before they start trimming.</summary>
-    internal const double CompactFileMinWidth = 96, CompactSourceMinWidth = 72, CompactSourceMaxWidth = 240;
+    internal const double CompactFileMinWidth = 72, CompactSourceMinWidth = 56, CompactSourceMaxWidth = 240;
+    private const double CompactKindWidth = 48, CompactGroupWidth = 64, CompactTagsWidth = 40, CompactStateWidth = 96;
     /// <summary>The page's list surface and its header each have 12 dip margins on both sides.</summary>
     internal const double TableViewportInset = 48;
 
@@ -38,21 +39,21 @@ internal sealed class TaggingQueueRowView : Grid
         // cells of that column (NumberMargin, TagsMargin) reach into the gaps, so the next visible column still stands one ColumnGap after it.
         double number = NumberWidth - (showPreview ? 0 : ColumnGap) - (!showPreview && !showKind ? ColumnGap : 0);
         double preview = showPreview ? PreviewColumnWidth - (showKind ? 0 : ColumnGap) : 0;
-        double tags = (compact ? 56 : 72) - (showGroup ? 0 : ColumnGap);
+        double tags = (compact ? CompactTagsWidth : 72) - (showGroup ? 0 : ColumnGap);
         return new ColumnDefinitions
         {
             new ColumnDefinition(number, GridUnitType.Pixel),
             new ColumnDefinition(preview, GridUnitType.Pixel),
-            new ColumnDefinition(showKind ? 64 : 0, GridUnitType.Pixel),
+            new ColumnDefinition(showKind ? (compact ? CompactKindWidth : 64) : 0, GridUnitType.Pixel),
             new ColumnDefinition(3, GridUnitType.Star) { MinWidth = compact ? CompactFileMinWidth : FileMinWidth },
             new ColumnDefinition(2, GridUnitType.Star)
             {
                 MinWidth = compact ? CompactSourceMinWidth : SourceMinWidth,
                 MaxWidth = compact ? CompactSourceMaxWidth : SourceMaxWidth
             },
-            new ColumnDefinition(showGroup ? (compact ? 96 : 132) : 0, GridUnitType.Pixel),
+            new ColumnDefinition(showGroup ? (compact ? CompactGroupWidth : 132) : 0, GridUnitType.Pixel),
             new ColumnDefinition(tags, GridUnitType.Pixel),
-            new ColumnDefinition(compact ? 104 : 128, GridUnitType.Pixel)
+            new ColumnDefinition(compact ? CompactStateWidth : 128, GridUnitType.Pixel)
         };
     }
 
@@ -64,17 +65,17 @@ internal sealed class TaggingQueueRowView : Grid
     {
         double file = compact ? CompactFileMinWidth : FileMinWidth;
         double source = compact ? CompactSourceMinWidth : SourceMinWidth;
-        double fixedColumns = (showPreview ? NumberWidth : NumberWidth - ColumnGap) + (showPreview ? PreviewColumnWidth : 0) + 64 + file + source
-            + (compact ? 96 : 132) + (compact ? 56 : 72) + (compact ? 104 : 128);
+        double fixedColumns = (showPreview ? NumberWidth : NumberWidth - ColumnGap) + (showPreview ? PreviewColumnWidth : 0) + (compact ? CompactKindWidth : 64) + file + source
+            + (compact ? CompactGroupWidth : 132) + (compact ? CompactTagsWidth : 72) + (compact ? CompactStateWidth : 128);
         return fixedColumns + ColumnGap * 7;
     }
 
     /// <summary>
-    /// The page's outer margins leave 48 dip less than its width for the header. Compact columns are selected only while the normal
-    /// preview table cannot fit there; this keeps the normal geometry at 920, 1100 and 1440 dip and fixes the 760 dip case.
+    /// The list region's outer margins and table inset leave 48 dip less for the header. The compact geometry
+    /// applies when the standard preview table cannot fit in that region.
     /// </summary>
-    internal static bool UseCompactColumns(double pageWidth) => double.IsFinite(pageWidth) && pageWidth > 0
-        && MinimumTableWidth(showPreview: true, compact: false) > Math.Max(0, pageWidth - TableViewportInset);
+    internal static bool UseCompactColumns(double listWidth) => double.IsFinite(listWidth) && listWidth > 0
+        && MinimumTableWidth(showPreview: true, compact: false) > Math.Max(0, listWidth - TableViewportInset);
 
     private const double NumberWidth = 48;
 
@@ -91,11 +92,15 @@ internal sealed class TaggingQueueRowView : Grid
     internal const double PreviewSize = 48, CompactPreviewSize = 24;
 
     private readonly Func<TagQueueItem, int?>? _tagCount;
+    private readonly Func<TagQueueItem, (bool Favorite, int? Rating, string? Description)>? _decisionOf;
     private readonly TextBlock _number = Cell(TextAlignment.Right);
     private readonly TaggingQueueNextMarker _next = new();
     private readonly TaggingThumbnail _preview;
     private readonly TextBlock _kind = Cell(TextAlignment.Left, muted: true);
     private readonly TextBlock _name = Cell(TextAlignment.Left);
+    private readonly ContentControl _favoriteMark = new() { IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
+    private readonly ContentControl _ratingMark = new() { IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _ratingValue = Cell(TextAlignment.Left, muted: true);
     private readonly TextBlock _source = Cell(TextAlignment.Left, muted: true);
     private readonly TextBlock _group = Cell(TextAlignment.Left, muted: true);
     private readonly TextBlock _tags = Cell(TextAlignment.Right, muted: true);
@@ -104,9 +109,16 @@ internal sealed class TaggingQueueRowView : Grid
     private string? _shownIcon;
 
     internal TaggingQueueRowView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, bool compact = false,
-        bool showPreview = true, bool compactTable = false, bool showKind = true, bool showGroup = true)
+        bool showPreview = true, bool compactTable = false, bool showKind = true, bool showGroup = true,
+        Func<TagQueueItem, (bool Favorite, int? Rating, string? Description)>? decisionOf = null)
     {
+        AutomationProperties.SetAutomationId(this, "TaggingQueueRow");
+        AutomationProperties.SetAutomationId(_ratingValue, "TaggingQueueRowRating");
+        AutomationProperties.SetAutomationId(_favoriteMark, "TaggingQueueRowFavorite");
+        AutomationProperties.SetAutomationId(_tags, "TaggingQueueRowTags");
+        AutomationProperties.SetAutomationId(_state, "TaggingQueueRowState");
         _tagCount = tagCount;
+        _decisionOf = decisionOf;
         ColumnDefinitions = BuildColumns(showPreview, compactTable, showKind, showGroup);
         ColumnSpacing = ColumnGap;
         MinHeight = compact ? CompactHeight : showPreview ? WorkspaceMetrics.TwoLineRowHeight : RowHeight;
@@ -126,8 +138,16 @@ internal sealed class TaggingQueueRowView : Grid
         _group.IsVisible = showGroup;
         _tags.Margin = TagsMargin(showGroup);
         Children.Add(number);
-        Add(_preview, 1); Add(_kind, 2); Add(_name, 3); Add(_source, 4); Add(_group, 5); Add(_tags, 6);
-        Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
+        StackPanel decisions = new() { Orientation = Orientation.Horizontal, Spacing = 4, Children = { _favoriteMark, _ratingMark, _ratingValue } };
+        AutomationProperties.SetAccessibilityView(decisions, AccessibilityView.Raw);
+        SetColumn(decisions, 1);
+        Grid file = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 4, Children = { _name, decisions } };
+        Add(_preview, 1); Add(_kind, 2); Add(file, 3); Add(_source, 4); Add(_group, 5); Add(_tags, 6);
+        Grid state = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        SetColumn(_state, 1);
+        state.Children.Add(_stateIcon);
+        state.Children.Add(_state);
+        Add(state, 7);
         _number.Classes.Add("tnum");
         _tags.Classes.Add("tnum");
     }
@@ -173,6 +193,12 @@ internal sealed class TaggingQueueRowView : Grid
         string? icon = row?.StateIcon;
         if (icon != _shownIcon) { _shownIcon = icon; _stateIcon.Content = icon == null ? null : CommandBindings.IconFromKey(icon, 14); }
         _state.Text = row?.StateText;
-        ToolTip.SetTip(_name, row?.Name);
+        (bool favorite, int? rating, string? decisions) = row != null && _decisionOf != null ? _decisionOf(row.Item) : default;
+        _favoriteMark.IsVisible = favorite;
+        _ratingMark.IsVisible = _ratingValue.IsVisible = rating.HasValue;
+        if (favorite) _favoriteMark.Content ??= CommandBindings.IconFromKey("star-filled", 12);
+        if (rating.HasValue) _ratingMark.Content ??= CommandBindings.IconFromKey("star-half", 12);
+        _ratingValue.Text = rating?.ToString(Localization.Texts.Culture);
+        ToolTip.SetTip(_name, decisions == null ? row?.Name : row?.Name + " · " + decisions);
     }
 }

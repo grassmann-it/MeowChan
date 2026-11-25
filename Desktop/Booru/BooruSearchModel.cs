@@ -38,6 +38,7 @@ internal sealed record BooruSearchView(
     bool NeedsLoad = false)
 {
     internal BooruResultRevision ResultRevision { get; init; }
+    internal long ResultId { get; init; }
     internal BooruPagerLimits PagerLimits { get; init; } = BooruPagerLimits.Default;
     internal bool IsPostResult => ExecutedPostId is not null;
     internal bool IsBusy => Status == BooruSearchStatus.Searching;
@@ -74,6 +75,8 @@ internal sealed partial class BooruSearchModel : IDisposable
     private readonly TimeProvider _clock;
     private readonly RequestLifetime _lifetime = new();
     private readonly SemaphoreSlim _previewSlots = new(2);
+    private int _previewUsers;
+    private TaskCompletionSource? _previewDrain;
     private RequestLifetime? _request;
     // Prevents a double click from issuing two lifecycle mutations while the row is rebuilt.
     private readonly HashSet<string> _originalActions = new(StringComparer.Ordinal);
@@ -194,6 +197,7 @@ internal sealed partial class BooruSearchModel : IDisposable
                 _view = _view with { Mode = BooruInputMode.Post };
         }
         if (refused) { RaiseChanged(); return; }
+        EnsureSearchTab?.Invoke();
         if (parsed.Kind == BooruInputKind.Post) await RunPostAsync(parsed.PostId!).ConfigureAwait(false);
         else await RunSearchAsync(parsed.Canonical!, 1, ReadPagerLimits()).ConfigureAwait(false);
     }
@@ -346,7 +350,7 @@ internal sealed partial class BooruSearchModel : IDisposable
             {
                 Status = status, ExecutedQuery = query, ExecutedPostId = postId, Page = page,
                 Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null,
-                Restored = false, NeedsLoad = false, PagerLimits = limits ?? BooruPagerLimits.Default
+                Restored = false, NeedsLoad = false, PagerLimits = limits ?? BooruPagerLimits.Default, ResultId = _requestId
             };
             return (_requestId, request.Acquire());
         }
@@ -396,6 +400,12 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     private async Task LoadPreviewAsync(long id, BooruPostView post, CancellationToken token)
     {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _previewUsers++;
+        }
+
         bool entered = false;
         byte[]? bytes = null;
         try
@@ -410,6 +420,10 @@ internal sealed partial class BooruSearchModel : IDisposable
         finally
         {
             if (entered) _previewSlots.Release();
+            lock (_gate)
+            {
+                if (--_previewUsers == 0) _previewDrain?.SetResult();
+            }
         }
         UpdateRow(id, post.PostId, row => row with
         {
@@ -675,16 +689,29 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     public void Dispose()
     {
+        Task previewsDrained = Task.CompletedTask;
         lock (_gate)
         {
             if (_disposed) return;
             _disposed = true;
+            if (_previewUsers != 0)
+            {
+                _previewDrain = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                previewsDrained = _previewDrain.Task;
+            }
             ReplaceRequest(needsRequest: false);
         }
         _queue.LocalStatesChanged -= OnLocalStatesChanged;
-        Task retirement = _lifetime.RetireAsync();
+        Task retirement = Task.WhenAll(_lifetime.RetireAsync(), DisposePreviewSlotsAsync(previewsDrained));
         OpenActions.Start(() => retirement, "booru.search.retire");
         Changed = null;
+    }
+
+    private async Task DisposePreviewSlotsAsync(Task previewsDrained)
+    {
+        // Wait for pending WaitAsync calls and for the last acquired slot to be released.
+        await previewsDrained.ConfigureAwait(false);
+        _previewSlots.Dispose();
     }
 }
 

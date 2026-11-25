@@ -145,7 +145,9 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         Assert.Equal(new[] { "F" }, bindings.For("favorites.toggle").Select(Identity).ToArray());
         Assert.Equal(new[] { "Shift+M" }, bindings.For("video.mute").Select(Identity).ToArray());
         foreach (string id in GalleryShortcutScheme.FavoriteKeyIds)
-            Assert.Equal(new[] { "archive", "gallery", "media", "reader" }, CommandCatalog.Get(id).ExecutionContexts.Order(StringComparer.Ordinal));
+            // W112-73 spec §2: F is "Favorit … des Cursor-Mediums" on the tagging page too; M and U stay as they were.
+            Assert.Equal(id == "favorites.toggle" ? new[] { "archive", "gallery", "media", "reader", "tagging" } : new[] { "archive", "gallery", "media", "reader" },
+                CommandCatalog.Get(id).ExecutionContexts.Order(StringComparer.Ordinal));
         Assert.Equal(new[] { "gallery", "media", "reader" }, CommandCatalog.Get("video.mute").ExecutionContexts.Order(StringComparer.Ordinal));
         // No other command of any context has plain M or U, nor Shift+M; B belongs to nobody (revision 21).
         foreach ((string key, string[] modifiers, string[] owners) in new[]

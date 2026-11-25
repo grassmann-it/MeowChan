@@ -114,7 +114,7 @@ public sealed partial class TaggingPage
             ColumnWidth = _tileAppearance.CellWidth,
             ItemHeight = _tileAppearance.CellHeight
         });
-        _grid.ItemTemplate = new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueTileView(_thumbnails, TagCountOf, _tileAppearance));
+        _grid.ItemTemplate = new FuncDataTemplate<TaggingQueueRow>((_, _) => new TaggingQueueTileView(_thumbnails, TagCountOf, _tileAppearance, DecisionOf));
         _grid.InvalidateMeasure();
         if (anchor is { } kept)
             Dispatcher.UIThread.Post(() =>

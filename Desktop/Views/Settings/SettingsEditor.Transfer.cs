@@ -46,20 +46,20 @@ public partial class SettingsEditor
         _settingsMore.ShowAt(origin);
     }
 
-    private async Task ExportSavedSettingsAsync()
+    internal async Task ExportSavedSettingsAsync(IStorageProvider? storageProvider = null)
     {
         if (_isClosed || !IsEditable) return;
-        IsBusy = true; // synchronously excludes Save/Discard/reset and a second picker
-        using var cancellation = new CancellationTokenSource();
-        _settingsExportCancellation = cancellation;
+        _settingsExportCancellation = new CancellationTokenSource();
+        CancellationToken cancellation = _settingsExportCancellation.Token;
         // Do not clear draft validation or saved/unsaved status merely for exporting (including Cancel).
         try
         {
+            IsBusy = true; // synchronously excludes Save/Discard/reset and a second picker
             // This is the confirmed Config, never this editor's uncommitted draft properties.
             Config snapshot = SettingsExportUi.CaptureSavedSnapshot(_config);
-            IStorageProvider? provider = TopLevel.GetTopLevel(this)?.StorageProvider;
+            IStorageProvider? provider = storageProvider ?? TopLevel.GetTopLevel(this)?.StorageProvider;
             if (provider == null) throw new NotSupportedException();
-            await SettingsExportUi.ExportSnapshotAsync(snapshot, provider, DateTime.Now, cancellation.Token);
+            await SettingsExportUi.ExportSnapshotAsync(snapshot, provider, DateTime.Now, cancellation);
         }
         catch (OperationCanceledException) { /* Closing or cancelling a picker is not an export error. */ }
         catch (Exception)
@@ -73,6 +73,7 @@ public partial class SettingsEditor
         }
         finally
         {
+            _settingsExportCancellation?.Dispose();
             _settingsExportCancellation = null;
             IsBusy = false;
         }
@@ -91,6 +92,8 @@ public partial class SettingsEditor
         _settingsMore?.Hide();
         _settingsMore = null;
         _settingsExportCancellation?.Cancel();
+        _settingsExportCancellation?.Dispose();
+        _settingsExportCancellation = null;
         // A started provider write drains; it never gets abandoned for a close/cancel.
     }
 }
@@ -133,9 +136,9 @@ internal static class SettingsExportUi
                 await using Stream stream = await file.OpenWriteAsync().ConfigureAwait(false);
                 if (stream.CanSeek) { stream.Position = 0; stream.SetLength(0); }
                 // After opening the target, finish and flush even if the editor closes, to avoid cancellation-torn JSON.
-                await stream.WriteAsync(bytes).ConfigureAwait(false);
-                await stream.FlushAsync().ConfigureAwait(false);
+                await stream.WriteAsync(bytes, CancellationToken.None).ConfigureAwait(false);
+                await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
             }
-        }).ConfigureAwait(false);
+        }, CancellationToken.None).ConfigureAwait(false);
     }
 }

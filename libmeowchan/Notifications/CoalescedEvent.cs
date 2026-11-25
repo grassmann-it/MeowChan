@@ -10,13 +10,49 @@ namespace MeowChan.Notifications;
 /// </summary>
 internal sealed class CoalescedEvent<THandler> : IDisposable where THandler : Delegate
 {
+    private readonly object _lifetime = new object();
+    private readonly CoalescedSubscriptions<THandler> _subscriptions;
+    private bool _disposed;
+
+    public CoalescedEvent(Action<THandler> invoke, Action<Exception>? reportFailure = null)
+    {
+        _subscriptions = new CoalescedSubscriptions<THandler>(invoke, reportFailure);
+    }
+
+    public void Add(THandler? handler)
+    {
+        if (handler == null) return;
+        lock (_lifetime)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _subscriptions.Add(handler);
+        }
+    }
+
+    public void Remove(THandler? handler) => _subscriptions.Remove(handler);
+
+    public void Signal() => _subscriptions.Signal();
+
+    public void Dispose()
+    {
+        lock (_lifetime)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _subscriptions.Clear();
+        }
+    }
+}
+
+/// <summary>Reusable observer registrations. Removing a handler retires its pending delivery.</summary>
+internal sealed class CoalescedSubscriptions<THandler> where THandler : Delegate
+{
     private readonly object _gate = new object();
     private readonly List<Subscription> _subscriptions = new List<Subscription>();
     private readonly Action<THandler> _invoke;
     private readonly Action<Exception>? _reportFailure;
-    private bool _disposed;
 
-    public CoalescedEvent(Action<THandler> invoke, Action<Exception>? reportFailure = null)
+    public CoalescedSubscriptions(Action<THandler> invoke, Action<Exception>? reportFailure = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
         _invoke = invoke;
@@ -28,7 +64,6 @@ internal sealed class CoalescedEvent<THandler> : IDisposable where THandler : De
         if (handler == null) return;
         lock (_gate)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
             foreach (Delegate invocation in handler.GetInvocationList())
                 _subscriptions.Add(new Subscription((THandler)invocation, _invoke, _reportFailure));
         }
@@ -51,7 +86,7 @@ internal sealed class CoalescedEvent<THandler> : IDisposable where THandler : De
                 }
                 if (!matches) continue;
                 for (int offset = 0; offset < invocations.Length; offset++)
-                    _subscriptions[start + offset].Dispose();
+                    _subscriptions[start + offset].Retire();
                 _subscriptions.RemoveRange(start, invocations.Length);
                 return;
             }
@@ -62,32 +97,27 @@ internal sealed class CoalescedEvent<THandler> : IDisposable where THandler : De
     {
         Subscription[] subscriptions;
         lock (_gate)
-        {
-            if (_disposed) return;
             subscriptions = _subscriptions.ToArray();
-        }
         foreach (Subscription subscription in subscriptions) subscription.Signal();
     }
 
-    public void Dispose()
+    internal void Clear()
     {
         lock (_gate)
         {
-            if (_disposed) return;
-            _disposed = true;
-            foreach (Subscription subscription in _subscriptions) subscription.Dispose();
+            foreach (Subscription subscription in _subscriptions) subscription.Retire();
             _subscriptions.Clear();
         }
     }
 
-    private sealed class Subscription : IDisposable
+    private sealed class Subscription
     {
         private readonly object _gate = new object();
         private readonly Action<THandler> _invoke;
         private readonly Action<Exception>? _reportFailure;
         private bool _pending;
         private bool _running;
-        private bool _disposed;
+        private bool _retired;
 
         public THandler Handler { get; }
 
@@ -102,7 +132,7 @@ internal sealed class CoalescedEvent<THandler> : IDisposable where THandler : De
         {
             lock (_gate)
             {
-                if (_disposed) return;
+                if (_retired) return;
                 _pending = true;
                 if (_running) return;
                 _running = true;
@@ -116,7 +146,7 @@ internal sealed class CoalescedEvent<THandler> : IDisposable where THandler : De
             {
                 lock (_gate)
                 {
-                    if (_disposed || !_pending)
+                    if (_retired || !_pending)
                     {
                         _running = false;
                         return;
@@ -133,11 +163,11 @@ internal sealed class CoalescedEvent<THandler> : IDisposable where THandler : De
             }
         }
 
-        public void Dispose()
+        public void Retire()
         {
             lock (_gate)
             {
-                _disposed = true;
+                _retired = true;
                 _pending = false;
             }
         }

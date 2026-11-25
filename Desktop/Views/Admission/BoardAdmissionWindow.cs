@@ -51,6 +51,7 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
         public bool Loading;
         public SuggestionPanel? Suggestions;
         public required WorkspaceBanner NarrowingWarning;
+        public required WatcherFields Watcher;
     }
     private sealed record RuleEditor(ComboBox Field, ComboBox Action, TextBox Text, Button Remove, Control Control);
     private sealed class PreviewRow : INotifyPropertyChanged
@@ -102,7 +103,8 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
     /// </summary>
     public BoardAdmissionWindow(IEnumerable<string> urls, Func<string, BoardAdmissionPolicy> readPolicy,
         Func<string, CancellationToken, Task<BoardAdmissionPreview>> preview, bool showWizard, WorkView view = WorkView.Simple,
-        Func<string, CancellationToken, Task<BoardTitleSuggestions>>? suggest = null, bool alreadyWatching = false)
+        Func<string, CancellationToken, Task<BoardTitleSuggestions>>? suggest = null, bool alreadyWatching = false,
+        int defaultWatcherInterval = Config.BoardWatcherIntervalMinutesDefault)
     {
         _preview = preview;
         _view = view;
@@ -135,9 +137,11 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
             var list = Localized(new ListBox { Name = "BoardAdmissionPreview", ItemTemplate = MakeTemplate(), MinHeight = 160, MaxHeight = 400 },
                 c => AutomationProperties.SetName(c, Texts.T("wizard.previewTitle")));
             var retry = Localized(new Button { Name = "BoardAdmissionRetry", IsVisible = false }, c => c.Content = Texts.T("wizard.retry"));
-            var draft = new Draft { Url = url, Initial = readPolicy(url), RulePanel = rulePanel, Summary = summary,
+            BoardAdmissionPolicy initial = readPolicy(url);
+            var draft = new Draft { Url = url, Initial = initial, RulePanel = rulePanel, Summary = summary,
                 Status = status, List = list, Matches = matches, Reinclude = reinclude, Retry = retry,
-                Suggestions = suggest == null ? null : CreateSuggestionPanel(), NarrowingWarning = CreateNarrowingWarning(alreadyWatching) };
+                Suggestions = suggest == null ? null : CreateSuggestionPanel(), NarrowingWarning = CreateNarrowingWarning(alreadyWatching),
+                Watcher = CreateWatcherFields(initial, !alreadyWatching && ReferenceEquals(initial, BoardAdmissionPolicy.All), defaultWatcherInterval) };
             AutomationProperties.SetAutomationId(summary, "BoardAdmissionSummary");
             AutomationProperties.SetAutomationId(status, "BoardAdmissionStatus");
             AutomationProperties.SetAutomationId(retry, "BoardAdmissionRetry");
@@ -148,6 +152,7 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
             header.Children.Add(new SelectableTextBlock { Text = url, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap });
             if (draft.Suggestions is { } suggestions) header.Children.Add(suggestions.View);
             header.Children.Add(draft.NarrowingWarning);
+            header.Children.Add(draft.Watcher.View);
             // The rules block (title, add/clear, hint, rule rows). Where the view folds it, the title becomes the section header.
             var rulesBlock = new StackPanel { Spacing = 8 };
             bool foldRules = WorkViewPolicy.Resolve(RulesSectionId, _view) == Presence.Collapsed;
@@ -414,7 +419,7 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
         Refresh(draft);
     }
     private static bool RulesValid(Draft draft) => draft.Editors.All(editor => !string.IsNullOrWhiteSpace(editor.Text.Text));
-    private bool CanApply => _drafts.All(draft => draft.Loaded && RulesValid(draft));
+    private bool CanApply => _drafts.All(draft => draft.Loaded && RulesValid(draft) && ReadWatcherInterval(draft.Watcher.Interval.Text, out _));
     private static ThreadTextRule ReadRule(RuleEditor editor) => new(((Choice<ThreadTextField>)editor.Field.SelectedItem!).Value,
         ((Choice<ThreadTextAction>)editor.Action.SelectedItem!).Value, editor.Text.Text ?? string.Empty);
     private static BoardAdmissionPolicy Policy(Draft draft) => new(draft.Editors.Select(ReadRule), draft.Exceptions);
@@ -435,6 +440,7 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
         bool valid = RulesValid(draft);
         RefreshRulesSection(draft, valid);
         RefreshSuggestions(draft);
+        RefreshWatcherName(draft);
         foreach (RuleEditor editor in draft.Editors)
         {
             bool invalid = string.IsNullOrWhiteSpace(editor.Text.Text);
@@ -541,6 +547,8 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
         {
             var preview = await _preview(draft.Url, _cancel.Token);
             if (_closing) return;
+            draft.Watcher.BoardCode = preview.BoardCode ?? new Uri(draft.Url).AbsolutePath.Trim('/');
+            draft.Watcher.Name.PlaceholderText = preview.Name;
             draft.Rows = preview.Threads.Select(thread => new PreviewRow
             {
                 Thread = thread,
@@ -570,7 +578,7 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
     private void Accept()
     {
         if (!CanApply) return;
-        Close(new BoardAdmissionSelection(_drafts.ToDictionary(draft => draft.Url, Policy, StringComparer.Ordinal), _direct.IsChecked == true,
+        Close(new BoardAdmissionSelection(_drafts.ToDictionary(draft => draft.Url, WatcherPolicy, StringComparer.Ordinal), _direct.IsChecked == true,
             _drafts.ToDictionary(draft => draft.Url, draft => draft.Reactivated.ToArray(), StringComparer.Ordinal)));
     }
 }

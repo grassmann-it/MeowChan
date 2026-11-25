@@ -69,6 +69,7 @@ public partial class MainWindow
     private void ConfigureMediaPanel()
     {
         _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
+        _taggingPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
         _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true }, ReaderSettingsPreferences.Gallery(_session.Config));
         ConfigureGalleryScrubPreview(); // the panel's timeline hover preview uses the profile's scrub cache (the gallery's)
     }
@@ -287,9 +288,12 @@ public partial class MainWindow
         return _favoriteChanges.IsPending(key) ? _favoriteChanges.Target(key, false) : null;
     }
 
-    private async Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent)
+    private Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent) =>
+        ExecuteMediaLibraryMenuActionAsync(id, indexed, presentationCurrent, taggingCurrent: null);
+
+    private async Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent, Func<bool>? taggingCurrent)
     {
-        Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
+        Func<bool> hostCurrent = taggingCurrent ?? CaptureMediaPageMenuGuard();
         bool Current() => hostCurrent() && presentationCurrent();
         if (!Current()) return;
         Control? origin = FocusManager?.GetFocusedElement() as Control;
@@ -299,7 +303,8 @@ public partial class MainWindow
             await HashFolderItemForActionAsync(indexed);
             if (!Current()) return;
             GalleryEntry? entry = await MediaMenuIdentity.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
-                Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog);
+                Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog,
+                fromTagQueue: taggingCurrent != null);
             if (!Current()) return;
             if (entry == null)
             {
@@ -354,7 +359,7 @@ public partial class MainWindow
         }
         finally
         {
-            RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
+            if (taggingCurrent == null) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
         }
     }
 
@@ -464,7 +469,7 @@ internal static class MediaMenuIdentity
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
         Func<bool> isCurrent, CancellationToken token, Func<BooruCatalogSnapshot?>? readBooruCatalog = null,
-        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
+        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null, bool fromTagQueue = false)
     {
         if (!isCurrent() || token.IsCancellationRequested || indexed.Presence != MediaLibraryPresence.Present
             || indexed.Directory == null) return null;
@@ -516,7 +521,8 @@ internal static class MediaMenuIdentity
         {
             if (!isCurrent()) return null;
             ArchivedThreadView? thread = await reader.ReadThreadAsync(indexed.Thread, token);
-            if (!isCurrent() || thread == null || thread.Summary.Revision != indexed.ThreadRevision) return null;
+            // A queue entry persists the occurrence, independently of later captures of its thread.
+            if (!isCurrent() || thread == null || (!fromTagQueue && thread.Summary.Revision != indexed.ThreadRevision)) return null;
             IReadOnlyList<string> directories = await reader.GetMediaDirectoriesAsync(indexed.Thread, token);
             if (!isCurrent() || !directories.Contains(indexed.Directory, StringComparer.Ordinal)) return null;
             List<MediaAssetSnapshot> manifests = new();
@@ -526,7 +532,10 @@ internal static class MediaMenuIdentity
                 if (!isCurrent()) return null;
             }
             GalleryEntry[] matches = GallerySelection.Build(thread, manifests, allSavedVersions: true, includeOtherMedia: true)
-                .Entries.Where(entry => Matches(indexed, entry)).ToArray();
+                // Older queue files omit the binding revision. All the other occurrence fields must still match uniquely.
+                .Entries.Where(entry => Matches(fromTagQueue && indexed.AttachmentRevisionKey == null
+                    ? indexed with { AttachmentRevisionKey = entry.AttachmentResolution?.Binding?.Reference.RevisionKey }
+                    : indexed, entry)).Take(2).ToArray();
             resolved = matches.Length == 1 ? matches[0] : null;
         }
         if (resolved == null || !isCurrent() || token.IsCancellationRequested) return null;

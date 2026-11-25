@@ -19,6 +19,9 @@ internal sealed class ReaderDisplayPreferences
     internal const int FocusedMediaScaleDefault = 200;
     internal const int FocusedMediaScaleMinimum = 100;
     internal const int FocusedMediaScaleMaximum = 400;
+    internal const int FocusedPostTopPaddingPercentDefault = 8;
+    internal const int FocusedPostTopPaddingPercentMinimum = 0;
+    internal const int FocusedPostTopPaddingPercentMaximum = 25;
     internal const int HoverEnlargeSizeDefault = 640;
     internal const int HoverEnlargeSizeMinimum = 240;
     internal const int HoverEnlargeSizeMaximum = 1600;
@@ -142,6 +145,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         false, ReaderDisplayPreferences.FocusedMediaScaleDefault, false, ReaderDisplayPreferences.HoverEnlargeSizeDefault,
         ReaderDisplayPreferences.HoverEnlargeDelayDefault);
 
+    internal int FocusedPostTopPaddingPercent { get; init; } = ReaderDisplayPreferences.FocusedPostTopPaddingPercentDefault;
+
     /// <summary>The media sidebar of the large reader (R8) presents the focused post's media in its own column; on by default.</summary>
     internal bool Sidebar { get; init; } = true;
     /// <summary>The switched-on sidebar shows also beside the posts of the archive view, not only in the large reader (Off / Large reader only / Always).</summary>
@@ -171,6 +176,7 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         config.ReaderFocusedMediaEnlarge, config.ReaderFocusedMediaScalePercent, config.ReaderHoverEnlarge, config.ReaderHoverEnlargeSize,
         config.ReaderHoverEnlargeDelayMs)
     {
+        FocusedPostTopPaddingPercent = config.ReaderFocusedPostTopPaddingPercent,
         Sidebar = config.ReaderMediaSidebar,
         SidebarAlways = config.ReaderMediaSidebarScope == Config.ReaderMediaSidebarScopeAlways,
         SidebarRight = config.ReaderMediaSidebarSide == Config.ReaderMediaSidebarSideRight,
@@ -193,6 +199,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
     {
         TextlessWidth = Math.Clamp(TextlessWidth, ReaderDisplayPreferences.TextlessMediaWidthMinimum, ReaderDisplayPreferences.TextlessMediaWidthMaximum),
         FocusedScalePercent = Math.Clamp(FocusedScalePercent, ReaderDisplayPreferences.FocusedMediaScaleMinimum, ReaderDisplayPreferences.FocusedMediaScaleMaximum),
+        FocusedPostTopPaddingPercent = Math.Clamp(FocusedPostTopPaddingPercent, ReaderDisplayPreferences.FocusedPostTopPaddingPercentMinimum,
+            ReaderDisplayPreferences.FocusedPostTopPaddingPercentMaximum),
         HoverSize = Math.Clamp(HoverSize, ReaderDisplayPreferences.HoverEnlargeSizeMinimum, ReaderDisplayPreferences.HoverEnlargeSizeMaximum),
         HoverDelayMs = Math.Clamp(HoverDelayMs, ReaderDisplayPreferences.HoverEnlargeDelayMinimum, ReaderDisplayPreferences.HoverEnlargeDelayMaximum),
         MediaSidebarInfo = Config.NormalizeSidebarInfo(MediaSidebarInfo),

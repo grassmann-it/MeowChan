@@ -92,12 +92,17 @@ internal sealed partial class BooruWorkbenchView
 
     // ---- cursor ---------------------------------------------------------------------------------------------
 
-    /// <summary>Moves the cursor to <paramref name="postId"/> and draws it; nothing is requested or changed otherwise.</summary>
-    internal void SetCursor(string? postId)
+    /// <summary>Moves the cursor. Only a person moving or clicking a hit can request its sidebar sample.</summary>
+    internal void SetCursor(string? postId, bool requestSidebarSample = false)
     {
-        if (_closed || _cursorPostId == postId) return;
-        _cursorPostId = postId;
-        ApplyCursor();
+        if (_closed) return;
+        if (_cursorPostId != postId)
+        {
+            _cursorPostId = postId;
+            ApplyCursor();
+        }
+        else if (!requestSidebarSample) return;
+        RenderMediaSidebar(_model.Search.View, requestSidebarSample);
     }
 
     private void ApplyCursor()
@@ -111,10 +116,15 @@ internal sealed partial class BooruWorkbenchView
     private void ConfigureHitCursor(Border card, ResultActions result)
     {
         string postId = result.PostId;
-        card.GotFocus += (_, _) => { if (result.IsCurrent()) SetCursor(postId); };
+        card.GotFocus += (_, _) =>
+        {
+            if (result.IsCurrent() && _cursorPostId != postId)
+                SetCursor(postId, requestSidebarSample: true);
+        };
         card.AddHandler(InputElement.PointerPressedEvent, (object? _, PointerPressedEventArgs e) =>
         {
-            if (e.GetCurrentPoint(card).Properties.IsLeftButtonPressed && result.IsCurrent()) SetCursor(postId);
+            if (e.GetCurrentPoint(card).Properties.IsLeftButtonPressed && result.IsCurrent())
+                SetCursor(postId, requestSidebarSample: true);
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
         card.Classes.Set("booru-cursor", _cursorPostId == postId);
     }
@@ -185,7 +195,7 @@ internal sealed partial class BooruWorkbenchView
     private async Task ChangePageAsync(int delta)
     {
         BooruSearchModel search = _model.Search;
-        int tab = SearchTabs.ActiveId;
+        int? tab = SearchTabs.ActiveId;
         BooruSearchView before = search.View;
         int page = before.Page + delta;
         Control pagerButton = delta < 0 ? _previous : _next;

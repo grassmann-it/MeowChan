@@ -52,6 +52,8 @@ public partial class SettingsEditor
     public int ReaderTextlessMediaWidthMaximum => Config.ReaderTextlessMediaWidthMaximum;
     public int ReaderFocusedMediaScalePercentMinimum => Config.ReaderFocusedMediaScalePercentMinimum;
     public int ReaderFocusedMediaScalePercentMaximum => Config.ReaderFocusedMediaScalePercentMaximum;
+    public int ReaderFocusedPostTopPaddingPercentMinimum => Config.ReaderFocusedPostTopPaddingPercentMinimum;
+    public int ReaderFocusedPostTopPaddingPercentMaximum => Config.ReaderFocusedPostTopPaddingPercentMaximum;
     public int ReaderHoverEnlargeSizeMinimum => Config.ReaderHoverEnlargeSizeMinimum;
     public int ReaderHoverEnlargeSizeMaximum => Config.ReaderHoverEnlargeSizeMaximum;
     public int ReaderHoverEnlargeDelayMsMinimum => Config.ReaderHoverEnlargeDelayMsMinimum;
@@ -145,6 +147,17 @@ public partial class SettingsEditor
     public string ReaderFocusedMediaScalePercentLabel => Texts.T("settings.reader.focusedScale");
     public string ReaderFocusedMediaScalePercentHint => Texts.T("settings.reader.focusedScale.hint") + " " + Texts.T("settings.reader.range", Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum);
     public string ReaderFocusedMediaScalePercentHelp => FieldHelp(nameof(ReaderFocusedMediaScalePercentInput), ReaderFocusedMediaScalePercentHint);
+
+    private decimal? _readerFocusedPostTopPaddingPercent;
+    public decimal? ReaderFocusedPostTopPaddingPercent
+    {
+        get => _readerFocusedPostTopPaddingPercent;
+        set => SetField(ref _readerFocusedPostTopPaddingPercent, value, nameof(ReaderFocusedPostTopPaddingPercent));
+    }
+    public string ReaderFocusedPostTopPaddingPercentLabel => Texts.T("settings.reader.focusedTopPadding");
+    public string ReaderFocusedPostTopPaddingPercentHint => Texts.T("settings.reader.focusedTopPadding.hint") + " "
+        + Texts.T("settings.reader.range", Config.ReaderFocusedPostTopPaddingPercentMinimum, Config.ReaderFocusedPostTopPaddingPercentMaximum);
+    public string ReaderFocusedPostTopPaddingPercentHelp => FieldHelp(nameof(ReaderFocusedPostTopPaddingPercentInput), ReaderFocusedPostTopPaddingPercentHint);
     private decimal? _readerHoverEnlargeSize;
     public decimal? ReaderHoverEnlargeSize { get => _readerHoverEnlargeSize; set => SetField(ref _readerHoverEnlargeSize, value, nameof(ReaderHoverEnlargeSize)); }
     public string ReaderHoverEnlargeSizeLabel => Texts.T("settings.reader.hoverSize");
@@ -443,6 +456,8 @@ public partial class SettingsEditor
         ResetNumber(ReaderTextlessMediaWidthInput, ReaderTextlessMediaWidth.Value);
         ReaderFocusedMediaScalePercent = config.ReaderFocusedMediaScalePercent;
         ResetNumber(ReaderFocusedMediaScalePercentInput, ReaderFocusedMediaScalePercent.Value);
+        ReaderFocusedPostTopPaddingPercent = config.ReaderFocusedPostTopPaddingPercent;
+        ResetNumber(ReaderFocusedPostTopPaddingPercentInput, ReaderFocusedPostTopPaddingPercent.Value);
         ReaderHoverEnlargeSize = config.ReaderHoverEnlargeSize;
         ResetNumber(ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize.Value);
         ReaderHoverEnlargeDelayMs = config.ReaderHoverEnlargeDelayMs;
@@ -502,6 +517,8 @@ public partial class SettingsEditor
         candidate.ReadingHistoryMenuEntries = GetInteger(ReadingHistoryMenuEntries, ReadingHistoryMenuEntriesLabel, Config.ReadingHistoryMenuEntriesMinimum, Config.ReadingHistoryMenuEntriesMaximum);
         candidate.ReaderTextlessMediaWidth = GetInteger(ReaderTextlessMediaWidth, ReaderTextlessMediaWidthLabel, Config.ReaderTextlessMediaWidthMinimum, Config.ReaderTextlessMediaWidthMaximum);
         candidate.ReaderFocusedMediaScalePercent = GetInteger(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentLabel, Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum);
+        candidate.ReaderFocusedPostTopPaddingPercent = GetInteger(ReaderFocusedPostTopPaddingPercent, ReaderFocusedPostTopPaddingPercentLabel,
+            Config.ReaderFocusedPostTopPaddingPercentMinimum, Config.ReaderFocusedPostTopPaddingPercentMaximum);
         candidate.ReaderHoverEnlargeSize = GetInteger(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum);
         candidate.ReaderHoverEnlargeDelayMs = GetInteger(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsLabel, Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum);
         candidate.ReaderTextlessLargeImages = ReaderTextlessLargeImages;
@@ -569,6 +586,8 @@ public partial class SettingsEditor
         yield return (ReadingHistoryMenuEntriesInput, ReadingHistoryMenuEntries, ReadingHistoryMenuEntriesLabel, string.Empty, Config.ReadingHistoryMenuEntriesMinimum, Config.ReadingHistoryMenuEntriesMaximum, true);
         yield return (ReaderTextlessMediaWidthInput, ReaderTextlessMediaWidth, ReaderTextlessMediaWidthLabel, string.Empty, Config.ReaderTextlessMediaWidthMinimum, Config.ReaderTextlessMediaWidthMaximum, true);
         yield return (ReaderFocusedMediaScalePercentInput, ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentLabel, string.Empty, Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum, true);
+        yield return (ReaderFocusedPostTopPaddingPercentInput, ReaderFocusedPostTopPaddingPercent, ReaderFocusedPostTopPaddingPercentLabel, string.Empty,
+            Config.ReaderFocusedPostTopPaddingPercentMinimum, Config.ReaderFocusedPostTopPaddingPercentMaximum, true);
         yield return (ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, string.Empty, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum, true);
         yield return (ReaderHoverEnlargeDelayMsInput, ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsLabel, string.Empty, Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum, true);
         yield return (ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, string.Empty, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum, true);
@@ -749,6 +768,7 @@ public partial class SettingsEditor
         nameof(ReadingHistoryMenuEntriesLabel), nameof(ReadingHistoryMenuEntriesHint), nameof(ReadingHistoryMenuEntriesHelp),
         nameof(ReaderTextlessMediaWidthLabel), nameof(ReaderTextlessMediaWidthHint), nameof(ReaderTextlessMediaWidthHelp),
         nameof(ReaderFocusedMediaScalePercentLabel), nameof(ReaderFocusedMediaScalePercentHint), nameof(ReaderFocusedMediaScalePercentHelp),
+        nameof(ReaderFocusedPostTopPaddingPercentLabel), nameof(ReaderFocusedPostTopPaddingPercentHint), nameof(ReaderFocusedPostTopPaddingPercentHelp),
         nameof(ReaderHoverEnlargeSizeLabel), nameof(ReaderHoverEnlargeSizeHint), nameof(ReaderHoverEnlargeSizeHelp),
         nameof(ReaderHoverEnlargeDelayMsLabel), nameof(ReaderHoverEnlargeDelayMsHint), nameof(ReaderHoverEnlargeDelayMsHelp),
         nameof(ReaderTextlessLargeImagesLabel), nameof(ReaderTextlessLargeImagesHint),
@@ -797,6 +817,7 @@ public partial class SettingsEditor
         nameof(ReadingHistoryMenuEntriesHelp),
         nameof(ReaderTextlessMediaWidthHelp),
         nameof(ReaderFocusedMediaScalePercentHelp),
+        nameof(ReaderFocusedPostTopPaddingPercentHelp),
         nameof(ReaderHoverEnlargeSizeHelp),
         nameof(ReaderHoverEnlargeDelayMsHelp),
         nameof(ReaderMediaSidebarWidthHelp),

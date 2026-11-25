@@ -76,7 +76,8 @@ public sealed class TaggingRowStructureTests
         Assert.Equal(8, filters.ColumnSpacing);
         Assert.Equal(OverflowMode.Always, ToolBar.GetOverflowMode(page.GroupManageButton));
         ActionToolBar presentation = Find<ActionToolBar>(page, "TaggingListPresentation");
-        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
+        // W112-73 spec §1: "Knopf TaggingPanelToggle in _listPresentation rechts neben TaggingViewToggle".
+        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle, page.PanelToggle }, presentation.Items.Cast<Control>());
     });
 
     [Fact]

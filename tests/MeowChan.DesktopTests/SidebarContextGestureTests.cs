@@ -426,7 +426,10 @@ public sealed class SidebarContextGestureTests
     {
         ArchivePage page = await OpenArchiveAsync(window);
         page.MediaTilesPreference = true;
-        SidePanelDesignTests.ById<TabItem>(page, "ArchiveMediaTab").IsSelected = true;
+        window.UpdateLayout();
+        TabControl tabs = SidePanelDesignTests.ById<TabControl>(page, "ArchiveContentTabs");
+        tabs.SelectedItem = Assert.Single(tabs.Items.OfType<TabItem>(),
+            tab => AutomationProperties.GetAutomationId(tab) == "ArchiveMediaTab");
         ContextGestures.Settle(window);
         ListBox tiles = SidePanelDesignTests.ById<ListBox>(page, "ArchiveMediaTiles");
         await BooruTestSupport.WaitAsync(() => tiles.ItemCount == 2 && page.IsMediaSidebarShown, "both saved media tiles and the sidebar");

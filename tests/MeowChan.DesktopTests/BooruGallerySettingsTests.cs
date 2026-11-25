@@ -41,7 +41,7 @@ public sealed class BooruGallerySettingsTests
     }
 
     [Theory]
-    [InlineData("BooruSearchTabs", 5, 8)]
+    [InlineData("BooruSearchTabs", 5, 9)]
     [InlineData("BooruGallerySampleMiB", 3, 8)]
     [InlineData("BooruGalleryCacheMiB", 16, 32)]
     [InlineData("BooruGalleryMaximumPixels", 20_000_000, 40_000_000)]
@@ -72,6 +72,6 @@ public sealed class BooruGallerySettingsTests
             editor.ResetDraft(SettingsEditor.SettingsResetScope.WorkerBudgets);
             Assert.Equal((decimal?)defaultValue, field.Value);
         }
-        finally { editor.EndLifetime(); }
+        finally { editor.Dispose(); }
     });
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -69,15 +70,15 @@ public sealed class BooruSearchDestinationTests
                 .Single(control => control.Name == BooruWorkbenchView.SearchHelpName);
             TextBlock title = page.View.Header.GetVisualDescendants().OfType<TextBlock>()
                 .Single(text => text.Classes.Contains("page-title"));
-            WrapPanel actions = Assert.IsType<WrapPanel>(button.GetVisualParent());
+            WrapPanel actions = Assert.IsType<WrapPanel>(help.GetVisualParent());
             Border browser = page.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "BooruPageBody");
             foreach (string language in new[] { "en", "de", "pl", "ja" })
             {
                 Texts.SetLanguage(language);
                 CheckAtWidth(1360, stacked: false);
-                // Fit both actions plus the page insets, with too little room for the title beside them.
+                // Fit both action groups with too little room for the title beside them.
                 double pageInsets = page.Bounds.Width - browser.Bounds.Width;
-                CheckAtWidth(Math.Ceiling(actions.Bounds.Width + pageInsets) + 4, stacked: true);
+                CheckAtWidth(Math.Ceiling(actions.Bounds.Width + button.Bounds.Width + pageInsets) + 12, stacked: true);
             }
 
             void CheckAtWidth(double width, bool stacked)
@@ -89,14 +90,16 @@ public sealed class BooruSearchDestinationTests
                 Rect actionsBox = InPage(actions);
                 Rect browserBox = InPage(browser);
                 Assert.True(buttonBox.Width > 0 && helpBox.Width > 0);
-                Assert.True(buttonBox.Right <= helpBox.Left);
-                Assert.Equal(browserBox.Right, helpBox.Right, 0);
-                Assert.Equal(4, browserBox.Top - actionsBox.Bottom, 0);
+                Assert.Equal(browserBox.Left, titleBox.Left, 0);
+                Assert.Equal(PageHeader.PageTopOffset, titleBox.Top, 0);
+                Assert.True(helpBox.Right <= buttonBox.Left);
+                Assert.Equal(browserBox.Right, buttonBox.Right, 0);
+                Assert.Equal(8, browserBox.Top - Math.Max(actionsBox.Bottom, buttonBox.Bottom), 0);
                 if (stacked)
                     Assert.True(actionsBox.Top >= titleBox.Bottom + 7.5);
                 else
                 {
-                    Assert.Equal(titleBox.Bottom, actionsBox.Bottom, 0);
+                    Assert.Equal(titleBox.Top, actionsBox.Top, 0);
                     Assert.True(actionsBox.Left >= titleBox.Right);
                 }
             }
@@ -107,25 +110,17 @@ public sealed class BooruSearchDestinationTests
     });
 
     private static Button FindWatchersButton(BooruPage page) => page.View.Header.GetVisualDescendants().OfType<Button>()
-        .Single(button => button.Name == BooruWorkbenchView.OpenWatchersName);
+        .Single(button => AutomationProperties.GetAutomationId(button) == BooruWorkbenchView.OpenWatchersName);
 
     [Fact]
-    public void PreferenceDefaultsForOldProfilesAndSurvivesCopyAndTransfer()
+    public void TheRetiredPreferenceCanStillBeReadFromAnOldProfile()
     {
-        Config oldProfile = JsonSerializer.Deserialize("{}", ConfigJsonContext.Default.Config)!;
-        Assert.Equal(Config.BooruSearchTargetNewTab, oldProfile.BooruNewSearchTarget);
-        Config source = new() { BooruNewSearchTarget = Config.BooruSearchTargetCurrentTab };
-        source.Validate();
-
-        Config copy = new();
-        copy.CopyFrom(source);
-        Assert.Equal(Config.BooruSearchTargetCurrentTab, copy.BooruNewSearchTarget);
-        Assert.Equal(Config.BooruSearchTargetCurrentTab, source.Clone().BooruNewSearchTarget);
-        Config exported = SettingsTransfer.Export(source).Deserialize(ConfigJsonContext.Default.Config)!;
-        copy.CopySettingsFieldsFrom(exported);
-        Assert.Equal(Config.BooruSearchTargetCurrentTab, copy.BooruNewSearchTarget);
-        source.BooruNewSearchTarget = "Unknown";
-        Assert.Equal(nameof(Config.BooruNewSearchTarget), Assert.Throws<ArgumentOutOfRangeException>(source.Validate).ParamName);
+        Config old = JsonSerializer.Deserialize("""{"BooruNewSearchTarget":"CurrentTab"}""", ConfigJsonContext.Default.Config)!;
+        old.Validate();
+        Assert.Equal("CurrentTab", old.BooruNewSearchTarget);
+        Assert.False(SettingsTransfer.Export(old).ContainsKey(nameof(Config.BooruNewSearchTarget)));
+        old.BooruNewSearchTarget = "Unknown";
+        old.Validate();
     }
 
     [Theory]
@@ -146,90 +141,222 @@ public sealed class BooruSearchDestinationTests
     }
 
     [Theory]
-    [InlineData(Config.BooruSearchTargetNewTab, false, true)]
-    [InlineData(Config.BooruSearchTargetNewTab, true, false)]
-    [InlineData(Config.BooruSearchTargetCurrentTab, false, false)]
-    [InlineData(Config.BooruSearchTargetCurrentTab, true, true)]
-    public void EnterAndShiftEnterUseOppositeDestinations(string target, bool shift, bool opensNewTab) =>
-        BooruComponentDispatcher.Run(() =>
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void FirstEnterCreatesTheTabAndTheAlternateActionOpensAnother(bool alternate, bool fromMore) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = new();
+        harness.Serve(pages: 1, perPage: 1);
+        using BooruPage page = new(harness.Services);
+        Window window = new() { Content = page, Width = 900, Height = 550 };
+        try
         {
-            BooruUiHarness harness = new();
-            harness.Serve(pages: 1, perPage: 1);
-            using BooruPage page = new(harness.Services);
-            page.View.NewSearchTarget = () => target;
-            page.ShowQuery("cat");
-            page.Model.Search.SubmitAsync().GetAwaiter().GetResult();
-            Dispatcher.UIThread.RunJobs();
-            BooruSearchView original = page.Model.Search.View;
+            window.Show();
+            window.Activate();
+            Settle(window);
+            BooruWorkbenchView view = page.View;
+            Assert.Empty(view.SearchTabs.Ids);
+            Assert.Null(view.SearchTabs.ActiveId);
+            TextBox input = SearchControl<TextBox>(view, BooruWorkbenchView.InputName);
+            Assert.True(input.IsEffectivelyVisible);
+            Assert.True(input.Bounds.Width > 0);
+            Assert.Empty(harness.Search.Searches);
 
-            TextBox input = SearchControl<TextBox>(page.View, BooruWorkbenchView.InputName);
+            input.Text = "cat";
+            KeyEventArgs first = Enter();
+            input.RaiseEvent(first);
+            Settle(window);
+            Assert.True(first.Handled);
+            Assert.Equal(("cat", 1), Assert.Single(harness.Search.Searches));
+            int original = Assert.Single(view.SearchTabs.Ids);
+            TabItem originalItem = Tab((TabControl)view.Body, original);
+            Assert.Equal("cat", AutomationProperties.GetName(originalItem));
+
             input.Text = "dog";
-            KeyEventArgs key = Enter(shift ? KeyModifiers.Shift : KeyModifiers.None);
-            input.RaiseEvent(key);
-            Dispatcher.UIThread.RunJobs();
-
-            Assert.True(key.Handled);
-            Assert.Equal(opensNewTab ? 1 : 0, page.View.SearchTabs.ExtraCount);
-            Assert.Equal("dog", page.Model.Search.View.ExecutedQuery);
-            if (opensNewTab)
+            Settle(window);
+            Assert.Equal("cat", AutomationProperties.GetName(originalItem));
+            if (fromMore)
             {
-                BooruSearchView previous = page.View.SearchTabs.ViewOf(BooruSearchTabs.PrimaryId)!;
-                Assert.Equal("cat", previous.ExecutedQuery);
-                Assert.Equal(original.Rows.Select(row => row.Post.PostId), previous.Rows.Select(row => row.Post.PostId));
-                Assert.Equal(page.View.SearchTabs.ActiveId, ((TabItem)((TabControl)page.View.Body).SelectedItem!).Tag);
+                Button more = FindVisual<Button>(view.Header, "BooruMore");
+                Click(more);
+                MenuItem searchInNewTab = Assert.Single(more.ContextMenu!.Items.OfType<MenuItem>(),
+                    item => Equals(item.Tag, BooruWorkbenchView.AlternateSubmitCommand));
+                Assert.Equal(Texts.T("booru.tabs.searchNewShort"), AutomationProperties.GetName(searchInNewTab));
+                searchInNewTab.Command!.Execute(searchInNewTab.CommandParameter);
             }
+            else
+            {
+                KeyEventArgs key = Enter(alternate ? KeyModifiers.Shift : KeyModifiers.None);
+                input.RaiseEvent(key);
+                Assert.True(key.Handled);
+            }
+            Settle(window);
+            Assert.Equal(alternate ? 2 : 1, view.SearchTabs.Ids.Count);
+            Assert.Equal("dog", page.Model.Search.View.ExecutedQuery);
+            Assert.Equal(alternate ? "cat" : "dog", view.SearchTabs.ViewOf(original)?.ExecutedQuery);
             Assert.Equal(new[] { ("cat", 1), ("dog", 1) }, harness.Search.Searches);
-        });
+        }
+        finally { window.Close(); }
+    });
 
     [Fact]
-    public void CopyAndHandoffPreserveResultsAtCapacityAndWatchersCanReopenIndependently() =>
-        BooruComponentDispatcher.Run(() =>
+    public void CopyAndHandoffPreserveResultsAtCapacityAndWatchersCanReopenIndependently() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = new();
+        harness.Serve(pages: 1, perPage: 1);
+        using BooruPage page = new(harness.Services);
+        Window window = new() { Content = page, Width = 900, Height = 550 };
+        try
         {
-            BooruUiHarness harness = new();
-            harness.Serve(pages: 1, perPage: 1);
-            using BooruPage page = new(harness.Services);
+            window.Show();
+            window.Activate();
+            Settle(window);
             BooruWorkbenchView view = page.View;
-            view.SearchTabsLimit = () => 1;
+            view.SearchTabsLimit = () => 2;
             page.ShowQuery("cat");
-            page.Model.Search.SubmitAsync().GetAwaiter().GetResult();
-            Dispatcher.UIThread.RunJobs();
+            BooruComponentDispatcher.Wait(page.Model.Search.SubmitAsync());
+            Settle(window);
 
-            Button copy = SearchControl<Button>(view, BooruWorkbenchView.OpenInNewTabName);
-            Click(copy);
-            int activeId = view.SearchTabs.ActiveId;
-            Assert.NotEqual(BooruSearchTabs.PrimaryId, activeId);
+            TabControl strip = (TabControl)view.Body;
+            int original = Assert.Single(view.SearchTabs.Ids);
+            TabItem originalItem = Tab(strip, original);
+            OpenTabMenu(originalItem);
+            MenuItem copy = Assert.Single(originalItem.ContextMenu!.Items.OfType<MenuItem>(),
+                item => Equals(item.Tag, "booru.tabs.duplicate"));
+            copy.Command!.Execute(copy.CommandParameter);
+            Settle(window);
+            int active = Assert.IsType<int>(view.SearchTabs.ActiveId);
+            Assert.NotEqual(original, active);
             Assert.Equal("cat", page.Model.Search.View.ExecutedQuery);
             Assert.Single(page.Model.Search.View.Rows);
             Assert.Single(harness.Search.Searches);
 
-            Button openWatchers = view.Header.GetVisualDescendants().OfType<Button>().Single(button => button.Name == BooruWorkbenchView.OpenWatchersName);
-            TabControl tabs = (TabControl)view.Body;
-            Click(openWatchers);
-            TabItem watchers = Assert.IsType<TabItem>(tabs.SelectedItem);
-            Assert.Equal(BooruWorkbenchView.WatchersTabName, watchers.Name);
+            Button watchersButton = FindWatchersButton(page);
+            Click(watchersButton);
+            Settle(window);
+            TabItem watchers = Assert.IsType<TabItem>(strip.SelectedItem);
+            Assert.Equal(BooruWorkbenchView.WatchersTabName, AutomationProperties.GetAutomationId(watchers));
             Assert.False(view.TryShowQueryInNewTab("dog"));
-            Assert.Same(watchers, tabs.SelectedItem);
-            TextBlock notice = view.Header.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == BooruWorkbenchView.TabLimitNoticeName);
-            Assert.Equal(Texts.T("booru.tabs.limit", 1), notice.Text);
-            Assert.Equal(activeId, view.SearchTabs.ActiveId);
+            Assert.Same(watchers, strip.SelectedItem);
+            TextBlock notice = FindVisual<TextBlock>(view.Header, BooruWorkbenchView.TabLimitNoticeName);
+            Assert.Equal(Texts.T("booru.tabs.limit", 2), notice.Text);
 
-            Button close = ((Control)watchers.Header!).GetVisualDescendants().OfType<Button>().Single(button => button.Name == BooruWorkbenchView.CloseWatchersName);
-            Click(close);
-            Assert.DoesNotContain(watchers, tabs.Items);
-            Assert.Equal(activeId, ((TabItem)tabs.SelectedItem!).Tag);
-            Click(openWatchers);
-            Assert.Same(watchers, tabs.SelectedItem);
-            Assert.Equal(1, view.SearchTabs.ExtraCount);
+            Click(FindVisual<Button>(watchers, BooruWorkbenchView.CloseWatchersName));
+            Settle(window);
+            Assert.DoesNotContain(watchers, strip.Items);
+            Assert.Same(Tab(strip, active), strip.SelectedItem);
+            Click(watchersButton);
+            Assert.Same(watchers, strip.SelectedItem);
 
-            Assert.True(view.SearchTabs.Close(activeId));
-            view.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
+            Assert.True(view.SearchTabs.Close(active));
             Assert.True(view.TryShowQueryInNewTab("dog"));
             Assert.Equal("dog", page.Model.Search.View.Input);
-            Assert.NotSame(watchers, tabs.SelectedItem);
+            Assert.NotSame(watchers, strip.SelectedItem);
             Assert.Null(page.Model.Search.View.ExecutedQuery);
-            Assert.Equal("cat", view.SearchTabs.ViewOf(BooruSearchTabs.PrimaryId)?.ExecutedQuery);
+            Assert.Equal("cat", view.SearchTabs.ViewOf(original)?.ExecutedQuery);
             Assert.Single(harness.Search.Searches);
-        });
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void ThePlusScrollsBesideTheLastSearchBeforeWatchersAndMiddleClickClosesOnlyItsTarget() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = new();
+        using BooruPage page = new(harness.Services);
+        Window window = new() { Content = page, Width = 540, Height = 560 };
+        try
+        {
+            window.Show();
+            window.Activate();
+            Settle(window);
+            BooruWorkbenchView view = page.View;
+            TabControl tabs = (TabControl)view.Body;
+            Button plus = FindVisual<Button>(tabs, BooruWorkbenchView.NewSearchTabName);
+            Point initial = Center(plus);
+            window.MouseDown(initial, MouseButton.Left);
+            window.MouseUp(initial, MouseButton.Left);
+            Settle(window);
+            Assert.True(SearchControl<TextBox>(view, BooruWorkbenchView.InputName).IsFocused);
+            int first = Assert.Single(view.SearchTabs.Ids);
+
+            view.SearchTabsLimit = () => 33;
+            for (int i = 1; i < 33; i++) Assert.True(view.TryShowQueryInNewTab("draft_" + i));
+            view.ShowWatchers();
+            Settle(window);
+            int last = view.SearchTabs.Ids[^1];
+            TabItem watchers = FindVisual<TabItem>(tabs, BooruWorkbenchView.WatchersTabName);
+            TabItem lastItem = Tab(tabs, last);
+            ScrollViewer scroll = FindVisual<ScrollViewer>(tabs, "BooruTabStrip");
+            Assert.True(scroll.Extent.Width > scroll.Viewport.Width);
+            TabItem plusItem = plus.GetVisualAncestors().OfType<TabItem>().First();
+            foreach (string language in new[] { "en", "de", "cs", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "zh-Hans" })
+            {
+                Texts.SetLanguage(language);
+                Settle(window);
+                Rect lastBox = Bounds(lastItem), plusBox = Bounds(plusItem), watchersBox = Bounds(watchers);
+                Assert.InRange(plusBox.Left - lastBox.Right, 3, 5);
+                Assert.InRange(watchersBox.Left - plusBox.Right, 3, 5);
+                Assert.Equal(Texts.T("booru.ui.search"), plus.Content);
+                Assert.Equal(Texts.T("booru.tabs.new"), AutomationProperties.GetName(plus));
+                Assert.Equal(AutomationProperties.GetName(plus), ToolTip.GetTip(plus));
+            }
+            Assert.True(scroll.Offset.X > 0);
+            Assert.InRange(Center(plus).X, 0, window.ClientSize.Width);
+
+            // One crossed gesture, then a complete middle click on the same search header.
+            Point target = Center(lastItem);
+            Point separate = Center(watchers);
+            window.MouseDown(target, MouseButton.Middle);
+            window.MouseUp(separate, MouseButton.Middle);
+            Assert.Equal(33, view.SearchTabs.Ids.Count);
+            window.MouseDown(target, MouseButton.Middle);
+            window.MouseUp(target, MouseButton.Middle);
+            Settle(window);
+            Assert.DoesNotContain(last, view.SearchTabs.Ids);
+            Assert.Equal(first, view.SearchTabs.Ids[0]);
+            Assert.Equal(32, view.SearchTabs.Ids.Count);
+            Assert.Same(watchers, tabs.SelectedItem);
+
+            foreach (int id in view.SearchTabs.Ids.Skip(1)) Assert.True(view.SearchTabs.Close(id));
+            view.CloseWatchers();
+            Settle(window);
+            TabItem firstItem = Tab(tabs, first);
+            Button close = FindVisual<Button>(firstItem, BooruWorkbenchView.CloseSearchTabName);
+            Point closePoint = Center(close);
+            window.MouseDown(closePoint, MouseButton.Left);
+            window.MouseUp(closePoint, MouseButton.Left);
+            Settle(window);
+            Assert.Empty(view.SearchTabs.Ids);
+            Assert.True(SearchControl<TextBox>(view, BooruWorkbenchView.InputName).IsEffectivelyVisible);
+            Assert.Equal(0, harness.ProviderRequests);
+
+            Rect Bounds(Control c) => new(c.TranslatePoint(default, window)!.Value, c.Bounds.Size);
+            Point Center(Control c) => Bounds(c).Center;
+        }
+        finally { window.Close(); }
+    });
+
+    private static TabItem Tab(TabControl strip, int id) => Assert.Single(strip.Items.OfType<TabItem>(), tab => Equals(tab.Tag, id));
+
+    private static T FindVisual<T>(Control root, string automationId) where T : Control =>
+        root.GetVisualDescendants().OfType<T>().Single(control => AutomationProperties.GetAutomationId(control) == automationId);
+
+    private static void OpenTabMenu(TabItem tab) =>
+        tab.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Apps });
+
+    private static void Settle(Window window)
+    {
+        for (int pass = 0; pass < 3; pass++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
+    }
 
     [Fact]
     public void AFullTabStripDoesNotCancelTheRunningRequest()
@@ -242,9 +369,10 @@ public sealed class BooruSearchDestinationTests
             harness.Search.OnSearch = (_, _, cancellation) => { token = cancellation; return finish.Task; };
             using BooruPage page = new(harness.Services);
             BooruWorkbenchView view = page.View;
-            view.SearchTabsLimit = () => 1;
+            view.SearchTabsLimit = () => 2;
+            Assert.True(view.TryShowQueryInNewTab("draft"));
             Assert.True(view.TryShowQueryInNewTab("cat"));
-            int activeId = view.SearchTabs.ActiveId;
+            int activeId = Assert.IsType<int>(view.SearchTabs.ActiveId);
             Task search = page.Model.Search.SubmitAsync();
             try
             {
@@ -281,9 +409,12 @@ public sealed class BooruSearchDestinationTests
         Assert.Equal("⌘↩", CommandCatalog.ShortcutTooltipDisplay(alternate, true, "booru", rebound));
     }
 
-    private static T SearchControl<T>(BooruWorkbenchView view, string name) where T : Control =>
-        ((Control)((TabItem)((TabControl)view.Body).SelectedItem!).Content!).GetVisualDescendants().OfType<T>()
-            .Single(control => control.Name == name);
+    private static T SearchControl<T>(BooruWorkbenchView view, string automationId) where T : Control
+    {
+        TabControl strip = FindVisual<TabControl>(view, BooruWorkbenchView.TabsName);
+        TabItem selected = Assert.IsType<TabItem>(strip.SelectedItem);
+        return FindVisual<T>(Assert.IsAssignableFrom<Control>(selected.Content), automationId);
+    }
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
