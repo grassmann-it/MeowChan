@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Avalonia.Controls;
 using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Desktop;
@@ -24,9 +25,9 @@ namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// Documentation contracts, not evidence of live provider behavior or native UI acceptance.
-/// Reads repository Markdown/source and embedded resources only: no profile, language-state mutation,
-/// store construction, HTTP client or application startup is needed.
+/// Reads repository Markdown, embedded resources and in-process components without opening profiles or contacting providers.
 /// </summary>
+[Collection("Localization")]
 public sealed class HelpDocumentationTests
 {
     private const string Help = "docs/Help.md";
@@ -422,12 +423,31 @@ public sealed class HelpDocumentationTests
         Assert.True(new Config().ReaderMediaSidebar);
         Assert.Equal(ReaderMediaClickMode.Sidebar, new Config().EffectiveReaderMediaClick);
         Assert.False(new Config().ReaderInlineVideoAutoplayMuted);
-        // Only read the actual hosts; no player, decoder, settings window or session is constructed.
         Assert.Contains("_archivePage.QuickSettingsHost = CreateQuickSettingsHost();", Read("Desktop/Shell/MainWindow.Navigation.cs"), StringComparison.Ordinal);
         string media = Read("Desktop/Views/Archive/ArchivePage.ReaderMedia.cs");
         Assert.Contains("InitializeInlineVideo();", media, StringComparison.Ordinal);
         Assert.Contains("InitializeMediaSidebar();", media, StringComparison.Ordinal);
-        Assert.Contains("new QuickSettingsPopover(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), host", Read("Desktop/Views/Archive/ArchivePage.QuickSettings.cs"), StringComparison.Ordinal);
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
+            Config config = new();
+            page.QuickSettingsHost = new QuickSettingsHost { CurrentConfig = () => config, SaveAsync = _ => Task.CompletedTask };
+            Window window = new() { Width = 1440, Height = 840, Content = page };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                page.OpenReaderQuickSettings();
+                var popover = Assert.IsType<QuickSettingsPopover>(page.ReaderQuickSettings);
+                Assert.Same(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), popover.Surface.Spec);
+            }
+            finally
+            {
+                page.EndLifetime();
+                window.Close();
+            }
+        });
         string video = Read("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
         Assert.Contains("ArchivePosts.SetValue(ArchiveAttachmentView.InlineVideoProperty, _inlineVideo);", video, StringComparison.Ordinal);
         Assert.Contains("return Task.WhenAll(_inlineVideo.ReleaseAllAsync(), preview);", video, StringComparison.Ordinal);
