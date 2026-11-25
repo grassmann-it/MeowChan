@@ -396,17 +396,21 @@ public sealed class BooruGalleryInlineTests
                 return null;
             };
             await SearchAsync(harness, model, view);
-            TabControl tabs = ControlField<TabControl>(view, "_tabs");
+            TabControl tabs = Assert.Single(view.GetVisualDescendants().OfType<TabControl>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.TabsName);
+            TabItem searchTab = Assert.IsType<TabItem>(tabs.SelectedItem);
             view.Gallery.SampleDelay = TimeSpan.FromMilliseconds(150);
             Assert.True(view.OpenGallery("101"));
             await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Loading, "the pending sample delay");
             view.ShowWatchers();
+            TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
+            Assert.Equal(BooruWorkbenchView.WatchersTabName, AutomationProperties.GetAutomationId(watchersTab));
             await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Deferred, "the canceled sample delay");
             await Task.Delay(200);
             Assert.Empty(harness.Previews.SampleRequests);
 
             view.Gallery.SampleDelay = TimeSpan.Zero;
-            tabs.SelectedItem = ControlField<TabItem>(view, "_searchTab");
+            tabs.SelectedItem = searchTab;
             await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 1, "a sample after returning to Search");
             shellHost.IsVisible = false;
             await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -549,9 +553,6 @@ public sealed class BooruGalleryInlineTests
 
     private static TextBlock GalleryPosition(BooruGalleryPanel gallery) => gallery.GetLogicalDescendants().OfType<TextBlock>()
         .Single(block => block.Name == "BooruGalleryPosition");
-
-    private static T ControlField<T>(Control owner, string name) where T : Control =>
-        Assert.IsType<T>(owner.GetType().GetField(name, Private)!.GetValue(owner));
 
     private sealed class WindowScope : IDisposable
     {
