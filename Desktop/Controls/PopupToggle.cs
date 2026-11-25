@@ -47,7 +47,15 @@ internal static class PopupToggle
 
     internal static bool ConsumeActivation(Button button)
     {
-        if (Close(button)) return true;
+        return Close(button) || ConsumeAnchorPress(button);
+    }
+
+    /// <summary>
+    /// True once when the pointer press that light-dismissed the button's menu landed on the button itself: the click that
+    /// follows closes, it must not open the menu again. For owners that decide themselves whether an open menu closes.
+    /// </summary>
+    internal static bool ConsumeAnchorPress(Button button)
+    {
         if (!Menus.TryGetValue(button, out ButtonMenu? state) || !state.AnchorPress) return false;
         state.AnchorPress = false;
         return true;

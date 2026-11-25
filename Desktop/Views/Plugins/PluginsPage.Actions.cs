@@ -294,7 +294,7 @@ public partial class PluginsPage : IDisposable
     {
         if (_ended || IsDiscardConfirmationOpen || !IsEffectivelyVisible || _catalog == null
             || _catalog.Entries.FirstOrDefault(entry => entry.Key == key) is not { } entry || !Included(entry)) return;
-        if (anchor == null && TryClosePluginMenu(origin, key, openerCommand)) return;
+        if (anchor == null && (TryClosePluginMenu(origin, key, openerCommand) || DismissedByOwnOpener(origin))) return;
         ClosePluginActionMenu();
         // Inspecting another row while busy must not call SelectCore, which cancels the operation.
         if (!_busy && _selectedKey != key) SelectCore(key, openDetails: false);
@@ -373,7 +373,7 @@ public partial class PluginsPage : IDisposable
 
     private void OpenPluginSourcesMenu(PluginActionTarget target, Control origin)
     {
-        if (TryClosePluginMenu(origin, target.Key, "plugins.watches")) return;
+        if (TryClosePluginMenu(origin, target.Key, "plugins.watches") || DismissedByOwnOpener(origin)) return;
         ClosePluginActionMenu();
         ContextMenuBuilder builder = new ContextMenuBuilder();
         int index = 0;
@@ -421,6 +421,10 @@ public partial class PluginsPage : IDisposable
         ClosePluginActionMenu(restoreFocus: true);
         return true;
     }
+
+    // The press on the opener already light-dismissed its menu (Closed forgot it): the click of the same press only closes.
+    // Only that button's own menu records the press, so another plugin, row or command still opens its menu.
+    private static bool DismissedByOwnOpener(Control origin) => origin is Button opener && PopupToggle.ConsumeAnchorPress(opener);
 
     private void OpenPreparedPluginMenu(ContextMenu menu, PluginActionTarget target, Control origin, string command, Point? anchor = null)
     {
