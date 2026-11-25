@@ -162,7 +162,7 @@ public sealed partial class MenuIconLayoutTests
                 Settle(pause);
                 Assert.Equal(Texts.T("gallery.wheelBrowse"), wheel.Label.Text);
                 Assert.Equal(wheel.Label.Text, AutomationProperties.GetName(viewer.WheelBrowseToggle));
-                Assert.Equal(Texts.T("gallery.wheelBrowse.help"), ToolTip.GetTip(viewer.WheelBrowseToggle));
+                Assert.Equal(GalleryWheelCatalog.Text("gallery.wheelBrowse.help"), ToolTip.GetTip(viewer.WheelBrowseToggle));
                 Assert.Equal(GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss"), AutomationProperties.GetName(pause));
                 Assert.True(pause.IsFocused);
             }
