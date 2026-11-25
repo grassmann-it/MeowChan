@@ -156,18 +156,21 @@ public sealed class TaggingPagePanelTests
     }, clock: new ManualClock());
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RatingAndTaggingWriteOnlyTheCursorWhileTheSelectionStaysInTheQueue(bool grid) => WithPage(grid, async fixture =>
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void RatingAndTaggingWriteOnlyTheCursorWhileTheSelectionStaysInTheQueue(bool grid, bool macOS) => WithPage(grid, async fixture =>
     {
         // The stamp gives existing tags only.
         await fixture.Session.DefinePrivateTagAsync("cursor tag");
         fixture.ClickEntry(1);
         await fixture.WaitForEditorAsync();
-        fixture.ClickEntry(2, RawInputModifiers.Control);
-        fixture.ClickEntry(3, RawInputModifiers.Control);
+        RawInputModifiers primary = macOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
+        fixture.ClickEntry(2, primary);
+        fixture.ClickEntry(3, primary);
         Assert.Equal(3, fixture.List.SelectedItems!.Count);
-        fixture.Key(grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown, RawInputModifiers.Control);
+        fixture.Key(grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown, primary);
         Assert.Equal(4, fixture.FocusedNumber());
         await fixture.ShowsAsync(4);
         await fixture.WaitForEditorAsync();
@@ -256,7 +259,7 @@ public sealed class TaggingPagePanelTests
 
         MediaBadgeView? CursorBadges() => fixture.FindOrDefault<ListBoxItem>(fixture.List, "TaggingGridEntry4") is { } entry
             ? fixture.FindOrDefault<MediaBadgeView>(entry, "TaggingTileBadges") : null;
-    });
+    }, macOS: macOS);
 
     [Fact]
     public void TheEditorIsDisabledUntilTheSavedFileIsConfirmed()
@@ -327,11 +330,13 @@ public sealed class TaggingPagePanelTests
     }, missing: 2);
 
     [Theory]
-    [InlineData(1000, 360, false, false)]
-    [InlineData(1400, 600, true, false)]
-    [InlineData(1000, 360, false, true)]
-    [InlineData(1400, 600, true, true)]
-    public void FullTableFitsBesideEitherDockAndDraggingKeepsTheCursor(int width, int panelWidth, bool left, bool windowsFileSharing) => WithPage(false, async fixture =>
+    [InlineData(1000, 360, false, false, false)]
+    [InlineData(1400, 600, true, false, false)]
+    [InlineData(1000, 360, false, true, false)]
+    [InlineData(1400, 600, true, true, false)]
+    [InlineData(1000, 360, false, false, true)]
+    [InlineData(1400, 600, true, false, true)]
+    public void FullTableFitsBesideEitherDockAndDraggingKeepsTheCursor(int width, int panelWidth, bool left, bool windowsFileSharing, bool macOS) => WithPage(false, async fixture =>
     {
         MediaPageLayout layout = fixture.Layout with { PanelWidth = panelWidth, PanelSide = left ? MediaPanelSide.Left : MediaPanelSide.Right };
         fixture.Layout = layout;
@@ -353,14 +358,15 @@ public sealed class TaggingPagePanelTests
         Assert.Equal(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(fixture.List));
 
         fixture.ClickEntry(1);
-        fixture.ClickEntry(2, RawInputModifiers.Control);
+        RawInputModifiers primary = macOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
+        fixture.ClickEntry(2, primary);
         if (windowsFileSharing)
         {
             await fixture.ShowsAsync(2);
             await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap poster && poster.PixelSize == new PixelSize(160, 90),
                 "the verified video poster before moving the cursor");
         }
-        fixture.Key(PhysicalKey.ArrowDown, RawInputModifiers.Control);
+        fixture.Key(PhysicalKey.ArrowDown, primary);
         await fixture.ShowsAsync(3);
         if (width == 1000) BooruReviewTestPlatform.Resize(fixture.Window, 1400);
         await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap, "the starting decode before dragging");
@@ -378,7 +384,7 @@ public sealed class TaggingPagePanelTests
         await fixture.ShowsAsync(3);
         await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap bigger
             && bigger.PixelSize.Width > before, "larger decode of the same cursor");
-    }, video: 2, wideImage: 3, windowsFileSharing: windowsFileSharing);
+    }, video: 2, wideImage: 3, windowsFileSharing: windowsFileSharing, macOS: macOS);
 
     [Fact]
     public void WideningDuringTheFirstDecodeUpgradesThePreview()
@@ -710,10 +716,10 @@ public sealed class TaggingPagePanelTests
         Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap, GalleryImageInfo)>>? decode = null,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null, int replaced = 0, bool windowsFileSharing = false,
         Action<Config>? configure = null,
-        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openVideoManifest = null) =>
+        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openVideoManifest = null, bool? macOS = null) =>
         BooruComponentDispatcher.Run(() =>
         {
-            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using IDisposable platform = BooruReviewTestPlatform.Enter(macOS: macOS);
             using TempDirectory profile = new();
             string? videoPath = null;
             BooruComponentDispatcher.Wait(RunAsync());

@@ -232,8 +232,8 @@ public sealed class BooruSearchOverflowTests
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Empty(bindings.Issues);
-        AssertAction("booru.search.watch", Key.F7);
-        AssertAction("booru.search.download-all", Key.F8);
+        AssertAction("booru.search.watch", Key.F7, Key.W);
+        AssertAction("booru.search.download-all", Key.F8, Key.L);
 
         ShortcutBindingsSection saved = new ShortcutBindingsSection().Set("input.focus-url", [ShortcutGesture.Parse("Primary+Shift+F7")]);
         EffectiveShortcutBindings upgraded = EffectiveShortcutBindings.Build(saved, platform);
@@ -242,12 +242,15 @@ public sealed class BooruSearchOverflowTests
         Assert.False(upgraded.Matches(press, "booru.search.watch", "booru"));
         Assert.False(Assert.Single(upgraded.Issues).BlocksSave);
 
-        void AssertAction(string id, Key key)
+        void AssertAction(string id, Key key, Key macLetter)
         {
             KeyModifiers modifiers = primary | KeyModifiers.Shift;
             Assert.True(bindings.Matches(new KeyEventArgs { Key = key, KeyModifiers = modifiers }, id, "booru"));
             bool mac = platform == ShortcutPlatform.MacOS;
-            string display = mac ? $"⇧⌘{key} (Fn)" : $"{Texts.T("key.ctrl")}+{Texts.T("key.shift")}+{key}";
+            // Shortcut defaults revision 30: “Watch and Download/Stop get ⌥⌘W / ⌥⌘L first”; F7/F8 stay extras.
+            if (mac)
+                Assert.True(bindings.Matches(new KeyEventArgs { Key = macLetter, KeyModifiers = primary | KeyModifiers.Alt }, id, "booru"));
+            string display = mac ? $"⌥⌘{macLetter} / ⇧⌘{key} (Fn)" : $"{Texts.T("key.ctrl")}+{Texts.T("key.shift")}+{key}";
             Assert.Equal(display, CommandCatalog.ShortcutTooltipDisplay(id, mac, "booru", bindings));
         }
     }
