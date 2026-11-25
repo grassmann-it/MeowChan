@@ -35,6 +35,10 @@ public sealed partial class Registry
         lock (_state) return new(resource.Url, resource.Board != null, _watches.ContainsKey(resource.Key));
     }
 
+    internal ResourceId? ResolveBoardAdmissionIdentity(string url) =>
+        Resolve(url, out Resource? resource) == AdmissionStatus.Added && resource is { Board: not null }
+            ? new(resource.Key.Source, resource.Key.Board) : null;
+
     /// <summary>Only catalog HTTP; never starts a watch, persists intent, or fetches thread/media endpoints.</summary>
     public async Task<BoardAdmissionPreview> PreviewBoardAdmissionAsync(string url, CancellationToken cancellationToken = default)
     {
