@@ -937,11 +937,12 @@ public partial class ArchivePage
     // window) loads thumbnails, and only the missing ones. They are decoded small, through the reader's thumbnail gate and cache.
     private void UpdateSidebarStrip(ReaderMediaSidebar sidebar, ArchivePostRow post, bool samePost)
     {
-        if (_thread is not { } thread) { CancelSidebarStripLoad(); sidebar.ClearStrip(); return; }
+        Func<int, ReaderMediaSidebar.StripTarget>? targetOf = _thread is { } thread
+            ? index => new(thread.Summary.Id, post.Id, index, ReaderInlineVideoSlot.KeyOf(post.Attachments[index].Attachment))
+            : null;
         int count = post.Attachments.Count;
         bool rebuilt = sidebar.ShowStrip(count, _sidebarIndex, ReaderMedia.Clamped().StripLimit,
-            index => CapturedAttachmentText.Of(post.Attachments[index]).Name, samePost,
-            index => new(thread.Summary.Id, post.Id, index, ReaderInlineVideoSlot.KeyOf(post.Attachments[index].Attachment)));
+            index => CapturedAttachmentText.Of(post.Attachments[index]).Name, samePost, targetOf);
         if (!sidebar.StripVisible) { CancelSidebarStripLoad(); return; }
         // A selection rebuild can retire the previous load without changing this post's strip geometry. Resume its missing thumbnails.
         if (!rebuilt && _sidebarStripLoading != null) return;
