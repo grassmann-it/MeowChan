@@ -187,7 +187,13 @@ public sealed class DownloadsSelectionMenuTests
             if (actual != expected) Assert.Fail($"Expected {expected}{Environment.NewLine}Actual {actual}");
 
             await using (ArchiveReader reader = await host.OpenArchiveReaderAsync(CancellationToken.None))
-                Assert.Equal(urls.Length, (await reader.SelectThreadIdsAsync(new ArchiveThreadQuery(), CancellationToken.None)).Count);
+            {
+                ResourceId[] expectedArchiveIds = urls.Append(WatchUrl(1005))
+                    .Select(url => new ResourceId("4chan", "g", url.Split('/')[^1])).ToArray();
+                IReadOnlyList<ResourceId> archiveIds = await reader.SelectThreadIdsAsync(new ArchiveThreadQuery(), CancellationToken.None);
+                Assert.True(archiveIds.OrderBy(id => id.Thread, StringComparer.Ordinal).SequenceEqual(expectedArchiveIds),
+                    $"Expected archive threads 4chan/g/1000–1005. Found [{string.Join(", ", archiveIds.Select(id => $"{id.Source}/{id.Board}/{id.Thread}"))}].");
+            }
             Assert.All(files, file => Assert.Equal("saved media", File.ReadAllText(file)));
 
             FeedbackToastContent undo = Assert.Single(window.GetVisualDescendants().OfType<FeedbackToastContent>(),
