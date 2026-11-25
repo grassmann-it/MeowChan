@@ -256,15 +256,15 @@ public partial class ArchivePage
         {
             asset = saved; origin = _mediaSidebar?.FrameArea; playback = _sidebarVideo;
         }
-        else if (attachment == null && asset == null && SidebarMediaContext(ancestors) is { } shown)
-        {
-            attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
-        }
         // A thumbnail of the sidebar's strip: the menu of that file, not of the one shown (right-click, Menu key, Shift+F10).
         else if (attachment == null && asset == null && IsSidebarStripSource(ancestors))
         {
             if (SidebarStripContext(ancestors, keyboard) is not { } thumbnail) { e.Handled = true; return; }
             attachment = thumbnail.Attachment; postId = thumbnail.PostId; origin = thumbnail.Origin; playback = thumbnail.Shown ? _sidebarVideo : null;
+        }
+        else if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
+        {
+            attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
         }
         if (attachment != null) asset = _selectedThread == null || postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
         if (asset == null && attachment == null) return;
@@ -363,10 +363,12 @@ public partial class ArchivePage
     }
 
     // The sidebar stands for the medium it shows. The strip resolves each thumbnail through its own binding.
-    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors)
+    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors, bool keyboard = true)
     {
         if (ArchiveMediaTab.IsSelected) return null;
-        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Contains(_mediaSidebar) || ancestors.Contains(_mediaSidebar.Strip)) return null;
+        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Contains(_mediaSidebar)) return null;
+        if (ancestors.Contains(_mediaSidebar.Strip))
+            return keyboard && SidebarStripContext(ancestors) is { } thumbnail ? (thumbnail.Attachment, thumbnail.PostId, thumbnail.Origin) : null;
         return _displayedSidebarMedium is { } shown && ReferenceEquals(_thread, shown.Thread)
             ? (shown.Attachment, shown.Post.Id, _mediaSidebar.FrameArea) : null;
     }
@@ -635,9 +637,7 @@ public partial class ArchivePage
             asset = saved;
             origin = _mediaSidebar?.FrameArea;
         }
-        else if (asset == null && (SidebarStripContext(parents) is { } thumbnail ? (thumbnail.Attachment, thumbnail.PostId, thumbnail.Origin)
-                     : SidebarMediaContext(parents) is { } shown ? (shown.Attachment, shown.PostId, shown.Origin)
-                     : selectedPost ? SelectedPostMedium(parents, source) : null) is { } medium)
+        else if (asset == null && (SidebarMediaContext(parents) ?? (selectedPost ? SelectedPostMedium(parents, source) : null)) is { } medium)
         {
             (attachment, postId, origin) = medium;
             asset = FindMatchingAsset(threadId, medium.PostId, medium.Attachment.Attachment, _assets);

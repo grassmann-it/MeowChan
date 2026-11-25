@@ -203,11 +203,9 @@ public partial class ArchivePage
                 OpenActions.Start(() => save(update, factsChanged ? [SettingsFieldId.MediaSidebarInfo] : []), "media.sidebar.info");
         };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
-        sidebar.StripSelected += (_, selection) =>
-        {
-            if (CurrentSidebarStripPost(selection.Origin) != null) SelectMediaSidebarIndex(selection.Index);
-        };
-        sidebar.StripActivated += (_, target) => ActivateSidebarStripTarget(target);
+        sidebar.StripTargetIsCurrent = target => CurrentSidebarStripPost(target) != null;
+        sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
+        sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
         sidebar.PictureActivated += (_, _) => OnMediaSidebarPictureActivated();
         sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();
         // The "No." of its header line copies the post's reference like the post's own number does.
@@ -916,7 +914,7 @@ public partial class ArchivePage
     {
         if (ArchiveMediaTab.IsSelected || !_mediaSidebarShown || _thread?.Summary.Id != target.Thread || _selectedThread != target.Thread
             || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } post || post.Id != target.PostId
-            || target.Index >= post.Attachments.Count) return null;
+            || (uint)target.Index >= (uint)post.Attachments.Count) return null;
         return ReaderInlineVideoSlot.KeyOf(post.Attachments[target.Index].Attachment) == target.AttachmentKey ? post : null;
     }
 
@@ -942,8 +940,8 @@ public partial class ArchivePage
         if (_thread is not { } thread) { CancelSidebarStripLoad(); sidebar.ClearStrip(); return; }
         int count = post.Attachments.Count;
         bool rebuilt = sidebar.ShowStrip(count, _sidebarIndex, ReaderMedia.Clamped().StripLimit,
-            index => CapturedAttachmentText.Of(post.Attachments[index]).Name,
-            index => new(thread.Summary.Id, post.Id, index, ReaderInlineVideoSlot.KeyOf(post.Attachments[index].Attachment)), samePost);
+            index => CapturedAttachmentText.Of(post.Attachments[index]).Name, samePost,
+            index => new(thread.Summary.Id, post.Id, index, ReaderInlineVideoSlot.KeyOf(post.Attachments[index].Attachment)));
         if (!sidebar.StripVisible) { CancelSidebarStripLoad(); return; }
         // A selection rebuild can retire the previous load without changing this post's strip geometry. Resume its missing thumbnails.
         if (!rebuilt && _sidebarStripLoading != null) return;
