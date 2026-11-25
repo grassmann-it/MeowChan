@@ -148,6 +148,7 @@ public partial class ArchivePage
         CancellationToken token = _inlineRepliesCancellation?.Token ?? _lifetime.Token;
         bool Current() => InlineReplyRowsCurrent(rows, token) && rows.IndexOf(row) >= 0;
         int loadedBefore = row.Replies.Count;
+        bool countUnknown = row.BacklinkCount == null;
         row.SetRepliesLoading(true);
         row.SetRepliesError(null);
         Func<Task>? restore = null;
@@ -172,6 +173,8 @@ public partial class ArchivePage
             }
         }
         finally { if (Current()) row.SetRepliesLoading(false); }
+        if (countUnknown && Current() && ReferenceEquals(ArchivePosts.SelectedItem, row))
+            UpdateFocusedReplies(keepPosition: true);
         if (restore != null) await restore();
     }
 
