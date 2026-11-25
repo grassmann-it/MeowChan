@@ -54,7 +54,7 @@ public sealed partial class MenuIconLayoutTests
             WithWindow(viewer, _ =>
             {
                 var toggle = Assert.IsType<ToggleButton>(Assert.Single(viewer.OverflowItems,
-                    button => AutomationProperties.GetAutomationId(button) == "GalleryPostOverlayToggle"));
+                    button => AutomationProperties.GetAutomationId(button) == "gallery.post-overlay-toggle"));
                 GalleryViewer.OverflowItem item = Assert.IsType<GalleryViewer.OverflowItem>(toggle.Tag);
                 Check(Key.A, KeyModifiers.Shift);
                 Assert.True(toggle.IsChecked);

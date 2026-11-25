@@ -180,7 +180,6 @@ internal sealed partial class GalleryViewer
             if (!_updatingPlaybackControls && _videoRule.SelectedIndex is >= 0 and <= 2)
                 ChangePlaybackPreferences(_playbackPreferences with { VideoRule = (SlideshowVideoRule)_videoRule.SelectedIndex });
         };
-        AutomationProperties.SetAutomationId(_postOverlayToggle, _postOverlayToggle.Name);
         foreach (var (button, id) in PlaybackActions())
         {
             CommandBindings.BindExisting(button, id);
