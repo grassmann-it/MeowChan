@@ -4,7 +4,6 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -19,9 +18,7 @@ public partial class MainWindow
 
     private void InitializeDownloadsHeader()
     {
-        DownloadsColumnsButton.Command = new DelegateCommand(
-            () => OnDownloadsColumnsClick(DownloadsColumnsButton, new RoutedEventArgs()),
-            () => !_isClosing);
+        DownloadsColumnsButton.Command = new DelegateCommand(ToggleDownloadColumns, () => !_isClosing);
         CopyAllUrlsButton.Command = new DelegateCommand(
             async () => await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url))),
             () => !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0));

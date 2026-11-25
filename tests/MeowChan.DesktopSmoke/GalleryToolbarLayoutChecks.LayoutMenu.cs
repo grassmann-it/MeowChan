@@ -3,12 +3,13 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopSmoke;
 
 // GL3 (smoke id "gallery-toolbar", step "layout menu"): the "Layout" button beside "More", its flyout and the same rows on a right click of free
-// dock area. Each row changes exactly one block, the flyout stays open for a switch, Escape closes it and the focus returns to the button, "Reset layout"
+// dock area. Each row changes exactly one block, the flyout stays open for a switch, Escape closes it and the focus returns to the picture, "Reset layout"
 // closes it and raises the undo (LayoutResetPerformed), a button never counts as free dock area. Captures of the open flyout and of the context
 // menu are taken in the theme and language of the scenario (Light/Dark at 760x500 and 1440x920).
 internal static partial class GalleryToolbarLayoutChecks
@@ -19,6 +20,11 @@ internal static partial class GalleryToolbarLayoutChecks
         // Placement (UX spec S4 GL3+a): the button on the bar in Advanced from CompactToolbarWidth up; otherwise the same rows are a section of "More".
         bool onBar = viewer.CurrentWorkView == MeowChan.Desktop.WorkViews.WorkView.Advanced && viewer.Bounds.Width >= GalleryChromePlan.CompactWidth;
         Require(layout.IsEffectivelyVisible == onBar, tag + $": the Layout button is {(layout.IsEffectivelyVisible ? "on" : "off")} the bar, the plan says {(onBar ? "on" : "off")}.");
+        Require(!layout.Focusable, tag + ": the Layout button is a tab stop.");
+        Require(viewer.Focus(NavigationMethod.Tab), tag + ": the picture could not take keyboard focus.");
+        KeyGesture gesture = CommandBindings.Gesture(GalleryLayoutMenu.OpenCommandId)
+            ?? throw new InvalidOperationException("The gallery layout shortcut is unbound.");
+        PressKey(viewer, gesture.Key, gesture.KeyModifiers);
         if (!onBar)
         {
             await RequireLayoutSectionAsync(window, viewer, tag);
@@ -30,9 +36,7 @@ internal static partial class GalleryToolbarLayoutChecks
         Require(!string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(layout)) && ToolTip.GetTip(layout) is string { Length: > 0 },
             tag + ": the Layout button has no name or tooltip.");
 
-        // The keyboard opens it (Enter on the focused button); the first usable row takes the focus.
-        layout.Focus(NavigationMethod.Tab);
-        PressKey(layout, Key.Enter);
+        // The layout shortcut opens the flyout on the wide toolbar.
         await UntilAsync(() => viewer.IsLayoutMenuOpen && viewer.LayoutMenuRows.IsEffectivelyVisible && viewer.LayoutMenuRows.Bounds.Height > 0);
         await LayoutAsync(window);
         LayoutMenuPanel rows = viewer.LayoutMenuRows;
@@ -57,10 +61,10 @@ internal static partial class GalleryToolbarLayoutChecks
         await LayoutAsync(window);
         Require(info.IsVisible && viewer.LayoutChoice(GalleryChromeMode.View) == before, tag + ": the info row did not bring the info line back (as no choice).");
 
-        // Escape closes the menu and the focus returns to the Layout button.
+        // Escape closes the menu and the focus returns to the picture.
         PressKey((Control)TopLevel.GetTopLevel(viewer.LayoutMenuRows)!.FocusManager!.GetFocusedElement()!, Key.Escape);
         await UntilAsync(() => !viewer.IsLayoutMenuOpen);
-        await UntilAsync(() => window.FocusManager?.GetFocusedElement() == layout);
+        await UntilAsync(() => window.FocusManager?.GetFocusedElement() == viewer);
 
         // The same rows on a right click of free area; a button is never free area.
         StackPanel dock = Find<StackPanel>(viewer, "GalleryDock");
@@ -105,8 +109,7 @@ internal static partial class GalleryToolbarLayoutChecks
     private static async Task RequireLayoutSectionAsync(MainWindow window, GalleryViewer viewer, string tag)
     {
         Require(viewer.LayoutSection.IsVisible, tag + ": neither the Layout button nor its section under More is shown.");
-        viewer.SetOverflowOpen(true);
-        await UntilAsync(() => viewer.LayoutSectionRows.IsEffectivelyVisible && viewer.LayoutSectionRows.Bounds.Height > 0);
+        await UntilAsync(() => viewer.IsOverflowOpen && viewer.LayoutSectionRows.IsEffectivelyVisible && viewer.LayoutSectionRows.Bounds.Height > 0);
         await LayoutAsync(window);
         LayoutMenuPanel rows = viewer.LayoutSectionRows;
         Require(rows.Buttons.Count == GalleryLayoutMenu.RowIds.Count, tag + ": the section under More does not hold the layout rows.");

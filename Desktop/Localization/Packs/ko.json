@@ -520,8 +520,6 @@
     "search.carry.offerKeep": "현재 유지",
     "command.input.focus-diagnostics-search": "진단 검색",
     "command.scope.input.focus-diagnostics-search": "진단 · 메시지 필터",
-    "downloads.searchClose": "닫기",
-    "downloads.searchCloseTip": "검색 막대를 닫습니다. Esc는 먼저 텍스트를 지우고, 그다음 막대를 닫습니다.",
     "downloads.searchEmpty": "이 탭에는 일치하는 항목이 없습니다.",
     "downloads.searchClearQuery": "검색어 지우기",
     "downloads.searchShowBoards": "일치하는 게시판 {0}개 표시",

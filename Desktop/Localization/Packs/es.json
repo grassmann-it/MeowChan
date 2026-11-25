@@ -522,8 +522,6 @@
     "search.carry.offerKeep": "Mantener la actual",
     "command.input.focus-diagnostics-search": "Buscar en el diagnóstico",
     "command.scope.input.focus-diagnostics-search": "Diagnóstico · filtro de mensajes",
-    "downloads.searchClose": "Cerrar",
-    "downloads.searchCloseTip": "Cerrar la barra de búsqueda. Esc borra primero el texto y después cierra la barra.",
     "downloads.searchEmpty": "No hay coincidencias en esta pestaña.",
     "downloads.searchClearQuery": "Borrar el texto de búsqueda",
     "downloads.searchShowBoards": "Mostrar {0} tablones coincidentes",

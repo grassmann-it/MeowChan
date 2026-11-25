@@ -189,15 +189,15 @@ public sealed partial class MenuIconLayoutTests
         viewer.PlaybackPreferencesChanged += next => preferences = next;
 
         Texts.SetLanguage("de");
-        WithWindow(viewer, window =>
+        WithGalleryWindow(viewer, window =>
         {
             window.RequestedThemeVariant = ThemeVariant.Dark;
             window.SetRenderScaling(1.5);
             BooruReviewTestPlatform.Resize(window, 760);
             Assert.True(viewer.IsCompactToolbar);
-            Button more = viewer.OverflowButton;
-            Assert.True(more.Focus(NavigationMethod.Tab));
-            Press(more, Key.Enter);
+            Assert.False(viewer.OverflowButton.Focusable);
+            Assert.True(viewer.Focus(NavigationMethod.Tab));
+            WorkspacePopupToggleTests.PressCommand(window, GalleryLayoutMenu.OpenCommandId);
             Assert.True(viewer.IsOverflowOpen);
             Assert.True(viewer.LayoutSection.IsEffectivelyVisible);
             TopLevel popup = TopLevel.GetTopLevel(viewer.OverflowMenuContent)!;
@@ -283,9 +283,11 @@ public sealed partial class MenuIconLayoutTests
                 AssertFlyout(row, key, false);
                 Assert.True(row.Focus(NavigationMethod.Directional));
                 Press(row, Key.Space);
-                Assert.False(viewer.IsOverflowOpen);
-                Assert.True(more.IsFocused);
-                Press(more, Key.Enter);
+                Settle(window);
+                Assert.False(viewer.IsOverflowOpen, id);
+                Assert.True(viewer.IsFocused, $"{id}: expected picture focus, got {Focused(viewer)}.");
+                WorkspacePopupToggleTests.PressCommand(window, GalleryLayoutMenu.OpenCommandId);
+                Assert.True(viewer.IsOverflowOpen, id);
                 AssertFlyout(row, key, true);
             }
             Assert.True(preferences?.OverlayPostContext);
@@ -305,8 +307,8 @@ public sealed partial class MenuIconLayoutTests
             Button layout = viewer.LayoutButton;
             var anchorIcon = Assert.IsType<Border>(Assert.IsType<StackPanel>(layout.Content).Children[0]);
             AssertMask(layout, anchorIcon, CommandCatalog.Get(GalleryLayoutMenu.OpenCommandId).Icon);
-            Assert.True(layout.Focus(NavigationMethod.Tab));
-            Press(layout, Key.Enter);
+            Assert.False(layout.Focusable);
+            BooruResultActionsTests.Click(layout);
             Assert.True(viewer.IsLayoutMenuOpen);
 
             LayoutMenuPanel panel = viewer.LayoutMenuRows;
@@ -339,9 +341,11 @@ public sealed partial class MenuIconLayoutTests
             Assert.False(viewer.LayoutChoice(GalleryChromeMode.View).Info);
             AssertFlyout(info, "info", false);
             Press(info, Key.Escape);
-            Assert.True(layout.IsFocused);
+            Assert.False(viewer.IsLayoutMenuOpen);
+            Assert.Same(viewer, Focused(viewer));
 
-            SendMenuKey(layout, Key.F10, KeyModifiers.Shift);
+            Assert.True(viewer.ModeViewButton.IsTabStop && viewer.ModeViewButton.Focus(NavigationMethod.Tab));
+            SendMenuKey(viewer.ModeViewButton, Key.F10, KeyModifiers.Shift);
             ContextMenu menu = Assert.IsType<ContextMenu>(viewer.LayoutContextMenu);
             Settle(menu);
             foreach (LayoutMenuRow model in viewer.LayoutMenuNow().Interactive)

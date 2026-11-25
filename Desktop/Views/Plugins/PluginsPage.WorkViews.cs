@@ -41,7 +41,7 @@ public partial class PluginsPage
         WorkView view = _workView;
         Button[] header = HeaderMovableActions();
         foreach (Button button in header) WorkViewGate.Apply(button, view);
-        WorkViewMoreSurface.Configure(C<Button>("PluginsMoreButton"), WorkViewMoreSurface.ForButtons(header, view).Count());
+        WorkViewMoreSurface.ConfigureToggle(C<Button>("PluginsMoreButton"), WorkViewMoreSurface.ForButtons(header, view).Count());
         // The developer area: a build error, candidate diagnostics, a probe result or any problem of the plugin keeps it on the page (R6).
         WorkViewGate.Apply(C<Expander>("PluginDeveloperExpander"), view, nonDefaultState: _developerRevealed || DeveloperAreaNeedsAttention());
     }

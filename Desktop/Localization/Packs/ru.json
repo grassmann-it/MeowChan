@@ -523,8 +523,6 @@
     "search.carry.offerKeep": "Оставить текущий",
     "command.input.focus-diagnostics-search": "Поиск в диагностике",
     "command.scope.input.focus-diagnostics-search": "Диагностика · фильтр сообщений",
-    "downloads.searchClose": "Закрыть",
-    "downloads.searchCloseTip": "Закрыть панель поиска. Esc сначала очищает текст, затем закрывает панель.",
     "downloads.searchEmpty": "В этой вкладке ничего не найдено.",
     "downloads.searchClearQuery": "Очистить текст поиска",
     "downloads.searchShowBoards": "Показать {0} подходящих досок",

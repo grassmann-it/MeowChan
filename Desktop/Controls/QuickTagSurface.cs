@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -431,7 +432,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _undo.Click += OnUndo;
         _stamp.Click += OnStamp;
         _advanced.Click += OnAdvanced;
+        PopupToggle.Prepare(_more);
+        AutomationProperties.SetAutomationId(_input, _input.Name);
         _more.Click += OnMore;
+        _input.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == IdentitySuggestionBox.IsDropDownOpenProperty) PopupToggle.Present(_more, _input.IsDropDownOpen);
+        };
         _decorated = new QuickTagStampSource(_source, _session.Stamp);
         TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, _session.OnAll, () => OpenActions.Start(() => AddTypedAsync(), "tags.quick.add.key"), _sourceTags);
         // Rate-and-tag opens with the rating row focused for R.  Some Avalonia/Ursa templates do not
@@ -1280,7 +1287,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void OnAdvanced(object? sender, RoutedEventArgs e) => AdvancedRequested?.Invoke();
     private void OnClose(object? sender, RoutedEventArgs e) => CloseRequested?.Invoke();
-    private void OnMore(object? sender, RoutedEventArgs e) => _input.OpenExplicitList();
+    private void OnMore(object? sender, RoutedEventArgs e) => _input.ToggleExplicitList();
 
     private async Task Guard(Func<Task> action, string context)
     {
@@ -1299,10 +1306,17 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     internal bool FieldHasComposition => _input.IsKeyboardFocusWithin && _input.IsComposing;
 
+    // Any editor inside the surface, the host's extra content included (the gallery's thread tag field): its composition
+    // owns Esc and the command keys, exactly as the main field's does.
+    private bool FocusedEditorHasComposition() => FieldHasComposition
+        || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
+            && this.IsVisualAncestorOf(focused)
+            && focused.GetSelfAndVisualDescendants().OfType<TextPresenter>().Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
+
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing || FieldHasComposition) return;
-        QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.IsDropDownOpen,
+        if (e.Handled || ShortcutService.IsCapturing || FocusedEditorHasComposition()) return;
+        QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.HasSuggestionList,
             string.IsNullOrEmpty(_input.Text), NavigationEnabled, ShortcutService.Current);
         if (Execute(route)) e.Handled = true;
     }
@@ -1334,7 +1348,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 return true;
             case QuickTagKeyAction.FocusField: _input.Focus(); return true;
             case QuickTagKeyAction.FocusSuggestions:
-                return FocusFirst(_suggestionChips.Select(chip => chip.Button)) || FocusFirst(new[] { _more });
+                return FocusFirst(_suggestionChips.Select(chip => chip.Button));
             case QuickTagKeyAction.FocusAssigned: return FocusFirst(_assignedChips.Select(chip => chip.Button));
             case QuickTagKeyAction.FocusLastAssigned: return FocusFirst(_assignedChips.Select(chip => chip.Button).Reverse());
             case QuickTagKeyAction.Undo:
@@ -1405,8 +1419,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private static bool FocusFirst(IEnumerable<Button> buttons)
     {
         Button? target = buttons.FirstOrDefault(button => button.IsVisible);
-        target?.Focus(NavigationMethod.Directional);
-        return target != null;
+        return target?.Focus(NavigationMethod.Directional) == true;
     }
 
     private SuggestionChip? FocusedSuggestion() => _suggestionChips.FirstOrDefault(chip => chip.Button.IsKeyboardFocusWithin);

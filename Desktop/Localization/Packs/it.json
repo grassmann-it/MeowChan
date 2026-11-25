@@ -306,8 +306,6 @@
     "downloads.searchCount": "{0} risultati",
     "downloads.searchActive": "{0} risultati · {1}",
     "downloads.searchClear": "Cancella",
-    "downloads.searchClose": "Chiudi",
-    "downloads.searchCloseTip": "Chiudi la barra di ricerca. Esc cancella prima il testo, poi chiude la barra.",
     "downloads.searchEmpty": "Nessun risultato in questa scheda.",
     "downloads.searchClearQuery": "Cancella il testo di ricerca",
     "downloads.searchShowBoards": "Mostra {0} board corrispondenti",

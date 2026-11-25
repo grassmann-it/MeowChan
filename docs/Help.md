@@ -913,10 +913,10 @@ Apple notation.
 
 ### Enter and Escape in dialogs and search fields
 
-In a search field, Escape first clears the text without closing the window, dialog
-or search bar around it. A second Escape in the empty field leaves the field or
-closes the search. Enter does not belong to the field: it triggers the action the
-field belongs to, such as search, find next or add.
+In an ordinary search field, Escape first clears the text. A second Escape in the
+empty field leaves it or closes the search. In the Downloads search bar, Escape
+closes the bar and keeps the query. Enter triggers the field's action, such as
+search, find next or add.
 
 In the dialogs described below, Enter invokes the available primary action and
 Escape cancels or leaves the current edit. Multiline editors keep their own keys. In the first-run setup window, Enter inside an input accepts and
@@ -936,13 +936,13 @@ in the Tab order. The other buttons are right-aligned. This holds for the Archiv
 reader's header (**Back to thread list**, **Back to gallery**, **Back to media** and
 **Close reader**; German: **Zurück zur Threadliste**, **Zurück zur Galerie**,
 **Zurück zu Medien**, **Reader schließen**). Inline rows keep their × close action
-at the far right, after the row's own actions: the Downloads search bar
-(**Close**, a labelled button with a chevron instead of a second ×, so it cannot be
-mistaken for the × that clears the search text; **Esc** clears the text first and then
-closes the bar), details panel (**Hide details**, German: **Details ausblenden**),
-and Archive preview (**Close preview**, **Vorschau schließen**). In the reader toolbar,
-**Find** and **Tags** are toggles instead: highlighted with a small × inside while their
-bar is open, and clicking the button again (or **Esc**) closes the bar.
+at the far right, after the row's own actions, in the details panel (**Hide
+details**, German **Details ausblenden**) and Archive preview (**Close preview**,
+**Vorschau schließen**). The **Search** button or **Ctrl/⌘+F** toggles the Downloads
+search bar. Closing it with the button, shortcut or **Esc** keeps the query and
+result count on screen. Use **Clear** to remove the filter. In the Reader toolbar,
+**Find** and **Tags** show a small × while their bar is open. Click the button
+again or press **Esc** to close the bar.
 The gallery keeps **Back to {target}** at the far left with the favorite star
 directly to its right. Tooltips and screen-reader names keep the full action and
 target, including in narrow rows. Esc closes as before.
