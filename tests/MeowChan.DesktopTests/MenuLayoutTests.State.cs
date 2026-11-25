@@ -92,17 +92,25 @@ public sealed partial class MenuIconLayoutTests
     public void ResolvedActiveChipAndMaskMeetContrastInEveryPreset(string presetId, string themeName) => OnUi(() =>
     {
         var theme = Enum.Parse<ThemeTokenTheme>(themeName);
-        var model = new ThemeConfiguratorModel(ThemeColorOverrides.Empty, ThemePaletteTests.Base);
+        var app = Application.Current!;
+        ThemePaletteBase ReadBase(ThemeTokenTheme baseTheme) => ThemeRuntime.ReadBase(app.Styles, baseTheme);
+        var model = new ThemeConfiguratorModel(ThemeColorOverrides.Empty, ReadBase);
         model.ApplyPreset(ThemeAccentPresets.Find(presetId)!);
-        var runtime = new ThemeRuntimeHost(Application.Current!.Resources,
-            ThemePaletteTests.Base(ThemeTokenTheme.Dark), ThemePaletteTests.Base(ThemeTokenTheme.Light));
+        var runtime = new ThemeRuntimeHost(app.Resources, ReadBase(ThemeTokenTheme.Dark), ReadBase(ThemeTokenTheme.Light));
         runtime.Use(model.Preview(theme).Palette);
 
-        var menu = new ContextMenuBuilder().Check("video.loop", true, () => { }).Build()!;
+        var menu = new ContextMenuBuilder()
+            .Check("video.loop", true, () => { })
+            .Check("on", "Status", true, () => { })
+            .Check("off", "Size", false, () => { })
+            .Check("locked-on", "Name", true, () => { }, available: false)
+            .Check("locked-off", "Date", false, () => { }, available: false)
+            .Build()!;
         var button = new ToggleButton { IsChecked = true, Classes = { "gallery-overflow-item" } };
         var flyoutChip = MenuLayout.CreateFlyoutChip(button, MenuItemToggleType.CheckBox);
         MenuLayout.SetFlyoutIcon(flyoutChip, "repeat");
-        button.Content = MenuLayout.CreateFlyoutRow(flyoutChip, new TextBlock { Text = "Repeat video" }, new TextBlock());
+        var shortcut = new TextBlock { Text = CommandCatalog.ShortcutDisplay("video.loop") };
+        button.Content = MenuLayout.CreateFlyoutRow(flyoutChip, new TextBlock { Text = "Repeat video" }, shortcut);
         var flyout = new Flyout { Content = button, FlyoutPresenterClasses = { "gallery-overflow" } };
         var anchor = new Button { ContextMenu = menu, Flyout = flyout };
         WithWindow(anchor, window =>
@@ -113,15 +121,41 @@ public sealed partial class MenuIconLayoutTests
             MenuItem item = Item(menu, "video.loop");
             Assert.Equal(ThemeRuntime.Variant(theme), item.ActualThemeVariant);
             Assert.Equal(CommandCatalog.ShortcutDisplay("video.loop"), Part<TextBlock>(item, "PART_InputGestureText").Text);
-            AssertContrast(IconSlot(item), BrushColor(menu.Background));
+            Color menuSurface = BrushColor(menu.Background);
+            AssertContrast(IconSlot(item), menuSurface);
+            AssertSwitchContrast(Item(menu, "on"), Item(menu, "off"), menuSurface, locked: false);
+            AssertSwitchContrast(Item(menu, "locked-on"), Item(menu, "locked-off"), menuSurface, locked: true);
             menu.Close();
 
             flyout.ShowAt(anchor);
             Settle(button);
             Assert.Equal(ThemeRuntime.Variant(theme), button.ActualThemeVariant);
-            AssertContrast(flyoutChip, BrushColor(button.FindAncestorOfType<FlyoutPresenter>()!.Background));
+            Color flyoutSurface = BrushColor(button.FindAncestorOfType<FlyoutPresenter>()!.Background);
+            AssertContrast(flyoutChip, flyoutSurface);
             Assert.Equal(ToggleState.On, ControlAutomationPeer.CreatePeerForElement(button)!.GetProvider<IToggleProvider>()!.ToggleState);
+
+            var presenter = Assert.Single(button.GetVisualDescendants().OfType<ContentPresenter>(),
+                part => part.Name == "PART_ContentPresenter");
+            Assert.True(shortcut.IsEffectivelyVisible);
+            Assert.False(string.IsNullOrWhiteSpace(shortcut.Text));
+            AssertShortcutContrast("rest");
+            IPseudoClasses states = button.Classes;
+            foreach (string state in new[] { ":pointerover", ":focus-visible" })
+            {
+                states.Set(state, true);
+                Settle(button);
+                Assert.Equal(ResourceBrush(button, "Workspace.Hover"), Paint(presenter.Background, flyoutSurface));
+                AssertShortcutContrast(state);
+                states.Set(state, false);
+            }
             flyout.Hide();
+
+            void AssertShortcutContrast(string state)
+            {
+                Color surface = Paint(presenter.Background, flyoutSurface);
+                double ratio = Ratio(Paint(shortcut.Foreground, surface, shortcut.Opacity), surface);
+                Assert.True(ratio >= 4.5, $"{presetId} {theme}: shortcut {state} {ratio:F2}:1");
+            }
         });
 
         void AssertContrast(MenuStateChip chip, Color surface)
@@ -135,7 +169,42 @@ public sealed partial class MenuIconLayoutTests
             Assert.True(frame >= 3, $"{presetId} {theme}: frame {frame:F2}:1");
             Assert.True(icon >= 4.5, $"{presetId} {theme}: mask {icon:F2}:1");
         }
+
+        void AssertSwitchContrast(MenuItem on, MenuItem off, Color surface, bool locked)
+        {
+            Assert.Equal(!locked, on.IsEffectivelyEnabled);
+            Assert.Equal(!locked, off.IsEffectivelyEnabled);
+            var bar = Part<Border>(on, "PART_CheckBar");
+            Assert.True(bar.IsEffectivelyVisible);
+            Assert.True(bar.Bounds.Width > bar.Bounds.Height && bar.Bounds.Height > 0);
+            Assert.False(Part<Border>(off, "PART_CheckBar").IsEffectivelyVisible);
+            var onChip = Assert.IsType<Border>(Assert.Single(IconSlot(on).GetVisualChildren()));
+            var offChip = Assert.IsType<Border>(Assert.Single(IconSlot(off).GetVisualChildren()));
+            Color onInterior = Paint(onChip.Background, surface);
+            Color offInterior = Paint(offChip.Background, surface);
+            Color ink = Paint(bar.Background, onInterior, bar.Opacity);
+            double marker = Ratio(ink, offInterior);
+            double markerOnFill = Ratio(ink, onInterior);
+            Color onFrame = Paint(onChip.BorderBrush, surface);
+            Color offFrame = Paint(offChip.BorderBrush, surface);
+            double frames = Ratio(onFrame, offFrame);
+            Assert.True(marker >= 3, $"{presetId} {theme} locked={locked}: bar against empty chip {marker:F2}:1");
+            Assert.True(markerOnFill >= 3, $"{presetId} {theme} locked={locked}: bar against filled chip {markerOnFill:F2}:1");
+            Assert.True(Ratio(offFrame, surface) >= 3, $"{presetId} {theme} locked={locked}: empty frame against menu");
+            if (locked)
+                Assert.Equal(1, frames);
+            else
+                Assert.True(frames >= 3, $"{presetId} {theme}: checked against unchecked frame {frames:F2}:1");
+        }
     });
+
+    private static Color Paint(IBrush? brush, Color backdrop, double opacity = 1)
+    {
+        if (brush == null) return backdrop;
+        var solid = Assert.IsAssignableFrom<ISolidColorBrush>(brush);
+        return Color.Parse(ContrastRules.Blend(ThemeColorMath.Format(solid.Color), ThemeColorMath.Format(backdrop),
+            solid.Color.A / 255d * solid.Opacity * opacity));
+    }
 
     private static double Ratio(Color a, Color b) => ContrastRules.Contrast(ThemeColorMath.Format(a), ThemeColorMath.Format(b));
 }

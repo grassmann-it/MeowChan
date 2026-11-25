@@ -18,6 +18,9 @@
                         <Ellipse Name="PART_ToggleIconPresenter" Width="8" Height="8"
                                  HorizontalAlignment="Center" VerticalAlignment="Center"
                                  Fill="{TemplateBinding Foreground}" IsVisible="{TemplateBinding ShowRadioDot}" />
+                        <Border Name="PART_CheckBar" Width="12" Height="4" CornerRadius="2"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Background="{TemplateBinding Foreground}" IsVisible="{TemplateBinding ShowCheckBar}" />
                     </Panel>
                 </Border>
             </ControlTemplate>

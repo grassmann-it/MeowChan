@@ -22,6 +22,8 @@ internal sealed class MenuStateChip : TemplatedControl
         AvaloniaProperty.Register<MenuStateChip, bool>(nameof(IsChecked));
     public static readonly StyledProperty<bool> ShowRadioDotProperty =
         AvaloniaProperty.Register<MenuStateChip, bool>(nameof(ShowRadioDot));
+    public static readonly StyledProperty<bool> ShowCheckBarProperty =
+        AvaloniaProperty.Register<MenuStateChip, bool>(nameof(ShowCheckBar));
 
     private static readonly StyledProperty<IBrush?> AccentProperty = AvaloniaProperty.Register<MenuStateChip, IBrush?>("Accent");
     private static readonly StyledProperty<IBrush?> AccentSurfaceProperty = AvaloniaProperty.Register<MenuStateChip, IBrush?>("AccentSurface");
@@ -51,6 +53,7 @@ internal sealed class MenuStateChip : TemplatedControl
     public MenuItemToggleType ToggleType { get => GetValue(ToggleTypeProperty); set => SetValue(ToggleTypeProperty, value); }
     public bool IsChecked { get => GetValue(IsCheckedProperty); set => SetValue(IsCheckedProperty, value); }
     public bool ShowRadioDot => GetValue(ShowRadioDotProperty);
+    public bool ShowCheckBar => GetValue(ShowCheckBarProperty);
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -74,27 +77,34 @@ internal sealed class MenuStateChip : TemplatedControl
         bool isToggle = ToggleType != MenuItemToggleType.None;
         bool hasIcon = Content != null;
         bool active = isToggle && IsChecked;
+        bool iconlessCheck = !hasIcon && ToggleType == MenuItemToggleType.CheckBox;
         IsVisible = hasIcon || isToggle;
         PseudoClasses.Set(":hasicon", hasIcon);
         SetValue(ShowRadioDotProperty, active && ToggleType == MenuItemToggleType.Radio);
+        SetValue(ShowCheckBarProperty, active && iconlessCheck);
 
         IBrush? muted = GetValue(MutedProperty);
         IBrush? text = GetValue(TextBrushProperty);
         IBrush? accent = GetValue(AccentProperty);
         IBrush? tint = GetValue(AccentSurfaceProperty);
+        IBrush? outline = GetValue(ContrastBorderProperty);
         if (active && IsEffectivelyEnabled)
         {
             IBrush? surface = GetValue(MenuSurfaceProperty);
-            IBrush? outline = GetValue(ContrastBorderProperty);
+            bool accentFrame = MeetsContrast(accent, surface, ContrastGate.GraphicMinimum)
+                && (!iconlessCheck || MeetsContrast(accent, outline, ContrastGate.GraphicMinimum));
+            bool accentForeground = MeetsContrast(accent, tint, ContrastGate.TextMinimum)
+                && (!iconlessCheck || MeetsContrast(accent, surface, ContrastGate.GraphicMinimum));
             Background = tint;
-            BorderBrush = MeetsContrast(accent, surface, ContrastGate.GraphicMinimum) ? accent
-                : MeetsContrast(outline, surface, ContrastGate.GraphicMinimum) ? outline : text;
-            Foreground = MeetsContrast(accent, tint, ContrastGate.TextMinimum) ? accent : text;
+            BorderBrush = accentFrame ? accent
+                : !iconlessCheck && MeetsContrast(outline, surface, ContrastGate.GraphicMinimum) ? outline : text;
+            Foreground = accentForeground ? accent : text;
         }
         else
         {
             Background = active && muted is ISolidColorBrush solid ? new ImmutableSolidColorBrush(solid.Color, 0.16) : null;
             BorderBrush = active || (isToggle && !hasIcon) ? muted : null;
+            if (iconlessCheck && IsEffectivelyEnabled) BorderBrush = outline;
             Foreground = IsEffectivelyEnabled ? text : muted;
         }
     }

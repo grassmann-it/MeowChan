@@ -108,7 +108,6 @@ internal sealed class MenuLayout : AvaloniaObject
         shortcut.Classes.Add("workspace-meta");
         shortcut.HorizontalAlignment = HorizontalAlignment.Right;
         shortcut.VerticalAlignment = VerticalAlignment.Center;
-        shortcut.Opacity = 0.7;
         shortcut.IsHitTestVisible = false;
         return CreateFlyoutGrid(chip, text, shortcut);
     }

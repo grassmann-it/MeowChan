@@ -283,6 +283,8 @@ public sealed partial class MenuIconLayoutTests
         AssertAt(48, LabelOf(row), row);
         Assert.Equal(isChecked && kind == MenuItemToggleType.Radio,
             Assert.Single(chip.GetVisualDescendants().OfType<Ellipse>()).IsEffectivelyVisible);
+        Assert.Equal(isChecked && kind == MenuItemToggleType.CheckBox && key == null,
+            Part<Border>(row, "PART_CheckBar").IsEffectivelyVisible);
         var peer = Assert.IsAssignableFrom<AutomationPeer>(ControlAutomationPeer.CreatePeerForElement(row));
         Assert.Equal(isChecked ? ToggleState.On : ToggleState.Off, peer.GetProvider<IToggleProvider>()!.ToggleState);
     }
@@ -311,7 +313,12 @@ public sealed partial class MenuIconLayoutTests
         {
             Assert.Null(chip.Background);
             if (hasIcon) Assert.Null(chip.BorderBrush);
-            else Assert.Equal(ResourceBrush(row, "Workspace.Muted"), BrushColor(chip.BorderBrush));
+            else
+            {
+                string outline = row is MenuItem { ToggleType: MenuItemToggleType.CheckBox, IsEffectivelyEnabled: true }
+                    ? "Workspace.ControlBorder" : "Workspace.Muted";
+                Assert.Equal(ResourceBrush(row, outline), BrushColor(chip.BorderBrush));
+            }
         }
         return chip;
     }
