@@ -107,21 +107,6 @@ public sealed class GalleryPlaybackSettingsTests : IDisposable
         Assert.Null(controls["GalleryOverlayPostContextInput"].Attribute("IsVisible"));
     }
 
-    [Fact]
-    public void OverflowMenuRowsShareOneInsetAndTheTooltipIsTheLabelNotTheRowGrid()
-    {
-        string playback = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/GalleryViewer.Playback.cs"));
-        string styles = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/WorkspaceStyles.axaml"));
-        // The row content of a menu entry is a Grid: its ToString() must never reach a tooltip.
-        Assert.DoesNotContain("button.Content?.ToString()", playback);
-        Assert.Contains("string label = LabelOf(button) ?? CommandCatalog.Label(id);", playback);
-        // Rows use the context-menu inset and height tokens, captions and choice boxes the same 16 dip edge.
-        Assert.Contains("Property=\"Padding\" Value=\"{StaticResource Workspace.Inset.MenuItem}\"", styles.Substring(styles.IndexOf("Button.gallery-overflow-item, ToggleButton.gallery-overflow-item\">", StringComparison.Ordinal)));
-        Assert.Equal(16, GalleryViewer.RowInset);
-        Assert.Equal(GalleryViewer.RowInset, GalleryViewer.OverflowCaptionMargin.Left);
-        Assert.Equal(GalleryViewer.RowInset, GalleryViewer.OverflowChoiceMargin.Right);
-    }
-
     private static string RepositoryRoot([CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../.."));
 

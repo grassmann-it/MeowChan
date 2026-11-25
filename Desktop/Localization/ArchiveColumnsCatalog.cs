@@ -6,6 +6,7 @@ internal static class ArchiveColumnsCatalog
     [
         ("archive.columnsReset", "Reset columns", "Spalten zurücksetzen"),
         ("archive.columnsReset.hint", "Sets the columns of this list back to the default of the work view.", "Setzt die Spalten dieser Liste auf den Standard der Arbeitsansicht zurück."),
+        ("archive.columns.required", "This column is needed to identify the entry.", "Diese Spalte ist nötig, um den Eintrag zu identifizieren."),
         ("archive.columnsFit", "Fit column", "Spalte anpassen"),
         ("archive.columnsFitAll", "Fit all columns", "Alle Spalten anpassen"),
         ("archive.columns.favorite", "Favorite", "Favorit"),

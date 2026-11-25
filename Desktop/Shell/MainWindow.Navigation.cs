@@ -248,15 +248,15 @@ public partial class MainWindow
         switch (_deferredPageStep++)
         {
             case 0:
+                DisposeSettingsEditor();
                 _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
-                _settingsEditor.HeaderMonitorToggled += show =>
-                    ChooseHeaderGraph(show ? IoStatsDisplay.HeaderGraphShownAgain(_lastShownHeaderGraph) : IoStatsDisplay.HeaderGraphOff);
+                _settingsEditor.HeaderMonitorToggled += OnSettingsHeaderMonitorToggled;
                 _settingsEditor.Updates = _session.Updates;
                 _settingsEditor.FolderSources = CreateFolderSourceServices();
                 _settingsEditor.BusyChanged += OnSettingsBusyChanged;
                 // The page is built after the first frame: it starts in the window's view and follows every later change (WV8).
                 _settingsEditor.ApplyWorkView(_workViews.Current, viewChanged: true);
-                _workViews.Changed += (_, current) => _settingsEditor?.ApplyWorkView(current, viewChanged: true);
+                _workViews.Changed += OnSettingsWorkViewChanged;
                 SettingsPageHost.Content = _settingsEditor;
                 return true;
             case 1:
@@ -840,8 +840,21 @@ public partial class MainWindow
         _taggingPage?.Dispose();
         if (_rulesPage != null) { _rulesPage.BusyChanged -= OnSettingsBusyChanged; _rulesPage.EndLifetime(); }
         DisposeBooruPage();
+        DisposeSettingsEditor();
+    }
+
+    private void OnSettingsHeaderMonitorToggled(bool show) =>
+        ChooseHeaderGraph(show ? IoStatsDisplay.HeaderGraphShownAgain(_lastShownHeaderGraph) : IoStatsDisplay.HeaderGraphOff);
+
+    private void OnSettingsWorkViewChanged(WorkView previous, WorkView current) =>
+        _settingsEditor?.ApplyWorkView(current, viewChanged: true);
+
+    private void DisposeSettingsEditor()
+    {
         if (_settingsEditor == null) return;
         _settingsEditor.BusyChanged -= OnSettingsBusyChanged;
-        _settingsEditor.EndLifetime();
+        _settingsEditor.HeaderMonitorToggled -= OnSettingsHeaderMonitorToggled;
+        _workViews.Changed -= OnSettingsWorkViewChanged;
+        _settingsEditor.Dispose();
     }
 }

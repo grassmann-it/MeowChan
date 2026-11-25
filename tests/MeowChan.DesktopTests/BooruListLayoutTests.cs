@@ -543,7 +543,7 @@ public sealed class BooruListLayoutTests
             explicitLimit.ResizeViewport(1920);
             Assert.Equal(12, ShownTags(explicitLimit.Card("101")).Length);
         }
-        finally { editor.EndLifetime(); }
+        finally { editor.Dispose(); }
     });
 
     // Fable B §2 and §4 replace the shared facts axis and split columns with full-width text.

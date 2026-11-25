@@ -33,7 +33,7 @@ public sealed class DeadAffordanceListsDialogsShellTests : IDisposable
             Assert.True(editor.HasSetting("FavoriteEntryLimit"));
             Assert.True(editor.HasSetting("FavoriteFileLimitMiB"));
         }
-        finally { (editor as IDisposable)?.Dispose(); }
+        finally { editor.Dispose(); }
     });
 
     [Theory]

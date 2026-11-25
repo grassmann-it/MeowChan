@@ -72,6 +72,6 @@ public sealed class BooruGallerySettingsTests
             editor.ResetDraft(SettingsEditor.SettingsResetScope.WorkerBudgets);
             Assert.Equal((decimal?)defaultValue, field.Value);
         }
-        finally { editor.EndLifetime(); }
+        finally { editor.Dispose(); }
     });
 }

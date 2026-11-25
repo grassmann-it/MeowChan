@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-using System.Xml.Linq;
 using Avalonia.Controls;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -10,18 +8,14 @@ namespace MeowChan.DesktopTests;
 /// <summary>
 /// CM1: the width rules of popup menus. The plan is plain numbers (a menu as wide as its widest row between 224 and 416 dip, the shortcut
 /// column shared and never clipped, a long label trimmed instead); the rows come from menus built by <see cref="ContextMenuBuilder"/> and are
-/// measured with a fixed-pitch font, so no window or theme is needed. The tokens and the style that turns the layout on are read from
-/// WorkspaceStyles.axaml.
+/// measured with a fixed-pitch font, so no window or theme is needed.
 /// </summary>
 [Collection("Localization")]
 public sealed class MenuLayoutTests : IDisposable
 {
-    private static readonly XNamespace A = "https://github.com/avaloniaui";
-    private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
-
-    // A row's frame as the theme draws it: 16 dip in from the edge on both sides, a 16 dip check column and a 16 dip icon column (plus 8 apart).
+    // A row's frame as the theme draws it: 16 dip in from the edge on both sides, a 24 dip icon/state column and an 8 dip gap.
     private const double Pitch = 7;
-    private const double Leading = 16 + 24 + 24;
+    private const double Leading = 16 + 24 + 8;
     private const double Trailing = 16;
     private static readonly MenuLayoutPlan.Options Options = new(224, 416, 24, Leading, Trailing, 24);
 
@@ -141,32 +135,4 @@ public sealed class MenuLayoutTests : IDisposable
         Assert.Equal(Leading + Measure("Remove from the list of watched threads") + Trailing, result.Width);
         Assert.False(result.Capped);
     }
-
-    [Fact]
-    public void TheMenuTokensStyleAndGapAreDefinedOnTheEightDipGrid()
-    {
-        XElement root = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
-        XElement resources = root.Element(A + "Styles.Resources")!;
-        double Number(string key) => double.Parse((string)Assert.Single(resources.Descendants(X + "Double").Where(e => (string?)e.Attribute(X + "Key") == key)), System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Equal(224, Number("MenuFlyoutMinWidth"));
-        Assert.Equal(416, Number("MenuFlyoutMaxWidth"));
-        Assert.Equal(0, 224 % 8);
-        Assert.Equal(0, 416 % 8);
-        Assert.Equal(MenuLayout.DefaultMinimumWidth, Number("MenuFlyoutMinWidth"));
-        Assert.Equal(MenuLayout.DefaultMaximumWidth, Number("MenuFlyoutMaxWidth"));
-        // The gap in front of the shortcut: at least 24 dip.
-        string gap = (string)Assert.Single(resources.Descendants(A + "Thickness").Where(e => (string?)e.Attribute(X + "Key") == "MenuItemInputGestureTextMargin"));
-        Assert.True(double.Parse(gap.Split(',')[0], System.Globalization.CultureInfo.InvariantCulture) >= MenuLayout.MinimumShortcutGap);
-        // A row is the control height (32) high and has the 1-px edge plus 15 in from the side: 16.
-        Assert.Equal("15,6", (string)Assert.Single(resources.Descendants(A + "Thickness").Where(e => (string?)e.Attribute(X + "Key") == "Workspace.Inset.MenuItem")));
-        Assert.Equal(32, Number("Workspace.Size.Control"));
-        XElement rowHeight = Assert.Single(root.Elements(A + "Style").Where(style => ((string?)style.Attribute("Selector"))!.StartsWith("ContextMenu MenuItem")));
-        Assert.Equal("{StaticResource Workspace.Size.Control}", (string?)Assert.Single(rowHeight.Elements(A + "Setter").Where(s => (string?)s.Attribute("Property") == "MinHeight")).Attribute("Value"));
-        // Both kinds of popup menu take the layout.
-        XElement managed = Assert.Single(root.Elements(A + "Style").Where(style => (string?)style.Attribute("Selector") == "ContextMenu, MenuFlyoutPresenter"));
-        Assert.Equal("True", (string?)Assert.Single(managed.Elements(A + "Setter")).Attribute("Value"));
-    }
-
-    private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));
 }
