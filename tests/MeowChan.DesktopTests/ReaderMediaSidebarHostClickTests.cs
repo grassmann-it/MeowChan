@@ -51,6 +51,8 @@ public sealed class ReaderMediaSidebarHostClickTests
             await page.MediaSidebarTask;
             Assert.Contains("same.png", sidebar.HeaderLine);
             action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // 73-2: the action first checks the shown original, then writes.
+            await BooruTestSupport.WaitAsync(() => targets.Count > 0, "the click on the followed post's medium");
             var attachment = Assert.Single(b.Attachments);
             GalleryEntry expected = Assert.IsType<GalleryEntry>(await attachment.ResolveEntry!(CancellationToken.None));
             Assert.Equal(expected.Asset.Sha256, Assert.Single(targets));

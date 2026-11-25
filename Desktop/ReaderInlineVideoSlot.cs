@@ -177,9 +177,11 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     internal string ShortcutContext { get; set; } = "reader";
     internal Func<Func<string, bool>, bool> OwnerClaims { get; set; } = ReaderVideoKeys.ReaderClaims;
 
-    /// <summary>The identity of an attachment for the slot: the same file at the same place of a rebuilt row keeps its player.</summary>
+    /// <summary>The identity of an attachment for the slot: the same file at the same place of a rebuilt row keeps its player. A legacy row without a
+    /// revision key tells a replaced file only by its checksum, so the checksum is part of the identity.</summary>
     internal static string KeyOf(MeowChan.Archive.CapturedAttachment attachment) => string.Join("\n", attachment.Position,
-        attachment.MediaId ?? string.Empty, attachment.Variant, attachment.OriginalFileName ?? string.Empty, attachment.AttachmentRevisionKey ?? string.Empty);
+        attachment.MediaId ?? string.Empty, attachment.Variant, attachment.OriginalFileName ?? string.Empty, attachment.AttachmentRevisionKey ?? string.Empty,
+        attachment.ExpectedMd5 ?? string.Empty);
 
     internal ReaderInlineVideoSlot(Panel area, bool activatorWhenIdle)
     {

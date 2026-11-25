@@ -301,6 +301,8 @@ public sealed class MediaTileEnterTests
             _page.ApplySavedPanelWidth(_page.PageLayout.PanelWidth);
             ReaderMediaSidebar panel = PanelView = Assert.IsType<ReaderMediaSidebar>(_page.Panel);
             typeof(MediaPage).GetMethod("DescribePanel", InstanceNonPublic)!.Invoke(_page, [panel, row]);
+            // Without the image load, stand in for its result: the shown file was checked (73-2: actions wait for that check).
+            panel.SetImageVerification(true);
 
             // Attach the header to the page so the real key event bubbles through both.
             _page.ApplyTemplate();

@@ -760,6 +760,8 @@ public sealed class SavedMediaReaderTests
         PressKey(window, PhysicalKey.Q);
         FocusSidebarFrame(sidebar);
         PressKey(window, PhysicalKey.Q);
+        // 73-2: the sidebar's queue key first checks the shown original.
+        WaitUntil(() => queued.Count >= 2);
         Assert.Collection(queued,
             paths => Assert.Equal(rows.Select(row => row.Asset.Path), paths),
             paths => Assert.Equal(rows[1].Asset.Path, Assert.Single(paths)));
