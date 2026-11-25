@@ -109,13 +109,14 @@ public sealed class SidebarPreviewVerificationTests
                     string inputId = (host == "Reader" ? "Archive" : host) + "TagPopoverInput";
                     await WaitAsync(window, () => Find<IdentitySuggestionBox>(window, inputId) is { IsKeyboardFocusWithin: true }, "the sidebar tag field");
                     IdentitySuggestionBox input = Visible<IdentitySuggestionBox>(window, inputId);
-                    input.Text = "sidebar preview fixture";
+                    const string tag = "sidebarpreviewfixture";
+                    input.Text = tag;
                     TopLevel popup = TopLevel.GetTopLevel(input)!;
                     popup.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                     popup.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
                     await WaitAsync(window, () => session.GetPublishedPrivateTagSnapshot().Snapshot!.TagsOf(subject).Count > 0, "the tag write");
                     var saved = session.GetPublishedPrivateTagSnapshot().Snapshot!;
-                    Assert.Equal("sidebar preview fixture", Assert.Single(saved.TagsOf(subject)).Name.Display);
+                    Assert.Equal(tag, Assert.Single(saved.TagsOf(subject)).Name.Display);
                     Assert.Single(saved.Tags);
                 }
                 finally { QuickTagPopover.Current?.Close(); }
@@ -128,9 +129,11 @@ public sealed class SidebarPreviewVerificationTests
         {
             Click(window, Visible<Button>(window, "ArchiveNavigationButton"));
             Assert.Equal(MainWindow.WorkspacePage.Archive, window.SelectedPage);
-            await window.ArchivePage.LoadThreadAsync(thread);
+            ArchivePage page = window.ArchivePage;
+            await page.OpenReaderOnThreadAsync(thread, () => page.OpenReaderRequested!.Invoke(null));
+            await WaitAsync(window, () => Find<ListBox>(window, "ArchivePosts") is { ItemCount: > 0 }, "the Reader posts");
             Visible<ListBox>(window, "ArchivePosts").SelectedIndex = 0;
-            await window.ArchivePage.MediaLoadTask;
+            await page.MediaLoadTask;
         }
         else if (host == "Media")
         {
