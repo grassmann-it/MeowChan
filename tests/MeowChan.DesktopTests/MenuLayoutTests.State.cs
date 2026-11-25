@@ -135,7 +135,7 @@ public sealed partial class MenuIconLayoutTests
             Assert.Equal(ToggleState.On, ControlAutomationPeer.CreatePeerForElement(button)!.GetProvider<IToggleProvider>()!.ToggleState);
 
             var presenter = Assert.Single(button.GetVisualDescendants().OfType<ContentPresenter>(),
-                part => part.Name == "PART_ContentPresenter");
+                part => ReferenceEquals(part.TemplatedParent, button) && part.Name == "PART_ContentPresenter");
             Assert.True(shortcut.IsEffectivelyVisible);
             Assert.False(string.IsNullOrWhiteSpace(shortcut.Text));
             AssertShortcutContrast("rest");
