@@ -122,7 +122,7 @@ public sealed class BooruSearchOverflowTests
             KeyGesture expected = id switch
             {
                 BooruWorkbenchView.CreateWatcherName => new(Key.F7, primary | KeyModifiers.Shift),
-                BooruWorkbenchView.DownloadAllName => new(Key.F8, primary | KeyModifiers.Shift),
+                _ when id == BooruWorkbenchView.DownloadAllName => new(Key.F8, primary | KeyModifiers.Shift),
                 _ => new(Key.Enter, KeyModifiers.Shift)
             };
             Assert.Equal(expected, item.InputGesture);
