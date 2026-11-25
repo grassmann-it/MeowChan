@@ -342,6 +342,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         internal required Border Placeholder;
     }
 
+    internal sealed record StripTarget(ResourceId Thread, string PostId, int Index, string AttachmentKey);
+
     // In the header row, icon only: the words are its tooltip and name.
     internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen" };
     internal PanelCloseButton Close { get; } = new("ReaderMediaSidebarClose");
@@ -413,9 +415,9 @@ internal sealed partial class ReaderMediaSidebar : Border
     internal bool HasStripPicture(int index) => _stripBitmaps.ContainsKey(index);
 
     /// <summary>A thumbnail was chosen (click, Enter, Space or an arrow key): the file's index within the post.</summary>
-    internal event EventHandler<int>? StripSelected;
+    internal event EventHandler<(StripTarget Origin, int Index)>? StripSelected;
     /// <summary>A thumbnail was opened by a double click (interaction audit 1.1.0): the page shows it and opens it in the gallery.</summary>
-    internal event EventHandler<int>? StripActivated;
+    internal event EventHandler<StripTarget>? StripActivated;
 
     // The rows under the medium: the video row shows while one of its parts does; each shown row keeps 8 dip from the medium and the edge.
     private void UpdateCardRows()
@@ -523,9 +525,9 @@ internal sealed partial class ReaderMediaSidebar : Border
         _strip.DoubleTapped += (_, e) =>
         {
             if (!_stripRow.IsVisible || !MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, _strip)
-                || MeowChan.Desktop.Controls.ItemActivation.ContainerAt(e.Source, _strip) is not ListBoxItem { Tag: int index }) return;
+                || ItemActivation.ContainerAt(e.Source, _strip) is not ListBoxItem { Tag: StripTarget target }) return;
             e.Handled = true;
-            StripActivated?.Invoke(this, index);
+            StripActivated?.Invoke(this, target);
         };
         _stripRow.Children.Add(_strip);
         Grid.SetColumn(_stripCounter, 1);
@@ -1090,11 +1092,11 @@ internal sealed partial class ReaderMediaSidebar : Border
     /// were laid out anew (another post, another window): the caller then loads the pictures of <see cref="StripIndexes"/> that
     /// <see cref="HasStripPicture"/> does not have. Stepping within the window only moves the mark. One file or none hides the strip.
     /// </summary>
-    internal bool ShowStrip(int count, int current, int limit, Func<int, string> nameOf, bool samePost)
+    internal bool ShowStrip(int count, int current, int limit, Func<int, string> nameOf, Func<int, StripTarget> targetOf, bool samePost)
     {
         if (!ReaderMediaMultiRules.ShowsStrip(count)) { ClearStrip(); return false; }
-        // Another post: the strip keeps pictures by file index, so none of the previous post's thumbnails may stand in for this post's files.
-        if (!samePost) ReleaseStripPictures();
+        samePost = samePost && _thumbnails.All(thumbnail =>
+            thumbnail.Index < count && Equals(thumbnail.Item.Tag, targetOf(thumbnail.Index)));
         current = ReaderMediaSidebarRules.ClampIndex(current, count);
         (int start, int length) = ReaderMediaMultiRules.Window(current, count, limit, samePost && _stripCount == count ? _stripStart : -1);
         bool rebuilt = !_stripRow.IsVisible || !samePost || count != _stripCount || start != _stripStart || length != _thumbnails.Count;
@@ -1102,7 +1104,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _stripSyncing = true;
         try
         {
-            if (rebuilt) RebuildStrip(start, length, count, nameOf);
+            if (rebuilt) RebuildStrip(start, length, count, nameOf, targetOf);
             _stripCount = count;
             _stripCurrent = current;
             _stripCounter.Text = ReaderMediaMultiRules.CounterText(current, count);
@@ -1114,17 +1116,16 @@ internal sealed partial class ReaderMediaSidebar : Border
         return rebuilt;
     }
 
-    private void RebuildStrip(int start, int length, int count, Func<int, string> nameOf)
+    private void RebuildStrip(int start, int length, int count, Func<int, string> nameOf, Func<int, StripTarget> targetOf)
     {
-        // Pictures of files that stay in the window stay; the others are given back.
-        HashSet<int> keep = new();
-        for (int index = start; index < start + length; index++) keep.Add(index);
-        foreach (int index in new List<int>(_stripBitmaps.Keys))
+        // A thumbnail lease carries over only while its attachment revision stays in the window.
+        foreach (StripThumbnail thumbnail in _thumbnails)
         {
-            if (keep.Contains(index)) continue;
-            (Bitmap bitmap, Action<Bitmap> release) = _stripBitmaps[index];
-            _stripBitmaps.Remove(index);
-            release(bitmap);
+            int index = thumbnail.Index;
+            if (index >= start && index < start + length && Equals(thumbnail.Item.Tag, targetOf(index))) continue;
+            if (!_stripBitmaps.Remove(index, out var lease)) continue;
+            thumbnail.Picture.Source = null;
+            lease.Release(lease.Bitmap);
         }
         _strip.Items.Clear();
         _thumbnails.Clear();
@@ -1143,7 +1144,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             };
             frame[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
             string name = ReaderMediaMultiRules.ItemName(index, count, nameOf(index));
-            ListBoxItem item = new() { Content = frame, Padding = new Thickness(2), MinWidth = 0, MinHeight = 0, Tag = index };
+            ListBoxItem item = new() { Content = frame, Padding = new Thickness(2), MinWidth = 0, MinHeight = 0, Tag = targetOf(index) };
             AutomationProperties.SetName(item, name);
             ToolTip.SetTip(item, name);
             if (_stripBitmaps.TryGetValue(index, out (Bitmap Bitmap, Action<Bitmap> Release) held))
@@ -1209,8 +1210,8 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void OnStripSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_stripSyncing || _strip.SelectedItem is not ListBoxItem { Tag: int index } || index == _stripCurrent) return;
-        StripSelected?.Invoke(this, index);
+        if (_stripSyncing || _strip.SelectedItem is not ListBoxItem { Tag: StripTarget target } || target.Index == _stripCurrent) return;
+        StripSelected?.Invoke(this, (target, target.Index));
     }
 
     // ← → move to the neighbouring file of the whole post (also beyond the window), Home and End to its ends; Enter and Space choose
@@ -1222,12 +1223,13 @@ internal sealed partial class ReaderMediaSidebar : Border
         {
             e.Handled = true;
             int target = ReaderMediaMultiRules.KeyTarget(_stripCurrent, _stripCount, e.Key);
-            if (target != _stripCurrent) StripSelected?.Invoke(this, target);
+            if (target != _stripCurrent && _strip.SelectedItem is ListBoxItem { Tag: StripTarget selected })
+                StripSelected?.Invoke(this, (selected, target));
         }
-        else if (e.Key is Key.Enter or Key.Space && e.Source is ListBoxItem { Tag: int index })
+        else if (e.Key is Key.Enter or Key.Space && e.Source is ListBoxItem { Tag: StripTarget origin })
         {
             e.Handled = true;
-            if (index != _stripCurrent) StripSelected?.Invoke(this, index);
+            if (origin.Index != _stripCurrent) StripSelected?.Invoke(this, (origin, origin.Index));
         }
     }
 

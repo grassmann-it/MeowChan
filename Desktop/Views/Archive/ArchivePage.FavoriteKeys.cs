@@ -64,8 +64,9 @@ public partial class ArchivePage
         // The media sidebar: the medium it shows (a thumbnail of its strip: that file).
         if (ArchiveMediaTab.IsSelected && IsMediaSidebarSource(source))
             return ActionableSavedMediaSidebarRow is { } saved ? new[] { AssetEntry(threadId, saved) } : Array.Empty<GalleryEntry>();
-        if (SidebarStripContext(ancestors) is { } thumbnail)
-            return AttachmentEntry(threadId, thumbnail.PostId, thumbnail.Attachment) is { } stripped ? new[] { stripped } : Array.Empty<GalleryEntry>();
+        if (IsSidebarStripSource(ancestors))
+            return SidebarStripContext(ancestors) is { } thumbnail && AttachmentEntry(threadId, thumbnail.PostId, thumbnail.Attachment) is { } stripped
+                ? new[] { stripped } : Array.Empty<GalleryEntry>();
         if (SidebarMediaContext(ancestors) is { } shown)
             return AttachmentEntry(threadId, shown.PostId, shown.Attachment) is { } entry ? new[] { entry } : Array.Empty<GalleryEntry>();
         // A post: the medium of the shared resolver, the one Space and Enter act on.

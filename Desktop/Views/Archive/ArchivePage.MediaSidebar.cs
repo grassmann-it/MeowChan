@@ -203,8 +203,11 @@ public partial class ArchivePage
                 OpenActions.Start(() => save(update, factsChanged ? [SettingsFieldId.MediaSidebarInfo] : []), "media.sidebar.info");
         };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
-        sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
-        sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
+        sidebar.StripSelected += (_, selection) =>
+        {
+            if (CurrentSidebarStripPost(selection.Origin) != null) SelectMediaSidebarIndex(selection.Index);
+        };
+        sidebar.StripActivated += (_, target) => ActivateSidebarStripTarget(target);
         sidebar.PictureActivated += (_, _) => OnMediaSidebarPictureActivated();
         sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();
         // The "No." of its header line copies the post's reference like the post's own number does.
@@ -277,13 +280,11 @@ public partial class ArchivePage
         if ((mediumKey || galleryShortcut) && e.Source is Visual gallerySource
             && gallerySource.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar)))
         {
-            // Focus identifies the file even before a pending strip selection
-            // notification has updated the sidebar's displayed index.
-            ListBoxItem? item = gallerySource.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
-                .FirstOrDefault(node => node.GetVisualAncestors().Contains(sidebar.Strip));
-            if (item?.Tag is int index) SelectMediaSidebarIndex(index);
             e.Handled = true;
-            OpenMediaSidebarMedia();
+            Control[] path = gallerySource.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+            if (!path.Contains(sidebar.Strip)) OpenMediaSidebarMedia();
+            else if (SidebarStripItem(path, keyboard: true)?.Tag is ReaderMediaSidebar.StripTarget target)
+                ActivateSidebarStripTarget(target);
             return true;
         }
         if (ReaderSelectionOwnsActivationKey(e)) return false;
@@ -663,7 +664,8 @@ public partial class ArchivePage
             if (SavedMediaSidebarRow is { } saved)
                 OpenActions.Start(() => OpenAssetGalleryAsync(saved, _mediaSidebar?.FrameArea), "archive.media.open");
         }
-        else CurrentSidebarAttachment()?.OpenPreview?.Invoke();
+        else if (_displayedSidebarMedium is { } shown && ReferenceEquals(_thread, shown.Thread))
+            shown.Attachment.OpenPreview?.Invoke();
     }
 
     private ArchiveAttachmentRow? CurrentSidebarAttachment() =>
@@ -910,6 +912,21 @@ public partial class ArchivePage
 
     // ---- the thumbnail strip of a post with several files (R11) ----------------------------------------------------------------------
 
+    private ArchivePostRow? CurrentSidebarStripPost(ReaderMediaSidebar.StripTarget target)
+    {
+        if (ArchiveMediaTab.IsSelected || !_mediaSidebarShown || _thread?.Summary.Id != target.Thread || _selectedThread != target.Thread
+            || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } post || post.Id != target.PostId
+            || target.Index >= post.Attachments.Count) return null;
+        return ReaderInlineVideoSlot.KeyOf(post.Attachments[target.Index].Attachment) == target.AttachmentKey ? post : null;
+    }
+
+    private void ActivateSidebarStripTarget(ReaderMediaSidebar.StripTarget target)
+    {
+        if (CurrentSidebarStripPost(target) == null) return;
+        SelectMediaSidebarIndex(target.Index);
+        OpenMediaSidebarMedia();
+    }
+
     private void CancelSidebarStripLoad()
     {
         CancellationTokenSource? loading = _sidebarStripLoading;
@@ -922,9 +939,11 @@ public partial class ArchivePage
     // window) loads thumbnails, and only the missing ones. They are decoded small, through the reader's thumbnail gate and cache.
     private void UpdateSidebarStrip(ReaderMediaSidebar sidebar, ArchivePostRow post, bool samePost)
     {
+        if (_thread is not { } thread) { CancelSidebarStripLoad(); sidebar.ClearStrip(); return; }
         int count = post.Attachments.Count;
         bool rebuilt = sidebar.ShowStrip(count, _sidebarIndex, ReaderMedia.Clamped().StripLimit,
-            index => CapturedAttachmentText.Of(post.Attachments[index]).Name, samePost);
+            index => CapturedAttachmentText.Of(post.Attachments[index]).Name,
+            index => new(thread.Summary.Id, post.Id, index, ReaderInlineVideoSlot.KeyOf(post.Attachments[index].Attachment)), samePost);
         if (!sidebar.StripVisible) { CancelSidebarStripLoad(); return; }
         // A selection rebuild can retire the previous load without changing this post's strip geometry. Resume its missing thumbnails.
         if (!rebuilt && _sidebarStripLoading != null) return;
