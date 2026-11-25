@@ -40,11 +40,12 @@ internal sealed record BooruSearchView(
     internal BooruResultRevision ResultRevision { get; init; }
     internal long ResultId { get; init; }
     internal BooruPagerLimits PagerLimits { get; init; } = BooruPagerLimits.Default;
+    internal int? LastResultPage { get; init; }
     internal bool IsPostResult => ExecutedPostId is not null;
     internal bool IsBusy => Status == BooruSearchStatus.Searching;
     /// <summary>Whether the search has another page within its configured limit.</summary>
     internal bool HasNextPage => Status == BooruSearchStatus.Results && ExecutedQuery is not null && !IsPostResult
-        && !IsEnd && Page < PagerLimits.Pages;
+        && !IsEnd && Page < (LastResultPage ?? PagerLimits.Pages);
     /// <summary>Also offered after an offline, failed or cancelled page, so page N&gt;1 is never a dead end.</summary>
     internal bool HasPreviousPage => Status is BooruSearchStatus.Results or BooruSearchStatus.Empty
         or BooruSearchStatus.Offline or BooruSearchStatus.Failed or BooruSearchStatus.Idle
@@ -199,7 +200,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         if (refused) { RaiseChanged(); return; }
         EnsureSearchTab?.Invoke();
         if (parsed.Kind == BooruInputKind.Post) await RunPostAsync(parsed.PostId!).ConfigureAwait(false);
-        else await RunSearchAsync(parsed.Canonical!, 1, ReadPagerLimits()).ConfigureAwait(false);
+        else await RunSearchAsync(parsed.Canonical!, 1, ReadPagerLimits(), newSearch: true).ConfigureAwait(false);
     }
 
     /// <summary>Previous/next page of the search that is displayed (not of unsent edits in the field).</summary>
@@ -210,7 +211,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         lock (_gate)
         {
             if (_disposed || _view.ExecutedQuery is not { } executed || _view.IsPostResult || _view.IsBusy
-                || page < 1 || page > _view.PagerLimits.Pages || page == _view.Page
+                || page < 1 || page > (_view.LastResultPage ?? _view.PagerLimits.Pages) || page == _view.Page
                 || PauseEnd(_view) is not null
                 || (page > _view.Page && (_view.IsEnd || _view.Status != BooruSearchStatus.Results)))
                 return Task.CompletedTask;
@@ -248,9 +249,9 @@ internal sealed partial class BooruSearchModel : IDisposable
         RaiseChanged();
     }
 
-    private async Task RunSearchAsync(string query, int page, BooruPagerLimits limits)
+    private async Task RunSearchAsync(string query, int page, BooruPagerLimits limits, bool newSearch = false)
     {
-        (long id, RequestLifetime? lifetime) = Begin(BooruSearchStatus.Searching, query, null, page, limits);
+        (long id, RequestLifetime? lifetime) = Begin(BooruSearchStatus.Searching, query, null, page, limits, newSearch);
         using RequestLifetime? request = lifetime;
         if (request is null) return;
         CancellationToken token = request.Token;
@@ -287,6 +288,9 @@ internal sealed partial class BooruSearchModel : IDisposable
                     {
                         Status = rows.IsEmpty ? BooruSearchStatus.Empty : BooruSearchStatus.Results,
                         Rows = rows, IsEnd = value.IsEnd || rows.IsEmpty,
+                        // A jump to an empty page cannot establish how many preceding pages have results.
+                        LastResultPage = rows.IsEmpty ? null : value.IsEnd ? page
+                            : _view.LastResultPage > page ? _view.LastResultPage : null,
                         Code = null, RetryAt = null
                     };
                     follow = !rows.IsEmpty;
@@ -340,7 +344,7 @@ internal sealed partial class BooruSearchModel : IDisposable
     }
 
     private (long Id, RequestLifetime? Lifetime) Begin(BooruSearchStatus status, string? query, string? postId, int page,
-        BooruPagerLimits? limits = null)
+        BooruPagerLimits? limits = null, bool newSearch = false)
     {
         lock (_gate)
         {
@@ -350,6 +354,7 @@ internal sealed partial class BooruSearchModel : IDisposable
             {
                 Status = status, ExecutedQuery = query, ExecutedPostId = postId, Page = page,
                 Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null,
+                LastResultPage = newSearch || postId != null ? null : _view.LastResultPage,
                 Restored = false, NeedsLoad = false, PagerLimits = limits ?? BooruPagerLimits.Default, ResultId = _requestId
             };
             return (_requestId, request.Acquire());
@@ -702,9 +707,15 @@ internal sealed partial class BooruSearchModel : IDisposable
             ReplaceRequest(needsRequest: false);
         }
         _queue.LocalStatesChanged -= OnLocalStatesChanged;
-        Task retirement = Task.WhenAll(_lifetime.RetireAsync(), DisposePreviewSlotsAsync(previewsDrained));
+        Task retirement = Task.WhenAll(RetireModelLifetimeAsync(), DisposePreviewSlotsAsync(previewsDrained));
         OpenActions.Start(() => retirement, "booru.search.retire");
         Changed = null;
+    }
+
+    private async Task RetireModelLifetimeAsync()
+    {
+        try { await _lifetime.CancelAsync().ConfigureAwait(false); }
+        finally { _lifetime.Dispose(); }
     }
 
     private async Task DisposePreviewSlotsAsync(Task previewsDrained)

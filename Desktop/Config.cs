@@ -390,7 +390,7 @@ namespace MeowChan
         internal const int BooruSearchTabsMaximum = 33;
         public bool RestoreBooruSearchTabs { get; set; } = true;
         public int BooruSearchPages { get; set; } = BooruSearchPagesDefault;
-        internal const int BooruSearchPagesDefault = BooruSearchPagesMaximum;
+        internal const int BooruSearchPagesDefault = 5;
         internal const int BooruSearchPagesMinimum = 1;
         internal const int BooruSearchPagesMaximum = Desktop.Booru.BooruSearchModel.MaximumPage;
         public int BooruSearchPostsPerPage { get; set; } = BooruSearchPostsPerPageDefault;

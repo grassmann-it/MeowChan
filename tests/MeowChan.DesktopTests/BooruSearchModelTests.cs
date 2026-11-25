@@ -87,21 +87,21 @@ public sealed class BooruSearchModelTests : IDisposable
     // ---- bounded paging ------------------------------------------------------------------------------
 
     [Fact]
-    public async Task PagingIsBoundedToTheHostLimitAndStopsAtTheProvidersEnd()
+    public async Task PagingIsBoundedToTheConfiguredLimitAndStopsAtTheProvidersEnd()
     {
         _h.Serve(pages: 10);
         await BooruTestSupport.SearchAsync(_model, "cat");
         Assert.False(_model.View.HasPreviousPage);
-        for (int page = 2; page <= BooruSearchModel.MaximumPage; page++)
+        for (int page = 2; page <= Config.BooruSearchPagesDefault; page++)
         {
             Assert.True(_model.View.HasNextPage);
             await _model.GoToPageAsync(page);
         }
-        Assert.Equal(BooruSearchModel.MaximumPage, _model.View.Page);
+        Assert.Equal(Config.BooruSearchPagesDefault, _model.View.Page);
         Assert.False(_model.View.HasNextPage);
         Assert.True(_model.View.PageLimitReached);
         int requests = _h.Search.Searches.Count;
-        await _model.GoToPageAsync(BooruSearchModel.MaximumPage + 1);
+        await _model.GoToPageAsync(Config.BooruSearchPagesDefault + 1);
         Assert.Equal(requests, _h.Search.Searches.Count);
 
         // The provider's own end also ends the paging, without hitting the bound.

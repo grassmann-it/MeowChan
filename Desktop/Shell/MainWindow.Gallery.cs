@@ -158,7 +158,8 @@ public partial class MainWindow
         if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
         await _playbackGate.EnterGalleryAsync(() => Task.WhenAll(
             _archivePage?.ReleaseInlineVideos() ?? Task.CompletedTask,
-            _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask));
+            _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask,
+            _taggingPage?.ReleasePanelVideos() ?? Task.CompletedTask));
         if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
         bool largeReaderOrigin = _largeReaderOpen;
         bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;

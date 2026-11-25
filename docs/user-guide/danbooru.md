@@ -89,9 +89,9 @@ Deaktivieren des Plugins unter Plugins.
   `rating:`-Term an. Negative Tags werden mit `-tag` geschrieben. Die eingegebene
   Query wird nach der normalen Trennzeichennormalisierung gesendet; MeowChan fügt
   weder `g,s` noch andere versteckte Suchbegriffe hinzu.
-- Die Suche zeigt höchstens **fünf Seiten mit je 20 Treffern**. Die Seitennavigation
-  bleibt innerhalb dieses technischen Suchbudgets. Eine kleinere Trefferanzeige
-  bedeutet nicht, dass weitere Treffer vollständig verarbeitet wurden.
+- Die Voreinstellung beträgt **fünf Seiten mit je 20 Treffern**. Das Seitenlimit für neue
+  Booru-Suchen lässt sich zwischen 1 und 1000 einstellen. Unter den Treffern kannst du
+  blättern oder eine Seitennummer eingeben. Ein Plus kennzeichnet eine offene Gesamtzahl.
 - Eine Danbooru-Post-URL oder eine numerische Post-ID kann auf der Booru-Seite über
   **Post abrufen** geladen werden. Das legt keine Suchbeobachtung an. Die Vorschau
   und die Provider-Metadaten werden zuerst angezeigt; das Original kommt erst nach

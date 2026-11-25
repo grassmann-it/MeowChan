@@ -28,11 +28,12 @@ public sealed class BooruHostHttpTests
     public async Task BooruRouteUsesExactUserAgentAndRejectsHeadBeforeTransport()
     {
         List<HttpRequestMessage> sent = [];
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             sent.Add(request);
             return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         RequestPolicyState policy = new();
         using BooruHostHttp http = new(transport, policy, [Source()], productVersion: "1.1.0", danbooruUserId: "42");
         BooruHostServices services = new(new Inner(), http);
@@ -59,11 +60,12 @@ public sealed class BooruHostHttpTests
     public async Task ExplicitCredentialHeadersAreRejectedBeforeTransport()
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((_, _) =>
+        using Handler handler = new((_, _) =>
         {
             ++sends;
             return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -86,11 +88,12 @@ public sealed class BooruHostHttpTests
     [Fact]
     public async Task RequestUserAgentOverridesTransportDefault()
     {
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             Assert.Equal("MeowChan/1.1.0 (+https://github.com/grassmann-it/MeowChan)", request.Headers.UserAgent.ToString());
             return Task.FromResult(Response(HttpStatusCode.OK, "ok"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         transport.DefaultRequestHeaders.UserAgent.ParseAdd("Transport/0.1");
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()], productVersion: "1.1.0");
         BooruHostServices services = new(new Inner(), http);
@@ -103,13 +106,14 @@ public sealed class BooruHostHttpTests
     public async Task RedirectIsTerminalAndDoesNotFollowLocation()
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             ++sends;
             HttpResponseMessage response = Response(HttpStatusCode.Redirect, "redirect");
             response.Headers.Location = new("https://other.test/posts.json");
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -128,8 +132,9 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-            Task.FromResult(Response(++sends == 1 ? HttpStatusCode.BadGateway : HttpStatusCode.OK, "ok"))));
+        using Handler handler = new((request, _) =>
+            Task.FromResult(Response(++sends == 1 ? HttpStatusCode.BadGateway : HttpStatusCode.OK, "ok")));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -154,8 +159,9 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-            Task.FromResult(Response(++sends == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.ServiceUnavailable, "retry"))));
+        using Handler handler = new((request, _) =>
+            Task.FromResult(Response(++sends == 1 ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.ServiceUnavailable, "retry")));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -177,7 +183,7 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             if (++sends == 1)
             {
@@ -186,7 +192,8 @@ public sealed class BooruHostHttpTests
                 return Task.FromResult(response);
             }
             return Task.FromResult(Response(HttpStatusCode.OK, "ok"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -208,17 +215,18 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             ++sends;
             HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
             response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(120));
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruSearchService façade = new(services);
-        FakeWorker worker = new(async (request, operation, token) =>
+        await using FakeWorker worker = new(async (request, operation, token) =>
         {
             HostHttpResult result = await services.SendHttpAsync(Get(), operation, token);
             return result switch
@@ -240,13 +248,14 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             ++sends;
             HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
             response.Headers.TryAddWithoutValidation("Retry-After", "not-a-date");
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -266,7 +275,8 @@ public sealed class BooruHostHttpTests
     public async Task WireAndDecodedLimitsReturnMetadataTooLarge()
     {
         byte[] wire = new byte[BooruHostHttp.MaximumWireBytes + 1];
-        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(Response(HttpStatusCode.OK, wire))));
+        using Handler handler = new((request, _) => Task.FromResult(Response(HttpStatusCode.OK, wire)));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using (BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]))
         {
             BooruHostServices services = new(new Inner(), http);
@@ -282,12 +292,13 @@ public sealed class BooruHostHttpTests
             using (GZipStream gzip = new(buffer, CompressionMode.Compress, leaveOpen: true)) gzip.Write(decoded);
             compressed = buffer.ToArray();
         }
-        using HttpClient compressedTransport = new(new Handler((request, _) =>
+        using Handler compressedHandler = new((request, _) =>
         {
             HttpResponseMessage response = Response(HttpStatusCode.OK, compressed);
             response.Content.Headers.ContentEncoding.Add("gzip");
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient compressedTransport = new(compressedHandler, disposeHandler: false);
         using BooruHostHttp compressedHttp = new(compressedTransport, new RequestPolicyState(), [Source()]);
         BooruHostServices compressedServices = new(new Inner(), compressedHttp);
         BooruJob compressedJob = compressedServices.OpenJob();
@@ -299,11 +310,12 @@ public sealed class BooruHostHttpTests
     public async Task WireLimitAlsoAppliesWhenContentLengthIsUnknown()
     {
         byte[] wire = new byte[BooruHostHttp.MaximumWireBytes + 1];
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             HttpResponseMessage response = new(HttpStatusCode.OK) { Content = new UnknownLengthContent(wire) };
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -316,11 +328,12 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             ++sends;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new BlockingContent() });
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -339,7 +352,8 @@ public sealed class BooruHostHttpTests
     public async Task UnknownOrClosedJobNeverReachesTransportAndChanIsForwarded()
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) => { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "ok")); }));
+        using Handler handler = new((request, _) => { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "ok")); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source(), ChanSource()]);
         Inner inner = new();
         BooruHostServices services = new(inner, http);
@@ -359,12 +373,13 @@ public sealed class BooruHostHttpTests
         ManualClock clock = new();
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int sends = 0;
-        using HttpClient transport = new(new Handler(async (request, token) =>
+        using Handler handler = new(async (request, token) =>
         {
             Interlocked.Increment(ref sends);
             await release.Task.WaitAsync(token);
             return Response(HttpStatusCode.OK, "ok");
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob firstJob = services.OpenJob();
@@ -394,8 +409,9 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-        { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "ok")); }));
+        using Handler handler = new((request, _) =>
+        { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "ok")); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob firstJob = services.OpenJob();
@@ -418,8 +434,9 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         List<string> sent = new();
-        using HttpClient transport = new(new Handler((request, _) =>
-        { lock (sent) sent.Add(request.RequestUri!.Query); return Task.FromResult(Response(HttpStatusCode.OK, "[]")); }));
+        using Handler handler = new((request, _) =>
+        { lock (sent) sent.Add(request.RequestUri!.Query); return Task.FromResult(Response(HttpStatusCode.OK, "[]")); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -453,8 +470,9 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-        { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "ok")); }));
+        using Handler handler = new((request, _) =>
+        { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "ok")); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -487,8 +505,9 @@ public sealed class BooruHostHttpTests
     public async Task TerminalStatusesAreReturnedWithoutRetry(HttpStatusCode status)
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-        { ++sends; return Task.FromResult(Response(status, "error")); }));
+        using Handler handler = new((request, _) =>
+        { ++sends; return Task.FromResult(Response(status, "error")); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -511,7 +530,7 @@ public sealed class BooruHostHttpTests
     [InlineData("https://danbooru.test/posts/1234567890123456789.json")]
     [InlineData("https://danbooru.test/posts/5.json?x=1")]
     [InlineData("https://danbooru.test/posts/5")]
-    [InlineData("https://danbooru.test/posts.json?tags=cat&page=6&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=1001&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=0&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=1&limit=21")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=1&limit=20&only=id")]
@@ -519,7 +538,7 @@ public sealed class BooruHostHttpTests
     [InlineData("https://danbooru.test/posts.json?tags=a+b+c+d&page=1&limit=20")]
     [InlineData("https://danbooru.test:8443/posts.json")]
     [InlineData("http://danbooru.test/posts.json")]
-    // Every page form other than 1..5 or "b" + a canonical post id of at most 18 digits.
+    // Every page form other than 1..1000 or "b" + a canonical post id of at most 18 digits.
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b0&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b01&limit=20")]
@@ -542,7 +561,8 @@ public sealed class BooruHostHttpTests
     public async Task NonAllowlistedDanbooruEndpointsNeverReachTransport(string url)
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) => { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "{}")); }));
+        using Handler handler = new((request, _) => { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "{}")); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -559,6 +579,7 @@ public sealed class BooruHostHttpTests
     [Theory]
     [InlineData("https://danbooru.test/posts.json")]
     [InlineData("https://danbooru.test/posts.json?tags=rating%3Ag%20cat_ears&page=5&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=1000&limit=20")]
     [InlineData("https://danbooru.test/posts/12345.json")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b1&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=rating%3Ag%20cat_ears&page=b12345&limit=20")]
@@ -566,7 +587,8 @@ public sealed class BooruHostHttpTests
     public async Task AllowlistedDanbooruEndpointsReachTransport(string url)
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) => { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "{}")); }));
+        using Handler handler = new((request, _) => { ++sends; return Task.FromResult(Response(HttpStatusCode.OK, "{}")); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -584,8 +606,9 @@ public sealed class BooruHostHttpTests
     public async Task RedirectAndCooldownDecisionsReadNoBodyBytes(HttpStatusCode status)
     {
         TrackingContent content = new();
-        using HttpClient transport = new(new Handler((request, _) =>
-            Task.FromResult(new HttpResponseMessage(status) { Content = content })));
+        using Handler handler = new((request, _) =>
+            Task.FromResult(new HttpResponseMessage(status) { Content = content }));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -605,13 +628,14 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             ++sends;
             HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
             response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(seconds));
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -644,12 +668,13 @@ public sealed class BooruHostHttpTests
     public async Task SyntacticallyValidHugeDeltaSaturatesAtTheConfiguredCap()
     {
         ManualClock clock = new();
-        using HttpClient transport = new(new Handler((_, _) =>
+        using Handler handler = new((_, _) =>
         {
             HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
             response.Headers.TryAddWithoutValidation("Retry-After", "999999999999999999999999999999");
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -666,12 +691,13 @@ public sealed class BooruHostHttpTests
     {
         ManualClock clock = new();
         DateTimeOffset retryAfterDate = default;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
             response.Headers.RetryAfter = new RetryConditionHeaderValue(retryAfterDate);
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
 
@@ -715,12 +741,13 @@ public sealed class BooruHostHttpTests
         // with a valid wire-representable delta near the calendar limit, while keeping room
         // for the normal job/response deadlines rather than bypassing header validation.
         clock.Advance(DateTimeOffset.MaxValue - clock.GetUtcNow() - TimeSpan.FromMinutes(5));
-        using HttpClient transport = new(new Handler((_, _) =>
+        using Handler handler = new((_, _) =>
         {
             HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
             response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(int.MaxValue));
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -739,14 +766,15 @@ public sealed class BooruHostHttpTests
     {
         TrackingContent content = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             ++sends;
             Assert.Equal("\"v1\"", Assert.Single(request.Headers.GetValues("If-None-Match")));
             HttpResponseMessage response = new(HttpStatusCode.NotModified) { Content = content };
             response.Headers.ETag = new EntityTagHeaderValue("\"v1\"");
             return Task.FromResult(response);
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -767,8 +795,9 @@ public sealed class BooruHostHttpTests
     public async Task UnconditionalNotModifiedStaysATerminalThreeHundredWithoutRetry()
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified) { Content = new TrackingContent() }); }));
+        using Handler handler = new((request, _) =>
+        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified) { Content = new TrackingContent() }); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();

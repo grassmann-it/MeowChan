@@ -562,24 +562,138 @@ public sealed class TaggingPagePanelTests
         Assert.False(config.SaveUrlsOnExit);
     }
 
+    // ---- the sidebar's video: the shared options of the media sidebars (Settings, Reader: autoplay, loop, start muted; the gallery's volume) ----
+
+    [Fact]
+    public void TheSidebarStartsASavedVideoByItselfWhenAutoplayIsOn()
+    {
+        ManualClock clock = new();
+        VideoOpens opens = new();
+        WithPage(false, async fixture =>
+        {
+            await ShowVideoAsync(fixture);
+            ReaderInlineVideoSlot video = Assert.IsType<ReaderInlineVideoSlot>(fixture.Page.PanelVideo);
+            Assert.True(video.IsOffered);
+
+            clock.Advance(ReaderInlineVideoRules.AutoplayDelayMs - 1);
+            fixture.Pump();
+            Assert.Equal(0, opens.ForPlaying);
+            clock.Advance(ReaderInlineVideoRules.AutoplayDelayMs);
+            await fixture.WaitAsync(() => opens.ForPlaying == 1, "the video opened for playing by itself");
+            Assert.False(video.ActivationTask.IsCompleted);
+
+            // The same medium does not start again by itself; hiding the sidebar gives the starting player back.
+            clock.Advance(10 * ReaderInlineVideoRules.AutoplayDelayMs);
+            fixture.Pump();
+            Assert.Equal(1, opens.ForPlaying);
+            fixture.Click(fixture.Find<Control>(fixture.Window, ToggleId));
+            await opens.PlayCancelled.Task.WaitAsync(Deadline);
+            Assert.False(video.IsOffered);
+        }, clock: clock, video: 2, openVideoManifest: opens.OpenAsync, configure: config => config.ReaderSidebarVideoAutoplay = true);
+    }
+
+    [Fact]
+    public void TheSidebarLeavesASavedVideoStillWhenAutoplayIsOff()
+    {
+        ManualClock clock = new();
+        VideoOpens opens = new();
+        WithPage(false, async fixture =>
+        {
+            await ShowVideoAsync(fixture);
+            ReaderInlineVideoSlot video = Assert.IsType<ReaderInlineVideoSlot>(fixture.Page.PanelVideo);
+            Assert.True(video.IsOffered); // it still plays on a click or a key
+
+            clock.Advance(10 * ReaderInlineVideoRules.AutoplayDelayMs);
+            fixture.Pump();
+            await Task.Delay(50);
+            fixture.Pump();
+            Assert.Equal(0, opens.ForPlaying);
+            Assert.False(video.IsLive);
+            Assert.True(video.ActivationTask.IsCompleted);
+
+            // Turning the shared setting on (the shell passes it after a save) applies to the video shown now, as on the Media page.
+            fixture.Page.ConfigurePanelVideo(ReaderInlineVideoOptions.From(fixture.Session.Config) with { SidebarAutoplay = true });
+            clock.Advance(ReaderInlineVideoRules.AutoplayDelayMs);
+            await fixture.WaitAsync(() => opens.ForPlaying == 1, "the video opened for playing after autoplay was turned on");
+        }, clock: clock, video: 2, openVideoManifest: opens.OpenAsync);
+    }
+
+    [Fact]
+    public void TheSidebarVideoFollowsTheSharedLoopMuteAndVolumeSettings() => WithPage(false, async fixture =>
+    {
+        await fixture.ShowsAsync(1);
+        ReaderInlineVideoOptions options = fixture.Page.PanelVideoController.Options;
+        Assert.True(options.Enabled);
+        Assert.False(options.SidebarLoop);
+        Assert.True(options.SidebarStartMuted);
+        Assert.Equal(20, options.Volume);
+        Assert.False(options.SidebarAutoplay);
+
+        fixture.Page.ConfigurePanelVideo(options with { SidebarLoop = true, SidebarStartMuted = false, Volume = 70, Enabled = false });
+        options = fixture.Page.PanelVideoController.Options;
+        Assert.True(options.Enabled); // the sidebar always plays inline, whatever the reader's click choice is
+        Assert.True(options.SidebarLoop);
+        Assert.False(options.SidebarStartMuted);
+        Assert.Equal(70, options.Volume);
+    }, configure: config =>
+    {
+        config.ReaderSidebarVideoLoop = false;
+        config.ReaderSidebarVideoStartMuted = true;
+        config.VideoVolume = 20;
+        config.ReaderMediaClick = nameof(ReaderMediaClickMode.Gallery);
+    });
+
+    // Entry 2 is the saved video; the first move of the cursor follows at once (nothing was asked for within the follow interval).
+    private static async Task ShowVideoAsync(Fixture fixture)
+    {
+        await fixture.ShowsAsync(1);
+        fixture.ClickEntry(1);
+        fixture.Key(PhysicalKey.ArrowDown);
+        await fixture.ShowsAsync(2);
+    }
+
+    // The player's manifest: counted, and held until the start is cancelled, so no native player starts under the headless platform.
+    private sealed class VideoOpens
+    {
+        internal int ForPlaying;
+        internal TaskCompletionSource PlayCancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal async Task<MediaAssetSnapshot> OpenAsync(string directory, CancellationToken token)
+        {
+            Interlocked.Increment(ref ForPlaying);
+            try { await Task.Delay(Timeout.Infinite, token); }
+            catch (OperationCanceledException) { PlayCancelled.TrySetResult(); throw; }
+            throw new InvalidOperationException("unreachable");
+        }
+    }
+
     private static Rect BoundsIn(Control control, Visual root) => new(control.TranslatePoint(default, root)!.Value, control.Bounds.Size);
 
     private static FavoriteAssetKey AssetKey(TagQueueItem item) => MediaLibraryFilterEngine.AssetKey(item.ToLibraryEntry())!;
 
-    private static void WriteProfile(string profile) => new Config
+    private static void WriteProfile(string profile, Action<Config>? configure = null)
     {
-        DownloadPath = Path.Combine(profile, "downloads"),
-        FirstRunSetupVersion = 1,
-        DownloadsPaused = true,
-        SaveUrlsOnExit = false
-    }.SaveConfig(profile);
+        Config config = new()
+        {
+            DownloadPath = Path.Combine(profile, "downloads"),
+            FirstRunSetupVersion = 1,
+            DownloadsPaused = true,
+            SaveUrlsOnExit = false,
+            // The sidebar's own video tests turn it on; elsewhere no real player starts under the headless platform.
+            ReaderSidebarVideoAutoplay = false
+        };
+        configure?.Invoke(config);
+        config.SaveConfig(profile);
+    }
 
     private static DesktopSessionHost NewSession(string profile) => new(profile, [],
         updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
 
     private static void WithPage(bool grid, Func<Fixture, Task> test, ManualClock? clock = null, int missing = 0, int video = 0, int wideImage = 0, bool skipFirst = false,
         Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap, GalleryImageInfo)>>? decode = null,
-        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null, int replaced = 0, bool windowsFileSharing = false) =>
+        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null, int replaced = 0, bool windowsFileSharing = false,
+        Action<Config>? configure = null,
+        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openVideoManifest = null) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -594,7 +708,7 @@ public sealed class TaggingPagePanelTests
 
             async Task RunAsync()
             {
-                WriteProfile(profile.Path);
+                WriteProfile(profile.Path, configure);
                 string downloads = Path.Combine(profile.Path, "downloads");
                 string directory = ArchiveCleanupFixtures.DirectoryFor(downloads, ThreadId);
                 string[] names = Enumerable.Range(1, 12).Select(n => $"file-{n}.{(n == video ? "webm" : "png")}").ToArray();
@@ -637,6 +751,7 @@ public sealed class TaggingPagePanelTests
                     PanelClock = clock ?? TimeProvider.System,
                     DecodePanelImageAsync = decode ?? GalleryImageCache.DecodeAsync,
                     OpenPanelManifestAsync = openManifest ?? MediaAssetReader.OpenAsync,
+                    OpenPanelVideoManifestAsync = openVideoManifest,
                     ReadUserData = () => new(session.GetPublishedPrivateTagSnapshot().Snapshot, session.GetFavorites(), session.GetMediaRatings()),
                     TagServices = new(session.GetPublishedPrivateTagSnapshot, session.DefineAndSetMediaSubjectTagsAsync, session.SetMediaSubjectTagsAsync),
                     Stamp = new QuickTagStamp(["cursor tag"]),
