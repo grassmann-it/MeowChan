@@ -22,6 +22,54 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class BooruResultActionsTests
 {
+    [Fact]
+    public void ClickingPlusAtCapacityLeavesEnterInTheSearchField() => Run(() =>
+    {
+        using Fixture fixture = new();
+        fixture.View.SearchTabsLimit = () => 2;
+        Assert.True(fixture.View.TryShowQueryInNewTab("first"));
+        Assert.True(fixture.View.TryShowQueryInNewTab("cat"));
+        fixture.Settle();
+        Button plus = ByAutomationId<Button>(fixture.View, BooruWorkbenchView.NewSearchTabName);
+        Assert.False(plus.Focusable);
+        Assert.False(plus.IsTabStop);
+        Click(plus);
+        fixture.Settle();
+        Assert.True(ByAutomationId<TextBox>(fixture.View, BooruWorkbenchView.InputName).IsFocused);
+        Key(fixture.Window, PhysicalKey.Enter);
+        fixture.Settle();
+        Assert.Equal(("cat", 1), Assert.Single(fixture.Harness.Search.Searches));
+        Assert.Equal(2, fixture.View.SearchTabs.Ids.Count);
+    });
+
+    [Fact]
+    public void MiddleClosingBackgroundWatchersLeavesArrowKeysOnTheFocusedHit() => Run(() =>
+    {
+        using Fixture fixture = new();
+        fixture.View.ShowWatchers();
+        Assert.True(fixture.View.TryShowQueryInNewTab("cat"));
+        fixture.Search("cat");
+        Border hit = fixture.Hit("101");
+        Assert.True(hit.Focus());
+        TabItem watchers = ByAutomationId<TabItem>(fixture.View, BooruWorkbenchView.WatchersTabName);
+        Button close = ByAutomationId<Button>(watchers, BooruWorkbenchView.CloseWatchersName);
+        Assert.False(close.Focusable);
+        Assert.False(close.IsTabStop);
+        Rect bounds = Bounds(watchers, fixture.Window);
+        Point header = new(bounds.Left + 8, bounds.Center.Y);
+        fixture.Window.MouseDown(header, MouseButton.Middle);
+        fixture.Window.MouseUp(header, MouseButton.Middle);
+        fixture.Settle();
+        Assert.DoesNotContain(watchers, ByAutomationId<TabControl>(fixture.View, BooruWorkbenchView.TabsName).Items);
+        Assert.Same(hit, fixture.Window.FocusManager?.GetFocusedElement());
+        Key(fixture.Window, PhysicalKey.ArrowRight);
+        fixture.Settle();
+        Assert.Same(fixture.Hit("102"), fixture.Window.FocusManager?.GetFocusedElement());
+    });
+
+    private static T ByAutomationId<T>(Visual owner, string id) where T : Control =>
+        Assert.Single(owner.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
