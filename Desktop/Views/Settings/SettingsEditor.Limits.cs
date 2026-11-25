@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -32,6 +33,16 @@ public partial class SettingsEditor
         Func<Config, int> read, Action<Config, int> write)
     {
         SettingsNumberInput input = new() { Name = name + "Input", Minimum = minimum, Maximum = maximum };
+        input.PropertyChanged += (_, change) =>
+        {
+            if (_isClosed || change.Property != NumericUpDown.TextProperty) return;
+            _draftRevision++;
+            RetireSavedStatus();
+            _destinationWait?.Cancel();
+            _destinationStatus = null;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NormalizedDestination)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationStatusText)));
+        };
         TextBlock label = new() { Classes = { "workspace-field-label" }, TextWrapping = TextWrapping.Wrap };
         TextBlock hint = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
         TextBlock error = new()
@@ -67,7 +78,9 @@ public partial class SettingsEditor
     private TextBlock? CatalogLimitError(string name) => _catalogLimitRows.FirstOrDefault(row => row.Error.Name == name)?.Error;
 
     private IEnumerable<DefaultSetting> CatalogLimitDefaults() => _catalogLimitRows.Select(row =>
-        Number(row.Input, () => row.Input.Value, value => row.Input.Value = value, config => row.Read(config)));
+        new DefaultSetting(row.Input.Name!, _ => row.Input.Value == row.Default
+            && decimal.TryParse(row.Input.Text, row.Input.ParsingNumberStyle, row.Input.NumberFormat, out decimal draft)
+            && draft == row.Default, _ => ResetNumber(row.Input, row.Default)));
 
     private decimal? _archiveTagFilterTagsPerList = Config.ArchiveTagFilterTagsPerListDefault;
     public decimal? ArchiveTagFilterTagsPerList { get => _archiveTagFilterTagsPerList; set => SetField(ref _archiveTagFilterTagsPerList, value, nameof(ArchiveTagFilterTagsPerList)); }
