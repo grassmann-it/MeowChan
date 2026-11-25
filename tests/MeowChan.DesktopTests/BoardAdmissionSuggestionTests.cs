@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -14,10 +15,12 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Admission;
 using MeowChan.Archive;
+using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using Microsoft.Data.Sqlite;
 using SQLitePCL;
@@ -259,8 +262,14 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
     {
         using var profile = new TempDirectory();
         BoardArchiveHostTests.Configure(profile.Path);
-        using var transport = new BoardArchiveHostTests.ArchiveTransport();
-        await using var host = OwnedUiDispatcher.CreateHost(() => BoardArchiveHostTests.CreateHost(profile.Path, transport));
+        var requests = new ConcurrentQueue<string>();
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new CatalogFixtureProvider(async (board, token) =>
+        {
+            requests.Enqueue(board);
+            if (board == "g") await releaseFirst.Task.WaitAsync(token);
+        });
+        await using var host = OwnedUiDispatcher.CreateHost(() => new DesktopSessionHost(profile.Path, [provider]));
         await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
         Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
 
@@ -281,7 +290,7 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
             {
                 Run(() =>
                 {
-                    const string secondBoard = "https://boards.4channel.org/g/";
+                    const string secondBoard = "https://boards.4chan.org/p/";
                     var starts = new List<(string Kind, string Url)>();
                     CancellationToken searchToken = default;
                     using var dialog = new BoardAdmissionWindow([Board, secondBoard], _ => BoardAdmissionPolicy.All,
@@ -301,6 +310,10 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
                         Layout(dialog);
                         Assert.Equal(("preview", Board), starts[0]);
                         Button apply = Find<Button>(dialog, "BoardAdmissionApply");
+                        Assert.Equal(8, host.AcceptedCommandCount);
+                        Assert.False(search!.IsCompleted);
+                        Assert.False(apply.IsEnabled);
+                        releaseFirst.SetResult();
                         BooruComponentDispatcher.WaitUntil(() => apply.IsEnabled, "both required previews to load");
                         Assert.Equal(new[] { Board, secondBoard }, starts.Where(entry => entry.Kind == "preview").Select(entry => entry.Url));
                         Assert.Equal(Board, Assert.Single(starts, entry => entry.Kind == "archive").Url);
@@ -318,12 +331,27 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
                 writeLock.ExecuteNonQuery();
             }
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => search!);
-            Assert.Contains(transport.Requests, request => request.Path == "/g/catalog.json");
+            Assert.Equal(new[] { "g", "p" }, requests.ToArray());
         }
         finally
         {
             commandGate.Release();
             await Task.WhenAll(parked).WaitAsync(TimeSpan.FromSeconds(45));
+        }
+    }
+
+    private sealed class CatalogFixtureProvider(Func<string, CancellationToken, Task> read) : FourChanImageBoard
+    {
+        public override IBoard GetBoard(Uri boardUri) => new CatalogFixtureBoard(this, boardUri, read);
+    }
+
+    private sealed class CatalogFixtureBoard(IImageBoard provider, Uri uri, Func<string, CancellationToken, Task> read)
+        : FourChanBoard(provider, uri)
+    {
+        public override async Task<IEnumerable<IThread>> GetThreadsAsync(CancellationToken cancellationToken = default)
+        {
+            await read(BoardCode, cancellationToken);
+            return [];
         }
     }
 
