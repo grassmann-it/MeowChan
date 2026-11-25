@@ -154,7 +154,6 @@ public partial class SettingsEditor
             flyout.Hide();
         };
         cancel.Click += (_, _) => flyout.Hide();
-        flyout.Opened += (_, _) => cancel.Focus();
         flyout.Closed += (_, _) =>
         {
             if (!ReferenceEquals(_resetConfirmation, flyout)) return;
@@ -162,6 +161,7 @@ public partial class SettingsEditor
             if (IsEffectivelyVisible && !_isClosed && !origin.Focus()) FocusSettingsContent();
         };
         flyout.ShowAt(origin);
+        if (flyout.IsOpen) cancel.Focus();
     }
 
     // Internal for the tests (SettingsResetCoverageTests): they run every scope against the real controls.
