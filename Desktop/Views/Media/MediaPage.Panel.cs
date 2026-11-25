@@ -179,7 +179,7 @@ public sealed partial class MediaPage
         if (_lifetime.IsCancellationRequested || !_panelShown) return;
         object? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
         if (focused is Visual visual && (_panel == null || !visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, _panel)))) return;
-        _grid.Focus(NavigationMethod.Pointer);
+        FocusGridNow();
     }
 
     private Window? _panelWindow;

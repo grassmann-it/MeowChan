@@ -643,11 +643,17 @@ public sealed class SavedMediaReaderTests
         Assert.True(control.IsEffectivelyVisible);
         Assert.True(control.IsEffectivelyEnabled);
         Layout(root);
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        Point point = control.TranslatePoint(local ?? new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), root)!.Value;
-        Visual hit = Assert.IsAssignableFrom<Visual>(root.InputHitTest(point));
-        Assert.True(ReferenceEquals(hit, control) || control.IsVisualAncestorOf(hit),
-            $"Expected {AutomationProperties.GetAutomationId(control)} at {point}; hit {hit}.");
+        Point point = default;
+        WaitUntil(() =>
+        {
+            root.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            point = control.TranslatePoint(local ?? new Rect(control.Bounds.Size).Center, root)!.Value;
+            return root.InputHitTest(point) is Visual hit && (ReferenceEquals(hit, control) || control.IsVisualAncestorOf(hit));
+        });
+        Visual target = Assert.IsAssignableFrom<Visual>(root.InputHitTest(point));
+        Assert.True(ReferenceEquals(target, control) || control.IsVisualAncestorOf(target),
+            $"Expected {AutomationProperties.GetAutomationId(control)} at {point}; hit {target}.");
         return point;
     }
 
