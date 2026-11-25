@@ -6,8 +6,11 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -23,271 +26,386 @@ internal sealed partial class BooruWorkbenchView
         BooruTagCategory.General, BooruTagCategory.Meta, BooruTagCategory.Unknown
     ];
 
-    private BooruListTagFlow CreateTags(BooruPostView post, ResultActions result)
+    private bool _listTagDraftRefreshPending;
+
+    private BooruListTagFlow CreateTags(BooruPostView post, ResultActions result, Border card)
     {
-        bool expanded = _expandedTagPosts.Contains(post.PostId);
-        var ordered = ListTagOrder.SelectMany(category => post.Tags.Where(tag => tag.Category == category)).ToArray();
-        Button[] buttons = new Button[expanded ? ordered.Length : Math.Min(TagsShown(), ordered.Length)];
-        Control[] items = new Control[buttons.Length];
-        for (int i = 0; i < buttons.Length; i++)
+        BooruTag[] ordered = ListTagOrder.SelectMany(category => post.Tags.Where(tag => tag.Category == category)).ToArray();
+        int savedLimit = TagsShown();
+        int limit = savedLimit == Config.BooruResultTagsShownAutomatic ? ordered.Length : savedLimit;
+        BooruListTagFlow tags = new(post.PostId, ordered, limit, ListLayout.TagLines, HiddenTagTooltipLimit, _expandedTagPosts.Contains(post.PostId),
+            CreateItem, expanded =>
+            {
+                if (!result.IsCurrent()) return false;
+                if (expanded) _expandedTagPosts.Add(post.PostId);
+                else _expandedTagPosts.Remove(post.PostId);
+                return true;
+            }, RestoreFoldedChipFocus);
+
+        tags.Styles.Add(new Style(selector => selector.OfType<Button>().Class(WorkspaceChips.SourceButton).Class(":pointerover")
+            .Descendant().OfType<ChipOutline>())
         {
-            BooruTag tag = ordered[i];
-            string label = Texts.T("booru.ui.tagCategory." + tag.Category);
+            Setters =
+            {
+                new Setter(ChipOutline.StrokeProperty, new DynamicResourceExtension("Workspace.Accent")),
+                new Setter(ChipOutline.IsDashedProperty, false)
+            }
+        });
+        return tags;
+
+        void FocusCard()
+        {
+            if (result.IsCurrent() && card.IsAttachedToVisualTree() && card.IsEffectivelyVisible)
+                card.Focus(NavigationMethod.Tab);
+        }
+
+        void RestoreFoldedChipFocus(Button chip)
+        {
+            if (chip.Focusable || TopLevel.GetTopLevel(card)?.FocusManager is not { } manager) return;
+            if (manager.GetFocusedElement() is not { } focused || ReferenceEquals(focused, chip))
+                FocusCard();
+        }
+
+        (Control Item, Button Chip, ContextMenuHost Menu) CreateItem(int index)
+        {
+            BooruTag tag = ordered[index];
+            string label = BooruText.TagCategory(tag.Category);
             ChipOutline outline = WorkspaceChips.CreateSourceTag(tag.Name, tag.Category, compact: true);
             DraftTagButton chip = new()
             {
                 Name = ResultTagPrefix + post.PostId + ":" + tag.Name,
-                Content = outline,
+                Content = outline, Cursor = new Cursor(StandardCursorType.Hand),
                 Classes = { WorkspaceChips.SourceButton }, MaxWidth = 240
             };
+            AutomationProperties.SetAutomationId(chip, chip.Name);
+            string hint = Texts.T("booru.ui.tags.clickHint", PlatformKeyNames.Alt());
+            AutomationProperties.SetHelpText(chip, hint);
+            ToolTip.AddToolTipOpeningHandler(chip, (_, _) => ToolTip.SetTip(chip,
+                Texts.T("media.breakdown.summary", label, tag.Name) + Environment.NewLine + hint));
             chip.Click += (_, _) =>
             {
-                if (result.IsCurrent())
+                if (chip.Focusable && result.IsCurrent())
                     EditTagDraft(tag.Name, chip.ExcludeOnClick ? BooruTagDraftAction.Exclude : BooruTagDraftAction.Include,
                         CaptureResultLink(result.Target));
             };
             _resultTagChips.Add((chip, outline, tag, label));
-            _resultTagMenus.Add(new ContextMenuHost(chip, () => ComposeTagMenu(tag.Name, result.Target), () => chip.Focus(NavigationMethod.Tab)));
-            buttons[i] = chip;
-            items[i] = chip;
-            if (i > 0 && ordered[i - 1].Category == tag.Category) continue;
+            ContextMenuHost menu = new(chip,
+                () => chip.Focusable ? ComposeTagMenu(tag.Name, result.Target) : null, FocusCard);
+            _resultTagMenus.Add(menu);
+            QueueListTagDraftRefresh();
+
+            if (index > 0 && ordered[index - 1].Category == tag.Category) return (chip, chip, menu);
             TextBlock category = new()
             {
                 Text = label + ":", VerticalAlignment = VerticalAlignment.Center, Classes = { "workspace-meta" },
-                TextTrimming = TextTrimming.CharacterEllipsis
+                FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis
             };
+            string color = tag.Category == BooruTagCategory.Unknown ? nameof(BooruTagCategory.General) : tag.Category.ToString();
+            category[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.TagCategory." + color);
+            ToolTip.SetTip(category, Texts.T("booru.ui.tags.label"));
             AutomationProperties.SetAccessibilityView(category, AccessibilityView.Raw);
             Grid group = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 4 };
             Grid.SetColumn(chip, 1);
             group.Children.AddRange([category, chip]);
-            items[i] = group;
+            return (group, chip, menu);
         }
-        Button toggle = new()
+    }
+
+    private void QueueListTagDraftRefresh()
+    {
+        if (_listTagDraftRefreshPending) return;
+        _listTagDraftRefreshPending = true;
+        Dispatcher.UIThread.Post(() =>
         {
-            Name = MoreTagsPrefix + post.PostId, Classes = { "link", "tnum" }, MinWidth = 0, MinHeight = 0,
-            Padding = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Left
-        };
-        AutomationProperties.SetAutomationId(toggle, toggle.Name);
-        CommandBindings.EnsureIconBeforeText(toggle, expanded ? "chevron-up" : "chevron-down", 12);
-        toggle.Click += (_, _) =>
-        {
-            if (!result.IsCurrent()) return;
-            if (expanded) _expandedTagPosts.Remove(post.PostId);
-            else _expandedTagPosts.Add(post.PostId);
-            Render(force: true);
-        };
-        return new BooruListTagFlow(post.PostId, ordered, items, buttons, toggle, expanded,
-            _listProfile?.BooruHiddenTagTooltipLimit ?? Config.BooruHiddenTagTooltipLimitDefault);
+            _listTagDraftRefreshPending = false;
+            if (_closed) return;
+            _shownTagDraft = null;
+            RenderTagDraft(_model.Search.View);
+        }, DispatcherPriority.Loaded);
     }
 }
 
-/// <summary>Wraps complete tag chips. The same ordered rows are read top to bottom in each column.</summary>
+/// <summary>Wraps category marks with their first chip and folds whole chips into the available rows.</summary>
 internal sealed class BooruListTagFlow : Panel
 {
     private const double Gap = 4;
-    private const double ColumnGap = 16;
-    private readonly int _hiddenTagTooltipLimit;
+    private const double CategoryGap = 12;
+    private const double ChipRowHeight = 20;
 
-    private readonly BooruTag[] _tags;
-    private readonly Control[] _items;
-    private readonly Button[] _buttons;
-    private readonly Button _toggle;
-    private readonly bool _expanded;
-    private readonly TextBlock _heading;
-    private readonly TextBlock _empty;
-    private Rect[] _slots = [];
-    private int _shown = -1;
-    private int _columns = 1;
-    private double _heightBudget = double.PositiveInfinity;
+    private static readonly BooruTagCategory[] FoldOrder =
+    [
+        BooruTagCategory.General, BooruTagCategory.Unknown, BooruTagCategory.Meta,
+        BooruTagCategory.Character, BooruTagCategory.Copyright, BooruTagCategory.Artist
+    ];
 
-    internal BooruListTagFlow(string postId, BooruTag[] tags, Control[] items, Button[] buttons, Button toggle, bool expanded,
-        int hiddenTagTooltipLimit)
+    private sealed record Group(int Start, int Count, int FoldAfter)
     {
-        Name = "BooruListTags:" + postId;
-        _tags = tags;
-        _items = items;
-        _buttons = buttons;
-        _toggle = toggle;
-        _expanded = expanded;
-        _hiddenTagTooltipLimit = hiddenTagTooltipLimit;
-        _heading = new TextBlock
-        {
-            Text = Texts.T("booru.ui.tags.label"), Classes = { "workspace-meta" },
-            FontWeight = FontWeight.Medium, TextWrapping = TextWrapping.Wrap
-        };
-        _empty = new TextBlock { Text = Texts.T("booru.ui.tags.none"), Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-        Children.Add(_heading);
-        if (tags.Length == 0) Children.Add(_empty);
-        else
-        {
-            Children.AddRange(items);
-            Children.Add(toggle);
-            UpdateToggle(items.Length);
-        }
+        internal int Hidden(int totalHidden) => Math.Clamp(totalHidden - FoldAfter, 0, Count);
     }
 
-    internal void SetLayout(int columns, double heightBudget)
+    private readonly BooruTag[] _tags;
+    private readonly Group[] _groups;
+    private readonly int _minimumHidden;
+    private readonly int _lineLimit;
+    private readonly int _hiddenTagTooltipLimit;
+    private readonly Func<int, (Control Item, Button Chip, ContextMenuHost Menu)> _createItem;
+    private readonly Func<bool, bool> _setExpanded;
+    private readonly Action<Button> _restoreFocus;
+    private readonly List<int> _realizedOrder = [];
+    private readonly Dictionary<int, (Control Item, Button Chip, ContextMenuHost Menu)> _realized = new();
+    private readonly Dictionary<int, Rect> _slots = new();
+    private readonly Button _toggle;
+    private readonly TextBlock? _empty;
+    private bool _expanded;
+    private int _hidden;
+    private bool _showToggle;
+    private double _heightBudget;
+
+    internal BooruListTagFlow(string postId, BooruTag[] tags, int limit, int lineLimit, int hiddenTagTooltipLimit, bool expanded,
+        Func<int, (Control Item, Button Chip, ContextMenuHost Menu)> createItem, Func<bool, bool> setExpanded, Action<Button> restoreFocus)
     {
-        if (_columns == columns && _heightBudget == heightBudget) return;
-        _columns = columns;
-        _heightBudget = heightBudget;
+        Name = "BooruListTags:" + postId;
+        AutomationProperties.SetAutomationId(this, Name);
+        AutomationProperties.SetName(this, Texts.T("booru.ui.tags.label"));
+        AutomationProperties.SetControlTypeOverride(this, Avalonia.Automation.Peers.AutomationControlType.Group);
+        _tags = tags;
+        _minimumHidden = Math.Max(0, tags.Length - limit);
+        _lineLimit = lineLimit;
+        _hiddenTagTooltipLimit = hiddenTagTooltipLimit;
+        _createItem = createItem;
+        _setExpanded = setExpanded;
+        _restoreFocus = restoreFocus;
+        _expanded = expanded;
+        _groups = MakeGroups(tags);
+        _toggle = new Button
+        {
+            Name = BooruWorkbenchView.MoreTagsPrefix + postId, Classes = { "link", "tnum" },
+            Focusable = false, IsTabStop = false, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        AutomationProperties.SetAutomationId(_toggle, _toggle.Name);
+        if (tags.Length == 0)
+        {
+            _empty = new TextBlock { Text = Texts.T("booru.ui.tags.none"), Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+            Children.Add(_empty);
+            return;
+        }
+
+        UpdateToggleIcon();
+        _toggle.Click += (_, _) => Toggle();
+        Children.Add(_toggle);
+    }
+
+    private static Group[] MakeGroups(BooruTag[] tags)
+    {
+        var groups = tags.GroupBy(tag => tag.Category).Select(group => (group.Key, Count: group.Count())).ToArray();
+        var foldAfter = new Dictionary<BooruTagCategory, int>();
+        int prior = 0;
+        foreach (var category in FoldOrder)
+        {
+            foldAfter.Add(category, prior);
+            prior += groups.FirstOrDefault(group => group.Key == category).Count;
+        }
+        int start = 0;
+        var result = new Group[groups.Length];
+        for (int i = 0; i < groups.Length; i++)
+        {
+            var (category, count) = groups[i];
+            result[i] = new Group(start, count, foldAfter[category]);
+            start += count;
+        }
+        return result;
+    }
+
+    internal void SetHeightBudget(double height)
+    {
+        if (_heightBudget == height) return;
+        _heightBudget = height;
+        InvalidateMeasure();
+    }
+
+    internal void AddFoldAction(ContextMenuBuilder menu)
+    {
+        if (_showToggle)
+            menu.Item("booru.menu.fold-tags", (string)_toggle.Content!, Toggle, icon: ToggleIcon);
+    }
+
+    private string ToggleIcon => _expanded ? "chevron-up" : "chevron-down";
+
+    private void UpdateToggleIcon() => CommandBindings.ShowIconBeforeText(_toggle, ToggleIcon, 12);
+
+    private void Toggle()
+    {
+        if (!_showToggle || !_setExpanded(!_expanded)) return;
+        _expanded = !_expanded;
+        UpdateToggleIcon();
         InvalidateMeasure();
     }
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        double width = double.IsFinite(availableSize.Width) ? availableSize.Width : 640;
-        _heading.Measure(new Size(width, double.PositiveInfinity));
-        double top = _heading.DesiredSize.Height + Gap;
-        if (_tags.Length == 0)
+        double width = availableSize.Width;
+        Size space = new(width, double.PositiveInfinity);
+        if (_empty != null)
         {
-            _empty.Measure(new Size(width, double.PositiveInfinity));
-            return new Size(width, top + _empty.DesiredSize.Height);
+            _empty.Measure(space);
+            return new Size(width, _empty.DesiredSize.Height);
         }
 
-        double columnWidth = _columns == 1 ? width : Math.Max(0, Math.Floor((width - ColumnGap) / 2));
-        Size rowSpace = new(columnWidth, double.PositiveInfinity);
-        foreach (Control item in _items) item.Measure(rowSpace);
-        _toggle.Measure(rowSpace);
-        // Reserve room for the count to grow if narrower rows fold more tags.
-        Size toggleSize = _toggle.DesiredSize;
-        if (!_expanded)
+        int hidden = _expanded ? 0 : _minimumHidden;
+        if (!_expanded && Flow(space, hidden) == double.PositiveInfinity)
         {
-            int totalDigits = _tags.Length.ToString(Texts.Culture).Length;
-            int currentDigits = Math.Max(0, _tags.Length - Math.Max(0, _shown)).ToString(Texts.Culture).Length;
-            toggleSize = toggleSize.WithWidth(Math.Min(columnWidth, toggleSize.Width + (totalDigits - currentDigits) * 8 + Gap));
-        }
-
-        int shown = _items.Length;
-        var layout = Flow(shown, columnWidth, toggleSize, top);
-        if (!_expanded && layout.Height > _heightBudget)
-        {
-            int low = 0, high = shown;
-            while (low < high)
+            int high = _tags.Length;
+            while (hidden < high)
             {
-                int candidate = (low + high + 1) / 2;
-                if (Flow(candidate, columnWidth, toggleSize, top).Height <= _heightBudget) low = candidate;
-                else high = candidate - 1;
+                int candidate = (hidden + high) / 2;
+                if (Flow(space, candidate) < double.PositiveInfinity) high = candidate;
+                else hidden = candidate + 1;
             }
-            shown = low;
-            layout = Flow(shown, columnWidth, toggleSize, top);
         }
-        if (_shown != shown) UpdateToggle(shown);
-        _slots = layout.Slots;
-        _toggle.Measure(rowSpace);
-        return new Size(width, layout.Height);
+
+        _slots.Clear();
+        double height = Flow(space, hidden, _slots);
+        _showToggle = _expanded || hidden > 0;
+        if (_showToggle)
+        {
+            _toggle.Content = ToggleLabel(hidden);
+            if (_hidden != hidden || _expanded)
+                UpdateToggleDescription(hidden);
+        }
+        _hidden = hidden;
+        return new Size(width, height);
     }
 
-    private (Rect[] Slots, double Height) Flow(int shown, double width, Size toggleSize, double top)
+    private double Flow(Size space, int hidden, Dictionary<int, Rect>? output = null)
     {
-        int count = shown + (_expanded || shown < _tags.Length ? 1 : 0);
-        Rect[] slots = new Rect[count];
-        int split = count;
-        double height = FlowColumn(0, count, 0);
-        if (_columns == 2)
+        double x = 0, y = 0, height = 0;
+        int row = 1;
+        int rowStart = 0;
+        List<int>? rowItems = output != null ? [] : null;
+        bool constrained = !_expanded && output == null;
+
+        foreach (Group group in _groups)
         {
-            // The heading travels with its category. Only a boundary between visible categories can start column two.
-            for (int i = 1; i < shown; i++)
+            int end = group.Start + group.Count - group.Hidden(hidden);
+            for (int index = group.Start; index < end; index++)
             {
-                if (_tags[i - 1].Category == _tags[i].Category) continue;
-                double candidate = Math.Max(FlowColumn(0, i, 0), FlowColumn(i, count, width + ColumnGap));
-                if (split != count && candidate >= height) continue;
-                split = i;
-                height = candidate;
+                Control item = Realize(index);
+                item.Measure(space);
+                if (!Place(index, item.DesiredSize, index == group.Start ? CategoryGap : Gap))
+                    return double.PositiveInfinity;
             }
         }
-        FlowColumn(0, split, 0, slots);
-        if (split < count) FlowColumn(split, count, width + ColumnGap, slots);
-        return (slots, height);
-
-        double FlowColumn(int first, int end, double columnX, Rect[]? output = null)
+        if (_expanded || hidden > 0)
         {
-            double x = 0, y = top, rowHeight = 0;
-            int rowStart = first;
-            for (int i = first; i < end; i++)
-            {
-                Size size = i == shown ? toggleSize : _items[i].DesiredSize;
-                size = size.WithWidth(Math.Min(width, size.Width));
-                if (i > rowStart && x + size.Width > width)
-                {
-                    CenterRow(i);
-                    y += rowHeight + Gap;
-                    x = rowHeight = 0;
-                    rowStart = i;
-                }
-                if (output != null) output[i] = new Rect(columnX + x, y, size.Width, size.Height);
-                x += size.Width + Gap;
-                rowHeight = Math.Max(rowHeight, size.Height);
-            }
-            CenterRow(end);
-            return y + rowHeight;
+            _toggle.Content = ToggleLabel(hidden);
+            _toggle.Measure(space);
+            if (!Place(_tags.Length, _toggle.DesiredSize, CategoryGap))
+                return double.PositiveInfinity;
+        }
+        CenterRow();
+        return y + height;
 
-            void CenterRow(int rowEnd)
+        bool Place(int index, Size size, double gap)
+        {
+            Size itemSize = size.WithWidth(Math.Min(size.Width, space.Width));
+            if (x > 0 && x + gap + itemSize.Width > space.Width)
             {
-                if (output == null) return;
-                for (int i = rowStart; i < rowEnd; i++)
-                    output[i] = output[i].Translate(new Vector(0, (rowHeight - output[i].Height) / 2));
+                CenterRow();
+                y += height + Gap;
+                x = height = 0;
+                row++;
+                rowStart = rowItems?.Count ?? 0;
+            }
+            height = Math.Max(Math.Max(height, ChipRowHeight), itemSize.Height);
+            bool toggleAlone = index == _tags.Length && row == 1 && x == 0;
+            if (constrained && !toggleAlone && (_lineLimit > 0 && row > _lineLimit || y + height > _heightBudget))
+                return false;
+
+            if (x > 0) x += gap;
+            if (output != null)
+            {
+                output.Add(index, new Rect(x, y, itemSize.Width, itemSize.Height));
+                rowItems!.Add(index);
+            }
+            x += itemSize.Width;
+            return true;
+        }
+
+        void CenterRow()
+        {
+            if (output == null) return;
+            for (int i = rowStart; i < rowItems!.Count; i++)
+            {
+                int index = rowItems[i];
+                Rect slot = output[index];
+                output[index] = slot.Translate(new Vector(0, (height - slot.Height) / 2));
             }
         }
+    }
+
+    private Control Realize(int index)
+    {
+        if (_realized.TryGetValue(index, out var existing)) return existing.Item;
+        var realized = _createItem(index);
+        int position = ~_realizedOrder.BinarySearch(index);
+        _realizedOrder.Insert(position, index);
+        _realized.Add(index, realized);
+        Children.Insert(position, realized.Item);
+        return realized.Item;
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        _heading.Arrange(new Rect(_heading.DesiredSize));
-        if (_tags.Length == 0)
+        if (_empty != null)
         {
-            _empty.Arrange(new Rect(0, _heading.DesiredSize.Height + Gap, finalSize.Width, _empty.DesiredSize.Height));
+            _empty.Arrange(new Rect(finalSize));
             return finalSize;
         }
 
-        bool showToggle = _slots.Length > _shown;
-        Button? hiddenFocus = _toggle.IsFocused && !showToggle ? _toggle : null;
-        SetDisplayed(_toggle, _toggle, showToggle, showToggle ? _slots[^1] : default);
-        for (int i = 0; i < _items.Length; i++)
+        foreach (var (index, (item, chip, menu)) in _realized)
         {
-            bool show = i < _shown;
-            if (_buttons[i].IsFocused && !show) hiddenFocus = _buttons[i];
-            SetDisplayed(_items[i], _buttons[i], show, show ? _slots[i] : default);
+            bool show = _slots.TryGetValue(index, out Rect slot);
+            bool lostFocus = !show && chip.Focusable && chip.IsFocused;
+            SetDisplayed(item, chip, show, slot);
+            if (show) continue;
+            menu.Close();
+            if (lostFocus) Dispatcher.UIThread.Post(() => _restoreFocus(chip), DispatcherPriority.Loaded);
         }
-        if (hiddenFocus != null)
-        {
-            Button target = showToggle ? _toggle : _buttons[_shown - 1];
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (hiddenFocus.IsFocused && target.IsTabStop) target.Focus(NavigationMethod.Tab);
-            }, DispatcherPriority.Loaded);
-        }
+        SetDisplayed(_toggle, _toggle, _showToggle, _slots.GetValueOrDefault(_tags.Length));
         return finalSize;
     }
 
-    private static void SetDisplayed(Control item, Button button, bool visible, Rect slot)
+    private void SetDisplayed(Control item, Button button, bool visible, Rect slot)
     {
-        // We still measure folded chips when the viewport or the font changes.
+        // A folded chip can be measured again when the window or font changes.
         item.Opacity = visible ? 1 : 0;
         item.IsHitTestVisible = visible;
-        button.IsTabStop = visible;
+        bool focusable = visible && button != _toggle;
+        button.Focusable = focusable;
+        button.IsTabStop = focusable;
         AutomationProperties.SetAccessibilityView(button, visible ? AccessibilityView.Content : AccessibilityView.Raw);
         item.Arrange(slot);
     }
 
-    private void SetToggleText(int count) =>
-        _toggle.Content = _expanded ? Texts.T("booru.ui.tags.less") : Texts.T("booru.ui.tags.more", count);
+    private string ToggleLabel(int hidden) =>
+        _expanded ? Texts.T("booru.ui.tags.less") : Texts.T("booru.ui.tags.more", hidden);
 
-    private void UpdateToggle(int shown)
+    private void UpdateToggleDescription(int hidden)
     {
-        _shown = shown;
-        int hidden = _tags.Length - shown;
-        SetToggleText(hidden);
-        string label = (string)_toggle.Content!;
+        string label = ToggleLabel(hidden);
         AutomationProperties.SetName(_toggle, label);
-        if (_expanded)
+        string tip = label;
+        if (!_expanded)
         {
-            ToolTip.SetTip(_toggle, label);
-            return;
+            var names = _groups.SelectMany(group =>
+            {
+                int count = group.Hidden(hidden);
+                return _tags.Skip(group.Start + group.Count - count).Take(count);
+            }).Take(_hiddenTagTooltipLimit).Select(tag => tag.Name);
+            string suffix = hidden > _hiddenTagTooltipLimit ? "…" : string.Empty;
+            tip = Texts.T("booru.ui.tags.showAll", string.Join(", ", names) + suffix);
         }
-        string names = string.Join(", ", _tags.Skip(shown).Take(_hiddenTagTooltipLimit).Select(tag => tag.Name))
-            + (hidden > _hiddenTagTooltipLimit ? "…" : string.Empty);
-        string tip = Texts.T("booru.ui.tags.showAll", names);
         ToolTip.SetTip(_toggle, tip);
         AutomationProperties.SetHelpText(_toggle, tip);
     }

@@ -20,6 +20,26 @@ namespace MeowChan
         public string ReadingFontSize { get; set; } = "Normal";
         public string ArchiveThreadLayout { get; set; } = "List";
         public double ArchiveSplitWidth { get; set; } = Config.ArchiveSplitWidthDefault;
+        // Legacy profiles store the same numeric width for automatic sizing and a drag to the default.
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ArchiveSplitWidthIsExplicit { get; set; }
+
+        [JsonIgnore]
+        internal double? ArchiveSplitWidthOverride
+        {
+            get
+            {
+                double width = Config.NormalizeArchiveSplitWidth(ArchiveSplitWidth);
+                return ArchiveSplitWidthIsExplicit || width != Config.ArchiveSplitWidthDefault ? width : null;
+            }
+            set
+            {
+                ArchiveSplitWidth = Config.NormalizeArchiveSplitWidth(value ?? Config.ArchiveSplitWidthDefault);
+                ArchiveSplitWidthIsExplicit = value.HasValue;
+            }
+        }
+
         [JsonConverter(typeof(DesktopPreferenceColumnWidthsConverter))]
         public Dictionary<string, double> ColumnWidths { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, bool> ColumnVisibility { get; set; } = new(StringComparer.Ordinal);
@@ -29,7 +49,7 @@ namespace MeowChan
         {
             CompactDensity = CompactDensity, ArchiveMediaTiles = ArchiveMediaTiles,
             ReadingFontSize = ReadingFontSize, ArchiveThreadLayout = ArchiveThreadLayout,
-            ArchiveSplitWidth = ArchiveSplitWidth,
+            ArchiveSplitWidth = ArchiveSplitWidth, ArchiveSplitWidthIsExplicit = ArchiveSplitWidthIsExplicit,
             ColumnWidths = ColumnWidths == null ? new(StringComparer.Ordinal) : new(ColumnWidths, StringComparer.Ordinal),
             ColumnVisibility = ColumnVisibility == null ? new(StringComparer.Ordinal) : new(ColumnVisibility, StringComparer.Ordinal),
             ColumnOrder = ColumnOrder == null ? new(StringComparer.Ordinal) : new(ColumnOrder, StringComparer.Ordinal)
@@ -95,12 +115,12 @@ namespace MeowChan
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
         /// <summary>
-        /// Revision of the one-shot migrations of view-preference defaults (1: the archive list width default moved from 270 to 330).
+        /// Revision of the one-shot migrations of view-preference defaults (1: archive list width 270 to 330, 2: Booru tag count 12 to automatic).
         /// A new profile starts at the current value; a file without the field is read as 0 (see OnDeserializing), so an old value is
-        /// migrated exactly once and a width the person chose later, 270 included, is kept.
+        /// migrated exactly once and values the person chooses after the migration are kept.
         /// </summary>
         public int PreferenceDefaultsRevision { get; set; } = CurrentPreferenceDefaultsRevision;
-        internal const int CurrentPreferenceDefaultsRevision = 1;
+        internal const int CurrentPreferenceDefaultsRevision = 2;
         public bool FirstRunSetupPending { get; set; }
         public int FirstRunSetupVersion { get; set; }
         public Dictionary<string, SourceMediaIntegrityPermission> SourceMediaIntegrityPermissions { get; set; } = new(StringComparer.Ordinal);
@@ -237,6 +257,18 @@ namespace MeowChan
         internal const int BoardAdmissionSizeMiBDefault = Admission.BoardAdmissionStore.DefaultSizeMiB;
         internal const int BoardAdmissionSizeMiBMinimum = Admission.BoardAdmissionStore.MinimumSizeMiB;
         internal const int BoardAdmissionSizeMiBMaximum = Admission.BoardAdmissionStore.MaximumSizeMiB;
+        public int BoardSuggestionMinThreads { get; set; } = BoardSuggestionMinThreadsDefault;
+        internal const int BoardSuggestionMinThreadsDefault = 3;
+        internal const int BoardSuggestionMinThreadsMinimum = 2;
+        internal const int BoardSuggestionMinThreadsMaximum = 50;
+        public int BoardSuggestionLimit { get; set; } = BoardSuggestionLimitDefault;
+        internal const int BoardSuggestionLimitDefault = 12;
+        internal const int BoardSuggestionLimitMinimum = 3;
+        internal const int BoardSuggestionLimitMaximum = 50;
+        public int BoardSuggestionScanThreads { get; set; } = BoardSuggestionScanThreadsDefault;
+        internal const int BoardSuggestionScanThreadsDefault = 5_000;
+        internal const int BoardSuggestionScanThreadsMinimum = 100;
+        internal const int BoardSuggestionScanThreadsMaximum = Archive.ArchiveReader.BoardTitleHistoryMaximum;
         [JsonInclude]
         internal int BoardArchiveCacheLimit { get; set; } = BoardArchiveCacheLimitDefault;
         internal const int BoardArchiveCacheLimitDefault = 8;
@@ -335,10 +367,11 @@ namespace MeowChan
         internal const int MediaTagListTopDefault = 30;
         internal const int MediaTagListTopMinimum = 5;
         internal const int MediaTagListTopMaximum = 1_000;
-        /// <summary>E2: how many source tag chips a Danbooru result in the list shows before "+N more" (0 shows none until "+N more" is used).</summary>
+        /// <summary>E2: how many source tag chips a Danbooru result in the list shows before "+N more" (-1 fits the available space, 0 initially folds all tags).</summary>
         public int BooruResultTagsShown { get; set; } = BooruResultTagsShownDefault;
-        internal const int BooruResultTagsShownDefault = 12;
-        internal const int BooruResultTagsShownMinimum = 0;
+        internal const int BooruResultTagsShownAutomatic = -1;
+        internal const int BooruResultTagsShownDefault = BooruResultTagsShownAutomatic;
+        internal const int BooruResultTagsShownMinimum = BooruResultTagsShownAutomatic;
         internal const int BooruResultTagsShownMaximum = 200;
         /// <summary>Legacy profile value retained for settings compatibility.</summary>
         public string BooruNewSearchTarget { get; set; } = BooruSearchTargetNewTab;
@@ -1085,6 +1118,9 @@ namespace MeowChan
             MigratePreferenceDefaults();
             // Couple only after all legacy keys have been read, independent of JSON order.
             NormalizeGalleryControls();
+            BooruCatalogLimitMiB = Math.Clamp(BooruCatalogLimitMiB, BooruCatalogMinimumLimitMiB, BooruCatalogMaximumLimitMiB);
+            ImportCatalogLimitMiB = Math.Clamp(ImportCatalogLimitMiB, ImportCatalogLimitMiBMinimum, ImportCatalogLimitMiBMaximum);
+            FolderSourceCatalogLimitMiB = Math.Clamp(FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBMinimum, FolderSourceCatalogLimitMiBMaximum);
             ReaderThumbnailWidth = Math.Clamp(ReaderThumbnailWidth, ReaderThumbnailWidthMinimum, ReaderThumbnailWidthMaximum);
             ReaderFoldLines = Math.Clamp(ReaderFoldLines, ReaderFoldLinesMinimum, ReaderFoldLinesMaximum);
             ReaderPreviewLines = Math.Clamp(ReaderPreviewLines, ReaderPreviewLinesMinimum, ReaderPreviewLinesMaximum);
@@ -1124,6 +1160,9 @@ namespace MeowChan
             ExportHistorySizeMiB = Math.Clamp(ExportHistorySizeMiB, ExportHistorySizeMiBMinimum, ExportHistorySizeMiBMaximum);
             ExportHistoryEntryLimit = Math.Clamp(ExportHistoryEntryLimit, ExportHistoryEntryLimitMinimum, ExportHistoryEntryLimitMaximum);
             BoardAdmissionSizeMiB = Math.Clamp(BoardAdmissionSizeMiB, BoardAdmissionSizeMiBMinimum, BoardAdmissionSizeMiBMaximum);
+            BoardSuggestionMinThreads = Math.Clamp(BoardSuggestionMinThreads, BoardSuggestionMinThreadsMinimum, BoardSuggestionMinThreadsMaximum);
+            BoardSuggestionLimit = Math.Clamp(BoardSuggestionLimit, BoardSuggestionLimitMinimum, BoardSuggestionLimitMaximum);
+            BoardSuggestionScanThreads = Math.Clamp(BoardSuggestionScanThreads, BoardSuggestionScanThreadsMinimum, BoardSuggestionScanThreadsMaximum);
             BoardArchiveCacheLimit = Math.Clamp(BoardArchiveCacheLimit, BoardArchiveCacheLimitMinimum, BoardArchiveCacheLimitMaximum);
             BooruHiddenTagTooltipLimit = Math.Clamp(BooruHiddenTagTooltipLimit, BooruHiddenTagTooltipLimitMinimum, BooruHiddenTagTooltipLimitMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
@@ -1165,6 +1204,8 @@ namespace MeowChan
                     foreach (PresentationProfile profile in _deserializedLayoutProfiles.Values)
                         profile.ArchiveSplitWidth = MigrateArchiveSplitWidthDefault(profile.ArchiveSplitWidth);
             }
+            if (PreferenceDefaultsRevision < 2 && BooruResultTagsShown == 12)
+                BooruResultTagsShown = BooruResultTagsShownDefault;
             PreferenceDefaultsRevision = CurrentPreferenceDefaultsRevision;
         }
 
@@ -1757,6 +1798,12 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ExportHistoryEntryLimit), "ExportHistoryEntryLimit is outside its supported range (" + ExportHistoryEntryLimitMinimum + " to " + ExportHistoryEntryLimitMaximum + ").");
             if (BoardAdmissionSizeMiB is < BoardAdmissionSizeMiBMinimum or > BoardAdmissionSizeMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BoardAdmissionSizeMiB), "BoardAdmissionSizeMiB is outside its supported range (" + BoardAdmissionSizeMiBMinimum + " to " + BoardAdmissionSizeMiBMaximum + ").");
+            if (BoardSuggestionMinThreads is < BoardSuggestionMinThreadsMinimum or > BoardSuggestionMinThreadsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardSuggestionMinThreads));
+            if (BoardSuggestionLimit is < BoardSuggestionLimitMinimum or > BoardSuggestionLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardSuggestionLimit));
+            if (BoardSuggestionScanThreads is < BoardSuggestionScanThreadsMinimum or > BoardSuggestionScanThreadsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardSuggestionScanThreads));
             if (BoardArchiveCacheLimit is < BoardArchiveCacheLimitMinimum or > BoardArchiveCacheLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BoardArchiveCacheLimit), $"Board archive cache size must be between {BoardArchiveCacheLimitMinimum} and {BoardArchiveCacheLimitMaximum} boards.");
             if (BooruHiddenTagTooltipLimit is < BooruHiddenTagTooltipLimitMinimum or > BooruHiddenTagTooltipLimitMaximum)
@@ -2064,6 +2111,9 @@ namespace MeowChan
                 ExportHistorySizeMiB = ExportHistorySizeMiB,
                 ExportHistoryEntryLimit = ExportHistoryEntryLimit,
                 BoardAdmissionSizeMiB = BoardAdmissionSizeMiB,
+                BoardSuggestionMinThreads = BoardSuggestionMinThreads,
+                BoardSuggestionLimit = BoardSuggestionLimit,
+                BoardSuggestionScanThreads = BoardSuggestionScanThreads,
                 BoardArchiveCacheLimit = BoardArchiveCacheLimit,
                 BooruHiddenTagTooltipLimit = BooruHiddenTagTooltipLimit,
                 SlashTagSuggestionCount = SlashTagSuggestionCount,
@@ -2367,6 +2417,9 @@ namespace MeowChan
             ExportHistorySizeMiB = source.ExportHistorySizeMiB;
             ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
             BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
+            BoardSuggestionMinThreads = source.BoardSuggestionMinThreads;
+            BoardSuggestionLimit = source.BoardSuggestionLimit;
+            BoardSuggestionScanThreads = source.BoardSuggestionScanThreads;
             BoardArchiveCacheLimit = source.BoardArchiveCacheLimit;
             BooruHiddenTagTooltipLimit = source.BooruHiddenTagTooltipLimit;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
@@ -2620,6 +2673,9 @@ namespace MeowChan
             ExportHistorySizeMiB = source.ExportHistorySizeMiB;
             ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
             BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
+            BoardSuggestionMinThreads = source.BoardSuggestionMinThreads;
+            BoardSuggestionLimit = source.BoardSuggestionLimit;
+            BoardSuggestionScanThreads = source.BoardSuggestionScanThreads;
             BoardArchiveCacheLimit = source.BoardArchiveCacheLimit;
             BooruHiddenTagTooltipLimit = source.BooruHiddenTagTooltipLimit;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;

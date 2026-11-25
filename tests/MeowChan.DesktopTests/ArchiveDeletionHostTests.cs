@@ -98,6 +98,7 @@ public sealed class ArchiveDeletionHostTests
 
         await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync();
+        Assert.True((await host.SetThreadFavoriteAsync(exclusive, true)).Changed);
         await host.SetPausedAsync(true);
         ArchivePermanentDeletionPlan plan = await host.PrepareArchiveDeletionAsync(new[] { shared, exclusive });
         Assert.Contains(sharedDirectory, plan.Catalog.SharedMediaDirectories);
@@ -110,6 +111,7 @@ public sealed class ArchiveDeletionHostTests
         Assert.NotNull(await reader.ReadThreadAsync(kept));
         Assert.Null(await reader.ReadThreadAsync(exclusive));
         Assert.Equal(new[] { shared }, host.GetFavorites().Select(entry => entry.Key.Thread));
+        Assert.Equal(new[] { exclusive }, host.GetThreadFavorites());
     }
 
     [Fact]

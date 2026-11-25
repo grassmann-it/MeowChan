@@ -309,6 +309,24 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void AnOldProfileWithAnOutOfRangeCatalogLimitLoadsWithoutABackup()
+    {
+        using TempDirectory directory = new();
+        string settings = SettingsPath(directory);
+        string downloads = Path.Combine(directory.Path, "media");
+        string original = JsonSerializer.Serialize(new { BooruCatalogLimitMiB = 129, RecheckTimer = 120, DownloadPath = downloads });
+        File.WriteAllText(settings, original);
+
+        Config config = Config.LoadConfig(directory.Path);
+
+        Assert.Null(config.LoadWarning);
+        Assert.Equal(Config.BooruCatalogMaximumLimitMiB, config.BooruCatalogLimitMiB);
+        Assert.Equal(120, config.RecheckTimer);
+        Assert.Equal(downloads, config.DownloadPath);
+        Assert.Equal(original, File.ReadAllText(settings));
+    }
+
+    [Fact]
     public void CorruptPrimaryRecoversBackupButOrdinarySaveCannotAuthorizeRecovery()
     {
         using TempDirectory directory = new TempDirectory();
@@ -778,13 +796,14 @@ public sealed class ConfigTests
     [Fact]
     public void ARevisionOneFileKeepsA270ListWidthThroughLoadCloneCopyAndSaveWhileAnOldFileMovesOnceAndIsStampedOnSave()
     {
-        Assert.Equal(1, new Config().PreferenceDefaultsRevision);
+        // Astra W112-69 B §4: a newly selected 12 must survive restart, so Booru adds a second one-shot migration.
+        Assert.Equal(2, new Config().PreferenceDefaultsRevision);
         const string old = "{\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":270},\"Advanced\":{\"ArchiveSplitWidth\":270}}}";
         using (TempDirectory directory = new())
         {
             File.WriteAllText(SettingsPath(directory), old);
             Config loaded = Config.LoadConfig(directory.Path);
-            Assert.Equal(1, loaded.PreferenceDefaultsRevision);
+            Assert.Equal(2, loaded.PreferenceDefaultsRevision);
             Assert.Equal(330d, loaded.GetLayoutProfile("Barebones").ArchiveSplitWidth);
             Assert.Equal(330d, loaded.GetLayoutProfile("Advanced").ArchiveSplitWidth);
             // The person drags it back to 270 (keyboard steps of 10): neither a clone nor a save nor the next load may move it again.
@@ -795,7 +814,7 @@ public sealed class ConfigTests
             Assert.Equal(270d, copy.GetLayoutProfile("Barebones").ArchiveSplitWidth);
             loaded.SaveConfig();
             using (JsonDocument saved = JsonDocument.Parse(File.ReadAllText(SettingsPath(directory))))
-                Assert.Equal(1, saved.RootElement.GetProperty("PreferenceDefaultsRevision").GetInt32());
+                Assert.Equal(2, saved.RootElement.GetProperty("PreferenceDefaultsRevision").GetInt32());
             Config again = Config.LoadConfig(directory.Path);
             Assert.Equal(270d, again.GetLayoutProfile("Barebones").ArchiveSplitWidth);
             Assert.Equal(330d, again.GetLayoutProfile("Advanced").ArchiveSplitWidth);

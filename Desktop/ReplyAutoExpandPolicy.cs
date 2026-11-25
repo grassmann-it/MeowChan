@@ -20,6 +20,19 @@ internal sealed class ReplyAutoExpandPolicy
     /// <summary>The posts of the open thread whose replies the reader collapsed.</summary>
     internal int CollapsedCount => _collapsedByReader.Count;
 
+    internal string[] CaptureCollapsedPosts()
+    {
+        string[] posts = new string[_collapsedByReader.Count];
+        _collapsedByReader.CopyTo(posts);
+        return posts;
+    }
+
+    internal void RestoreCollapsedPosts(IEnumerable<string> posts)
+    {
+        _collapsedByReader.Clear();
+        _collapsedByReader.UnionWith(posts);
+    }
+
     /// <summary>The thread that is open (null for none). Showing another thread drops the memory of the previous one.</summary>
     internal void SwitchThread(ResourceId? thread)
     {

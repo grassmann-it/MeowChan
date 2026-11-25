@@ -754,6 +754,7 @@ namespace MeowChan
         {
             if (!disposing || _isClosed) return;
             _isClosed = true;
+            SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
             _destinationWait?.Cancel();
             _destinationWait?.Dispose();
             _destinationWait = null;

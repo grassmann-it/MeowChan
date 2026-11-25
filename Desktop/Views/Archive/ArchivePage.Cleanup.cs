@@ -26,7 +26,7 @@ public partial class ArchivePage
         if (_cleanupRouter == null)
         {
             _cleanupRouter = new(this);
-            _cleanupRouter.Register(new("archive.cleanup", this,
+            _cleanupRouter.RegisterOwned(new("archive.cleanup", this,
                 // The page, not the button: a view may keep the button under the header's More, and the shortcut must still work.
                 () => !_ended && IsEffectivelyVisible,
                 CanOpenArchiveCleanup, () => OpenActions.Start(OpenArchiveCleanupAsync, "archive.cleanup.open"), Priority: 100));
@@ -68,6 +68,7 @@ public partial class ArchivePage
             Height = Math.Max(380, Math.Min(700, owner.ClientSize.Height - 32))
         };
         _cleanupDialog = dialog; UpdateArchiveCleanupAction();
+        _mediaSidebar?.InvalidateTagEditor();
         try
         {
             await dialog.ShowDialog(owner);

@@ -72,6 +72,9 @@ public sealed class SettingsTransferTests
             StatsHeaderIcons = true,
             ArchiveTagFilterTagsPerList = 71,
             UrlTextExportLimitMiB = 17,
+            BoardSuggestionMinThreads = 4,
+            BoardSuggestionLimit = 8,
+            BoardSuggestionScanThreads = 2_000,
             SlashTagSuggestionCount = 13,
             ShrinkWindowForBarebones = false,
             VideoScrubCacheLimitMiB = 96,
@@ -100,6 +103,9 @@ public sealed class SettingsTransferTests
         Assert.Equal(source.StatsHeaderIcons, restored.StatsHeaderIcons);
         Assert.Equal(source.ArchiveTagFilterTagsPerList, restored.ArchiveTagFilterTagsPerList);
         Assert.Equal(source.UrlTextExportLimitMiB, restored.UrlTextExportLimitMiB);
+        Assert.Equal(source.BoardSuggestionMinThreads, restored.BoardSuggestionMinThreads);
+        Assert.Equal(source.BoardSuggestionLimit, restored.BoardSuggestionLimit);
+        Assert.Equal(source.BoardSuggestionScanThreads, restored.BoardSuggestionScanThreads);
         Assert.Equal(source.SlashTagSuggestionCount, restored.SlashTagSuggestionCount);
         Assert.Equal(source.ShrinkWindowForBarebones, restored.ShrinkWindowForBarebones);
         Assert.Equal(source.VideoScrubCacheLimitMiB, restored.VideoScrubCacheLimitMiB);

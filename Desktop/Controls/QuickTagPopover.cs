@@ -41,7 +41,7 @@ internal enum QuickTagPopoverCloseReason
 /// What the favourite and rating row of a popover reads and writes. The host owns the stores and reports a failed write itself; the popover
 /// shows <see cref="View"/> again after every request, so a refused write leaves the row on the real state.
 /// </summary>
-internal sealed record QuickTagPopoverDecision
+internal record QuickTagPopoverDecision
 {
     /// <summary>What the targets carry now (read again after every request).</summary>
     internal required Func<GalleryDecisionView> View { get; init; }

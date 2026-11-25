@@ -757,6 +757,25 @@
                         CornerRadius="{StaticResource Workspace.Radius.Badge}" IsHitTestVisible="False" />
             </Border>
         </Template>
+        <!-- Keep the adorner root aligned with the focused element so Avalonia can apply the viewport's clip.
+             The negative margin belongs to the ring inside that coordinate space. -->
+        <Template x:Key="Workspace.ViewportFocusAdorner">
+            <Panel AdornerLayer.IsClipEnabled="True" IsHitTestVisible="False">
+                <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
+                        CornerRadius="{StaticResource Workspace.Radius.Control}" Margin="-4">
+                    <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
+                            CornerRadius="{StaticResource Workspace.Radius.Badge}" />
+                </Border>
+            </Panel>
+        </Template>
+        <!-- Templated controls also clip at their own bounds. Keep both strokes inside those bounds. -->
+        <Template x:Key="Workspace.InsetViewportFocusAdorner">
+            <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
+                    CornerRadius="{StaticResource Workspace.Radius.Control}" AdornerLayer.IsClipEnabled="True" IsHitTestVisible="False">
+                <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
+                        CornerRadius="{StaticResource Workspace.Radius.Badge}" />
+            </Border>
+        </Template>
     </Styles.Resources>
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource Workspace.Background}" />
@@ -931,6 +950,10 @@
         <Setter Property="BorderThickness" Value="0" /><Setter Property="RowHeight" Value="{x:Static desktop:WorkspaceMetrics.NormalRowHeight}" /><Setter Property="ColumnHeaderHeight" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
         <Setter Property="GridLinesVisibility" Value="Horizontal" /><Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Workspace.Border}" />
     </Style>
+    <!-- A populated table draws keyboard focus on its current cell or row inside the rows presenter. -->
+    <Style Selector="DataGrid:not(:empty-rows):not(:empty-columns)">
+        <Setter Property="FocusAdorner" Value="{x:Null}" />
+    </Style>
     <Style Selector="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Padding" Value="10,7" />
@@ -1035,6 +1058,11 @@
     <!-- AX-05 (a11y package): ToggleSwitch and TabItem are listed explicitly; a type selector does not match derived types, so the ToggleButton entry never reached ToggleSwitch, and TabItem was never listed. -->
     <Style Selector="Button, ToggleButton, ToggleSwitch, TabItem, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="ListBox.workspace-selection-bar, ListBox.tagging-table">
+        <Style Selector="^ > ListBoxItem">
+            <Setter Property="FocusAdorner" Value="{StaticResource Workspace.InsetViewportFocusAdorner}" />
+        </Style>
     </Style>
     <Style Selector="Button.row-action">
         <Setter Property="FocusAdorner">
@@ -2515,7 +2543,8 @@
     <Style Selector="Border.booru-tile">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="0" />
-        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+        <Setter Property="ToolTip.Placement" Value="Custom" />
+        <Setter Property="ToolTip.CustomPopupPlacementCallback" Value="{x:Static controls:ViewportToolTip.Place}" />
     </Style>
     <Style Selector="Border.booru-tile:pointerover, Border.booru-tile:focus-within">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
@@ -2535,7 +2564,10 @@
     </Style>
     <!-- A card the keyboard reaches (Booru hit): the shared double focus ring, drawn only for keyboard focus (Avalonia shows the adorner for Tab and arrow focus). -->
     <Style Selector="Border.workspace-card-focusable">
-        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.ViewportFocusAdorner}" />
+    </Style>
+    <Style Selector="Border.booru-tile WrapPanel.booru-tile-actions > Button, Border.booru-tile WrapPanel.booru-tile-actions > CheckBox">
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.InsetViewportFocusAdorner}" />
     </Style>
     <Style Selector="Border.booru-stage-focus">
         <Setter Property="IsVisible" Value="False" />

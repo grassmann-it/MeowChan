@@ -157,13 +157,15 @@
                             <ToggleSwitch x:Name="ShowBooruActionsInput" IsChecked="{Binding ShowBooruActions, Mode=TwoWay}" AutomationProperties.Name="{Binding ShowBooruActionsLabel}" AutomationProperties.HelpText="{Binding ShowBooruActionsHint}" ToolTip.Tip="{Binding ShowBooruActionsHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowBooruActionsFieldLabel}" />
                         </Grid>
                     </Border>
+                    <Expander x:Name="SettingsInterfaceMoreGroup" wv:WorkViewElement.Id="settings.group.interface-more" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,0">
+                        <StackPanel x:Name="SettingsInterfaceMoreBody" Spacing="0" Margin="0,8,0,0">
                     <TextBlock Text="{Binding FooterDisplaysLabel}" Classes="workspace-field-label settings-subheading" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" VerticalAlignment="Center">
                                 <TextBlock x:Name="ShowFooterNetworkFieldLabel" Text="{Binding FooterNetworkLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch x:Name="ShowFooterNetworkInput" IsChecked="{Binding ShowFooterNetwork, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterNetworkLabel}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterNetworkFieldLabel}" />
+                            <ToggleSwitch x:Name="ShowFooterNetworkInput" IsChecked="{Binding ShowFooterNetwork, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterNetworkLabel}" AutomationProperties.HelpText="{Binding FooterNetworkHint}" ToolTip.Tip="{Binding FooterNetworkHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterNetworkFieldLabel}" />
                         </Grid>
                     </Border>
                     <Border Classes="settings-divider">
@@ -171,7 +173,7 @@
                             <StackPanel Classes="settings-label" VerticalAlignment="Center">
                                 <TextBlock x:Name="ShowFooterDiskFieldLabel" Text="{Binding FooterDiskLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch x:Name="ShowFooterDiskInput" IsChecked="{Binding ShowFooterDisk, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterDiskLabel}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterDiskFieldLabel}" />
+                            <ToggleSwitch x:Name="ShowFooterDiskInput" IsChecked="{Binding ShowFooterDisk, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterDiskLabel}" AutomationProperties.HelpText="{Binding FooterDiskHint}" ToolTip.Tip="{Binding FooterDiskHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterDiskFieldLabel}" />
                         </Grid>
                     </Border>
                     <Border Classes="settings-divider">
@@ -179,11 +181,9 @@
                             <StackPanel Classes="settings-label" VerticalAlignment="Center">
                                 <TextBlock x:Name="ShowFooterStatusFieldLabel" Text="{Binding FooterStatusLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch x:Name="ShowFooterStatusInput" IsChecked="{Binding ShowFooterStatus, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterStatusLabel}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterStatusFieldLabel}" />
+                            <ToggleSwitch x:Name="ShowFooterStatusInput" IsChecked="{Binding ShowFooterStatus, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterStatusLabel}" AutomationProperties.HelpText="{Binding FooterStatusHint}" ToolTip.Tip="{Binding FooterStatusHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterStatusFieldLabel}" />
                         </Grid>
                     </Border>
-                    <Expander x:Name="SettingsInterfaceMoreGroup" wv:WorkViewElement.Id="settings.group.interface-more" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,0">
-                        <StackPanel x:Name="SettingsInterfaceMoreBody" Spacing="0" Margin="0,8,0,0">
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
@@ -229,7 +229,9 @@
                                 <TextBlock x:Name="HeaderTaglineFixedFieldLabel" Text="{Binding HeaderTaglineFixedLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding HeaderTaglineFixedHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ComboBox x:Name="HeaderTaglineFixedIdInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFixedFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineFixedLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineFixedHint}" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeaderTaglineFixedChoices}" SelectedItem="{Binding SelectedHeaderTaglineFixed, Mode=TwoWay}">
+                            <ComboBox x:Name="HeaderTaglineFixedIdInput" VerticalAlignment="Center" AutomationProperties.AutomationId="HeaderTaglineFixedIdInput" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFixedFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineFixedLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineFixedHint}" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeaderTaglineFixedChoices}" SelectedItem="{Binding SelectedHeaderTaglineFixed, Mode=TwoWay}">
+                                <!-- The finite built-in list has variable-height headings and wrapped quips. Keep every choice addressable while the popup is open. -->
+                                <ComboBox.ItemsPanel><ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate></ComboBox.ItemsPanel>
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
                         </Grid>
