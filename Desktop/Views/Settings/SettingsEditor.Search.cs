@@ -249,6 +249,9 @@ public partial class SettingsEditor
         if (_isClosed || string.IsNullOrEmpty(id)) return false;
         EnsureSearchIndex();
         if (!_searchTargetsById.TryGetValue(id, out SearchTarget? target)) return false;
+        // An older empty query releases the groups opened by the previous search visit.
+        // Finish it before this explicit jump opens the new target's group.
+        _searchBox?.FlushQuery();
         JumpToSearchTarget(target, focus: true);
         return true;
     }
