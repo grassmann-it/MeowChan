@@ -44,6 +44,11 @@ internal static class VideoPlayMark
     internal static readonly IBrush DiscBrush = new ImmutableSolidColorBrush(DiscColor);
     /// <summary>The glyph and text on the disc.</summary>
     internal static readonly IBrush GlyphBrush = Brushes.White;
+    /// <summary>
+    /// The favourite heart (red) and the rating star (gold) on the disc: the Dark tones of Workspace.Favorite and Workspace.Rating, because the
+    /// disc is dark in both themes (at least 3.2:1 and 7.5:1 on the disc over a white picture).
+    /// </summary>
+    internal static readonly Color FavoriteColor = Color.FromRgb(0xFF, 0x4D, 0x5E), RatingColor = Color.FromRgb(0xFF, 0xD7, 0x00);
 
     /// <summary>The triangle's bounding box for a circle of this diameter.</summary>
     internal static Size GlyphSize(double diameter) => new(diameter * GlyphWidthRatio, diameter * GlyphHeightRatio);
