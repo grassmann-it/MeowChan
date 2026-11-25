@@ -117,6 +117,10 @@ public partial class SettingsEditor
         if (ShowFooterDisk == _footerDisplaysBaseline.Disk) ShowFooterDisk = displays.Disk;
         if (ShowFooterStatus == _footerDisplaysBaseline.Status) ShowFooterStatus = displays.Status;
         _footerDisplaysBaseline = displays;
+        RefreshToggleGroupBaseline(ShowFooterNetworkInput, displays.Network);
+        RefreshToggleGroupBaseline(ShowFooterDiskInput, displays.Disk);
+        RefreshToggleGroupBaseline(ShowFooterStatusInput, displays.Status);
+        QueueGroupSweep();
     }
 
     private void ResetFooterDraft()
