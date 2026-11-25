@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.LogicalTree;
+using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using MeowChan.Archive;
@@ -174,14 +175,28 @@ public sealed class ThreadMediaCountTests
         Assert.Equal("Medium 2 of 2", MediaPositionText.Long(position));
         Assert.Equal("Thread attachments: 2", MediaPositionText.Long(new(0, positions.Count, false)));
 
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         ReaderMediaSidebar sidebar = new();
-        sidebar.SetThreadPosition(position);
-        MediaPositionPill counter = sidebar.PositionPill;
-        Assert.True(counter.IsVisible);
-        Assert.Equal(galleryPill.Classes.ToArray(), counter.Classes.ToArray());
-        Assert.Equal("No. 2 / 2", counter.Label.Text);
-        sidebar.ShowEmpty();
-        Assert.False(counter.IsVisible);
+        Window window = new() { Content = sidebar, Width = 480, Height = 480 };
+        try
+        {
+            // W112-72, Fable variant A §§1 and 2.1: “Position vorn in der Dateizeile, keine Pill” and semibold position text.
+            sidebar.Describe("No. 100", "second.jpg", "", canOpen: true, threadPosition: position);
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            TextBlock counter = SidePanelDesignTests.ById<TextBlock>(sidebar, "ReaderMediaSidebarPosition");
+            Assert.True(counter.IsEffectivelyVisible);
+            Assert.Equal(FontWeight.SemiBold, counter.FontWeight);
+            Assert.Equal("2 / 2", counter.Text);
+            Assert.False(sidebar.PositionPill.IsVisible);
+
+            sidebar.ShowEmpty();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.False(counter.IsEffectivelyVisible);
+        }
+        finally { window.Close(); }
     });
 
     private static CapturedPost[] InitialPosts() =>
