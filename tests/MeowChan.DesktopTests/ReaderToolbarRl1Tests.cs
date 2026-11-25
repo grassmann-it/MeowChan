@@ -207,7 +207,6 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
         QuickSettingsFieldEntry[] conditional = layout.OfType<QuickSettingsFieldEntry>().Where(entry => entry.WhenFieldId != null).ToArray();
         Assert.Equal([(SettingsFieldId.ReaderMediaSidebarScope, SettingsFieldId.ReaderMediaSidebar),
             (SettingsFieldId.MediaSidebarInfo, SettingsFieldId.ReaderMediaSidebar),
-            (SettingsFieldId.MediaSidebarInfoMinimumFree, SettingsFieldId.ReaderMediaSidebar),
             (SettingsFieldId.ReaderMediaSidebarSide, SettingsFieldId.ReaderMediaSidebar),
             (SettingsFieldId.ReaderTextlessMediaWidth, SettingsFieldId.ReaderTextlessLargeImages),
             (SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderFocusedMediaEnlarge)],
@@ -257,7 +256,11 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
         Assert.Equal("Primary+Shift+M", CommandCatalog.Get("reader.sidebar.toggle").Shortcut);
         // The popover is the gear's: it opens under it and falls back to More.
         string settings = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.QuickSettings.cs"));
-        Assert.Contains("ReaderSettingsOpen.IsEffectivelyVisible ? ReaderSettingsOpen", settings);
+        // TOGGLE-2: the reader and archive toolbars share the anchor rule (the opener while it is shown, else More).
+        Assert.Contains("ToolbarPopupAnchor(ReaderSettingsOpen, ReaderToolbar, ReaderToolbar)", settings);
+        string toolbar = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.ActionToolBar.cs"));
+        Assert.Contains("if (opener.IsEffectivelyVisible && toolbar.IsVisualAncestorOf(opener)) return opener;", toolbar);
+        Assert.Contains("toolbar.More is { IsEffectivelyVisible: true } more", toolbar);
         Assert.Contains("Click=\"OnReaderSettingsClick\"", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml")));
     }
 

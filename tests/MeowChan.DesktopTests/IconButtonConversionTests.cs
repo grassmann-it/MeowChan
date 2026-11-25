@@ -98,7 +98,8 @@ public sealed class IconButtonConversionTests
             AssertIconExists(icon);
         }
         Assert.Equal(new[] { "ArchiveAddBoard", "ArchiveAddSource", "ArchiveEditRatingButton", "ArchiveEmptySearchInMedia", "ArchiveFavoritesFilter",
-            "ArchiveFilterApply", "ArchiveFilterClose", "ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveManageRatingsButton",
+            // Toggle audit, Archive filters: Apply stays in the footer, the header owns the single close action.
+            "ArchiveFilterApply", "ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveManageRatingsButton",
             "ArchiveMediaLayoutTable", "ArchiveMediaLayoutTiles",
             "ArchiveMediaSelectionClear", "ArchiveMediaSelectionExport", "ArchiveMediaSelectionGallery", "ArchiveMediaSelectionQueue",
             "ArchiveMediaSelectionTag", "ArchiveResetFilters", "ArchiveRetrySearch", "ArchiveRetrySuggestions", "ArchiveTagManage",

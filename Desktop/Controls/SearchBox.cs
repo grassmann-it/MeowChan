@@ -159,8 +159,7 @@ public class SearchBox : TextBox
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (!e.Handled && _scopeChip is { IsEffectivelyEnabled: true } chip && (e.Key == Key.Down && e.KeyModifiers == KeyModifiers.Alt
-            || e.Key == Key.F4 && e.KeyModifiers == KeyModifiers.None))
+        if (!e.Handled && _scopeChip is { IsEffectivelyEnabled: true } chip && SearchScopeChip.IsMenuShortcut(e))
         {
             e.Handled = true;
             chip.ShowMenu();

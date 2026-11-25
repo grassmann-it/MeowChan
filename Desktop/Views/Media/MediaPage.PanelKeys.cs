@@ -91,7 +91,8 @@ public sealed partial class MediaPage
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null || row.Entry.Presence != MediaLibraryPresence.Present)
             return Task.CompletedTask;
         // A rating key needs the saved ratings to be known, like the grid's.
-        if (id.StartsWith("media.rating.", StringComparison.Ordinal) && row.State?.RatingKnown != true) return Task.CompletedTask;
+        if (id.StartsWith("media.rating.", StringComparison.Ordinal)
+            && (row.State?.RatingKnown != true || _panel?.CanUseMediaActions != true)) return Task.CompletedTask;
         return RunMediaCommandOnTileAsync(id, row);
     }
 }

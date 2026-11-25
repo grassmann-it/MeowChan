@@ -29,7 +29,7 @@ internal sealed class ThemeColorPreviewCard : Border
     private readonly TextBlock _buttonText = new();
     private readonly Border _chip = new() { Name = "ThemeColorPreviewChip", BorderThickness = new Thickness(1), Padding = new Thickness(8, 2) };
     private readonly TextBlock _chipText = new();
-    private readonly Path _star = WorkspaceIcons.Create(WorkspaceIcons.StarFilled, inheritForeground: false);
+    private readonly Path _star = WorkspaceIcons.Create(WorkspaceIcons.HeartFilled, inheritForeground: false);
     private readonly TextBlock _starText = new();
     private readonly Border _errorSurface = new() { Name = "ThemeColorPreviewErrorSurface", Padding = new Thickness(8, 4) };
     private readonly TextBlock _error = new() { Name = "ThemeColorPreviewError", TextWrapping = TextWrapping.Wrap };

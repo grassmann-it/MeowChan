@@ -36,18 +36,18 @@ internal sealed partial class GalleryViewer
         Classes = { "gallery-favorite-badge" },
         HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
         Focusable = true, IsVisible = false, ZIndex = 16,
-        // A drawn star (outline: not saved, filled gold: saved) and, while a write is pending, a trailing "…" (P6: no font glyphs).
+        // A drawn heart (outline: not saved, filled gold: saved) and, while a write is pending, a trailing "…" (P6: no font glyphs).
         Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsHitTestVisible = false,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            Children = { WorkspaceIcons.Create(WorkspaceIcons.Star, inheritForeground: false), new TextBlock { Name = "GalleryFavoritePending", Text = "…",
+            Children = { WorkspaceIcons.Create(WorkspaceIcons.Heart, inheritForeground: false), new TextBlock { Name = "GalleryFavoritePending", Text = "…",
                 Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false }.SubtitleText() } }
     }.ControlSized();
 
-    /// <summary>The state a favourite badge shows: saved (filled star) and pending (trailing "…"). Tests and the refresh read it back.</summary>
+    /// <summary>The state a favourite badge shows: saved (filled heart) and pending (trailing "…"). Tests and the refresh read it back.</summary>
     internal static (bool Saved, bool Pending) FavoriteBadgeState(ToggleButton badge)
     {
         StackPanel panel = (StackPanel)badge.Content!;
-        return (WorkspaceIcons.KeyOf(panel.Children[0]) == WorkspaceIcons.StarFilled, panel.Children[1].IsVisible);
+        return (WorkspaceIcons.KeyOf(panel.Children[0]) == WorkspaceIcons.HeartFilled, panel.Children[1].IsVisible);
     }
 
     // The toggle's checked state is the saved state (a screen reader reads "Favorite, on / off"); the name adds " · saving" while a write is
@@ -56,7 +56,7 @@ internal sealed partial class GalleryViewer
     {
         StackPanel panel = (StackPanel)badge.Content!;
         Avalonia.Controls.Shapes.Path star = (Avalonia.Controls.Shapes.Path)panel.Children[0];
-        star.Tag = saved ? WorkspaceIcons.StarFilled : WorkspaceIcons.Star;
+        star.Tag = saved ? WorkspaceIcons.HeartFilled : WorkspaceIcons.Heart;
         IBrush ink = saved ? Brushes.Gold : Brushes.White;
         star.Stroke = ink;
         star.Fill = saved ? ink : Brushes.Transparent;
@@ -109,6 +109,7 @@ internal sealed partial class GalleryViewer
         Grid.SetRow(_favoriteIndicator, 0);
         PlaceBadgeAfterBack(_favoriteIndicator);
         PlaceBadgeAfterBack(_nativeFavoriteIndicator);
+        UpdateRatingIndicators(); // the stars right of the heart (Tom, 25.11.2026)
     }
 
     // Tab order: the badge comes right after "Back to …". The way back is appended to its host whenever the overlay placement runs, so the

@@ -1,3 +1,8 @@
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Controls;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -62,9 +67,33 @@ public sealed class ArchiveThreadRowTagTests : IDisposable
                      "ReaderTagInput", "ReaderTagAdd", "ReaderToolsRow", "ReaderTagStatus" })
             Assert.Contains("x:Name=\"" + name + "\"", xaml);
         Assert.Contains("Text=\"{Binding TagsText}\"", xaml);
-        string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
-        // Escape is scoped to a source inside the bar, exactly like reader find.
-        Assert.Contains("ReaderTagBar.IsVisible && IsTagBarSource(source)", reader);
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
+            Window window = new() { Content = page, Width = 1600, Height = 800 };
+            try
+            {
+                window.Show();
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+                var bar = Assert.Single(page.GetVisualDescendants().OfType<StackPanel>(),
+                    control => AutomationProperties.GetAutomationId(control) == "ReaderTagBar");
+                bar.IsVisible = true;
+                Control input = Assert.Single(bar.GetVisualDescendants().OfType<Control>(),
+                    control => ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId() == "ReaderTagInput");
+                // Escape is scoped to the bar, exactly like reader find.
+                Assert.False(page.TryDismissOverlay(page));
+                Assert.True(bar.IsVisible);
+                Assert.True(page.TryDismissOverlay(input));
+                Assert.False(bar.IsVisible);
+            }
+            finally
+            {
+                try { window.Close(); }
+                finally { page.EndLifetime(); }
+            }
+        });
         string tags = Source("Desktop/Views/Archive/ArchivePage.Tags.cs");
         Assert.Contains("ResourceId thread = _thread!.Summary.Id; // Frozen target", tags);
         Assert.DoesNotContain("ShowDialog", tags);

@@ -509,7 +509,8 @@ internal sealed partial class BooruWorkbenchView
             : bulk.IsRunning ? Texts.T("booru.bulk.otherTab", bulk.Query)
             : model.CanDownloadAll ? Texts.T("booru.bulk.hint", view.PagerLimits.Pages, view.PagerLimits.PostsPerPage)
             : Texts.T("booru.bulk.needsSearch");
-        ToolTip.SetTip(_downloadAll, running ? downloadName : downloadName + "\n" + bulkHint);
+        string downloadTip = _downloadAll.IsEnabled ? AddSearchShortcut(downloadName, DownloadAllCommand) : downloadName;
+        ToolTip.SetTip(_downloadAll, running ? downloadTip : downloadTip + "\n" + bulkHint);
         ToolTip.SetShowOnDisabled(_downloadAll, true);
         AutomationProperties.SetName(_downloadAll, downloadName);
         AutomationProperties.SetHelpText(_downloadAll, bulkHint);

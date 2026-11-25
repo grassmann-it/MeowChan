@@ -29,7 +29,7 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     private static GalleryDecisionView View(int? rating, GalleryDecisionCoverage favorite = GalleryDecisionCoverage.None, bool mixed = false, bool available = true) =>
         new(1, favorite, rating, mixed, available);
 
-    private static bool?[] Marks(GalleryDecisionRow row) => row.StarButtons.Select(star => FavoriteStar.MarkOf(star.Content)).ToArray();
+    private static bool?[] Marks(GalleryDecisionRow row) => row.StarButtons.Select(star => RatingStar.FilledOf(star.Content)).ToArray();
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));

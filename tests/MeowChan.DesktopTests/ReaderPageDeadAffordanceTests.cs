@@ -28,9 +28,11 @@ public sealed class ReaderPageDeadAffordanceTests
         // The press path no longer asks for the frame: header line, buttons and the card's edge count, a strip thumbnail selects itself first.
         Assert.DoesNotContain("ancestors.Any(control => ReferenceEquals(control, sidebar.FrameArea))", commands);
         Assert.DoesNotContain("keyboard && ReferenceEquals(control, _mediaSidebar)", commands);
-        Assert.Contains("ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;", commands);
-        Assert.Contains("!keyboard && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))", commands);
-        Assert.Contains("ReferenceEquals(control, _mediaSidebar))", commands);
+        // MAUS-2: the strip resolves each thumbnail through its own binding (the pointer press leaves it to the thumbnail's own request).
+        Assert.Contains("if (IsSidebarStripSource(ancestors))", commands);
+        Assert.Contains("ContextClick.RequestOnMacControlPress(e, sidebar);", commands);
+        Assert.Contains("return keyboard && SidebarStripContext(ancestors) is { } thumbnail", commands);
+        Assert.Contains("!ancestors.Contains(_mediaSidebar)) return null;", commands);
     }
 
     // ---- the middle click ---------------------------------------------------------------------------------------------------------------

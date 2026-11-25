@@ -771,7 +771,12 @@ More defaults that are easy to miss (F1 lists every key of the current area):
 | [ / ] or X / C | Video: slower / faster; Shift+Backspace sets the normal speed |
 | L / A / Shift+S | Video: repeat / A–B loop / save the frame as an image |
 | Shift+M | Mute or unmute a video |
-| Shift+H, Shift+I, Shift+N, Shift+L, Shift+O, Shift+P, Shift+K, Shift+T | Gallery: show or hide tools, info line, hints, filmstrip, controls overlay, post context, cards (Tagging mode), switch View / Tag |
+| Ctrl/⌘+0 / Z | Gallery: Fit / actual size (1:1) |
+| 1–5 / 0 | Gallery: set a rating from one to five stars / clear the rating |
+| Shift+H, Shift+Z, Shift+N, Shift+L, Shift+O, Shift+P, Shift+K, Shift+T | Gallery: toggle tools, info line, hints, filmstrip, controls overlay, post context, cards (Tagging mode), and View / Tag |
+| Shift+A | Gallery: dock the post panel or show it over the picture |
+| Shift+I | Show or hide facts in the gallery or media sidebar |
+| Ctrl/⌘+Shift+M | Show or hide the media sidebar in the Reader, Archive, Media, Tagging or Booru |
 
 The video keys belong to the gallery; play/pause, mute, repeat, the step keys, speed and the next frame also act on the video of the reader and of the Media page's sidebar.
 
@@ -845,8 +850,8 @@ the gallery. The reader's configurable [media click action](#reader-media-sideba
 applies to media in posts, not to single-clicks on the sidebar picture.
 
 A double-click on the picture or video **inside the local-media gallery** toggles
-window fullscreen, as do F11 and the explicit fullscreen action. Use **0** for
-Fit and **1** for 1:1; zoom and window fullscreen are separate controls.
+window fullscreen, as do F11 and the explicit fullscreen action. Press **Ctrl/⌘+0**
+for Fit and **Z** for 1:1.
 
 If letter keys trigger actions by mistake, for example with speech input, turn off
 **Standard single-key shortcuts (letters, digits, + and −)** under **Keyboard
@@ -943,9 +948,9 @@ search bar. Closing it with the button, shortcut or **Esc** keeps the query and
 result count on screen. Use **Clear** to remove the filter. In the Reader toolbar,
 **Find** and **Tags** show a small × while their bar is open. Click the button
 again or press **Esc** to close the bar.
-The gallery keeps **Back to {target}** at the far left with the favorite star
-directly to its right. Tooltips and screen-reader names keep the full action and
-target, including in narrow rows. Esc closes as before.
+The gallery keeps **Back to {target}** at the far left, followed by the favorite
+heart and, when there is room, the rating stars. Tooltips and screen-reader names
+keep the full action and target, including in narrow rows. Esc closes as before.
 Dialogs keep their title-bar × at the right; information windows such as media
 details and About have no extra Close button. Esc first ends a local edit, recording
 or question; it does not close while saving or deleting. Settings asks about unsaved
@@ -1579,23 +1584,24 @@ The gallery keeps decoded images in memory and prepares the next three and previ
 moving either direction can show them immediately. The cache is 256 MiB by default; set it to 0 to keep nothing.
 **Gallery image cache**, **Gallery images decoded ahead** and **Gallery images decoded behind** are under Settings →
 **Storage and limits**; their allowed ranges are 0–4096 MiB, 0–20 and 0–20.
-The optional filmstrip above the picture shows neighbouring media; click a
-thumbnail to go there, or press **Shift+L** to show/hide the strip. With auto-hidden
-controls it appears with them or at the top edge; with docked controls it sits
-above the picture. Very short windows leave it out. Its height and thumbnail
-preload are under **Gallery & playback**.
+The optional filmstrip shows neighbouring media. Click a thumbnail to jump to
+it or press **Shift+L** to show or hide the strip. It sits above the video bar
+and tools by default. If docked at the top, it sits below **Back to …**, the
+favorite heart and any rating stars. With auto-hidden controls it appears with
+them, or when the pointer touches the top edge if docked there. Very short windows
+leave it out. Its height and thumbnail preload are under **Gallery & playback**.
 Use the gallery's optional **media focus** view to fold away tools and details
 and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
 This changes the gallery layout independently of F11 window fullscreen. Close the
-gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) alone at the
-far left of the header, before the title, with the favorite star directly to its
-right; the button names the return destination. While the tools are shown, the toolbar
+gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) at the
+far left of the header, before the title. The favorite heart and rating stars sit
+beside it when space permits. The button names the return destination. While the tools are shown, the toolbar
 keeps Previous, position, Next, Fit, 1:1, the post panel and the tools switch available.
 **Shift+H** (or the tools switch) hides the tools: Previous, position, Next, **More** and the way back
 to the tools stay on the bar, but Fit, 1:1, the post panel and the toolbar's favorite
-button leave it; the favorite badge beside **Back to …**, the keys (**0**, **1**,
-**Shift+P**, **F**) and the double-click on the picture keep working. Rating, media tags and slideshow controls move from
+button leave it. The corner heart and stars beside **Back to …** remain available,
+as do **Ctrl/⌘+0**, **Z**, **Shift+P**, **F**, and double-click for fullscreen. Rating, media tags and slideshow controls move from
 **⋯ (More gallery actions)** to the toolbar in Simple; Advanced also brings
 shortcut help onto the bar. The slideshow's seconds per image and its playback
 mode stay under More in every view; the slideshow button stays on the bar. Zoom
@@ -1642,9 +1648,11 @@ transparency uses the docked layout and explains the fallback. Existing profiles
 start docked; later choices are remembered. F11 remains a separate window action.
 
 Show context to read the associated saved post and available local references.
-A media-only item can have no captured post. In the gallery, **Shift+P** toggles the saved-post context, **0** selects Fit,
-**1** selects 1:1, **F** toggles the current media favorite, and F1 or ? opens
-keyboard help. Gallery panel and playback keys follow one scheme: **Shift** plus a
+A media-only item can have no captured post. In the gallery, **Shift+P** toggles the saved-post context,
+and **Shift+A** switches that panel between docked and overlay placement.
+**Shift+I** toggles facts and **Shift+Z** toggles the info line.
+**Ctrl/⌘+0** selects Fit, **Z** selects 1:1, and **1** through **5** set a star
+rating. **0** clears the rating. Press **F1** or **?** for keyboard help. Gallery panel and playback keys follow one scheme: **Shift** plus a
 letter shows or hides a panel or block; a plain letter acts on playback or the
 shown medium. Thus **Shift+K** toggles **Card mode on / off** (German:
 **Kartenmodus ein / aus**) in tagging mode, **Shift+D** starts or pauses **Start / pause
@@ -1657,9 +1665,10 @@ the A–B loop. Favorites use one scheme everywhere: **M** adds the favorite
 toggling it, and **F** on a saved favorite in the gallery asks before it removes
 the mark. **Shift+M** mutes and unmutes a video because **M** is taken by the favorite.
 It joins **Shift+R** (rotate), **Shift+S** (snapshot) and **Shift+D** (slideshow)
-as shifted actions rather than panel switches. A favorite badge
-with a **★ / ☆** sits beside **Back to …** at the upper left; it shows favorite /
-not favorite, a click toggles it, and **…** indicates a pending save. These are
+as shifted actions rather than panel switches. Click the heart beside **Back to …**
+at the upper left to toggle the favorite. A filled heart marks a favorite, and
+**…** indicates a pending save. Click a rating star beside the heart to rate the
+current medium. These are
 default bindings; customized shortcuts still apply. Space plays or pauses an active local video. **Shift+Up/Shift+Down** raises/lowers
 available video volume without changing Playing/Paused; unmodified **Up/Down**
 still navigate posts in the reader. Manual mute/unmute survives media changes within the same
@@ -1928,12 +1937,10 @@ sidebar and inline-video controls. The full Settings page still uses Save/Discar
 **Enlarge an image while the pointer rests on it** are also switches in View;
 their widths, scale and hover delay are under Settings → **Reading & media**.
 
-The reader toolbar has a **Media sidebar: On/Off** toggle beside the **Reader**
-and gallery actions; it stays out of overflow. It uses the same saved choice as
-View, Ctrl/Cmd+Shift+M and the sidebar's close button. Its On/Off state is the
-saved choice for the current host, not whether the window is currently wide
-enough to show the sidebar. A narrow window can hide an On sidebar without
-turning the preference off; it returns when space is available.
+The reader toolbar groups the **Thread list** and **Media sidebar** icons.
+Click the media sidebar icon or press **Ctrl/⌘+Shift+M** to toggle the saved
+choice for the current view. The sidebar also has a close button. When a narrow
+window hides an enabled sidebar, the sidebar returns when space is available.
 
 **Media sidebar** is on by default. Under **Show the media sidebar in**,
 **Reader only** is the default, so the sidebar toggle starts Off in the Archive view.
@@ -1943,13 +1950,13 @@ Up/Down navigation. Choose left or right. A post with several media gets a thumb
 under the picture (**Thumbnails in the media sidebar strip** sets how many show at once,
 12 by default, 2–40; a larger post slides a window along); click a thumbnail or use
 **Alt+Shift+Left** and **Alt+Shift+Right** to step through the post's media. The sidebar header holds the
-post number, the favorite star, **Open in gallery** and a close cross. Drag the divider to change its
+post number, the favorite heart, **Open in gallery** and a close cross. Drag the divider to change its
 saved width. The sidebar hides when the reader is too narrow and returns when
 there is room; it does not replace the embedded reader with a second gallery. Videos in
-the sidebar autoplay and repeat by default, with the sound following your remembered volume;
+the sidebar autoplay and repeat by default, with the sound following your remembered volume.
 **Autoplay videos in the media sidebar**, **Repeat videos in the media sidebar** and
 **Start videos in the media sidebar muted** are separate settings that also cover the
-Archive view and the Media page's sidebar.
+Archive view and the media sidebars on the Media and Tagging pages.
 
 | Setting | Default | Allowed |
 | --- | --- | --- |
@@ -2133,6 +2140,10 @@ or 80 million source pixels are refused by the gallery. Fit decoding is bounded 
 more memory. Corrupt, missing, unsupported or unverifiable files show a reason.
 The verified originals remain on disk even when preview is unavailable. These
 viewer limits are separate from download rules and do not cap total archive size.
+For the Reader, Media and Tagging sidebars, the profile setting
+`SidebarPreviewMaximumPixels` defaults to 80 million source pixels and accepts
+1 to 80 million. If the sidebar skips the preview because of its size, the
+verified original can still be favorited, rated and tagged where supported.
 
 ### Own tags and the shared media menu
 
@@ -2176,7 +2187,8 @@ a replacement for a complete backup.
 beside the medium with favorite, rating and tags that apply directly to the shown
 medium; nothing is added to the tagging queue. Only while walking the tagging queue
 does the decision strip with Back, Skip, Done & next and Stamp & next appear as
-well. The star next to the way back keeps showing the favorite. A slideshow may run
+well. Beside **Back to …**, the heart shows the favorite and the stars show the
+rating when space permits. A slideshow may run
 while tagging: it waits while the tag panel has focus or text in its field, then
 continues with the shown medium.
 
@@ -2185,8 +2197,9 @@ continues with the shown medium.
 Medium an, mit Favorit, Bewertung und Tags, die direkt für das gezeigte Medium
 gelten; in die Tagging-Warteschlange kommt dabei nichts. Beim Durchgehen der
 Tagging-Warteschlange erscheint zusätzlich die Entscheidungszeile mit Zurück,
-Überspringen, Fertig & weiter und Stempel & weiter. Der Stern neben dem Rückweg
-zeigt den Favoriten weiter an. Eine Diashow darf beim Taggen laufen: Sie wartet,
+Überspringen, Fertig & weiter und Stempel & weiter. Neben **Zurück zu …** zeigt
+das Herz den Favoriten. Wenn genug Platz ist, zeigen die Sterne die Bewertung.
+Eine Diashow darf beim Taggen laufen. Sie wartet,
 solange das Tag-Panel den Fokus oder Text im Feld hat, und macht danach mit dem
 gezeigten Medium weiter.
 
@@ -2370,7 +2383,7 @@ selected files.
 
 ### Favorites and original-file export
 
-Use the star on reader attachments, saved-media items or the gallery to mark a
+Use the heart on reader attachments, saved-media items or the gallery to mark a
 saved original. Favorites persist in the profile and identify that exact media
 revision; a later replacement does not inherit the mark. **Favorites only** filters
 thread media. **Show favorites** opens a searchable overview scoped to the current

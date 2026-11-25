@@ -99,13 +99,13 @@ public sealed class ReaderPostPointerAndFindKeyTests : IDisposable
                 Assert.False(bar.IsVisible, outside.Name);
             }
 
-            // Another key is not the find key. Inside the find bar itself the key asks for the bar again: it stays open and takes the key.
+            // Toggle audit, Reader Find: the key closes the bar and is consumed even after it has closed.
             bar.IsVisible = false;
             Assert.False(page.TryOpenReaderFindByKey(Press(status, Key.G)));
             Assert.False(bar.IsVisible);
             bar.IsVisible = true;
             Assert.True(page.TryOpenReaderFindByKey(Press(bar)));
-            Assert.True(bar.IsVisible);
+            Assert.False(bar.IsVisible);
 
             // The large reader's pane takes the same route (the window asks first there too).
             typeof(ArchivePage).GetField("_largeReader", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(page, true);

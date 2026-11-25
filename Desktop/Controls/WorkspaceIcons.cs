@@ -14,7 +14,7 @@ namespace MeowChan.Desktop.Controls;
 
 /// <summary>
 /// The drawn icons that are not command icons: marks a button or a menu row needs without a command of its own (close, more,
-/// the favourite star, a check, a chevron). They replace font glyphs ("×", "⋯", "★", "✓", "‹"), which draw differently with every
+/// the favourite heart, the rating star, a check, a chevron). They replace font glyphs ("×", "⋯", "♥", "★", "✓", "‹"), which draw differently with every
 /// font and are read aloud as their character names. Command icons stay with <c>CommandBindings.Icon</c> (the feather catalog);
 /// this table only holds what that catalog cannot give a fixed colour or fill state.
 /// <para>Rules: every icon sits on a 16 dip grid (the small cross on 10) and is drawn with the stroke weight of its class
@@ -27,8 +27,12 @@ internal static class WorkspaceIcons
     internal const string Close = "close";
     internal const string CloseSmall = "close-small";
     internal const string More = "more";
+    // The rating star (outline: not reached, filled: up to the rating). Since 25.11.2026 the favourite is the heart below, never a star.
     internal const string Star = "star";
     internal const string StarFilled = "star-filled";
+    // The favourite mark (Tom, 25.11.2026): an outline heart when not marked, a filled heart when marked, wherever a favourite is shown.
+    internal const string Heart = "heart";
+    internal const string HeartFilled = "heart-filled";
     // A rated star with a diagonal strike: clearer than a generic close icon for removing a rating.
     internal const string StarClear = "star-clear";
     internal const string Check = "check";
@@ -70,6 +74,9 @@ internal static class WorkspaceIcons
         [More] = new("M3.5,8 L3.6,8 M8,8 L8.1,8 M12.4,8 L12.5,8", HeavyClass),
         [Star] = new("M8,1.6 L9.9,5.8 L14.4,6.3 L11.1,9.4 L12,13.8 L8,11.6 L4,13.8 L4.9,9.4 L1.6,6.3 L6.1,5.8 Z"),
         [StarFilled] = new("M8,1.6 L9.9,5.8 L14.4,6.3 L11.1,9.4 L12,13.8 L8,11.6 L4,13.8 L4.9,9.4 L1.6,6.3 L6.1,5.8 Z"),
+        // Feather's heart scaled from its 24 grid to the 16 grid (two thirds), outline and filled share the path like the star pair.
+        [Heart] = new("M13.89,3.07 A3.67,3.67 0 0 0 8.7,3.07 L8,3.78 L7.29,3.07 A3.67,3.67 0 0 0 2.1,8.26 L2.81,8.97 L8,14.16 L13.19,8.97 L13.9,8.26 A3.67,3.67 0 0 0 13.89,3.07 Z"),
+        [HeartFilled] = new("M13.89,3.07 A3.67,3.67 0 0 0 8.7,3.07 L8,3.78 L7.29,3.07 A3.67,3.67 0 0 0 2.1,8.26 L2.81,8.97 L8,14.16 L13.19,8.97 L13.9,8.26 A3.67,3.67 0 0 0 13.89,3.07 Z"),
         [StarClear] = new("M8,1.6 L9.9,5.8 L14.4,6.3 L11.1,9.4 L12,13.8 L8,11.6 L4,13.8 L4.9,9.4 L1.6,6.3 L6.1,5.8 Z M2.5,2.5 L13.5,13.5"),
         [Check] = new("M3,8.5 L6.5,12 L13,4.5"),
         [ChevronLeft] = new("M10,3.5 L5.5,8 L10,12.5", HeavyClass),
@@ -139,7 +146,7 @@ internal static class WorkspaceIcons
         if (inheritForeground)
         {
             path.Bind(Shape.StrokeProperty, path.GetObservable(TextElement.ForegroundProperty));
-            if (key == StarFilled) path.Bind(Shape.FillProperty, path.GetObservable(TextElement.ForegroundProperty));
+            if (key is StarFilled or HeartFilled) path.Bind(Shape.FillProperty, path.GetObservable(TextElement.ForegroundProperty));
         }
         // Built once the icon is shown: the geometry needs the render platform, a constructor or static initializer must not.
         path.AttachedToVisualTree += (_, _) => path.Data ??= GeometryOf(key);

@@ -311,8 +311,9 @@ public sealed class ReaderWorkViewTests
             Assert.Equal(OverflowMode.Always, WorkViewPresenter.ToolBarMode(entry.Barebones));
             if (entry.CommandId != null) Assert.Equal(entry.CommandId, CommandCatalog.Get(entry.CommandId).Id);
         }
-        // The default-bound tools that Barebones moves under More (their shortcut runs via the WV0 reduced-control route).
-        Assert.Equal(["reader.find", "thread.tags", "export.open-html-dialog"],
+        // TOGGLE-2 review: “das Menü vom Reader-Arbeitsziel aus per effektivem Kürzel erreichbar machen, auch bei geschlossenem Overflow.”
+        // Barebones also moves the Thread menu itself under More.
+        Assert.Equal(["reader.find", "thread.tags", "export.open-html-dialog", "reader.thread-menu"],
             ReaderRows().Where(entry => entry.Barebones == Presence.Overflow && entry.CommandId != null
                 && entry.Id.StartsWith("reader.toolbar.", StringComparison.Ordinal) && CommandCatalog.Get(entry.CommandId).DefaultGestures.Count > 0)
                 .OrderBy(entry => entry.OverflowOrder).Select(entry => entry.CommandId!));

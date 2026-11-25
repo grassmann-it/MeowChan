@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -12,13 +13,155 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Localization")]
 public sealed class ReaderMediaSidebarHostClickTests
 {
+    [Theory]
+    [InlineData("ReaderMediaSidebarDecisionRating3")]
+    [InlineData("ReaderMediaSidebarEditTags")]
+    public void FreshSidebarClickWaitsForTheSelectedPost(string actionId) =>
+        SavedMediaReaderTests.RunWithShell(async (page, window, _, _) =>
+        {
+            page.UseManualReaderTicks(static () => 0);
+            ListBox posts = SidePanelDesignTests.ById<ListBox>(window, "ArchivePosts");
+            var a = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "42");
+            var b = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "43");
+            List<string> targets = [];
+            page.SetMediaRatingAsync = (key, _) => { targets.Add(key.Sha256); return Task.CompletedTask; };
+            page.TagPopoverAsync = (entry, _, _, _, _) => { targets.Add(entry.Asset.Sha256); return Task.CompletedTask; };
+            posts.SelectedItem = a;
+            page.TickMediaSidebarFollow();
+            await page.MediaSidebarTask;
+            var sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+            Assert.Contains("post.png", sidebar.HeaderLine);
+            Button action = SidePanelDesignTests.ById<Button>(sidebar, actionId);
+            Assert.True(action.IsEffectivelyEnabled);
+
+            posts.SelectedItem = b;
+            action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Empty(targets);
+
+            page.TickMediaSidebarFollow();
+            await page.MediaSidebarTask;
+            Assert.Contains("same.png", sidebar.HeaderLine);
+            action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // 73-2: the action first checks the shown original, then writes.
+            await BooruTestSupport.WaitAsync(() => targets.Count > 0, "the click on the followed post's medium");
+            var attachment = Assert.Single(b.Attachments);
+            GalleryEntry expected = Assert.IsType<GalleryEntry>(await attachment.ResolveEntry!(CancellationToken.None));
+            Assert.Equal(expected.Asset.Sha256, Assert.Single(targets));
+        }, replyHasMedia: true);
+
+    [Fact]
+    public void PostPopoverChipAfterSelectionChangePreservesBothTagAssignments() =>
+        SavedMediaReaderTests.RunWithShell(async (page, window, host, subjects) =>
+        {
+            TagId offered = (await host.DefinePrivateTagAsync("post-chip")).Tag;
+            await host.SetThreadTagAsync(offered, page.CurrentThread!.Summary.Id, true);
+            ListBox posts = SidePanelDesignTests.ById<ListBox>(window, "ArchivePosts");
+            var a = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "42");
+            var b = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "43");
+            posts.SelectedItem = a;
+            posts.ScrollIntoView(a);
+            window.UpdateLayout();
+            Assert.True(Assert.IsType<ReaderPostItem>(posts.ContainerFromItem(a)).Focus());
+            QuickTagPopover editor = await RateAndTagWindowFixture.OpenEditorAsync(window);
+            Assert.Same(posts, editor.Anchor);
+            QuickTagSurface surface = Assert.IsType<QuickTagSurface>(editor.Surface);
+            await BooruTestSupport.WaitAsync(() => surface.Shown.Any(tag => tag.Id == offered), "the thread tag on the open post");
+            int number = surface.Shown.ToList().FindIndex(tag => tag.Id == offered) + 1;
+            Button chip = SidePanelDesignTests.ById<Button>(editor.Frame, "ArchiveTagPopoverSuggestion" + number);
+            Assert.True(chip.IsEffectivelyEnabled);
+
+            posts.SelectedItem = b;
+            chip.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await BooruTestSupport.WaitAsync(() => !surface.Session.Busy, "the tag click to finish");
+            var saved = Assert.IsType<PrivateTagStoreSnapshot>(host.GetPrivateTagSnapshot().Snapshot);
+            Assert.False(saved.Carries(offered, subjects['c']));
+            Assert.False(saved.Carries(offered, subjects['a']));
+            Assert.Equal(QuickTagPopoverCloseReason.Stale, editor.Reason);
+        }, replyHasMedia: true);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PostSelectionDrivesTheSidebarAndRateAndTagSurvivesThePostLayout(bool largeReader) => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        TransientPopupPolicy.Install();
+        using TempDirectory profile = new();
+        using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
+        ArchivedThreadView thread = RateAndTagWindowFixture.View(media);
+        await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        PrivateTagStore tags = new(profile.Path, lease);
+        ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token), (_, _) => Task.CompletedTask,
+            _ => { }, (_, _) => Task.FromResult(media.Snapshot)) { IsAvailable = true };
+        page.ApplyReaderMediaPreferences(ReaderMediaPreferences.Default with { Sidebar = true, SidebarAlways = true });
+        ContentControl host = new() { IsVisible = false };
+        Window window = new() { Width = 1920, Height = 900, Content = new Grid { Children = { page, host } } };
+        List<(GalleryEntry Entry, Control Anchor)> opened = [];
+        page.TagPopoverAsync = (entry, anchor, _, current, request) =>
+        {
+            opened.Add((entry, anchor));
+            var target = Assert.IsType<MediaTagSubject.Bound>(MediaTagSubjects.Of(entry));
+            QuickTagSession session = new(QuickTagTarget.For(new MediaTagSession(target,
+                () => new(PrivateTagLoadState.Ready, tags.ReadSnapshot(), null),
+                (_, _, _) => throw new InvalidOperationException("Unexpected tag write."),
+                (_, _, _, _) => throw new InvalidOperationException("Unexpected tag write."))));
+            return QuickTagPopover.Open(anchor, session, entry.Asset.OriginalFileName!,
+                new QuickTagPopoverOptions { IsCurrent = current, FocusFallback = request.FocusFallback }).Result;
+        };
+
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await page.LoadThreadAsync(thread.Summary.Id, preparedThread: thread);
+            await page.MediaLoadTask;
+            if (largeReader) page.HostLargeReader(host, () => page.IsVisible = false, () => page.SetReaderScope([thread.Summary.Id]));
+            window.UpdateLayout();
+            ListBox posts = SidePanelDesignTests.ById<ListBox>(window, "ArchivePosts");
+            await BooruTestSupport.WaitAsync(() => page.IsMediaSidebarShown, "the reader media sidebar");
+            ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+
+            posts.SelectedItem = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "44");
+            await BooruTestSupport.WaitAsync(() => sidebar.HeaderLine.Contains("44", StringComparison.Ordinal), "the selected text-only post in the sidebar");
+            Assert.Null(sidebar.Shown);
+
+            ArchivePostRow picture = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "43");
+            posts.SelectedItem = picture;
+            posts.ScrollIntoView(picture);
+            await BooruTestSupport.WaitAsync(() => sidebar.HeaderLine.Contains(media.Asset.OriginalFileName!, StringComparison.Ordinal),
+                "the selected picture in the sidebar");
+            window.UpdateLayout();
+            var card = Assert.IsType<ReaderPostItem>(posts.ContainerFromItem(picture));
+            Assert.True(card.Focus());
+            QuickTagPopover editor = await RateAndTagWindowFixture.OpenEditorAsync(window);
+            var edit = Assert.Single(opened);
+            Assert.Same(posts, edit.Anchor);
+            Assert.Equal(picture.Id, edit.Entry.Post?.PostId);
+            Assert.Equal(media.Asset.AssetId, edit.Entry.Asset.AssetId);
+
+            window.Height -= 80;
+            window.UpdateLayout();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Assert.True(editor.IsOpen);
+
+            editor.Surface!.Input.Dismiss();
+            RateAndTagWindowFixture.Escape(window);
+            Assert.Equal(QuickTagPopoverCloseReason.Closed, editor.Reason);
+            Assert.True(card.IsFocused);
+        }
+        finally { QuickTagPopover.Current?.Close(); window.Close(); page.EndLifetime(); }
+    });
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]

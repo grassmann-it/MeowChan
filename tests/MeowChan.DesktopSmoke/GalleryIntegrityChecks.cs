@@ -63,12 +63,17 @@ internal static class GalleryIntegrityChecks
                 SetContext(viewer, true); await Settle(window);
                 Border context = Find<Border>(viewer, "GalleryContext");
                 SelectableTextBlock[] text = context.GetVisualDescendants().OfType<SelectableTextBlock>().ToArray();
+                SelectableTextBlock hash = text.Single(item => AutomationProperties.GetAutomationId(item) == "GalleryPostHash");
+                Require(hash.IsEffectivelyVisible && hash.Text == binding.Actual.Sha256,
+                    "The gallery hash field does not contain the exact local SHA-256.");
+                hash.BringIntoView(); await Settle(window);
+                bool hashCopied = await AssertHashCopyAsync(window, hash, binding.Actual.Sha256);
                 // UX round 3: binary size first, the exact byte count in brackets.
                 string localValue = Texts.T("media.fact.byteSize", binding.Actual.Length, SizeText.Format(binding.Actual.Length, Texts.Culture));
                 long sourceSize = binding.Provider.ExpectedSize!.Value;
                 string sourceValue = Texts.T("media.fact.byteSize", sourceSize, SizeText.Format(sourceSize, Texts.Culture));
-                SelectableTextBlock local = text.Single(item => item.Name == "GalleryPostFileSize");
-                SelectableTextBlock provider = text.Single(item => item.Name == "GalleryPostSourceSize");
+                SelectableTextBlock local = text.Single(item => AutomationProperties.GetAutomationId(item) == "GalleryPostFileSize");
+                SelectableTextBlock provider = text.Single(item => AutomationProperties.GetAutomationId(item) == "GalleryPostSourceSize");
                 Require(local.Text == localValue && provider.Text == sourceValue, "File facts omit the localized binary size or exact byte count.");
                 Require(local.FontSize == provider.FontSize && local.FontWeight == provider.FontWeight, "Sizes use different fact typography.");
                 AssertVisibleText(summary, viewer);
@@ -79,7 +84,7 @@ internal static class GalleryIntegrityChecks
                     line.BringIntoView(); await Settle(window);
                     AssertVisibleText(line, viewer);
                 }
-                AssertNoRawValues(viewer, binding);
+                AssertNoRawValues(viewer, binding, hash);
                 string cell = language + "-" + theme.ToString().ToLowerInvariant();
                 string scaleKey = expectedScale.ToString("0.0##", CultureInfo.InvariantCulture).Replace('.', '_');
                 Program.CaptureWindow(window, "smoke-gallery-integrity-" + scaleKey + "-" + cell + ".png");
@@ -98,7 +103,8 @@ internal static class GalleryIntegrityChecks
                     cell, sourceDigest = Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_DIGEST"), actualScale = window.RenderScaling,
                     client = window.ClientSize.ToString(), gallery = viewer.Bounds.ToString(), caption = Bounds(caption, viewer).ToString(),
                     chrome = Bounds(chrome, viewer).ToString(), context = contextBounds.ToString(), summary = State(summary, viewer),
-                    local = State(local, viewer), provider = State(provider, viewer), captionText, toolbar, rawValuesHidden = true,
+                    local = State(local, viewer), provider = State(provider, viewer), captionText, toolbar,
+                    unexpectedRawValuesHidden = true, localSha256Exact = true, localSha256Copied = hashCopied,
                     assetId = selected.Asset.AssetId, revision = binding.Reference.RevisionKey
                 }));
                 ElementProbe? obscured = captionText.Concat(toolbar).FirstOrDefault(probe => probe.Overlap != null
@@ -228,11 +234,37 @@ internal static class GalleryIntegrityChecks
             { AttachmentResolution = resolution, ThreadUrl = "https://offline.invalid/g/thread/42" };
     }
 
-    private static void AssertNoRawValues(GalleryViewer viewer, MediaAttachmentBinding binding)
+    private static async Task<bool> AssertHashCopyAsync(MainWindow window, SelectableTextBlock hash, string expected)
     {
-        string text = string.Join("\n", viewer.GetGalleryVisualDescendants().OfType<TextBlock>().Select(block => block.Text));
-        Require(new[] { binding.Actual.Sha256, binding.Actual.Md5, binding.Provider.ExpectedMd5!, binding.Provider.Url }
-            .All(raw => !text.Contains(raw, StringComparison.Ordinal)), "Raw hashes or provider URL leaked into normal gallery/context.");
+        hash.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await Program.WaitUntilAsync(() => hash.ContextMenu?.IsOpen == true);
+        ContextMenu menu = hash.ContextMenu!;
+        try
+        {
+            MenuItem copy = menu.Items.OfType<MenuItem>()
+                .Single(item => AutomationProperties.GetAutomationId(item) == "panel.copy-value");
+            await Program.WaitUntilAsync(() => copy.IsEffectivelyVisible && copy.IsEffectivelyEnabled);
+            Require(copy.Command?.CanExecute(copy.CommandParameter) == true, "The gallery hash copy command is unavailable.");
+            return await ClipboardChecks.CheckIsolatedCopyAsync(window, () =>
+            {
+                SmokeActionClick.Execute(copy);
+                return Task.CompletedTask;
+            }, [expected], [], exactText: expected);
+        }
+        finally { menu.Close(); await Settle(window); }
+    }
+
+    private static void AssertNoRawValues(GalleryViewer viewer, MediaAttachmentBinding binding, SelectableTextBlock? hash = null)
+    {
+        string[] forbidden = [binding.Actual.Md5, binding.Provider.ExpectedMd5!, binding.Provider.Url];
+        foreach (TextBlock block in viewer.GetGalleryVisualDescendants().OfType<TextBlock>())
+        {
+            string text = block.Text ?? string.Empty;
+            Require(forbidden.All(raw => !text.Contains(raw, StringComparison.Ordinal))
+                && (ReferenceEquals(block, hash) || !text.Contains(binding.Actual.Sha256, StringComparison.Ordinal)),
+                "Raw hashes or provider URL leaked into normal gallery/context: "
+                + (AutomationProperties.GetAutomationId(block) ?? block.Name ?? block.GetType().Name));
+        }
     }
     private static void AssertVisibleText(TextBlock text, GalleryViewer viewer)
     {

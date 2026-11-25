@@ -51,8 +51,8 @@ public sealed partial class TaggingPage
     private ReaderMediaPreferences _panelInfo = ReaderMediaPreferences.Default;
 
     internal TimeProvider PanelClock { get; init; } = TimeProvider.System;
-    internal Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap Image, GalleryImageInfo Info)>> DecodePanelImageAsync
-        { get; init; } = GalleryImageCache.DecodeAsync;
+    internal Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap Image, GalleryImageInfo Info)>>? DecodePanelImageForTests
+        { get; init; }
     internal Func<string, CancellationToken, Task<MediaAssetSnapshot>> OpenPanelManifestAsync { get; init; } = MediaAssetReader.OpenAsync;
     internal Func<MediaPageLayout>? ReadPanelLayout { get; set; }
     internal Action<int>? SavePanelWidth { get; set; }
@@ -398,6 +398,7 @@ public sealed partial class TaggingPage
             CancelPanelLoad();
             _panelMediaKey = key;
             _panelFileAvailable = null;
+            panel.SetImageVerification(true);
             panel.ShowPlaceholder(Texts.T("reader.sidebar.loading"));
         }
 
@@ -472,12 +473,12 @@ public sealed partial class TaggingPage
                 {
                     GalleryEntry saved = new(new GalleryAssetKey(entry.Thread, manifest.Directory, asset.AssetId),
                         manifest, asset, null, null, !asset.IsCurrent, entry.Unassigned);
-                    (Bitmap image, GalleryImageInfo info) = await DecodePanelImageAsync(saved, new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
-                    verified = true;
-                    return new ReaderMediaSidebarContent.Picture(image, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
+                    return await request.ReadImageAsync(saved, new(target.Width, target.Height), token, value => verified = value,
+                        DecodePanelImageForTests);
                 }
                 // A saved video can be rated even if it has no previewable poster.
                 await using (Stream original = await manifest.OpenVerifiedReadAsync(asset.AssetId, token)) { }
+                verified = true;
                 Bitmap? poster = null;
                 if (entry.Kind == SavedMediaKind.Video)
                 {
@@ -485,7 +486,6 @@ public sealed partial class TaggingPage
                     poster = await MediaTileThumbnails.LoadPosterAsync(manifest, asset, _thumbnails.PosterCacheDirectory, width, height,
                         MediaTileThumbnails.PosterKey(asset, width, height), token);
                 }
-                verified = true;
                 return poster == null ? new ReaderMediaSidebarContent.Unavailable("reader.sidebar.unavailable")
                     : new ReaderMediaSidebarContent.Picture(poster, MediaTileThumbnails.Release, Playable: true);
             }

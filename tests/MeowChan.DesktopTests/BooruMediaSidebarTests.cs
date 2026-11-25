@@ -436,6 +436,68 @@ public sealed class BooruMediaSidebarTests
     });
 
     [Fact]
+    public void SidebarShortcutKeepsHitFocusAndFactsShortcutReopensWithFacts() => InWindow((harness, model, view, window) =>
+    {
+        // Fable #6: the same sidebar shortcut as the other hosts, and Shift+I opens a closed sidebar.
+        harness.Serve(pages: 1, perPage: 1);
+        Search(model, view);
+        window.Activate();
+        Settle(window);
+        ToggleButton toggle = ById<ToggleButton>(view, "BooruMediaToggle");
+        Assert.False(toggle.Focusable);
+        Assert.False(toggle.IsTabStop);
+        string? shortcut = CommandCatalog.ShortcutTooltipDisplay("media.panel.toggle", "booru");
+        Assert.NotNull(shortcut);
+        Assert.Contains(shortcut, Assert.IsType<string>(ToolTip.GetTip(toggle)));
+
+        Border hit = Hit(view, "101");
+        Focus(hit);
+        Control facts = ById<Control>(Sidebar(view), "BooruMediaFacts");
+        KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        Press(Key.M, primary | KeyModifiers.Shift);
+        Assert.False(Sidebar(view).IsEffectivelyVisible);
+        Assert.False(toggle.IsChecked);
+        Assert.True(hit.IsFocused);
+        Press(Key.M, primary | KeyModifiers.Shift);
+        Assert.True(Sidebar(view).IsEffectivelyVisible);
+        Assert.True(toggle.IsChecked);
+
+        Press(Key.I, KeyModifiers.Shift);
+        Assert.False(facts.IsEffectivelyVisible);
+        Press(Key.M, primary | KeyModifiers.Shift);
+        Press(Key.I, KeyModifiers.Shift);
+        Assert.True(Sidebar(view).IsEffectivelyVisible);
+        Assert.True(facts.IsEffectivelyVisible);
+        Assert.True(hit.IsFocused);
+
+        void Press(Key key, KeyModifiers modifiers)
+        {
+            KeyEventArgs args = KeyPress(key, hit, modifiers);
+            hit.RaiseEvent(args);
+            Assert.True(args.Handled);
+        }
+    });
+
+    [Fact]
+    public void MacSidebarToggleUsesShiftCommandMAndYieldsToSavedBooruBindings()
+    {
+        const string toggle = "media.panel.toggle";
+        EffectiveShortcutBindings defaults = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
+        KeyEventArgs key = new() { Key = Key.M, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Shift };
+        Assert.True(defaults.Matches(key, toggle, "booru"));
+        Assert.False(defaults.Matches(new KeyEventArgs { Key = Key.M, KeyModifiers = KeyModifiers.Meta }, toggle, "booru"));
+        Assert.Equal("⇧⌘M", CommandCatalog.ShortcutTooltipDisplay(toggle, true, "booru", defaults));
+        Assert.DoesNotContain(defaults.Issues, issue => issue.CommandId == toggle && issue.BlocksSave);
+
+        const string watch = "booru.search.watch";
+        ShortcutBindingsSection profile = new ShortcutBindingsSection().Set(watch, [ShortcutGesture.Parse("Primary+Shift+M")]);
+        EffectiveShortcutBindings saved = EffectiveShortcutBindings.Build(profile, ShortcutPlatform.MacOS);
+        Assert.True(saved.Matches(key, watch, "booru"));
+        Assert.False(saved.Matches(key, toggle, "booru"));
+        Assert.True(saved.Matches(key, toggle, "tagging"));
+    }
+
+    [Fact]
     public void SavedBooruShortcutTakesPrecedenceOverTheMacSidebarFactsGestureInBooru()
     {
         const string facts = "media.sidebar.info";

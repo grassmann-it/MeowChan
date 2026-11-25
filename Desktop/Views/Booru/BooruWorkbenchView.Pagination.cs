@@ -51,6 +51,7 @@ internal sealed partial class BooruWorkbenchView
     {
         if (e.Handled || _closed || ShortcutServiceCapturing() || !_pager.IsEffectivelyVisible
             || !IsSearchItem(_tabs.SelectedItem) || _mode.IsDropDownOpen) return;
+        if (e.KeyModifiers == KeyModifiers.None && e.Source is TextBox) return;
         bool previous = ShortcutService.Current.Matches(e, "pagination.previous", "booru");
         if (!previous && !ShortcutService.Current.Matches(e, "pagination.next", "booru")) return;
         if (!(previous ? _previous : _next).IsEnabled) return;

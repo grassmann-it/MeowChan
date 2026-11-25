@@ -64,6 +64,27 @@ public sealed class SettingsResetCoverageTests : IDisposable
         }
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResetPersistsTheDefaultSidebarPreviewPixelLimit(bool all)
+    {
+        using TempDirectory profile = new();
+        new Config { SidebarPreviewMaximumPixels = 2_000_000, DownloadPath = profile.Path }.SaveConfig(profile.Path);
+        Config config = Config.LoadConfig(profile.Path);
+        WithEditors(config, (editor, _) =>
+        {
+            editor.IsAvailable = true;
+            editor.ResetDraft(all ? SettingsEditor.SettingsResetScope.All : SettingsEditor.SettingsResetScope.ReadingMedia);
+            // Reset all also resets the download destination. Save against this fixture directory.
+            editor.DownloadPath = profile.Path;
+            editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            BooruComponentDispatcher.Wait(WaitForSaveAsync(editor));
+            Assert.False(editor.HasError, editor.ErrorMessage);
+            Assert.Equal(Config.SidebarPreviewMaximumPixelsDefault, Config.LoadConfig(profile.Path).SidebarPreviewMaximumPixels);
+        });
+    }
+
     [Fact]
     public void CompatibilityEditorKeepsReadingDataUntilTheSettingsCommitSucceeds()
     {

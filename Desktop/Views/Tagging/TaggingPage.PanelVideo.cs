@@ -25,6 +25,7 @@ public sealed partial class TaggingPage
     private string? _panelAutoplayDone;
     private Window? _panelWindow;
     private bool _panelVideoConfigured;
+    private bool _panelVideoStopping;
 
     /// <summary>The sidebar's video slot (test seam); null until the sidebar was shown once.</summary>
     internal ReaderInlineVideoSlot? PanelVideo => _panelVideo;
@@ -38,7 +39,8 @@ public sealed partial class TaggingPage
     internal void ConfigurePanelVideo(ReaderInlineVideoOptions video)
     {
         _panelVideoConfigured = true;
-        _ = _panelVideoController.ConfigureAsync((video with { Enabled = true }).Clamped());
+        var options = (video with { Enabled = true }).Clamped();
+        OpenActions.Start(() => _panelVideoController.ConfigureAsync(options), "tagging.panel.video.configure");
         if (IsPanelShown) OfferPanelVideo(_panelRow);
     }
 
@@ -87,12 +89,13 @@ public sealed partial class TaggingPage
     /// <summary>The sidebar shows this row (or none): a saved video offers inline playback; anything else gives the player back.</summary>
     private void OfferPanelVideo(TaggingQueueRow? row)
     {
-        if (_panelVideo is not { } slot) return;
+        if (_panelVideoStopping || _panelVideo is not { } slot) return;
         MediaLibraryEntry? entry = row == null ? null : EntryOf(row.Item);
         bool offered = IsPanelShown && entry != null && MediaPanelKeys.CanOfferVideo(_panelVideoController.Options.Enabled,
             entry.Directory != null && entry.AssetId != null, entry.Kind == SavedMediaKind.Video);
         slot.Offer(offered ? _panelVideoController : null, offered ? PanelVideoKey(entry!) : null,
-            offered ? token => ResolvePanelVideoAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? OpenPanelGallery : null);
+            offered ? token => ResolvePanelVideoAsync(entry!, token) : null, row?.Name ?? string.Empty, offered ? OpenPanelGallery : null,
+            posterKey: _panelMediaKey);
         SchedulePanelVideoAutoplay(offered ? PanelVideoKey(entry!) : null);
     }
 
@@ -156,5 +159,13 @@ public sealed partial class TaggingPage
     {
         CancelPanelAutoplay();
         return _panelVideoController.ReleaseAllAsync();
+    }
+
+    internal Task ReleasePanelVideosForShutdown()
+    {
+        _panelVideoStopping = true;
+        Task slot = _panelVideo?.CloseForShutdownAsync() ?? Task.CompletedTask;
+        // ReleaseAllAsync also joins disposal started earlier by a sidebar or page visibility change.
+        return Task.WhenAll(slot, ReleasePanelVideos());
     }
 }

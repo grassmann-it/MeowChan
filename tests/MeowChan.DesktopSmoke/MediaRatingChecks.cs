@@ -183,7 +183,15 @@ internal static partial class MediaRatingChecks
         QuickTagPopover menu = await OpenRatingMenu(row);
         Button item = RatingItem(menu, value);
         Click(item, value is { } star ? "Rate the exact identity " + star : "Remove the exact rating");
-        await Program.WaitUntilAsync(() => Rating(row) == value);
+        await Program.WaitUntilAsync(() => Rating(row) == value, () =>
+        {
+            GalleryDecisionRow decision = menu.DecisionRow!;
+            var checkedStars = Enumerable.Range(1, decision.StarButtons.Count)
+                .Where(star => decision.StarButtons[star - 1].IsChecked == true);
+            string error = Field<TextBlock>(decision, "_error").Text ?? "none";
+            return $"hostRating={Rating(row)?.ToString() ?? "unrated"}, popoverOpen={menu.IsOpen}, "
+                + $"closeReason={menu.Reason}, checkedStars=[{string.Join(",", checkedStars)}], rowError={error}";
+        });
         if (menu.IsOpen) await CloseRatingMenu(menu);
         Observe("Menu choice persisted exact identity at " + (value?.ToString() ?? "unrated"), Rating(row) == value);
     }

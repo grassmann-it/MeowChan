@@ -147,7 +147,7 @@ public sealed class GalleryFilmstripFlagsTests : IDisposable
         Dictionary<MediaBadgeId, PlacedBadge> at = plan.Badges.ToDictionary(placed => placed.Badge.Id);
         Assert.Equal([MediaBadgeId.Favorite, MediaBadgeId.PlayMark, MediaBadgeId.Video, MediaBadgeId.Untagged, MediaBadgeId.Rating],
             at.Keys.Order().ToArray()); // nothing dropped at 48 dip: all four marks and the dense play mark
-        Assert.Equal("star-filled", at[MediaBadgeId.Favorite].Badge.Icon);
+        Assert.Equal("heart-filled", at[MediaBadgeId.Favorite].Badge.Icon); // Tom, 25.11.2026: the favourite is a heart everywhere
         Assert.Equal("star-half", at[MediaBadgeId.Rating].Badge.Icon);
         Assert.Equal("4", at[MediaBadgeId.Rating].Badge.Label);
         Assert.Equal(MediaBadgeIcons.Untagged, at[MediaBadgeId.Untagged].Badge.Icon); // the mark of the media page's untagged tiles

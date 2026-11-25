@@ -17,14 +17,16 @@ namespace MeowChan.DesktopTests;
 public sealed class ArchiveExportOriginFocusTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void EscapeReturnsToTheWorkItemForDirectAndOverflowedExports(bool results, bool overflow) =>
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public void EscapeReturnsToTheWorkItemForDirectAndOverflowedExports(bool results, bool overflow, bool macOS) =>
         BooruComponentDispatcher.Run(async () =>
         {
-            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using IDisposable platform = BooruReviewTestPlatform.Enter(macOS: macOS);
             Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
             using TempDirectory profile = new();
             using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
@@ -82,7 +84,7 @@ public sealed class ArchiveExportOriginFocusTests
                     row = Assert.IsAssignableFrom<Control>(list.ContainerFromItem(lead));
                     AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                     Point point = row.TranslatePoint(new Point(row.Bounds.Width / 2, row.Bounds.Height / 2), window)!.Value;
-                    var toggle = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+                    var toggle = macOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
                     window.MouseDown(point, MouseButton.Left, toggle);
                     window.MouseUp(point, MouseButton.Left, toggle);
                     await BooruTestSupport.WaitAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == leadId,

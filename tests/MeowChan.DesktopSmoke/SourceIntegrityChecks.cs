@@ -6,12 +6,14 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.PluginSdk;
 using Ursa.Controls;
 
@@ -183,6 +185,9 @@ internal static class SourceIntegrityChecks
             foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
             {
                 await PresentationChecks.SwitchModeAsync(window, mode);
+                // The fixture's plugin details are outside the window's work-view registration.
+                WorkView workView = window.WorkViews.Current;
+                plugins.ApplyWorkView(workView, viewChanged: false);
                 Texts.SetLanguage(language); Application.Current.RequestedThemeVariant = theme;
                 double width = mode == "Barebones" ? 640 : 760, height = mode == "Barebones" ? 480 : 500;
                 window.WindowState = WindowState.Normal; window.Width = width; window.Height = height;
@@ -258,23 +263,29 @@ internal static class SourceIntegrityChecks
                 TextBlock pluginBadge = C<TextBlock>(plugins, "PluginExperimental");
                 await RevealAsync(window, pluginBadge); AssertTextFits(pluginBadge);
                 Program.CaptureWindow(window, CaptureName("plugin-badge-" + cell));
-                Button manage = C<Button>(plugins, "PluginWatches");
-                await RevealAsync(window, manage);
-                Require(manage.IsEffectivelyEnabled && manage.Focus(NavigationMethod.Tab), "The real Show source link could not receive focus.");
-                await Settle();
-                Require(manage.IsFocused && InViewport(window, manage)
-                    && Avalonia.Automation.AutomationProperties.GetName(manage) == Texts.T("plugins.watches"),
-                    "The Show source link was not translated or keyboard reachable.");
-                Program.CaptureWindow(window, CaptureName("plugin-link-" + cell));
-                await NativeFeatureCheckpoint.HoldAsync("source-plugin-link", plugins, manage, manage);
+                using MediaNativeInput input = new(window);
+                Control manage = await RevealShowSourceAsync(window, plugins, workView, input, cell);
+                TopLevel surface = TopLevel.GetTopLevel(manage)
+                    ?? throw new InvalidOperationException("The Show source link lost its visible surface.");
+                Require(manage.IsEffectivelyEnabled && InViewport(surface, manage)
+                    && AutomationProperties.GetName(manage) == Texts.T("plugins.watches"),
+                    "The Show source action was not translated or fully in the viewport.");
+                CapturePluginLink(surface, CaptureName("plugin-link-" + cell));
                 navigatedSource = null;
-                await ActivateAsync(manage);
+                if (manage is Button direct)
+                {
+                    Require(!direct.Focusable, "The direct Show source button took part in keyboard focus.");
+                    await NativeFeatureCheckpoint.HoldAsync("source-plugin-link", plugins, null, direct);
+                    await input.ClickButtonAsync(direct);
+                }
+                else await ActivateAsync(manage);
                 await Program.WaitUntilAsync(() => navigatedSource == PluginUxFixture.SourceId && sources.IsEffectivelyVisible);
                 Require(window.SelectedPage == MainWindow.WorkspacePage.Sources && ReferenceEquals(sourcesHost.Content, sources)
                     && !plugins.ShowingSourcePluginDetails && C<TextBlock>(sources, "SourceHeading").IsEffectivelyVisible
                     && C<TextBlock>(sources, "SourceHeading").Text == providers[0].DisplayName,
                     "The frozen plugin source action navigated to a different source.");
-                Observation(window, sources, "plugin-link-navigation", new { cell, source = navigatedSource, expectedScale });
+                Observation(window, sources, "plugin-link-navigation", new { cell, source = navigatedSource, expectedScale,
+                    placement = manage is MenuItem ? "overflow" : "direct" });
             }
             await CheckPluginTimingAsync(sources, plugins, fixture);
             Require(fixture.ForbiddenCalls == 0, "The passive GUI fixture unexpectedly compiled, described, started or probed a plugin.");
@@ -380,6 +391,50 @@ internal static class SourceIntegrityChecks
         AssertTextFits(error);
     }
 
+    private static async Task<Control> RevealShowSourceAsync(MainWindow window, PluginsPage plugins, WorkView view, MediaNativeInput input, string cell)
+    {
+        Button ActionButton(string id) => plugins.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetAutomationId(button) == id);
+        Button direct = ActionButton("PluginWatches");
+        if (view != WorkView.Barebones)
+        {
+            await RevealAsync(window, direct);
+            return direct;
+        }
+
+        // WorkViewPolicy.Plugins places the action under the plugin's More menu in Barebones.
+        Require(!direct.IsEffectivelyVisible, "Barebones exposed a direct Show source link.");
+        Button more = ActionButton("PluginMoreActions");
+        await Program.WaitUntilAsync(() =>
+        {
+            more.BringIntoView();
+            window.UpdateLayout();
+            return InViewport(window, more);
+        }, () => $"PluginMoreActions is not fully in the viewport in {cell} at {window.ClientSize}: {JsonSerializer.Serialize(State(window, more))}");
+        Require(!more.Focusable, "The More actions button took part in keyboard focus.");
+        Console.WriteLine($"SMOKE PluginMoreActions {cell} client={window.ClientSize}: {JsonSerializer.Serialize(State(window, more))}");
+        await input.ClickButtonAsync(more);
+        if (plugins.PluginActionMenu is not { IsOpen: true } menu)
+            throw new InvalidOperationException("The plugin's More actions menu did not open.");
+        MenuItem item = menu.Items.OfType<MenuItem>().Single(candidate => AutomationProperties.GetAutomationId(candidate) == "plugins.watches");
+        await Program.WaitUntilAsync(() => TopLevel.GetTopLevel(item) is { } popup && InViewport(popup, item));
+        return item;
+    }
+
+    private static void CapturePluginLink(TopLevel surface, string fileName)
+    {
+        if (surface is Window window)
+        {
+            Program.CaptureWindow(window, fileName);
+            return;
+        }
+
+        double scale = surface.RenderScaling;
+        using RenderTargetBitmap image = new(PixelSize.FromSize(surface.ClientSize, scale), new Vector(96 * scale, 96 * scale));
+        image.Render(surface);
+        image.Save(Path.Combine(AppContext.BaseDirectory, fileName), PngBitmapEncoderOptions.Default);
+    }
+
     private static bool Saved(Config config, string source) => config.SourceMediaIntegrityPermissions[
         SourceMediaIntegrityPermission.CreateKey(PluginUxFixture.SourcePluginId, source)].AllowProviderSizeMd5Mismatch;
     private static async Task ToggleAsync(MainWindow window, SourcesPage page, bool intended, bool? expectedAfter = null)
@@ -424,13 +479,13 @@ internal static class SourceIntegrityChecks
         await Program.WaitUntilAsync(() => { window.UpdateLayout(); control.BringIntoView(); window.UpdateLayout(); return InViewport(window, control); });
         await Settle();
     }
-    private static bool InViewport(Window window, Control target)
+    private static bool InViewport(TopLevel surface, Control target)
     {
-        if (!target.IsAttachedToVisualTree() || !target.IsEffectivelyVisible || !ReferenceEquals(TopLevel.GetTopLevel(target), window)
+        if (!target.IsAttachedToVisualTree() || !target.IsEffectivelyVisible || !ReferenceEquals(TopLevel.GetTopLevel(target), surface)
             || target.Bounds.Width <= 0 || target.Bounds.Height <= 0) return false;
-        Point? position = target.TranslatePoint(default, window);
-        if (position is not { } p || p.X < -1 || p.Y < -1 || p.X + target.Bounds.Width > window.ClientSize.Width + 1
-            || p.Y + target.Bounds.Height > window.ClientSize.Height + 1) return false;
+        Point? position = target.TranslatePoint(default, surface);
+        if (position is not { } p || p.X < -1 || p.Y < -1 || p.X + target.Bounds.Width > surface.ClientSize.Width + 1
+            || p.Y + target.Bounds.Height > surface.ClientSize.Height + 1) return false;
         return target.GetVisualAncestors().OfType<ScrollViewer>().All(scroll => target.TranslatePoint(default, scroll) is { } point
             && point.X >= -1 && point.Y >= -1 && point.X + target.Bounds.Width <= scroll.Viewport.Width + 1
             && point.Y + target.Bounds.Height <= scroll.Viewport.Height + 1);

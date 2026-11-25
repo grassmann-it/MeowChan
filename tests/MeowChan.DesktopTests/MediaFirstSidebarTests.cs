@@ -121,14 +121,12 @@ public sealed class MediaFirstSidebarTests
         Config config = new();
         Assert.False(config.MediaSidebarAutoHide);
         Assert.True(config.MediaSidebarFacts);
-        Assert.Equal(("Auto", 104, 40), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
+        Assert.Equal(("Auto", 40), (config.MediaSidebarInfo, config.MediaSidebarInfoMaximumShare));
         config.MediaSidebarInfo = "unknown";
-        config.MediaSidebarInfoMinimumFree = -1;
         config.MediaSidebarInfoMaximumShare = 120;
-        Assert.Equal(("Auto", 64, 60), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
-        config.MediaSidebarInfoMinimumFree = 900;
+        Assert.Equal(("Auto", 60), (config.MediaSidebarInfo, config.MediaSidebarInfoMaximumShare));
         config.MediaSidebarInfoMaximumShare = 0;
-        Assert.Equal((480, 20), (config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
+        Assert.Equal(20, config.MediaSidebarInfoMaximumShare);
     }
 
     [Fact]
@@ -326,6 +324,7 @@ public sealed class MediaFirstSidebarTests
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using RenderTargetBitmap poster = new(new PixelSize(400, 300));
+        const string posterKey = "same-video-poster";
         int tagOpens = 0, playRequests = 0;
         int? rating = 2;
         ReaderMediaSidebar panel = new()
@@ -333,17 +332,17 @@ public sealed class MediaFirstSidebarTests
             BorderThickness = new Thickness(1, 0),
             OpenTagsAsync = (_, _) => { tagOpens++; return Task.CompletedTask; }
         };
-        panel.Describe("No. 7", "same.mp4", "", true);
+        panel.Describe("No. 7", "same.mp4", "", true, mediumKey: posterKey);
         panel.ConfigureRating(() => true, () => rating, value => { rating = value; return Task.CompletedTask; });
         panel.SetTags(["cat", "dog"], null);
-        panel.ShowPicture(poster, _ => { }, true, double.PositiveInfinity, double.PositiveInfinity);
+        panel.ShowPicture(poster, _ => { }, true, double.PositiveInfinity, double.PositiveInfinity, mediumKey: posterKey);
         panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always", MediaSidebarAutoHide = true });
         // Both hosts add the idle activator after creating the sidebar.
         ReaderInlineVideoSlot slot = new(panel.FrameArea, activatorWhenIdle: true);
         panel.VideoRow.Children.Add(slot.Below);
         ReaderInlineVideoController video = new();
         BooruComponentDispatcher.Wait(video.ConfigureAsync(ReaderInlineVideoOptions.Default with { Enabled = true }));
-        slot.Offer(video, "video", _ => { playRequests++; return Task.FromResult<GalleryEntry?>(null); }, "same.mp4");
+        slot.Offer(video, "video", _ => { playRequests++; return Task.FromResult<GalleryEntry?>(null); }, "same.mp4", posterKey: posterKey);
         Window window = new() { Width = 240, Height = 800, Content = panel };
         try
         {

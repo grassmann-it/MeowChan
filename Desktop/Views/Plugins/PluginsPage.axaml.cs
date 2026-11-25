@@ -97,6 +97,7 @@ public partial class PluginsPage : UserControl, IDisposable
         InitializeComponent();
         InitializePluginDetails();
         InitializePluginActions();
+        C<Grid>("PluginDetailLayout").LayoutUpdated += FitPluginDraftFooter;
         KeyDown += (_, args) =>
         {
             if (args.Handled || args.Key != Key.Escape) return;
@@ -572,6 +573,25 @@ public partial class PluginsPage : UserControl, IDisposable
         C<Expander>("PluginGrantExpander").IsVisible = entry.Description?.Filters.Count > 0;
     }
     private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+
+    // The draft footer stays pinned under the scrolling body (Save and Discard never scroll away). In a short card the reasons give up height first,
+    // so the body keeps room for the primary actions (More included); the full reasons stay in the tooltip.
+    private void FitPluginDraftFooter(object? sender, EventArgs e)
+    {
+        Grid layout = C<Grid>("PluginDetailLayout");
+        if (_ended || !layout.IsEffectivelyVisible || layout.Bounds.Height <= 0) return;
+        Border footer = C<Border>("PluginDraftFooter");
+        SelectableTextBlock reasons = C<SelectableTextBlock>("PluginDraftReasons");
+        double actionsHeight = C<WrapPanel>("PluginPrimaryActions").DesiredSize.Height;
+        double rest = footer.DesiredSize.Height - reasons.DesiredSize.Height;
+        double line = Math.Ceiling(reasons.FontSize * 1.5);
+        double maximum = Math.Max(line, Math.Floor(layout.Bounds.Height - layout.RowSpacing - actionsHeight - rest));
+        if (Math.Abs(maximum - reasons.MaxHeight) >= 0.5) reasons.MaxHeight = maximum;
+        bool trimmed = reasons.DesiredSize.Height >= reasons.MaxHeight - 0.5 && !string.IsNullOrEmpty(reasons.Text);
+        object? tip = trimmed ? reasons.Text : null;
+        if (!Equals(ToolTip.GetTip(reasons), tip)) ToolTip.SetTip(reasons, tip);
+    }
+
     private void ApplyPaneVisibility()
     {
         bool hasSelection = Selected != null && Included(Selected);

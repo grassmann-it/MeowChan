@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Automation;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -71,6 +72,40 @@ public sealed class MediaFactGridTests
                 Texts.SetLanguage("en");
             }
         });
+
+    [Fact]
+    public void SelectingAndCopyingTheExpandedFileNameIncludesItsHiddenMiddle() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        const string name = "expanded-file-name-with-a-long-middle-that-does-not-fit-in-the-panel.png";
+        MediaFactGrid facts = new("ExpandedFacts") { Width = 206 };
+        facts.Add(Texts.T("media.fact.file"), name, "ExpandedFile", fileName: true);
+        Window window = new() { Width = 480, Height = 320, Content = facts };
+        try
+        {
+            window.Show();
+            ContextGestures.Settle(window);
+            var value = SidePanelDesignTests.ById<SelectableTextBlock>(facts, "ExpandedFile");
+            AssertFullSelectionAndCopy(window, value, name);
+        }
+        finally { window.Close(); }
+    });
+
+    internal static void AssertFullSelectionAndCopy(Window window, SelectableTextBlock value, string name)
+    {
+        foreach (bool macOS in new[] { false, true })
+        {
+            KeyModifiers command = macOS ? KeyModifiers.Meta : KeyModifiers.Control;
+            RawInputModifiers modifier = macOS ? RawInputModifiers.Meta : RawInputModifiers.Control;
+            AvaloniaLocator.CurrentMutable.Bind<PlatformHotkeyConfiguration>().ToConstant(new PlatformHotkeyConfiguration(command));
+            value.ClearSelection();
+            ContextGestures.KeyStroke(value, Key.A, PhysicalKey.A, modifier);
+            Assert.Equal(name, value.SelectedText);
+            BooruComponentDispatcher.Wait(window.Clipboard!.SetTextAsync("before copy"));
+            ContextGestures.KeyStroke(value, Key.C, PhysicalKey.C, modifier);
+            Assert.Equal(name, BooruComponentDispatcher.Wait(window.Clipboard.TryGetTextAsync()));
+        }
+    }
 
     [Fact]
     public void TheFullLocationAndHashAreReachableFromTheKeyboardAndMacControlClick() => BooruComponentDispatcher.Run(() =>

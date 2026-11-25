@@ -20,7 +20,7 @@ internal sealed class VerifiedFileMemo
     private readonly Queue<string> _order = new();
     private int _capacity;
 
-    private readonly record struct Stamp(RegularProfileFileIdentity Identity, string Sha256);
+    private readonly record struct Stamp(RegularProfileFileIdentity Identity, string Sha256, long? ChangeSequence);
 
     internal VerifiedFileMemo(int capacity = 16384) => _capacity = Math.Max(1, capacity);
 
@@ -32,21 +32,21 @@ internal sealed class VerifiedFileMemo
 
     internal int Count { get { lock (_gate) return _files.Count; } }
 
-    internal bool IsVerified(string path, RegularProfileFileIdentity? identity, string sha256)
+    internal bool IsVerified(string path, RegularProfileFileIdentity? identity, string sha256, long? changeSequence = null)
     {
         if (identity is not { } current) return false;
         lock (_gate)
-            return _files.TryGetValue(path, out Stamp stamp) && stamp.Identity == current
+            return _files.TryGetValue(path, out Stamp stamp) && stamp.Identity == current && stamp.ChangeSequence == changeSequence
                 && string.Equals(stamp.Sha256, sha256, StringComparison.OrdinalIgnoreCase);
     }
 
-    internal void Remember(string path, RegularProfileFileIdentity? identity, string sha256)
+    internal void Remember(string path, RegularProfileFileIdentity? identity, string sha256, long? changeSequence = null)
     {
         if (identity is not { } current) return;
         lock (_gate)
         {
             if (!_files.ContainsKey(path)) _order.Enqueue(path);
-            _files[path] = new Stamp(current, sha256);
+            _files[path] = new Stamp(current, sha256, changeSequence);
             Trim();
         }
     }

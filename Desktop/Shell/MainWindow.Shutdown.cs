@@ -251,7 +251,7 @@ public partial class MainWindow
             Task engineDrain = _session.BeginShutdown();
             // A gallery that failed to close may still own its player: that counts as native ownership not proven released.
             bool galleryClosed = budget.Run("gallery-close", () => CloseGallery(restoreOrigin: false)) == ShutdownStepOutcome.Completed;
-            // R10: the reader's inline players, the media sidebar's and the Media panel's are native players too. They are released
+            // R10: the reader's inline players and the Media and Tagging panel players are native players too. They are released
             // now, while their drawables are still attached, instead of fire-and-forget when the closed window detaches them.
             Task inlineVideos = ReleaseShellVideosForShutdown();
             Task windowPreferences = SaveWindowPreferencesAsync(booruViewerBounds);
@@ -331,7 +331,10 @@ public partial class MainWindow
     {
         try
         {
-            return Task.WhenAll(_archivePage?.ReleaseInlineVideos() ?? Task.CompletedTask, _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask);
+            return Task.WhenAll(
+                _taggingPage?.ReleasePanelVideosForShutdown() ?? Task.CompletedTask,
+                _archivePage?.ReleaseInlineVideos() ?? Task.CompletedTask,
+                _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask);
         }
         catch (Exception error) { return Task.FromException(error); }
     }

@@ -17,7 +17,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private readonly record struct MediaIdentity(ResourceId? Thread, string Directory, string Asset);
-    private sealed record MediaPosition(MediaIdentity[] Order, int Index, double Offset, MediaIdentity[] Selection);
+    private sealed record MediaPosition(MediaIdentity[] Order, int Index, double Offset, MediaIdentity[] Selection, bool FocusSelection = false);
     private IReadOnlyList<ArchiveAssetRow> _shownMedia = Array.Empty<ArchiveAssetRow>();
     private ResourceId? _shownMediaThread;
     private MediaPosition? _retainedMediaPosition;
@@ -136,6 +136,8 @@ public partial class ArchivePage
         }
         finally { _rebindingMedia = rebinding; }
         SetMediaSelection(selected);
+        if (position.FocusSelection && ArchiveMediaTab.IsSelected && !_obscuredByGallery)
+            FocusSelectedMedia();
         Dispatcher.UIThread.Post(() =>
         {
             if (_ended || request != _mediaPositionRequest || _shownMedia.Count == 0) return;

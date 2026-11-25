@@ -4,11 +4,14 @@ using System.Linq;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Automation;
+using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using Ursa.Controls;
 using MeowChan.Desktop.WorkViews;
 
@@ -16,6 +19,39 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
+    private void InitializeToolbarPopupAnchor(ActionToolBar toolbar)
+    {
+        toolbar.TemplateApplied += (_, _) =>
+        {
+            if (toolbar.More is not { } more) return;
+            AutomationProperties.SetAutomationId(more, toolbar.Name + "More");
+            more.Click += (_, _) =>
+            {
+                if (PopupToggle.ConsumeActivation(more)
+                    || ReferenceEquals(_readerQuickSettings?.Flyout.Target, more) && DismissReaderQuickSettings())
+                    more.IsChecked = false;
+            };
+        };
+    }
+
+    private static Control ToolbarPopupAnchor(Button opener, ActionToolBar toolbar, Control fallback)
+    {
+        if (opener.IsEffectivelyVisible && toolbar.IsVisualAncestorOf(opener)) return opener;
+        return toolbar.More is { IsEffectivelyVisible: true } more && more.IsAttachedToVisualTree() ? more : fallback;
+    }
+
+    private void ReturnFocusFromToolbarPopup(Control anchor, ActionToolBar toolbar, Control workTarget, Action restoreFocus)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_ended || !workTarget.IsEffectivelyVisible || CommandRouter.HasOpenPopup(this)) return;
+            if (TopLevel.GetTopLevel(workTarget)?.FocusManager?.GetFocusedElement() is Avalonia.Visual focused
+                && focused.IsAttachedToVisualTree() && !ReferenceEquals(focused, anchor)
+                && !focused.IsVisualAncestorOf(anchor) && !toolbar.IsVisualAncestorOf(focused)) return;
+            restoreFocus();
+        }, DispatcherPriority.Input);
+    }
+
     private bool ResultActionsReady => _available && !_busy && !_ended && !IsFilenameSearchOpen;
     private bool CanExportResults => ResultActionsReady && !_urlTextExportBusy && _openReader != null && _listTotal > 0
         && !ArchiveExportDialog.IsVisible;
@@ -40,7 +76,13 @@ public partial class ArchivePage
     // The original action remains the semantic origin, but a closed overflow
     // has no focusable window presentation. Resolve at return time after layout
     // or mode changes, without reopening the popup or executing any action.
-    internal Control? GalleryOriginFocusTarget(Control? origin) => ActionOriginFocusTarget(origin);
+    internal Control? GalleryOriginFocusTarget(Control? origin)
+    {
+        if (origin != null && ArchiveMediaTab.IsSelected && (ReferenceEquals(origin, _mediaSidebar?.FrameArea)
+            || ReferenceEquals(origin, VisibleMediaList) || origin.DataContext is ArchiveAssetRow))
+            return SelectedMediaFocusTarget() ?? VisibleMediaList;
+        return ActionOriginFocusTarget(origin);
+    }
 
     internal Control? ActionOriginFocusTarget(Control? origin)
     {

@@ -92,9 +92,12 @@ public sealed partial class MediaPage
     internal void ConfigurePanel(ReaderInlineVideoOptions video, GalleryFitPreferences fit)
     {
         bool fitChanged = _panelFit != fit;
+        bool limitChanged = _panelFit.PreviewMaximumPixels != fit.PreviewMaximumPixels;
         _panelFit = fit;
         _ = _panelVideoController.ConfigureAsync((video with { Enabled = true }).Clamped());
         if (!_panelShown) return;
+        if (limitChanged && _panel?.Load.ShownSource is { } source && (long)source.Width * source.Height > fit.PreviewMaximumPixels)
+            _panel.ShowPlaceholder(Texts.T("archive.tooLarge"));
         OfferPanelVideo(_panelRow);
         if (fitChanged) RefreshPanel();
     }
@@ -141,7 +144,7 @@ public sealed partial class MediaPage
         panel.GalleryRequested += (_, _) => StartOpenPanelMedia();
         panel.PictureActivated += (_, _) => OnPanelPictureActivated();
         panel.Close.Click += (_, e) => { e.Handled = true; ClosePanel(); };
-        // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
+        // In the panel the play button covers the poster while idle. Playback keys stay with the working grid.
         ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true)
         {
             ShortcutContext = "media", OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
@@ -176,7 +179,7 @@ public sealed partial class MediaPage
         if (_lifetime.IsCancellationRequested || !_panelShown) return;
         object? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
         if (focused is Visual visual && (_panel == null || !visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, _panel)))) return;
-        _grid.Focus(NavigationMethod.Pointer);
+        FocusGridNow();
     }
 
     private Window? _panelWindow;
@@ -267,10 +270,12 @@ public sealed partial class MediaPage
         MediaLibraryTileRow? previous = _panelRow ?? _panelWanted;
         MediaLibraryTileRow? rebound = previous == null ? null : RowOfTile(MediaLibraryTileKey.Of(previous.Tile), previous.Index);
         MediaLibraryTileRow? pick = rebound != null && _grid.Selection.IsSelected(rebound.Index) ? rebound : SelectedRow ?? rebound;
-        bool sameMedium = pick != null && _panelRow != null && MediaLibraryTileKey.Of(pick.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
-        if (sameMedium)
+        bool sameMedium = pick != null && _panelRow != null
+            && MediaLibraryTileKey.Of(pick.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile)
+            && PanelVideoKey(pick.Entry) == PanelVideoKey(_panelRow.Entry);
+        if (sameMedium && SamePanelTagTarget(pick!.Entry, _panelRow!.Entry))
         {
-            // Same tile in a new list: no new decode, only the header and the star.
+            // The same occurrence in a new list keeps its decoded picture.
             SetPanelRow(pick);
             _panelWanted = pick;
             DescribePanel(_panel, pick!);
@@ -363,6 +368,8 @@ public sealed partial class MediaPage
         string mediumKey = PanelVideoKey(entry);
         (double Width, double Height) target = PanelTarget(panel);
         ReaderMediaLoadTicket ticket = panel.Load.Begin(mediumKey, target);
+        if (!ticket.UpToDate && !ticket.SameMedium)
+            panel.SetImageVerification(entry is { Kind: SavedMediaKind.Image, Presence: MediaLibraryPresence.Present } ? null : true);
         DescribePanel(panel, row);
         OfferPanelVideo(row);
         // A refresh of the same medium (a larger frame, a changed setting) is no news for a screen reader: only another medium is announced.
@@ -451,12 +458,16 @@ public sealed partial class MediaPage
         {
             GalleryEntry? entry = await ResolvePanelEntryAsync(row.Entry, ct);
             ct.ThrowIfCancellationRequested();
-            if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+            if (entry == null)
+            {
+                if (IsCurrentPanelRequest(ticket.Request) && row.Entry.Presence == MediaLibraryPresence.Present)
+                    panel.SetImageVerification(false);
+                return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+            }
             if (entry.Kind == SavedMediaKind.Image)
             {
                 if (panel.BeforePreviewDecodeForTests is { } beforeDecode) await beforeDecode(entry.Asset.Path, ct);
-                (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
-                return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
+                return await load.ReadImageAsync(entry, new(target.Width, target.Height), ct);
             }
             if (entry.Kind == SavedMediaKind.Video)
             {
@@ -588,9 +599,10 @@ public sealed partial class MediaPage
         if (TryDismissPanelTagEditor(e)) return;
         if (_panelShown && _panel is { } panel && _panelRow is { } row && ContextClick.IsKey(e) && OwnsPanelMenu(e.Source, panel))
         {
+            if (panel.IsShowingStalePicture) { ContextClick.RejectKeyPress(panel, e); return; }
+            e.Handled = true;
             OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard: true);
             ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
-            e.Handled = true;
             return;
         }
         if (!TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
@@ -631,7 +643,7 @@ public sealed partial class MediaPage
         if (MiddleClickTracker.IsPress(e, panel) && panel.IsCurrentMediaSurface(e.Source, position, _panelVideo))
             _panelMiddleClick.Pressed(row);
         if (!ContextClick.IsPress(e, panel) || !OwnsPanelMenu(e.Source, panel)) return;
-        if (!panel.IsStalePictureHit(e.Source, position))
+        if (!panel.IsShowingStalePicture)
         {
             panel.Frame.Focusable = true;
             panel.Frame.Focus();
@@ -656,10 +668,9 @@ public sealed partial class MediaPage
     private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (e.Handled || _panel is not { } panel || !OwnsPanelMenu(e.Source, panel)) return;
-        if (_panelPointerContext.TryConsume()) { e.Handled = true; return; }
+        if (_panelPointerContext.TryConsume() || panel.IsShowingStalePicture) { e.Handled = true; return; }
         if (_panelRow is not { } row) return;
-        bool keyboard = !e.TryGetPosition(panel, out Point position);
-        if (!keyboard && panel.IsStalePictureHit(e.Source, position)) { e.Handled = true; return; }
+        bool keyboard = !e.TryGetPosition(panel, out _);
         if (!keyboard)
         {
             panel.Frame.Focusable = true;

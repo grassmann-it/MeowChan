@@ -343,7 +343,7 @@ internal sealed class ReaderInlineVideoController
     /// Plays this owner's video: an existing player resumes; otherwise (only while the setting is on) one is created with
     /// <paramref name="create"/> after room was made, and started. Every other video pauses first. False when nothing plays.
     /// </summary>
-    internal async Task<bool> PlayAsync(IReaderInlineVideoOwner owner, Func<IReaderInlineVideoPlayer>? create = null)
+    internal async Task<bool> PlayAsync(IReaderInlineVideoOwner owner, Func<IReaderInlineVideoPlayer>? create = null, Func<bool>? canCreate = null)
     {
         if (PlaybackGate?.GalleryOwnsPlayback == true) return false;
         Live? live = Find(owner);
@@ -355,7 +355,7 @@ internal sealed class ReaderInlineVideoController
             // activation while the first one is still yielding; creating here synchronously would leave a player behind
             // for the gallery to release even though playback never started.
             await Task.Yield();
-            if (PlaybackGate?.GalleryOwnsPlayback == true) return false;
+            if (PlaybackGate?.GalleryOwnsPlayback == true || canCreate?.Invoke() == false) return false;
             // Room first: the bound holds at every moment, also while the new player starts.
             Trim(Options.MaxPlayers - 1, keep: owner);
             live = new Live(owner, create()) { Used = ++_clock };
