@@ -1,3 +1,10 @@
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Persistence;
 using MeowChan.Storage;
@@ -6,6 +13,7 @@ using MeowChan.Transfer;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Localization")]
 public sealed class TagManagerSessionTests
 {
     private static ResourceId Thread(string id) => new("source", "board", id);
@@ -144,6 +152,74 @@ public sealed class TagManagerSessionTests
         Assert.Equal(dog, Assert.Single(stored.TagsOf(Thread("1"))).Id);
         Assert.Empty(stored.MediaAssignments);
     }
+
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.5)]
+    public void DeleteConfirmationStartsOnKeepAndOnlyDeletesTheNamedTag(double scale) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        TagId cat = store.Define("cat").Tag, dog = store.Define("dog").Tag;
+        store.SetThread(cat, Thread("1"), true);
+        store.SetThread(dog, Thread("1"), true);
+        store.SetMedia(cat, Media("1"), true);
+        store.AddAlias(cat, "kitten");
+        store.AddAlias(dog, "puppy");
+        TagManagerDialog dialog = new(Session(store));
+        try
+        {
+            dialog.Show();
+            dialog.PlatformImpl!.Activated?.Invoke();
+            dialog.SetRenderScaling(scale);
+            dialog.List.SelectedItem = dialog.Session.Rows.Single(row => row.Id == cat);
+            foreach ((Key key, PhysicalKey physical) in new[] { (Key.Escape, PhysicalKey.Escape), (Key.Enter, PhysicalKey.Enter) })
+            {
+                Ask();
+                Press(key, physical);
+                Assert.False(dialog.ConfirmPanel.IsVisible);
+                Assert.Equal(2, store.ReadSnapshot().TagsOf(Thread("1")).Count);
+                Assert.Single(store.ReadSnapshot().MediaAssignments);
+                Assert.Equal(2, store.ReadSnapshot().Aliases.Count);
+            }
+            Ask();
+            Press(Key.Tab, PhysicalKey.Tab);
+            Assert.True(dialog.ConfirmDeleteButton.IsFocused);
+            Press(Key.Enter, PhysicalKey.Enter);
+            BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => dialog.Session.Rows.Count == 1, "only one tag remains"));
+            Assert.Equal(dog, Assert.Single(store.ReadSnapshot().TagsOf(Thread("1"))).Id);
+            Assert.Empty(store.ReadSnapshot().MediaAssignments);
+            PrivateTagAlias alias = Assert.Single(store.ReadSnapshot().Aliases);
+            Assert.Equal(dog, alias.Tag);
+            Assert.Equal("puppy", alias.Name.Display);
+
+            void Ask()
+            {
+                Assert.True(dialog.DeleteButton.Focus());
+                Press(Key.Enter, PhysicalKey.Enter);
+                Assert.True(dialog.KeepButton.IsFocused);
+                Point endOfKeep = dialog.KeepButton.TranslatePoint(new Point(dialog.KeepButton.Bounds.Width, 0), dialog.ConfirmDeleteButton)!.Value;
+                Assert.InRange(-endOfKeep.X, 7, 9);
+                Assert.Contains("danger", dialog.ConfirmDeleteButton.Classes);
+                Assert.Equal("Delete tag", dialog.ConfirmDeleteButton.Content);
+                TextBlock message = dialog.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(control => AutomationProperties.GetAutomationId(control) == "tags.manage.delete.message");
+                Assert.Contains("“cat”", message.Text);
+                Assert.Contains("This also deletes the tag's aliases.", message.Text);
+            }
+
+            void Press(Key key, PhysicalKey physical)
+            {
+                dialog.KeyPress(key, RawInputModifiers.None, physical, null);
+                dialog.KeyRelease(key, RawInputModifiers.None, physical, null);
+                Dispatcher.UIThread.RunJobs();
+                dialog.UpdateLayout();
+            }
+        }
+        finally { dialog.Close(); }
+    });
 
     [Fact]
     public async Task UnavailableIndexAndBusySessionAcceptNoCommands()

@@ -602,7 +602,7 @@ public sealed class TagQueueStoreTests
         Assert.Throws<InvalidDataException>(() => store.Read());
         Assert.Throws<InvalidDataException>(() => store.Add(Items(3, 1)));
         // Clearing starts over and still keeps the unreadable evidence next to the new file.
-        Assert.Equal(0, store.Clear(finishedOnly: false).Count);
+        Assert.Equal(0, store.Clear(finishedOnly: false, resetDamaged: true).Count);
     }
 
     [Fact]
@@ -613,7 +613,7 @@ public sealed class TagQueueStoreTests
         File.WriteAllText(FileOf(temp), "damaged bytes");
         TagQueueStore store = new(temp.Path, lease);
         Assert.Throws<InvalidDataException>(() => store.Read());
-        TagQueueSnapshot cleared = store.Clear(finishedOnly: false);
+        TagQueueSnapshot cleared = store.Clear(finishedOnly: false, resetDamaged: true);
         Assert.Equal(0, cleared.Count);
         TagQueueSnapshot reopened = store.Read();
         Assert.Equal((cleared.Revision, 0), (reopened.Revision, reopened.Count));
@@ -826,7 +826,7 @@ public sealed class TagQueueStoreTests
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         File.WriteAllText(FileOf(temp), "damaged bytes");
         TagQueueStore store = new(temp.Path, lease);
-        Assert.Equal(0, store.Clear(finishedOnly: false).Count);
+        Assert.Equal(0, store.Clear(finishedOnly: false, resetDamaged: true).Count);
         string copy = Assert.Single(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
         Assert.Equal("damaged bytes", File.ReadAllText(copy));
     }

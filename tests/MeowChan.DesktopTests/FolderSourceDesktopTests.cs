@@ -1,4 +1,11 @@
 using System.Security.Cryptography;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.FolderSources;
@@ -27,6 +34,79 @@ public sealed class FolderSourceDesktopTests : IDisposable
                 ? Path.GetRelativePath(folder, entry) + " " + new FileInfo(entry).Length + " " + File.GetLastWriteTimeUtc(entry).Ticks + " "
                   + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(entry)))
                 : Path.GetRelativePath(folder, entry) + "/ " + Directory.GetLastWriteTimeUtc(entry).Ticks).ToArray();
+
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.5)]
+    public void RemoveSourceAsksWithKeepFirstAndOnlyRemovesTheNamedSource(double scale) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        FolderSourceRoot first = Source("First");
+        FolderSourceRoot second = Source("Second");
+        FolderSourceRoot[] sources = [first, second];
+        List<Guid> removed = new();
+        FolderSourcesPanel panel = new(new FolderSourcePanelServices(
+            () => sources.Select(root => new FolderSourceView(root, new(root.Id, 0, 0, 0), false)).ToArray(),
+            () => new(null, null, new(0, 0, false, false), 0, 0), () => FolderSourceError.None,
+            new(_ => FolderSourceError.None, (_, _, _) => Task.FromResult(first), (_, _) => Task.FromResult(first)),
+            _ => Task.CompletedTask, id =>
+            {
+                removed.Add(id);
+                sources = sources.Where(root => root.Id != id).ToArray();
+                return Task.CompletedTask;
+            }, () => false, _ => { }));
+        Window window = new() { Width = 700, Height = 580, Content = panel };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            window.SetRenderScaling(scale);
+            BooruComponentDispatcher.Wait(WaitAsync(() => panel.Rows.Children.Count == 2));
+            string openName = "FolderSourceRemove_" + FolderSourceIdentity.Format(second.Id);
+            foreach ((Key key, PhysicalKey physicalKey) in new[] { (Key.Escape, PhysicalKey.Escape), (Key.Enter, PhysicalKey.Enter) })
+            {
+                Ask();
+                Press(key, physicalKey);
+                Assert.Null(Find("FolderSourceRemoveConfirm"));
+                Assert.Empty(removed);
+                Assert.True(Find(openName) is { IsFocused: true });
+            }
+            Ask();
+            Press(Key.Tab, PhysicalKey.Tab);
+            Assert.Same(Find("FolderSourceRemoveConfirm"), window.FocusManager!.GetFocusedElement());
+            Press(Key.Enter, PhysicalKey.Enter);
+            Assert.Equal(second.Id, Assert.Single(removed));
+            BooruComponentDispatcher.Wait(WaitAsync(() => panel.Rows.Children.Count == 1));
+
+            void Ask()
+            {
+                Assert.True(Find(openName)!.Focus());
+                Press(Key.Enter, PhysicalKey.Enter);
+                var keep = Find("FolderSourceRemoveKeep");
+                var confirm = Find("FolderSourceRemoveConfirm");
+                Assert.NotNull(keep);
+                Assert.NotNull(confirm);
+                Point endOfKeep = keep.TranslatePoint(new Point(keep.Bounds.Width, 0), confirm)!.Value;
+                Assert.InRange(-endOfKeep.X, 7, 9);
+                Assert.Same(keep, window.FocusManager!.GetFocusedElement());
+                Assert.Contains("Second", panel.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(block => AutomationProperties.GetAutomationId(block) == "FolderSourceRemoveAsk").Text);
+            }
+
+            Button? Find(string id) => panel.GetVisualDescendants().OfType<Button>()
+                .SingleOrDefault(button => AutomationProperties.GetAutomationId(button) == id);
+            void Press(Key key, PhysicalKey physicalKey)
+            {
+                window.KeyPress(key, RawInputModifiers.None, physicalKey, null);
+                window.KeyRelease(key, RawInputModifiers.None, physicalKey, null);
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+            }
+        }
+        finally { window.Close(); }
+
+        static FolderSourceRoot Source(string name) => new(Guid.NewGuid(), Path.GetFullPath(name), name, DateTimeOffset.UnixEpoch, false, null, null);
+    });
 
     [Fact]
     public async Task TheHostAddsScansHashesAndRemovesAFolderWithoutEverTouchingIt()

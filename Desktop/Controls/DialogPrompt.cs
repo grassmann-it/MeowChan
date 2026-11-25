@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 
 namespace MeowChan.Desktop.Controls;
@@ -15,13 +16,19 @@ internal static class DialogPrompt
     internal sealed record Parts(Window Window, Button Accept, Button Cancel);
 
     /// <summary>Builds the prompt without showing it. <paramref name="danger"/> marks the accept action as destructive.</summary>
-    internal static Parts Build(string title, string message, string acceptLabel, string cancelLabel, bool danger)
+    internal static Parts Build(string title, string message, string acceptLabel, string cancelLabel, bool danger, string? automationId = null)
     {
         Window window = DialogWindow.Create(title, DialogSize.S, modal: true, heightToContent: true);
         Button cancel = new() { Content = cancelLabel };
         Button accept = new() { Content = acceptLabel };
         accept.Classes.Add(danger ? "danger" : "primary");
         TextBlock text = new() { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 16) };
+        if (automationId != null)
+        {
+            AutomationProperties.SetAutomationId(window, automationId);
+            AutomationProperties.SetAutomationId(text, automationId + ".message");
+            AutomationProperties.SetAutomationId(accept, automationId + ".accept");
+        }
         DialogWindow.Frame(window, DialogFrame.Build(header: null, text, DialogFooter.Build(accept, new Control[] { cancel })), modal: true);
         accept.Click += (_, _) => window.Close(true);
         cancel.Click += (_, _) => window.Close(false);
@@ -32,9 +39,10 @@ internal static class DialogPrompt
     }
 
     /// <summary>Asks <paramref name="owner"/>'s user; true only for the explicit accept action.</summary>
-    internal static async Task<bool> ConfirmAsync(Window owner, string title, string message, string acceptLabel, string cancelLabel, bool danger = true)
+    internal static async Task<bool> ConfirmAsync(Window owner, string title, string message, string acceptLabel, string cancelLabel,
+        bool danger = true, string? automationId = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        return await Build(title, message, acceptLabel, cancelLabel, danger).Window.ShowDialog<bool>(owner);
+        return await Build(title, message, acceptLabel, cancelLabel, danger, automationId).Window.ShowDialog<bool>(owner);
     }
 }
