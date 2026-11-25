@@ -233,6 +233,7 @@ internal sealed class ContextMenuBuilder
             }
         }
         item.Tag = entry.Id;
+        AutomationProperties.SetAutomationId(item, entry.Id);
         if (entry.Dangerous) item.Classes.Add("danger");
         if (entry.Kind == ContextMenuEntryKind.Radio)
         {

@@ -6,17 +6,18 @@ using Avalonia;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// Interaction audit V11 and V12: the Booru hit cards are keyboard stops (Enter, arrows, context menu) and a double click on a watcher
-/// shows its query in the search box. Fixtures only: fake ports, no provider request, no window, no application. The live focus ring
-/// and the focus move itself are checked by the desktop smoke (BooruWorkbenchViewChecks), which needs a window.
+/// shows its query in the search box. Fake ports keep the fixtures offline. The chip-menu check uses a headless window to realize the chips.
 /// </summary>
 [Collection("Localization")]
 public sealed class BooruHitKeyboardTests
@@ -217,18 +218,19 @@ public sealed class BooruHitKeyboardTests
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
         {
-            List<Border> cards = await SearchAsync(harness, model, view);
-            WrapPanel actions = cards[0].GetLogicalDescendants().OfType<WrapPanel>().Single(panel => panel.Name == "BooruResultActions:101");
+            await SearchAsync(harness, model, view);
+            Panel actions = FindById<Panel>(ResultCard(view, "101"), "BooruResultActions:101");
             foreach (string name in new[] { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
-                Assert.Contains(actions.Children.OfType<Button>(), button => button.Name == name);
+                Assert.Contains(actions.GetLogicalDescendants().OfType<Button>(), button => AutomationProperties.GetAutomationId(button) == name);
 
             Texts.SetLanguage("de");
             try
             {
                 await Task.Delay(30);
                 Assert.Equal(3, Cards(view).Count);
-                WrapPanel rebuilt = Cards(view)[0].GetLogicalDescendants().OfType<WrapPanel>().Single(panel => panel.Name == "BooruResultActions:101");
-                Assert.Contains(rebuilt.Children.OfType<Button>(), button => button.Name == BooruWorkbenchView.OpenPostPrefix + "101");
+                Panel rebuilt = FindById<Panel>(ResultCard(view, "101"), "BooruResultActions:101");
+                Assert.Contains(rebuilt.GetLogicalDescendants().OfType<Button>(),
+                    button => AutomationProperties.GetAutomationId(button) == BooruWorkbenchView.OpenPostPrefix + "101");
             }
             finally { Texts.SetLanguage("en"); }
         }
@@ -285,10 +287,11 @@ public sealed class BooruHitKeyboardTests
     [Fact]
     public void ASourceTagChipHasItsOwnMenuToEditAndCopyTheTag() => OnDispatcher(async () =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
         {
-            List<Border> cards = await SearchAsync(harness, model, view);
+            await SearchAsync(harness, model, view);
             SearchBox input = Field<SearchBox>(view, "_input");
             input.Text = string.Empty;
             model.Search.SetInput(string.Empty);
@@ -316,10 +319,21 @@ public sealed class BooruHitKeyboardTests
             Assert.DoesNotContain(harness.Search.Searches, search => search.Query.Contains('-'));
 
             // The chip of a hit carries a menu host of its own, so a right click on it never opens the card's menu.
-            Button chip = Button(cards[0], BooruWorkbenchView.ResultTagPrefix + "101:cat");
-            KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
-            Raise(chip, apps);
-            Assert.True(apps.Handled);
+            Window window = new() { Content = view, Width = 1152, Height = 700, Classes = { MotionPolicy.OffClass } };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                Button chip = FindById<Button>(ResultCard(view, "101"), BooruWorkbenchView.ResultTagPrefix + "101:cat");
+                KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
+                Raise(chip, apps);
+                Assert.True(apps.Handled);
+            }
+            finally
+            {
+                window.Close();
+                Dispatcher.UIThread.RunJobs();
+            }
         }
     });
 
@@ -392,6 +406,9 @@ public sealed class BooruHitKeyboardTests
     private static List<Border> Cards(BooruWorkbenchView view) =>
         Field<StackPanel>(view, "_results").Children.OfType<Border>().ToList();
 
+    private static Border ResultCard(BooruWorkbenchView view, string postId) =>
+        Assert.Single(Cards(view), card => AutomationProperties.GetAutomationId(card) == "BooruResult:" + postId);
+
     private static T Field<T>(BooruWorkbenchView view, string name) =>
         (T)typeof(BooruWorkbenchView).GetField(name, Private)!.GetValue(view)!;
 
@@ -412,6 +429,9 @@ public sealed class BooruHitKeyboardTests
     private static TappedEventArgs DoubleTap(object card, object source) => new(InputElement.DoubleTappedEvent,
         new PointerEventArgs(InputElement.PointerReleasedEvent, source, SyntheticMouse, null, default, 0,
             PointerPointProperties.None, KeyModifiers.None)) { Source = source };
+
+    private static T FindById<T>(Control root, string id) where T : Control =>
+        Assert.Single(root.GetLogicalDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
     private static void OnDispatcher(Func<Task> test) =>
         BooruComponentDispatcher.Run(test, timeout: TimeSpan.FromSeconds(10));
