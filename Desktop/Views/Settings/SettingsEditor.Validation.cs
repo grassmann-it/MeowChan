@@ -311,6 +311,7 @@ public partial class SettingsEditor
         foreach (var field in HeaderTaglineNumericFields()) yield return field;
         foreach (var field in QuickTagNumericFields()) yield return field;
         foreach (var field in LimitsNumericFields()) yield return field;
+        foreach (var field in BoardSuggestionNumericFields()) yield return field;
     }
 
     private void ClearFieldErrors()
@@ -409,7 +410,8 @@ public partial class SettingsEditor
     // The visible field error is what explains a failed save. It can sit well below its input (hints,
     // preview and check button in between), so a small window or large text would otherwise keep it off
     // screen while only the input's own row was revealed.
-    private TextBlock? FindSettingsFieldError(string name) => this.FindControl<TextBlock>(name) ?? BooruListError(name);
+    private TextBlock? FindSettingsFieldError(string name) => this.FindControl<TextBlock>(name)
+        ?? BooruListError(name) ?? BoardSuggestionError(name) ?? CatalogLimitError(name);
 
     private TextBlock? VisibleFieldError(Control input)
         => input.Name != null && FindSettingsFieldError(input.Name + "Error") is { IsVisible: true } error ? error : null;

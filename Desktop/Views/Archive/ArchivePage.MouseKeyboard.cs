@@ -138,9 +138,9 @@ public partial class ArchivePage
     private void OnSidebarMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.Handled || !MiddleClickTracker.IsRelease(e) || _mediaSidebar is not { } sidebar) return;
-        // The pointer can still be captured by the press target when it is released over a sidebar control.
-        Visual? hit = TopLevel.GetTopLevel(sidebar) is { } window ? window.InputHitTest(e.GetPosition(window)) as Visual : null;
-        object? target = SidebarMiddleClickTarget(hit, sidebar);
+        // The pointer can still be captured by the picture when it is released over a bar.
+        TopLevel? root = TopLevel.GetTopLevel(sidebar);
+        object? target = root == null ? null : SidebarMiddleClickTarget(root.InputHitTest(e.GetPosition(root)), sidebar);
         if (!_sidebarMiddleClick.Released(target)) return;
         if (target is ArchiveAssetRow saved)
         {

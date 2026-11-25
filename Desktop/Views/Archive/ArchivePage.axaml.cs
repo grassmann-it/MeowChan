@@ -77,8 +77,8 @@ public partial class ArchivePage : UserControl
     private int _workFilter;
     private bool _threadTable;
     private string _archiveLayout = "List";
-    private double _archiveSplitWidth = Config.ArchiveSplitWidthDefault;
-    internal Func<string, double, Task>? SaveViewPreferencesAsync { get; set; }
+    private double? _archiveSplitWidth;
+    internal Func<string, double?, Task>? SaveViewPreferencesAsync { get; set; }
     internal string ArchiveLayoutPreference
     {
         get => _archiveLayout;
@@ -99,11 +99,17 @@ public partial class ArchivePage : UserControl
             finally { _updatingList = updating; }
         }
     }
-    internal double ArchiveSplitPreference
+    internal double? ArchiveSplitPreference
     {
         get => _archiveSplitWidth;
-        set { _archiveSplitWidth = Config.NormalizeArchiveSplitWidth(value); UpdateLayoutMode(); }
+        set
+        {
+            _archiveSplitWidth = value is double width ? Config.NormalizeArchiveSplitWidth(width) : null;
+            UpdateLayoutMode();
+        }
     }
+    private double ArchiveListPaneWidth => _archiveSplitWidth ?? (_archiveLayout == "Table"
+        ? WorkViewDensity.ArchiveTableMinWidth(ArchiveWorkView) : Config.ArchiveSplitWidthDefault);
     private bool _mediaTiles = true;
     internal bool MediaTilesPreference
     {
@@ -112,16 +118,9 @@ public partial class ArchivePage : UserControl
         {
             MediaPosition? position = _shownMedia.Count > 0 ? CaptureMediaPosition() : null;
             _mediaTiles = value;
-            if (IsInitialized || _largeReader)
-            {
-                ArchiveMediaGrid.IsVisible = !value;
-                ArchiveMediaTiles.IsVisible = value;
-                ArchiveMediaColumnsButton.IsVisible = !value;
-                SyncMediaLayoutSwitch();
-                if (position != null) RestoreMediaPosition(position);
-                FollowSavedMediaSelection();
-            }
-            else SyncMediaLayoutHighlight();
+            SyncMediaLayoutSwitch();
+            if (position != null) RestoreMediaPosition(position);
+            FollowSavedMediaSelection();
         }
     }
     internal Func<bool, Task>? SaveMediaTiles { get; set; }
@@ -133,6 +132,8 @@ public partial class ArchivePage : UserControl
     public ArchivePage()
     {
         InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializeReferencePageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons(); InitializeThreadListToggle();
+        // GridSplitter handles the pointer release internally and raises DragCompleted at the end of a drag.
+        ArchiveSplitter.DragCompleted += async (_, _) => await SaveArchiveSplitAsync();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
@@ -164,9 +165,6 @@ public partial class ArchivePage : UserControl
         Texts.Changed += OnLanguageChanged;
         Localize();
         UpdateLayoutMode();
-        ArchiveMediaGrid.IsVisible = false;
-        ArchiveMediaTiles.IsVisible = true;
-        ArchiveMediaColumnsButton.IsVisible = false;
         ArchiveVersionScope.SelectedIndex = 1;
     }
     internal bool IsAvailable
@@ -1059,14 +1057,17 @@ public partial class ArchivePage : UserControl
     private async void OnArchiveSplitKeyUp(object? sender, KeyEventArgs e) => await SaveArchiveSplitAsync();
     private async Task SaveArchiveSplitAsync()
     {
-        if (ArchiveSplit.ColumnDefinitions[0].ActualWidth <= 0) return;
-        _archiveSplitWidth = Config.NormalizeArchiveSplitWidth(ArchiveSplit.ColumnDefinitions[0].ActualWidth);
+        ColumnDefinition list = ArchiveSplit.ColumnDefinitions[0];
+        if (!ArchiveSplitter.IsVisible || !list.Width.IsAbsolute || list.Width.Value == ArchiveListPaneWidth) return;
+        double width = Config.NormalizeArchiveSplitWidth(list.Width.Value);
+        _archiveSplitWidth = width;
+        list.Width = new GridLength(width);
         await PersistArchiveViewAsync();
     }
     private async Task PersistArchiveViewAsync()
     {
         if (SaveViewPreferencesAsync == null) return;
-        try { await SaveViewPreferencesAsync(_archiveLayout, _archiveSplitWidth); }
+        try { await SaveViewPreferencesAsync(_archiveLayout, ArchiveSplitPreference); }
         catch (Exception exception) { if (!_ended) Message(exception.Message, true); }
     }
     private async void OnFavoritesOverviewClick(object? sender, RoutedEventArgs e) => await OpenFavoritesOverviewAsync();
@@ -1090,8 +1091,7 @@ public partial class ArchivePage : UserControl
         // the saved width stays in _archiveSplitWidth.
         bool listOff = beside && _threadListHidden && !_largeReader;
         bool listColumn = beside && !listOff;
-        split.ColumnDefinitions[0].Width = new GridLength(listColumn
-            ? (_archiveLayout == "Table" ? Math.Max(WorkViewDensity.ArchiveTableMinWidth(ArchiveWorkView), _archiveSplitWidth) : _archiveSplitWidth) : 0);
+        split.ColumnDefinitions[0].Width = new GridLength(listColumn ? ArchiveListPaneWidth : 0);
         split.ColumnDefinitions[1].Width = new GridLength(listColumn ? 6 : 0);
         split.ColumnSpacing = listColumn ? 6 : 0;
         // The shared footer row aligns both pane edges only side by side. Stacked,
