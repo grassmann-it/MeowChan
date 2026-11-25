@@ -66,7 +66,7 @@
       <!-- The draft footer joins the scrolling body when the card is too short to show the primary actions. -->
       <Border x:Name="PluginDetailCard" Grid.Column="1" Classes="workspace-section" IsVisible="False">
         <Grid x:Name="PluginDetailLayout" RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
-          <ScrollViewer x:Name="PluginDetailsPane">
+          <ScrollViewer x:Name="PluginDetailsPane" AutomationProperties.AutomationId="PluginDetailsPane">
             <StackPanel x:Name="PluginDetailContent" Spacing="{StaticResource Workspace.Space.12}">
               <Border x:Name="PluginPurposeCard">
                 <StackPanel Classes="workspace-section-header">
@@ -154,13 +154,13 @@
               </Expander>
             </StackPanel>
           </ScrollViewer>
-          <Border x:Name="PluginDraftFooter" Grid.Row="1" wv:WorkViewElement.Id="plugins.detail.draft-footer" Classes="workspace-card-footer">
+          <Border x:Name="PluginDraftFooter" AutomationProperties.AutomationId="PluginDraftFooter" Grid.Row="1" wv:WorkViewElement.Id="plugins.detail.draft-footer" Classes="workspace-card-footer">
             <StackPanel Classes="workspace-section-header">
               <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-              <SelectableTextBlock x:Name="PluginDraftReasons" TextWrapping="Wrap" Focusable="True" Classes="workspace-help" />
+              <SelectableTextBlock x:Name="PluginDraftReasons" AutomationProperties.AutomationId="PluginDraftReasons" TextWrapping="Wrap" Focusable="True" Classes="workspace-help" />
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
-                <Button x:Name="PluginDiscard" HorizontalAlignment="Left" Click="OnDiscardClick" />
-                <Button x:Name="PluginSave" Grid.Column="1" HorizontalAlignment="Right" Classes="primary" Click="OnSaveClick" />
+                <Button x:Name="PluginDiscard" AutomationProperties.AutomationId="PluginDiscard" HorizontalAlignment="Left" Click="OnDiscardClick" />
+                <Button x:Name="PluginSave" AutomationProperties.AutomationId="PluginSave" Grid.Column="1" HorizontalAlignment="Right" Classes="primary" Click="OnSaveClick" />
               </Grid>
             </StackPanel>
           </Border>
