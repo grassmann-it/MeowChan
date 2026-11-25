@@ -38,7 +38,8 @@ public sealed partial class TaggingPage
     internal void ConfigurePanelVideo(ReaderInlineVideoOptions video)
     {
         _panelVideoConfigured = true;
-        _ = _panelVideoController.ConfigureAsync((video with { Enabled = true }).Clamped());
+        var options = (video with { Enabled = true }).Clamped();
+        OpenActions.Start(() => _panelVideoController.ConfigureAsync(options), "tagging.panel.video.configure");
         if (IsPanelShown) OfferPanelVideo(_panelRow);
     }
 
