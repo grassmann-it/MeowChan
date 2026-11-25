@@ -156,6 +156,18 @@ public partial class SettingsEditor
         RefreshGroupHeaders();
     }
 
+    private void RefreshToggleGroupBaseline(ToggleButton input, bool confirmed)
+    {
+        if (_groupSlots == null) return;
+        foreach (GroupSlot slot in _groupSlots)
+        {
+            int index = Array.IndexOf(slot.Inputs, input);
+            if (index < 0) continue;
+            slot.Baseline[index] = ToggleValue(confirmed);
+            return;
+        }
+    }
+
     private static int ChangedCount(GroupSlot slot)
     {
         if (slot.Shortcuts != null) return slot.Shortcuts.IsDirty ? 1 : 0;
@@ -174,10 +186,12 @@ public partial class SettingsEditor
         NumericUpDown number => number.Value?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
         TextBox text => text.Text ?? string.Empty,
         ComboBox box => box.SelectedIndex.ToString(CultureInfo.InvariantCulture),
-        ToggleButton toggle => toggle.IsChecked switch { true => "1", false => "0", _ => "?" },
+        ToggleButton toggle => ToggleValue(toggle.IsChecked),
         Slider slider => slider.Value.ToString(CultureInfo.InvariantCulture),
         _ => string.Empty
     };
+
+    private static string ToggleValue(bool? isChecked) => isChecked switch { true => "1", false => "0", _ => "?" };
 
     // Draft properties change in bursts (a reset sets dozens): decide once afterwards, against the fresh baseline.
     private void QueueGroupSweep()
