@@ -25,7 +25,7 @@ public partial class MainWindow
         CommandBindings.Apply(DownloadsColumnsButton, "table.choose-columns", iconWithLabel: true);
     }
 
-    private void ToggleDownloadColumns()
+    private void ToggleDownloadColumns(bool focusMenu = false)
     {
         var button = DownloadsColumnsButton;
         if (PopupToggle.ConsumeActivation(button))
@@ -54,6 +54,15 @@ public partial class MainWindow
             button.IsChecked = false;
             ReturnFocusFromDownloadColumns(anchor);
         };
+        if (focusMenu)
+        {
+            menu.Opened += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (!menu.IsOpen || menu.IsKeyboardFocusWithin) return;
+                menu.Items.OfType<MenuItem>().FirstOrDefault(item => item.IsEffectivelyEnabled && item.Focusable)
+                    ?.Focus(NavigationMethod.Tab);
+            }, Avalonia.Threading.DispatcherPriority.Loaded);
+        }
         menu.AddHandler(InputElement.KeyDownEvent, (_, key) =>
         {
             if (ShortcutService.IsCapturing) return;
@@ -114,7 +123,7 @@ public partial class MainWindow
         if (ShortcutService.IsCapturing || !CanFocusDownloadSearch || !DownloadsColumnsButton.IsVisible
             || !CanExecuteShellPowerCommand(e.Source, e.Key) || !DownloadsMatches(e, "table.choose-columns")) return;
         e.Handled = true;
-        ToggleDownloadColumns();
+        ToggleDownloadColumns(focusMenu: true);
     }
 
     /// <summary>The column menu of a downloads table: one switch per offered column (the last visible one cannot be hidden), then the reset.</summary>

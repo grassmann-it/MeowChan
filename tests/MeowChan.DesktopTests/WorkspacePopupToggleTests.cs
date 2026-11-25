@@ -610,11 +610,14 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             ContextMenu original = Assert.IsType<ContextMenu>(plugins.PluginActionMenu);
             Assert.True(original.IsOpen);
             Point point = more.TranslatePoint(new Rect(more.Bounds.Size).Center, window)!.Value;
+            window.MouseMove(point);
             window.MouseDown(point, MouseButton.Left);
+            Layout(window);
             plugins.Select(OneSourcePluginKey);
             Layout(window);
-            window.MouseUp(point, MouseButton.Left);
-            Layout(window);
+            Assert.False(original.IsOpen);
+            Assert.Equal(OneSourcePluginKey, plugins.Selected?.Key);
+            more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
             ContextMenu replacement = Assert.IsType<ContextMenu>(plugins.PluginActionMenu);
             Assert.True(replacement.IsOpen);
@@ -623,6 +626,8 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             MenuItem entry = Assert.Single(replacement.Items.OfType<MenuItem>(),
                 item => AutomationProperties.GetAutomationId(item) == "plugins.watches");
             Assert.Empty(entry.Items);
+            window.MouseUp(default, MouseButton.Left);
+            Layout(window);
             PressAtFocus(window, Key.Escape);
             Assert.False(replacement.IsOpen);
 
