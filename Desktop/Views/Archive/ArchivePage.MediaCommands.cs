@@ -395,7 +395,7 @@ public partial class ArchivePage
         string postId = shown.Post.Id;
         ArchiveAssetRow? asset = FindMatchingAsset(shown.Thread.Summary.Id, postId, shown.Attachment.Attachment, _assets);
         ArchiveMediaSubject subject = ResolveArchiveMediaSubject(asset, shown.Attachment, postId);
-        return OpenRateAndTagAsync(subject, anchor, null, QuickTagInitialFocus.TagInput, shown.Attachment.Label, Current, token);
+        return OpenRateAndTagAsync(subject, anchor, null, QuickTagInitialFocus.TagInput, shown.Attachment.Label, Current, sidebarToken: token);
     }
 
     // A thumbnail of the sidebar's strip stands for its own file of the focused post: its attachment, post and the thumbnail as menu origin. From the keyboard the
@@ -467,8 +467,8 @@ public partial class ArchivePage
     /// A file that cannot be tagged gets the stars and the reason as text, with focus on its stars.
     /// </summary>
     private async Task OpenRateAndTagAsync(ArchiveMediaSubject subject, Control origin, ArchiveAssetRow[]? selection, QuickTagInitialFocus initialFocus,
-        string? label = null, Func<bool>? current = null, CancellationToken sidebarToken = default,
-        Func<CancellationToken, Task<bool>>? verifyTarget = null)
+        string? label = null, Func<bool>? current = null,
+        Func<CancellationToken, Task<bool>>? verifyTarget = null, CancellationToken sidebarToken = default)
     {
         var thread = subject.Thread;
         ResourceId threadId = subject.ThreadId;

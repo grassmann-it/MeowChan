@@ -1051,12 +1051,12 @@ public partial class ArchivePage
                     neighbours.Add(near.Attachments[0]);
         }
         GalleryDecodeRequest.Fit fit = new(target.Width, target.Height);
+        int maximumPixels = _sidebarFit.PreviewMaximumPixels;
         await ReaderMediaSidebarRules.PreloadNeighboursAsync(neighbours.Select(neighbour => neighbour.ResolveEntry), async (entry, ct) =>
         {
             if (entry.Kind != SavedMediaKind.Image) return;
             (Bitmap bitmap, _) = await GalleryImageCache.DecodeThrough(GalleryImageCache.Shared,
-                (saved, request, cancel) => GalleryImageDecoder.DecodePreviewAsync(saved, request, _sidebarFit.PreviewMaximumPixels,
-                    null, cancel, background: true), entry, fit, ct);
+                (saved, request, cancel) => GalleryImageDecoder.DecodeBackgroundPreviewAsync(saved, request, maximumPixels, cancel), entry, fit, ct);
             GalleryImageCache.Shared.Release(bitmap);
         }, token);
     }

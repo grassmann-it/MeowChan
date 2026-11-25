@@ -93,8 +93,12 @@ internal static class GalleryImageDecoder
         GalleryDecodeRequest request, CancellationToken cancellationToken) => DecodeCoreAsync(entry, request, background: false, cancellationToken);
 
     internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodePreviewAsync(GalleryEntry entry,
-        GalleryDecodeRequest request, int maximumPixels, Action? verified, CancellationToken cancellationToken, bool background = false) =>
-        DecodeCoreAsync(entry, request, background, cancellationToken, maximumPixels, verified);
+        GalleryDecodeRequest request, int maximumPixels, Action verified, CancellationToken cancellationToken) =>
+        DecodeCoreAsync(entry, request, background: false, cancellationToken, maximumPixels, verified);
+
+    internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeBackgroundPreviewAsync(GalleryEntry entry,
+        GalleryDecodeRequest request, int maximumPixels, CancellationToken cancellationToken) =>
+        DecodeCoreAsync(entry, request, background: true, cancellationToken, maximumPixels);
 
     /// <summary>
     /// A decode for the preloader: it starts only while no decode of the shown image is waiting, does not report to
