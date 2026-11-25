@@ -24,7 +24,14 @@ public sealed class BooruPaginationTests
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = new();
-        harness.Serve(pages: 9, perPage: 20);
+        // Exercise full result rows without scheduling image decodes and card rebuilds for each preview.
+        harness.Search.OnSearch = (query, number, _) =>
+        {
+            BooruPostView[] posts = Enumerable.Range(1, number == 9 ? 1 : 20)
+                .Select(index => BooruUiFixtures.Post((100 * number + index).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    tags: [], preview: false)).ToArray();
+            return Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, number, number == 9, posts)));
+        };
         using BooruPage page = new(harness.Services);
         page.Model.Search.ReadPagerLimits = () => new(12, 20);
         Window window = new() { Content = page, Width = width, Height = height };
