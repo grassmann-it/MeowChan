@@ -227,16 +227,35 @@ public sealed class TaggingPagePanelTests
         await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == 3, "rating by 3");
         fixture.Key(PhysicalKey.Digit0);
         await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == null, "clear rating by 0");
-        fixture.Key(PhysicalKey.Digit3, RawInputModifiers.Shift);
-        await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == 3, "rating by Shift+3");
-        fixture.Page.SetViewMode(TaggingViewMode.Grid, save: false);
-        await fixture.ShowsAsync(4);
-        MediaBadgeView badges = fixture.Find<MediaBadgeView>(fixture.Entry(4), "TaggingTileBadges");
-        await fixture.WaitAsync(() => badges.IsEffectivelyVisible && badges.Plan.Badges.Any(b => b.Badge.Id == MediaBadgeId.Favorite)
+        await fixture.WaitAsync(() => fixture.Find<TextBlock>(fixture.Entry(4), "TaggingQueueRowRating").Text == null, "cleared list rating");
+
+        // Switch views after the store publishes the rating but before the page rebinds the rows.
+        var execute = fixture.Page.ExecutePanelDecisionAsync!;
+        TaskCompletionSource refresh = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Page.ExecutePanelDecisionAsync = async (id, media, current) =>
+        {
+            await execute(id, media, current);
+            await refresh.Task;
+        };
+        try
+        {
+            fixture.Key(PhysicalKey.Digit3, RawInputModifiers.Shift);
+            await fixture.WaitAsync(() => fixture.Session.GetMediaRating(key) == 3, "rating by Shift+3");
+            fixture.Page.SetViewMode(TaggingViewMode.Grid, save: false);
+            await fixture.ShowsAsync(4);
+            await fixture.WaitAsync(() => CursorBadges() is { IsEffectivelyVisible: true, State.Rating: null }, "grid tile before the rating refresh");
+        }
+        finally { refresh.TrySetResult(); }
+
+        await fixture.WaitAsync(() => CursorBadges() is { IsEffectivelyVisible: true } badges
+            && badges.Plan.Badges.Any(b => b.Badge.Id == MediaBadgeId.Favorite)
             && badges.Plan.Badges.Any(b => b.Badge.Id == MediaBadgeId.Rating && b.Badge.Label == "3"), "visible grid badges");
         fixture.Key(PhysicalKey.ArrowLeft);
         await fixture.ShowsAsync(fixture.FocusedNumber());
         Assert.NotEqual(4, fixture.FocusedNumber());
+
+        MediaBadgeView? CursorBadges() => fixture.FindOrDefault<ListBoxItem>(fixture.List, "TaggingGridEntry4") is { } entry
+            ? fixture.FindOrDefault<MediaBadgeView>(entry, "TaggingTileBadges") : null;
     });
 
     [Fact]

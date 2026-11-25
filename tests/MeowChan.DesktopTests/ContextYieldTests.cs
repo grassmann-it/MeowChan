@@ -17,12 +17,16 @@ public sealed class ContextYieldTests
     private static KeyEventArgs Press(Key key, KeyModifiers modifiers = KeyModifiers.None) => new() { Key = key, KeyModifiers = modifiers };
 
     [Fact]
-    public void TheFavoriteKeysRunInFourContextsAndTheSavedCommandsUsedBelowRunInOneEach()
+    public void FavoriteToggleAlsoRunsInTaggingAndTheSavedCommandsUsedBelowRunInOneContextEach()
     {
-        foreach (string id in new[] { "favorites.add", "favorites.remove", "favorites.toggle" })
+        foreach (string id in new[] { "favorites.add", "favorites.remove" })
             Assert.Equal(FavoriteContexts, EffectiveShortcutBindings.ConflictContexts(id).Order(StringComparer.Ordinal));
+        // W112-73 §2: F applies to the cursor medium when the Tagging list/grid has focus.
+        string[] toggleContexts = [.. FavoriteContexts, "tagging"];
+        Assert.Equal(toggleContexts, EffectiveShortcutBindings.ConflictContexts("favorites.toggle").Order(StringComparer.Ordinal));
         Assert.Equal(new[] { "archive" }, EffectiveShortcutBindings.ConflictContexts("archive.refresh"));
         Assert.Equal(new[] { "gallery" }, EffectiveShortcutBindings.ConflictContexts("gallery.close"));
+        Assert.Equal(new[] { "tagging" }, EffectiveShortcutBindings.ConflictContexts("tagging.start"));
     }
 
     [Theory, MemberData(nameof(Platforms))]
@@ -34,7 +38,7 @@ public sealed class ContextYieldTests
         ShortcutGesture f = Assert.Single(bindings.For("favorites.toggle"), gesture => gesture.Key == "F");
         Assert.Equal(new[] { "archive" }, bindings.YieldedContexts("favorites.toggle", f));
         KeyEventArgs key = Press(Key.F);
-        foreach (string context in new[] { "gallery", "media", "reader" })
+        foreach (string context in new[] { "gallery", "media", "reader", "tagging" })
             Assert.True(bindings.Matches(key, "favorites.toggle", context), context);
         Assert.False(bindings.Matches(key, "favorites.toggle", "archive"));
         // A caller that does not say where it runs never overrides the saved binding.
@@ -73,6 +77,7 @@ public sealed class ContextYieldTests
         Assert.Equal(new[] { "archive", "gallery" }, bindings.YieldedContexts("favorites.toggle", f).Order(StringComparer.Ordinal));
         Assert.True(bindings.Matches(Press(Key.F), "favorites.toggle", "reader"));
         Assert.True(bindings.Matches(Press(Key.F), "favorites.toggle", "media"));
+        Assert.True(bindings.Matches(Press(Key.F), "favorites.toggle", "tagging"));
         Assert.False(bindings.Matches(Press(Key.F), "favorites.toggle", "gallery"));
         Assert.False(bindings.Matches(Press(Key.F), "favorites.toggle", "archive"));
         Assert.True(bindings.Matches(Press(Key.F), "archive.refresh", "archive"));
@@ -94,10 +99,11 @@ public sealed class ContextYieldTests
         Assert.Empty(shell.For("favorites.toggle"));
         Assert.Contains(shell.Issues, issue => issue.CommandId == "favorites.toggle" && issue.Reason?.Code == "defaultYields");
         Assert.False(shell.Matches(Press(Key.F), "favorites.toggle", "gallery"));
-        // Saved commands in all four contexts leave nothing either.
+        // Saved commands in every context leave nothing either.
         EffectiveShortcutBindings all = EffectiveShortcutBindings.Build(new ShortcutBindingsSection()
             .Set("archive.refresh", [ShortcutGesture.Parse("F")]).Set("gallery.close", [ShortcutGesture.Parse("F")])
-            .Set("media.folders", [ShortcutGesture.Parse("F")]).Set("reader.quick-settings", [ShortcutGesture.Parse("F")]), ShortcutPlatform.Linux);
+            .Set("media.folders", [ShortcutGesture.Parse("F")]).Set("reader.quick-settings", [ShortcutGesture.Parse("F")])
+            .Set("tagging.start", [ShortcutGesture.Parse("F")]), ShortcutPlatform.Linux);
         Assert.Empty(all.For("favorites.toggle"));
     }
 
