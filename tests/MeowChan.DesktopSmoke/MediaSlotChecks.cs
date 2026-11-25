@@ -2,6 +2,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -18,8 +19,8 @@ using SkiaSharp;
 namespace MeowChan.DesktopSmoke;
 
 /// <summary>
-/// MEOWCHAN_MEDIA_SLOT_ONLY: the visible frame of a preview is the drawn image, and what sits on it (video play button, favourite
-/// star, type badge, hover/focus frame) is placed on that image, not on the reserved slot. Three generated pictures (portrait,
+/// MEOWCHAN_MEDIA_SLOT_ONLY: reader preview frames and play marks follow the drawn image, with the favourite action on the file line.
+/// Archive and media page tile badges follow their slots. Three generated pictures (portrait,
 /// landscape, video poster) on three surfaces: the reader's attachment beside a post text, the archive's saved-media tile and
 /// the media page tile; Light and Dark screenshots. No file, host or network is involved.
 /// MEOWCHAN_MEDIA_SLOT_REPORT=1 reports the defects instead of failing (used to capture the state before a fix);
@@ -48,7 +49,7 @@ internal static class MediaSlotChecks
             foreach (string defect in Defects) Console.WriteLine("SMOKE media-slot defect: " + defect);
             if (!reportOnly) throw new InvalidOperationException("Media slot geometry: " + string.Join(" | ", Defects));
         }
-        Console.WriteLine("SMOKE media slot: " + (Defects.Count == 0 ? "reader attachment, archive tile and media page tile hug the drawn image in Light and Dark; play button centered, star and badges on the image corners, hover/focus frame around the image."
+        Console.WriteLine("SMOKE media slot: " + (Defects.Count == 0 ? "reader attachment, archive tile and media page tile in Light and Dark; centered play mark, reader file-line star, tile badges, and preview focus geometry."
             : Defects.Count + " defects reported (report-only run)."));
     }
 
@@ -113,10 +114,13 @@ internal static class MediaSlotChecks
         {
             ArchiveAttachmentView view = new() { Margin = new Thickness(0, 2, 0, 8) };
             bool video = item.File.EndsWith(".webm", StringComparison.Ordinal);
+            bool marked = item.Favorite;
             view.DataContext = new ArchiveAttachmentRow(new CapturedAttachment(0, "m-" + item.File, OriginalFileName: item.File, ExpectedSize: 183_000))
             {
                 LargePreview = item.Large,
-                FavoriteAvailable = () => true, IsFavorite = () => item.Favorite, ToggleFavoriteAsync = () => Task.CompletedTask,
+                FavoriteAvailable = () => true,
+                IsFavorite = () => marked,
+                ToggleFavoriteAsync = () => { marked = !marked; return Task.CompletedTask; },
                 LoadThumbnail = _ => Task.FromResult<Bitmap?>(Picture(item.Width, item.Height, item.Color))
             };
             StackPanel mediaHost = new() { HorizontalAlignment = HorizontalAlignment.Left, Children = { view } };
@@ -147,19 +151,37 @@ internal static class MediaSlotChecks
                 double allowed = Math.Max(image.Width, 140);
                 Expect(viewRect.Width <= allowed + Tolerance, $"{label}: the attachment block is {viewRect.Width:0} wide for a {image.Width:0} wide picture (allowed {allowed:0}).");
                 Expect(bodyRect.Left - viewRect.Right <= 16, $"{label}: the text column starts {bodyRect.Left - viewRect.Right:0} after the block.");
-                if (view.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "ArchiveMediaFavorite") is { } star)
-                {
-                    Rect starRect = RectIn(star, host);
-                    Expect(starRect.Right <= viewRect.Right + Tolerance, $"{label}: the star {starRect} is outside its block {viewRect}.");
-                }
+                ArchiveFavoriteButton star = view.GetVisualDescendants().OfType<ArchiveFavoriteButton>()
+                    .Single(control => (AutomationProperties.GetAutomationId(control) ?? control.Name) == "ArchiveMediaFavorite");
+                Rect starRect = RectIn(star, host);
+                Expect(star.IsEffectivelyVisible && star.IsEffectivelyEnabled && star.IsChecked == entry.Favorite
+                    && starRect.Width > 0 && starRect.Height > 0 && Inside(viewRect, starRect)
+                    && starRect.Bottom <= image.Top + Tolerance,
+                    $"{label}: the file-line star is misplaced or has the wrong state ({starRect}, checked {star.IsChecked}).");
                 // MB1b: the shared badge view lies exactly on the shown picture, never takes a click and is not in the accessibility tree.
                 MeowChan.Desktop.Controls.MediaBadgeView badges = view.Badges;
                 Expect(Same(RectIn(badges, host), image) || !badges.IsVisible, $"{label}: the badge view {RectIn(badges, host)} is not on the shown picture {image}.");
                 Expect(!badges.IsHitTestVisible, $"{label}: the badge view takes clicks.");
                 Expect(badges.Plan.Badges.All(placed => placed.Bounds.Left >= -Tolerance && placed.Bounds.Top >= -Tolerance
                     && placed.Bounds.Right <= image.Width + Tolerance && placed.Bounds.Bottom <= image.Height + Tolerance), $"{label}: a badge leaves the picture {image}.");
-                // A favourite shows its star in the top left corner of the picture (the interactive toggle in the file line stays as it was).
-                Expect(entry.Favorite == badges.Plan.Badges.Any(placed => placed.Badge.Id == MeowChan.Desktop.Controls.MediaBadgeId.Favorite), $"{label}: the favourite badge does not follow the row (favourite {entry.Favorite}).");
+                // ArchiveMediaBadges.ForAttachment: the file-line toggle is the reader's only favourite star.
+                Expect(!badges.Plan.Badges.Any(placed => placed.Badge.Id == MediaBadgeId.Favorite),
+                    $"{label}: the preview duplicates the file-line star.");
+                if (entry.Favorite)
+                {
+                    ArchiveAttachmentRow row = (ArchiveAttachmentRow)view.DataContext!;
+                    bool hitsStar = host.InputHitTest(starRect.Center) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(star);
+                    Expect(hitsStar, $"{label}: the file-line star cannot receive a pointer at {starRect.Center}.");
+                    SmokeActionClick.Execute(star);
+                    Expect(row.IsFavorite?.Invoke() == false && star.IsChecked == false
+                        && AutomationProperties.GetName(star) == Texts.T("viewer.favorite.add"),
+                        $"{label}: clicking the file-line star did not remove the favourite.");
+                    SmokeActionClick.Execute(star);
+                    Expect(row.IsFavorite?.Invoke() == true && star.IsChecked == true
+                        && AutomationProperties.GetName(star) == Texts.T("viewer.favorite.remove"),
+                        $"{label}: clicking the file-line star did not restore the favourite.");
+                    Console.WriteLine($"SMOKE media-slot reader star: {label}, bounds={starRect}, hit={hitsStar}, restored={star.IsChecked}");
+                }
                 Expect(entry.Video == badges.State.Kind.Equals(MeowChan.Desktop.Controls.MediaBadgeKind.Video), $"{label}: the badge kind {badges.State.Kind} does not follow the file ({entry.File}).");
                 if (entry.Video)
                 {
