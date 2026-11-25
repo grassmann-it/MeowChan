@@ -46,7 +46,7 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
     private long _saveRevision;
     private bool _examinedExisting;
     private bool _preserveExisting;
-    internal Task PendingSave { get; private set; } = Task.CompletedTask;
+    internal Task<bool> PendingSave { get; private set; } = Task.FromResult(false);
 
     internal BooruTabSnapshot? Load(BooruSearchView current, int resultLimit, SourceDescription? source)
     {
@@ -68,10 +68,10 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
 
     internal void Save(BooruTabSnapshot snapshot, int resultLimit)
     {
-        if (!_preserveExisting) PendingSave = SaveAfterAsync(PendingSave, snapshot, resultLimit);
+        PendingSave = _preserveExisting ? Task.FromResult(false) : SaveAfterAsync(PendingSave, snapshot, resultLimit);
     }
 
-    private async Task SaveAfterAsync(Task previous, BooruTabSnapshot snapshot, int resultLimit)
+    private async Task<bool> SaveAfterAsync(Task previous, BooruTabSnapshot snapshot, int resultLimit)
     {
         try
         {
@@ -79,8 +79,8 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
             using ProfileAdmissionToken admission = lease.Admission.EnterOrdinaryWriter();
             long revision = Interlocked.Increment(ref _saveRevision);
             await previous.ConfigureAwait(false);
-            if (revision != Interlocked.Read(ref _saveRevision)) return;
-            await Task.Run(() =>
+            if (revision != Interlocked.Read(ref _saveRevision)) return false;
+            return await Task.Run(() =>
             {
                 bool empty = snapshot.Tabs.Length == 0;
                 // Older readers accept the V1 placeholder. It also represents an empty strip for this reader.
@@ -89,7 +89,7 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
                     ? SaveTab(view, 0) : null;
                 string json = JsonSerializer.Serialize(new SavedFile(Version, snapshot.ProviderId, empty ? 0 : snapshot.ActiveIndex,
                     tabs, AllTabsClosable: true, Draft: draft), Json);
-                lease.RunStoreWrite(admission, () =>
+                return lease.RunStoreWrite(admission, () =>
                 {
                     // A workspace opened with restore disabled has never inspected its prior snapshot.
                     if (!_examinedExisting && File.Exists(_path)) return false;
@@ -105,6 +105,7 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
             await previous.ConfigureAwait(false);
             // Neither errors raised by the serializer nor data from this file belong in diagnostics.
             Log.Warning("The local Booru search tabs could not be saved.");
+            return false;
         }
     }
 
