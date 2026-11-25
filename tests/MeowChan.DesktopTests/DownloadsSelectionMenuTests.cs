@@ -203,8 +203,11 @@ public sealed class DownloadsSelectionMenuTests
             Assert.Equal(Texts.T("watch.removed", urls.Length), undo.Message);
             await undo.RunActionAsync().WaitAsync(Deadline);
             DesktopSessionProjection restored = await host.CaptureProjectionAsync().WaitAsync(Deadline);
-            Assert.Equal(urls.Order(), trace.Snapshot().Events.Where(entry => entry.Sequence > events[^1].Sequence
-                && entry.Phase == "host.command.admission" && entry.Outcome == "accepted").Select(entry => entry.Watch!).Order());
+            FindByAutomationId<Expander>(window, "AdmissionResultsExpander").IsExpanded = true;
+            fixture.Layout();
+            TextBox report = FindByAutomationId<TextBox>(window, "AdmissionReport");
+            string[] reportLines = report.Text!.Split(["\r\n", "\n"], StringSplitOptions.None);
+            Assert.Equal(urls.Select(url => $"{Texts.T("admission.added")} · {url}").Order(), reportLines.Order());
             Assert.Equal(urls.Append(WatchUrl(1005)).Order(), restored.View.Threads.Select(row => row.Snapshot.Url).Order());
             Assert.Equal(sixth, Assert.Single(restored.View.Threads, row => row.Snapshot.Url == WatchUrl(1005)).WatchId);
         });
