@@ -5179,6 +5179,7 @@
     "theme.color.muted": "Tekst przygaszony",
     "theme.color.border": "Obramowanie",
     "theme.color.favorite": "Ulubione",
+    "theme.color.rating": "Gwiazdki oceny",
     "theme.color.error": "Błąd",
     "theme.colors.choose": "Wybierz kolor: {0} (teraz {1})",
     "theme.colors.hex": "Kod koloru: {0}",

@@ -18,9 +18,14 @@ public sealed class FavoriteTintContrastTests
         XElement styles = XDocument.Load(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../..", "Desktop/WorkspaceStyles.axaml"))).Root!;
         XElement dictionary = Assert.Single(styles.Descendants(A + "ResourceDictionary")
             .Where(element => (string?)element.Attribute(X + "Key") == theme));
-        double tint = Luminance(Brush(dictionary, "Workspace.Favorite"));
-        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.ChipSurface" })
-            Assert.True(Ratio(tint, Luminance(Brush(dictionary, surface))) >= 3.0, theme + " Workspace.Favorite on " + surface);
+        // Tom, 26.11.2026: the heart (red) and the rating star (gold) each have a theme colour of their own.
+        foreach (string token in new[] { "Workspace.Favorite", "Workspace.Rating" })
+        {
+            double tint = Luminance(Brush(dictionary, token));
+            foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.ChipSurface" })
+                Assert.True(Ratio(tint, Luminance(Brush(dictionary, surface))) >= 3.0, theme + " " + token + " on " + surface);
+        }
+        Assert.NotEqual(Brush(dictionary, "Workspace.Favorite"), Brush(dictionary, "Workspace.Rating"));
     }
 
     private static string SourcePath([CallerFilePath] string path = "") => path;

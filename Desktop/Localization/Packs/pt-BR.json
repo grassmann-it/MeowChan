@@ -5133,6 +5133,7 @@
     "theme.color.muted": "Texto esmaecido",
     "theme.color.border": "Borda",
     "theme.color.favorite": "Favorito",
+    "theme.color.rating": "Estrelas de avaliação",
     "theme.color.error": "Erro",
     "theme.colors.choose": "Escolher cor para {0} (agora {1})",
     "theme.colors.hex": "Código de cor de {0}",

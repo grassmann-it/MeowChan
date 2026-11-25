@@ -5009,6 +5009,7 @@
     "theme.color.muted": "次要文字",
     "theme.color.border": "边框",
     "theme.color.favorite": "收藏",
+    "theme.color.rating": "评分星标",
     "theme.color.error": "错误",
     "theme.colors.choose": "选择 {0} 的颜色（当前 {1}）",
     "theme.colors.hex": "{0} 的颜色值",
