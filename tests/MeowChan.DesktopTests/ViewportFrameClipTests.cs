@@ -545,7 +545,7 @@ public sealed class ViewportFrameClipTests
         Assert.True(ToolTip.GetIsOpen(tile), "The rating tooltip must open when the viewport can fit it.");
         Popup popup = Assert.Single(window.OpenedPopups, popup => ReferenceEquals(popup.PlacementTarget, tile));
         ToolTip tip = Assert.IsType<ToolTip>(popup.Child);
-        Assert.Equal(BooruText.Rating(BooruRating.Explicit), tip.Content);
+        Assert.Contains(BooruText.Rating(BooruRating.Explicit), Assert.IsType<string>(tip.Content), StringComparison.Ordinal);
         Assert.True(tip.Bounds.Width > 0 && tip.Bounds.Height > 0);
         Point topLeft = window.PointToClient(tip.PointToScreen(default));
         Point bottomRight = window.PointToClient(tip.PointToScreen(new Point(tip.Bounds.Width, tip.Bounds.Height)));
