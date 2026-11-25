@@ -302,6 +302,7 @@ public sealed class ReaderNavigationBarTests : IDisposable
 
                 // NAVBAR-06: Always stays visible and interactive after the idle delay with the pointer away.
                 page.ReaderNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsMinimum;
+                window.MouseMove(new Point(60, 60));
                 page.NotifyReaderPointerMoved(new Point(60, 60));
                 BooruComponentDispatcher.Wait(Task.Delay(2 * page.ReaderNavigationIdleDelayMs, BooruComponentDispatcher.Cancellation));
                 Settle();

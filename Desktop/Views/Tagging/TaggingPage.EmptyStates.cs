@@ -2,6 +2,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -58,7 +59,7 @@ public sealed partial class TaggingPage
             }
             if (Filter == TaggingQueueFilter.All) Render();
             else Filter = TaggingQueueFilter.All;
-            FocusContent();
+            Dispatcher.UIThread.Post(() => FocusContent(), DispatcherPriority.Loaded);
         };
     }
 

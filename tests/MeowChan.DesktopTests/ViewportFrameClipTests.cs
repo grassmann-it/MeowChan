@@ -498,7 +498,7 @@ public sealed class ViewportFrameClipTests
         CheckInsetFocusEdges(window, idle, full, start, area, clipped: null);
 
         Rect span = Bounds(clipped, window);
-        double offset = scroll.Offset.Y + (bottom ? span.Bottom - area.Bottom + 16 : span.Top - area.Top + 16);
+        double offset = scroll.Offset.Y + (bottom ? span.Bottom - area.Bottom - 16 : span.Top - area.Top + 16);
         Assert.True(clipped.Focus(NavigationMethod.Pointer));
         scroll.Offset = new Vector(0, offset);
         using SKBitmap clippedIdle = Render(window);

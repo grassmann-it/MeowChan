@@ -115,16 +115,16 @@ public sealed class TaggingLayoutRhythmTests
             Button showAll = Assert.Single(page.GetVisualDescendants().OfType<Button>(),
                 button => AutomationProperties.GetAutomationId(button) == "TaggingEmptyShowAll");
             Assert.True(showAll.IsEffectivelyVisible);
-            showAll.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Dispatcher.UIThread.RunJobs();
+            BooruResultActionsTests.Click(showAll);
             window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
 
             Assert.Null(page.SelectedGroupId);
             Assert.Equal(TaggingQueueFilter.All, page.Filter);
             Assert.Equal(open.Key, Assert.Single(page.Rows).Key);
             ListBox results = Assert.Single(page.GetVisualDescendants().OfType<ListBox>(),
                 list => AutomationProperties.GetAutomationId(list) == "tagging.list");
-            Assert.True(results.IsKeyboardFocusWithin);
+            Assert.True(results.IsKeyboardFocusWithin, $"Queue focus is on {window.FocusManager?.GetFocusedElement()}.");
         }
         finally { window.Close(); }
     });

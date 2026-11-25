@@ -16,5 +16,5 @@ internal static class GalleryWheelCatalog
     };
 
     internal static string Text(string key, ShortcutPlatform? platform = null) => Texts.T(key,
-        (platform ?? EffectiveShortcutBindings.CurrentPlatform) == ShortcutPlatform.MacOS ? "⌘" : Texts.T("key.ctrl"));
+        PlatformKeyNames.Primary(platform ?? EffectiveShortcutBindings.CurrentPlatform));
 }

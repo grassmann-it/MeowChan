@@ -166,7 +166,6 @@ public sealed class ReaderMediaSidebarHostClickTests
         var more = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarMoreTags");
         var frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
         var expanded = SidePanelDesignTests.ById<ScrollViewer>(sidebar, "ReaderMediaSidebarExpanded");
-        var allTags = SidePanelDesignTests.ById<WrapPanel>(sidebar, "ReaderMediaSidebarAllTags");
         Assert.True(more.IsEffectivelyVisible);
         Assert.False(expanded.IsEffectivelyVisible);
         Assert.Equal(Texts.T("media.sidebar.showAllTags"), ToolTip.GetTip(more));
@@ -192,6 +191,7 @@ public sealed class ReaderMediaSidebarHostClickTests
         void CheckRevealed()
         {
             Assert.True(expanded.IsEffectivelyVisible);
+            var allTags = SidePanelDesignTests.ById<WrapPanel>(expanded, "ReaderMediaSidebarAllTags");
             Assert.Equal(names, allTags.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text));
             Assert.Same(frame, window.FocusManager!.GetFocusedElement());
             Assert.Null(QuickTagPopover.Current);

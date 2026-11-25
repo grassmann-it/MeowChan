@@ -11,16 +11,16 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
     private static readonly IReadOnlyDictionary<string, (int Entries, int ExactEnglish, string Digest)> Expected =
         new Dictionary<string, (int, int, string)>(StringComparer.Ordinal)
         {
-            ["cs"] = (5600, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),
-            ["es"] = (5544, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),
-            ["fr"] = (5544, 121, "b52261bed3c44d31cc4ff4bbb101ee708b1391a87dd7888b78b5fa7f18441d7d"),
-            ["it"] = (5550, 130, "b1199c5a40e2be457f6a08a7b9653fc82e348ade3bd6155600b1b2c5391c68ad"),
-            ["ja"] = (5434, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),
-            ["ko"] = (5434, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),
-            ["pl"] = (5601, 95, "29ab906199d618762d3af868c893a4adf786c3d460be5a096f2e71ebccbdcfdf"),
-            ["pt-BR"] = (5550, 143, "a21be79decfd7566b0ee5cc93b958d6ed69282dd547064012f8b1a488bd54557"),
-            ["ru"] = (5578, 60, "6c6ec2607287bb12ae697b7c09f5b1cd150a05077e80d3578496280fe196b6d0"),
-            ["zh-Hans"] = (5434, 48, "c9ec9a93a852abae49941e4bfc105328d0f04cafd9de3fa51bf17718cc74d0ff"),
+            ["cs"] = (5601, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),
+            ["es"] = (5545, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),
+            ["fr"] = (5545, 121, "b52261bed3c44d31cc4ff4bbb101ee708b1391a87dd7888b78b5fa7f18441d7d"),
+            ["it"] = (5551, 130, "b1199c5a40e2be457f6a08a7b9653fc82e348ade3bd6155600b1b2c5391c68ad"),
+            ["ja"] = (5435, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),
+            ["ko"] = (5435, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),
+            ["pl"] = (5602, 95, "29ab906199d618762d3af868c893a4adf786c3d460be5a096f2e71ebccbdcfdf"),
+            ["pt-BR"] = (5551, 143, "a21be79decfd7566b0ee5cc93b958d6ed69282dd547064012f8b1a488bd54557"),
+            ["ru"] = (5579, 60, "6c6ec2607287bb12ae697b7c09f5b1cd150a05077e80d3578496280fe196b6d0"),
+            ["zh-Hans"] = (5435, 48, "c9ec9a93a852abae49941e4bfc105328d0f04cafd9de3fa51bf17718cc74d0ff"),
         };
 
     // The provider number, unit and precision retain the same punctuation in these packs.
@@ -50,7 +50,8 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
     {
         // Includes the three footer display hints and the labels and hints for the two Booru limits.
         // Board-watcher wizard specification §5.8 requires all new texts in English and the ten bundled packs.
-        Assert.Equal(5546, BuiltInCatalog.English.Count);
+        // UX review §3: the media menu shares the new “Show all tags” label with the count action.
+        Assert.Equal(5547, BuiltInCatalog.English.Count);
         Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
         Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
     }
