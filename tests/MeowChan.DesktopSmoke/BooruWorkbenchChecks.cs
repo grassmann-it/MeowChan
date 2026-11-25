@@ -126,7 +126,7 @@ internal static partial class BooruWorkbenchChecks
             Require(!h.Search.Searches[0].Query.Contains("rating"), "A rating term was added to the query.");
             string text = Text(page);
             await SettleAsync(owner);
-            foreach (string expected in new[] { "Post #101", "Page 1 of at most 5" })
+            foreach (string expected in new[] { "Post #101", "Page 1+" })
                 Require(text.Contains(expected, StringComparison.Ordinal), "Result card lacks '" + expected + "'.");
             // Astra W112-69 B, high finding 2: compact visible facts, full accessible facts, and source provenance on the tag group.
             TextBlock details = FindById<TextBlock>(page, BooruWorkbenchView.DetailsPrefix + "101");
@@ -679,19 +679,19 @@ internal static partial class BooruWorkbenchChecks
         string language = Texts.Language;
         using BooruPage page = new(h.Services);
         // Keep the same page layout across the resize, including below the Advanced shell's native minimum.
-        Window window = new() { Width = 1440, Height = 850, Content = page, ShowInTaskbar = false };
+        Window window = new() { Width = 1920, Height = 850, Content = page, ShowInTaskbar = false };
         int requests = h.ProviderRequests, loads = h.Queue.Loads.Count, watcherCalls = h.Watchers.Calls.Count;
         try
         {
             window.Show(owner);
             await SettleAsync(window);
-            TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
-            ComboBox mode = Find<ComboBox>(page, BooruWorkbenchView.ModeName);
-            WrapPanel actions = Find<WrapPanel>(page, "BooruSearchActions");
-            Button submit = Find<Button>(page, BooruWorkbenchView.SubmitName);
-            Button create = Find<Button>(page, BooruWorkbenchView.CreateWatcherName);
-            Button[] secondary = { create, Find<Button>(page, BooruWorkbenchView.DownloadAllName) };
-            Control row = (Control)input.Parent!;
+            TextBox input = FindById<TextBox>(page, BooruWorkbenchView.InputName);
+            ComboBox mode = FindById<ComboBox>(page, BooruWorkbenchView.ModeName);
+            WrapPanel actions = FindById<WrapPanel>(page, "BooruSearchActions");
+            Button submit = FindById<Button>(page, BooruWorkbenchView.SubmitName);
+            Button create = FindById<Button>(page, BooruWorkbenchView.CreateWatcherName);
+            Button[] secondary = { FindById<Button>(page, BooruWorkbenchView.AlternateSubmitName), create, FindById<Button>(page, BooruWorkbenchView.DownloadAllName) };
+            Control row = FindById<Control>(page, "BooruSearchToolbar");
             foreach ((string nextLanguage, bool post, int narrowWidth) in new[]
             {
                 ("en", false, 760), ("de", false, 760), ("ru", true, 640)
@@ -710,7 +710,7 @@ internal static partial class BooruWorkbenchChecks
                     "The localized Watch action does not expose its visible label: " + nextLanguage);
                 double wideWidth = 0;
                 int pass = 0;
-                foreach (int requestedWidth in new[] { 1440, narrowWidth, 1440 })
+                foreach (int requestedWidth in new[] { 1920, narrowWidth, 1920 })
                 {
                     window.Width = requestedWidth;
                     await SettleAsync(window);
@@ -738,6 +738,15 @@ internal static partial class BooruWorkbenchChecks
                         ? Math.Abs(actionBounds.Left - rowBounds.Left) <= 1 && Math.Abs(actionBounds.Top - submitBounds.Bottom - 8) <= 1
                         : !submitWrapped && Math.Abs(actionBounds.Left - submitBounds.Right - 8) <= 1 && Math.Abs(actionBounds.Top - rowBounds.Top) <= 1,
                         "Secondary actions did not wrap as a group: " + measured);
+                    Rect prior = submitBounds;
+                    foreach (Button action in secondary)
+                    {
+                        Rect current = SearchLayoutBounds(action, window);
+                        Require(current.Top >= prior.Bottom + 3 || Math.Abs(current.Top - prior.Top) <= 1 && current.Left >= prior.Right + 3,
+                            "Search actions are out of order: " + measured);
+                        prior = current;
+                    }
+                    Require(inputBounds.Width <= 512, "Search input exceeded its maximum width: " + measured);
                     if (pass == 0) wideWidth = inputBounds.Width;
                     else if (pass == 1) Require(inputBounds.Width < wideWidth - 8, "The input did not shrink: " + measured);
                     else Require(Math.Abs(inputBounds.Width - wideWidth) <= 1 && (!post || wideWidth > 240),
@@ -745,15 +754,12 @@ internal static partial class BooruWorkbenchChecks
                     foreach (Button action in secondary.Append(submit))
                     {
                         Rect bounds = SearchLayoutBounds(action, window);
-                        Require(action.IsEffectivelyVisible && action.Focusable && action.IsTabStop
+                        Require(action.IsEffectivelyVisible && !action.Focusable && !action.IsTabStop
                             && bounds.Width > 0 && bounds.Left >= rowBounds.Left - 1 && bounds.Right <= rowBounds.Right + 1
                             && bounds.Top >= 0 && bounds.Bottom <= window.ClientSize.Height + 1
                             && ToolTip.GetTip(action) is string { Length: > 0 },
                             "Search action is clipped or unreachable: " + action.Name + " " + bounds + "; " + measured);
-                        if (!action.IsEffectivelyEnabled) continue;
-                        action.Focus(NavigationMethod.Tab);
-                        await Program.WaitUntilAsync(() => ReferenceEquals(window.FocusManager?.GetFocusedElement(), action),
-                            () => "Search action cannot receive keyboard focus: " + action.Name);
+                        Require(!action.Focus(NavigationMethod.Tab), "Search action took keyboard focus: " + action.Name);
                     }
                     Capture(window, shots, $"search-layout-{nextLanguage}-{requestedWidth}" + (pass == 2 ? "-restored" : ""));
                     pass++;
@@ -769,7 +775,7 @@ internal static partial class BooruWorkbenchChecks
                 $"The Russian post lookup did not wrap within the toolbar: input={field}, submit={button}, toolbar={toolbar}.");
             Require(h.ProviderRequests == requests && h.Queue.Loads.Count == loads && h.Watchers.Calls.Count == watcherCalls,
                 "Search resize/language/focus caused a provider, queue or watcher call.");
-            Console.WriteLine("SMOKE booru search layout: EN/DE tags at 1440/760/1440 DIP, RU post at 1440/640/1440 DIP; flexible input, wrapped lookup in a constrained host, reachable actions and no port calls.");
+            Console.WriteLine("SMOKE booru search layout: EN/DE tags at 1920/760/1920 DIP, RU post at 1920/640/1920 DIP; flexible input, wrapped lookup in a constrained host, reachable actions and no port calls.");
         }
         finally
         {
@@ -835,16 +841,16 @@ internal static partial class BooruWorkbenchChecks
         string summary = BooruText.SearchStatus(page.Model.Search.View, paused: false);
         Require(Controls(page).OfType<TextBlock>().Count(block => block.IsEffectivelyVisible && block.Text == summary) == 1,
             "The search result summary must be exposed exactly once.");
-        Button previous = Find<Button>(page, BooruWorkbenchView.PreviousName);
-        Button next = Find<Button>(page, BooruWorkbenchView.NextName);
-        Grid pager = (Grid)previous.Parent!;
-        TextBlock info = pager.Children.OfType<TextBlock>().Single();
+        Button previous = FindById<Button>(page, BooruWorkbenchView.PreviousName);
+        Button next = FindById<Button>(page, BooruWorkbenchView.NextName);
+        TextBlock info = FindById<TextBlock>(page, "BooruPageInfo");
+        Button jump = FindById<Button>(page, "BooruPageJump");
         Rect left = SearchLayoutBounds(previous, owner), right = SearchLayoutBounds(next, owner), label = SearchLayoutBounds(info, owner);
-        Rect footer = SearchLayoutBounds((Control)pager.Parent!, owner);
+        Rect footer = SearchLayoutBounds(FindById<Control>(page, "BooruResultsFooter"), owner);
         Require(left.Size == new Size(24, 24) && right.Size == left.Size && Math.Abs(left.Top - right.Top) <= 1
             && Math.Abs(label.Width - info.DesiredSize.Width) <= 1
             && Math.Abs(label.Left - left.Right - 8) <= 1 && Math.Abs(right.Left - label.Right - 8) <= 1
-            && Math.Abs((left.Left + right.Right) / 2 - footer.Center.X) <= 1,
+            && Math.Abs((left.Left + SearchLayoutBounds(jump, owner).Right) / 2 - footer.Center.X) <= 1,
             $"The pager is not centered and symmetric: previous={left}, label={label}, next={right}, footer={footer}");
     }
 
