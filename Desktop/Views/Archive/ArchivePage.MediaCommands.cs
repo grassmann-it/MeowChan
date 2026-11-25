@@ -256,14 +256,14 @@ public partial class ArchivePage
         {
             asset = saved; origin = _mediaSidebar?.FrameArea; playback = _sidebarVideo;
         }
-        else if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
-        {
-            attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
-        }
         // A thumbnail of the sidebar's strip: the menu of that file, not of the one shown (right-click, Menu key, Shift+F10).
         else if (attachment == null && asset == null && SidebarStripContext(ancestors) is { } thumbnail)
         {
             attachment = thumbnail.Attachment; postId = thumbnail.PostId; origin = thumbnail.Origin; playback = thumbnail.Shown ? _sidebarVideo : null;
+        }
+        else if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
+        {
+            attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
         }
         if (attachment != null) asset = _selectedThread == null || postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
         if (asset == null && attachment == null) return;
@@ -311,7 +311,8 @@ public partial class ArchivePage
         string[] ids = { "favorites.toggle", "media.tags.edit", "media.queue.add", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
         if (!ids.Any(id => CommandBindings.Matches(e, id))) return false;
         Control[] ancestors = (e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<Control>().ToArray() ?? Array.Empty<Control>();
-        if (CommandBindings.Matches(e, "media.tags.edit") && IsMediaSidebarSource(e.Source) && _mediaSidebar is { } sidebar)
+        if (CommandBindings.Matches(e, "media.tags.edit") && IsMediaSidebarSource(e.Source) && _mediaSidebar is { } sidebar
+            && !ancestors.Contains(sidebar.Strip))
         {
             e.Handled = true;
             OpenActions.Start(sidebar.EditTagsAsync, "media.tags.edit");
@@ -409,6 +410,14 @@ public partial class ArchivePage
         return (post.Attachments[index], post.Id, item, index == ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, post.Attachments.Count));
     }
 
+    private Func<CancellationToken, Task<bool>>? CaptureSidebarTargetGuard(Control origin, GalleryEntry target)
+    {
+        if (_mediaSidebar is not { } sidebar || !IsMediaSidebarSource(origin)) return null;
+        Control[] path = origin.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        bool displayed = !path.Contains(sidebar.Strip) || SidebarStripContext(path) is { Shown: true };
+        return sidebar.CaptureImageActionGuard(target, displayed);
+    }
+
     // The playback group of a video that plays in the reader: Play / Pause, Mute / Unmute, Repeat on / off, with the bindings' shortcuts.
     private static List<Control>? PlaybackMenuItems(ReaderInlineVideoSlot? slot, MediaMenuSession session, Func<Func<Task>, Task> run) =>
         ReaderPlaybackMenu.MenuItems(slot, session, run);
@@ -477,16 +486,23 @@ public partial class ArchivePage
                 new QuickTagPopoverOptions { IsCurrent = PopoverCurrent, FocusFallback = FocusAfterRateAndTag });
             return;
         }
+        GalleryEntry editTarget = subject.TagEntry ?? target;
+        var verify = CaptureSidebarTargetGuard(origin, editTarget);
+        if (verify != null && (!await verify(sidebarToken) || !PopoverCurrent())) return;
         if (TagPopoverAsync is { } openPopover)
         {
             using CancellationTokenSource? popoverWrites = sidebarToken.CanBeCanceled ? new() : null;
-            Task editing = openPopover(subject.TagEntry ?? target, origin, QuickTagPopoverContext.ContextOf(subject.TagEntry ?? target, subject.GalleryEntries, thread.Summary.Title),
+            Task editing = openPopover(editTarget, origin, QuickTagPopoverContext.ContextOf(editTarget, subject.GalleryEntries, thread.Summary.Title),
                 PopoverCurrent, new RateAndTagRequest(initialFocus, subject.TagsBlocked, FocusAfterRateAndTag, sidebarToken));
             // The host shows the popover before awaiting its result. Its writes end at Closed, while Advanced still uses the sidebar target's lifetime.
-            if (popoverWrites != null && QuickTagPopover.Current is { Surface: { } surface } popover && ReferenceEquals(popover.Anchor, origin))
+            if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, origin))
             {
-                surface.WriteToken = popoverWrites.Token;
-                popover.WhenClosed(popoverWrites.Cancel);
+                if (verify != null) popover.SetSidebarWriteGuard(verify);
+                if (popoverWrites != null && popover.Surface is { } surface)
+                {
+                    surface.WriteToken = popoverWrites.Token;
+                    popover.WhenClosed(popoverWrites.Cancel);
+                }
             }
             await editing;
         }
@@ -519,7 +535,7 @@ public partial class ArchivePage
     internal async Task RateAndTagByKeyAsync()
     {
         if (_ended || !_available || _thread is not { } thread) return;
-        if (_mediaSidebar is { IsKeyboardFocusWithin: true } sidebar)
+        if (_mediaSidebar is { IsKeyboardFocusWithin: true } sidebar && !sidebar.Strip.IsKeyboardFocusWithin)
         {
             await sidebar.EditTagsAsync();
             return;
@@ -707,8 +723,10 @@ public partial class ArchivePage
         bool CanOpenInSequence() => galleryTarget != null && OpenMediaGallery != null;
         bool CanOpenInThread() => galleryTarget == null && readerKey != null && OpenGallery != null;
         bool CanOpen() => CanOpenInSequence() || CanOpenInThread();
-        ReaderMediaSidebar? menuSidebar = ReferenceEquals(origin, _mediaSidebar?.FrameArea) ? _mediaSidebar : null;
-        bool CanFavorite() => target != null && ToggleArchiveFavoriteAsync != null && menuSidebar?.CanUseMediaActions != false;
+        ReaderMediaSidebar? menuSidebar = IsMediaSidebarSource(origin) ? _mediaSidebar : null;
+        bool frameMenu = menuSidebar != null && ReferenceEquals(origin, menuSidebar.FrameArea);
+        var verify = target == null ? null : CaptureSidebarTargetGuard(origin, target);
+        bool CanFavorite() => target != null && ToggleArchiveFavoriteAsync != null && (!frameMenu || menuSidebar!.CanUseMediaActions);
         bool CanQueue() => target != null && AddToTagQueue != null;
         bool CanShowInFolder() => target != null && _openFolder != null && Path.GetDirectoryName(target.Asset.Path) != null;
         bool CanCopyPath() => target != null && CopyFilePathAsync != null;
@@ -757,15 +775,16 @@ public partial class ArchivePage
                 : OpenGallery!(threadId, readerKey, origin)),
             [MediaMenuAction.Favorite] = When(MediaMenuAction.Favorite, CanFavorite, async () =>
             {
-                if ((menuSidebar == null || await menuSidebar.VerifyImageActionAsync()) && session.IsCurrent)
+                if ((verify == null || await verify(default)) && session.IsCurrent)
                     await ToggleArchiveMediaFavoriteAsync(target!);
             }),
             // "Rate and tag…": the popover on the tile or attachment the menu opened on (frozen with the menu), the tag field focused. A file that cannot be
             // rated or tagged gets the popover with the reason as text, so the entry has no precondition of its own.
-            [MediaMenuAction.RateAndTag] = menuSidebar != null ? menuSidebar.EditTagsAsync
+            [MediaMenuAction.RateAndTag] = frameMenu ? menuSidebar!.EditTagsAsync
                 : () => OpenRateAndTagAsync(subject, origin, selection, initialFocus: QuickTagInitialFocus.TagInput, attachment?.Label),
             [MediaMenuAction.Queue] = When(MediaMenuAction.Queue, CanQueue, async () =>
             {
+                if (verify != null && (!await verify(default) || !session.IsCurrent)) return;
                 string message = await AddToTagQueue!(new[] { target! });
                 if (!_ended) Message(message);
             }),

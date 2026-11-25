@@ -162,11 +162,7 @@ public partial class MainWindow
         _archivePage.QuickSettingsHost = CreateQuickSettingsHost();
         _archivePage.GetFavorites = _session.GetFavorites;
         _archivePage.GetMediaRating = _session.GetMediaRating;
-        _archivePage.SetMediaRatingAsync = async (key, value) =>
-        {
-            if (_archivePage?.MediaSidebar is not { IsKeyboardFocusWithin: true } sidebar || await sidebar.VerifyImageActionAsync())
-                await SetMediaRatingAsync(key, value);
-        };
+        _archivePage.SetMediaRatingAsync = SetMediaRatingAsync;
         _archivePage.CanChangeMediaRating = key => !_isClosing && !_ratingChanges.Contains(key);
         _archivePage.EditArchiveMediaTagsAsync = entry => EditGalleryMediaTagsAsync(entry);
         _archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync;

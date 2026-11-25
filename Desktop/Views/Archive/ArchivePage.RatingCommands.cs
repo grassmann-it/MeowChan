@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -17,6 +18,16 @@ public partial class ArchivePage
     internal Func<FavoriteAssetKey, int?, Task>? SetMediaRatingAsync { get; set; }
     internal Func<FavoriteAssetKey, bool>? CanChangeMediaRating { get; set; }
     private CommandRouter? _ratingCommands;
+    private readonly List<IDisposable> _ratingRegistrations = new();
+
+    private void StopRatingCommands()
+    {
+        foreach (IDisposable registration in _ratingRegistrations) registration.Dispose();
+        _ratingRegistrations.Clear();
+        _ratingCommands?.Dispose();
+        _ratingCommands = null;
+    }
+
     // The file the rating keys (Shift+1 to 5, Shift+0) set: the same focused medium as R (FocusedMediaForRateAndTag, ReaderMediumAt), the post card's included.
     private GalleryEntry? FocusedRatingEntry()
     {
@@ -30,7 +41,8 @@ public partial class ArchivePage
         Control pane = ArchiveReaderPane;
         pane.AttachedToVisualTree += (_, _) =>
         {
-            _ratingCommands?.Dispose(); _ratingCommands = new(pane);
+            StopRatingCommands();
+            _ratingCommands = new(pane);
             RegisterRatingCommands(pane);
             // In the large reader the sidebar is a sibling of the pane, not its
             // descendant.  The pane-owned router still sees the same top level,
@@ -39,7 +51,7 @@ public partial class ArchivePage
             // sidebar button, frame or thumbnail.
             if (_mediaSidebar is { } sidebar) RegisterRatingCommands(sidebar);
         };
-        pane.DetachedFromVisualTree += (_, _) => { _ratingCommands?.Dispose(); _ratingCommands = null; };
+        pane.DetachedFromVisualTree += (_, _) => StopRatingCommands();
         // Run before a ListBox/ListBoxItem can consume a letter for type-ahead. F has a
         // dedicated reader route, while R is a command owned by this same pane; keeping
         // the rating router on the bubble path made R disappear when keyboard focus was
@@ -63,16 +75,16 @@ public partial class ArchivePage
         // the medium (the focused one, else the selected post's or the Media tab's selection, waiting for a running media scan) and says why when
         // there is none. Before, a key without a focused medium was consumed in silence (the router consumes a matched key whose action cannot run).
         // A text selection in a post does not keep R: the selection has no use for a bare letter (Ctrl+C stays the selection's).
-        _ratingCommands.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible,
+        _ratingRegistrations.Add(_ratingCommands.Register(new("media.rating.edit", owner, () => owner.IsEffectivelyVisible,
             () => !_ended && _available,
-            () => OpenActions.Start(RateAndTagByKeyAsync, "media.rating.edit"), Priority: 100, AllowInTextSelection: true));
-        _ratingCommands.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
-            () => _ = ExecuteRatingCommandAsync(null), Priority: 100));
+            () => OpenActions.Start(RateAndTagByKeyAsync, "media.rating.edit"), Priority: 100, AllowInTextSelection: true)));
+        _ratingRegistrations.Add(_ratingCommands.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
+            () => _ = ExecuteRatingCommandAsync(null), Priority: 100)));
         for (int value = 1; value <= 5; value++)
         {
             int frozen = value;
-            _ratingCommands.Register(new("media.rating.set-" + value, owner, () => owner.IsEffectivelyVisible, Ready,
-                () => _ = ExecuteRatingCommandAsync(frozen), Priority: 100));
+            _ratingRegistrations.Add(_ratingCommands.Register(new("media.rating.set-" + value, owner, () => owner.IsEffectivelyVisible, Ready,
+                () => _ = ExecuteRatingCommandAsync(frozen), Priority: 100)));
         }
     }
 
@@ -90,6 +102,9 @@ public partial class ArchivePage
         Action<string> reportError = CaptureActionErrorReporter();
         try
         {
+            Control? origin = TopLevel.GetTopLevel(ArchiveReaderPane)?.FocusManager?.GetFocusedElement() as Control;
+            var verify = origin == null ? null : CaptureSidebarTargetGuard(origin, entry);
+            if (verify != null && !await verify(default)) return;
             if (SetMediaRatingAsync != null) await SetMediaRatingAsync(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset), value);
         }
         catch (Exception error) { reportError(error.Message); }

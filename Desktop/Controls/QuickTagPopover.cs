@@ -160,7 +160,13 @@ internal sealed class QuickTagPopover
     private readonly Action? _unsubscribe;
     private readonly QuickTagSession? _session;
     private readonly GalleryDecisionRow? _decisionRow;
-    private readonly Func<CancellationToken, Task<bool>>? _verifySidebarImage;
+    private Func<CancellationToken, Task<bool>>? _verifySidebarImage;
+
+    internal void SetSidebarWriteGuard(Func<CancellationToken, Task<bool>> verify)
+    {
+        _verifySidebarImage = verify;
+        if (Surface != null) Surface.VerifyBeforeWriteAsync = verify;
+    }
     private DispatcherTimer? _guard;
     private bool _decisionRunning;
     private Control? _origin;
