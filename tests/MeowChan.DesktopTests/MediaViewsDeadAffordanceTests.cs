@@ -174,18 +174,22 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     private static WriteableBitmap Picture() => new(new PixelSize(8, 8), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
 
     [Fact]
-    public void TheSidebarsPictureDrawsNoFavouriteBadgeWhileTheHeaderStarShowsTheFavourite() => OnOwnDispatcher(() =>
+    public void TheSidebarsPictureDrawsNoFavouriteBadgeWhileTheHeaderStarShowsTheFavourite() => BooruComponentDispatcher.Run(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         ReaderMediaSidebar sidebar = new();
         var star = SidePanelDesignTests.ById<ArchiveFavoriteButton>(sidebar, "ReaderMediaSidebarFavorite");
         var header = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarHeaderRow");
         var badges = SidePanelDesignTests.ById<MediaBadgeView>(sidebar, "ReaderMediaSidebarBadges");
         var play = SidePanelDesignTests.ById<VideoPlayMarkView>(sidebar, "ReaderMediaSidebarPlay");
+        Window window = new() { Width = 320, Height = 820, Content = sidebar };
+        using RenderTargetBitmap videoPreview = new(new PixelSize(400, 300));
         bool favorite = true;
         sidebar.ConfigureFavorite(() => true, () => favorite, () => Task.CompletedTask);
         try
         {
             // W112-72, Fable §§1 and 3: “Favorit nur im Kopf”; variant A keeps the bars docked.
+            window.Show();
             sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
             Assert.True(star.IsVisible);
             Assert.True(star.IsChecked);
@@ -194,14 +198,22 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Image), badges.State);
             Assert.DoesNotContain(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
 
-            sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: true, double.PositiveInfinity, double.PositiveInfinity);
+            sidebar.ShowPicture(videoPreview, _ => { }, playable: true, double.PositiveInfinity, double.PositiveInfinity);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
             favorite = false;
             sidebar.RefreshFavorite();
+            Assert.False(star.IsChecked);
             favorite = true;
             sidebar.RefreshFavorite();
+            // Overlay spec §5: “Solange der Kopf sichtbar ist, sind die Marken ausgeblendet.” The video has its own play mark.
+            Assert.True(header.IsEffectivelyVisible);
             Assert.True(star.IsChecked);
-            Assert.True(play.IsVisible);
+            Assert.True(play.IsEffectivelyVisible);
+            Assert.True(play.Bounds.Width > 0 && play.Bounds.Height > 0);
             Assert.False(badges.IsVisible);
+            Assert.False(badges.State.Favorite);
+            Assert.DoesNotContain(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
 
             // Variant B §3: “Verborgen bleiben × und die Marken.” The fallback state keeps the video kind.
             sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true });
@@ -213,7 +225,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             Assert.DoesNotContain(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
             Assert.DoesNotContain("Favorite", MediaBadgeSentences.Get(badges.State, badges.Options));
         }
-        finally { sidebar.ShowEmpty(); }
+        finally { sidebar.ShowEmpty(); window.Close(); }
     });
 
     [Fact]
