@@ -31,6 +31,7 @@ public partial class MainWindow
             OpenStatistics: () => { RestoreWindow(); ShowStatisticsFromTray(); },
             Post: action => Dispatcher.UIThread.Post(action)),
             // DBusMenu resets the root layout on property changes and provides no menu lifecycle events.
+            // Windows keeps the existing three-line live mode through header bindings, without menu lifecycle events.
             useStatisticsShortcut: OperatingSystem.IsLinux());
     }
 

@@ -241,7 +241,7 @@ public sealed class TrayStatsPresenterTests : IDisposable
     }
 
     [Fact]
-    public void TheLinesFollowSamplesWithoutOpeningTheMenu()
+    public void TheThreeWindowsLiveLinesFollowSamplesWithoutMenuLifecycleEvents()
     {
         using Harness h = new(shown: false);
         h.Presenter.Refresh(); // first fill
@@ -257,6 +257,18 @@ public sealed class TrayStatsPresenterTests : IDisposable
         Assert.Equal("Network ↓ 4 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
         Assert.Equal("Disk R 0 B/s W 3 MiB/s", h.Presenter.DiskItem.Header);
         Assert.Equal("3 downloads active · 4 waiting · Today ↓ 30.0 MiB", h.Presenter.DetailItem.Header);
+    }
+
+    [Fact]
+    public void OpeningTheMenuRefreshesTheThreeLiveLinesInTheCurrentLanguage()
+    {
+        using Harness h = new(shown: false);
+        h.Presenter.Refresh();
+        h.Activity(3);
+        h.Source.Add("4chan", net: 10 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(5));
+        h.Source.Add("4chan", net: 20 * MiB, diskWritten: 15 * MiB);
+        h.Clock.Advance(TimeSpan.FromSeconds(5));
         Texts.SetLanguage("de");
         h.OpenMenu();
         Assert.Equal("Netzwerk ↓ 4 MiB/s ↑ 0 B/s", h.Presenter.RatesItem.Header);
@@ -329,6 +341,34 @@ public sealed class TrayStatsPresenterTests : IDisposable
         Assert.Equal(0, menuChanges);
         Assert.Equal(items, h.Menu.Items);
         Assert.Equal("Statistics", shortcut.Header);
+        h.Click(shortcut);
+        Assert.Equal(1, h.Opened);
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [MemberData(nameof(BundledLanguagePackCompletenessTests.BundledCodes), MemberType = typeof(BundledLanguagePackCompletenessTests))]
+    public void TheTrayMenuSettingDescribesTheLocalizedLinuxShortcutAndTheLivePlatforms(string language)
+    {
+        string englishLabel = Texts.T("stats.settings.trayMenu");
+        Texts.SetLanguage(language);
+        string label = Texts.T("stats.settings.trayMenu");
+        Assert.False(string.IsNullOrWhiteSpace(label));
+        Assert.NotEqual("stats.settings.trayMenu", label);
+        if (language != "en") Assert.NotEqual(englishLabel, label);
+
+        using Harness h = new(useStatisticsShortcut: true);
+        h.Presenter.Refresh();
+        string statistics = Texts.T("nav.statistics");
+        NativeMenuItem shortcut = Assert.Single(h.Menu.Items.OfType<NativeMenuItem>(), item => item.Header == statistics);
+        string hint = Texts.T("stats.settings.trayMenuHint");
+        string status = Texts.T("nav.status");
+        Assert.Contains("Linux", hint, StringComparison.Ordinal);
+        Assert.Contains("Windows", hint, StringComparison.Ordinal);
+        Assert.Contains("macOS", hint, StringComparison.Ordinal);
+        Assert.Matches(System.Text.RegularExpressions.Regex.Escape(status) + "[»”]? › [«“]?" +
+            System.Text.RegularExpressions.Regex.Escape(statistics), hint);
         h.Click(shortcut);
         Assert.Equal(1, h.Opened);
     }
