@@ -156,24 +156,34 @@ public sealed class SavedMediaReaderTests
     });
 
     [Fact]
-    public void FooterPreviewReturnsKeyboardFocusToTheRevisionItOpened() => RunWithShell(async (page, window, _, _) =>
+    public void FooterPreviewReturnsKeyboardFocusToTheRevisionItOpened() => CheckFooterPreviewFocus();
+
+    internal static void CheckFooterPreviewFocus(Action<ActionToolBar, Button>? reduce = null) => RunWithShell(async (page, window, _, _) =>
     {
         page.ArchiveColumnModePreference = WorkViewSetting.AdvancedName;
-        page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
-        Layout(window);
-        ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
-        ArchiveAssetRow row = ShownRows(page, true).Single(item => !item.Asset.IsCurrent);
-        Click(window, Assert.IsAssignableFrom<Control>(tiles.ContainerFromItem(row)));
-        Click(window, VisibleById<Button>(window, "PreviewArchiveMediaButton"));
+        SelectTab(window, ById<TabItem>(window, "ArchiveMediaTab"));
+        ListBox tiles = ById<ListBox>(window, "ArchiveMediaTiles");
+        ArchiveAssetRow row = tiles.Items.OfType<ArchiveAssetRow>().Single(item => !item.Asset.IsCurrent);
+        Control lead = Assert.IsAssignableFrom<Control>(tiles.ContainerFromItem(row));
+        Click(window, lead);
+        Button preview = VisibleById<Button>(window, "PreviewArchiveMediaButton");
+        if (reduce == null) Click(window, preview);
+        else
+        {
+            Assert.False(preview.Focusable);
+            reduce(ById<ActionToolBar>(window, "ReaderMediaActions"), preview);
+            // A reduced command invokes the original action while its toolbar presentation is closed.
+            preview.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }
         await BooruTestSupport.WaitAsync(() => window.GetVisualDescendants().OfType<GalleryViewer>()
             .Any(viewer => viewer.IsEffectivelyVisible && viewer.CurrentEntry?.Asset.AssetId == row.Asset.AssetId), "the selected revision in the gallery");
         PressKey(window, PhysicalKey.Escape);
         await BooruTestSupport.WaitAsync(() =>
         {
             Layout(window);
-            return tiles.ContainerFromItem(tiles.SelectedItem!) is Control lead && lead.IsFocused;
+            return tiles.ContainerFromItem(row) is Control restored && restored.IsFocused;
         }, "keyboard focus on the saved media tile after closing the gallery");
-        Assert.Equal(row.Asset.AssetId, Assert.IsType<ArchiveAssetRow>(tiles.SelectedItem).Asset.AssetId);
+        Assert.Same(row, tiles.SelectedItem);
     });
 
     [Fact]
