@@ -114,14 +114,17 @@ internal static class GalleryCaptionChecks
             || toolsBounds.Right > viewer.Bounds.Width || toolsBounds.Bottom > infoBounds.Top + 1
             || viewport.IsVisible && (toolsBounds.Top < viewportBounds.Bottom - 1 || viewportBounds.Height < 100))
             throw new InvalidOperationException("Gallery tools cover media, leave the gallery, or consume its usable height.");
-        foreach (Button tool in tools.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible))
+        // The "Gallery tool" check protects user-facing targets. A slider's track buttons can have zero area at an endpoint.
+        foreach (Control tool in tools.GetVisualDescendants().OfType<Control>().Where(control => control.IsEffectivelyVisible
+            && (control is Slider || control is Button && control.TemplatedParent is not Slider)))
         {
             Rect bounds = Bounds(tool, viewer), visible = VisibleBounds(tool, viewer);
             if (bounds.Width <= 0 || bounds.Height <= 0 || visible.Width < bounds.Width - 1 || visible.Height < bounds.Height - 1)
             {
                 List<string> clippingAncestors = new();
                 _ = VisibleBounds(tool, viewer, clippingAncestors);
-                Slider? slider = tool.TemplatedParent as Slider ?? tool.GetVisualAncestors().OfType<Slider>().FirstOrDefault();
+                Slider? slider = tool as Slider ?? tool.TemplatedParent as Slider
+                    ?? tool.GetVisualAncestors().OfType<Slider>().FirstOrDefault();
                 Console.WriteLine("SMOKE gallery tool clipping: " + JsonSerializer.Serialize(new
                 {
                     video, theme, language = Texts.Language, width, state, tool = ControlName(tool),
