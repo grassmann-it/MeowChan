@@ -404,6 +404,142 @@ public sealed class SidebarContextGestureTests
         Assert.Empty(ReadSavedTags(window).TagsOf(media[1].Subject));
     });
 
+    [Theory]
+    [InlineData("media")]
+    [InlineData("posts")]
+    [InlineData("saved")]
+    public void SidebarContextGesturesWaitForThePictureDuringASelectionChange(string host) => Run(async (window, media) =>
+    {
+        TaskCompletionSource resumeDecode = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        (ReaderMediaSidebar sidebar, Action selectNext, Func<ContextMenu?> menu) = host == "saved"
+            ? await OpenSavedPreviewWithHeldPresentationAsync(window, resumeDecode.Task)
+            : await OpenPreviewAsync(window, reader: host == "posts");
+        Image picture = Picture(sidebar);
+        Control frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+        frame.Focusable = true;
+        sidebar.LimitPicture(120, 120);
+        ContextGestures.Settle(window);
+        object? previous = picture.Source;
+        if (host != "saved")
+            sidebar.BeforePreviewDecodeForTests = (path, token) => path == media[1].Path ? resumeDecode.Task.WaitAsync(token) : Task.CompletedTask;
+        List<string> opened = [];
+        window.OpenFileForTests = path => { opened.Add(path); return Task.CompletedTask; };
+
+        try
+        {
+            selectNext();
+            await BooruTestSupport.WaitAsync(() => sidebar.IsDimmed && sidebar.HeaderLine.Contains("b.png", StringComparison.Ordinal),
+                "the next medium to be described while its picture is pending");
+            Assert.Same(previous, picture.Source);
+            Assert.True(picture.IsEffectivelyVisible);
+
+            Assert.All(ContextActions(), gesture =>
+            {
+                gesture.Run();
+                bool visible = menu()?.IsOpen == true;
+                if (visible) menu()!.Close();
+                ContextGestures.Settle(window);
+                Assert.False(visible, gesture.Name + " opened a menu while the previous picture was visible.");
+            });
+            ContextGestures.MiddleClick(picture);
+            Assert.Empty(opened);
+            Assert.Empty(ReadSavedTags(window).TagsOf(media[0].Subject));
+            Assert.Empty(ReadSavedTags(window).TagsOf(media[1].Subject));
+
+            ContextGestures.Press(frame, MouseButton.Right, MarginPoint());
+            Assert.False(menu()?.IsOpen == true);
+            resumeDecode.TrySetResult();
+            await BooruTestSupport.WaitAsync(() => !sidebar.IsDimmed && picture.IsEffectivelyVisible && !ReferenceEquals(previous, picture.Source),
+                "the new picture to replace the previous picture");
+            ContextGestures.Release(frame, MouseButton.Right, MarginPoint());
+            Assert.False(menu()?.IsOpen == true);
+
+            foreach (var (_, gesture) in ContextActions())
+            {
+                gesture();
+                Assert.True(menu()?.IsOpen == true);
+                menu()!.Close();
+                ContextGestures.Settle(window);
+            }
+            ContextGestures.MiddleClick(picture);
+            await BooruTestSupport.WaitAsync(() => opened.Count != 0, "the displayed b.png to open externally");
+            Assert.Equal(media[1].Path, Assert.Single(opened));
+
+            ContextGestures.ShiftF10(frame);
+            QuickTagSurface editor = await OpenTagsAsync(menu());
+            editor.Input.Text = "current-preview";
+            Assert.True(await editor.CommitTypedAsync());
+            Assert.Empty(ReadSavedTags(window).TagsOf(media[0].Subject));
+            Assert.Equal("current-preview", Assert.Single(ReadSavedTags(window).TagsOf(media[1].Subject)).Name.Display);
+        }
+        finally
+        {
+            sidebar.BeforePreviewDecodeForTests = null;
+            resumeDecode.TrySetResult();
+        }
+
+        Point MarginPoint()
+        {
+            sidebar.LimitPicture(120, 120);
+            ContextGestures.Settle(window);
+            Point middle = Assert.IsType<Point>(picture.TranslatePoint(new Rect(picture.Bounds.Size).Center, frame));
+            Point margin = new(8, middle.Y);
+            Assert.True(middle.X - picture.Bounds.Width / 2 > margin.X);
+            return margin;
+        }
+
+        (string Name, Action Run)[] ContextActions() =>
+        [
+            ("Right click on the picture", () => ContextGestures.RightClick(picture)),
+            ("Right click on the frame margin", () => ContextGestures.RightClick(frame, MarginPoint())),
+            ("Control click on the picture", () => MacClick(picture)),
+            ("Control click on the frame margin", () => MacClick(frame, MarginPoint())),
+            ("Apps on the frame", () => ContextGestures.MenuKey(frame)),
+            ("Shift+F10 on the frame", () => ContextGestures.ShiftF10(frame))
+        ];
+
+        static void MacClick(Control target, Point? point = null)
+        {
+            ContextClick.MacOSForTests = true;
+            try { ContextGestures.ControlClick(target, point); }
+            finally { ContextClick.MacOSForTests = null; }
+        }
+    });
+
+    private static async Task<(ReaderMediaSidebar Sidebar, Action Next, Func<ContextMenu?> Menu)> OpenSavedPreviewWithHeldPresentationAsync(
+        MainWindow window, Task resume)
+    {
+        (ArchivePage page, ReaderMediaSidebar sidebar, ListBox tiles) = await OpenSavedPreviewAsync(window);
+        ArchiveAssetRow next = Assert.Single(tiles.Items.OfType<ArchiveAssetRow>(), item => item.Name == "b.png");
+        long now = Environment.TickCount64;
+        page.UseManualReaderTicks(() => now);
+        return (sidebar, SelectNext, () => page.ArchiveMediaMenu);
+
+        void SelectNext()
+        {
+            SynchronizationContext? previous = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(new HeldPresentation(resume));
+            try
+            {
+                now += ReaderMediaSidebarRules.FollowIntervalMs;
+                tiles.SelectedItem = next;
+                page.TickMediaSidebarFollow();
+            }
+            finally { SynchronizationContext.SetSynchronizationContext(previous); }
+        }
+    }
+
+    private sealed class HeldPresentation(Task resume) : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state) => _ = PostAfterResumeAsync(callback, state);
+
+        private async Task PostAfterResumeAsync(SendOrPostCallback callback, object? state)
+        {
+            await resume.ConfigureAwait(false);
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => callback(state));
+        }
+    }
+
     private static Image Picture(ReaderMediaSidebar sidebar) => SidePanelDesignTests.ById<Image>(sidebar, "ReaderMediaSidebarPicture");
 
     private static async Task<(ReaderMediaSidebar Sidebar, Action Next, Func<ContextMenu?> Menu)> OpenPreviewAsync(MainWindow window, bool reader)
