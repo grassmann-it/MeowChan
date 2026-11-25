@@ -188,7 +188,7 @@ public sealed class ReaderMediaSidebarHostClickTests
             Assert.False(sidebar.Open.IsEffectivelyVisible);
 
             PostFilterRule rule = new(Guid.NewGuid(), true, PostFilterField.Text, PostFilterMatch.Contains,
-                "Text only", PostFilterAction.Hide, false, null, null);
+                "Text only", PostFilterAction.Stub, false, null, null);
             page.PostFilter.Update(new(1, HiddenPostsAction.Stub, [rule], [], PostFilterStoreState.Ready));
             page.RequestProjectionRebuild();
             await page.WaitForReaderViewAsync();
