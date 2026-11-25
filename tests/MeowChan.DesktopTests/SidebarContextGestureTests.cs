@@ -787,7 +787,7 @@ public sealed class SidebarContextGestureTests
             Assert.False(sidebar.HasStripPicture(1), "The new binding must release the old file's thumbnail.");
         }
         finally { loadReplacement.TrySetResult(); }
-        await page.MediaSidebarStripTask;
+        await Task.WhenAll(page.MediaSidebarTask, page.MediaSidebarStripTask);
         ContextGestures.Settle(window);
         Assert.True(sidebar.HasStripPicture(1));
         targets.Clear();
@@ -801,7 +801,11 @@ public sealed class SidebarContextGestureTests
             if (page.ArchiveMediaMenu is not { IsOpen: true } menu) return;
             await BooruTestSupport.WaitAsync(() => MenuProbe.Entries(menu).Any(entry => entry.Id == command && entry.Enabled),
                 "the file command to be ready");
-            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == command).Activate();
+            MenuProbe.Entry action = Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == command);
+            TopLevel root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(action.Item));
+            Point center = action.Item.TranslatePoint(new Rect(action.Item.Bounds.Size).Center, root)!.Value;
+            Assert.Contains(action.Item, Assert.IsAssignableFrom<Visual>(root.InputHitTest(center)).GetSelfAndVisualAncestors());
+            action.Activate();
             ContextGestures.Settle(window);
             if (menu.IsOpen) menu.Close();
         }
@@ -986,9 +990,9 @@ public sealed class SidebarContextGestureTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void RejectedPlayClickReturnsFocusToTheWorkingList(bool reader) => Run(async (window, _) =>
+    public void RejectedPlayClickReturnsFocusToTheWorkingList(bool reader) => Run(async (window, files) =>
     {
-        var (sidebar, _, _) = await OpenPreviewAsync(window, reader);
+        var (sidebar, selectNext, _) = await OpenPreviewAsync(window, reader);
         MediaPage? media = window.MediaPageForTests;
         await (reader ? window.ArchivePage.MediaSidebarTask : media!.PanelTask);
         ContextGestures.Settle(window);
@@ -996,23 +1000,35 @@ public sealed class SidebarContextGestureTests
         ReaderInlineVideoController controller = reader ? window.ArchivePage.InlineVideo : media!.PanelVideoController;
         await controller.ConfigureAsync(controller.Options with { Enabled = true, SidebarAutoplay = false });
         Control work = reader ? SidePanelDesignTests.ById<ListBox>(window.ArchivePage, "ArchivePosts") : media!.Grid;
-        Control frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
-        frame.Focusable = true;
-        Assert.True(frame.Focus());
-        sidebar.Describe("43", "b.mp4", string.Empty, true, mediumKey: "pending-video");
         int starts = 0;
-        slot.Offer(controller, "pending-video", _ => { starts++; return Task.FromResult<GalleryEntry?>(null); }, "b.mp4");
-        Assert.True(sidebar.IsShowingStalePicture);
-        ContextGestures.Settle(window);
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        Point center = slot.Activator.TranslatePoint(new Rect(slot.Activator.Bounds.Size).Center, window)!.Value;
-        Assert.Contains(slot.Activator, Assert.IsAssignableFrom<Visual>(window.InputHitTest(center)).GetSelfAndVisualAncestors());
-        ContextGestures.Click(slot.Activator);
-        await slot.ActivationTask;
-        Assert.Equal(0, starts);
-        Assert.True(work.IsKeyboardFocusWithin, "The rejected play click must return the keys to the working list.");
-        Assert.False(slot.Activator.Focus());
-        Assert.False(slot.Activator.IsTabStop);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        sidebar.BeforePreviewDecodeForTests = (path, token) => path == files[1].Path ? release.Task.WaitAsync(token) : Task.CompletedTask;
+        try
+        {
+            selectNext();
+            await BooruTestSupport.WaitAsync(() => sidebar.IsShowingStalePicture, "the pending poster");
+            Control frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+            frame.Focusable = true;
+            Assert.True(frame.Focus());
+            slot.Offer(controller, "pending-video", _ => { starts++; return Task.FromResult<GalleryEntry?>(null); },
+                "b.mp4", posterKey: reader ? null : MediaPage.PanelVideoKey(media!.PanelRow!.Entry));
+            Assert.True(sidebar.IsShowingStalePicture);
+            ContextGestures.Settle(window);
+            Assert.True(slot.Activator.IsEffectivelyVisible);
+            Point center = slot.Activator.TranslatePoint(new Rect(slot.Activator.Bounds.Size).Center, window)!.Value;
+            Assert.Contains(slot.Activator, Assert.IsAssignableFrom<Visual>(window.InputHitTest(center)).GetSelfAndVisualAncestors());
+            ContextGestures.Click(slot.Activator);
+            await slot.ActivationTask;
+            Assert.Equal(0, starts);
+            Assert.True(work.IsKeyboardFocusWithin, "The rejected play click must return the keys to the working list.");
+            Assert.False(slot.Activator.Focus());
+            Assert.False(slot.Activator.IsTabStop);
+        }
+        finally
+        {
+            release.TrySetResult();
+            sidebar.BeforePreviewDecodeForTests = null;
+        }
     });
 
     [Fact]
