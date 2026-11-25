@@ -79,22 +79,22 @@ public sealed class MediaFactGridTests
         const string location = "日本語 /研究/ · 123 · #456 ― 保存された投稿の保存場所";
         string hash = new('a', 64);
         MediaFactGrid facts = new("Facts") { Width = 206 };
-        facts.Add(Texts.T("media.fact.location"), location);
-        facts.Add("SHA-256", hash);
+        facts.Add(Texts.T("media.fact.location"), location, "FactLocation");
+        facts.Add("SHA-256", hash, "FactHash");
         Window window = new() { Width = 480, Height = 320, Content = facts };
         ContextClick.MacOSForTests = true;
         try
         {
             window.Show();
             ContextGestures.Settle(window);
-            SelectableTextBlock[] values = facts.Children.OfType<SelectableTextBlock>().ToArray();
-            VerifyCopy(values[0], location, ContextGestures.ShiftF10);
-            VerifyCopy(values[1], hash, target => ContextGestures.ControlClick(target));
+            VerifyCopy("FactLocation", location, ContextGestures.ShiftF10);
+            VerifyCopy("FactHash", hash, target => ContextGestures.ControlClick(target));
         }
         finally { ContextClick.MacOSForTests = null; window.Close(); }
 
-        void VerifyCopy(SelectableTextBlock value, string expected, Action<Control> open)
+        void VerifyCopy(string id, string expected, Action<Control> open)
         {
+            var value = Assert.Single(facts.Children.OfType<SelectableTextBlock>(), item => AutomationProperties.GetAutomationId(item) == id);
             Assert.Equal(expected, AutomationProperties.GetName(value));
             open(value);
             ContextMenu menu = Assert.IsType<ContextMenu>(value.ContextMenu);
