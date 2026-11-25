@@ -103,7 +103,13 @@ internal sealed partial class BooruWorkbenchView
         _mediaSidebarOpen = open;
         RenderMediaSidebar(_model.Search.View);
         SaveMediaSidebar?.Invoke(open);
-        if (returnFocus && focusedPost != null) FocusHit(focusedPost);
+        if (returnFocus && focusedPost != null) FocusSidebarHit(focusedPost);
+    }
+
+    private void FocusSidebarHit(string postId)
+    {
+        SetCursor(postId);
+        FocusHit(postId);
     }
 
     private void RenderMediaSidebar(BooruSearchView view, bool requestSample = false)
@@ -220,11 +226,11 @@ internal sealed partial class BooruWorkbenchView
                     if (!SidebarResultIsCurrent(result)) return;
                     EditTagDraft(tag.Name, chip.ExcludeOnClick ? BooruTagDraftAction.Exclude : BooruTagDraftAction.Include,
                         CaptureResultLink(result.Target));
-                    if (chip.IsPointerClick) FocusHit(result.PostId);
+                    if (chip.IsPointerClick) FocusSidebarHit(result.PostId);
                 };
                 _sidebarTagMenus.Add(new ContextMenuHost(chip,
                     () => SidebarResultIsCurrent(result) ? ComposeTagMenu(tag.Name, result.Target) : null,
-                    () => { if (SidebarResultIsCurrent(result)) FocusHit(result.PostId); }));
+                    () => { if (SidebarResultIsCurrent(result)) FocusSidebarHit(result.PostId); }));
                 _sidebarTags.Add((chip, outline, tag, label));
                 chips.Children.Add(chip);
             }

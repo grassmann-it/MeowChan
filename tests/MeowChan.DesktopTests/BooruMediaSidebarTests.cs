@@ -317,6 +317,33 @@ public sealed class BooruMediaSidebarTests
     });
 
     [Theory]
+    [InlineData("cat", "blue_eyes", "cat blue_eyes")]
+    [InlineData("cat -blue_eyes", "sky", "cat -blue_eyes")]
+    public void FirstTagClickReturnsFocusWithoutRequestingASample(string draft, string tag, string expectedDraft) =>
+        InWindow((harness, model, view, window) =>
+        {
+            BooruMediaSidebar sidebar = Sidebar(view);
+            SampleTime time = new(sidebar);
+            harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+                BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101", sample: true))));
+            Search(model, view);
+            model.Search.SetInput(draft);
+            Settle(window);
+            Assert.Null(view.CursorPostId);
+
+            PressPointer(window, ById<Button>(sidebar, "BooruPanelTag:" + tag));
+
+            Assert.True(Hit(view, "101").IsFocused);
+            Assert.Equal("101", view.CursorPostId);
+            // DanbooruTagQuery.MaximumTagTerms limits the draft to two tag terms.
+            Assert.Equal(expectedDraft, model.Search.View.Input);
+            time.Advance(200);
+            BooruComponentDispatcher.Wait(sidebar.SampleLoad);
+            Assert.Empty(harness.Previews.SampleRequests);
+            Assert.Equal(1, harness.Search.Requests);
+        });
+
+    [Theory]
     [InlineData("de")]
     [InlineData("ru")]
     public void SidebarKeepsAFullActionRowAndEnoughResultsWidth(string language) => InWindow((harness, model, view, window) =>
