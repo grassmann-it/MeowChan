@@ -199,6 +199,10 @@ internal sealed class FakeBooruWatcherPort : IBooruWatcherPort
     private readonly List<BooruWatcherView> _watchers = new();
     private int _next = 1;
 
+    internal BooruCatalogUsageView? CatalogUsage { get; set; }
+    public Task<BooruCatalogUsageView?> GetCatalogUsageAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(CatalogUsage);
+
     internal FakeBooruWatcherPort(BooruManualClock clock) => _clock = clock;
 
     internal List<string> Calls { get; } = new();
