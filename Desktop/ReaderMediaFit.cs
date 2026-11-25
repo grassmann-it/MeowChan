@@ -100,24 +100,26 @@ internal static class ReaderMediaFit
     /// The scroll offset a reader jump aims for, for a card whose top edge is <paramref name="cardTop"/> dip below the top of the viewport
     /// while the list is at <paramref name="offset"/>. Without <paramref name="centre"/> the card's top edge goes to <see cref="AlignedTop"/>
     /// (below <paramref name="leading"/>, the reading line some cards carry above them). With it (the focused media is enlarged) the card,
-    /// leading part included, is centred vertically in the viewport; a card that does not fit with the air <see cref="AlignedAir"/> falls back
-    /// to the top alignment, so its header stays visible. The result is limited to the scroll range: at the start and the end of the list
-    /// the card cannot be centred and sits as near the centre as the extent allows.
+    /// leading part included, is centred vertically in the viewport. A card that is taller than the viewport falls back
+    /// to a top inset of <paramref name="topPaddingPercent"/> percent of the viewport, so its header stays visible. The result is limited
+    /// to the scroll range, so cards near the start and the end of the list sit as close to the target position as the extent allows.
     /// </summary>
     internal static double JumpOffset(double offset, double cardTop, double cardHeight, double viewportHeight, double extentHeight,
-        double leading, bool centre)
+        double leading, bool centre, int topPaddingPercent = ReaderDisplayPreferences.FocusedPostTopPaddingPercentDefault)
     {
         double desiredTop = AlignedTop + leading;
         if (centre && FitsCentred(cardHeight, viewportHeight, leading))
             desiredTop = (viewportHeight - (cardHeight + leading)) / 2 + leading;
+        else if (centre && cardHeight > 0 && double.IsFinite(cardHeight) && viewportHeight > 0 && cardHeight + leading > viewportHeight)
+            desiredTop = viewportHeight * topPaddingPercent / 100 + leading;
         double range = double.IsFinite(extentHeight) && double.IsFinite(viewportHeight) ? Math.Max(0, extentHeight - viewportHeight) : double.PositiveInfinity;
         return Math.Clamp(offset + cardTop - desiredTop, 0, range);
     }
 
-    /// <summary>Whether a card (with its <paramref name="leading"/> part) can be centred in the viewport and still keep <see cref="AlignedAir"/>.</summary>
+    /// <summary>Whether a card and its leading reading line fit entirely in the viewport.</summary>
     internal static bool FitsCentred(double cardHeight, double viewportHeight, double leading = 0) =>
         double.IsFinite(cardHeight) && cardHeight > 0 && double.IsFinite(viewportHeight) && viewportHeight > 0
-        && cardHeight + Math.Max(0, leading) <= viewportHeight - AlignedAir;
+        && cardHeight + Math.Max(0, leading) <= viewportHeight;
 
     /// <summary>
     /// How far the list scrolls (positive: further down) to hold the focused card whose top edge moved <paramref name="cardShift"/> dip

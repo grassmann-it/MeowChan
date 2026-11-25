@@ -17,6 +17,7 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Theming;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.PluginHost.Http;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
@@ -29,6 +30,11 @@ internal static partial class BooruWorkbenchChecks
     internal static async Task RunAsync(MainWindow owner)
     {
         Dispatcher.UIThread.VerifyAccess();
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_BOORU_SIDEBAR_SHOTS") is { Length: > 0 } sidebarShots)
+        {
+            await CaptureMediaSidebarAsync(owner, sidebarShots);
+            return;
+        }
         string originalLanguage = Texts.Language;
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         string shots = Environment.GetEnvironmentVariable("MEOWCHAN_BOORU_SHOTS") ?? AppContext.BaseDirectory;
@@ -99,7 +105,6 @@ internal static partial class BooruWorkbenchChecks
 
             // ---- search: the query is visible exactly as sent -------------------------------------------------------
             // This state walkthrough deliberately reuses a single search tab.
-            page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
             await CheckSearchRowResizeAsync(owner, h, shots);
             await CheckLiveGalleryAsync(owner);
             await CheckPopoutBoundsAfterShutdownAsync(owner);
@@ -602,11 +607,77 @@ internal static partial class BooruWorkbenchChecks
 
     // ---- accessibility (1.1.0 audit H1-H3, M2, M3) ---------------------------------------------------------------------------
 
+    private static async Task CaptureMediaSidebarAsync(MainWindow owner, string shots)
+    {
+        Directory.CreateDirectory(shots);
+        BooruPostView[] posts = [BooruUiFixtures.Post("101"), BooruUiFixtures.Post("102", sample: true, score: 0),
+            BooruUiFixtures.Post("103")];
+        const int sampleWidth = 192;
+        const int sampleHeight = 108;
+        Dictionary<Uri, byte[]> images = new()
+        {
+            [posts[0].PreviewUrl!] = BooruUiFixtures.Png(101),
+            [posts[1].PreviewUrl!] = BooruUiFixtures.Png(102),
+            [posts[2].PreviewUrl!] = BooruUiFixtures.Png(103),
+            [posts[1].SampleUrl!] = DanbooruStub.Png(sampleWidth, sampleHeight, 0xFF4A90D9, 102)
+        };
+        SourceDescription source = new(BooruUiFixtures.Source, "Danbooru", new Uri("https://danbooru.donmai.us/"),
+            SourceCapabilities.PostSearch | SourceCapabilities.Previews, [],
+            [new("cdn.donmai.us", HttpHostPurpose.PreviewMedia)], new("1", []));
+        using BooruSidebarMediaTransport handler = new(images);
+        using HttpClient transport = new(handler, disposeHandler: false);
+        using BooruPreviewHttp media = new(transport, source);
+        BooruUiHarness harness = new(new BooruHostPreviewPort(media, source.SourceId));
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, posts)));
+        using BooruPage page = new(harness.Services);
+        Window window = new() { Width = 1280, Height = 850, Content = page, ShowInTaskbar = false };
+        try
+        {
+            page.View.RestoreMediaSidebar(open: true);
+            window.Show(owner);
+            await SettleAsync(window);
+            TextBox input = FindById<TextBox>(page, BooruWorkbenchView.InputName);
+            Button submit = FindById<Button>(page, BooruWorkbenchView.SubmitName);
+            input.Text = "cat";
+            await Program.WaitUntilAsync(() => submit.IsEnabled,
+                () => "the Booru sidebar fixture search was not ready");
+            Click(submit);
+            await Program.WaitUntilAsync(() => Previews(page) == 3, () => "the Booru sidebar fixture previews did not arrive");
+            foreach (int width in new[] { 1280, 1920 })
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+            {
+                window.Width = width;
+                window.RequestedThemeVariant = theme;
+                foreach (BooruResultView mode in new[] { BooruResultView.List, BooruResultView.Grid })
+                {
+                    page.View.SetResultView(mode, save: false);
+                    page.View.RestoreMediaSidebar(open: false);
+                    page.View.RestoreMediaSidebar(open: true);
+                    page.View.SetCursor("102");
+                    await SettleAsync(window);
+                    Require(Math.Abs(window.ClientSize.Width - width) <= 1, $"The sidebar capture is not {width} DIP wide.");
+                    Image image = FindById<Image>(page, "BooruMediaPreview");
+                    IImage preview = image.Source ?? throw new InvalidOperationException("The sidebar preview did not arrive.");
+                    string stem = $"booru-sidebar-{width}-{mode}-{theme}".ToLowerInvariant();
+                    Capture(window, shots, stem + "-preview");
+                    page.View.SetCursor("102", requestSidebarSample: true);
+                    await Program.WaitUntilAsync(() => image.Source != null && !ReferenceEquals(image.Source, preview),
+                        () => "the Booru sidebar sample did not arrive");
+                    Require(image.Source is Bitmap sample && sample.PixelSize.Width == sampleWidth && sample.PixelSize.Height == sampleHeight,
+                        "The Booru sidebar did not show the fixture sample.");
+                    await SettleAsync(window);
+                    Capture(window, shots, stem + "-sample");
+                }
+            }
+        }
+        finally { window.Close(); }
+    }
+
     private static async Task CheckSearchRowResizeAsync(MainWindow owner, BooruUiHarness h, string shots)
     {
         string language = Texts.Language;
         using BooruPage page = new(h.Services);
-        page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
         // Keep the same page layout across the resize, including below the Advanced shell's native minimum.
         Window window = new() { Width = 1440, Height = 850, Content = page, ShowInTaskbar = false };
         int requests = h.ProviderRequests, loads = h.Queue.Loads.Count, watcherCalls = h.Watchers.Calls.Count;
@@ -619,8 +690,7 @@ internal static partial class BooruWorkbenchChecks
             WrapPanel actions = Find<WrapPanel>(page, "BooruSearchActions");
             Button submit = Find<Button>(page, BooruWorkbenchView.SubmitName);
             Button create = Find<Button>(page, BooruWorkbenchView.CreateWatcherName);
-            Button[] secondary = { Find<Button>(page, BooruWorkbenchView.AlternateSubmitName), Find<Button>(page, BooruWorkbenchView.OpenInNewTabName),
-                create, Find<Button>(page, BooruWorkbenchView.DownloadAllName) };
+            Button[] secondary = { create, Find<Button>(page, BooruWorkbenchView.DownloadAllName) };
             Control row = (Control)input.Parent!;
             foreach ((string nextLanguage, bool post, int narrowWidth) in new[]
             {
@@ -636,13 +706,8 @@ internal static partial class BooruWorkbenchChecks
                     && mode.SelectionBoxItem as string == Texts.T(modeKey) && submit.Content as string == Texts.T(submitKey)
                     && submit.IsEffectivelyEnabled && create.IsEffectivelyEnabled == !post,
                     () => "Search resize fixture did not apply language/mode: " + nextLanguage);
-                Button alternate = secondary[0], duplicate = secondary[1];
-                Require(AutomationProperties.GetName(alternate) == alternate.Content as string
-                    && AutomationProperties.GetHelpText(alternate)?.Contains(Texts.T("booru.tabs.searchNew"), StringComparison.Ordinal) == true
-                    && AutomationProperties.GetName(create) == create.Content as string
-                    && AutomationProperties.GetName(duplicate) == Texts.T("booru.tabs.duplicate")
-                    && duplicate.Content as string == Texts.T("booru.tabs.duplicate"),
-                    "The localized actions do not expose their visible labels as accessible names: " + nextLanguage);
+                Require(AutomationProperties.GetName(create) == create.Content as string,
+                    "The localized Watch action does not expose its visible label: " + nextLanguage);
                 double wideWidth = 0;
                 int pass = 0;
                 foreach (int requestedWidth in new[] { 1440, narrowWidth, 1440 })
@@ -717,8 +782,12 @@ internal static partial class BooruWorkbenchChecks
     private static async Task CheckTabStripAsync(MainWindow owner, BooruPage page, string shots)
     {
         TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
-        TabItem first = (TabItem)tabs.SelectedItem!;
         Button add = Find<Button>(page, BooruWorkbenchView.NewSearchTabName);
+        Require(page.View.SearchTabs.Ids.Count == 0 && Find<TextBox>(page, BooruWorkbenchView.InputName).IsEffectivelyVisible,
+            "The initial search field needs to be visible on an empty tab strip.");
+        Click(add);
+        await SettleAsync(owner);
+        TabItem first = (TabItem)tabs.SelectedItem!;
         Rect firstBounds = SearchLayoutBounds(first, owner);
         Rect addBounds = SearchLayoutBounds(add, owner);
         Require(Math.Abs(firstBounds.Height - addBounds.Height) <= 1 && addBounds.Width >= 44 && addBounds.Left > firstBounds.Right,
@@ -753,7 +822,11 @@ internal static partial class BooruWorkbenchChecks
         }
         finally { Application.Current.RequestedThemeVariant = theme; }
         Click(close);
-        Require(ReferenceEquals(tabs.SelectedItem, first), "Closing the extra tab did not restore the first search tab.");
+        Require(ReferenceEquals(tabs.SelectedItem, first), "Closing the second tab did not restore the first search tab.");
+        Click(first.GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("booru-tab-close")));
+        await SettleAsync(owner);
+        Require(page.View.SearchTabs.Ids.Count == 0 && Find<TextBox>(page, BooruWorkbenchView.InputName).IsEffectivelyVisible,
+            "Closing the last tab did not return to the empty search field.");
     }
 
     private static async Task CheckResultsFooterAsync(MainWindow owner, BooruPage page)
@@ -908,7 +981,9 @@ internal static partial class BooruWorkbenchChecks
     private static List<Control> Cards(Control root, string prefix) => Controls(root).OfType<Border>()
         .Where(border => border.Name is { } name && name.StartsWith(prefix, StringComparison.Ordinal)).Cast<Control>().ToList();
 
-    private static int Previews(Control root) => Controls(root).OfType<Image>().Count(image => image.Source is Bitmap);
+    private static int Previews(Control root) =>
+        Controls(root).OfType<Image>().Count(image => image.IsEffectivelyVisible && image.Source is Bitmap
+            && AutomationProperties.GetAutomationId(image)?.StartsWith("BooruPreview:", StringComparison.Ordinal) == true);
 
     private static string Text(Control root) => string.Join('\n', Controls(root).Where(control => control.IsEffectivelyVisible)
         .Select(control => control switch

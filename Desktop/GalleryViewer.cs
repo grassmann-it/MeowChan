@@ -1212,6 +1212,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         // steal focus from a native video control before it receives the release.
         if (_viewerInteractionStopped || !_interactionAvailable || _videoSuspended || _mediaFailed
             || _sessionCancellation.IsCancellationRequested || sender is not Control root || !IsEffectivelyVisible) return;
+        if (!ItemActivation.IsOwnedByInteractivePart(e.Source, root)) ContextClick.RequestOnMacControlPress(e, root);
+        if (e.Handled) return;
         if (IsVideoView)
         {
             // A video is dragged only while it is zoomed in, and only by the picture itself, never by the transport.
@@ -1618,6 +1620,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             facts.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(size), "GalleryPostSourceSize");
         if (binding?.Provider.ProviderSizeHint is { } hint)
             facts.Add(Texts.T("media.fact.sourceHint"), Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
+        facts.Add("SHA-256", entry.Asset.Sha256, "GalleryPostHash");
         panel.Children.Add(facts);
         string provenance = MediaProvenanceText.Summary(binding);
         if (provenance.Length > 0) AddContext(panel, provenance, "workspace-meta");
@@ -1709,10 +1712,17 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         // (sweep S2 F4). With the focus on another control of the dock (a tool, the info line; not the filmstrip or the video bar) they open the
         // layout menu, as a right-click on free dock area does (GL3). The handled key's key-up is consumed (ConsumeContextKey): no second menu.
         if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && ContextKeyOwner(e.Source) is { } menuOwner && OpenOwnContextMenu(menuOwner))
-        { ConsumeContextKey(e); return; }
+        { ConsumeContextKey(e, menuOwner.ContextMenu); return; }
         if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && IsLayoutMenuKeySource(e.Source) && ShowLayoutContextMenu())
-        { ConsumeContextKey(e); return; }
-        if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); ConsumeContextKey(e); return; }
+        { ConsumeContextKey(e, LayoutContextMenu); return; }
+        if (_entry != null && ContextClick.IsKey(e))
+        {
+            Control? panel = e.Source is Visual source && _contextPanel.IsVisualAncestorOf(source) ? _contextPanel : null;
+            if (panel != null && ItemActivation.IsOwnedByInteractivePart(e.Source, panel)) return;
+            ShowMediaMenu(anchor: panel, keyboard: true);
+            ConsumeContextKey(e, _mediaMenuPresenter.Menu);
+            return;
+        }
         if (RouteDecisionRowKey(e)) return; // the stars of the panel rove with the arrows and Esc returns to the picture
         // The tagging mode's card keys are the bare digits 1 to 5 while the cards are shown: they come before the rating's 1 to 5 (Lightroom keys).
         if (_tagging != null && _cardsOn && _tagSurface?.IsKeyboardFocusWithin != true && RouteCardKey(e)) return;

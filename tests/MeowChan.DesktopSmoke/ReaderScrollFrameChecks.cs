@@ -66,7 +66,7 @@ internal static class ReaderScrollFrameChecks
         // does not fit; NaN while it is not realized.
         double Error((double Top, double Height, double Offset, string Selected) frame) =>
             ReaderMediaFit.FitsCentred(frame.Height, viewport.Bounds.Height) ? frame.Top + frame.Height / 2 - viewport.Bounds.Height / 2
-                : frame.Top - ReaderMediaFit.AlignedTop;
+                : frame.Top - viewport.Bounds.Height * page.ReaderMedia.FocusedPostTopPaddingPercent / 100;
         (double, double, double, string) Measure()
         {
             Control? card = posts.SelectedItem is { } selected ? posts.ContainerFromItem(selected) : null;

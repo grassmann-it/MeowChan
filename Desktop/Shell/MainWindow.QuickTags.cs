@@ -46,6 +46,7 @@ public partial class MainWindow
         if (!Current() || _mediaTagDialogOpen) return;
         // Sidebar requests can be replaced while resolving. Only the one that reaches the UI owns the open flag.
         bool sidebar = request.SidebarToken.CanBeCanceled;
+        using CancellationTokenSource? popoverWrites = sidebar ? new() : null;
         bool ownsDialog = !sidebar;
         if (ownsDialog) _mediaTagDialogOpen = true;
         Control? origin = FocusManager?.GetFocusedElement() as Control;
@@ -101,6 +102,11 @@ public partial class MainWindow
             origin = popover.Origin ?? origin;
             shown = popover;
             MediaPageTagPopover = popover;
+            if (popoverWrites != null && popover.Surface is { } surface)
+            {
+                surface.WriteToken = popoverWrites.Token;
+                popover.WhenClosed(popoverWrites.Cancel);
+            }
             popover.WhenClosed(Release);
             reason = await popover.Result;
         }
@@ -129,7 +135,7 @@ public partial class MainWindow
             }
         }
         if (reason == QuickTagPopoverCloseReason.Advanced && !_isClosing && match != null)
-            await EditMediaLibraryTagsForMenuAsync(indexed, sidebar ? Current : () => true, match, origin);
+            await EditMediaLibraryTagsForMenuAsync(indexed, sidebar ? Current : () => true, match, origin, request.SidebarToken);
     }
 
     private async Task OpenArchiveMediaTagPopoverAsync(GalleryEntry entry, Control anchor, TagContext context, Func<bool> isCurrent,

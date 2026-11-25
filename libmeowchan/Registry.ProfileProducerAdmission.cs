@@ -14,7 +14,7 @@ public sealed partial class Registry
 {
     private ProfileLease? _producerLease;
     private ProfileProducerEpoch? _producerEpoch;
-    private readonly SemaphoreSlim _producerTransitions = new(1, 1);
+    private readonly OperationGate _producerTransitions = new();
     private IProfileFinalWriteParticipant? _finalWriteParticipant;
     internal void RegisterProfileFinalWriteParticipant(IProfileFinalWriteParticipant participant)
     {
@@ -80,9 +80,7 @@ public sealed partial class Registry
                     throw new InvalidOperationException("Await Registry.StartAsync(lease) before restoring or writing to a new profile-bound session.");
                 // Lazy standalone producers also require Ready; a Startup command
                 // must never lend its role to a monitor or physical media job.
-                ProfileProducerEpoch epoch = new(_producerLease?.Admission.EnterOrdinaryWriter());
-                try { _queue.InstallProfileEpoch(epoch); _producerEpoch = epoch; }
-                catch { epoch.Close(); epoch.Dispose(); throw; }
+                InstallProfileEpoch(_producerLease?.Admission);
             }
             return _producerLease?.Admission.EnterStoreWriter();
         }
@@ -96,12 +94,16 @@ public sealed partial class Registry
         {
             if (_producerStopRequested || _stopping) throw new InvalidOperationException("Registry is stopping.");
             if (_producerEpoch != null) throw new InvalidOperationException("Registry epoch already installed.");
-            ProfileAdmissionToken admission = (_producerLease ?? throw new InvalidOperationException("No bound profile."))
-                .Admission.EnterOrdinaryWriter();
-            ProfileProducerEpoch epoch = new(admission);
-            try { _queue.InstallProfileEpoch(epoch); _producerEpoch = epoch; }
-            catch { epoch.Close(); epoch.Dispose(); throw; }
+            InstallProfileEpoch((_producerLease ?? throw new InvalidOperationException("No bound profile.")).Admission);
         }
+    }
+
+    // Caller holds _state. The epoch owns the admission token until the last producer drains.
+    private void InstallProfileEpoch(ProfileAdmission? authority)
+    {
+        ProfileProducerEpoch epoch = ProfileProducerEpoch.Open(authority);
+        try { _queue.InstallProfileEpoch(epoch); _producerEpoch = epoch; }
+        catch { epoch.Close(); epoch.Dispose(); throw; }
     }
 
     // Deterministic lifecycle seams, invoked outside the lifecycle/state monitors.
@@ -196,7 +198,7 @@ public sealed partial class Registry
                 }, epoch)) Volatile.Write(ref watch.RemovalRequested, 0);
             })
             : resource.Board!.RegisterDiscoverySink((thread, token) =>
-                new ValueTask(AdmitDiscoveryAsync(watch, thread, token, epoch?.Admission)));
+                new ValueTask(AdmitDiscoveryAsync(watch, thread, epoch?.Admission, token)));
 
     private void BindWatchOwner(ResourceKey key, Watch watch, ProfileProducerEpoch? epoch)
     {
@@ -226,7 +228,7 @@ public sealed partial class Registry
             BindWatchOwner(key, watch, epoch);
             if (watch.Thread is BaseThread thread)
                 thread.SetLifecycleSinks((state, observed, snapshot, token) =>
-                    CommitSourceEndAsync(key, thread, state, observed, snapshot, token, use?.Admission),
+                    CommitSourceEndAsync(key, thread, state, observed, snapshot, use?.Admission, token),
                     () => CommitCaptureSettledAsync(key, thread, use?.Admission));
             // Only bound content threads need the admitted BaseThread entry.
             // Preserve IThread lifecycle dispatch for non-content providers.
@@ -234,7 +236,8 @@ public sealed partial class Registry
                 && use?.Admission is { } admission)
                 contentThread.StartMonitoringAdmitted(admission, _queue, watch.OutputRoot, _threadInterval);
             else if (watch.Thread != null) watch.Thread.StartMonitoring(_queue, watch.OutputRoot, _threadInterval);
-            else watch.Board!.StartMonitoring((int)_boardInterval.TotalSeconds);
+            else if (watch.Board is { } board)
+                board.StartMonitoring((int)ResolveBoardMonitoringInterval(board, _boardInterval).TotalSeconds);
         }
         catch { throw; }
     }

@@ -56,12 +56,15 @@ public sealed class BooruPageHostContractTests
         using BooruPage page = new(ports.Services);
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
         Assert.Equal(BooruWorkbenchView.TabsName, tabs.Name);
-        TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        Assert.Single(segments);
-        Control search = Assert.IsAssignableFrom<Control>(Assert.Single(segments, tab => tab.Tag is BooruSearchTabs.PrimaryId).Content);
+        Assert.Equal(BooruWorkbenchView.TabsName, AutomationProperties.GetAutomationId(tabs));
+        // A05 exposes the search surface while the strip still has no search tabs.
+        Assert.Empty(page.View.SearchTabs.Ids);
+        TabItem start = Assert.IsType<TabItem>(tabs.SelectedItem);
+        Control search = Assert.IsAssignableFrom<Control>(start.Content);
         page.View.ShowWatchers();
         TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
         Assert.Equal(BooruWorkbenchView.WatchersTabName, watchersTab.Name);
+        Assert.Equal(BooruWorkbenchView.WatchersTabName, AutomationProperties.GetAutomationId(watchersTab));
         Control watchers = Assert.IsAssignableFrom<Control>(watchersTab.Content);
         string?[] names = search.GetLogicalDescendants().Concat(watchers.GetLogicalDescendants())
             .Concat(page.View.Footer.GetLogicalDescendants()).OfType<Control>().Select(control => control.Name).ToArray();
@@ -75,7 +78,8 @@ public sealed class BooruPageHostContractTests
             BooruWorkbenchView.LinkNoteName, BooruWorkbenchView.InputIssueName, BooruWorkbenchView.NoticeName,
             BooruWorkbenchView.WatcherNoticeName, BooruWorkbenchView.ResetCooldownName, BooruWorkbenchView.CatalogStorageName })
             Assert.Contains(name, names);
-        var input = Assert.Single(search.GetVisualDescendants().OfType<TextBox>(), box => box.Name == BooruWorkbenchView.InputName);
+        var input = Assert.Single(search.GetVisualDescendants().OfType<TextBox>(),
+            box => AutomationProperties.GetAutomationId(box) == BooruWorkbenchView.InputName);
         Assert.Contains(MeowChan.Desktop.Localization.Texts.T("booru.ui.noFilterNote"), AutomationProperties.GetHelpText(input));
         Assert.Equal(AutomationProperties.GetHelpText(input), ToolTip.GetTip(input));
         AssertNoRemoteWork(ports);
@@ -100,10 +104,11 @@ public sealed class BooruPageHostContractTests
         RecordingPorts ports = new();
         using BooruPage page = new(ports.Services);
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
-        TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
+        Assert.Empty(page.View.SearchTabs.Ids);
+        TabItem start = Assert.IsType<TabItem>(tabs.SelectedItem);
         page.View.ShowWatchers();
         page.ShowQuery("cat");
-        Assert.Same(segments[0], tabs.SelectedItem);
+        Assert.Same(start, tabs.SelectedItem);
         Assert.Equal(BooruInputMode.Tags, page.Model.Search.View.Mode);
         Assert.Equal("cat", page.Model.Search.View.Input);
         page.AddTagToSearch("sky");

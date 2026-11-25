@@ -208,6 +208,39 @@ public sealed class WorkViewSettingsTests
     });
 
     [Fact]
+    public void InterfaceResetKeepsItsFooterDraftAndCountsChangesAgainstTheConfirmedDisplays() => BooruComponentDispatcher.Run(() =>
+    {
+        TokenApplication.Bind();
+        Config config = new();
+        SettingsEditor editor = new(config);
+        try
+        {
+            Assert.False(editor.ShowFooterNetwork);
+            editor.ResetDraft(SettingsEditor.SettingsResetScope.Interface);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(0, InterfaceGroup().Changed);
+
+            // FIX-112-CI round 2 review: a confirmed footer menu choice changes the reference while a reset holds the draft.
+            config.ShowFooterNetwork = true;
+            editor.RefreshConfirmedFooterDisplays();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal((false, false, true), (editor.ShowFooterNetwork, editor.ShowFooterDisk, editor.ShowFooterStatus));
+            Assert.Equal(1, InterfaceGroup().Changed);
+            Assert.True(editor.HasUnsavedChanges);
+
+            config.ShowFooterNetwork = false;
+            editor.RefreshConfirmedFooterDisplays();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(0, InterfaceGroup().Changed);
+        }
+        finally { editor.EndLifetime(); }
+
+        SettingsEditor.GroupState InterfaceGroup() => Assert.Single(editor.GroupStates(), group => group.Id == "settings.group.interface-more");
+    });
+
+    [Fact]
     public void HeaderCarriesTheCounterAndTheChangedCountOnlyWhenThereIsOne()
     {
         Func<int, string> changed = count => count + " changed";

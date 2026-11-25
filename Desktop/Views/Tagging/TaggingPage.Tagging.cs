@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -60,10 +61,17 @@ public sealed partial class TaggingPage
     /// "Tag…" and "Tag together…": the quick tag popover over the selected entries (the lead for one), anchored at <paramref name="anchor"/>
     /// (the list by default). "Advanced…" opens the dialog that lists every occurrence.
     /// </summary>
-    internal async Task TagSelectionAsync(Control? anchor = null, bool includeRating = false)
+    internal Task TagSelectionAsync(Control? anchor = null, bool includeRating = false) =>
+        Lead is { } lead ? TagRowsAsync(Selected, lead, anchor, includeRating, CancellationToken.None) : Task.CompletedTask;
+
+    internal Task TagRowAsync(TaggingQueueRow row, Control anchor, CancellationToken token) =>
+        TagRowsAsync([row], row, anchor, false, token);
+
+    private async Task TagRowsAsync(IReadOnlyList<TaggingQueueRow> rows, TaggingQueueRow lead, Control? anchor,
+        bool includeRating, CancellationToken token)
     {
-        if (!CanTag || Lead is not { } lead) return;
-        IReadOnlyList<TaggingQueueRow> taggable = TaggingRowCommands.Taggable(Selected);
+        if (!CanTag || token.IsCancellationRequested) return;
+        IReadOnlyList<TaggingQueueRow> taggable = TaggingRowCommands.Taggable(rows);
         if (NewTagSession(taggable, out IReadOnlyList<MediaLibraryTile> tiles) is not { } session) return;
         bool together = taggable.Count > 1;
         static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
@@ -71,8 +79,7 @@ public sealed partial class TaggingPage
         TagContext context = TagContextFor(taggable.Contains(lead) ? lead : taggable[0], selection: together);
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
         options = options with { Stamp = _queueWork.StampForActiveScope() };
-        QuickTagSession? quick = null;
-        int selectedCount = SelectedCount;
+        int selectedCount = rows.Count;
         string label = tiles.Count < selectedCount ? Texts.T("tagging.page.selection.editable", tiles.Count, selectedCount)
             : together ? Texts.T("media.selection.count", tiles.Count) : taggable[0].Name;
         _tagBusy = true;
@@ -87,29 +94,22 @@ public sealed partial class TaggingPage
             released = true;
             if (shown == null || ReferenceEquals(_tagPopover, shown)) _tagPopover = null;
             _tagBusy = false;
-            if (!_queueWork.Ended) UpdateActions();
+            if (!_queueWork.Ended) { UpdateActions(); QueuePanelFollow(); }
         }
         try
         {
-            quick = options.NewSession(QuickTagTarget.For(session));
             QuickTagPopoverOptions openOptions = options with
             {
                 ReadSourceTags = ReadBooruCatalog,
-                IsCurrent = () => !_queueWork.Ended && IsEffectivelyVisible,
+                IsCurrent = () => !_queueWork.Ended && IsEffectivelyVisible && !token.IsCancellationRequested,
                 RestoreFocus = true,
                 FocusFallback = FocusListNow,
                 Name = "TaggingTagPopover",
                 // R: the stars of the selected entries on top; the tag field takes focus (a Danbooru medium can be rated though it takes no own tags).
-                Decision = includeRating ? DecisionForEntries?.Invoke(Selected.Select(row => EntryOf(row.Item)).ToArray(), QuickTagInitialFocus.TagInput) : null
+                Decision = includeRating ? DecisionForEntries?.Invoke(rows.Select(row => EntryOf(row.Item)).ToArray(), QuickTagInitialFocus.TagInput) : null
             };
-            QuickTagPopover popover;
-            try { popover = QuickTagPopover.Open(host, quick, label, openOptions); }
-            catch
-            {
-                quick = null;
-                throw;
-            }
-            quick = null;
+            using QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
+            QuickTagPopover popover = QuickTagPopover.Open(host, quick, label, openOptions);
             shown = popover;
             _tagPopover = popover;
             popover.WhenClosed(Release);
@@ -117,7 +117,6 @@ public sealed partial class TaggingPage
         }
         finally
         {
-            quick?.Dispose();
             Release();
             // The new tags show in the counts at once; a popover opened again in the meantime keeps its anchor until it closed.
             if (!_queueWork.Ended && session.Changed)
@@ -126,7 +125,8 @@ public sealed partial class TaggingPage
                 else Show();
             }
         }
-        if (reason == QuickTagPopoverCloseReason.Advanced && !_queueWork.Ended) await TagSelectionDialogAsync();
+        if (reason == QuickTagPopoverCloseReason.Advanced && !_queueWork.Ended && !token.IsCancellationRequested)
+            await TagRowsDialogAsync(token.CanBeCanceled ? rows : Selected);
     }
 
     /// <summary>
@@ -155,10 +155,12 @@ public sealed partial class TaggingPage
     }
 
     /// <summary>Adds or removes an own tag on the occurrences of the selection; the dialog lists them and tags all by default.</summary>
-    internal async Task TagSelectionDialogAsync()
+    internal Task TagSelectionDialogAsync() => TagRowsDialogAsync(Selected);
+
+    private async Task TagRowsDialogAsync(IReadOnlyList<TaggingQueueRow> rows)
     {
         if (!CanTag || TopLevel.GetTopLevel(this) is not Window owner) return;
-        IReadOnlyList<TaggingQueueRow> taggable = TaggingRowCommands.Taggable(Selected);
+        IReadOnlyList<TaggingQueueRow> taggable = TaggingRowCommands.Taggable(rows);
         if (NewTagSession(taggable, out IReadOnlyList<MediaLibraryTile> tiles) is not { } session) return;
         MediaSelectionTagDialog dialog = new(session, tiles.Count, ReadBooruCatalog);
         _tagDialog = dialog;

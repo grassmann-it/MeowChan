@@ -1267,6 +1267,7 @@ public partial class ArchivePage : UserControl
         _ = ReleaseInlineVideos();
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();
+        DisposeThreadTagMenus();
         StopObservingReaderMediaKeys();
         _ = DisposeArchiveMediaCountsAsync();
         EndArchiveCleanupLifetime();

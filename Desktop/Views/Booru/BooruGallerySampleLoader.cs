@@ -46,20 +46,21 @@ internal sealed class BooruGallerySampleLoader
         State = BooruGallerySampleState.Deferred;
     }
 
-    internal void Start(IBooruSamplePort? port, BooruPostView post, Func<BooruGallerySampleLimits>? settings,
+    internal Task? Start(IBooruSamplePort? port, BooruPostView post, Func<BooruGallerySampleLimits>? settings,
         TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode,
-        Func<IImage, bool> adopt, Action changed)
+        Func<IImage, bool> adopt, Action changed, Func<TimeSpan, CancellationToken, Task>? waitAsync = null)
     {
-        if (State != BooruGallerySampleState.Deferred || port is null) return;
+        if (State != BooruGallerySampleState.Deferred || port is null) return null;
         Limits = settings?.Invoke() ?? BooruGallerySampleLimits.FromSettings();
         State = BooruGallerySampleState.Loading;
         BooruGallerySampleLimits limits = Limits;
-        OpenActions.Start(() => LoadAsync(port, post, limits, delay, decode, adopt, changed), "booru.gallery.sample");
+        return OpenActions.StartObserved(() => LoadAsync(port, post, limits, delay, decode, adopt, changed, waitAsync ?? Task.Delay),
+            "booru.gallery.sample");
     }
 
     private async Task LoadAsync(IBooruSamplePort port, BooruPostView post, BooruGallerySampleLimits limits,
         TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode,
-        Func<IImage, bool> adopt, Action changed)
+        Func<IImage, bool> adopt, Action changed, Func<TimeSpan, CancellationToken, Task> waitAsync)
     {
         using CancellationTokenSource cancellation = new();
         _cancel = () => { try { cancellation.Cancel(); } catch (ObjectDisposedException) { } };
@@ -70,7 +71,7 @@ internal sealed class BooruGallerySampleLoader
             BooruGallerySampleState state;
             try
             {
-                await Task.Delay(delay, token);
+                await waitAsync(delay, token);
                 token.ThrowIfCancellationRequested();
                 BooruSampleResult result = await port.LoadSampleAsync(post, limits.Bytes, limits.CacheBytes,
                     TimeSpan.FromSeconds(limits.TimeoutSeconds), token);

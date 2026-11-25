@@ -247,7 +247,7 @@ public partial class PluginsPage
     private void OnPluginActionPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         var list = C<SelectionList>("PluginCards");
-        if (!e.GetCurrentPoint(list).Properties.IsRightButtonPressed || !MainWindow.IsListCommandSource(e.Source, list)) return;
+        if (!ContextClick.IsPress(e, list) || !MainWindow.IsListCommandSource(e.Source, list)) return;
         e.Handled = true;
         SelectionListItem? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<SelectionListItem>().FirstOrDefault();
         string? key = row == null ? null : _cards.FirstOrDefault(pair => ReferenceEquals(pair.Value, row)).Key;
@@ -271,16 +271,12 @@ public partial class PluginsPage
     private bool TryHandlePluginActionKeyDown(KeyEventArgs e)
     {
         if (e.Handled || !MainWindow.IsListCommandSource(e.Source, C<SelectionList>("PluginCards"))) return false;
-        if (CommandBindings.Matches(e, "menu.context-open"))
-        {
-            e.Handled = true;
-            if (_selectedKey is { } key && C<SelectionList>("PluginCards").SelectedItem != null)
-                OpenPluginActionMenu(key, PluginActionOrigin(key));
-            return true;
-        }
-        // Menu remains native. A removed/rebound Shift+F10 must not invoke its old native accelerator.
-        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return true; }
-        return false;
+        if (!ContextClick.IsKey(e)) return false;
+        e.Handled = true;
+        if (_selectedKey is { } key && C<SelectionList>("PluginCards").SelectedItem != null)
+            OpenPluginActionMenu(key, PluginActionOrigin(key));
+        ContextClick.ConsumeOpeningKeyRelease(PluginActionMenu, e.Key, C<SelectionList>("PluginCards"));
+        return true;
     }
 
     internal void OpenPluginActionMenu(string key, Control origin, bool details = false, Point? anchor = null)
