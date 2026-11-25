@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -364,10 +365,10 @@ public partial class MainWindow
         EditMediaLibraryTagsForMenuAsync(entry, () => true);
 
     private async Task EditMediaLibraryTagsForMenuAsync(MediaLibraryEntry indexed, Func<bool> presentationCurrent,
-        GalleryEntry? alreadyResolved = null, Control? returnTo = null)
+        GalleryEntry? alreadyResolved = null, Control? returnTo = null, CancellationToken sidebarToken = default)
     {
         Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
-        bool Current() => hostCurrent() && presentationCurrent();
+        bool Current() => !sidebarToken.IsCancellationRequested && hostCurrent() && presentationCurrent();
         if (!Current() || _mediaTagDialogOpen) return;
         _mediaTagDialogOpen = true;
         Control? origin = returnTo ?? FocusManager?.GetFocusedElement() as Control;
@@ -387,9 +388,9 @@ public partial class MainWindow
                     NotificationType.Warning, operation: "media.tags");
                 return;
             }
-            MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
-                _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), _session.ReadBooruCatalog);
+            MediaTagSession session = NewTargetedMediaTagSession(target, Current, sidebarToken);
+            using MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), _session.ReadBooruCatalog);
+            using CancellationTokenRegistration closeOnTargetChange = sidebarToken.Register(() => Dispatcher.UIThread.Post(dialog.CloseForLifetime));
             MediaPageTagWindow = dialog;
             await dialog.ShowDialog(this);
         }

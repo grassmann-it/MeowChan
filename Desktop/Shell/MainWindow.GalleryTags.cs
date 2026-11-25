@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -217,18 +218,20 @@ public partial class MainWindow
         _gallery.SetMediaTags(loaded.Snapshot.TagsOf(target).Select(tag => tag.Name.Display).ToArray());
     }
 
-    private async Task EditGalleryMediaTagsAsync(GalleryEntry entry, Control? returnTo = null)
+    private async Task EditGalleryMediaTagsAsync(GalleryEntry entry, Control? returnTo = null,
+        Func<bool>? presentationCurrent = null, CancellationToken sidebarToken = default)
     {
-        if (_isClosing || _galleryTagDialogOpen) return;
+        bool Current() => !_isClosing && !sidebarToken.IsCancellationRequested && (presentationCurrent?.Invoke() ?? true);
+        if (!Current() || _galleryTagDialogOpen) return;
         MediaTagSubject? target = MediaTagSubjects.Of(entry, out _);
         if (target == null) { RefreshGalleryMediaTags(); return; }
         Control? origin = returnTo ?? FocusManager?.GetFocusedElement() as Control;
         _galleryTagDialogOpen = true;
         try
         {
-            MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
-                _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            MediaTagDialog dialog = new(session, entry.Asset.OriginalFileName ?? System.IO.Path.GetFileName(entry.Asset.Path), _session.ReadBooruCatalog);
+            MediaTagSession session = NewTargetedMediaTagSession(target, Current, sidebarToken);
+            using MediaTagDialog dialog = new(session, entry.Asset.OriginalFileName ?? System.IO.Path.GetFileName(entry.Asset.Path), _session.ReadBooruCatalog);
+            using CancellationTokenRegistration closeOnTargetChange = sidebarToken.Register(() => Dispatcher.UIThread.Post(dialog.CloseForLifetime));
             GalleryMediaTagWindow = dialog;
             await dialog.ShowDialog(this);
         }
@@ -243,7 +246,7 @@ public partial class MainWindow
                 _gallery?.ReloadTagPanel(); // the panel shows what the dialog changed
                 // A19: a tags action the view keeps under More returns focus to More, not to the closed menu's hidden row.
                 Control? back = _gallery?.FocusReturnTarget(origin, "media.tags.edit") ?? origin;
-                if (back?.IsEffectivelyVisible == true) back.Focus();
+                if (Current() && back?.IsEffectivelyVisible == true) back.Focus();
             }
         }
     }
