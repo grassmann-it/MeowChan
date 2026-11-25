@@ -53,6 +53,9 @@ public partial class ArchivePage
     /// <summary>How the "Thread" menu is shown at its button (a test records it instead of opening a popup).</summary>
     internal Action<ContextMenu, Control> ShowThreadMenu { get; set; } = static (menu, origin) => menu.Open(origin);
 
+    private bool DismissReaderThreadMenu() => PopupToggle.Close(ReaderThreadOpen)
+        || ReaderToolbar.More is { } more && PopupToggle.Close(more);
+
     /// <summary>Nothing runs and no dialog is open: the open thread is shown and the page is idle.</summary>
     private bool ThreadMenuReady => !_ended && !IsFilenameSearchOpen && _available && !_busy && !IsReaderDialogOpen && _thread != null;
 

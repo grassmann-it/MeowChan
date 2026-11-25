@@ -55,7 +55,7 @@ public partial class ArchivePage
     private QuickSettingsPopover CreateReaderQuickSettings(QuickSettingsHost host)
     {
         QuickSettingsPopover popover = new(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), host,
-            "ReaderQuickSettings", ReaderSettingsSession, restoreContentFocus: FocusSelectedPostOrList);
+            "ReaderQuickSettings", ReaderSettingsSession, restoreContentFocus: RestoreReaderSettingsFocus);
         popover.Flyout.Opened += (_, _) => Present(true);
         popover.Flyout.Closed += (_, _) => Present(false);
         popover.Surface.AddHandler(KeyDownEvent, (_, e) =>
@@ -74,6 +74,9 @@ public partial class ArchivePage
                 PopupToggle.Present(more, open);
         }
     }
+
+    private void RestoreReaderSettingsFocus(Control anchor) =>
+        ReturnFocusFromToolbarPopup(anchor, ReaderToolbar, ArchiveReaderPane, FocusSelectedPostOrList);
 
     private bool DismissReaderQuickSettings()
     {

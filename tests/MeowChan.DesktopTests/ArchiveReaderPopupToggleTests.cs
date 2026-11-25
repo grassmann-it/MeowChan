@@ -82,7 +82,7 @@ public sealed class ArchiveReaderPopupToggleTests
         Click(fixture, opener);
         Assert.False(opener.IsChecked);
         Assert.Equal(bounds, new Rect(results.TranslatePoint(default, window)!.Value, results.Bounds.Size));
-        Assert.True(results.IsKeyboardFocusWithin);
+        Assert.True(results.IsKeyboardFocusWithin, FocusState(window, results));
 
         KeyGesture gesture = CommandBindings.Gesture("archive.filters-toggle")!;
         Press(fixture, gesture);
@@ -124,10 +124,12 @@ public sealed class ArchiveReaderPopupToggleTests
         var thread = Find<Button>(window, "ReaderThreadOpen");
         var settings = Find<Button>(window, "ReaderSettingsOpen");
         VerifyClickAndEscape(fixture, thread, () => thread.ContextMenu?.IsOpen == true);
+        Assert.True(page.IsLargeReader, "Escape in the thread menu closed the reader.");
         VerifyClickAndEscape(fixture, settings, () => page.IsQuickSettingsOpen);
+        Assert.True(page.IsLargeReader, "Escape in quick settings closed the reader.");
 
         var posts = Find<ListBox>(window, "ArchivePosts");
-        Assert.True(posts.Focus());
+        Assert.True(posts.IsKeyboardFocusWithin || posts.Focus(NavigationMethod.Tab), FocusState(window, posts));
         KeyGesture settingsKey = CommandBindings.Gesture("reader.quick-settings")!;
         Press(fixture, settingsKey);
         Assert.True(page.IsQuickSettingsOpen);
@@ -169,9 +171,30 @@ public sealed class ArchiveReaderPopupToggleTests
         window.ArchivePage.ArchiveLayoutPreference = "Table";
         window.ArchivePage.ArchiveSplitPreference = Config.ArchiveSplitWidthMaximum;
         fixture.Layout();
-        var columns = Find<Button>(window, "ArchiveThreadColumnsButton");
-        VerifyClickAndEscape(fixture, columns, () => columns.ContextMenu?.IsOpen == true);
-        Assert.True(Find<DataGrid>(window, "ArchiveThreadTable").Focus());
+        var toolbar = Find<ActionToolBar>(window, "ArchiveResultActions");
+        var columns = Assert.Single(toolbar.Items.OfType<Button>(),
+            button => AutomationProperties.GetAutomationId(button) == "ArchiveThreadColumnsButton");
+        Assert.False(columns.Focusable);
+        if (TopLevel.GetTopLevel(columns) == window)
+            VerifyClickAndEscape(fixture, columns, () => columns.ContextMenu?.IsOpen == true);
+        else
+        {
+            var more = Find<ToggleButton>(window, "ArchiveResultActionsMore");
+            Click(fixture, more);
+            Click(fixture, columns);
+            Assert.True(columns.ContextMenu?.IsOpen);
+            Click(fixture, more);
+            Assert.Null(columns.ContextMenu);
+            Assert.False(more.IsChecked);
+            Click(fixture, more);
+            Click(fixture, columns);
+            Assert.True(columns.ContextMenu?.IsOpen);
+            Press(fixture, new KeyGesture(Key.Escape));
+            Assert.Null(columns.ContextMenu);
+            Assert.False(more.IsChecked);
+        }
+        var table = Find<DataGrid>(window, "ArchiveThreadTable");
+        Assert.True(table.IsKeyboardFocusWithin || table.Focus(NavigationMethod.Tab), FocusState(window, table));
         KeyGesture gesture = CommandBindings.Gesture("table.choose-columns")!;
         Press(fixture, gesture);
         ContextMenu first = Assert.IsType<ContextMenu>(columns.ContextMenu);
@@ -238,6 +261,10 @@ public sealed class ArchiveReaderPopupToggleTests
 
     private static T Find<T>(Visual root, string id) where T : Control => Assert.Single(
         root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
+
+    private static string FocusState(Window window, Control target) =>
+        $"Focused {window.FocusManager?.GetFocusedElement()}; target {target.Name}, visible {target.IsEffectivelyVisible}, "
+        + $"enabled {target.IsEffectivelyEnabled}, focusable {target.Focusable}, attached {target.IsAttachedToVisualTree()}";
 
     private static void Click(DownloadWindowFixture fixture, Control control)
     {

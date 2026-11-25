@@ -53,7 +53,7 @@ public partial class ArchivePage
             CloseQuotePreview();
             return true;
         }
-        if (DismissReaderQuickSettings()) return true;
+        if (DismissReaderQuickSettings() || DismissReaderThreadMenu()) return true;
         if (!_ended && ReaderFindBar.IsVisible && IsThreadFindSource(source))
         {
             DismissThreadFind();

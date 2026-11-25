@@ -1,4 +1,7 @@
+using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -21,9 +24,16 @@ public partial class ArchivePage
         ArchiveSourceFilter.ProtectComposition = true;
         ArchiveBoardFilter.ProtectComposition = true;
         _filterSurface = new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface, () => _ended,
-            drivesVisibility: false, restoreContentFocus: () => ArchiveSelectionList.Focus());
+            drivesVisibility: false, restoreContentFocus: RestoreArchiveFilterFocus);
         ArchiveFilters.IsCheckedChanged += (_, _) => PopupToggle.Present(ArchiveFilters, IsFilterSurfaceOpen);
     }
+
+    private void RestoreArchiveFilterFocus() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_ended || IsFilterSurfaceOpen) return;
+        Control target = _threadTable ? ArchiveThreadTable : ItemOrList(ArchiveThreads, ArchiveLead);
+        if (!target.IsKeyboardFocusWithin && !target.Focus(NavigationMethod.Tab)) ArchiveScopedBox.Focus(NavigationMethod.Tab);
+    }, DispatcherPriority.Input);
 
     // The surface names itself and carries its cross (MD4 overlay header); both follow the language and the cross keeps its name.
     private void LocalizeFilterSurface()
