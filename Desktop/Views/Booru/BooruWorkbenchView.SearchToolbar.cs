@@ -152,11 +152,11 @@ internal sealed partial class BooruWorkbenchView
 
         protected override Size MeasureOverride(Size availableSize)
         {
-            _mode.Measure(Size.Infinity);
-            _submit.Measure(Size.Infinity);
-            _cancel.Measure(Size.Infinity);
+            _mode.Measure(Avalonia.Size.Infinity);
+            _submit.Measure(Avalonia.Size.Infinity);
+            _cancel.Measure(Avalonia.Size.Infinity);
             // Measure the buttons inside their slots so hidden actions can move back as soon as they fit.
-            foreach (SearchAction action in _optional) action.Button.Measure(Size.Infinity);
+            foreach (SearchAction action in _optional) action.Button.Measure(Avalonia.Size.Infinity);
             double budget = availableSize.Width - PrimaryWidth - PreferredInputWidth;
             if (_cancel.IsVisible) budget -= _cancel.DesiredSize.Width + Gap;
             double optionalWidth = _optional.Sum(action => action.Width);
@@ -165,7 +165,7 @@ internal sealed partial class BooruWorkbenchView
             if (needsOverflow)
             {
                 _overflow.IsVisible = true;
-                _overflow.Measure(Size.Infinity);
+                _overflow.Measure(Avalonia.Size.Infinity);
                 budget -= _overflow.DesiredSize.Width + Gap;
                 while (inline > 0 && optionalWidth > budget) optionalWidth -= _optional[--inline].Width;
             }
@@ -175,7 +175,7 @@ internal sealed partial class BooruWorkbenchView
                 _overflow.IsVisible = false;
             }
             for (int i = 0; i < _optional.Length; i++) _optional[i].SetInline(i < inline);
-            _actions.Measure(Size.Infinity);
+            _actions.Measure(Avalonia.Size.Infinity);
             double width = double.IsPositiveInfinity(availableSize.Width) ? ReservedWidth + PreferredInputWidth : availableSize.Width;
             _input.Measure(new Size(InputWidth(width), double.PositiveInfinity));
             double height = Math.Max(Math.Max(_mode.DesiredSize.Height, _input.DesiredSize.Height),
