@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
@@ -170,31 +171,49 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.Equal(Texts.T(sidebar.TitleKey), sidebar.HeaderLine);
     });
 
-    // The sidebar's medium has one favourite star: the rating block toggle. The picture's badges (Tom, 16.11.2026, the sweep's F2) no longer repeat it.
     private static WriteableBitmap Picture() => new(new PixelSize(8, 8), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
 
     [Fact]
     public void TheSidebarsPictureDrawsNoFavouriteBadgeWhileTheHeaderStarShowsTheFavourite() => OnOwnDispatcher(() =>
     {
         ReaderMediaSidebar sidebar = new();
+        var star = SidePanelDesignTests.ById<ArchiveFavoriteButton>(sidebar, "ReaderMediaSidebarFavorite");
+        var header = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarHeaderRow");
+        var badges = SidePanelDesignTests.ById<MediaBadgeView>(sidebar, "ReaderMediaSidebarBadges");
+        var play = SidePanelDesignTests.ById<VideoPlayMarkView>(sidebar, "ReaderMediaSidebarPlay");
         bool favorite = true;
         sidebar.ConfigureFavorite(() => true, () => favorite, () => Task.CompletedTask);
-        sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
-        // The rating block star is the favourite's one mark ...
-        Assert.True(sidebar.FavoriteButton.IsVisible);
-        Assert.True(sidebar.FavoriteButton.IsChecked);
-        // ... and the picture carries only its kind, no favourite, in the state and in the placed badges.
-        Assert.False(sidebar.Badges.State.Favorite);
-        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Image), sidebar.Badges.State);
-        Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
-        // A video keeps its kind and is still no favourite badge; a refresh after the favourite changed does not bring one.
-        sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: true, double.PositiveInfinity, double.PositiveInfinity);
-        favorite = false; sidebar.RefreshFavorite(); favorite = true; sidebar.RefreshFavorite();
-        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), sidebar.Badges.State);
-        Assert.True(sidebar.FavoriteButton.IsChecked);
-        Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
-        // The accessible sentence of the badges does not name a favourite either (the rating block star carries that name).
-        Assert.DoesNotContain("Favorite", MediaBadgeSentences.Get(sidebar.Badges.State, sidebar.Badges.Options));
+        try
+        {
+            // W112-72, Fable §§1 and 3: “Favorit nur im Kopf”; variant A keeps the bars docked.
+            sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
+            Assert.True(star.IsVisible);
+            Assert.True(star.IsChecked);
+            Assert.False(play.IsVisible);
+            Assert.False(badges.State.Favorite);
+            Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Image), badges.State);
+            Assert.DoesNotContain(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+
+            sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: true, double.PositiveInfinity, double.PositiveInfinity);
+            favorite = false;
+            sidebar.RefreshFavorite();
+            favorite = true;
+            sidebar.RefreshFavorite();
+            Assert.True(star.IsChecked);
+            Assert.True(play.IsVisible);
+            Assert.False(badges.IsVisible);
+
+            // Variant B §3: “Verborgen bleiben × und die Marken.” The fallback state keeps the video kind.
+            sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true });
+            long idle = Stopwatch.GetTimestamp() + 60 * Stopwatch.Frequency;
+            sidebar.ObserveIdle(idle);
+            sidebar.ObserveIdle(idle + Stopwatch.Frequency);
+            Assert.False(header.IsEffectivelyVisible);
+            Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), badges.State);
+            Assert.DoesNotContain(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+            Assert.DoesNotContain("Favorite", MediaBadgeSentences.Get(badges.State, badges.Options));
+        }
+        finally { sidebar.ShowEmpty(); }
     });
 
     [Fact]
