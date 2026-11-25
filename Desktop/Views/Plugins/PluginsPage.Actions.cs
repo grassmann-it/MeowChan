@@ -21,14 +21,8 @@ using Ursa.Controls;
 
 namespace MeowChan;
 
-public partial class PluginsPage : IDisposable
+public partial class PluginsPage
 {
-    public void Dispose()
-    {
-        EndLifetime();
-        GC.SuppressFinalize(this);
-    }
-
     internal static readonly string[] PluginActionCommandIds =
     {
         "plugins.enable", "plugins.disable", "plugins.details", "plugins.show-settings", "plugins.watches",
