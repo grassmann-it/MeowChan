@@ -7,6 +7,9 @@ namespace MeowChan.Desktop.Localization;
 /// </summary>
 internal static class IoStatsSettingsTexts
 {
+    internal static string TrayTooltipHint(bool isLinux) =>
+        Texts.T(isLinux ? "stats.settings.trayTooltipLinuxHint" : "stats.settings.trayTooltipHint");
+
     internal static readonly (string Key, string English, string German)[] Entries =
     [
         ("stats.settings.title", "Statistics", "Statistik"),
@@ -19,8 +22,9 @@ internal static class IoStatsSettingsTexts
         ("stats.settings.backgroundIntervalHint", "How often the counters are read while the window is hidden, downloads are running and the tray tooltip shows statistics. While the window is hidden and nothing is downloading, nothing is read at all. Allowed: {0} to {1} milliseconds.", "Wie oft die Zähler gelesen werden, solange das Fenster versteckt ist, Downloads laufen und der Tooltip des Infobereichs Statistik zeigt. Ist das Fenster versteckt und lädt nichts, wird gar nichts gelesen. Erlaubt: {0} bis {1} Millisekunden."),
         ("stats.settings.trayTooltip", "Show statistics in the tray tooltip", "Statistik im Tooltip des Infobereichs zeigen"),
         ("stats.settings.trayTooltipHint", "The tooltip of the tray icon shows the current rates and the number of running downloads. It is only refreshed while downloads are running.", "Der Tooltip des Infobereich-Symbols zeigt die aktuellen Raten und die Zahl der laufenden Downloads. Er wird nur aktualisiert, solange Downloads laufen."),
+        ("stats.settings.trayTooltipLinuxHint", "On Linux, see the current rates and the number of running downloads in the footer or under Status › Statistics.", "Unter Linux findest du die aktuellen Raten und die Zahl der laufenden Downloads in der Fußleiste oder unter Status › Statistik."),
         ("stats.settings.trayMenu", "Show statistics in the tray menu", "Statistik im Menü des Infobereichs zeigen"),
-        ("stats.settings.trayMenuHint", "On Linux, the “Statistics” menu entry opens Status › Statistics. On Windows and macOS, three live statistics lines show download activity, totals and available network and disk rates. Each line opens the same page.", "Unter Linux öffnet der Menüeintrag „Statistik“ die Seite Status › Statistik. Unter Windows und macOS zeigen drei Zeilen den aktuellen Downloadstatus, Summen und verfügbare Netzwerk- und Datenträgerraten. Jede Zeile öffnet dieselbe Seite."),
+        ("stats.settings.trayMenuHint", "On Linux, the “Statistics” menu entry opens Status › Statistics. On Windows and macOS, three lines show download activity, totals and available network and disk rates. Windows updates the values while the menu is open. macOS loads the values when the menu opens and keeps them fixed until it closes. Each line opens the same page.", "Unter Linux öffnet der Menüeintrag „Statistik“ die Seite Status › Statistik. Unter Windows und macOS zeigen drei Zeilen den Downloadstatus, Summen und verfügbare Netzwerk- und Datenträgerraten. Windows aktualisiert die Werte, solange das Menü geöffnet ist. macOS lädt die Werte beim Öffnen des Menüs und zeigt sie bis zum Schließen unverändert an. Jede Zeile öffnet dieselbe Seite."),
         ("stats.settings.persist", "Keep statistics on this computer", "Statistik auf diesem Rechner speichern"),
         ("stats.settings.persistHint", "Keeps the daily totals in your profile (io-stats.json), so “today” and the longer totals survive a restart. When this is off, the totals exist only until you close MeowChan; an existing file stays untouched.", "Behält die Tagessummen in deinem Profil (io-stats.json), damit „Heute“ und die längeren Summen einen Neustart überstehen. Ist das ausgeschaltet, gelten die Summen nur, bis du MeowChan schließt; eine vorhandene Datei bleibt unangetastet."),
         ("stats.settings.retentionDays", "Days of statistics kept", "Aufbewahrte Tage der Statistik"),

@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -367,10 +368,43 @@ public sealed class TrayStatsPresenterTests : IDisposable
         Assert.Contains("Linux", hint, StringComparison.Ordinal);
         Assert.Contains("Windows", hint, StringComparison.Ordinal);
         Assert.Contains("macOS", hint, StringComparison.Ordinal);
-        Assert.Matches(System.Text.RegularExpressions.Regex.Escape(status) + "[»”]? › [«“]?" +
-            System.Text.RegularExpressions.Regex.Escape(statistics), hint);
+        Assert.Matches(Regex.Escape(status) + "[»”]? › [«“]?" + Regex.Escape(statistics), hint);
         h.Click(shortcut);
         Assert.Equal(1, h.Opened);
+    }
+
+    [Theory]
+    [InlineData("en", "footer", "while the menu is open", "when the menu opens")]
+    [InlineData("de", "Fußleiste", "solange das Menü geöffnet ist", "beim Öffnen des Menüs")]
+    [InlineData("cs", "spodní liště", "dokud je nabídka otevřená", "při otevření nabídky")]
+    [InlineData("es", "barra inferior", "mientras el menú está abierto", "al abrir el menú")]
+    [InlineData("fr", "barre inférieure", "tant que le menu est ouvert", "à l’ouverture du menu")]
+    [InlineData("it", "barra inferiore", "mentre il menu è aperto", "all’apertura del menu")]
+    [InlineData("ja", "フッター", "メニューを開いている間", "メニューを開いたとき")]
+    [InlineData("ko", "하단 막대", "메뉴가 열려 있는 동안", "메뉴를 열 때")]
+    [InlineData("pl", "dolnym pasku", "dopóki menu jest otwarte", "przy otwarciu menu")]
+    [InlineData("pt-BR", "barra inferior", "enquanto o menu está aberto", "ao abrir o menu")]
+    [InlineData("ru", "нижней панели", "пока меню открыто", "при открытии меню")]
+    [InlineData("zh-Hans", "底部栏", "菜单打开期间", "在打开菜单时")]
+    public void TheTrayHintsDescribeThePlatformBehavior(string language, string footer, string whileOpen, string onOpening)
+    {
+        Texts.SetLanguage(language);
+        string statusPath = Regex.Escape(Texts.T("nav.status")) + "[»”]? › [«“]?" + Regex.Escape(Texts.T("nav.statistics"));
+        string linuxTooltip = IoStatsSettingsTexts.TrayTooltipHint(isLinux: true);
+        Assert.Contains(footer, linuxTooltip, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches(statusPath, linuxTooltip);
+
+        string windowsAndMacTooltip = IoStatsSettingsTexts.TrayTooltipHint(isLinux: false);
+        Assert.Equal(Texts.Own("stats.settings.trayTooltipHint"), windowsAndMacTooltip);
+        Assert.DoesNotMatch(statusPath, windowsAndMacTooltip);
+
+        string[] menuSentences = Texts.T("stats.settings.trayMenuHint").Split('.', '。');
+        string windows = Assert.Single(menuSentences, sentence => sentence.Contains(whileOpen, StringComparison.Ordinal));
+        Assert.Contains("Windows", windows, StringComparison.Ordinal);
+        Assert.DoesNotContain("macOS", windows, StringComparison.Ordinal);
+        string mac = Assert.Single(menuSentences, sentence => sentence.Contains(onOpening, StringComparison.Ordinal));
+        Assert.Contains("macOS", mac, StringComparison.Ordinal);
+        Assert.DoesNotContain("Windows", mac, StringComparison.Ordinal);
     }
 
     [Fact]
