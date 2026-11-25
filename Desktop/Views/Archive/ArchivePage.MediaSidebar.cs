@@ -181,7 +181,11 @@ public partial class ArchivePage
         if (_mediaSidebar is { } existing) return existing;
         // Publish only a fully configured sidebar: a failed reader move must
         // not leave an incomplete cached sidebar poisoning the next attempt.
-        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false, DecisionKeyContext = "reader", BuildTagMenu = BuildPanelTagMenu };
+        ReaderMediaSidebar sidebar = new ReaderMediaSidebar
+        {
+            IsVisible = false, DecisionKeyContext = "reader",
+            BuildTagMenu = (chip, tag) => BuildPanelTagMenu?.Invoke(chip, tag)
+        };
         if (_largeReader) ReaderHostingStep("sidebar.created");
         GridSplitter splitter = new GridSplitter
         {

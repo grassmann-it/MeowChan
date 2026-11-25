@@ -849,7 +849,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         RefreshDecisions();
     }
 
-    internal Func<Control, string, ContextMenuBuilder>? BuildTagMenu { get; set; }
+    internal Func<Control, string, ContextMenuBuilder?>? BuildTagMenu { get; set; }
 
     // A chip that returns to the tree (the line re-measures, the expansion reopens) gets its menu again.
     private void InstallTagMenu(Button chip, string tag) => chip.AttachedToVisualTree += (_, _) => ContextMenuHost.Install(chip,
