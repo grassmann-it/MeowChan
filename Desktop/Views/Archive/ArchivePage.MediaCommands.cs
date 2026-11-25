@@ -173,7 +173,7 @@ public partial class ArchivePage
         if (_mediaSidebar is { } sidebar && IsMediaSidebarSource(source))
         {
             if (SidebarChildOwnsContext(source, sidebar)) return;
-            if (sidebar.IsShowingStalePicture && !path.Contains(sidebar.Strip)) { e.Handled = true; return; }
+            if (sidebar.IsShowingStalePicture && !path.Contains(sidebar.Strip)) { ContextClick.RejectKeyPress(sidebar, e); return; }
         }
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
             && SidebarMediaContext(path) == null && !IsSidebarStripSource(path)
@@ -197,7 +197,11 @@ public partial class ArchivePage
         if (e.Handled || _ended || !_available || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || e.Source is not Control source
             || !ContextClick.IsPress(e, sidebar) || SidebarChildOwnsContext(source, sidebar)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
-        if (ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;
+        if (IsSidebarStripSource(ancestors))
+        {
+            ContextClick.RequestOnMacControlPress(e, sidebar);
+            return;
+        }
         if (!sidebar.IsShowingStalePicture)
         {
             ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };

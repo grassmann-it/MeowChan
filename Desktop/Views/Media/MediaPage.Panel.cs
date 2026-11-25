@@ -590,8 +590,8 @@ public sealed partial class MediaPage
         if (TryDismissPanelTagEditor(e)) return;
         if (_panelShown && _panel is { } panel && _panelRow is { } row && ContextClick.IsKey(e) && OwnsPanelMenu(e.Source, panel))
         {
+            if (panel.IsShowingStalePicture) { ContextClick.RejectKeyPress(panel, e); return; }
             e.Handled = true;
-            if (panel.IsShowingStalePicture) return;
             OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard: true);
             ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
             return;
