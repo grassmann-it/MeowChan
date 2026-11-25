@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -200,10 +201,15 @@ public partial class MainWindow
         {
             MediaTagSession session = NewPopoverTagSession(target, current ?? (static () => true), sidebarToken);
             using MediaTagDialog dialog = new(session, entry.Asset.OriginalFileName ?? System.IO.Path.GetFileName(entry.Asset.Path), _session.ReadBooruCatalog);
-            using CancellationTokenRegistration registration = sidebarToken.Register(
-                () => Avalonia.Threading.Dispatcher.UIThread.Post(dialog.CloseForLifetime));
             GalleryMediaTagWindow = dialog;
-            await dialog.ShowDialog(this);
+            Task shown = dialog.ShowDialog(this);
+            using CancellationTokenRegistration registration = sidebarToken.Register(() =>
+            {
+                // Release the shell from the modal dialog before the new surface takes focus.
+                if (Dispatcher.UIThread.CheckAccess()) dialog.CloseForLifetime();
+                else Dispatcher.UIThread.Post(dialog.CloseForLifetime);
+            });
+            await shown;
         }
         finally
         {
