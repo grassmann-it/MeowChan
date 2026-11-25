@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
@@ -12,8 +13,9 @@ using MeowChan.Desktop.Theming;
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>The leading cell shared by a menu's icon and its checked state. The row owns the input and automation.</summary>
-internal sealed class MenuStateChip : ContentControl
+internal sealed class MenuStateChip : TemplatedControl
 {
+    public static readonly StyledProperty<object?> ContentProperty = ContentControl.ContentProperty.AddOwner<MenuStateChip>();
     public static readonly StyledProperty<MenuItemToggleType> ToggleTypeProperty =
         AvaloniaProperty.Register<MenuStateChip, MenuItemToggleType>(nameof(ToggleType));
     public static readonly StyledProperty<bool> IsCheckedProperty =
@@ -21,12 +23,12 @@ internal sealed class MenuStateChip : ContentControl
     public static readonly StyledProperty<bool> ShowRadioDotProperty =
         AvaloniaProperty.Register<MenuStateChip, bool>(nameof(ShowRadioDot));
 
-    private static readonly StyledProperty<IBrush?> AccentProperty = BrushProperty("Accent");
-    private static readonly StyledProperty<IBrush?> AccentSurfaceProperty = BrushProperty("AccentSurface");
-    private static readonly StyledProperty<IBrush?> MenuSurfaceProperty = BrushProperty("MenuSurface");
-    private static readonly StyledProperty<IBrush?> TextBrushProperty = BrushProperty("TextBrush");
-    private static readonly StyledProperty<IBrush?> MutedProperty = BrushProperty("Muted");
-    private static readonly StyledProperty<IBrush?> ContrastBorderProperty = BrushProperty("ContrastBorder");
+    private static readonly StyledProperty<IBrush?> AccentProperty = AvaloniaProperty.Register<MenuStateChip, IBrush?>("Accent");
+    private static readonly StyledProperty<IBrush?> AccentSurfaceProperty = AvaloniaProperty.Register<MenuStateChip, IBrush?>("AccentSurface");
+    private static readonly StyledProperty<IBrush?> MenuSurfaceProperty = AvaloniaProperty.Register<MenuStateChip, IBrush?>("MenuSurface");
+    private static readonly StyledProperty<IBrush?> TextBrushProperty = AvaloniaProperty.Register<MenuStateChip, IBrush?>("TextBrush");
+    private static readonly StyledProperty<IBrush?> MutedProperty = AvaloniaProperty.Register<MenuStateChip, IBrush?>("Muted");
+    private static readonly StyledProperty<IBrush?> ContrastBorderProperty = AvaloniaProperty.Register<MenuStateChip, IBrush?>("ContrastBorder");
     private IDisposable? _maskTint;
 
     public MenuStateChip()
@@ -45,6 +47,7 @@ internal sealed class MenuStateChip : ContentControl
         this[!ContrastBorderProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
     }
 
+    public object? Content { get => GetValue(ContentProperty); set => SetValue(ContentProperty, value); }
     public MenuItemToggleType ToggleType { get => GetValue(ToggleTypeProperty); set => SetValue(ToggleTypeProperty, value); }
     public bool IsChecked { get => GetValue(IsCheckedProperty); set => SetValue(IsCheckedProperty, value); }
     public bool ShowRadioDot => GetValue(ShowRadioDotProperty);
@@ -95,8 +98,6 @@ internal sealed class MenuStateChip : ContentControl
             Foreground = IsEffectivelyEnabled ? text : muted;
         }
     }
-
-    private static StyledProperty<IBrush?> BrushProperty(string name) => AvaloniaProperty.Register<MenuStateChip, IBrush?>(name);
 
     private static bool MeetsContrast(IBrush? foreground, IBrush? background, double minimum) =>
         foreground is ISolidColorBrush ink && background is ISolidColorBrush surface

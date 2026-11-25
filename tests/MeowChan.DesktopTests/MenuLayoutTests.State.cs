@@ -126,9 +126,12 @@ public sealed partial class MenuIconLayoutTests
 
         void AssertContrast(MenuStateChip chip, Color surface)
         {
+            var paintedChip = Assert.IsType<Border>(Assert.Single(chip.GetVisualChildren()));
             var mask = Assert.IsType<Border>(chip.Content);
-            double frame = Ratio(BrushColor(chip.BorderBrush), surface);
-            double icon = Ratio(BrushColor(mask.Background), BrushColor(chip.Background));
+            Assert.Contains(mask, paintedChip.GetVisualDescendants());
+            Assert.True(mask.IsEffectivelyVisible);
+            double frame = Ratio(BrushColor(paintedChip.BorderBrush), surface);
+            double icon = Ratio(BrushColor(mask.Background), BrushColor(paintedChip.Background));
             Assert.True(frame >= 3, $"{presetId} {theme}: frame {frame:F2}:1");
             Assert.True(icon >= 4.5, $"{presetId} {theme}: mask {icon:F2}:1");
         }
