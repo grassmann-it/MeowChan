@@ -29,6 +29,8 @@ internal static class RawKeyboardInput
         for (int index = 0; index < times; index++)
         {
             Input(top)(new RawKeyEventArgs(Device(), Now, Root(top), RawKeyEventType.KeyDown, key, modifiers, PhysicalKey.None, null, KeyDeviceType.Keyboard));
+            // A modal can close during KeyDown, leaving this input root disposed before release.
+            if (top.PlatformImpl == null) break;
             Input(top)(new RawKeyEventArgs(Device(), Now, Root(top), RawKeyEventType.KeyUp, key, modifiers, PhysicalKey.None, null, KeyDeviceType.Keyboard));
         }
     }

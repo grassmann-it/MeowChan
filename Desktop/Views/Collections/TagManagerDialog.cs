@@ -37,7 +37,7 @@ internal sealed class TagManagerDialog : Window
     private readonly Button _delete = new() { Name = "TagManagerDelete" };
     private readonly StackPanel _confirm = new() { Name = "TagManagerConfirm", Spacing = 8, IsVisible = false };
     private readonly TextBlock _confirmText = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button _confirmDelete = new() { Name = "TagManagerConfirmDelete" };
+    private readonly Button _confirmDelete = new() { Name = "TagManagerConfirmDelete", Classes = { "danger" } };
     private readonly Button _keep = new() { Name = "TagManagerKeep" };
     private readonly TextBlock _status = new() { Name = "TagManagerStatus", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { Name = "TagManagerError", TextWrapping = TextWrapping.Wrap };
@@ -111,6 +111,7 @@ internal sealed class TagManagerDialog : Window
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
+        AutomationProperties.SetAutomationId(_confirmText, "tags.manage.delete.message");
 
         _list.ItemTemplate = new FuncDataTemplate<TagManagerRow>((row, _) => new TextBlock
         {
@@ -418,7 +419,11 @@ internal sealed class TagManagerDialog : Window
         _delete.IsEnabled = ready && current != null && !asking;
         _confirm.IsVisible = _confirming != null && current != null;
         if (_confirm.IsVisible)
-            _confirmText.Text = Texts.T("tags.manage.confirm", current!.Name, current.Threads, current.Media);
+        {
+            string message = Texts.T("tags.manage.confirm", current!.Name, current.Threads, current.Media);
+            if (_aliasList.ItemCount > 0) message += "\n" + Texts.T("tags.manage.confirmAliases");
+            _confirmText.Text = message;
+        }
         _confirmDelete.IsEnabled = _keep.IsEnabled = ready;
         // Merging: two or more selected tags, then the question with target, preview and note.
         _merge.IsVisible = _session.CanMerge;

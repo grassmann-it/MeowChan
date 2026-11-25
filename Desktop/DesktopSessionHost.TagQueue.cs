@@ -121,9 +121,9 @@ internal sealed partial class DesktopSessionHost
     internal Task<TagQueueSnapshot> MoveInTagQueueAsync(TagQueueKey key, int index, CancellationToken token = default)
         => TagQueueCommandAsync(nameof(MoveInTagQueueAsync), store => store.Move(key, index, token), token);
 
-    /// <summary>Removes every entry, or only the finished ones. An unreadable file is preserved next to its place and replaced by an empty queue.</summary>
-    internal Task<TagQueueSnapshot> ClearTagQueueAsync(bool finishedOnly = false, CancellationToken token = default)
-        => TagQueueCommandAsync(nameof(ClearTagQueueAsync), store => store.Clear(finishedOnly, token), token);
+    /// <summary>Removes queue entries. An unreadable queue can be replaced only with explicit reset confirmation.</summary>
+    internal Task<TagQueueSnapshot> ClearTagQueueAsync(bool finishedOnly = false, CancellationToken token = default, bool resetDamaged = false)
+        => TagQueueCommandAsync(nameof(ClearTagQueueAsync), store => store.Clear(finishedOnly, token, resetDamaged), token);
 
     /// <summary>Replaces the stamp set (tag names; at most the fixed ceiling, the user limit applies in the surface).</summary>
     internal Task<TagQueueSnapshot> SetTagQueueStampAsync(IReadOnlyList<string> names, CancellationToken token = default)
