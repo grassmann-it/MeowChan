@@ -15,6 +15,8 @@ internal sealed class RowFocusDataGrid : DataGrid
 
     protected override Type StyleKeyOverride => typeof(DataGrid);
 
+    internal object? CurrentRowItem => CurrentItem;
+
     public RowFocusDataGrid()
     {
         LoadingRow += (_, e) =>
