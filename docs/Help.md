@@ -450,8 +450,8 @@ fort, sendet keine Suche und umgeht diese Regeln nicht.
 Choose **Tag search**, enter up to two tags and one optional `rating:` term, and
 press **Search**. Positive and negative (`-tag`) occurrences both count toward the
 two-tag limit. MeowChan normalizes separators to spaces but adds no hidden terms
-or automatic `g,s` filter. A search is limited to at most 5 pages of 20 posts;
-use **Previous page** and **Next page**, or refine the query. In Gallery, the
+or automatic `g,s` filter. A new search defaults to 5 pages of 20 posts. The Booru search page limit in Settings accepts 1 to 1000.
+Use the arrows or enter a page number below the results. A plus means the total is still unknown. In Gallery, the
 pager's tooltip and accessible status name the query for the current results.
 The search field's tooltip explains the query syntax and how originals are queued.
 
