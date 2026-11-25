@@ -107,11 +107,11 @@ public sealed class ArchiveAttachmentMatchingTests
     internal sealed record Fixture(string Directory, MediaAssetSnapshot Snapshot, MediaAssetReference Asset,
         CapturedAttachment Attachment, MediaAttachmentBinding? Binding) : IDisposable
     {
-        internal static async Task<Fixture> CreateAsync(bool bound = true, bool mismatch = true, bool extended = false)
+        internal static async Task<Fixture> CreateAsync(bool bound = true, bool mismatch = true, bool extended = false, byte[]? image = null)
         {
             string directory = Path.Combine(Path.GetTempPath(), "meowchan-consumer-" + Guid.NewGuid().ToString("N"));
             System.IO.Directory.CreateDirectory(directory);
-            byte[] bytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
+            byte[] bytes = image ?? Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
             await File.WriteAllBytesAsync(Path.Combine(directory, "a.png"), bytes);
             object entry = new { MediaIdentifier = "777", Variant = "original", SourceUrl = "https://fixture.invalid/a.png",
                 FileName = "a.png", Length = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),

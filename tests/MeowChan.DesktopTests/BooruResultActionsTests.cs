@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
@@ -306,6 +307,56 @@ public sealed class BooruResultActionsTests
         Assert.True(hit.ContextMenu?.IsOpen);
         Click(Item(hit.ContextMenu!, BooruWorkbenchView.MenuOpenPost));
         Assert.Equal(Url("102"), Assert.Single(fixture.Harness.Links.Opened));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MoreCanCloseAndToggleCatalogUsageAgain(bool selectCatalog) => Run(() =>
+    {
+        using Fixture fixture = new();
+        fixture.Harness.Watchers.CatalogUsage = new BooruCatalogUsageView(80, 2, 100);
+        BooruComponentDispatcher.Wait(fixture.View.Model.Watchers.RefreshAsync());
+        fixture.View.ShowWatchers();
+        fixture.View.ApplyWorkView(WorkView.Simple, viewChanged: true);
+        fixture.Settle();
+        Button more = SidePanelDesignTests.ById<Button>(fixture.View, "BooruMore");
+        Border storage = SidePanelDesignTests.ById<Border>(fixture.View, BooruWorkbenchView.CatalogStorageName);
+        Assert.False(storage.IsVisible);
+
+        ContextMenu Open()
+        {
+            more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            fixture.Settle();
+            ContextMenu menu = Assert.IsType<ContextMenu>(more.ContextMenu);
+            Assert.True(menu.IsOpen);
+            return menu;
+        }
+
+        void ToggleUsage(ContextMenu menu)
+        {
+            MenuItem entry = Assert.Single(menu.Items.OfType<MenuItem>(),
+                item => AutomationProperties.GetAutomationId(item) == "booru.catalog.usage");
+            Click(entry);
+            fixture.Settle();
+        }
+
+        ContextMenu opened = Open();
+        if (selectCatalog)
+        {
+            ToggleUsage(opened);
+            Assert.True(storage.IsEffectivelyVisible);
+            Assert.True(more.IsVisible);
+            ToggleUsage(Open());
+            Assert.False(storage.IsVisible);
+        }
+        else
+        {
+            more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            fixture.Settle();
+            Assert.False(more.ContextMenu?.IsOpen == true);
+        }
+        Assert.False(more.Focusable);
     });
 
     internal static ContextMenu OpenContext(Window window, Border hit)

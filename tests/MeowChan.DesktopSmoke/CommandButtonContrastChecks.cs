@@ -173,13 +173,13 @@ internal static class CommandButtonContrastChecks
     {
         TextBlock? label = button.GetVisualDescendants().OfType<TextBlock>().SingleOrDefault();
         // CommandContent uses a mask, but ArchiveFavoriteButton now renders the
-        // production vector star. Sample that real shape instead of assuming a mask.
+        // production vector heart (the favourite mark since 25.11.2026). Sample that real shape instead of assuming a mask.
         Control icon;
         Color iconColor;
         if (button is ArchiveFavoriteButton)
         {
             Avalonia.Controls.Shapes.Path star = button.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>()
-                .Single(path => path.Tag is WorkspaceIcons.Star or WorkspaceIcons.StarFilled);
+                .Single(path => path.Tag is WorkspaceIcons.Heart or WorkspaceIcons.HeartFilled);
             icon = star;
             iconColor = Solid(star.Stroke);
         }

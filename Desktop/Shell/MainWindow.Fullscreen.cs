@@ -842,7 +842,9 @@ public partial class MainWindow
                 && _diagnosticsPage?.RouteDiagnosticFilterKey(e) == true) return;
             if (CanFocusDownloadSearch && IsAdmissionDismissSource(e.Source)) return;
             // A search field with text takes its first Escape to clear itself (SearchBox); nothing around it reacts to that key.
-            if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
+            bool readerFindSource = _archivePage?.IsThreadFindSource(e.Source) == true;
+            if ((readerFindSource || _archivePage?.IsTagBarSource(e.Source) == true) && MeowChan.ArchivePage.ReaderInputIsComposing(e.Source)) return;
+            if (!readerFindSource && MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
             if (_selectedPage == WorkspacePage.Tagging && _taggingPage is { StampOpen: true } tagging)
@@ -895,6 +897,9 @@ public partial class MainWindow
         if (CommandBindings.Matches(e, "window.minimize") && !CommandRouter.IsNativeInput(e.Source, e.Key))
         { e.Handled = true; MinimizeWindow(toTray: false); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
+        if ((_selectedPage == WorkspacePage.Archive || _largeReaderOpen) && (_gallery == null || _gallerySuspended)
+            && _archivePage?.TryToggleArchiveColumnsByKey(e) == true)
+        { e.Handled = true; return; }
         if (TryRouteMediaReturn(e)) return;
         // Native video -> image retirement can clear focus before the next key.
         // A Window-source arrow would otherwise reach Avalonia's directional focus
@@ -980,7 +985,11 @@ public partial class MainWindow
         else if ((_selectedPage == WorkspacePage.Archive || _largeReaderOpen) && (_gallery == null || _gallerySuspended) && _archivePage?.TryOpenReaderFindByKey(e) == true)
         { e.Handled = true; }
         else if (CommandBindings.Matches(e, "input.focus-search") && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
-        { e.Handled = true; _archivePage?.FocusArchiveTextSearch(); }
+        {
+            if (_archivePage?.IsThreadFindSource(e.Source) == true && MeowChan.ArchivePage.ReaderInputIsComposing(e.Source)) return;
+            e.Handled = true;
+            _archivePage?.FocusArchiveTextSearch();
+        }
         else if (CommandBindings.Matches(e, "input.focus-media-search") && _selectedPage == WorkspacePage.Media && _mediaPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _mediaPage.FocusSearch(); }
         // AP2: the diagnostics message filter is the same search field and takes Primary+F like the other pages.

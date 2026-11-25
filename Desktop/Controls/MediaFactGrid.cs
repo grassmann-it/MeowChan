@@ -110,6 +110,8 @@ internal sealed class MediaFactGrid : Grid
         internal FileNameValue(string fullName)
         {
             _fullName = fullName;
+            GotFocus += (_, _) => Text = _fullName;
+            LostFocus += (_, _) => InvalidateMeasure();
             Classes.Add("media-fact-value");
             TextWrapping = TextWrapping.NoWrap;
             TextTrimming = TextTrimming.CharacterEllipsis;
@@ -118,7 +120,7 @@ internal sealed class MediaFactGrid : Grid
 
         protected override Size MeasureOverride(Size availableSize)
         {
-            Text = FitFileName(_fullName, candidate => Fits(candidate, availableSize.Width));
+            Text = IsFocused ? _fullName : FitFileName(_fullName, candidate => Fits(candidate, availableSize.Width));
             return base.MeasureOverride(availableSize);
         }
 

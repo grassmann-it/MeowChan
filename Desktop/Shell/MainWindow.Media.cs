@@ -305,7 +305,8 @@ public partial class MainWindow
             if (!Current()) return;
             GalleryEntry? entry = await MediaMenuIdentity.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
                 Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog,
-                fromTagQueue: taggingCurrent != null);
+                fromTagQueue: taggingCurrent != null,
+                decisionOnly: id.StartsWith("favorites.", StringComparison.Ordinal) || id.StartsWith("media.rating.", StringComparison.Ordinal));
             if (!Current()) return;
             if (entry == null)
             {
@@ -470,10 +471,13 @@ internal static class MediaMenuIdentity
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
         Func<bool> isCurrent, CancellationToken token, Func<BooruCatalogSnapshot?>? readBooruCatalog = null,
-        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null, bool fromTagQueue = false)
+        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null, bool fromTagQueue = false, bool decisionOnly = false)
     {
         if (!isCurrent() || token.IsCancellationRequested || indexed.Presence != MediaLibraryPresence.Present
             || indexed.Directory == null) return null;
+        Task<Stream> OpenOriginalAsync(GalleryEntry entry) => decisionOnly
+            ? Task.Run(() => GallerySidebarOriginal.OpenAsync(entry, token), token)
+            : entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token);
         GalleryEntry? resolved;
         if (indexed.FolderItemId != null)
         {
@@ -482,7 +486,7 @@ internal static class MediaMenuIdentity
             if (resolved == null || !Matches(indexed, resolved) || !isCurrent() || token.IsCancellationRequested) return null;
             try
             {
-                await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+                await using Stream verified = await OpenOriginalAsync(resolved);
                 return isCurrent() && !token.IsCancellationRequested ? resolved : null;
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
@@ -498,7 +502,7 @@ internal static class MediaMenuIdentity
             if (resolved == null || !Matches(indexed, resolved) || !isCurrent() || token.IsCancellationRequested) return null;
             try
             {
-                await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+                await using Stream verified = await OpenOriginalAsync(resolved);
                 return isCurrent() && !token.IsCancellationRequested ? resolved : null;
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
@@ -513,7 +517,7 @@ internal static class MediaMenuIdentity
             if (resolved == null || !Matches(indexed, resolved) || !isCurrent() || token.IsCancellationRequested) return null;
             try
             {
-                await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+                await using Stream verified = await OpenOriginalAsync(resolved);
                 return isCurrent() && !token.IsCancellationRequested ? resolved : null;
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
@@ -542,7 +546,7 @@ internal static class MediaMenuIdentity
         if (resolved == null || !isCurrent() || token.IsCancellationRequested) return null;
         try
         {
-            await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+            await using Stream verified = await OpenOriginalAsync(resolved);
             return isCurrent() && !token.IsCancellationRequested ? resolved : null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }

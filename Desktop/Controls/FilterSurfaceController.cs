@@ -27,16 +27,25 @@ internal sealed class FilterSurfaceController
     private readonly Border _surface;
     private readonly Func<bool> _isEnded;
     private readonly bool _drivesVisibility;
+    private readonly Action? _restoreContentFocus;
 
-    internal FilterSurfaceController(Visual host, ToggleButton toggle, Border surface, Func<bool> isEnded, bool drivesVisibility, bool overlay = true)
+    internal FilterSurfaceController(Visual host, ToggleButton toggle, Border surface, Func<bool> isEnded, bool drivesVisibility,
+        bool overlay = true, Action? restoreContentFocus = null)
     {
         _host = host;
         _toggle = toggle;
         _surface = surface;
         _isEnded = isEnded;
         _drivesVisibility = drivesVisibility;
+        _restoreContentFocus = restoreContentFocus;
         if (overlay) OverlayReveal.Follow(surface);
         surface.KeyDown += OnKeyDown;
+        if (restoreContentFocus != null) toggle.Click += (_, _) =>
+        {
+            if (_isEnded()) return;
+            if (IsOpen) FocusFirstField();
+            else RestoreFocus();
+        };
         toggle.PropertyChanged += (_, e) =>
         {
             if (e.Property == ToggleButton.IsCheckedProperty) OnToggled(e.GetNewValue<bool?>() == true);
@@ -61,7 +70,7 @@ internal sealed class FilterSurfaceController
             // Hiding the surface must not strand keyboard focus on an invisible field.
             bool focused = FocusWithin(_surface);
             if (_drivesVisibility) _surface.IsVisible = false;
-            if (focused) Toggle.Focus(NavigationMethod.Tab);
+            if (focused) RestoreFocus();
             return;
         }
         if (_drivesVisibility) _surface.IsVisible = true;
@@ -89,7 +98,13 @@ internal sealed class FilterSurfaceController
     {
         bool focused = FocusWithin(_surface);
         _toggle.IsChecked = false;
-        if (restoreFocus || focused) Toggle.Focus(NavigationMethod.Tab);
+        if (restoreFocus || focused) RestoreFocus();
+    }
+
+    private void RestoreFocus()
+    {
+        if (_restoreContentFocus != null) _restoreContentFocus();
+        else Toggle.Focus(NavigationMethod.Tab);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

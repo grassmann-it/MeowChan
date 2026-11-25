@@ -312,7 +312,9 @@ public sealed class ReaderMediaSidebarLoadStateTests : IDisposable
         Assert.Contains("if (ticket.UpToDate)", source);
         Assert.Contains($"ReaderMediaSidebarImageLoad load = new({view}, key, ticket,", source);
         Assert.Contains("return load.RunAsync(async ct =>", source);
-        Assert.Contains("new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release", source);
+        // 73-2: both hosts decode through the shared loader, which hands the picture back with the shared cache's release.
+        Assert.Contains("return await load.ReadImageAsync(entry, new(target.Width, target.Height), ct);", source);
+        Assert.Contains("return new(bitmap, GalleryImageCache.Shared.Release, info.StillFrame", Read("Desktop/Views/Archive/ReaderMediaSidebarImageLoad.cs"));
         Assert.DoesNotContain("PlaceholderRequest", source); // timers no longer borrow another request's mutable identity
         // The load tokens are the load state's only.
         Assert.DoesNotContain("_sidebarRequest", source);

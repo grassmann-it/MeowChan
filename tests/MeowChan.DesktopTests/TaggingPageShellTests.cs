@@ -6,9 +6,11 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Updates;
@@ -78,7 +80,90 @@ public sealed class TaggingPageShellTests
         await WaitAsync(window, () => Find<Control>(window, "ReaderMediaSidebarFacts").IsEffectivelyVisible, "sidebar facts after widening");
     });
 
-    private static void WithTaggingPage(bool panelEnabled, Func<MainWindow, DesktopSessionHost, FavoriteAssetKey, Task> test) =>
+    [Fact]
+    public void ShutdownKeepsTheProfileUntilTheTaggingPlayerReleasesIt() => WithTaggingPage(true, async (window, session, _) =>
+    {
+        TaggingPage page = Assert.IsType<TaggingPage>(window.TaggingPage);
+        ReaderInlineVideoSlot slot = Assert.IsType<ReaderInlineVideoSlot>(page.PanelVideo);
+        HeldPlayer player = new();
+        Assert.True(await page.PanelVideoController.PlayAsync(slot, () => player));
+
+        Task shutdown = window.DisposeAsync().AsTask();
+        try
+        {
+            await WaitAsync(window, () => player.Releasing.Task.IsCompleted || shutdown.IsCompleted, "tagging player release during shutdown");
+            Assert.False(session.IsProfileReleased);
+            Assert.True(player.Releasing.Task.IsCompleted);
+            Assert.False(shutdown.IsCompleted);
+        }
+        finally
+        {
+            player.FinishRelease.TrySetResult();
+            await shutdown;
+        }
+        Assert.True(session.IsProfileReleased);
+    });
+
+    [Fact]
+    public void SavingReaderQuickSettingsUpdatesBothExistingSidebarControllers()
+    {
+        string waitingFor = "the Tagging queue in the shell";
+        WithTaggingPage(true, async (window, session, key) =>
+        {
+            TaggingPage tagging = Assert.IsType<TaggingPage>(window.TaggingPage);
+            waitingFor = "the Media page to open";
+            ShowPage("MediaNavigationButton");
+            MediaPage media = Assert.IsType<MediaPage>(window.MediaPageForTests);
+            foreach (ReaderInlineVideoController controller in new[] { tagging.PanelVideoController, media.PanelVideoController })
+                Assert.Equal((true, true, false), SidebarOptions(controller));
+
+            waitingFor = "the archive reader to load the thread";
+            ShowPage("ArchiveNavigationButton");
+            ArchivePage reader = window.ArchivePage;
+            await reader.LoadThreadAsync(key.Thread);
+            window.UpdateLayout();
+            waitingFor = "the Reader quick settings popover";
+            reader.OpenReaderQuickSettings();
+            Assert.True(reader.IsQuickSettingsOpen);
+            QuickSettingsSurface surface = reader.ReaderQuickSettings!.Surface;
+            Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoAutoplay).IsChecked = false;
+            Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoLoop).IsChecked = false;
+            Find<CheckBox>(surface, "ReaderQuickSettings" + SettingsFieldId.ReaderSidebarVideoStartMuted).IsChecked = true;
+            Find<Button>(surface, "ReaderQuickSettingsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            waitingFor = "the Reader quick settings save";
+            await reader.FlushQuickSettingsAsync();
+
+            Assert.Equal((false, false, true), (session.Config.ReaderSidebarVideoAutoplay, session.Config.ReaderSidebarVideoLoop,
+                session.Config.ReaderSidebarVideoStartMuted));
+            Assert.Equal((false, false, true), SidebarOptions(tagging.PanelVideoController));
+            Assert.Equal((false, false, true), SidebarOptions(media.PanelVideoController));
+
+            waitingFor = "the shell to shut down after the quick settings save";
+
+            void ShowPage(string id) => Find<Button>(window, id).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            static (bool Autoplay, bool Loop, bool Muted) SidebarOptions(ReaderInlineVideoController controller) =>
+                (controller.Options.SidebarAutoplay, controller.Options.SidebarLoop, controller.Options.SidebarStartMuted);
+        }, () => waitingFor);
+    }
+
+    private sealed class HeldPlayer : IReaderInlineVideoPlayer
+    {
+        internal TaskCompletionSource Releasing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource FinishRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IsPlaying => true;
+        public Task StartAsync() => Task.CompletedTask;
+        public Task PlayAsync() => Task.CompletedTask;
+        public Task PauseAsync() => Task.CompletedTask;
+
+        public ValueTask DisposeAsync()
+        {
+            Releasing.TrySetResult();
+            return new ValueTask(FinishRelease.Task);
+        }
+    }
+
+    private static void WithTaggingPage(bool panelEnabled, Func<MainWindow, DesktopSessionHost, FavoriteAssetKey, Task> test,
+        Func<string>? waitingFor = null) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -118,7 +203,7 @@ public sealed class TaggingPageShellTests
                 FavoriteAssetKey key = FavoriteAssetKey.From(item.Thread, media.Asset);
                 await test(window, session, key);
             }
-        });
+        }, waitingFor);
 
     private static T Find<T>(Visual root, string id) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control =>

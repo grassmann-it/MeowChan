@@ -189,6 +189,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
     public MediaLibraryTileView()
     {
         MaxWidth = _appearance.CellWidth; Height = _appearance.CellHeight;
+        AutomationProperties.SetAutomationId(_placeholder, "MediaTilePreviewStatus");
         _favoriteToggle.Focusable = false;
         AutomationProperties.SetAutomationId(_favoriteToggle, "MediaTileFavoriteToggle");
         _favoriteToggle.IsTabStop = false;
@@ -455,7 +456,11 @@ internal sealed partial class MediaLibraryTileView : UserControl
             _placeholder.Text = bitmap == null ? Texts.T("archive.previewUnavailable") : string.Empty;
         }
         catch (OperationCanceledException) { }
-        catch (Exception) { if (request == _request) _placeholder.Text = Texts.T("archive.previewUnavailable"); }
+        catch (Exception error)
+        {
+            if (request == _request)
+                _placeholder.Text = Texts.T(error is GalleryPreviewTooLargeException ? "archive.tooLarge" : "archive.previewUnavailable");
+        }
         finally
         {
             Interlocked.Decrement(ref _pendingLoads);

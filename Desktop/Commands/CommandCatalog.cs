@@ -121,6 +121,8 @@ public static class CommandCatalog
         new("navigation.statistics", "command.navigation.statistics", "Statistics", "Statistik", "monitor", null, CommandScope.Application, new[] { "status-segment", "header-graph", "tray" }),
         new("booru.search.submit", "booru.tabs.command.submit", "Submit Booru search", "Booru-Suche starten", "search", "Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
         new("booru.search.alternate", "booru.tabs.command.alternate", "Submit Booru search in a new tab", "Booru-Suche in einem neuen Tab starten", "search", "Shift+Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
+        new("booru.search.watch", "booru.tabs.command.watch", "Watch a Booru query", "Booru-Suche beobachten", "plus", "Primary+Shift+F7", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
+        new("booru.search.download-all", "booru.tabs.command.downloadAll", "Start or stop Booru bulk download", "Booru-Sammeldownload starten oder stoppen", "download", "Primary+Shift+F8", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
         new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
@@ -318,6 +320,7 @@ public static class CommandCatalog
         new("reader.view.hover-enlarge", "command.reader.view.hover-enlarge", "Enlarge image on hover", "Bild beim Überfahren vergrößern", "zoom-in", null, CommandScope.Reader, new[] { "reader-settings" }),
         new("reader.post-filters", "command.reader.post-filters", "Post filters…", "Postfilter…", "filter", null, CommandScope.Reader, new[] { "reader-settings" }),
         // The reader's settings popover (R7, the toolbar's gear since RL1); a user shortcut opens it too.
+        new("reader.thread-menu", "reader.thread.menu", "Thread", "Thread", "file-text", "Primary+Shift+J", CommandScope.Reader, new[] { "reader-toolbar" }),
         new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "settings", null, CommandScope.Reader, new[] { "reader-settings" }),
         // R8: the media sidebar of the large reader (a settings-popover switch) and its steps through the focused post's media.
         new("media.sidebar.autohide", "command.media.sidebar.autohide", "Auto-hide sidebar controls", "Leisten automatisch ausblenden", "eye-off", "Shift+A", CommandScope.Reader | CommandScope.Media | CommandScope.Gallery, new[] { "reader", "media", "gallery-keyboard", "tagging" }, new[] { "reader", "media", "gallery", "tagging" }),
@@ -328,11 +331,11 @@ public static class CommandCatalog
         new("reader.sidebar.previous-media", "command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts", "chevron-left", "Alt+Shift+Left", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         new("reader.sidebar.next-media", "command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts", "chevron-right", "Alt+Shift+Right", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         // The Media page's media panel (a large medium beside the grid).
-        new("media.panel.toggle", "command.media.panel.toggle", "Media sidebar", "Medienleiste", "panel-right", "Primary+Shift+M", CommandScope.Media, new[] { "media-layout-menu", "media-panel", "tagging-page" }, new[] { "media", "tagging" }),
+        new("media.panel.toggle", "command.media.panel.toggle", "Media sidebar", "Medienleiste", "panel-right", "Primary+Shift+M", CommandScope.Media, new[] { "media-layout-menu", "media-panel", "tagging-page", "booru" }, new[] { "media", "tagging", "booru" }),
         // Revision 19: H hides the selected post (ArchivePage.OnPostFilterKeyDown; a text field keeps its letters).
         new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", "H", CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),
-        new("thread.favorite-toggle", "command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen", "star", "Primary+D", CommandScope.Archive | CommandScope.Reader, new[] { "archive-card", "archive-table", "archive-thread-menu", "reader-toolbar" }),
+        new("thread.favorite-toggle", "command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen", "heart", "Primary+D", CommandScope.Archive | CommandScope.Reader, new[] { "archive-card", "archive-table", "archive-thread-menu", "reader-toolbar" }),
         new("thread.tags", "command.thread.tags", "Thread tags…", "Thread-Tags…", "tag", "Primary+T", CommandScope.Archive | CommandScope.Reader, new[] { "archive-thread-menu" }, new[] { "archive", "reader" }),
         // Quick tagging (tag panel in the gallery, tag popover elsewhere). Registered ahead of the handlers: QuickTagCommands.AwaitingHandler keeps them inactive and unlisted until
         // the packages that wire them say so. The panel commands act in the gallery only (Ctrl+T there is the thread tags section; thread.tags stays in the archive and the reader);
@@ -372,11 +375,11 @@ public static class CommandCatalog
         // Tom's decision of 15.11.2026 (defaults revision 20): M adds and U removes a favourite, F toggles, uniformly wherever a medium is shown or selected: the
         // reader's post (the medium of the shared resolver, ReaderMediaActivation), its media sidebar, the archive's media tiles and list, the Media page's grid
         // (every selected tile) and panel, and the gallery. B stays a second key of "Add favorite" (the gallery's key of revision 13). Mute moved to Shift+M.
-        new("favorites.toggle", "command.favorites.toggle", "Add / remove favorite", "Als Favorit markieren / entfernen", "star", "F", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media | CommandScope.Archive, new[] { "reader-inline-media", "gallery-toolbar", "media-tile", "media-context-menu", "archive-media" }),
-        new("favorites.add", "command.favorites.add", "Add favorite", "Favorit hinzufügen", "star", "M", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media | CommandScope.Archive, new[] { "gallery-toolbar", "gallery-keyboard", "reader-inline-media", "media-tile", "archive-media" }),
+        new("favorites.toggle", "command.favorites.toggle", "Add / remove favorite", "Als Favorit markieren / entfernen", "heart", "F", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media | CommandScope.Archive, new[] { "reader-inline-media", "gallery-toolbar", "media-tile", "media-context-menu", "archive-media" }),
+        new("favorites.add", "command.favorites.add", "Add favorite", "Favorit hinzufügen", "heart", "M", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media | CommandScope.Archive, new[] { "gallery-toolbar", "gallery-keyboard", "reader-inline-media", "media-tile", "archive-media" }),
         new("favorites.remove", "command.favorites.remove", "Remove favorite", "Favorit entfernen", "x", "U", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media | CommandScope.Archive, new[] { "gallery-toolbar", "gallery-keyboard", "reader-inline-media", "media-tile", "archive-media" }),
-        new("favorites.filter", "command.favorites.filter", "Favorites only", "Nur Favoriten", "star", null, CommandScope.Archive | CommandScope.Media, new[] { "thread-media-filter", "archive-media-filter" }),
-        new("favorites.open", "command.favorites.open", "Show favorites", "Favoriten anzeigen", "star", null, CommandScope.Archive, new[] { "archive-favorites-overview" }),
+        new("favorites.filter", "command.favorites.filter", "Favorites only", "Nur Favoriten", "heart", null, CommandScope.Archive | CommandScope.Media, new[] { "thread-media-filter", "archive-media-filter" }),
+        new("favorites.open", "command.favorites.open", "Show favorites", "Favoriten anzeigen", "heart", null, CommandScope.Archive, new[] { "archive-favorites-overview" }),
         new("favorites.export-originals", "command.favorites.export-originals", "Export favorite originals", "Favorisierte Originale exportieren", "download", null, CommandScope.Archive | CommandScope.Gallery | CommandScope.Media, new[] { "gallery", "thread-media", "selected-threads", "archive-results", "favorites-overview" }),
         new("media.export-original", "command.media.export-original", "Export", "Exportieren", "download", "Primary+E", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
         new("media.show-in-folder", "command.media.show-in-folder", "Show in folder", "Im Ordner anzeigen", "folder", "Primary+O", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
@@ -467,8 +470,8 @@ public static class CommandCatalog
         { "window.fullscreen", new Dictionary<string, string>(StringComparer.Ordinal) { { "windowed", "maximize" }, { "fullscreen", "minimize" } } },
         { "viewer.shortcut-hints", new Dictionary<string, string>(StringComparer.Ordinal) { { "hidden", "help" }, { "shown", "help" } } },
         { "watch.follow-live", new Dictionary<string, string>(StringComparer.Ordinal) { { "off", "arrow-down" }, { "on", "arrow-down" } } },
-        { "favorites.toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "unmarked", "star" }, { "marked", "star-filled" } } },
-        { "favorites.filter", new Dictionary<string, string>(StringComparer.Ordinal) { { "all", "star" }, { "favorites_only", "star" } } },
+        { "favorites.toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "unmarked", "heart" }, { "marked", "heart-filled" } } },
+        { "favorites.filter", new Dictionary<string, string>(StringComparer.Ordinal) { { "all", "heart" }, { "favorites_only", "heart" } } },
         { "video.play-pause", new Dictionary<string, string>(StringComparer.Ordinal) { { "paused", "play" }, { "playing", "pause" } } },
         { "gallery.slideshow-toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "stopped", "play" }, { "running", "pause" } } },
         { "video.mute", new Dictionary<string, string>(StringComparer.Ordinal) { { "audible", "volume-2" }, { "muted", "volume-x" } } },
@@ -540,7 +543,7 @@ public static class CommandCatalog
             return Texts.T("command.scope.export-open-html.reader");
         return id switch
         {
-            "booru.search.submit" or "booru.search.alternate" => Texts.T("booru.ui.input.label"),
+            "booru.search.submit" or "booru.search.alternate" or "booru.search.watch" or "booru.search.download-all" => Texts.T("booru.ui.input.label"),
             "archive.select-page" => Texts.T("command.scope.archive.select-page"),
             "archive.previous-page" or "archive.next-page" => Texts.T("command.scope.archive.page-navigation"),
             "selection.select-all" => Texts.T("command.scope.selection.select-all"),

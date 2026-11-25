@@ -1,10 +1,13 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -113,4 +116,61 @@ public sealed class BooruPaginationTests
         Assert.True(bindings.Matches(new KeyEventArgs { Key = back, KeyModifiers = modifiers }, "pagination.previous", "booru"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = next, KeyModifiers = modifiers }, "pagination.next", "booru"));
     }
+
+    [Theory]
+    [InlineData(BooruWorkbenchView.InputName, PhysicalKey.J, "J", "j")]
+    [InlineData("BooruPageNumber", PhysicalKey.Digit2, "D2", "2")]
+    public void SavedBarePageBindingLeavesNativeTextEntryToTheFocusedField(string automationId, PhysicalKey key, string gesture, string text)
+        => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ShortcutBindingsSection previous = ShortcutService.CurrentSection;
+        ShortcutService.Publish(new ShortcutBindingsSection().Set("pagination.next",
+            [ShortcutGesture.Parse(gesture), ShortcutGesture.Parse(OperatingSystem.IsMacOS() ? "Primary+Alt+Right" : "Alt+PageDown")]));
+        BooruUiHarness harness = new();
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, isEnd: false, BooruUiFixtures.Post("101", tags: [], preview: false))));
+        using BooruPage booru = new(harness.Services);
+        Window window = new() { Content = booru, Width = 960, Height = 720 };
+        try
+        {
+            Assert.Empty(ShortcutService.Current.Issues);
+            window.Show();
+            booru.ShowQuery("cat");
+            BooruComponentDispatcher.Wait(booru.Model.Search.SubmitAsync());
+            Layout();
+
+            TextBox field = Find<TextBox>(automationId);
+            Assert.True(Find<Button>(BooruWorkbenchView.NextName).IsEnabled);
+            Assert.True(field.Focus());
+            field.SelectAll();
+            window.KeyPressQwerty(key, RawInputModifiers.None);
+            window.KeyTextInput(text);
+            window.KeyReleaseQwerty(key, RawInputModifiers.None);
+            Layout();
+            Assert.Equal(new[] { ("cat", 1) }, harness.Search.Searches);
+            Assert.Equal(text, field.Text);
+
+            bool mac = OperatingSystem.IsMacOS();
+            PhysicalKey pageKey = mac ? PhysicalKey.ArrowRight : PhysicalKey.PageDown;
+            RawInputModifiers modifiers = mac ? RawInputModifiers.Meta | RawInputModifiers.Alt : RawInputModifiers.Alt;
+            window.KeyPressQwerty(pageKey, modifiers);
+            window.KeyReleaseQwerty(pageKey, modifiers);
+            Layout();
+            Assert.Equal(new[] { ("cat", 1), ("cat", 2) }, harness.Search.Searches);
+
+            T Find<T>(string id) where T : Control => booru.GetVisualDescendants().OfType<T>()
+                .Single(control => AutomationProperties.GetAutomationId(control) == id);
+            void Layout()
+            {
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+            }
+        }
+        finally
+        {
+            window.Close();
+            ShortcutService.Publish(previous);
+        }
+    });
 }

@@ -643,11 +643,17 @@ public sealed class SavedMediaReaderTests
         Assert.True(control.IsEffectivelyVisible);
         Assert.True(control.IsEffectivelyEnabled);
         Layout(root);
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        Point point = control.TranslatePoint(local ?? new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), root)!.Value;
-        Visual hit = Assert.IsAssignableFrom<Visual>(root.InputHitTest(point));
-        Assert.True(ReferenceEquals(hit, control) || control.IsVisualAncestorOf(hit),
-            $"Expected {AutomationProperties.GetAutomationId(control)} at {point}; hit {hit}.");
+        Point point = default;
+        WaitUntil(() =>
+        {
+            root.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            point = control.TranslatePoint(local ?? new Rect(control.Bounds.Size).Center, root)!.Value;
+            return root.InputHitTest(point) is Visual hit && (ReferenceEquals(hit, control) || control.IsVisualAncestorOf(hit));
+        });
+        Visual target = Assert.IsAssignableFrom<Visual>(root.InputHitTest(point));
+        Assert.True(ReferenceEquals(target, control) || control.IsVisualAncestorOf(target),
+            $"Expected {AutomationProperties.GetAutomationId(control)} at {point}; hit {target}.");
         return point;
     }
 
@@ -760,6 +766,8 @@ public sealed class SavedMediaReaderTests
         PressKey(window, PhysicalKey.Q);
         FocusSidebarFrame(sidebar);
         PressKey(window, PhysicalKey.Q);
+        // 73-2: the sidebar's queue key first checks the shown original.
+        WaitUntil(() => queued.Count >= 2);
         Assert.Collection(queued,
             paths => Assert.Equal(rows.Select(row => row.Asset.Path), paths),
             paths => Assert.Equal(rows[1].Asset.Path, Assert.Single(paths)));
@@ -1148,13 +1156,16 @@ public sealed class SavedMediaReaderTests
         (grid ? page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource : page.FindControl<DataGrid>("ArchiveMediaGrid")!.ItemsSource)!
         .Cast<ArchiveAssetRow>().ToArray();
 
-    private static void Run(Action<ArchivePage, Window> test, Action<string>? openFolder = null,
-        bool additionalRevisions = false, bool withNavigation = false, bool? gridPreference = null) => BooruComponentDispatcher.Run(() =>
+    internal static void Run(Action<ArchivePage, Window> test, Action<string>? openFolder = null,
+        bool additionalRevisions = false, bool withNavigation = false, bool? gridPreference = null,
+        Func<string, MediaAssetReference>? extraAsset = null) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
         using TempDirectory temp = new();
         (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(temp.Path, additionalRevisions: additionalRevisions);
+        if (extraAsset != null)
+            manifest = new(temp.Path, manifest.Status, manifest.ManifestVersion, manifest.Generation, [.. manifest.GetPage(), extraAsset(temp.Path)]);
         HashSet<string> favorites = [manifest.GetPage().Single(asset => Path.GetFileName(asset.Path) == "a.png").AssetId];
         if (withNavigation) BooruComponentDispatcher.Wait(CaptureNextThreadAsync());
         ArchivePage page = new(token => withNavigation ? ArchiveReader.OpenAsync(temp.Path, token)
@@ -1198,7 +1209,8 @@ public sealed class SavedMediaReaderTests
         }
     });
 
-    private static void RunWithShell(Func<ArchivePage, MainWindow, DesktopSessionHost, IReadOnlyDictionary<char, MediaTagSubject>, Task> test) =>
+    internal static void RunWithShell(Func<ArchivePage, MainWindow, DesktopSessionHost, IReadOnlyDictionary<char, MediaTagSubject>, Task> test,
+        bool replyHasMedia = false) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -1215,7 +1227,7 @@ public sealed class SavedMediaReaderTests
                     DownloadPath = downloads, FirstRunSetupVersion = 1, DownloadsPaused = true,
                     WorkspaceMode = "Advanced", Language = "en", MediaSidebarInfo = "Always"
                 }.SaveConfig(profile.Path);
-                (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(mediaDirectory, includePostAndReply: true);
+                (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(mediaDirectory, includePostAndReply: true, replyHasMedia: replyHasMedia);
                 await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
                 using IDisposable manifests = VirtualMediaManifests.Register(Path.GetDirectoryName(mediaDirectory)!,
                     (directory, _, _) => Task.FromResult(directory == manifest.Directory ? manifest
@@ -1250,7 +1262,7 @@ public sealed class SavedMediaReaderTests
         });
 
     private static (ArchivedThreadView Thread, MediaAssetSnapshot Manifest) CreateFixture(string directory,
-        bool includePostAndReply = false, bool additionalRevisions = false)
+        bool includePostAndReply = false, bool additionalRevisions = false, bool replyHasMedia = false)
     {
         string filename = "same.png";
         const string currentImage = "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAE0lEQVR4nGNgmMlAMhrVM6oHiADlWm/EglqV/gAAAABJRU5ErkJggg==";
@@ -1271,7 +1283,9 @@ public sealed class SavedMediaReaderTests
         }
         string postName = includePostAndReply ? "post.png" : filename;
         List<MediaAssetReference> assets = [current, earlier];
-        if (includePostAndReply) assets.Add(WriteRevision('c', true, currentImage, postName));
+        if (includePostAndReply) assets.Add(WriteRevision('c', true, replyHasMedia
+            ? "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII="
+            : currentImage, postName));
         if (additionalRevisions)
         {
             assets.Add(WriteRevision('d', true, currentImage, "z-a.png"));
@@ -1286,7 +1300,8 @@ public sealed class SavedMediaReaderTests
                 new CapturedAttachment(0, "image", Url: includePostAndReply ? "https://offline.invalid/c" : null, OriginalFileName: postName)
             ])
         ];
-        posts.Add(new("43", 43, PostFieldPresence.All, Html: includePostAndReply ? "<a href='#42'>&gt;&gt;42</a>" : null));
+        posts.Add(new("43", 43, PostFieldPresence.All, Html: includePostAndReply ? "<a href='#42'>&gt;&gt;42</a>" : null,
+            Attachments: replyHasMedia ? [new CapturedAttachment(0, "image", Url: current.SourceUrl, OriginalFileName: filename)] : null));
         ArchiveThreadSummary summary = new(ThreadId, "https://offline.invalid/g/thread/42", "Fixture", directory,
             ThreadSourceState.Active, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, posts.Count, 1);
         return (new ArchivedThreadView(summary, posts, [directory]), manifest);

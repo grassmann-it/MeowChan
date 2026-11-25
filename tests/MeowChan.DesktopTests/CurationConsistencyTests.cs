@@ -12,11 +12,12 @@ namespace MeowChan.DesktopTests;
 public sealed class CurationConsistencyTests
 {
     [Fact]
-    public void TheFavouriteCommandHasExactlyAnOutlineStarAndAFilledStarAndNoTickVariant()
+    public void TheFavouriteCommandHasExactlyAnOutlineHeartAndAFilledHeartAndNoTickVariant()
     {
-        Assert.Equal("star", CommandCatalog.IconForState("favorites.toggle", "unmarked"));
-        Assert.Equal("star-filled", CommandCatalog.IconForState("favorites.toggle", "marked"));
-        Assert.Equal("star", CommandCatalog.Get("favorites.toggle").Icon);
+        // Tom, 25.11.2026: the favourite is a heart everywhere; the star belongs to the rating.
+        Assert.Equal("heart", CommandCatalog.IconForState("favorites.toggle", "unmarked"));
+        Assert.Equal("heart-filled", CommandCatalog.IconForState("favorites.toggle", "marked"));
+        Assert.Equal("heart", CommandCatalog.Get("favorites.toggle").Icon);
     }
 
     [Theory]

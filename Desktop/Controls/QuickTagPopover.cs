@@ -160,6 +160,13 @@ internal sealed class QuickTagPopover
     private readonly Action? _unsubscribe;
     private readonly QuickTagSession? _session;
     private readonly GalleryDecisionRow? _decisionRow;
+    private Func<CancellationToken, Task<bool>>? _verifySidebarImage;
+
+    internal void SetSidebarWriteGuard(Func<CancellationToken, Task<bool>> verify)
+    {
+        _verifySidebarImage = verify;
+        if (Surface != null) Surface.VerifyBeforeWriteAsync = verify;
+    }
     private DispatcherTimer? _guard;
     private bool _decisionRunning;
     private Control? _origin;
@@ -171,9 +178,11 @@ internal sealed class QuickTagPopover
         Control content, Action? unsubscribe, GalleryDecisionRow? decisionRow = null)
     {
         _anchor = anchor;
+        _verifySidebarImage = anchor.GetSelfAndVisualAncestors().OfType<ReaderMediaSidebar>().FirstOrDefault()?.CaptureImageActionGuard();
         _decisionRow = decisionRow;
         _options = options;
         Surface = surface;
+        if (surface != null) surface.VerifyBeforeWriteAsync = _verifySidebarImage;
         _session = session;
         _unsubscribe = unsubscribe;
         _frame.Child = content;
@@ -365,7 +374,10 @@ internal sealed class QuickTagPopover
         if (_decisionRunning) { row.Show(SafeView(decision)); return; }
         _decisionRunning = true;
         row.SetError(null);
-        try { await write(); }
+        try
+        {
+            if ((_verifySidebarImage == null || await _verifySidebarImage(default)) && !_closed) await write();
+        }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
             if (!_closed) row.SetError(Texts.T("gallery.decision.status.failed"));

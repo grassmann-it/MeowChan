@@ -666,6 +666,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     /// <summary>The optional lifetime of writes started from this surface.</summary>
     internal CancellationToken WriteToken { get; set; }
+    internal Func<CancellationToken, Task<bool>>? VerifyBeforeWriteAsync { get; set; }
 
     internal event Action? CloseRequested;
     /// <summary>The marks button was pressed: the host clears its marks and retargets the surface.</summary>
@@ -1185,12 +1186,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private async void OnSuggestionClick(object? sender, RoutedEventArgs e)
     {
-        if (_suggestionChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip) await OpenActions.RunAsync(() => ToggleSuggestionAsync(chip.Index), "tags.quick.suggestion.click");
+        if (_suggestionChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip) await OpenActions.RunAsync(() => AcceptSuggestionAsync(chip.Suggestion), "tags.quick.suggestion.click");
     }
 
     /// <summary>Toggles suggestion <paramref name="index"/> (0-based), as a click, Alt+n or n in the strip does.</summary>
     internal Task ToggleSuggestionAsync(int index) =>
-        index < 0 || index >= _shown.Count ? Task.CompletedTask : Guard(() => _session.AcceptAsync(_shown[index], WriteToken), "tags.quick.suggestion");
+        index < 0 || index >= _shown.Count ? Task.CompletedTask : AcceptSuggestionAsync(_shown[index]);
+
+    private Task AcceptSuggestionAsync(QuickTagSuggestion suggestion) =>
+        Guard(() => _session.AcceptAsync(suggestion, WriteToken), "tags.quick.suggestion");
 
     private async void OnAssignedClick(object? sender, RoutedEventArgs e)
     {
@@ -1291,7 +1295,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private async Task Guard(Func<Task> action, string context)
     {
-        try { await action(); }
+        try
+        {
+            if (VerifyBeforeWriteAsync is { } verify && !await verify(WriteToken) || _disposed) return;
+            await action();
+        }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, context)) { /* Logged and shown. */ }
         await ReplayDeferredAddAsync();
     }

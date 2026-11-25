@@ -156,8 +156,8 @@ public partial class ArchivePage
 
     private void LocalizeArchiveColumns()
     {
-        CommandBindings.Apply(ArchiveThreadColumnsButton, "table.choose-columns", iconWithLabel: true);
-        CommandBindings.Apply(ArchiveMediaColumnsButton, "table.choose-columns", iconWithLabel: true);
+        CommandBindings.ApplyLocallyRoutedButton(ArchiveThreadColumnsButton, "table.choose-columns");
+        CommandBindings.ApplyLocallyRoutedButton(ArchiveMediaColumnsButton, "table.choose-columns");
         DataGrid threads = ArchiveThreadTable;
         for (int i = 0; i < ThreadColumnKeys.Length; i++)
             SetThreadColumnHeader(threads.Columns[i], ThreadColumnKeys[i]);
@@ -170,15 +170,32 @@ public partial class ArchivePage
 
     private void OnArchiveColumnsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is not Button button) return;
-        DataGrid grid = button.Name == "ArchiveMediaColumnsButton"
-            ? ArchiveMediaGrid : ArchiveThreadTable;
+        if (_ended || sender is not Button button || PopupToggle.ConsumeActivation(button)) return;
+        bool media = ReferenceEquals(button, ArchiveMediaColumnsButton);
+        DataGrid grid = media ? ArchiveMediaGrid : ArchiveThreadTable;
+        ActionToolBar toolbar = media ? ReaderMediaTools : ArchiveResultActions;
+        Control anchor = ToolbarPopupAnchor(button, toolbar, grid);
+        if (anchor is Avalonia.Controls.Primitives.ToggleButton more) more.IsChecked = false;
         // The button has no column under it, so only the commands for all columns are offered here; the header's own menu adds "Fit column".
         ContextMenu menu = BuildArchiveColumnsMenu(grid, null);
+        menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+        if (anchor is Button opener) PopupToggle.Track(opener, menu);
         button.ContextMenu = menu;
         // Its checks and fit entries describe the table now: not kept for a later right-click.
-        menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };
-        ShowColumnMenu(menu, button);
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null;
+            ReturnFocusFromToolbarPopup(anchor, toolbar, grid, () => grid.Focus());
+        };
+        menu.AddHandler(InputElement.KeyDownEvent, (_, key) =>
+        {
+            if (!PopupToggle.CanToggleMenuFromKey(menu, key)) return;
+            using var context = EffectiveShortcutBindings.EnterKeyContext("archive");
+            if (!ShortcutService.Current.Matches(key, "table.choose-columns")) return;
+            key.Handled = true;
+            menu.Close();
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        ShowColumnMenu(menu, anchor);
     }
 
     /// <summary>

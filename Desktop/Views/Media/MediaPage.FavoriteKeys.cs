@@ -48,7 +48,8 @@ public partial class MediaPage
         if (action == FavoriteKeyAction.None || CommandRouter.IsNativeInput(e.Source, e.Key) || _panelRow is not { } row) return false;
         e.Handled = true;
         if (FavoriteKeyIsRepeat(e)) return true;
-        if (PanelFavoriteAvailable()) FavoriteKeyTask = WriteFavoriteKeyAsync(action, new[] { row }, displayedOccurrence: true);
+        if (_panel?.CanUseMediaActions == true && PanelFavoriteAvailable())
+            FavoriteKeyTask = WriteFavoriteKeyAsync(action, new[] { row }, displayedOccurrence: true);
         return true;
     }
 

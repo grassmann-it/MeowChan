@@ -1,5 +1,6 @@
 using System.Reflection;
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
@@ -253,6 +254,9 @@ public sealed class GalleryVideoPlayerMenuTests
     private static void WithPlayer(Action<GalleryVideoPlayer, Button> test, Func<int, int?>? selectAudioTrack = null) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
+        // The app registers Inter (Program.cs WithInterFont); without it the theme's font list falls through to an
+        // installed CJK family (PingFang SC on macOS), whose full-width Cyrillic is not what users see.
+        FontManager.Current.AddFontCollection(new Avalonia.Fonts.Inter.InterFontCollection());
         var player = selectAudioTrack is null ? new GalleryVideoPlayer() : new GalleryVideoPlayer(selectAudioTrack);
         var window = new Window { Width = 640, Height = 480, Content = player, Classes = { MotionPolicy.OffClass } };
         try

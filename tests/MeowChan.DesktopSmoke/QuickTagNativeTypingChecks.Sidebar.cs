@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -61,7 +62,7 @@ internal static partial class QuickTagNativeTypingChecks
     {
         if (sidebar.InfoToggle.IsChecked != true) sidebar.InfoToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         sidebar.UpdateLayout();
-        return sidebar.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ReaderMediaSidebarEditTags");
+        return sidebar.GetVisualDescendants().OfType<Button>().Single(button => AutomationProperties.GetAutomationId(button) == "ReaderMediaSidebarEditTags");
     }
 
     private static void Check(bool condition, string description)
@@ -69,7 +70,7 @@ internal static partial class QuickTagNativeTypingChecks
         if (!condition) throw new InvalidOperationException(description);
     }
 
-    private static async Task WriteSidebarTagAsync(MainWindow window, MediaNativeInput input, Button origin,
+    private static async Task WriteSidebarTagAsync(MainWindow window, MediaNativeInput input, Button origin, Control focusReturn,
         MediaTagSubject prior, MediaTagSubject visible, string tag)
     {
         await Program.WaitUntilAsync(() => QuickTagPopover.Current is { IsOpen: true, Surface.Input.IsKeyboardFocusWithin: true });
@@ -91,7 +92,7 @@ internal static partial class QuickTagNativeTypingChecks
         editor.Input.Dismiss();
         await input.KeyAsync(MediaNativeInput.Escape);
         if (popover.IsOpen) await input.KeyAsync(MediaNativeInput.Escape);
-        await Program.WaitUntilAsync(() => QuickTagPopover.Current == null && origin.IsFocused,
+        await Program.WaitUntilAsync(() => QuickTagPopover.Current == null && focusReturn.IsFocused,
             () => $"After Escape: editor open={popover.IsOpen}, reason={popover.Reason}, focus={Describe(window.FocusManager?.GetFocusedElement())}.");
     }
 
@@ -110,10 +111,10 @@ internal static partial class QuickTagNativeTypingChecks
         var open = page.TagPopoverAsync!;
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource returned = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        GalleryEntry? captured = null;
+        List<GalleryEntry> captured = [];
         page.TagPopoverAsync = async (entry, anchor, context, current, request) =>
         {
-            captured = entry;
+            captured.Add(entry);
             await release.Task;
             try { await open(entry, anchor, context, current, request); }
             finally { returned.TrySetResult(); }
@@ -128,23 +129,25 @@ internal static partial class QuickTagNativeTypingChecks
             Button edit = EditTags(page.MediaSidebar!);
             posts.SelectedItem = a;
             page.SelectMediaSidebarIndex(1);
-            posts.SelectedItem = b;
-            Check(page.MediaSidebar!.HeaderLine.Contains("picture-482-second.jpg", StringComparison.Ordinal),
-                "The test missed the Reader follow interval.");
             edit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Check(captured != null && Equals(MediaTagSubjects.Of(captured), subjectA),
-                $"Edit tags captured {captured?.EntryKey.ToString() ?? "nothing"} at {page.MediaSidebar.HeaderLine}; expected {savedA.EntryKey} (edit visible={edit.IsEffectivelyVisible}).");
+            Check(captured.Count == 1 && Equals(MediaTagSubjects.Of(captured[0]), subjectA),
+                $"Opening tags on selected post {a.Id} did not capture {savedA.EntryKey}.");
+            posts.SelectedItem = b;
+            // Fable: "Sidebar zeigt das Medium des ausgewählten Posts". No new edit of A during follow.
+            edit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(captured.Count == 1, $"A fresh click while following selected post {b.Id} opened {captured.Last().EntryKey}.");
             await Program.WaitUntilAsync(() => page.MediaSidebar.HeaderLine.Contains("picture-481.jpg", StringComparison.Ordinal));
             page.TagPopoverAsync = open;
             await Settle(window);
-            edit.Focus();
-            await input.KeyAsync(MediaNativeInput.Enter);
+            Control frame = page.MediaSidebar.FrameArea;
+            Check(frame.Focus(), "The selected Reader sidebar frame could not take focus.");
+            await input.ClickButtonAsync(edit);
             await Program.WaitUntilAsync(() => QuickTagPopover.Current is { IsOpen: true, Surface: not null });
             QuickTagPopover shown = QuickTagPopover.Current!;
             release.SetResult();
             await returned.Task;
             Check(ReferenceEquals(shown, QuickTagPopover.Current), "Reader resolution replaced the new editor with the retired attachment.");
-            await WriteSidebarTagAsync(window, input, edit, subjectA, subjectB, "readersidebarrace");
+            await WriteSidebarTagAsync(window, input, edit, frame, subjectA, subjectB, "readersidebarrace");
             Console.WriteLine("SMOKE Reader sidebar tags: delayed 482 attachment 2, visible 481 attachment 1, Enter, exact write, Escape focus.");
         }
         finally
@@ -176,31 +179,32 @@ internal static partial class QuickTagNativeTypingChecks
             page.Grid.SelectedItem = a;
             await Program.WaitUntilAsync(() => page.PanelRow?.Entry == a.Entry);
             Button edit = EditTags(page.Panel!);
-            edit.Focus();
-            await input.KeyAsync(MediaNativeInput.Enter);
+            Control frame = page.Panel!.FrameArea;
+            Check(frame.Focus(), "The selected Media sidebar frame could not take focus.");
+            await input.ClickButtonAsync(edit);
             await resolved.Task.WaitAsync(TimeSpan.FromSeconds(10));
             page.Grid.SelectedItem = b;
             await Program.WaitUntilAsync(() => page.PanelRow?.Entry == b.Entry);
-            edit.Focus();
+            Check(frame.Focus(), "The new Media sidebar frame could not take focus.");
             await input.KeyAsync('t', modified: true);
             await Program.WaitUntilAsync(() => QuickTagPopover.Current is { IsOpen: true, Surface: not null });
             QuickTagPopover shown = QuickTagPopover.Current!;
             release.SetResult();
             await Settle(window);
             Check(ReferenceEquals(shown, QuickTagPopover.Current), "Media resolution replaced the new editor with the retired medium.");
-            await WriteSidebarTagAsync(window, input, edit, subjectA, subjectB, "mediasidebarrace");
+            await WriteSidebarTagAsync(window, input, edit, frame, subjectA, subjectB, "mediasidebarrace");
 
             resolved = new(TaskCreationOptions.RunContinuationsAsynchronously);
             release = new(TaskCreationOptions.RunContinuationsAsynchronously);
             page.Grid.SelectedItem = page.Grid.Items.OfType<MediaLibraryTileRow>().Single(row => row.Entry.Name == a.Entry.Name);
             await Program.WaitUntilAsync(() => page.PanelRow?.Entry.Name == a.Entry.Name);
-            edit.Focus();
-            await input.KeyAsync(MediaNativeInput.Enter);
+            Check(frame.Focus(), "The Media sidebar frame could not take focus before the pending request.");
+            await input.ClickButtonAsync(edit);
             await resolved.Task.WaitAsync(TimeSpan.FromSeconds(10));
             await input.KeyAsync(MediaNativeInput.Escape);
             release.SetResult();
             await Settle(window);
-            Check(QuickTagPopover.Current == null && edit.IsFocused, "Escape let the outstanding Media request take focus later.");
+            Check(QuickTagPopover.Current == null && frame.IsFocused, "Escape let the outstanding Media request take focus later.");
             Console.WriteLine("SMOKE Media sidebar tags: delayed 481, visible 482 attachment 2, exact write, Enter, shortcut, pending and open Escape.");
         }
         finally

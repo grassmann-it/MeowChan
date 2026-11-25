@@ -994,8 +994,9 @@ public partial class ArchivePage : UserControl
         using SKCodec? codec = SKCodec.Create(managed);
         if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
         PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: a rotated photo has its width and height exchanged
-        if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 40_000_000
-            || (long)shown.Height > 180L * shown.Width)
+        if ((long)shown.Width * shown.Height > 40_000_000)
+            throw new GalleryPreviewTooLargeException();
+        if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Height > 180L * shown.Width)
             throw new InvalidDataException(Texts.T("archive.tooLarge"));
         int width = Math.Min(shown.Width, Math.Min(maximumWidth, Math.Max(1, (int)((long)maximumHeight * shown.Width / shown.Height))));
         stream.Position = 0;

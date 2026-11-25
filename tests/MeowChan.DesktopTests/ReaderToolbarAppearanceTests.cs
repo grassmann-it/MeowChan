@@ -151,9 +151,20 @@ public sealed class ReaderToolbarAppearanceTests
         Assert.NotNull(action.FocusAdorner);
 
         if (!action.IsEffectivelyEnabled) return;
-        Assert.True(action.Focus(NavigationMethod.Tab), action.Name);
-        Assert.Contains(":focus-visible", action.Classes);
-        Assert.Equal(Colors.Transparent, ColorOf(presenter.BorderBrush));
+        // TOGGLE-2 review: “Den Öffner unfokussierbar lassen”; these openers have their own commands.
+        string? id = AutomationProperties.GetAutomationId(action);
+        if (id is "ReaderFindOpen" or "ReaderTagsOpen" or "ReaderThreadOpen" or "ReaderSettingsOpen"
+            or "ArchiveThreadColumnsButton" or "ArchiveMediaColumnsButton")
+        {
+            Assert.False(action.Focusable);
+            Assert.False(action.Focus(NavigationMethod.Tab), id);
+        }
+        else
+        {
+            Assert.True(action.Focus(NavigationMethod.Tab), action.Name);
+            Assert.Contains(":focus-visible", action.Classes);
+            Assert.Equal(Colors.Transparent, ColorOf(presenter.BorderBrush));
+        }
 
         var state = (IPseudoClasses)action.Classes;
         state.Set(":pointerover", true);
@@ -172,11 +183,18 @@ public sealed class ReaderToolbarAppearanceTests
         Assert.False(action.IsChecked);
         inlineBar.IsVisible = true;
         Assert.True(action.IsChecked);
-        Assert.Equal(Token("Workspace.ToolbarToggleSurface"), ColorOf(Presenter(action).Background));
-        Assert.Equal(Token("Workspace.Accent"), ColorOf(Presenter(action).BorderBrush));
+        // Popup UX audit, 25 November: “Dezenter Strich … Keine dauernde Akzentfüllung”.
+        ContentPresenter presenter = Presenter(action);
+        Assert.Equal(Token("Workspace.Hover"), ColorOf(presenter.Background));
+        Assert.Contains(presenter.GetVisualDescendants().OfType<TextBlock>(), HasUnderline);
+        Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(action));
         inlineBar.IsVisible = false;
         Assert.False(action.IsChecked);
-        Assert.Equal(Colors.Transparent, ColorOf(Presenter(action).BorderBrush));
+        Assert.Equal(Colors.Transparent, ColorOf(presenter.BorderBrush));
+        Assert.DoesNotContain(presenter.GetVisualDescendants().OfType<TextBlock>(), HasUnderline);
+        Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(action));
+
+        static bool HasUnderline(TextBlock label) => label.TextDecorations?.Any(decoration => decoration.Location == TextDecorationLocation.Underline) == true;
     }
 
     private static void AssertGap(Button left, Button right, double expected)

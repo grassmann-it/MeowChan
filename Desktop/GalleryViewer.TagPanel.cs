@@ -315,6 +315,7 @@ internal sealed partial class GalleryViewer
     {
         if (_entry == null) return;
         RevealForRatingFeedback();
+        FlashFavoriteBadge(); // 0 to 5 show the heart and its stars at once, also when the key changes nothing (like M and U)
         if (_tagPanelOpen && _tagController?.Decisions != null) { RequestDecisionRating(value); return; }
         RatingSetRequested?.Invoke(_entry, value);
     }

@@ -7,6 +7,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
@@ -42,21 +44,48 @@ public partial class ArchivePage
     internal void OpenReaderQuickSettings()
     {
         if (_ended || IsReaderDialogOpen || QuickSettingsHost is not { } host) return;
-        if (_readerQuickSettings is { IsOpen: true } open) { open.Hide(); return; }
-        _readerQuickSettings ??= new QuickSettingsPopover(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), host, "ReaderQuickSettings", ReaderSettingsSession);
-        _readerQuickSettings.Show(QuickSettingsAnchor());
+        if (DismissReaderQuickSettings()) return;
+        _readerQuickSettings ??= CreateReaderQuickSettings(host);
+        Control anchor = ToolbarPopupAnchor(ReaderSettingsOpen, ReaderToolbar, ReaderToolbar);
+        if (ReferenceEquals(anchor, ReaderToolbar.More)) ReaderToolbar.More!.IsChecked = false;
+        _readerQuickSettings.Flyout.OverlayInputPassThroughElement = anchor;
+        _readerQuickSettings.Show(anchor);
+    }
+
+    private QuickSettingsPopover CreateReaderQuickSettings(QuickSettingsHost host)
+    {
+        QuickSettingsPopover popover = new(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), host,
+            "ReaderQuickSettings", ReaderSettingsSession, restoreContentFocus: RestoreReaderSettingsFocus);
+        popover.Flyout.Opened += (_, _) => Present(true);
+        popover.Flyout.Closed += (_, _) => Present(false);
+        popover.Surface.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Handled || ShortcutService.IsCapturing || ReaderInputIsComposing(e.Source)
+                || !(CommandBindings.IsTextSafeChord(e) || !CommandRouter.IsNativeInput(e.Source, e.Key))
+                || !ShortcutService.Current.Matches(e, "reader.quick-settings")) return;
+            e.Handled = DismissReaderQuickSettings();
+        }, RoutingStrategies.Bubble);
+        return popover;
+
+        void Present(bool open)
+        {
+            PopupToggle.Present(ReaderSettingsOpen, open);
+            if (ReferenceEquals(popover.Flyout.Target, ReaderToolbar.More) && ReaderToolbar.More is { } more)
+                PopupToggle.Present(more, open);
+        }
+    }
+
+    private void RestoreReaderSettingsFocus(Control anchor) =>
+        ReturnFocusFromToolbarPopup(anchor, ReaderToolbar, ArchiveReaderPane, FocusSelectedPostOrList);
+
+    private bool DismissReaderQuickSettings()
+    {
+        if (_readerQuickSettings is not { IsOpen: true } popover) return false;
+        popover.Hide();
+        return true;
     }
 
     private void OnReaderSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => OpenReaderQuickSettings();
-
-    // Overflow items keep their logical visibility even while detached; while open the gear
-    // belongs to a temporary PopupRoot that the toolbar dismisses after its Click bubbles.
-    // In both cases anchor to the stable More button, not to the overflow's gear.
-    private Avalonia.Controls.Control QuickSettingsAnchor() =>
-        ReaderToolbar.OverflowHost?.Children.Contains(ReaderSettingsOpen) != true
-            && ReaderSettingsOpen.IsAttachedToVisualTree() && ReaderSettingsOpen.IsEffectivelyVisible ? ReaderSettingsOpen
-        : ReaderToolbar.More is { IsEffectivelyVisible: true } more && more.IsAttachedToVisualTree() ? more
-        : ReaderToolbar;
 
     /// <summary>
     /// S4 F3: saves what the reader popover and the font steps (Ctrl+wheel, Ctrl+Plus/Minus/0) still wait to save, without their pause;
@@ -106,6 +135,7 @@ public partial class ArchivePage
         if (!Equals(ToolTip.GetTip(button), tip)) ToolTip.SetTip(button, tip);
         Avalonia.Automation.AutomationProperties.SetName(button, marked ? label + ", " + Texts.T("reader.settings.active") : label);
         Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
+        PopupToggle.Present(button, IsQuickSettingsOpen);
         _readerSettingsDot.Active = marked;
     }
 
@@ -114,6 +144,7 @@ public partial class ArchivePage
     private void InitializeReaderSettingsButton()
     {
         Button button = ReaderSettingsOpen;
+        PopupToggle.Prepare(button);
         const string icon = "settings";
         MeowChan.Desktop.Controls.IconButtons.Record(button, icon);
         button.ContentTemplate = new FuncDataTemplate<object>((content, _) =>

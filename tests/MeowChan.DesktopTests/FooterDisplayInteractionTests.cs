@@ -96,12 +96,21 @@ public sealed class FooterDisplayInteractionTests
 
         Point freeNavigation = FreeSpace(navigation, window);
         Assert.Equal(OperatingSystem.IsMacOS(), window.UseMacFooterContextClick);
-        window.UseMacFooterContextClick = false;
-        Click(window, freeNavigation, MouseButton.Left, RawInputModifiers.Control);
-        Assert.Null(navigation.ContextMenu);
-        window.UseMacFooterContextClick = true;
-        Click(window, freeNavigation, MouseButton.Left, RawInputModifiers.Control);
-        AssertChecks(navigation, true, false, true);
+        bool? previousMacOS = ContextClick.MacOSForTests;
+        try
+        {
+            ContextClick.MacOSForTests = window.UseMacFooterContextClick = false;
+            Click(window, freeNavigation, MouseButton.Left, RawInputModifiers.Control);
+            Assert.Null(navigation.ContextMenu);
+            ContextClick.MacOSForTests = window.UseMacFooterContextClick = true;
+            Click(window, freeNavigation, MouseButton.Left, RawInputModifiers.Control);
+            AssertChecks(navigation, true, false, true);
+        }
+        finally
+        {
+            ContextClick.MacOSForTests = previousMacOS;
+            window.UseMacFooterContextClick = OperatingSystem.IsMacOS();
+        }
         Choose(navigation, "footer.disk");
         await BooruTestSupport.WaitAsync(() => disk.IsVisible, "disk in footer");
         Assert.True(network.IsVisible && counts.IsVisible);
