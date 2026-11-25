@@ -920,6 +920,18 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
+
+                TextBox? input = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as TextBox;
+                Rect visibleInput = default;
+                if (input is { IsEffectivelyVisible: true }
+                    && SettingsScrollViewer.IsVisualAncestorOf(input)
+                    && input.FindAncestorOfType<NumericUpDown>() != null
+                    && input.FindAncestorOfType<Avalonia.Controls.Presenters.ScrollContentPresenter>() is { } presenter
+                    && presenter.TranslatePoint(default, input) is Point viewportOrigin)
+                {
+                    visibleInput = new Rect(input.Bounds.Size).Intersect(new Rect(viewportOrigin, presenter.Viewport));
+                }
+
                 RefreshChoiceLabels();
                 // Refresh only labels/help; a language change is not a numeric Value change.
                 foreach (string property in new[]
@@ -979,6 +991,19 @@ namespace MeowChan
                 finally { _refreshingLanguageLabels = false; }
                 ApplyCommandIcons();
                 RefreshSectionNavigation();
+
+                if (input != null && visibleInput is { Width: > 0, Height: > 0 })
+                {
+                    // Translated labels can move the text box while it keeps keyboard focus.
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!_isClosed && input is { IsFocused: true, IsEffectivelyVisible: true }
+                            && SettingsScrollViewer.IsVisualAncestorOf(input))
+                        {
+                            input.BringIntoView(visibleInput.Intersect(new Rect(input.Bounds.Size)));
+                        }
+                    }, DispatcherPriority.Loaded);
+                }
             }
 
             if (Dispatcher.UIThread.CheckAccess())
