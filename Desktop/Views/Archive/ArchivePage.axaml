@@ -366,7 +366,7 @@
                     <Grid x:Name="ReaderContentSurface">
                         <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
-                            <TabItem x:Name="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
+                            <TabItem x:Name="ArchivePostsTab" AutomationProperties.AutomationId="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
                                 <Grid RowDefinitions="Auto,*">
                                     <Border x:Name="ReaderNewPostsBar" IsVisible="False" Margin="8,4"
                                             Background="{DynamicResource Workspace.Card}"
@@ -658,7 +658,7 @@
                                     </Grid>
                                 </Grid>
                             </TabItem>
-                            <TabItem x:Name="ArchiveMediaTab" wv:WorkViewElement.Id="reader.tabs.media" Header="Media">
+                            <TabItem x:Name="ArchiveMediaTab" AutomationProperties.AutomationId="ArchiveMediaTab" wv:WorkViewElement.Id="reader.tabs.media" Header="Media">
                                 <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}" Margin="8,4">
                                     <!-- WV3: one bar instead of a wrapping row; what the view does not show directly sits under More.
                                          An active favourites/rating filter or all versions stays on the bar (R6). -->

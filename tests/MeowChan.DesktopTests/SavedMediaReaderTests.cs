@@ -45,16 +45,18 @@ public sealed class SavedMediaReaderTests
         page.UseManualReaderTicks(() => now);
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
         TabItem references = await PopulateReferencesAsync(page, window, host);
+        TabItem posts = ById<TabItem>(window, "ArchivePostsTab");
+        TabItem savedMedia = ById<TabItem>(window, "ArchiveMediaTab");
         Control bar = ById<Control>(window, "ReaderNavigation");
         int delay = Config.ControlsIdleHideMsDefault;
         page.ReaderNavigationIdleDelayMs = delay;
         foreach (string mode in new[] { Config.ReaderNavigationModeOff, Config.ReaderNavigationModeAlways, Config.ReaderNavigationModeAuto })
         {
-            tabs.SelectedIndex = 0;
+            SelectTab(window, posts);
             page.ReaderNavigationMode = mode;
-            foreach (TabItem tab in new[] { (TabItem)tabs.Items[0]!, references })
+            foreach (TabItem tab in new[] { posts, references })
             {
-                Click(window, tab);
+                SelectTab(window, tab);
                 Assert.Same(tab, tabs.SelectedItem);
                 page.NotifyReaderPointerMoved(default);
                 bool visible = mode != Config.ReaderNavigationModeOff;
@@ -76,8 +78,7 @@ public sealed class SavedMediaReaderTests
                     Assert.Equal(1, bar.Opacity);
                 }
             }
-            tabs.SelectedIndex = 1;
-            Layout(window);
+            SelectTab(window, savedMedia);
             page.NotifyReaderPointerMoved(default);
             Assert.False(bar.IsEffectivelyVisible);
             Assert.False(bar.IsHitTestVisible);
@@ -123,9 +124,11 @@ public sealed class SavedMediaReaderTests
             "a new tag on the shown revision");
         await BooruTestSupport.WaitAsync(() => !shown.Surface!.Session.Busy && shown.Surface.Shown.Any(tag => tag.Id == existing),
             "the existing tag suggestion");
+        Layout(Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(shown.Frame)));
         int suggestion = shown.Surface!.Shown.ToList().FindIndex(tag => tag.Id == existing) + 1;
         Button offered = ById<Button>(shown.Frame, "ArchiveTagPopoverSuggestion" + suggestion);
-        Click(Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(offered)), offered);
+        Assert.True(offered.IsEffectivelyVisible && offered.IsEffectivelyEnabled);
+        Assert.IsAssignableFrom<IInvokeProvider>(ControlAutomationPeer.CreatePeerForElement(offered)).Invoke();
         await BooruTestSupport.WaitAsync(() => ReadTags(host).Carries(existing, subjects['b']), "the existing tag on the shown revision");
         PrivateTagStoreSnapshot after = ReadTags(host);
         Assert.Empty(after.TagsOf(subjects['a']));
@@ -142,7 +145,7 @@ public sealed class SavedMediaReaderTests
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
         page.FindControl<ListBox>("ArchivePosts")!.SelectedIndex = 0;
         TabItem references = await PopulateReferencesAsync(page, window, host);
-        Click(window, references);
+        SelectTab(window, references);
         Assert.Same(references, tabs.SelectedItem);
         now += ReaderMediaSidebarRules.FollowIntervalMs;
         await ShowSidebarSelectionAsync(page, window, sidebar, "post.png");
@@ -212,8 +215,11 @@ public sealed class SavedMediaReaderTests
 
                 if (dismissFirst)
                 {
-                    RateAndTagWindowFixture.Escape(window);
-                    await editor.Result.WaitAsync(BooruComponentDispatcher.Cancellation);
+                    TopLevel root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(editor.Frame));
+                    // Esc clears the draft before it closes the editor.
+                    PressKey(root, PhysicalKey.Escape);
+                    if (editor.IsOpen) PressKey(root, PhysicalKey.Escape);
+                    Assert.Equal(QuickTagPopoverCloseReason.Closed, await editor.Result.WaitAsync(BooruComponentDispatcher.Cancellation));
                 }
                 if (openGallery)
                 {
@@ -317,13 +323,15 @@ public sealed class SavedMediaReaderTests
             Layout(window);
             Control overlay = ById<Control>(sidebar, "ReaderMediaSidebarOverlay");
             Point imagePoint = HitPoint(window, frame);
-            Point overlayPoint = HitPoint(window, overlay);
             Assert.False(overlay.IsVisualAncestorOf(Assert.IsAssignableFrom<Visual>(window.InputHitTest(imagePoint))));
             PressKey(window, PhysicalKey.M);
             BooruComponentDispatcher.Wait(page.FavoriteKeyTask);
             MiddleClick(imagePoint, imagePoint);
             Assert.Single(folders);
+            sidebar.RevealBars();
+            Point overlayPoint = HitPoint(window, overlay);
             MiddleClick(overlayPoint, overlayPoint);
+            Assert.Single(folders);
             MiddleClick(imagePoint, overlayPoint);
             Assert.Single(folders);
 
@@ -422,6 +430,13 @@ public sealed class SavedMediaReaderTests
     private static T ById<T>(Visual root, string id, ArchiveAssetRow? row = null) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id
             && (row == null || ReferenceEquals(control.DataContext, row)));
+
+    private static void SelectTab(Window window, TabItem tab)
+    {
+        Assert.True(tab.IsEffectivelyVisible);
+        Assert.IsAssignableFrom<ISelectionItemProvider>(ControlAutomationPeer.CreatePeerForElement(tab)).Select();
+        Layout(window);
+    }
 
     private static Control FocusSidebarFrame(ReaderMediaSidebar sidebar)
     {
