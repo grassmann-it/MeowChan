@@ -317,7 +317,7 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                     expectedWidth = thumbnail.Width;
                 }
 
-                ClickPicture(window, picture);
+                ClickPicture(window, picture, 0.25);
                 Size expanded = CurrentPicture().Bounds.Size;
                 output.WriteLine($"Thumbnail {thumbnail} → expanded {expanded} DIP, expected width {expectedWidth:0.##} DIP.");
                 Assert.True(view.IsExpanded);
@@ -330,7 +330,8 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                     Assert.True(expanded.Width > thumbnail.Width, $"The first click changed the picture from {thumbnail} to {expanded} DIP.");
                 Assert.InRange(expanded.Width, expectedWidth - 1, expectedWidth + 1);
 
-                ClickPicture(window, CurrentPicture());
+                // Separate the two clicks even when the first one leaves the picture unchanged in size.
+                ClickPicture(window, CurrentPicture(), 0.75);
                 Size collapsed = CurrentPicture().Bounds.Size;
                 Assert.False(view.IsExpanded);
                 Assert.InRange(collapsed.Width, thumbnail.Width - 0.5, thumbnail.Width + 0.5);
@@ -433,10 +434,10 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
         });
     }
 
-    private static void ClickPicture(Window window, Image image)
+    private static void ClickPicture(Window window, Image image, double horizontalPosition)
     {
-        Point center = new(image.Bounds.Width / 2, image.Bounds.Height / 2);
-        Point at = Assert.IsType<Point>(image.TranslatePoint(center, window));
+        Point inside = new(image.Bounds.Width * horizontalPosition, image.Bounds.Height / 2);
+        Point at = Assert.IsType<Point>(image.TranslatePoint(inside, window));
         window.MouseMove(at);
         window.MouseDown(at, MouseButton.Left);
         window.MouseUp(at, MouseButton.Left);
