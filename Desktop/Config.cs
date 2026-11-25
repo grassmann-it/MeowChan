@@ -20,6 +20,26 @@ namespace MeowChan
         public string ReadingFontSize { get; set; } = "Normal";
         public string ArchiveThreadLayout { get; set; } = "List";
         public double ArchiveSplitWidth { get; set; } = Config.ArchiveSplitWidthDefault;
+        // Legacy profiles store the same numeric width for automatic sizing and a drag to the default.
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ArchiveSplitWidthIsExplicit { get; set; }
+
+        [JsonIgnore]
+        internal double? ArchiveSplitWidthOverride
+        {
+            get
+            {
+                double width = Config.NormalizeArchiveSplitWidth(ArchiveSplitWidth);
+                return ArchiveSplitWidthIsExplicit || width != Config.ArchiveSplitWidthDefault ? width : null;
+            }
+            set
+            {
+                ArchiveSplitWidth = Config.NormalizeArchiveSplitWidth(value ?? Config.ArchiveSplitWidthDefault);
+                ArchiveSplitWidthIsExplicit = value.HasValue;
+            }
+        }
+
         [JsonConverter(typeof(DesktopPreferenceColumnWidthsConverter))]
         public Dictionary<string, double> ColumnWidths { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, bool> ColumnVisibility { get; set; } = new(StringComparer.Ordinal);
@@ -29,7 +49,7 @@ namespace MeowChan
         {
             CompactDensity = CompactDensity, ArchiveMediaTiles = ArchiveMediaTiles,
             ReadingFontSize = ReadingFontSize, ArchiveThreadLayout = ArchiveThreadLayout,
-            ArchiveSplitWidth = ArchiveSplitWidth,
+            ArchiveSplitWidth = ArchiveSplitWidth, ArchiveSplitWidthIsExplicit = ArchiveSplitWidthIsExplicit,
             ColumnWidths = ColumnWidths == null ? new(StringComparer.Ordinal) : new(ColumnWidths, StringComparer.Ordinal),
             ColumnVisibility = ColumnVisibility == null ? new(StringComparer.Ordinal) : new(ColumnVisibility, StringComparer.Ordinal),
             ColumnOrder = ColumnOrder == null ? new(StringComparer.Ordinal) : new(ColumnOrder, StringComparer.Ordinal)
@@ -1096,6 +1116,9 @@ namespace MeowChan
             MigratePreferenceDefaults();
             // Couple only after all legacy keys have been read, independent of JSON order.
             NormalizeGalleryControls();
+            BooruCatalogLimitMiB = Math.Clamp(BooruCatalogLimitMiB, BooruCatalogMinimumLimitMiB, BooruCatalogMaximumLimitMiB);
+            ImportCatalogLimitMiB = Math.Clamp(ImportCatalogLimitMiB, ImportCatalogLimitMiBMinimum, ImportCatalogLimitMiBMaximum);
+            FolderSourceCatalogLimitMiB = Math.Clamp(FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBMinimum, FolderSourceCatalogLimitMiBMaximum);
             ReaderThumbnailWidth = Math.Clamp(ReaderThumbnailWidth, ReaderThumbnailWidthMinimum, ReaderThumbnailWidthMaximum);
             ReaderFoldLines = Math.Clamp(ReaderFoldLines, ReaderFoldLinesMinimum, ReaderFoldLinesMaximum);
             ReaderPreviewLines = Math.Clamp(ReaderPreviewLines, ReaderPreviewLinesMinimum, ReaderPreviewLinesMaximum);
