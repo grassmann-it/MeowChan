@@ -164,6 +164,8 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private Func<CancellationToken, Task<GalleryEntry?>>? _resolve;
     private string _name = string.Empty;
     private Action? _openGallery;
+    private string? _playerKey;
+    private (IPointer Pointer, string? Key)? _pointerPlay;
     private bool _current;
 
     /// <summary>
@@ -198,10 +200,26 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             e.Handled = true;
             _openGallery();
         }, RoutingStrategies.Tunnel);
-        Activator.AddHandler(InputElement.PointerPressedEvent, (_, _) => _pointerPlay = true, RoutingStrategies.Tunnel, handledEventsToo: true);
-        Activator.AddHandler(InputElement.PointerReleasedEvent, (_, _) => Dispatcher.UIThread.Post(() => _pointerPlay = false, DispatcherPriority.Background),
-            RoutingStrategies.Bubble, handledEventsToo: true);
-        Activator.Click += (_, e) => { e.Handled = true; OpenActions.Start(() => PlayAsync(), "reader.video.play"); };
+        Activator.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(Activator).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+                _pointerPlay = (e.Pointer, _key);
+        }, RoutingStrategies.Tunnel);
+        Activator.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
+        {
+            if (e.InitialPressMouseButton != MouseButton.Left || _pointerPlay is not { } press || press.Pointer != e.Pointer) return;
+            Dispatcher.UIThread.Post(() => { if (_pointerPlay is { } current && current == press) _pointerPlay = null; }, DispatcherPriority.Background);
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
+        Activator.PointerCaptureLost += (_, e) => { if (_pointerPlay?.Pointer == e.Pointer) _pointerPlay = null; };
+        Activator.Click += (_, e) =>
+        {
+            e.Handled = true;
+            var pointer = _pointerPlay;
+            _pointerPlay = null;
+            if (pointer is { } press && (press.Key != _key || _area.FindAncestorOfType<ReaderMediaSidebar>() is { } sidebar
+                && !sidebar.CanPlayFromFrame(press.Pointer, press.Key))) return;
+            OpenActions.Start(() => PlayAsync(muted: false, pointer: pointer.HasValue), "reader.video.play");
+        };
         area.Children.Add(Activator);
         Activator.AttachedToVisualTree += (_, _) => { ShortcutService.Changed += RefreshActivationHelp; RefreshActivationHelp(); };
         Activator.DetachedFromVisualTree += (_, _) => ShortcutService.Changed -= RefreshActivationHelp;
@@ -240,6 +258,8 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     internal GalleryVideoPlayer? Player => _player?.Player;
     internal Task ActivationTask { get; private set; } = Task.CompletedTask;
 
+    internal bool IsPlayerFor(GalleryVideoPlayer player, string? key) => ReferenceEquals(Player, player) && _playerKey == key;
+
     /// <summary>
     /// The video this slot can play now (a key per attachment, so a rebuilt row keeps a running player), or none. A different video
     /// or none gives the player back. <paramref name="controller"/> null or switched off offers nothing.
@@ -263,11 +283,11 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     }
 
     /// <summary>Click, Enter or autoplay: plays the offered video here (creating its player if the bound allows), or resumes it.</summary>
-    internal Task PlayAsync(bool muted = false)
+    internal Task PlayAsync(bool muted = false) => PlayAsync(muted, pointer: false);
+
+    private Task PlayAsync(bool muted, bool pointer)
     {
         if (_controller is not { } controller || !IsOffered) return Task.CompletedTask;
-        bool pointer = _pointerPlay;
-        _pointerPlay = false;
         bool focus = Activator.IsKeyboardFocusWithin && !pointer;
         Task task;
         if (_player != null) task = ActivationTask = ResumeAsync(controller, focus);
@@ -283,8 +303,6 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             _ = task.ContinueWith(_ => Dispatcher.UIThread.Post(back, DispatcherPriority.Loaded), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
         return task;
     }
-
-    private bool _pointerPlay;
 
     /// <summary>
     /// After a click on the bar's own buttons (mute, play or pause) the keys go back to the owner, as after a click on the activator: the owner's hook
@@ -312,11 +330,13 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private async Task CreateAsync(ReaderInlineVideoController controller, CancellationTokenSource activation, bool muted, bool focus)
     {
         string? key = _key;
+        bool Current() => ReferenceEquals(_activation, activation) && !activation.IsCancellationRequested
+            && ReferenceEquals(_controller, controller) && _key == key && IsOffered;
         try
         {
             ShowError(null);
             GalleryEntry? entry = _resolve == null ? null : await _resolve(activation.Token);
-            if (activation.IsCancellationRequested || key != _key) return;
+            if (!Current()) return;
             if (entry == null) { ShowError(Texts.T("archive.notSaved")); return; }
             if (entry.Kind != SavedMediaKind.Video) { ShowError(Texts.T("reader.sidebar.unavailable")); return; }
             if (ReaderInlineVideoRules.LimitReason(controller.Options, entry.Asset.Length, _name) is { } reason) { ShowError(reason); return; }
@@ -333,15 +353,16 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
                 player.ShortcutFocusRequested += () => { if (ReferenceEquals(_player, player)) ReturnFocusToOwner(); };
                 player.Clicked += () => { if (ReferenceEquals(_player, player)) OpenActions.Start(() => controller.ToggleAsync(this), "reader.video.toggle"); };
                 _player = player;
+                _playerKey = key;
                 UpdatePresentation();
                 if (focus) Dispatcher.UIThread.Post(FocusTransport, DispatcherPriority.Loaded);
                 return player;
-            });
+            }, canCreate: Current);
         }
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            if (key == _key) ShowError(Texts.T("reader.video.failed", UserFacingError.Report(error, "Starting an inline reader video")));
+            if (Current()) ShowError(Texts.T("reader.video.failed", UserFacingError.Report(error, "Starting an inline reader video")));
         }
         finally
         {
@@ -480,6 +501,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     void IReaderInlineVideoOwner.PlayerReleased()
     {
         _player = null;
+        _playerKey = null;
         _current = false;
         UpdatePresentation();
     }

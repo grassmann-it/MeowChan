@@ -376,12 +376,38 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     internal bool HasPreviousPicture => _bitmap != null && _image.IsEffectivelyVisible && PictureIsStale;
 
-    internal bool IsCurrentMediaSurface(object? source, Point position, ReaderInlineVideoSlot? video) => source is Visual visual
-        && (video?.Player is { } player && InBar(player, visual)
-            || !PictureIsStale && PictureContains(position) && IsMediaSurfaceSource(source, video));
+    internal bool IsCurrentMediaSurface(object? source, Point position, ReaderInlineVideoSlot? video)
+    {
+        if (source is not Visual visual) return false;
+        if (_factPlayer is { } player && InBar(player, visual)) return video?.IsPlayerFor(player, _mediumKey) == true;
+        return !PictureIsStale && PictureContains(position) && IsMediaSurfaceSource(source, video);
+    }
 
     // The header and video offer can change before a decode replaces the picture.
     private bool PictureIsStale => IsDimmed || !string.Equals(Load.ShownKey, _mediumKey, StringComparison.Ordinal);
+
+    private (IPointer Pointer, int ClickCount, int Revision, bool Presented, bool CanActivate)? _framePress;
+
+    private void OnFramePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Handled || e.GetCurrentPoint(_frame).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed || IsOverlaySource(e.Source))
+        {
+            _framePress = null;
+            return;
+        }
+        bool presented = !HasPreviousPicture;
+        // Avalonia can count a second tap at the same position after the medium under it has changed.
+        bool crossesMedium = e.ClickCount % 2 == 0 && _framePress is { } previous
+            && previous.Pointer.Type == e.Pointer.Type && previous.ClickCount + 1 == e.ClickCount
+            && (!previous.Presented || previous.Revision != _mediumRevision);
+        _framePress = (e.Pointer, e.ClickCount, _mediumRevision, presented, presented && !crossesMedium);
+    }
+
+    private bool IsCurrentFramePress(IPointer pointer) => _framePress is not { } press
+        || press.Pointer == pointer && press.CanActivate && press.Revision == _mediumRevision;
+
+    internal bool CanPlayFromFrame(IPointer pointer, string? key) =>
+        key != null && key == _mediumKey && !HasPreviousPicture && IsCurrentFramePress(pointer);
 
     private bool PictureContains(Point position) => _bitmap != null && _image.IsEffectivelyVisible
         && this.TranslatePoint(position, _image) is { } point && new Rect(_image.Bounds.Size).Contains(point);
@@ -450,17 +476,18 @@ internal sealed partial class ReaderMediaSidebar : Border
         _frame.Children.Add(_play);
         _frame.Children.Add(_badges);
         _frame.Children.Add(_status);
+        _frame.AddHandler(PointerPressedEvent, OnFramePointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         _frame.PointerReleased += (_, e) =>
         {
             if (e.InitialPressMouseButton != MouseButton.Left || IsOverlaySource(e.Source)
-                || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
+                || !IsCurrentFramePress(e.Pointer) || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
             e.Handled = true;
             PictureActivated?.Invoke(this, EventArgs.Empty);
         };
 
         _frame.DoubleTapped += (_, e) =>
         {
-            if (IsOverlaySource(e.Source) || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
+            if (IsOverlaySource(e.Source) || !IsCurrentFramePress(e.Pointer) || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
             e.Handled = true;
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
