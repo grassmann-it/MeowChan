@@ -21,6 +21,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
+using MeowChan.FolderSources;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 using MeowChan.Tags;
@@ -1397,8 +1398,10 @@ public sealed partial class MediaPage : UserControl
         {
             try
             {
-                GalleryEntry? resolved = await ResolvePanelEntryAsync(entry, _lifetime.Token);
-                externalReason = MediaFileActions.DefaultProgramBlockedReason(resolved?.Asset.Path);
+                string? path = entry.FolderItemId != null && entry.Sha256 == null
+                    ? await Task.Run(() => UnhashedFolderFilePath(entry), _lifetime.Token)
+                    : (await ResolvePanelEntryAsync(entry, _lifetime.Token))?.Asset.Path;
+                externalReason = MediaFileActions.DefaultProgramBlockedReason(path);
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -1406,6 +1409,17 @@ public sealed partial class MediaPage : UserControl
             if (Current() && menu.IsOpen && menu.Items.OfType<MenuItem>().FirstOrDefault(candidate => Equals(candidate.Tag, "media.open-external")) is { } item)
                 CommandBindings.Refresh(item);
         }
+    }
+
+    private string? UnhashedFolderFilePath(MediaLibraryEntry entry)
+    {
+        FolderSourceCatalogSnapshot? catalog = ReadFolderSources?.Invoke();
+        if (catalog == null || entry.Directory == null
+            || !FolderSourceIdentity.TryParseVirtualDirectory(catalog.VirtualRoot, entry.Directory, out Guid rootId, out Guid itemId)
+            || !FolderSourceIdentity.TryParseId(entry.FolderItemId, out Guid indexedId) || itemId != indexedId
+            || catalog.Item(itemId) is not { State: not FolderSourceItemState.Missing } item || item.RootId != rootId
+            || catalog.Root(rootId) is not { } root) return null;
+        return FolderSourceIdentity.AbsolutePath(root.Path, item.RelativePath);
     }
 
     private Control? QueueGroupMenu(MediaMenuSession session, IReadOnlyList<MediaLibraryEntry> entries, Func<Func<Task>, Task> run)
