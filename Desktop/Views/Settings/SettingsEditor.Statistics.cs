@@ -66,7 +66,7 @@ public partial class SettingsEditor
     public string StatsSampleIntervalMsHint => Texts.T("stats.settings.sampleIntervalHint", Config.StatsSampleIntervalMsMinimum, Config.StatsSampleIntervalMsMaximum);
     public string StatsHistorySamplesHint => Texts.T("stats.settings.historySamplesHint", Config.StatsHistorySamplesMinimum, Config.StatsHistorySamplesMaximum);
     public string StatsBackgroundIntervalMsHint => Texts.T("stats.settings.backgroundIntervalHint", Config.StatsBackgroundIntervalMsMinimum, Config.StatsBackgroundIntervalMsMaximum);
-    public string StatsTrayTooltipHint => Texts.T("stats.settings.trayTooltipHint");
+    public string StatsTrayTooltipHint => IoStatsSettingsTexts.TrayTooltipHint(OperatingSystem.IsLinux());
     public string StatsTrayMenuHint => Texts.T("stats.settings.trayMenuHint");
     public string StatsPersistHint => Texts.T("stats.settings.persistHint");
     public string StatsRetentionDaysHint => Texts.T("stats.settings.retentionDaysHint", Config.StatsRetentionDaysMinimum, Config.StatsRetentionDaysMaximum);
