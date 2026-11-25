@@ -219,7 +219,7 @@ public sealed class BooruHitKeyboardTests
         using (model) using (view)
         {
             await SearchAsync(harness, model, view);
-            Panel actions = FindById<Panel>(view, "BooruResultActions:101");
+            Panel actions = FindById<Panel>(ResultCard(view, "101"), "BooruResultActions:101");
             foreach (string name in new[] { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
                 Assert.Contains(actions.GetLogicalDescendants().OfType<Button>(), button => AutomationProperties.GetAutomationId(button) == name);
 
@@ -228,7 +228,7 @@ public sealed class BooruHitKeyboardTests
             {
                 await Task.Delay(30);
                 Assert.Equal(3, Cards(view).Count);
-                Panel rebuilt = FindById<Panel>(view, "BooruResultActions:101");
+                Panel rebuilt = FindById<Panel>(ResultCard(view, "101"), "BooruResultActions:101");
                 Assert.Contains(rebuilt.GetLogicalDescendants().OfType<Button>(),
                     button => AutomationProperties.GetAutomationId(button) == BooruWorkbenchView.OpenPostPrefix + "101");
             }
@@ -324,7 +324,7 @@ public sealed class BooruHitKeyboardTests
             {
                 window.Show();
                 window.UpdateLayout();
-                Button chip = FindById<Button>(view, BooruWorkbenchView.ResultTagPrefix + "101:cat");
+                Button chip = FindById<Button>(ResultCard(view, "101"), BooruWorkbenchView.ResultTagPrefix + "101:cat");
                 KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
                 Raise(chip, apps);
                 Assert.True(apps.Handled);
@@ -405,6 +405,9 @@ public sealed class BooruHitKeyboardTests
 
     private static List<Border> Cards(BooruWorkbenchView view) =>
         Field<StackPanel>(view, "_results").Children.OfType<Border>().ToList();
+
+    private static Border ResultCard(BooruWorkbenchView view, string postId) =>
+        Assert.Single(Cards(view), card => AutomationProperties.GetAutomationId(card) == "BooruResult:" + postId);
 
     private static T Field<T>(BooruWorkbenchView view, string name) =>
         (T)typeof(BooruWorkbenchView).GetField(name, Private)!.GetValue(view)!;
