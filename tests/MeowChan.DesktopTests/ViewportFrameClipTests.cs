@@ -34,7 +34,7 @@ public sealed class ViewportFrameClipTests
     private const int ItemCount = 36;
     private static readonly ResourceId ThreadId = new("offline", "test", "1");
     private enum Edge { Top, Bottom, Left, Right }
-    private enum BooruDecoration { Frame, OpenGallery, Select, RatingTip, RatingTipTooTall }
+    private enum BooruDecoration { Frame, FocusTop, FocusBottom, RatingTip, RatingTipTooTall }
 
     [Theory]
     [InlineData("Booru List", 1)]
@@ -93,8 +93,8 @@ public sealed class ViewportFrameClipTests
     [InlineData(false, 2, 1920)]
     [InlineData(true, 1, 1920)]
     [InlineData(true, 2, 280)]
-    public void BooruTileActionFocusStaysInsideTheViewportWhileScrolling(bool checkbox, double scale, double viewportWidth) =>
-        InBooruPlatform(() => CheckBooru(BooruResultView.Grid, checkbox ? BooruDecoration.Select : BooruDecoration.OpenGallery, scale, viewportWidth));
+    public void BooruTileFocusStaysInsideTheViewportWhileScrolling(bool bottom, double scale, double viewportWidth) =>
+        InBooruPlatform(() => CheckBooru(BooruResultView.Grid, bottom ? BooruDecoration.FocusBottom : BooruDecoration.FocusTop, scale, viewportWidth));
 
     [Theory]
     [InlineData(1, 1920)]
@@ -142,11 +142,13 @@ public sealed class ViewportFrameClipTests
                 Assert.Equal(width, viewport.Bounds.Width);
             }
 
-            if (decoration is BooruDecoration.OpenGallery or BooruDecoration.Select)
+            if (decoration is BooruDecoration.FocusTop or BooruDecoration.FocusBottom)
             {
                 Control first = Find<Border>(view, "BooruResult:1");
-                string id = decoration == BooruDecoration.Select ? "BooruSelect:1" : "BooruView:1";
-                CheckBooruActionFocus(window, scroll, viewport, first, id);
+                Control second = Find<Border>(view, "BooruResult:2");
+                int lowerRow = 2 * view.TilePanel!.Columns + 1;
+                Control clipped = Find<Border>(view, "BooruResult:" + lowerRow);
+                CheckBooruTileFocus(window, scroll, viewport, first, second, clipped, decoration == BooruDecoration.FocusBottom);
                 return;
             }
 
@@ -439,7 +441,7 @@ public sealed class ViewportFrameClipTests
             $"{escapedSelection} selection pixels and {escapedFocus} focus pixels escaped at the {edge} edge into {outside} (viewport {area}, item {item}).");
     }
 
-    private static void CheckInsetFocusEdges(Window window, SKBitmap before, SKBitmap after, Rect item, Rect viewport)
+    private static void CheckInsetFocusEdges(Window window, SKBitmap before, SKBitmap after, Rect item, Rect viewport, Edge? clipped = Edge.Top)
     {
         Application app = Application.Current!;
         Assert.True(app.TryFindResource("Workspace.Accent", window.ActualThemeVariant, out object? accent), "The theme must supply the accent brush.");
@@ -462,7 +464,7 @@ public sealed class ViewportFrameClipTests
             Rect visible = band.Intersect(viewport);
             if (visible.Width <= 0 || visible.Height <= 0)
             {
-                Assert.Equal(Edge.Top, edge);
+                Assert.Equal(clipped, edge);
                 continue;
             }
 
@@ -480,38 +482,40 @@ public sealed class ViewportFrameClipTests
         return new SKColor(color.R, color.G, color.B, color.A);
     }
 
-    private static void CheckBooruActionFocus(Window window, ScrollViewer scroll, Control viewport, Control tile, string actionId)
+    private static void CheckBooruTileFocus(Window window, ScrollViewer scroll, Control viewport, Control first, Control second, Control clipped, bool bottom)
     {
-        Control action = Find<Control>(tile, actionId);
-        // Semi adorns the checkbox glyph. The whole checkbox remains the keyboard stop.
-        Control adornmentTarget = action is CheckBox ? Find<Panel>(action, "PART_GlyphPanel") : action;
+        Assert.True(second.Focus(NavigationMethod.Pointer));
         Rect area = Bounds(viewport, window);
-        Rect start = Bounds(adornmentTarget, window);
-        Assert.True(area.Contains(start), $"The action {start} must begin inside {area}.");
-        Assert.True(tile.Focus(NavigationMethod.Pointer));
-        double offset = start.Center.Y - area.Top;
-        scroll.Offset = new Vector(0, offset);
+        scroll.Offset = new Vector(0, Math.Max(0, Bounds(second, window).Bottom - area.Bottom));
         using SKBitmap idle = Render(window);
-        Rect item = Bounds(adornmentTarget, window);
-        AssertPartial(item, area, Edge.Top);
+        Assert.True(first.Focus(NavigationMethod.Pointer));
+        window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+        window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+        Assert.Same(second, window.FocusManager!.GetFocusedElement());
+        using SKBitmap full = Render(window);
+        Rect start = Bounds(second, window);
+        Assert.True(area.Contains(start), $"The tile {start} must begin inside {area}.");
+        CheckInsetFocusEdges(window, idle, full, start, area, clipped: null);
 
-        scroll.Offset = default;
+        Rect span = Bounds(clipped, window);
+        double offset = scroll.Offset.Y + (bottom ? span.Bottom - area.Bottom + 16 : span.Top - area.Top + 16);
+        Assert.True(clipped.Focus(NavigationMethod.Pointer));
+        scroll.Offset = new Vector(0, offset);
+        using SKBitmap clippedIdle = Render(window);
+        Rect item = Bounds(clipped, window);
+        Edge edge = bottom ? Edge.Bottom : Edge.Top;
+        AssertPartial(item, area, edge);
+        Assert.True(first.Focus(NavigationMethod.Pointer));
+        Assert.True(clipped.Focus(NavigationMethod.Tab));
         Layout(window);
-        foreach (string id in new[] { "BooruView:1", actionId }.Distinct(StringComparer.Ordinal))
-        {
-            window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
-            window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.None);
-            Assert.Same(Find<Control>(tile, id), window.FocusManager!.GetFocusedElement());
-        }
-
         scroll.Offset = new Vector(0, offset);
         using SKBitmap focused = Render(window);
-        Assert.Same(action, window.FocusManager!.GetFocusedElement());
-        Assert.Equal(item, Bounds(adornmentTarget, window));
-        CheckInsetFocusEdges(window, idle, focused, item, area);
-        Rect outside = new(item.Left - 4, item.Top - 4, item.Width + 8, area.Top - item.Top + 4);
-        int escaped = ChangedPixels(idle, focused, outside, window.RenderScaling);
-        Assert.True(escaped == 0, $"{escaped} focus pixels from {actionId} escaped above {area} into {outside}.");
+        Assert.Same(clipped, window.FocusManager!.GetFocusedElement());
+        Assert.Equal(item, Bounds(clipped, window));
+        CheckInsetFocusEdges(window, clippedIdle, focused, item, area, edge);
+        Rect outside = bottom ? new Rect(item.Left, area.Bottom, item.Width, item.Bottom - area.Bottom + 4)
+            : new Rect(item.Left, item.Top - 4, item.Width, area.Top - item.Top + 4);
+        Assert.Equal(0, ChangedPixels(clippedIdle, focused, outside, window.RenderScaling));
     }
 
     private static void CheckRatingTip(Window window, ScrollViewer scroll, Control viewport, Control tile)

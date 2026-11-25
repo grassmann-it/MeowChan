@@ -4,7 +4,9 @@ using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -256,6 +258,24 @@ public sealed class ReaderNavigationBarTests : IDisposable
                 Assert.Equal("Reader navigation", AutomationProperties.GetName(bar));
                 AssertCounter(threadPosition, "1 / 1", "Thread 1 of 1");
                 AssertCounter(postPosition, "1 / 2", "Post 1 of 2");
+
+                var nextPost = Find<Button>(window, "ReaderNextPost");
+                Point next = nextPost.TranslatePoint(new Rect(nextPost.Bounds.Size).Center, window)!.Value;
+                window.MouseDown(next, MouseButton.Left);
+                window.MouseUp(next, MouseButton.Left);
+                BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
+                Assert.Equal("2", page.CurrentReaderPostId);
+                Assert.True(Find<ListBox>(window, "ArchivePosts").IsKeyboardFocusWithin);
+                window.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+                BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
+                Assert.Equal("1", page.CurrentReaderPostId);
+                foreach (string id in new[] { "ReaderPreviousThread", "ReaderNextThread", "ReaderPreviousPost", "ReaderNextPost" })
+                {
+                    Button arrow = Find<Button>(window, id);
+                    Assert.False(arrow.IsTabStop);
+                    Assert.False(arrow.Focus());
+                }
 
                 page.ReaderNavigationShowPosition = false;
                 Settle();
