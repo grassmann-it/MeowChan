@@ -98,12 +98,10 @@ public sealed partial class TaggingPage
         AutomationProperties.SetAutomationId(_actions, "TaggingActions");
         AutomationProperties.SetAutomationId(_listPresentation, "TaggingListPresentation");
         AutomationProperties.SetAutomationId(_status, "TaggingStatus");
+        AutomationProperties.SetAutomationId(_grid, "TaggingGrid");
         foreach (ListBox list in new[] { _list, _grid })
-        {
-            AutomationProperties.SetAutomationId(list, list.Name);
             list.ContainerPrepared += (_, e) =>
                 AutomationProperties.SetAutomationId(e.Container, list.Name + "Entry" + (e.Index + 1));
-        }
         _panelToggle.Click += (_, _) => TogglePanel();
         _panelHandle.DragCompleted += (_, _) => CommitPanelWidth();
         _panelHandle.KeyUp += (_, _) => CommitPanelWidth();

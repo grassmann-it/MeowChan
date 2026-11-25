@@ -111,7 +111,7 @@ public sealed class TaggingPagePanelTests
                 Assert.Same(shown, fixture.Picture.Source);
 
                 await fixture.Session.SetTagQueueStatesAsync([KeyValuePair.Create(fixture.Items[final - 1].Key, TagQueueState.Skipped)]);
-                fixture.Find<ComboBox>(fixture.Window, "TaggingFilter").SelectedIndex = (int)TaggingQueueFilter.Open;
+                fixture.Find<ComboBox>(fixture.Window, "tagging.filter").SelectedIndex = (int)TaggingQueueFilter.Open;
                 await fixture.Page.ActivateAsync();
                 await fixture.WaitAsync(() => !fixture.PanelText(MetaId).Contains($"file-{final}.png", StringComparison.Ordinal)
                     && !ReferenceEquals(fixture.Picture.Source, shown), "filtered medium released");
@@ -669,8 +669,9 @@ public sealed class TaggingPagePanelTests
         internal MediaPageLayout Layout { get; set; } = MediaPageLayout.Parse(session.Config.MediaLayout, session.Config.MediaBooruMode);
         internal Control Panel => Find<Control>(Window, PanelId);
         internal Image Picture => Find<Image>(Panel, PictureId);
-        internal ListBox List => Find<ListBox>(Window, Page.ViewMode == TaggingViewMode.List ? "TaggingList" : "TaggingGrid");
-        internal ListBoxItem Entry(int number) => Find<ListBoxItem>(List, Id(List) + "Entry" + number);
+        private string EntryIdPrefix => Page.ViewMode == TaggingViewMode.List ? "TaggingListEntry" : "TaggingGridEntry";
+        internal ListBox List => Find<ListBox>(Window, Page.ViewMode == TaggingViewMode.List ? "tagging.list" : "TaggingGrid");
+        internal ListBoxItem Entry(int number) => Find<ListBoxItem>(List, EntryIdPrefix + number);
 
         internal string PanelText(string id) => FindOrDefault<TextBlock>(Panel, id) is { IsEffectivelyVisible: true } text
             ? text.Text ?? string.Empty : string.Empty;
@@ -702,8 +703,8 @@ public sealed class TaggingPagePanelTests
         {
             var target = Assert.IsAssignableFrom<Control>(Window.FocusManager!.GetFocusedElement());
             string id = Id(target);
-            Assert.StartsWith(Id(List) + "Entry", id);
-            return int.Parse(id.AsSpan((Id(List) + "Entry").Length), System.Globalization.CultureInfo.InvariantCulture);
+            Assert.StartsWith(EntryIdPrefix, id);
+            return int.Parse(id.AsSpan(EntryIdPrefix.Length), System.Globalization.CultureInfo.InvariantCulture);
         }
 
         internal void Pump()

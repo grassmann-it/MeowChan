@@ -1088,7 +1088,7 @@ internal static class TaggingPageChecks
                     await ShowEntryAsync(1, images[0]);
                     await input.ChordAsync(MediaNativeInput.Down, MediaNativeInput.ShiftLeft);
                     await input.ChordAsync(MediaNativeInput.Down, MediaNativeInput.ShiftLeft);
-                    var list = PanelControl<ListBox>(tagging, "TaggingList");
+                    var list = PanelControl<ListBox>(tagging, "tagging.list");
                     await Program.WaitUntilAsync(() => list.SelectedItems?.Count == 3);
                     await WaitForPictureAsync(images[2]);
                     Program.CaptureWindow(window, "multi-select-3.png", folder);
@@ -1143,7 +1143,7 @@ internal static class TaggingPageChecks
                 await ShowEntryAsync(1, images[0]);
                 await input.ClickButtonAsync(PanelControl<Button>(panel, "ReaderMediaSidebarClose"));
                 await Program.WaitUntilAsync(() => !panel.IsEffectivelyVisible
-                    && PanelControl<ListBox>(tagging, "TaggingList").IsKeyboardFocusWithin
+                    && PanelControl<ListBox>(tagging, "tagging.list").IsKeyboardFocusWithin
                     && !Config.LoadConfig(session.ProfileDirectory).TaggingPagePanel);
             }
             finally
