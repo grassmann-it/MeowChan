@@ -3,10 +3,12 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tests.Shared;
 
@@ -155,6 +157,91 @@ public sealed class BooruSearchOverflowTests
             Assert.True(key.Handled);
         }
     });
+
+    [Theory]
+    [InlineData(640, false)]
+    [InlineData(1920, true)]
+    public void WatchShortcutRunsFromTheFocusedSearchField(int width, bool inline) => WithPage(width, (window, page, harness) =>
+    {
+        TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+        Button watch = Find<Button>(page, BooruWorkbenchView.CreateWatcherName);
+        input.Text = "cat";
+        Settle(window);
+        Assert.True(input.Focus());
+        Assert.Equal(inline, watch.IsEffectivelyVisible);
+        Assert.True(watch.IsEffectivelyEnabled);
+        Assert.False(watch.Focusable || watch.IsTabStop);
+
+        PressSearchAction(window, PhysicalKey.F7);
+
+        Assert.Single(harness.Watchers.Calls, call => call == "create:cat");
+        Assert.Same(input, window.FocusManager?.GetFocusedElement());
+    });
+
+    [Theory]
+    [InlineData(640, false)]
+    [InlineData(1920, true)]
+    public void BulkShortcutStartsAndStopsTheCollectionFromTheFocusedSearchField(int width, bool inline) =>
+        WithPage(width, (window, page, harness) =>
+    {
+        TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+        Button bulk = Find<Button>(page, BooruWorkbenchView.DownloadAllName);
+        input.Text = "cat";
+        Settle(window);
+        Assert.True(input.Focus());
+        window.KeyPressQwerty(PhysicalKey.Enter);
+        window.KeyReleaseQwerty(PhysicalKey.Enter);
+        Settle(window);
+        Assert.Equal(inline, bulk.IsEffectivelyVisible);
+        Assert.True(bulk.IsEffectivelyEnabled);
+        Assert.False(bulk.Focusable || bulk.IsTabStop);
+
+        TaskCompletionSource<BooruCallResult<BooruResultPage>> provider = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Search.OnSearch = (_, _, token) => provider.Task.WaitAsync(token);
+        try
+        {
+            PressSearchAction(window, PhysicalKey.F8);
+            Assert.True(page.Model.Search.Bulk.IsRunning);
+            Assert.Equal(new[] { ("cat", 1), ("cat", 1) }, harness.Search.Searches);
+            Assert.Same(input, window.FocusManager?.GetFocusedElement());
+
+            PressSearchAction(window, PhysicalKey.F8);
+            BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => !page.Model.Search.Bulk.IsRunning, "bulk download cancellation"));
+            Assert.Equal(BooruBulkEnd.Canceled, page.Model.Search.Bulk.End);
+            Assert.Empty(harness.Queue.Loads);
+            Assert.Same(input, window.FocusManager?.GetFocusedElement());
+        }
+        finally { provider.TrySetCanceled(); }
+    });
+
+    [Theory]
+    [InlineData(ShortcutPlatform.Linux, KeyModifiers.Control)]
+    [InlineData(ShortcutPlatform.Windows, KeyModifiers.Control)]
+    [InlineData(ShortcutPlatform.MacOS, KeyModifiers.Meta)]
+    public void SearchActionBindingsResolveWithoutConflicts(ShortcutPlatform platform, KeyModifiers primary)
+    {
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.Empty(bindings.Issues);
+        AssertAction("booru.search.watch", Key.F7);
+        AssertAction("booru.search.download-all", Key.F8);
+
+        void AssertAction(string id, Key key)
+        {
+            KeyModifiers modifiers = primary | KeyModifiers.Shift;
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = key, KeyModifiers = modifiers }, id, "booru"));
+            bool mac = platform == ShortcutPlatform.MacOS;
+            string display = mac ? $"⇧⌘{key} (Fn)" : $"{Texts.T("key.ctrl")}+{Texts.T("key.shift")}+{key}";
+            Assert.Equal(display, CommandCatalog.ShortcutTooltipDisplay(id, mac, "booru", bindings));
+        }
+    }
+
+    private static void PressSearchAction(Window window, PhysicalKey key)
+    {
+        RawInputModifiers primary = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+        window.KeyPressQwerty(key, primary | RawInputModifiers.Shift);
+        window.KeyReleaseQwerty(key, primary | RawInputModifiers.Shift);
+        Settle(window);
+    }
 
     private static void WithPage(int width, Action<Window, BooruPage, BooruUiHarness> test) => BooruComponentDispatcher.Run(() =>
     {
