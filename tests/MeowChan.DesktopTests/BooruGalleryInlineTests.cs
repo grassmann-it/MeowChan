@@ -3,7 +3,9 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -87,6 +89,30 @@ public sealed class BooruGalleryInlineTests
         Assert.Contains("larger than 8 MiB", BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.Failed, 8));
         Assert.Contains("offers no reduced-size version", BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.NotOffered, 8));
         Assert.Contains("Loading preview", BooruGalleryStatus.Line(row with { Preview = BooruPreviewState.Loading }, BooruGalleryPicture.None, BooruGallerySampleState.Loading, 8));
+        return Task.CompletedTask;
+    });
+
+    [Theory]
+    [InlineData("en", "Shown: preview", "The larger version exceeds the limit")]
+    [InlineData("de", "Angezeigt: Vorschau", "Die größere Fassung überschreitet die Grenze")]
+    public void AFailedSampleDescribesThePreviewOnlyWhenThereIsOne(string language, string previewLabel, string reason) => OnDispatcher(() =>
+    {
+        string previous = Texts.Language;
+        try
+        {
+            Texts.SetLanguage(language);
+            BooruResultRowView row = new(BooruUiFixtures.Post("55", sample: true), Preview: BooruPreviewState.Ready);
+            string withPreview = BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.PixelLimit, 8);
+            string placeholder = BooruGalleryStatus.Line(row with { Preview = BooruPreviewState.None },
+                BooruGalleryPicture.None, BooruGallerySampleState.PixelLimit, 8);
+            Assert.Contains(reason, withPreview);
+            Assert.Contains(reason, placeholder);
+            Assert.Contains(previewLabel, withPreview);
+            Assert.DoesNotContain(previewLabel, placeholder);
+            Assert.Contains(Texts.T("booru.ui.post.noPreview"), placeholder);
+            Assert.DoesNotContain(language == "en" ? "preview stays" : "Vorschau bleibt", placeholder);
+        }
+        finally { Texts.SetLanguage(previous); }
         return Task.CompletedTask;
     });
 
@@ -566,6 +592,61 @@ public sealed class BooruGalleryInlineTests
 
         public void Dispose() => _window.Close();
     }
+
+    [Fact]
+    public void TheGridKeepsMouseSelectionArrowNavigationAndBothOpenActions() => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        using (WindowScope scope = new(view))
+        {
+            Window window = Assert.IsType<Window>(TopLevel.GetTopLevel(view));
+            window.PlatformImpl!.Activated?.Invoke();
+            harness.Queue.States["102"] = BooruLocalState.Loaded;
+            List<string> media = [];
+            view.ShowInMedia = id => { media.Add(id); return Task.FromResult(true); };
+            await SearchAsync(harness, model, view);
+            await BooruTestSupport.WaitAsync(() => model.Search.View.Rows.Any(row => row.Post.PostId == "102" && row.Load == BooruRowLoad.AlreadyLoaded),
+                "the saved result");
+            view.SetResultView(BooruResultView.Grid, save: false);
+            window.UpdateLayout();
+
+            Assert.True(Tile("101").Focus(NavigationMethod.Tab));
+            BooruResultActionsTests.Click(Find<CheckBox>(Tile("101"), "BooruSelect:101"));
+            window.UpdateLayout();
+            Assert.True(Find<CheckBox>(Tile("101"), "BooruSelect:101").IsChecked);
+            Assert.Same(Tile("101"), window.FocusManager!.GetFocusedElement());
+            KeyPress(PhysicalKey.ArrowRight);
+            Assert.Same(Tile("102"), window.FocusManager!.GetFocusedElement());
+            KeyPress(PhysicalKey.Enter);
+            Assert.Equal("102", Assert.Single(media));
+            Assert.Equal(BooruResultView.Grid, view.ResultView);
+
+            ContextMenu menu = BooruResultActionsTests.OpenContext(window, Tile("102"));
+            BooruResultActionsTests.Click(Assert.Single(menu.Items.OfType<MenuItem>(),
+                item => AutomationProperties.GetAutomationId(item) == "gallery.open"));
+            Assert.Equal("102", view.Gallery.CurrentPostId);
+            KeyPress(PhysicalKey.ArrowRight);
+            Assert.Equal("103", view.Gallery.CurrentPostId);
+            KeyPress(PhysicalKey.Escape);
+            Assert.Same(Tile("103"), window.FocusManager!.GetFocusedElement());
+            BooruResultActionsTests.Click(Find<Button>(Tile("103"), "BooruView:103"));
+            Assert.Equal("103", view.Gallery.CurrentPostId);
+
+            Border Tile(string id) => Find<Border>(view, "BooruResult:" + id);
+            static T Find<T>(Control root, string id) where T : Control => Assert.Single(
+                root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
+            void KeyPress(PhysicalKey key)
+            {
+                window.KeyPressQwerty(key, RawInputModifiers.None);
+                window.KeyReleaseQwerty(key, RawInputModifiers.None);
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+            }
+        }
+    });
 
     [Fact]
     public void SpaceMarksTheFocusedHitAndTheCursorFollowsFocusAndIsDrawnOnEveryView() => OnDispatcher(async () =>
