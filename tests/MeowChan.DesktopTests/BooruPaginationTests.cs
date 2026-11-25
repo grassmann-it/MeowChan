@@ -144,9 +144,9 @@ public sealed class BooruPaginationTests
             Assert.True(Find<Button>(BooruWorkbenchView.NextName).IsEnabled);
             Assert.True(field.Focus());
             field.SelectAll();
-            window.KeyPressQwerty(key);
+            window.KeyPressQwerty(key, RawInputModifiers.None);
             window.KeyTextInput(text);
-            window.KeyReleaseQwerty(key);
+            window.KeyReleaseQwerty(key, RawInputModifiers.None);
             Layout();
             Assert.Equal(new[] { ("cat", 1) }, harness.Search.Searches);
             Assert.Equal(text, field.Text);

@@ -189,8 +189,8 @@ public sealed class BooruSearchOverflowTests
         input.Text = "cat";
         Settle(window);
         Assert.True(input.Focus());
-        window.KeyPressQwerty(PhysicalKey.Enter);
-        window.KeyReleaseQwerty(PhysicalKey.Enter);
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
         Settle(window);
         Assert.Equal(inline, bulk.IsEffectivelyVisible);
         Assert.True(bulk.IsEffectivelyEnabled);
