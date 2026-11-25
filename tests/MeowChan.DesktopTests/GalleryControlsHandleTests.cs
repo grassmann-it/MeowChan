@@ -118,7 +118,7 @@ public sealed class GalleryControlsHandleTests
     public void TaggingKeepsItsDecisionStripAndNavigationAccessibleDuringMotion() => WithGallery((viewer, host, entry) =>
     {
         TaggingHost owner = new(entry);
-        var key = new TagQueueKey(entry.Key.Thread, entry.Manifest.Directory, entry.Asset.AssetId, null, null, null, null);
+        var key = TagQueueKey.From(entry.Key.Thread, entry.Manifest.Directory, entry.Asset.AssetId, null, null, null, null);
         using var walk = new TaggingWalk([new TaggingWalkItem(entry.EntryKey, key, entry.Asset.RequestedFileName)], 0, owner.Current, owner);
         viewer.StartTaggingMode(walk, owner);
         try

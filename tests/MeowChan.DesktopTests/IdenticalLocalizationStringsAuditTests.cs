@@ -28,23 +28,7 @@ public sealed class IdenticalLocalizationStringsAuditTests
         Assert.NotNull(packStream);
         using JsonDocument pack = JsonDocument.Parse(packStream, StrictJson);
 
-        using Stream? allowlistStream = typeof(IdenticalLocalizationStringsAuditTests).Assembly
-            .GetManifestResourceStream(AllowlistResourcePrefix + code + ".json");
-        Assert.True(allowlistStream is not null, $"Missing exact-English allowlist for {code}: LocalizationAudit/{code}.json");
-        using JsonDocument allowlist = JsonDocument.Parse(allowlistStream, StrictJson);
-
-        Dictionary<string, string> approved = new(StringComparer.Ordinal);
-        foreach (JsonProperty entry in allowlist.RootElement.EnumerateObject())
-        {
-            JsonElement reason = entry.Value.GetProperty("reason");
-            Assert.True(reason.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(reason.GetString()),
-                $"Exact-English allowlist entry {code}/{entry.Name} needs a reason.");
-            JsonElement text = entry.Value.GetProperty("text");
-            Assert.True(text.ValueKind == JsonValueKind.String,
-                $"Exact-English allowlist entry {code}/{entry.Name} needs the approved text.");
-            approved.Add(entry.Name, text.GetString()!);
-        }
-
+        Dictionary<string, string> approved = ReadExactEnglishAllowlist(code);
         Dictionary<string, string> exact = new(StringComparer.Ordinal);
         foreach (JsonProperty entry in pack.RootElement.GetProperty("strings").EnumerateObject())
         {
@@ -66,5 +50,26 @@ public sealed class IdenticalLocalizationStringsAuditTests
             + "Unapproved keys (translate or approve text with a reason): " + string.Join(", ", unexpected) + "\n"
             + "Stale allowlist keys (remove): " + string.Join(", ", stale) + "\n"
             + "Changed approved text (translate or review the approval and its reason): " + string.Join(", ", changed));
+    }
+
+    internal static Dictionary<string, string> ReadExactEnglishAllowlist(string code)
+    {
+        using Stream? allowlistStream = typeof(IdenticalLocalizationStringsAuditTests).Assembly
+            .GetManifestResourceStream(AllowlistResourcePrefix + code + ".json");
+        Assert.True(allowlistStream is not null, $"Missing exact-English allowlist for {code}: LocalizationAudit/{code}.json");
+        using JsonDocument allowlist = JsonDocument.Parse(allowlistStream, StrictJson);
+
+        Dictionary<string, string> approved = new(StringComparer.Ordinal);
+        foreach (JsonProperty entry in allowlist.RootElement.EnumerateObject())
+        {
+            JsonElement reason = entry.Value.GetProperty("reason");
+            Assert.True(reason.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(reason.GetString()),
+                $"Exact-English allowlist entry {code}/{entry.Name} needs a reason.");
+            JsonElement text = entry.Value.GetProperty("text");
+            Assert.True(text.ValueKind == JsonValueKind.String,
+                $"Exact-English allowlist entry {code}/{entry.Name} needs the approved text.");
+            approved.Add(entry.Name, text.GetString()!);
+        }
+        return approved;
     }
 }

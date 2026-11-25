@@ -35,7 +35,8 @@ public sealed class GalleryPanelPresentationTests
         WithViewer(language, 1200, width, (window, viewer, owner) =>
         {
             using TaggingWalk walk = new(owner.Entries.Select(e => new TaggingWalkItem(e.EntryKey,
-                new(e.Key.Thread, e.Key.Directory, e.Key.AssetId, e.Post?.PostId, null, null, null), e.Asset.OriginalFileName!)).ToArray(),
+                TagQueueKey.From(e.Key.Thread, e.Key.Directory, e.Key.AssetId, e.Post?.PostId, null, null, null),
+                e.Asset.OriginalFileName!)).ToArray(),
                 0, TagQueueSnapshot.Empty, new TaggingDecisionLogTests.FakeWriter());
             if (queue) viewer.StartTaggingMode(walk, owner);
             List<GalleryEntry> opened = [];

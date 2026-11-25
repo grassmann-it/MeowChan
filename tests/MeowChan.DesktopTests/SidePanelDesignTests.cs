@@ -230,7 +230,8 @@ public sealed class SidePanelDesignTests
         viewer.Configure(true, false, false, true, 0);
         viewer.SetPosition("1 / 3", false, true, new(1, 3, false, queue));
         using TaggingWalk walk = new(owner.Entries.Select(e => new TaggingWalkItem(e.EntryKey,
-            new(e.Key.Thread, e.Key.Directory, e.Key.AssetId, e.Post?.PostId, null, null, null), e.Asset.OriginalFileName!)).ToArray(),
+            TagQueueKey.From(e.Key.Thread, e.Key.Directory, e.Key.AssetId, e.Post?.PostId, null, null, null),
+            e.Asset.OriginalFileName!)).ToArray(),
             0, TagQueueSnapshot.Empty, new TaggingDecisionLogTests.FakeWriter());
         if (queue) viewer.StartTaggingMode(walk, owner);
 

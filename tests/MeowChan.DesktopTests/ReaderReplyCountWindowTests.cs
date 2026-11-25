@@ -51,7 +51,9 @@ public sealed class ReaderReplyCountWindowTests
                 ListBox list = window.GetVisualDescendants().OfType<ListBox>()
                     .Single(control => AutomationProperties.GetAutomationId(control) == "ArchivePosts");
                 ArchivePostRow parent = list.Items.OfType<ArchivePostRow>().Single(row => row.Id == "100");
-                Assert.True(parent.RepliesRealised);
+                Assert.NotNull(list.ContainerFromItem(parent));
+                // The preference applies to the selected post (F11b).
+                list.SelectedItem = parent;
                 Assert.Null(parent.BacklinkCount);
                 capture = page.ToggleThreadCaptureAsync();
                 Assert.True(writing);

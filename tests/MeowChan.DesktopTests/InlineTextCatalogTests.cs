@@ -35,7 +35,7 @@ public sealed class InlineTextCatalogTests : IDisposable
         using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(Texts.BundledPackResourcePrefix + language + ".json")!;
         using JsonDocument pack = JsonDocument.Parse(stream);
         JsonElement strings = pack.RootElement.GetProperty("strings");
-        string[] shared = IdenticalLocalizationStringsAuditTests.AllowedMediaFacts(language);
+        Dictionary<string, string> approved = IdenticalLocalizationStringsAuditTests.ReadExactEnglishAllowlist(language);
         Texts.SetLanguage(language);
         foreach ((string key, string english, _) in InlineTextCatalog.Entries)
         {
@@ -43,7 +43,8 @@ public sealed class InlineTextCatalogTests : IDisposable
             string translated = value.GetString()!;
             Assert.False(string.IsNullOrWhiteSpace(translated), key);
             Assert.Equal(translated, Texts.T(key));
-            Assert.True(translated != english || shared.Contains(key, StringComparer.Ordinal), language + " uses English for " + key);
+            Assert.True(translated != english || (approved.TryGetValue(key, out string? text) && text == translated),
+                language + " uses English for " + key);
             Assert.Equal(Placeholders(english), Placeholders(translated));
         }
     }
