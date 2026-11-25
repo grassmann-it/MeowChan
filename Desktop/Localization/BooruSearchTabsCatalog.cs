@@ -16,6 +16,7 @@ internal static class BooruSearchTabsCatalog
         ("booru.tabs.searchCurrentShort", "In current tab", "In diesem Tab"),
         ("booru.tabs.watchShort", "Watch", "Beobachten"),
         ("booru.tabs.downloadShort", "Download all", "Alles laden"),
+        ("booru.tabs.moreActions", "More actions", "Weitere Aktionen"),
         ("booru.tabs.command.submit", "Submit Booru search", "Booru-Suche starten"),
         ("booru.tabs.command.alternate", "Submit Booru search in a new tab", "Booru-Suche in einem neuen Tab starten"),
         ("settings.booru.newSearchTarget", "New search opens in", "Neue Suche öffnet"),

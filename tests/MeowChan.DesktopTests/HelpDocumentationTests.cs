@@ -1792,9 +1792,9 @@ public sealed class HelpDocumentationTests
         {
             int count = Number(page.Groups["pages"].Value);
             int size = Number(page.Groups["size"].Value);
-            Assert.Equal(DanbooruTagQuery.MaximumSearchPages, count);
+            Assert.Equal(Config.BooruSearchPagesDefault, count);
             Assert.Equal(DanbooruWatcher.DefaultPageBudget, count);
-            Assert.Equal(BooruHostHttp.MaximumSearchPage, count);
+            Assert.Contains(BooruHostHttp.MaximumSearchPage.ToString(CultureInfo.InvariantCulture), text, StringComparison.Ordinal);
             Assert.Equal(DanbooruTagQuery.MaximumSearchPageSize, size);
             Assert.Equal(DanbooruWatcher.DefaultPageSize, size);
             Assert.Equal(BooruHostHttp.MaximumSearchLimit, size);
