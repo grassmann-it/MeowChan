@@ -445,7 +445,7 @@ internal sealed partial class GalleryViewer
     // viewer, where it lies over most of the picture) starts below the top row of the way back and the star. In the transparency
     // fallback the way back lies in the picture row and the panel in row 1 as well, so the same rule applies.
     private double TopRowPairWidth => StarLeftMargin + (_favoriteIndicator.IsVisible || _nativeFavoriteIndicator.IsVisible
-        ? (_favoriteIndicator.Bounds.Width > 0 ? _favoriteIndicator.Bounds.Width : 44) : 0) + 12;
+        ? (_favoriteIndicator.Bounds.Width > 0 ? _favoriteIndicator.Bounds.Width : 44) : 0) + RatingBadgeShownWidth + 12;
 
     private double PostPanelTopInset(double width, double rightMargin, double top)
     {
@@ -866,7 +866,7 @@ internal sealed partial class GalleryViewer
             // The tagging mode holds the controls: its decision strip is never auto-hidden (PT3).
             _interactionAvailable, active, controlHasFocus, captured, footerPopup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText || _tagging != null,
             Hovered: _overlayFooter.IsPointerOver || _controlsHot || _pointerInControls || _pointerOnControlsIndicator || FilmstripHolds
-                || _close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver);
+                || _close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver || RatingBadgePointerOver);
         if (!_overlayHidden && activity.CanHideAfterHold(Stopwatch.GetTimestamp(), _controlsIdleHideMs,
             ref _lastOverlayActivity, ref _overlayActivityHeld))
         {

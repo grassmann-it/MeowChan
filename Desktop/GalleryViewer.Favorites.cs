@@ -81,6 +81,7 @@ internal sealed partial class GalleryViewer
             badge.GotFocus += (_, _) => UpdateCornerChrome();
             badge.LostFocus += (_, _) => UpdateCornerChrome();
         }
+        InitializeRatingIndicators();
         UpdateFavoriteIndicators();
     }
 
@@ -109,6 +110,7 @@ internal sealed partial class GalleryViewer
         Grid.SetRow(_favoriteIndicator, 0);
         PlaceBadgeAfterBack(_favoriteIndicator);
         PlaceBadgeAfterBack(_nativeFavoriteIndicator);
+        UpdateRatingIndicators(); // the stars right of the heart (Tom, 25.11.2026)
     }
 
     // Tab order: the badge comes right after "Back to …". The way back is appended to its host whenever the overlay placement runs, so the

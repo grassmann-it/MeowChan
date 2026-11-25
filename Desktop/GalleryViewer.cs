@@ -238,9 +238,13 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     internal void SetRating(int? value, string? error, bool available = true, bool pending = false)
     {
         bool changedError = _ratingError != error;
+        // A change of the shown medium's rating (never its first known value) flashes the heart and its stars like a favourite change.
+        bool changed = _ratingAvailable && available && _ratingValue != value;
         _ratingValue = value; _ratingError = error; _ratingAvailable = available; _ratingPending = pending;
         UpdateRatingStatusText();
         if (changedError) ReportDiagnostic("rating", error);
+        UpdateRatingIndicators();
+        if (changed) FlashFavoriteBadge();
         ApplyChrome();
         RefreshDecisionRow(); // the Tags panel's row shows the same rating
         RefreshPostDecision(); // and so does the Post row, with the error of a failed write under it
@@ -814,7 +818,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         if (_close == null) return;
         bool autoHidden = OverlayControlsEffective && _overlayHidden;
-        bool pointer = HasCurrentGalleryPointer && (_close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver);
+        bool pointer = HasCurrentGalleryPointer && (_close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver
+            || RatingBadgePointerOver);
         bool focus = _close.IsKeyboardFocusWithin || _favoriteIndicator.IsKeyboardFocusWithin || _nativeFavoriteIndicator.IsKeyboardFocusWithin;
         // A pointer click that left the focus on a control does not pin the pair (as for the footer); only keyboard focus holds it.
         bool held = IsGalleryWindowActive && (pointer || _keyboardInteraction && focus);
@@ -825,6 +830,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         back.ApplyTo(_close);
         star.ApplyTo(_favoriteIndicator);
         star.ApplyTo(_nativeFavoriteIndicator);
+        ApplyRatingCornerChrome(star); // the stars beside the heart come and go with it
         // A hidden control must not keep the focus (it would type into nothing): the focus returns to the picture.
         bool focusLost = _close.IsKeyboardFocusWithin && !back.Focusable
             || (_favoriteIndicator.IsKeyboardFocusWithin || _nativeFavoriteIndicator.IsKeyboardFocusWithin) && !star.Focusable;
