@@ -118,16 +118,9 @@ public partial class ArchivePage : UserControl
         {
             MediaPosition? position = _shownMedia.Count > 0 ? CaptureMediaPosition() : null;
             _mediaTiles = value;
-            if (IsInitialized || _largeReader)
-            {
-                ArchiveMediaGrid.IsVisible = !value;
-                ArchiveMediaTiles.IsVisible = value;
-                ArchiveMediaColumnsButton.IsVisible = !value;
-                SyncMediaLayoutSwitch();
-                if (position != null) RestoreMediaPosition(position);
-                FollowSavedMediaSelection();
-            }
-            else SyncMediaLayoutHighlight();
+            SyncMediaLayoutSwitch();
+            if (position != null) RestoreMediaPosition(position);
+            FollowSavedMediaSelection();
         }
     }
     internal Func<bool, Task>? SaveMediaTiles { get; set; }
@@ -172,9 +165,6 @@ public partial class ArchivePage : UserControl
         Texts.Changed += OnLanguageChanged;
         Localize();
         UpdateLayoutMode();
-        ArchiveMediaGrid.IsVisible = false;
-        ArchiveMediaTiles.IsVisible = true;
-        ArchiveMediaColumnsButton.IsVisible = false;
         ArchiveVersionScope.SelectedIndex = 1;
     }
     internal bool IsAvailable

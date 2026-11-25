@@ -36,7 +36,7 @@ internal static partial class TitlePatternMiner
         var slash = new Dictionary<string, List<Title>>(StringComparer.Ordinal);
         var stripped = new Dictionary<string, List<Title>>(StringComparer.Ordinal);
         var prefixes = new Dictionary<string, List<Title>>(StringComparer.Ordinal);
-        string ownCode = "/" + board.ToLowerInvariant() + "/";
+        var ownCodes = new Regex($"(?:/{Regex.Escape(board.ToLowerInvariant())})+/");
         foreach (var row in rows)
         {
             token.ThrowIfCancellationRequested();
@@ -50,12 +50,14 @@ internal static partial class TitlePatternMiner
         {
             token.ThrowIfCancellationRequested();
             string clean = title.Clean;
-            if (clean.Contains(ownCode, StringComparison.Ordinal))
-                clean = Whitespace().Replace(clean.Replace(ownCode, " ", StringComparison.Ordinal), " ").Trim();
-            Match code = SlashCode().Match(clean);
+            // Adjacent codes can share a slash, including repeated occurrences of the current board.
+            string slashTitle = ownCodes.Replace(clean, "/");
+            Match code = SlashCode().Match(slashTitle);
             if (code.Success) Group(slash, code.Value, title);
             else
             {
+                if (slashTitle.Length != clean.Length)
+                    clean = Whitespace().Replace(ownCodes.Replace(clean, " "), " ").Trim();
                 string key = Edges().Replace(Whitespace().Replace(Counters().Replace(clean, "${thread} "), " "), string.Empty);
                 if (key.Length > 0) Group(stripped, key, title with { Clean = clean });
             }
