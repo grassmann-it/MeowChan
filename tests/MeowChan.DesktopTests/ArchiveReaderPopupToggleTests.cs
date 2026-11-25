@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.VisualTree;
@@ -205,6 +206,143 @@ public sealed class ArchiveReaderPopupToggleTests
         Assert.NotSame(first, columns.ContextMenu);
         Press(fixture, new KeyGesture(Key.Escape));
         Assert.Null(columns.ContextMenu);
+        return Task.CompletedTask;
+    });
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void ThreadMenuShortcutTogglesFromPostsWithOverflowClosed(bool large, bool rebind) => WithArchive(async fixture =>
+    {
+        ArchivePage page = await OpenReader(fixture, large);
+        var posts = Find<ListBox>(fixture.Window, "ArchivePosts");
+        var toolbar = Find<ActionToolBar>(fixture.Window, "ReaderToolbar");
+        var opener = Assert.Single(toolbar.Items.OfType<Button>(),
+            b => AutomationProperties.GetAutomationId(b) == "ReaderThreadOpen");
+        Assert.False(opener.Focusable);
+        page.ArchiveColumnModePreference = WorkViewSetting.BarebonesName;
+        fixture.Layout();
+        var more = Find<ToggleButton>(fixture.Window, "ReaderToolbarMore");
+        Assert.False(more.IsChecked);
+        Assert.False(toolbar.IsVisualAncestorOf(opener));
+        Assert.True(posts.Focus());
+        if (rebind)
+            ShortcutService.Publish(ShortcutService.CurrentSection.Set("reader.thread-menu", [ShortcutGesture.Parse("Primary+Shift+U")]));
+        KeyGesture key = Assert.IsType<KeyGesture>(CommandBindings.Gesture("reader.thread-menu"));
+        Press(fixture, key);
+        Assert.True(more.ContextMenu?.IsOpen);
+        Assert.False(more.IsChecked);
+        Assert.True(more.ContextMenu!.IsKeyboardFocusWithin);
+        Press(fixture, key);
+        Assert.Null(more.ContextMenu);
+        Assert.True(posts.IsKeyboardFocusWithin);
+        Press(fixture, key);
+        Press(fixture, new KeyGesture(Key.Escape));
+        Assert.Null(more.ContextMenu);
+        Assert.True(posts.IsKeyboardFocusWithin);
+    });
+
+    [Theory]
+    [InlineData(ShortcutPlatform.Linux)]
+    [InlineData(ShortcutPlatform.Windows)]
+    [InlineData(ShortcutPlatform.MacOS)]
+    public void ThreadMenuDefaultIsAvailableAndUniqueAcrossTheCatalog(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        var gesture = Assert.Single(bindings.For("reader.thread-menu"));
+        KeyGesture key = gesture.Resolve(platform);
+        Assert.Equal(Key.B, key.Key);
+        Assert.Equal(KeyModifiers.Shift | (platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Control), key.KeyModifiers);
+        Assert.Null(EffectiveShortcutBindings.InvalidReason(gesture, platform));
+        Assert.DoesNotContain(CommandCatalog.All, command => command.Id != "reader.thread-menu"
+            && bindings.For(command.Id).Any(other => other.Resolve(platform).Equals(key)));
+    }
+
+    [Fact]
+    public void EmbeddedFindShortcutDuringPreeditLeavesTheReaderEditorFocused() => WithArchive(async fixture =>
+    {
+        await OpenReader(fixture, large: false);
+        Click(fixture, Find<Button>(fixture.Window, "ReaderFindOpen"));
+        var query = Find<SearchBox>(fixture.Window, "ReaderFindQuery");
+        var archive = Find<SearchBox>(fixture.Window, "ArchiveSearchText");
+        Assert.True(query.IsFocused);
+        var presenter = Assert.Single(query.GetVisualDescendants().OfType<TextPresenter>());
+        presenter.SetCurrentValue(TextPresenter.PreeditTextProperty, "candidate");
+        Press(fixture, Assert.IsType<KeyGesture>(CommandBindings.Gesture("reader.find")));
+        Assert.True(query.IsFocused);
+        Assert.False(archive.IsKeyboardFocusWithin);
+        Assert.Equal("candidate", presenter.PreeditText);
+        Assert.True(query.IsEffectivelyVisible);
+    });
+
+    [Fact]
+    public void SharedColumnsAndReaderGestureFollowsTheFocusedView() => WithArchive(async fixture =>
+    {
+        ArchivePage page = await OpenReader(fixture, large: false);
+        page.ArchiveLayoutPreference = "Table";
+        ShortcutService.Publish(ShortcutService.CurrentSection.Set("table.choose-columns", [ShortcutGesture.Parse("Primary+Shift+J")]));
+        fixture.Layout();
+        var posts = Find<ListBox>(fixture.Window, "ArchivePosts");
+        var table = Find<DataGrid>(fixture.Window, "ArchiveThreadTable");
+        var toolbar = Find<ActionToolBar>(fixture.Window, "ArchiveResultActions");
+        var columns = Assert.Single(toolbar.Items.OfType<Button>(), b => AutomationProperties.GetAutomationId(b) == "ArchiveThreadColumnsButton");
+        Assert.True(table.IsEffectivelyVisible && posts.IsEffectivelyVisible);
+        Assert.True(posts.Focus());
+        var shared = new KeyGesture(Key.J, KeyModifiers.Shift | (OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control));
+        Press(fixture, shared);
+        Assert.True(page.IsQuickSettingsOpen);
+        Assert.Null(columns.ContextMenu);
+        Press(fixture, new KeyGesture(Key.Escape));
+        Assert.True(table.Focus());
+        Press(fixture, shared);
+        Assert.True(columns.ContextMenu?.IsOpen);
+        Assert.False(page.IsQuickSettingsOpen);
+    });
+
+    [Fact]
+    public void HiddenTagsOfTheSelectedThreadAreUncheckedAndReopenItsReader() => WithArchive(async fixture =>
+    {
+        ArchivePage page = await OpenReader(fixture, large: false);
+        page.ArchiveLayoutPreference = "Table";
+        fixture.Window.Width = 1000;
+        fixture.Layout();
+        var bar = Find<StackPanel>(fixture.Window, "ReaderTagBar");
+        var table = Find<DataGrid>(fixture.Window, "ArchiveThreadTable");
+        var row = new ArchiveThreadRow(page.CurrentThread!.Summary);
+        table.ItemsSource = new[] { row };
+        await page.OpenThreadTagsAsync(row.Summary.Id);
+        Assert.True(bar.IsEffectivelyVisible);
+        Click(fixture, Find<Button>(fixture.Window, "ArchiveBackButton"));
+        Assert.False(bar.IsEffectivelyVisible);
+        table.SelectedItem = row;
+        Assert.True(table.Focus());
+        table.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        fixture.Layout();
+        var menu = Assert.IsType<ContextMenu>(table.ContextMenu);
+        Assert.True(menu.IsOpen);
+        var tags = Assert.Single(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "thread.tags"));
+        Assert.False(tags.IsChecked);
+        tags.Command!.Execute(null);
+        menu.Close();
+        fixture.Layout();
+        Assert.True(bar.IsEffectivelyVisible);
+        Assert.Equal(row.Summary.Id, page.CurrentThread?.Summary.Id);
+    });
+
+    [Fact]
+    public void FilterOffersOnlyItsHeaderCloseAndReturnsFocusToResults() => WithArchive(fixture =>
+    {
+        fixture.Window.ArchivePage.ArchiveLayoutPreference = "List";
+        Click(fixture, Find<Button>(fixture.Window, "ArchiveFilters"));
+        var surface = Find<Border>(fixture.Window, "ArchiveFilterSurface");
+        var headerClose = Find<Button>(surface, "ArchiveFilterSurfaceClose");
+        Assert.True(headerClose.IsEffectivelyVisible);
+        Assert.DoesNotContain(surface.GetVisualDescendants().OfType<Button>(), b =>
+            b.IsEffectivelyVisible && (Equals(b.Tag, "action.close") || AutomationProperties.GetName(b) == Texts.T("action.close"))
+                && !ReferenceEquals(b, headerClose));
+        Click(fixture, headerClose);
+        Assert.False(surface.IsEffectivelyVisible);
+        Assert.True(Find<ListBox>(fixture.Window, "ArchiveThreads").IsKeyboardFocusWithin);
         return Task.CompletedTask;
     });
 
