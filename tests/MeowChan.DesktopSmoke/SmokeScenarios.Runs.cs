@@ -120,7 +120,7 @@ internal static partial class SmokeScenarios
         ["theme-colors"] = new(SmokeStage.Ready, mainWindow => ThemeColorsChecks.RunAsync(mainWindow)),
         ["tagging-page"] = new(SmokeStage.Ready, mainWindow => TaggingPageChecks.RunAsync(mainWindow))
         {
-            Seed = MediaPageChecks.SeedAsync,
+            Seed = TaggingPageChecks.SeedAsync,
             Configure = config => { config.Theme = "Light"; config.WorkViewSwitchNoticeSeconds = 0; }
         },
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),

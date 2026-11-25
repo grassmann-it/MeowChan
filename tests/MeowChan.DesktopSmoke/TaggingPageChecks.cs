@@ -1,6 +1,7 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -8,6 +9,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -258,6 +260,7 @@ internal static class TaggingPageChecks
             Program.CaptureWindow(window, "smoke-tagging-page-empty.png");
             await CheckQueueWalkProgressAsync(window, tagging);
             await CheckGalleryCommandAsync(window, tagging);
+            await CheckPanelAsync(window, tagging);
             Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, selection bar, grid view and switch, stamp, filter, work views, clear; Light/Dark EN/DE/RU/JA captures.");
         }
         finally
@@ -988,6 +991,265 @@ internal static class TaggingPageChecks
         GalleryViewerChecksAccess.Click(opened, "GalleryClose");
         await window.GalleryCleanupTask.WaitAsync(deadline);
         Console.WriteLine("SMOKE tagging-page gallery: missing bytes and missing manifest warn, an old visit cannot open, and a current visit opens the chosen medium.");
+    }
+
+    internal static async Task SeedAsync(string profile)
+    {
+        await MediaPageChecks.SeedAsync(profile);
+        const string relative = "tests/Fixtures/gallery-playback-vp8.webm";
+        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory != null; directory = directory.Parent)
+        {
+            string fixture = Path.Combine(directory.FullName, relative);
+            if (!File.Exists(fixture)) continue;
+            await VideoGalleryChecks.SeedAsync(profile, fixture, includeSecondVideo: true);
+            return;
+        }
+        throw new FileNotFoundException("The checked-in tagging sidebar video fixture is missing.", relative);
+    }
+
+    private static async Task CheckPanelAsync(MainWindow window, TaggingPage tagging)
+    {
+        double oldWidth = window.Width;
+        TaggingViewMode oldView = tagging.ViewMode;
+        string language = Texts.Language;
+        DesktopSessionHost session = window.SessionHost;
+        Config before = session.Config.Clone();
+        MediaLibrarySnapshot library = await MediaLibraryIndexBuilder.BuildAsync(session.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync);
+        MediaLibraryEntry video = library.Entries.Single(entry => entry.Thread == VideoGalleryChecks.Id && entry.PostId == "2000");
+        MediaLibraryEntry[] images = [library.Entries.Single(entry => entry.PostId == "100"),
+            library.Entries.Single(entry => entry.PostId == "200"), library.Entries.Single(entry => entry.PostId == "2001")];
+        TagQueueItem[] items = images.Append(video).Select((entry, index) =>
+            TagQueueItem.From(entry, DateTimeOffset.UnixEpoch.AddSeconds(index))!).ToArray();
+        using MediaNativeInput input = new(window);
+
+        try
+        {
+            await ReplaceQueueAsync(items);
+            tagging.SetViewMode(TaggingViewMode.List, save: false);
+            tagging.RestorePanelEnabled(true);
+            await ResizeAsync(window, 1400);
+            Control panel = PanelControl<Control>(tagging, "TaggingPanel");
+            ToggleButton toggle = PanelControl<ToggleButton>(tagging, "TaggingPanelToggle");
+            await ShowEntryAsync(1, images[0]);
+            await input.ChordAsync('m', MediaNativeInput.ControlLeft, MediaNativeInput.ShiftLeft);
+            await Program.WaitUntilAsync(() => !panel.IsEffectivelyVisible && !session.Config.TaggingPagePanel);
+            await input.ChordAsync('m', MediaNativeInput.ControlLeft, MediaNativeInput.ShiftLeft);
+            await Program.WaitUntilAsync(() => panel.IsEffectivelyVisible && session.Config.TaggingPagePanel);
+
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Media);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Media && window.MediaPageForTests != null);
+            MediaPage media = window.MediaPageForTests!;
+            MediaPageLayout originalLayout = media.PageLayout;
+            try
+            {
+                media.ApplyLayout(originalLayout with { Panel = true, PanelSide = MediaPanelSide.Right, PanelWidth = 360 }, save: false);
+                await Program.WaitUntilAsync(() => PanelControlOrDefault<Control>(media, "MediaPanel") is { IsEffectivelyVisible: true });
+                await input.ChordAsync('m', MediaNativeInput.ControlLeft, MediaNativeInput.ShiftLeft);
+                await Program.WaitUntilAsync(() => PanelControl<Control>(media, "MediaPanel").IsEffectivelyVisible == false);
+                Require(session.Config.TaggingPagePanel, "The Media shortcut changed the Tagging panel preference.");
+                await ReopenAsync(window, tagging);
+                await CheckSharedSidebarSettingsAsync(media, panel);
+
+                foreach (string variant in new[] { "Light", "Dark" })
+                {
+                    string folder = Path.Combine(Path.GetTempPath(), "W112-73-Abnahme", variant.ToLowerInvariant());
+                    Directory.CreateDirectory(folder);
+                    await SetThemeAsync(window, variant);
+                    foreach (string locale in new[] { "en", "de" })
+                    {
+                        await FooterNavigationChecks.PersistLanguageAsync(window, locale);
+                        await ReopenAsync(window, tagging);
+                        await ShowEntryAsync(1, images[0]);
+                        Program.CaptureWindow(window, $"list-1400-{locale}.png", folder);
+                    }
+
+                    await FooterNavigationChecks.PersistLanguageAsync(window, "en");
+                    await ReopenAsync(window, tagging);
+                    tagging.SetViewMode(TaggingViewMode.Grid, save: false);
+                    await WaitForPictureAsync(images[0]);
+                    Program.CaptureWindow(window, "grid-1400-en.png", folder);
+                    tagging.SetViewMode(TaggingViewMode.List, save: false);
+                    await ResizeAsync(window, 900);
+                    Require(!panel.IsEffectivelyVisible && session.Config.TaggingPagePanel && toggle.IsEffectivelyEnabled,
+                        "The narrow page did not fold the panel while keeping the saved choice.");
+                    Program.CaptureWindow(window, "list-900-collapsed.png", folder);
+                    await ResizeAsync(window, 1400);
+
+                    media.ApplyLayout(media.PageLayout with { PanelSide = MediaPanelSide.Left }, save: false);
+                    tagging.ApplyPanelLayout();
+                    await ShowEntryAsync(1, images[0]);
+                    await Program.WaitUntilAsync(() => panel.TranslatePoint(default, tagging)!.Value.X
+                        < PanelControl<Control>(tagging, "TaggingListArea").TranslatePoint(default, tagging)!.Value.X);
+                    Program.CaptureWindow(window, "panel-left.png", folder);
+                    media.ApplyLayout(media.PageLayout with { PanelSide = MediaPanelSide.Right }, save: false);
+                    tagging.ApplyPanelLayout();
+
+                    // A range is selected with the real list key while the panel follows the third result.
+                    await ShowEntryAsync(1, images[0]);
+                    await input.ChordAsync(MediaNativeInput.Down, MediaNativeInput.ShiftLeft);
+                    await input.ChordAsync(MediaNativeInput.Down, MediaNativeInput.ShiftLeft);
+                    var list = PanelControl<ListBox>(tagging, "tagging.list");
+                    await Program.WaitUntilAsync(() => list.SelectedItems?.Count == 3);
+                    await WaitForPictureAsync(images[2]);
+                    Program.CaptureWindow(window, "multi-select-3.png", folder);
+
+                    await ShowEntryAsync(1, images[0]);
+                    ReaderMediaPreferences preferences = ReaderMediaPreferences.From(session.Config);
+                    foreach (string mode in new[] { "Auto", "Always", "Off" })
+                    {
+                        tagging.ConfigurePanelInfo(preferences with { MediaSidebarInfo = mode, MediaSidebarFacts = true });
+                        await WaitForPictureAsync(images[0]);
+                        // Variant A: "Off" folds the facts only; the bar with stars and tags stays.
+                        await Program.WaitUntilAsync(() => FactArea().IsEffectivelyVisible == (mode != "Off")
+                            && PanelControl<Control>(tagging, "ReaderMediaSidebarInfoBar").IsEffectivelyVisible);
+                        Program.CaptureWindow(window, $"info-{mode.ToLowerInvariant()}.png", folder);
+                    }
+
+                    tagging.ConfigurePanelInfo(preferences with { MediaSidebarInfo = "Always", MediaSidebarFacts = true });
+                    Button editor = PanelControl<Button>(panel, "ReaderMediaSidebarEditTags");
+                    await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.IsEffectivelyEnabled);
+                    await input.ClickButtonAsync(editor);
+                    await Program.WaitUntilAsync(() => Popup() is { IsEffectivelyVisible: true });
+                    Control popover = Popup()!;
+                    using (RenderTargetBitmap screenshot = new(new PixelSize((int)Math.Ceiling(popover.Bounds.Width),
+                        (int)Math.Ceiling(popover.Bounds.Height)), new Vector(96, 96)))
+                    {
+                        screenshot.Render(popover);
+                        screenshot.Save(Path.Combine(folder, "tag-popover-from-panel.png"), PngBitmapEncoderOptions.Default);
+                    }
+                    await input.KeyAsync(MediaNativeInput.Escape);
+                    await Program.WaitUntilAsync(() => Popup() == null);
+
+                    await ShowEntryAsync(4, video);
+                    Image poster = PanelControl<Image>(panel, "ReaderMediaSidebarPicture");
+                    Require(PanelControl<Control>(panel, "ReaderMediaSidebarPlay").IsEffectivelyVisible
+                        && !PanelControl<Control>(panel, "ReaderMediaSidebarVideoRow").IsEffectivelyVisible,
+                        "The tagging sidebar must show a video poster without inline playback.");
+                    Program.CaptureWindow(window, "video-poster.png", folder);
+                    await input.ClickAsync(poster);
+                    ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
+                    await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.Content is GalleryViewer viewer
+                        && viewer.CaptureState().PostId == video.PostId && window.GalleryTagging == null);
+                    GalleryViewerChecksAccess.Click((GalleryViewer)gallery.Content!, "GalleryClose");
+                    await window.GalleryCleanupTask.WaitAsync(TimeSpan.FromSeconds(15));
+
+                    await ReplaceQueueAsync([]);
+                    await Program.WaitUntilAsync(() => !poster.IsEffectivelyVisible && poster.Source == null
+                        && !PanelControl<Button>(panel, "ReaderMediaSidebarOpen").IsEffectivelyEnabled);
+                    Program.CaptureWindow(window, "empty-queue.png", folder);
+                    await ReplaceQueueAsync(items);
+                }
+
+                await ShowEntryAsync(1, images[0]);
+                await input.ClickButtonAsync(PanelControl<Button>(panel, "ReaderMediaSidebarClose"));
+                await Program.WaitUntilAsync(() => !panel.IsEffectivelyVisible
+                    && PanelControl<ListBox>(tagging, "tagging.list").IsKeyboardFocusWithin
+                    && !Config.LoadConfig(session.ProfileDirectory).TaggingPagePanel);
+            }
+            finally
+            {
+                media.ApplyLayout(originalLayout, save: false);
+                await session.SaveViewPreferencesAsync(config => config.MediaLayout = before.MediaLayout);
+            }
+        }
+        finally
+        {
+            await session.SaveViewPreferencesAsync(config =>
+            {
+                config.TaggingPagePanel = before.TaggingPagePanel;
+                config.MediaSidebarFacts = before.MediaSidebarFacts;
+                config.MediaSidebarAutoHide = before.MediaSidebarAutoHide;
+            });
+            tagging.RestorePanelEnabled(before.TaggingPagePanel);
+            tagging.ConfigurePanelInfo(ReaderMediaPreferences.From(before));
+            tagging.SetViewMode(oldView, save: false);
+            await SetThemeAsync(window, before.Theme);
+            await FooterNavigationChecks.PersistLanguageAsync(window, language);
+            await ReopenAsync(window, tagging);
+            if (double.IsFinite(oldWidth)) await ResizeAsync(window, oldWidth);
+        }
+
+        async Task CheckSharedSidebarSettingsAsync(MediaPage media, Control panel)
+        {
+            await ShowEntryAsync(1, images[0]);
+            bool facts = !session.Config.MediaSidebarFacts;
+            bool autohide = !session.Config.MediaSidebarAutoHide;
+            await input.ChordAsync('i', MediaNativeInput.ShiftLeft);
+            await Program.WaitUntilAsync(() => session.Config.MediaSidebarFacts == facts,
+                () => "Shift+I did not persist the Tagging sidebar facts.");
+            Button settings = PanelControl<Button>(panel, "ReaderMediaSidebarSettings");
+            await input.ClickButtonAsync(settings);
+            MenuItem? autohideChoice = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                autohideChoice = PanelControlOrDefault<MenuItem>(window, "ReaderMediaSidebarSettingsAutoHide");
+                return autohideChoice is { IsEffectivelyVisible: true };
+            });
+            await input.ClickAsync(autohideChoice!);
+            await Program.WaitUntilAsync(() => session.Config.MediaSidebarAutoHide == autohide,
+                () => "The Tagging sidebar gear did not persist Autohide.");
+
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Media);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Media);
+            media.ApplyLayout(media.PageLayout with { Panel = true }, save: false);
+            await media.FocusExactEntryAsync(entry => entry.AssetId == images[0].AssetId, "Sidebar fixture missing");
+            await Program.WaitUntilAsync(() => PanelControlOrDefault<ToggleButton>(media, "ReaderMediaSidebarInfoToggle")
+                is { IsEffectivelyVisible: true } info && info.IsChecked == facts);
+            Control mediaPanel = PanelControl<Control>(media, "MediaPanel");
+            Button mediaSettings = PanelControl<Button>(mediaPanel, "ReaderMediaSidebarSettings");
+            await input.ClickButtonAsync(mediaSettings);
+            await Program.WaitUntilAsync(() => window.OpenedPopups.SelectMany(popup =>
+                    popup.Child?.GetSelfAndVisualDescendants().OfType<MenuItem>() ?? [])
+                .Any(item => Equals(item.Tag, "autoHide") && item.IsChecked == autohide));
+            await input.KeyAsync(MediaNativeInput.Escape);
+
+            Config reopened = Config.LoadConfig(session.ProfileDirectory);
+            Require(reopened.MediaSidebarFacts == facts && reopened.MediaSidebarAutoHide == autohide,
+                "The Tagging sidebar settings did not survive reopening the saved profile.");
+            await ReopenAsync(window, tagging);
+        }
+
+        async Task ReplaceQueueAsync(TagQueueItem[] entries)
+        {
+            await session.ClearTagQueueAsync();
+            if (entries.Length != 0) await session.EnqueueTagQueueAsync(entries);
+            await ReopenAsync(window, tagging);
+            await Program.WaitUntilAsync(() => tagging.Rows.Count == entries.Length);
+        }
+
+        async Task ShowEntryAsync(int number, MediaLibraryEntry entry)
+        {
+            await Program.WaitUntilAsync(() => PanelControlOrDefault<ListBoxItem>(tagging, "TaggingListEntry" + number)
+                is { IsEffectivelyVisible: true });
+            await input.ClickAsync(PanelControl<ListBoxItem>(tagging, "TaggingListEntry" + number));
+            await WaitForPictureAsync(entry);
+        }
+
+        Task WaitForPictureAsync(MediaLibraryEntry entry) => Program.WaitUntilAsync(() =>
+        {
+            Control? host = PanelControlOrDefault<Control>(tagging, "TaggingPanel");
+            return entry.Name is { } name && host is { IsEffectivelyVisible: true }
+                && PanelControlOrDefault<Image>(host, "ReaderMediaSidebarPicture") is { IsEffectivelyVisible: true, Source: not null }
+                && PanelControlOrDefault<TextBlock>(host, "ReaderMediaSidebarMeta") is { IsEffectivelyVisible: true } meta
+                && meta.Text?.Contains(name, StringComparison.Ordinal) == true;
+        });
+
+        Control? Popup() => PanelControlOrDefault<Control>(window, "TaggingTagPopoverFrame");
+        Control FactArea() => PanelControl<Control>(tagging, "ReaderMediaSidebarFacts");
+    }
+
+    private static T PanelControl<T>(Control root, string id) where T : Control =>
+        PanelControlOrDefault<T>(root, id) ?? throw new InvalidOperationException("Missing sidebar automation target " + id);
+
+    private static T? PanelControlOrDefault<T>(Control root, string id) where T : Control
+    {
+        IEnumerable<Control> controls = root.GetSelfAndVisualDescendants().OfType<Control>();
+        if (root is TopLevel top)
+            controls = controls.Concat(top.OpenedPopups.SelectMany(popup =>
+                popup.Child?.GetSelfAndVisualDescendants().OfType<Control>() ?? []));
+        return controls.OfType<T>().FirstOrDefault(control =>
+            (AutomationProperties.GetAutomationId(control) is { Length: > 0 } automationId
+                ? automationId : ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId()) == id);
     }
 
     // UX-LEDGER-08: exercise the real selection model and rendered containers. Source-text checks alone

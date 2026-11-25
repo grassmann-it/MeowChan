@@ -152,6 +152,7 @@ public partial class MainWindow
         {
             await _session.SaveViewPreferencesAsync(change);
             _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
+            _taggingPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_config));
             _settingsEditor?.RefreshConfirmedSettings(fields);
         };
         _archivePage.FullscreenRequested = ToggleFullscreen;
