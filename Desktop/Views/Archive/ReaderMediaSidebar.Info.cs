@@ -145,19 +145,38 @@ internal sealed partial class ReaderMediaSidebar
 
     private void InitializeSettingsMenu()
     {
+        // MenuFlyout's presenter takes the backing collection before Opening.
+        MenuItem autoHide = AddCheck("autoHide", "ReaderMediaSidebarSettingsAutoHide", ToggleAutoHide);
+        MenuItem facts = AddCheck("facts", "ReaderMediaSidebarSettingsFacts", ToggleDetails);
         SettingsButton.Flyout = _settingsMenu;
         _settingsMenu.OverlayInputPassThroughElement = SettingsButton;
         _settingsMenu.Opening += (_, _) =>
         {
-            var menu = new ContextMenuBuilder()
-                .Check("autoHide", CommandBindings.Tooltip("media.sidebar.autohide", keyContext: _decision.KeyContext),
-                    _infoPreferences.MediaSidebarAutoHide, ToggleAutoHide)
-                .Check("facts", CommandBindings.Tooltip("media.sidebar.info", keyContext: _decision.KeyContext),
-                    FactsVisible, ToggleDetails);
-            _settingsMenu.ItemsSource = ContextMenuBuilder.BuildItems(menu.ToModel());
+            RefreshCheck(autoHide, "media.sidebar.autohide", Texts.T("viewer.playback.autoHide"), _infoPreferences.MediaSidebarAutoHide);
+            RefreshCheck(facts, "media.sidebar.info", CommandCatalog.Label("media.sidebar.info"), FactsVisible);
         };
         _settingsMenu.Opened += (_, _) => SettingsButton.IsChecked = true;
         _settingsMenu.Closed += (_, _) => SettingsButton.IsChecked = false;
+
+        MenuItem AddCheck(string tag, string automationId, Action toggle)
+        {
+            MenuItem item = new() { Tag = tag, ToggleType = MenuItemToggleType.CheckBox, Command = new DelegateCommand(toggle) };
+            AutomationProperties.SetAutomationId(item, automationId);
+            _settingsMenu.Items.Add(item);
+            return item;
+        }
+
+        void RefreshCheck(MenuItem item, string commandId, string label, bool isChecked)
+        {
+            string? keyContext = _decision.KeyContext;
+            var bindings = ShortcutService.Current;
+            item.Header = label;
+            item.IsChecked = isChecked;
+            item.InputGesture = bindings.For(commandId)
+                .FirstOrDefault(gesture => keyContext == null || ShortcutHelp.ActsHere(commandId, gesture, keyContext, bindings))?.Resolve(bindings.Platform);
+            AutomationProperties.SetName(item, label);
+            AutomationProperties.SetHelpText(item, CommandBindings.Tooltip(commandId, visibleLabel: label, keyContext: keyContext));
+        }
     }
 
     internal bool RouteInfoKey(KeyEventArgs e)
