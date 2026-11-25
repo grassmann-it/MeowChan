@@ -13,6 +13,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
@@ -97,7 +98,11 @@ public sealed class ReaderMediaSidebarHostClickTests
         TransientPopupPolicy.Install();
         using TempDirectory profile = new();
         using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
-        ArchivedThreadView thread = RateAndTagWindowFixture.View(media);
+        ArchivedThreadView baseThread = RateAndTagWindowFixture.View(media);
+        ArchivedThreadView thread = new(baseThread.Summary with { PostCount = 3 },
+            [.. baseThread.GetPosts(), new("45", 2, PostFieldPresence.All,
+                Html: "<a href=\"#44\" class=\"quotelink\">&gt;&gt;44</a> Sidebar reply")],
+            baseThread.MediaDirectories, decimalPostOrder: true);
         await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
         PrivateTagStore tags = new(profile.Path, lease);
@@ -131,15 +136,31 @@ public sealed class ReaderMediaSidebarHostClickTests
             await BooruTestSupport.WaitAsync(() => page.IsMediaSidebarShown, "the reader media sidebar");
             ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
 
-            posts.SelectedItem = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "44");
+            ArchivePostRow text = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "44");
+            posts.SelectedItem = text;
             await BooruTestSupport.WaitAsync(() => sidebar.HeaderLine.Contains("44", StringComparison.Ordinal), "the selected text-only post in the sidebar");
             Assert.Null(sidebar.Shown);
+            ScrollViewer detail = SidePanelDesignTests.ById<ScrollViewer>(sidebar, "ReaderSidebarPostDetail");
+            Assert.True(detail.IsEffectivelyVisible);
+            Assert.Equal(Texts.T("reader.sidebar.postDetail", text.Id), AutomationProperties.GetName(detail));
+            Assert.False(sidebar.Open.IsEffectivelyVisible);
+            Assert.False(sidebar.InfoToggle.IsEffectivelyVisible);
+            Assert.False(SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarFavorite").IsEffectivelyVisible);
+            await BooruTestSupport.WaitAsync(() => detail.GetVisualDescendants().OfType<Button>().Any(button =>
+                AutomationProperties.GetAutomationId(button) == "ReaderSidebarReply" && button.IsEffectivelyVisible), "the text post's reply in the sidebar");
+            ReaderBodyTextBlock body = SidePanelDesignTests.ById<ReaderBodyTextBlock>(detail, "ReaderSidebarPostBody");
+            Assert.Equal("Text only", body.Document?.Text);
+            Button reply = SidePanelDesignTests.ById<Button>(detail, "ReaderSidebarReply");
+            Assert.Contains("Sidebar reply", Assert.IsType<ArchiveQuoteRow>(reply.DataContext).ReplyExcerpt);
+            Assert.False(text.RepliesExpanded);
 
             ArchivePostRow picture = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "43");
             posts.SelectedItem = picture;
             posts.ScrollIntoView(picture);
             await BooruTestSupport.WaitAsync(() => sidebar.HeaderLine.Contains(media.Asset.OriginalFileName!, StringComparison.Ordinal),
                 "the selected picture in the sidebar");
+            Assert.False(detail.IsEffectivelyVisible);
+            Assert.True(sidebar.Open.IsEffectivelyVisible);
             window.UpdateLayout();
             var card = Assert.IsType<ReaderPostItem>(posts.ContainerFromItem(picture));
             Assert.True(card.Focus());
@@ -158,6 +179,22 @@ public sealed class ReaderMediaSidebarHostClickTests
             RateAndTagWindowFixture.Escape(window);
             Assert.Equal(QuickTagPopoverCloseReason.Closed, editor.Reason);
             Assert.True(card.IsFocused);
+
+            Assert.True(page.ToggleReaderViewOption("reader.view.hide-media"));
+            await page.WaitForReaderViewAsync();
+            posts.SelectedItem = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == picture.Id && row.HasMediaHiddenLine);
+            Assert.Equal(Texts.T("reader.sidebar.hidden", picture.Id), sidebar.StatusText);
+            Assert.False(detail.IsEffectivelyVisible);
+            Assert.False(sidebar.Open.IsEffectivelyVisible);
+
+            PostFilterRule rule = new(Guid.NewGuid(), true, PostFilterField.Text, PostFilterMatch.Contains,
+                "Text only", PostFilterAction.Stub, false, null, null);
+            page.PostFilter.Update(new(1, HiddenPostsAction.Stub, [rule], [], PostFilterStoreState.Ready));
+            page.RequestProjectionRebuild();
+            await page.WaitForReaderViewAsync();
+            posts.SelectedItem = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == text.Id && row.IsStub);
+            Assert.Equal(Texts.T("reader.sidebar.hidden", text.Id), sidebar.StatusText);
+            Assert.False(detail.IsEffectivelyVisible);
         }
         finally { QuickTagPopover.Current?.Close(); window.Close(); page.EndLifetime(); }
     });

@@ -91,6 +91,16 @@ internal sealed partial class ReaderMediaSidebar
     internal ToggleButton SettingsButton { get; } = new() { Name = "ReaderMediaSidebarSettings" };
     internal Action<Action<Config>>? SaveSidebarSetting { get; set; }
     private bool _barsHidden;
+    private bool _postWithoutMedia;
+
+    internal void SetPostWithoutMedia(bool withoutMedia)
+    {
+        if (_postWithoutMedia == withoutMedia) return;
+        _postWithoutMedia = withoutMedia;
+        InfoToggle.IsVisible = _headerFavorite.IsVisible = Open.IsVisible = !withoutMedia;
+        PositionBars();
+        RevealBars();
+    }
 
     private static Border OverlayBar(string name, VerticalAlignment alignment, CornerRadius corners) => new()
     {
@@ -396,7 +406,8 @@ internal sealed partial class ReaderMediaSidebar
         (InBar(this, anchor) || InBar(_hoverSurface, anchor))) == true;
 
     // A native Windows video draws over sibling controls. Keep them reachable while that player owns the frame.
-    private bool UseOverlayBars => _infoPreferences.MediaSidebarAutoHide && !(OperatingSystem.IsWindows() && _factPlayer != null);
+    private bool UseOverlayBars => !_postWithoutMedia && _infoPreferences.MediaSidebarAutoHide
+        && !(OperatingSystem.IsWindows() && _factPlayer != null);
 
     private void PositionBars()
     {

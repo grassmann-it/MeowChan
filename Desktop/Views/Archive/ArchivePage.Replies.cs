@@ -89,7 +89,9 @@ public partial class ArchivePage
             Func<Task>? restoreLayout = CaptureReaderCountLayoutCorrection();
             foreach (ArchivePostRow row in applicable)
                 if (row.BacklinkCount == null) row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));
-            ApplyAutomaticRepliesToRealised(applicable);
+            UpdateFocusedReplies();
+            foreach (ArchivePostRow row in applicable)
+                if (row.RepliesExpanded && ArchivePosts.ContainerFromItem(row) != null) LoadExpandedReplies(row);
             if (restoreLayout != null) await restoreLayout();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -121,13 +123,20 @@ public partial class ArchivePage
     internal async Task SetRepliesExpandedAsync(ArchivePostRow row, bool open)
     {
         if (_ended || ArchivePosts.ItemsSource is not ReaderPostRows rows || rows.IndexOf(row) < 0) return;
-        RememberReplyChoice(row, open);
-        row.RepliesExpanded = open;
+        Func<Task>? restore = !ReaderJumpOwnsScroll ? CaptureReaderCountLayoutCorrection() : null;
+        _replyAutoExpand.RememberChoice(row, open);
+        if (restore != null) await restore();
         if (open && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
     }
     private async void OnMoreRepliesClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: ArchivePostRow row }) await LoadInlineRepliesAsync(row);
+    }
+
+    private void LoadExpandedReplies(ArchivePostRow row)
+    {
+        if (row is { RepliesExpanded: true, HasBacklinks: true, RepliesLoaded: false, RepliesLoading: false, HasRepliesError: false })
+            OpenActions.Start(() => LoadInlineRepliesAsync(row), "archive.reader.replies");
     }
 
     private async Task LoadInlineRepliesAsync(ArchivePostRow row)
@@ -139,24 +148,34 @@ public partial class ArchivePage
         CancellationToken token = _inlineRepliesCancellation?.Token ?? _lifetime.Token;
         bool Current() => InlineReplyRowsCurrent(rows, token) && rows.IndexOf(row) >= 0;
         int loadedBefore = row.Replies.Count;
+        bool countUnknown = row.BacklinkCount == null;
         row.SetRepliesLoading(true);
         row.SetRepliesError(null);
+        Func<Task>? restore = null;
         try
         {
             await using ArchiveReader reader = await _openReader(token);
             ArchiveQuotePage page = await reader.GetBacklinksAsync(new ArchivePostId(thread, row.Id),
-                row.Replies.Count, InlineReplyPageSize, token);
+                loadedBefore, InlineReplyPageSize, token);
             // A history restore may have put loaded pages on the row while this one was on its way; its offset is then stale.
             if (!Current() || row.Replies.Count != loadedBefore) return;
+            if (row.RepliesExpanded && !ReaderJumpOwnsScroll) restore = CaptureReaderCountLayoutCorrection();
             row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => ReplyCard(quote, thread))).ToArray()),
                 page.TotalCount, page.Offset);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (Current()) row.SetRepliesError(exception.Message);
+            if (Current())
+            {
+                if (row.RepliesExpanded && !ReaderJumpOwnsScroll) restore = CaptureReaderCountLayoutCorrection();
+                row.SetRepliesError(exception.Message);
+            }
         }
         finally { if (Current()) row.SetRepliesLoading(false); }
+        if (countUnknown && Current() && ReferenceEquals(ArchivePosts.SelectedItem, row))
+            UpdateFocusedReplies(keepPosition: true);
+        if (restore != null) await restore();
     }
 
     // A reply of this thread becomes a card with its header and the first lines of its text; a reply from another

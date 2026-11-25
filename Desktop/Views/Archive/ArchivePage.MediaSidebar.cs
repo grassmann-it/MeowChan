@@ -4,7 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -34,6 +37,7 @@ public partial class ArchivePage
 {
     private Grid? _largeReaderFrame;
     private ReaderMediaSidebar? _mediaSidebar;
+    private ScrollViewer? _sidebarPostDetail;
     private GridSplitter? _mediaSidebarSplitter;
     // Where the sidebar sits now: the large reader's frame or the archive view's reader pane (null until it was first needed).
     private Grid? _mediaSidebarHost;
@@ -105,9 +109,9 @@ public partial class ArchivePage
         ReaderMediaSidebarToggle.AttachedToVisualTree += SubscribeLayout;
         ReaderMediaSidebarToggle.DetachedFromVisualTree += UnsubscribeLayout;
         RefreshMediaSidebarToggle();
-        ArchivePosts.SelectionChanged += (_, _) =>
+        ArchivePosts.SelectionChanged += (_, e) =>
         {
-            if (!ArchiveMediaTab.IsSelected) OnMediaSidebarSelectionChanged();
+            if (ReferenceEquals(e.Source, ArchivePosts) && !ArchiveMediaTab.IsSelected) OnMediaSidebarSelectionChanged();
         };
         // The archive view: the pane gets posts, splitter and sidebar columns.
         // Reader chrome stays over the posts only; the sidebar owns its full-height
@@ -213,6 +217,8 @@ public partial class ArchivePage
         sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();
         // The "No." of its header line copies the post's reference like the post's own number does.
         CreateSidebarVideo(sidebar);
+        ScrollViewer postDetail = CreateSidebarPostDetail();
+        sidebar.FrameArea.Children.Add(postDetail);
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
         // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
         // M / U / F act on the medium it shows (revision 20), like the stars of its header.
@@ -258,6 +264,7 @@ public partial class ArchivePage
         if (_ratingCommands != null) RegisterRatingCommands(sidebar);
         if (_largeReader) ReaderHostingStep("sidebar.configured");
         _mediaSidebarSplitter = splitter;
+        _sidebarPostDetail = postDetail;
         _mediaSidebar = sidebar;
         return sidebar;
     }
@@ -467,6 +474,7 @@ public partial class ArchivePage
     // without its strip, until the new host shows the sidebar (the same medium then needs no placeholder) or ReleaseKeptMediaSidebarPicture.
     private void HideMediaSidebarContent(bool keepPicture = false)
     {
+        ClearSidebarPostDetail();
         _mediaSidebar?.InvalidateTagEditor();
         CancelMediaSidebarLoad();
         _sidebarFollowTimer?.Stop();
@@ -686,6 +694,15 @@ public partial class ArchivePage
             // a picture/error (or a strip thumbnail) in the interval before the follow timer runs.
             CancelMediaSidebarLoad();
             CancelSidebarStripLoad();
+            _sidebarAnnounceTimer?.Stop();
+            if (!ArchiveMediaTab.IsSelected &&
+                ArchivePosts.SelectedItem is ArchivePostRow selected && (selected.IsStub || !selected.ShowsMedia))
+            {
+                _sidebarThrottle.Reset();
+                RefreshMediaSidebar();
+                return;
+            }
+            ClearSidebarPostDetail();
         }
         long now = ReaderMonotonicMilliseconds();
         // A selection that is only cleared (a page or thread being rebuilt) waits for the tick: the picture does not flash away.
@@ -799,6 +816,8 @@ public partial class ArchivePage
         CancelMediaSidebarLoad();
         if (ArchiveMediaTab.IsSelected)
         {
+            ClearSidebarPostDetail();
+            sidebar.SetPostWithoutMedia(false);
             RefreshSavedMediaSidebar(sidebar);
             return;
         }
@@ -809,6 +828,8 @@ public partial class ArchivePage
         if (!samePost) { _sidebarIndex = _sidebarPendingIndex ?? 0; _sidebarPendingIndex = null; _sidebarPostKey = key; }
         if (post == null)
         {
+            ClearSidebarPostDetail();
+            sidebar.SetPostWithoutMedia(false);
             SetDisplayedSidebarMedium(null);
             CancelSidebarStripLoad();
             OfferSidebarVideo(null, null);
@@ -830,16 +851,25 @@ public partial class ArchivePage
             CancelSidebarStripLoad();
             sidebar.ClearStrip();
             OfferSidebarVideo(null, null);
-            // A post the view shows as a stub or whose media the view hides names that; a thread in which no post has media says so once.
-            string reason = post.IsStub || post.HasMediaHiddenLine ? Texts.T("reader.sidebar.hidden", post.Id)
-                : ThreadHasPostMedia() ? Texts.T("reader.sidebar.noMedia", post.Id) : Texts.T("reader.sidebar.threadNoMedia");
             sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false);
             sidebar.ConfigureFavorite(null);
-            // A final text: the frame is empty with the reason, never the previous post's picture dimmed under it.
-            sidebar.ShowNoMedia(reason);
-            ScheduleSidebarAnnouncement(reason);
+            sidebar.SetPostWithoutMedia(true);
+            if (post.IsStub || post.HasMediaHiddenLine)
+            {
+                ClearSidebarPostDetail();
+                string reason = Texts.T("reader.sidebar.hidden", post.Id);
+                sidebar.ShowNoMedia(reason);
+                ScheduleSidebarAnnouncement(reason);
+            }
+            else
+            {
+                sidebar.ShowNoMedia(string.Empty);
+                ShowSidebarPostDetail(post, samePost);
+            }
             return;
         }
+        ClearSidebarPostDetail();
+        sidebar.SetPostWithoutMedia(false);
         int count = post.Attachments.Count;
         _sidebarIndex = ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, count);
         ArchiveAttachmentRow row = post.Attachments[_sidebarIndex];
@@ -890,19 +920,47 @@ public partial class ArchivePage
             if (ReferenceEquals(_sidebarLoading, loading)) _sidebarLoading = null;
         });
 
-    // Whether any post of the open thread has an attachment (the sidebar's "This thread has no media" is about the whole thread); one scan per thread read.
-    private object? _sidebarMediaScanned;
-    private bool _sidebarThreadHasMedia;
-
-    private bool ThreadHasPostMedia()
+    private ScrollViewer CreateSidebarPostDetail()
     {
-        if (_thread is not { } thread) return false;
-        if (!ReferenceEquals(thread, _sidebarMediaScanned))
+        ContentControl content = new()
         {
-            _sidebarThreadHasMedia = thread.Posts.Any(candidate => candidate.Attachments is { Count: > 0 });
-            _sidebarMediaScanned = thread;
+            ContentTemplate = (IDataTemplate)Resources["ReaderSidebarPostDetail"]!,
+            Padding = new Thickness(8),
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            [!TemplatedControl.FontSizeProperty] = ArchivePosts[!TemplatedControl.FontSizeProperty],
+            [!ReaderBodyTextBlock.SpoilerModeProperty] = ArchivePosts[!ReaderBodyTextBlock.SpoilerModeProperty]
+        };
+        ScrollViewer detail = new()
+        {
+            Content = content, IsVisible = false,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        AutomationProperties.SetAutomationId(detail, "ReaderSidebarPostDetail");
+        return detail;
+    }
+
+    private void ShowSidebarPostDetail(ArchivePostRow post, bool samePost)
+    {
+        if (_sidebarPostDetail is not { Content: ContentControl content } detail) return;
+        if (!ReferenceEquals(content.Content, post))
+        {
+            content.Content = post;
+            if (!samePost) detail.Offset = default;
         }
-        return _sidebarThreadHasMedia;
+        detail.IsVisible = true;
+        string label = Texts.T("reader.sidebar.postDetail", post.Id);
+        AutomationProperties.SetName(detail, label);
+        ScheduleSidebarAnnouncement(label);
+        if (post is { BacklinkCount: not 0, RepliesLoaded: false, RepliesLoading: false, HasRepliesError: false })
+            OpenActions.Start(() => LoadInlineRepliesAsync(post), "archive.sidebar.replies");
+    }
+
+    private void ClearSidebarPostDetail()
+    {
+        if (_sidebarPostDetail is not { IsVisible: true, Content: ContentControl content } detail) return;
+        detail.IsVisible = false;
+        content.Content = null;
     }
 
     private void SetDisplayedSidebarMedium(ArchivedThreadView? thread, ArchivePostRow? post = null, ArchiveAttachmentRow? attachment = null)

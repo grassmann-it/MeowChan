@@ -153,9 +153,15 @@ internal static class ReaderMediaSidebarChecks
             await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 3);
             await page.MediaSidebarTask;
             ArchivePostRow last = (ArchivePostRow)posts.SelectedItem!;
-            await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(last.Id, StringComparison.Ordinal)
-                || sidebar.LiveText.Contains(Desktop.Localization.Texts.T("reader.sidebar.noMedia", last.Id), StringComparison.Ordinal));
-            if (!last.ShowsMedia) Require(sidebar.StatusText.Length > 0, "A post without media shows no reason.");
+            await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(last.Id, StringComparison.Ordinal));
+            if (last.IsStub || last.HasMediaHiddenLine)
+                Require(sidebar.StatusText == Texts.T("reader.sidebar.hidden", last.Id), "The hidden post shows no reason.");
+            else if (!last.ShowsMedia)
+            {
+                ScrollViewer detail = Find<ScrollViewer>("ReaderSidebarPostDetail");
+                Require(detail.IsEffectivelyVisible && AutomationProperties.GetName(detail) == Texts.T("reader.sidebar.postDetail", last.Id),
+                    "The sidebar does not show the selected text post.");
+            }
 
             // R11: several files in one post: the strip shows all of them (at most the configured number), the current one is marked and
             // counted, a click or Enter on a thumbnail shows that file, a single-file post has no strip.
