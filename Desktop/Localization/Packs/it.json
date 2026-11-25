@@ -4969,6 +4969,8 @@
     "reader.sidebar.stripItem": "File {0} di {1}: {2}",
     "reader.sidebar.discover": "Premi {0} per mostrare in grande i media del post selezionato accanto ai post.",
     "reader.sidebar.discoverNoKey": "Mostra in grande i media del post selezionato accanto ai post.",
+    "settings.reader.sidebarPreviewPixels": "Numero massimo di pixel per le anteprime nella barra laterale",
+    "settings.reader.sidebarPreviewPixels.hint": "Per le immagini più grandi la barra laterale mostra un avviso sulle dimensioni.",
     "settings.reader.mediaStripLimit": "Miniature nella striscia della barra laterale dei media",
     "settings.reader.mediaStripLimit.hint": "Un post con più file mostra una striscia di miniature sotto il media grande. Se i file sono più di questo numero, una finestra scorre; i pulsanti ◀ ▶ raggiungono comunque ogni file.",
     "settings.reader.mediaGrid": "Mostra più immagini di un post breve come griglia",

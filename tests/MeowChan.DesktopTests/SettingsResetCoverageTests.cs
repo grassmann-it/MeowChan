@@ -76,6 +76,8 @@ public sealed class SettingsResetCoverageTests : IDisposable
         {
             editor.IsAvailable = true;
             editor.ResetDraft(all ? SettingsEditor.SettingsResetScope.All : SettingsEditor.SettingsResetScope.ReadingMedia);
+            // Reset all also resets the download destination. Save against this fixture directory.
+            editor.DownloadPath = profile.Path;
             editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             BooruComponentDispatcher.Wait(WaitForSaveAsync(editor));
             Assert.False(editor.HasError, editor.ErrorMessage);

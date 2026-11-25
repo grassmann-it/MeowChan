@@ -4873,6 +4873,8 @@
     "reader.sidebar.stripItem": "ファイル {0}／{1}：{2}",
     "reader.sidebar.discover": "{0} を押すと、選択中の投稿のメディアを投稿の横に大きく表示します。",
     "reader.sidebar.discoverNoKey": "選択中の投稿のメディアを投稿の横に大きく表示します。",
+    "settings.reader.sidebarPreviewPixels": "サイドバーのプレビューの最大画素数",
+    "settings.reader.sidebarPreviewPixels.hint": "これより大きい画像では、サイドバーにサイズに関するメッセージが表示されます。",
     "settings.reader.mediaStripLimit": "メディアサイドバーのストリップに表示するサムネイル数",
     "settings.reader.mediaStripLimit.hint": "複数のファイルがある投稿では、大きなメディアの下にサムネイルのストリップを表示します。この数を超えるファイルがある場合は表示範囲が移動し、◀ ▶ ボタンでは引き続きすべてのファイルに移動できます。",
     "settings.reader.mediaGrid": "短い投稿の複数の画像をグリッドで表示",

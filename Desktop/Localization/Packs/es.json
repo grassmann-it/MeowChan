@@ -4963,6 +4963,8 @@
     "reader.sidebar.stripItem": "Archivo {0} de {1}: {2}",
     "reader.sidebar.discover": "Pulse {0} para mostrar los medios de la publicación seleccionada en grande junto a las publicaciones.",
     "reader.sidebar.discoverNoKey": "Muestra los medios de la publicación seleccionada en grande junto a las publicaciones.",
+    "settings.reader.sidebarPreviewPixels": "Píxeles máximos para las vistas previas del panel lateral",
+    "settings.reader.sidebarPreviewPixels.hint": "Para imágenes más grandes, el panel lateral muestra un aviso de tamaño.",
     "settings.reader.mediaStripLimit": "Miniaturas en la tira de la barra lateral de medios",
     "settings.reader.mediaStripLimit.hint": "Una publicación con varios archivos muestra bajo el medio grande una tira de miniaturas. Si tiene más archivos que este número, se desplaza una ventana; los botones ◀ ▶ siguen llegando a todos los archivos.",
     "settings.reader.mediaGrid": "Mostrar varias imágenes de una publicación corta como cuadrícula",
