@@ -22,6 +22,24 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class SidebarPreviewVerificationTests
 {
+    [Fact]
+    public async Task OversizedPreviewReusesOnlyTheUnchangedVerifiedOccurrence()
+    {
+        byte[] bytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAJxAAAB9BCAIAAABpcsUXAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
+        using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false, image: bytes);
+        GalleryEntry entry = Assert.Single(GallerySelection.Build(RateAndTagWindowFixture.View(media), [media.Snapshot]).Entries);
+        Task Decode() => GalleryImageDecoder.DecodePreviewAsync(entry, new GalleryDecodeRequest.Fit(40, 40),
+            Config.SidebarPreviewMaximumPixelsDefault, () => { }, CancellationToken.None);
+        using var run = MeowChan.Diagnostics.PerformanceDiagnostics.BeginRun("oversized-sidebar", "fixture", "png");
+        await Assert.ThrowsAsync<GalleryPreviewTooLargeException>(Decode);
+        await Assert.ThrowsAsync<GalleryPreviewTooLargeException>(Decode);
+        Assert.Single(run.Snapshot().Events, e => e.Phase == "media.original.verify" && e.Outcome == "verified" && e.Asset == entry.Asset.AssetId);
+        bytes[^1] ^= 1;
+        await File.WriteAllBytesAsync(media.Asset.Path, bytes);
+        File.SetLastWriteTimeUtc(media.Asset.Path, DateTime.UtcNow.AddMinutes(-1));
+        await Assert.ThrowsAsync<InvalidDataException>(Decode);
+    }
+
     [Theory]
     [InlineData("Reader", false)]
     [InlineData("Reader", true)]
