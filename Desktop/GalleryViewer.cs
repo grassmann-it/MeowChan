@@ -520,6 +520,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         Content = root;
         InitializeOverlayInteraction();
         InitializeFavoriteIndicators();
+        InitializeRatingIndicators(); // the five stars right of the heart, a badge of their own in each root (Tom, 25.11.2026)
         InitializeFavoriteConfirm();
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);

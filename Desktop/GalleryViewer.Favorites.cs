@@ -81,7 +81,6 @@ internal sealed partial class GalleryViewer
             badge.GotFocus += (_, _) => UpdateCornerChrome();
             badge.LostFocus += (_, _) => UpdateCornerChrome();
         }
-        InitializeRatingIndicators();
         UpdateFavoriteIndicators();
     }
 

@@ -67,6 +67,7 @@ internal sealed partial class GalleryViewer
             badge.PointerExited += (_, _) => UpdateCornerChrome();
         }
         _favoriteIndicator.SizeChanged += (_, _) => UpdateRatingIndicators();
+        UpdateRatingIndicators();
     }
 
     // A star of the badge: the rating of exactly the shown medium (never the marked media of the tag panel), the write the rating keys make

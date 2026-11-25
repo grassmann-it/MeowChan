@@ -106,6 +106,8 @@ public sealed class GalleryHeartRatingBadgeTests
         h.AssertShown(true);
         h.Viewer.SetRating(3, null);
         Assert.Equal(new bool?[] { true, true, true, false, false }, h.Marks());
+        // The rating key also brought the controls back (RevealForRatingFeedback); the idle delay hides them again, and the flash runs out.
+        h.Set("_overlayHidden", true);
         h.Age("_lastFavoriteFlash");
         h.Invoke("UpdateCornerChrome");
         h.AssertShown(false);
