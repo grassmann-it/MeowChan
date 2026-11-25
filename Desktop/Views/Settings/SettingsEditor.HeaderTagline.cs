@@ -17,6 +17,7 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private SettingsChoice? _selectedHeaderTagline, _selectedHeaderTaglineFixed;
+    private bool _headerTaglinePickerScrollBound;
 
     public string HeaderTaglineLabel => Texts.T("settings.headerTagline.label");
     public string HeaderTaglineHint => Texts.T("settings.headerTagline.hint");
@@ -77,6 +78,15 @@ public partial class SettingsEditor
             .Select(entry => new SettingsChoice(entry.Id, entry.Text)).ToArray();
         if (HeaderTaglineFixedIdInput is { } picker)
         {
+            if (!_headerTaglinePickerScrollBound)
+            {
+                _headerTaglinePickerScrollBound = true;
+                picker.AddHandler(Control.RequestBringIntoViewEvent, static (_, request) =>
+                {
+                    // The popup has its own scroll viewer. Keep option focus and scrolling inside it.
+                    if (request.TargetObject is ComboBoxItem) request.Handled = true;
+                });
+            }
             var headings = groups.ToDictionary(group => group.First().Id, group => HeaderTaglineCategoryLabel(group.Key));
             // Keep headings with their first quip so keyboard navigation has one stop per choice.
             picker.SelectionBoxItemTemplate ??= picker.ItemTemplate;

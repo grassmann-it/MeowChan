@@ -157,6 +157,7 @@ public sealed class HeaderTaglineLayoutTests
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter(overlayPopups);
+            TransientPopupPolicy.Install();
             using TempDirectory profile = new();
             new Config
             {
@@ -200,6 +201,7 @@ public sealed class HeaderTaglineLayoutTests
                 Settle();
                 Assert.True(picker.IsDropDownOpen, $"F4: focus={window.FocusManager?.GetFocusedElement()}, visible={picker.IsEffectivelyVisible}, active={window.IsActive}");
                 AssertGroups("en");
+                Assert.True(picker.IsDropDownOpen, "Revealing option groups closed the picker.");
 
                 try
                 {

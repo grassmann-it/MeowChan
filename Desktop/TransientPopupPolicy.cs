@@ -135,8 +135,9 @@ internal static class TransientPopupPolicy
         private void Detached(object? s, VisualTreeAttachmentEventArgs e) => _popup.Close();
         private void Scrolled(object? s, ScrollChangedEventArgs e)
         {
-            // Scrolling INSIDE a popover is intentional; scrolling its anchor away is not.
-            if (e.Source is Visual source && (ReferenceEquals(source, _anchor) || source.IsVisualAncestorOf(_anchor))) _popup.Close();
+            // Layout can change the extent or viewport while the anchor stays at the same scroll position.
+            if (e.OffsetDelta != default && e.Source is Visual source
+                && (ReferenceEquals(source, _anchor) || source.IsVisualAncestorOf(_anchor))) _popup.Close();
         }
         private void AnchorChanged(object? s, AvaloniaPropertyChangedEventArgs e)
         {
