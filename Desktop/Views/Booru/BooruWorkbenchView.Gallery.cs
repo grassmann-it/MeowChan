@@ -190,17 +190,16 @@ internal sealed partial class BooruWorkbenchView
             && IsSearchItem(_tabs.SelectedItem) && _gallery.IsEffectivelyVisible) _gallery.FocusStage();
     }
 
-    private async Task ChangePageAsync(int delta)
+    private async Task ChangePageAsync(int delta, bool fromPagerButton = false)
     {
         BooruSearchModel search = _model.Search;
         int? tab = SearchTabs.ActiveId;
         BooruSearchView before = search.View;
         int page = before.Page + delta;
-        Control pagerButton = delta < 0 ? _previous : _next;
         TopLevel? topLevel = TopLevel.GetTopLevel(this);
         IFocusManager? focus = topLevel?.FocusManager;
         IInputElement? origin = focus?.GetFocusedElement();
-        bool fromPager = ReferenceEquals(origin, pagerButton);
+        bool fromStage = ReferenceEquals(origin, _gallery.Stage);
         bool focusMoved = false;
         topLevel?.AddHandler(GotFocusEvent, TrackFocus, handledEventsToo: true);
         try { await search.GoToPageAsync(page); }
@@ -208,11 +207,11 @@ internal sealed partial class BooruWorkbenchView
         BooruSearchView after = search.View;
         if (_closed || focusMoved || SearchTabs.ActiveId != tab || after.Page != page || after.ExecutedQuery != before.ExecutedQuery
             || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty) return;
-        // The pager can lose focus when the busy state hides it. Any other active focus takes priority.
+        // Clicking a non-focusable pager can leave focus on the window. Restore the stage
+        // after that click, or after paging from the stage itself, unless the user moved on.
+        if (!fromPagerButton && !fromStage || topLevel is Window { IsActive: false }) return;
         IInputElement? focused = focus?.GetFocusedElement();
-        bool pagerLostFocus = fromPager && (focused is null || ReferenceEquals(focused, topLevel));
-        bool stillAtOrigin = ReferenceEquals(focused, origin) && (fromPager || ReferenceEquals(origin, _gallery.Stage));
-        if (topLevel is Window { IsActive: false } || !(pagerLostFocus || stillAtOrigin)) return;
+        if (focused != null && !ReferenceEquals(focused, topLevel) && !ReferenceEquals(focused, origin)) return;
         Render(force: false);
         FocusGalleryStage();
 

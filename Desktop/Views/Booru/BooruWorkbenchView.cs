@@ -363,8 +363,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _submit.Click += async (_, _) => await SubmitSearchAsync();
         _cancel.Click += (_, _) => _model.Search.Cancel();
         _retry.Click += async (_, _) => await _model.Search.RetryAsync();
-        _previous.Click += async (_, _) => await ChangePageAsync(-1);
-        _next.Click += async (_, _) => await ChangePageAsync(1);
+        _previous.Click += async (_, _) => await ChangePageAsync(-1, fromPagerButton: true);
+        _next.Click += async (_, _) => await ChangePageAsync(1, fromPagerButton: true);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
         SearchToolbar searchToolbar = new(_mode, _input, _submit, BuildSearchTabActions());

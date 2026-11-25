@@ -36,7 +36,7 @@ internal static class BooruUiCatalog
         ("booru.ui.page.info", "Page {0} of {1} · Results per page: {2}", "Seite {0} von {1} · Treffer pro Seite: {2}"),
         ("booru.ui.page.current", "Page {0} · Results per page: {1}", "Seite {0} · Treffer pro Seite: {1}"),
         ("booru.ui.page.jump", "Go to page", "Zur Seite springen"),
-        ("booru.ui.page.providerLimit", "{0} allows up to {1} numbered pages without an account.", "{0} erlaubt ohne Konto höchstens {1} nummerierte Seiten."),
+        ("booru.ui.page.providerLimit", "Without an account, the highest page number on {0} is {1}.", "{0} erlaubt ohne Konto höchstens {1} nummerierte Seiten."),
         ("booru.ui.page.previous", "Previous page", "Vorherige Seite"),
         ("booru.ui.page.next", "Next page", "Nächste Seite"),
         ("booru.ui.page.limit", "Search limits (pages: {0}, results per page: {1}). Refine the tags, or create a watcher to follow new posts.", "Suchlimits (Seiten: {0}, Treffer pro Seite: {1}). Grenze die Tags ein oder lege eine Suchbeobachtung an, um neue Posts zu verfolgen."),
