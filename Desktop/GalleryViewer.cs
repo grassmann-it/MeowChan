@@ -1755,7 +1755,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         if (CommandBindings.Matches(e, "media.sidebar.autohide"))
         {
             e.Handled = true;
-            _ = ExecutePlaybackActionAsync("gallery.post-overlay-toggle");
+            OpenActions.Start(() => ExecutePlaybackActionAsync("gallery.post-overlay-toggle"), "gallery.post-overlay-toggle");
             return;
         }
         if (HandleFilmstripKey(e) || HandleLayoutKey(e)) return;
