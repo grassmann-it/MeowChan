@@ -43,8 +43,9 @@ public partial class SettingsEditor
         foreach (var setting in BoardSuggestionSettings)
         {
             var input = new SettingsNumberInput { Name = setting.Name + "Input", Minimum = setting.Min, Maximum = setting.Max };
-            input.ValueChanged += (_, _) =>
+            input.PropertyChanged += (_, change) =>
             {
+                if (_isClosed || (change.Property != NumericUpDown.TextProperty && change.Property != NumericUpDown.ValueProperty)) return;
                 _draftRevision++;
                 RetireSavedStatus();
             };
@@ -84,7 +85,9 @@ public partial class SettingsEditor
     }
 
     private IEnumerable<DefaultSetting> BoardSuggestionDefaults() => _boardSuggestionFields.Select(field =>
-        Number(field.Input, () => field.Input.Value, value => field.Input.Value = value, config => field.Setting.Read(config)));
+        new DefaultSetting(field.Input.Name!, _ => field.Input.Value == field.Setting.Default
+            && decimal.TryParse(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat, out decimal draft)
+            && draft == field.Setting.Default, _ => ResetNumber(field.Input, field.Setting.Default)));
 
     private TextBlock? BoardSuggestionError(string name) => _boardSuggestionFields.FirstOrDefault(field => field.Error.Name == name)?.Error;
 

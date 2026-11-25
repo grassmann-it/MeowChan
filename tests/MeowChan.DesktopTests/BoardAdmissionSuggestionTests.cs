@@ -18,6 +18,7 @@ using MeowChan.Archive;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Interfaces;
@@ -583,6 +584,60 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.F, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Shift },
             "board.filters", "downloads"));
     }
+
+    [Theory]
+    [InlineData("BoardSuggestionMinThreadsInput", Config.BoardSuggestionMinThreadsDefault)]
+    [InlineData("BoardSuggestionLimitInput", Config.BoardSuggestionLimitDefault)]
+    [InlineData("BoardSuggestionScanThreadsInput", Config.BoardSuggestionScanThreadsDefault)]
+    public void RowResetRecoversAnInvalidBoardLimitDraftAtTheSavedDefault(string id, int defaultValue) => Run(() =>
+    {
+        using var profile = new TempDirectory();
+        BoardArchiveHostTests.Configure(profile.Path);
+        var editor = new SettingsEditor(Config.LoadConfig(profile.Path), applySettings: candidate =>
+        {
+            candidate.SaveConfig(profile.Path);
+            return Task.CompletedTask;
+        });
+        try
+        {
+            NumericUpDown input = Setting(editor, id);
+            var save = Assert.Single(editor.GetLogicalDescendants().OfType<Button>(),
+                button => AutomationProperties.GetAutomationId(button) == "SaveSettingsButton");
+            string defaultText = Assert.IsType<string>(input.Text);
+            Save();
+            Assert.False(ResetEntry().Available);
+            input.Text = "abc";
+            Assert.Equal(defaultValue, input.Value);
+            Assert.Equal(Texts.T("settings.unsaved"), editor.StatusMessage);
+
+            ContextMenuEntry reset = ResetEntry();
+            Assert.True(reset.Available, reset.Reason);
+            reset.Invoke!();
+            Assert.Equal(defaultText, input.Text);
+            Assert.False(ResetEntry().Available);
+            Save();
+
+            Config stored = Config.LoadConfig(profile.Path);
+            Assert.Equal(defaultValue, id switch
+            {
+                "BoardSuggestionMinThreadsInput" => stored.BoardSuggestionMinThreads,
+                "BoardSuggestionLimitInput" => stored.BoardSuggestionLimit,
+                _ => stored.BoardSuggestionScanThreads,
+            });
+
+            void Save()
+            {
+                Click(save);
+                BooruComponentDispatcher.WaitUntil(() => !editor.IsBusy, "the embedded settings save");
+                Assert.False(editor.HasError, editor.ErrorDetails);
+                Assert.Equal(Texts.T("settings.saved"), editor.StatusMessage);
+            }
+
+            ContextMenuEntry ResetEntry() => Assert.Single(editor.ComposeRowMenu(input)!.ToModel().Entries,
+                entry => entry.CommandId == SettingsRowMenu.Reset);
+        }
+        finally { editor.EndLifetime(); }
+    });
 
     private static async Task SeedArchiveAsync(string path, int lastThread = 5_004)
     {
