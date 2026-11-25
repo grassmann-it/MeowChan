@@ -185,7 +185,7 @@ public sealed class BooruSearchOverflowTests
 
     private static void PointerClick(Control control, Window window)
     {
-        TopLevel root = Assert.IsAssignableFrom<TopLevel>(control.GetVisualRoot());
+        TopLevel root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(control));
         Point center = control.TranslatePoint(new Rect(control.Bounds.Size).Center, root)!.Value;
         root.MouseMove(center);
         root.MouseDown(center, MouseButton.Left);
