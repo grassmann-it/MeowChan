@@ -384,7 +384,7 @@
                                              1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
                                              shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
-                                        <desktop:ReaderPostList x:Name="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        <desktop:ReaderPostList x:Name="ArchivePosts" AutomationProperties.AutomationId="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.BringIntoViewOnFocusChange="False"
                                                  Background="{DynamicResource Workspace.Background}" Padding="0,4"
                                                  ContainerPrepared="OnReaderPostContainerPrepared">
@@ -616,7 +616,8 @@
                                                                     <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" TextWrapping="Wrap" />
                                                                     <!-- Narrow-window sweep: the button and its range share a line while they fit; in a narrow card the range wraps below. -->
                                                                     <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="{Binding HasMoreReplies}">
-                                                                        <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
+                                                                        <Button AutomationProperties.AutomationId="ReaderMoreReplies" Content="{Binding MoreRepliesLabel}"
+                                                                                commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
                                                                         <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" />
                                                                     </WrapPanel>
                                                                 </StackPanel>
