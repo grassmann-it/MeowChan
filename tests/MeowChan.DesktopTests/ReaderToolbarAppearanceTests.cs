@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Automation;
-using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
@@ -152,9 +151,10 @@ public sealed class ReaderToolbarAppearanceTests
         Assert.NotNull(action.FocusAdorner);
 
         if (!action.IsEffectivelyEnabled) return;
-        // TOGGLE-2 review: “Den Öffner unfokussierbar lassen”; the openers have their own commands.
-        string? id = ControlAutomationPeer.CreatePeerForElement(action)?.GetAutomationId();
-        if (id is "ReaderFindOpen" or "ReaderTagsOpen" or "ReaderThreadOpen")
+        // TOGGLE-2 review: “Den Öffner unfokussierbar lassen”; these openers have their own commands.
+        string? id = AutomationProperties.GetAutomationId(action);
+        if (id is "ReaderFindOpen" or "ReaderTagsOpen" or "ReaderThreadOpen" or "ReaderSettingsOpen"
+            or "ArchiveThreadColumnsButton" or "ArchiveMediaColumnsButton")
         {
             Assert.False(action.Focusable);
             Assert.False(action.Focus(NavigationMethod.Tab), id);
