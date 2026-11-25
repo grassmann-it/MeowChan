@@ -38,6 +38,21 @@ public sealed class GalleryMediaActionsTests : IDisposable
     public void OnlyFilesThatCannotRunAsAProgramAreHandedToTheDefaultProgram(string? path, bool allowed) =>
         Assert.Equal(allowed, MediaFileActions.CanOpenWithDefaultProgram(path));
 
+    [Fact]
+    public void ExternalOpenRequiresARealLocalFileOfAnAllowedType()
+    {
+        using TempDirectory directory = new();
+        string photo = Path.Combine(directory.Path, "写真.png");
+        string script = Path.Combine(directory.Path, "script.sh");
+        File.WriteAllText(photo, "photo fixture");
+        File.WriteAllText(script, "script fixture");
+        Assert.Null(MediaFileActions.DefaultProgramBlockedReason(photo));
+        Assert.Equal(Texts.T("gallery.fileOnly.blocked"), MediaFileActions.DefaultProgramBlockedReason(script));
+        Assert.Equal(MediaMenuReasons.NotSaved, MediaFileActions.DefaultProgramBlockedReason("https://example.test/photo.png"));
+        File.Delete(photo);
+        Assert.Equal(MediaMenuReasons.NotSaved, MediaFileActions.DefaultProgramBlockedReason(photo));
+    }
+
     [Theory]
     [InlineData("en", "/x/doc.pdf", "PDF file")]
     [InlineData("de", "/x/doc.pdf", "PDF-Datei")]
@@ -113,14 +128,17 @@ public sealed class GalleryMediaActionsTests : IDisposable
     }
 
     [Fact]
-    public void CopyPathSitsBetweenShowInFolderAndDetailsInTheFileSection()
+    public void CopyActionsShareASectionAndExternalOpenIsGroupedWithFileLocation()
     {
         MediaMenuModel model = MediaMenuComposition.Compose(new(MediaMenuSurface.Gallery, null));
         string[] ids = model.Items.Select(item => item.Id).ToArray();
         int folder = Array.IndexOf(ids, "media.show-in-folder");
-        Assert.Equal("media.copy-path", ids[folder + 1]);
+        Assert.Equal("media.copy-path", ids[folder - 2]);
+        Assert.Equal("media.copy-file-name", ids[folder - 1]);
+        Assert.Equal("media.open-external", ids[folder + 1]);
         Assert.Equal("media.details", ids[folder + 2]);
         Assert.Equal(model.Items[folder].Group, model.Items[folder + 1].Group);
+        Assert.Equal(model.Items[folder - 2].Group, model.Items[folder - 1].Group);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
@@ -15,13 +16,13 @@ public sealed class BooruPageBehaviorRegressionTests
     {
         BooruUiHarness harness = new();
         using BooruPage page = new(harness.Services);
-        // The page is not attached to a renderer: TabControl has not presented its selected
-        // content yet. Inspect the real search-tab content, as the page-host contracts do.
+        // A05 shows the search field before the first search tab has been created.
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
-        TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        Control searchContent = Assert.IsAssignableFrom<Control>(segments[0].Content);
+        Assert.Empty(page.View.SearchTabs.Ids);
+        TabItem start = Assert.IsType<TabItem>(tabs.SelectedItem);
+        Control searchContent = Assert.IsAssignableFrom<Control>(start.Content);
         SearchBox input = Assert.Single(searchContent.GetVisualDescendants().OfType<SearchBox>(),
-            control => control.Name == BooruWorkbenchView.InputName);
+            control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.InputName);
 
         page.ShowQuery("before_activate");
         Assert.Equal("before_activate", input.Text);

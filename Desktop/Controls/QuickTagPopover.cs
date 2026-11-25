@@ -250,6 +250,7 @@ internal sealed class QuickTagPopover
             };
             surface = createdSurface;
             surface.UseWrappingActions();
+            if (TopLevel.GetTopLevel(anchor) is MainWindow window) surface.FilterMediaByTag = window.FilterFromOwnedTag;
             creationProbe?.Invoke();
             if (options.Suggestions is { } source)
             {

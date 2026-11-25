@@ -97,6 +97,7 @@ internal static class FavoriteKeys
     /// </summary>
     internal static IReadOnlyList<string> EffectiveKeys(string id, string? context, EffectiveShortcutBindings? bindings = null)
     {
+        if (context != null && !EffectiveShortcutBindings.ExecutionContexts(id).Contains(context, StringComparer.Ordinal)) return [];
         bindings ??= ShortcutService.Current;
         EffectiveShortcutBindings current = bindings;
         return current.For(id).Where(gesture => current.YieldedContexts(id, gesture) is not { Count: > 0 } yielded

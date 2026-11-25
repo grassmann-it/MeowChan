@@ -142,14 +142,15 @@ public sealed class FooterDisplayInteractionTests
         Click(window, mediaCenter, MouseButton.Left);
         Assert.Equal(MainWindow.WorkspacePage.Media, window.SelectedPage);
 
-        MediaPage mediaPage = Assert.IsType<MediaPage>(window.MediaPageForTests);
-        await mediaPage.BuildTask;
-        await BooruTestSupport.WaitAsync(() => mediaPage.Grid.ItemCount == 1 && mediaPage.CanToggleFocusMode, "saved media for focus mode");
-        mediaPage.SetFocusMode(true, announce: false);
+        MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+        await page.BuildTask;
+        await BooruTestSupport.WaitAsync(() => page.Grid.ItemCount == 1 && page.CanToggleFocusMode, "saved media for focus mode");
+        Assert.Single(page.ShownEntries);
+        page.SetFocusMode(true, announce: false);
         Layout(window);
         Assert.False(strip.IsVisible || navigation.IsVisible);
         Assert.Equal(IoStatsVisibility.None, window.IoStatsClaim);
-        mediaPage.SetFocusMode(false, announce: false);
+        page.SetFocusMode(false, announce: false);
         Layout(window);
         Assert.True(strip.IsVisible && navigation.IsVisible);
         Assert.Equal(IoStatsVisibility.Window, window.IoStatsClaim);
@@ -161,7 +162,7 @@ public sealed class FooterDisplayInteractionTests
         Assert.Equal(IoStatsVisibility.None, window.IoStatsClaim);
         Click(window, FreeSpace(navigation, window), MouseButton.Right);
         Assert.Null(navigation.ContextMenu);
-    }, withSavedMedia: true);
+    }, seedMedia: true);
 
     [Fact]
     public void EmptyFooterCanBeReopenedInEveryLanguageAndResetThroughSettings() => WithWindow(async (window, session, _, _) =>
@@ -220,7 +221,7 @@ public sealed class FooterDisplayInteractionTests
         Assert.Equal(new FooterDisplayPreferences(false, false, true), FooterDisplayPreferences.FromConfig(Config.LoadConfig(session.ProfileDirectory)));
     });
 
-    private static void WithWindow(Func<MainWindow, DesktopSessionHost, IoFakeSource, IoManualClock, Task> test, bool withSavedMedia = false) =>
+    private static void WithWindow(Func<MainWindow, DesktopSessionHost, IoFakeSource, IoManualClock, Task> test, bool seedMedia = false) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -238,8 +239,11 @@ public sealed class FooterDisplayInteractionTests
 
             async Task Exercise()
             {
-                using var media = withSavedMedia ? await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false) : null;
-                if (media != null) await RateAndTagWindowFixture.SeedAsync(profile.Path, RateAndTagWindowFixture.View(media));
+                // Media focus requires the header, which the empty library hides.
+                using var media = seedMedia ? await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false) : null;
+                if (media is not null)
+                    await RateAndTagWindowFixture.SeedAsync(profile.Path, RateAndTagWindowFixture.View(media));
+
                 IoManualClock clock = new(DateTimeOffset.UnixEpoch);
                 IoFakeSource source = new();
                 using IoStatsHub hub = new(source, clock);

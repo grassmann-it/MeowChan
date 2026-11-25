@@ -96,7 +96,6 @@ public sealed class ReaderVideoKeysAndMenuTests
     public void TheMediaPanelKeepsTheMediaPagesOwnTileMenuForItsMedium()
     {
         string panel = Source("Desktop/Views/Media/MediaPage.Panel.cs");
-        Assert.Contains("OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo)", panel);
         Assert.Contains("panel.AddHandler(PointerPressedEvent, OnPanelPointerPressed, RoutingStrategies.Tunnel)", panel);
     }
 

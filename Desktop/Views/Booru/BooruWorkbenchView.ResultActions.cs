@@ -32,7 +32,7 @@ internal sealed partial class BooruWorkbenchView
 
         internal BooruResultTarget Target => target;
         internal string PostId => target.Post.PostId;
-        internal bool IsCurrent() => IsSearchItem(owner._tabs.SelectedItem) && CurrentRow() != null;
+        internal bool IsCurrent() => owner.IsSearchItem(owner._tabs.SelectedItem) && CurrentRow() != null;
 
         internal bool CanRun(ResultAction action) => CurrentRow() is { } row && IsAvailable(action, row);
 
@@ -136,6 +136,7 @@ internal sealed partial class BooruWorkbenchView
             }
             primary = false;
             button.IsEnabled = result.IsAvailable(command.Action, row);
+            AutomationProperties.SetAutomationId(button, button.Name);
             AutomationProperties.SetName(button, command.Name);
             ToolTip.SetTip(button, command.Tip);
             ToolTip.SetShowOnDisabled(button, true);

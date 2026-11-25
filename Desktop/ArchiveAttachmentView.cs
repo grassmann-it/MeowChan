@@ -70,7 +70,9 @@ public sealed class ArchiveAttachmentView : UserControl
     }
 
     private readonly MediaFramePanel _slot = new();
-    private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false };
+    private readonly LetterboxPanel _preview = new() { MarksOnSlot = true };
+    // The frame's aspect fixes the picture geometry even when a higher-resolution decode has a different pixel rounding.
+    private readonly Image _image = new() { Stretch = Stretch.Fill, IsVisible = false };
     private readonly TextBlock _status = new TextBlock { TextWrapping = TextWrapping.Wrap, IsHitTestVisible = false,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }.MetaText();
     private readonly Button _retry = new() { HorizontalAlignment = HorizontalAlignment.Center, IsVisible = false };
@@ -195,36 +197,29 @@ public sealed class ArchiveAttachmentView : UserControl
     // Without either the legacy limits stay exactly as they were (no height override).
     private void ApplyFrameLimits(ArchiveAttachmentRow? row, bool large)
     {
-        if (_expanded && row != null)
-        {
-            // "Open in the post": the picture takes the post column's width (the frame never exceeds what the owner gives), as high as the
-            // reader shows at once, so a tall picture is narrower rather than longer than the window.
-            _slot.MaximumWidthOverride = ExpandedMaximumWidth;
-            _slot.MaximumHeightOverride = ExpandedMaximumHeight;
-            _edge.IsVisible = false;
-            return;
-        }
+        _slot.HeightLimitAtMaximumWidth = double.NaN;
         double factor = FocusFactor();
+        double visible = factor > 1 || _expanded ? VisibleFrameHeight() : double.NaN;
         double width = row?.ThumbnailWidth > 0 ? row.ThumbnailWidth : MediaFramePanel.MaximumWidth(large);
         _slot.MaximumWidthOverride = width * factor;
         double height = row?.ThumbnailMaxHeight > 0 ? row.ThumbnailMaxHeight : MediaFramePanel.MaximumHeight(large);
         double cap = row?.ThumbnailMaxHeight > 0 || factor > 1 ? height * factor : double.NaN;
         // An enlarged picture is shown whole: its height is capped by what the visible reader leaves under the post header (ReaderMediaFit).
-        if (factor > 1 && VisibleFrameHeight() is var visible && double.IsFinite(visible))
+        if (factor > 1 && double.IsFinite(visible))
+        {
+            _slot.HeightLimitAtMaximumWidth = height * factor;
             cap = ReaderMediaFit.HeightCap(height, factor, visible, MediaSlotGeometry.Fit(_slot.Aspect, double.PositiveInfinity, width, height).Height);
+        }
         _slot.MaximumHeightOverride = cap;
-        _edge.IsVisible = factor > 1 && row != null;
+        _slot.ExpandedHeightLimit = _expanded && row != null
+            ? (double.IsFinite(visible) ? visible : ExpandedFallbackHeight) : double.NaN;
+        _edge.IsVisible = !_expanded && factor > 1 && row != null;
     }
 
     // ---- "Open in the post": an image expands in its post --------------------------------------------------------------------------
 
     private bool _expanded;
-    private const double ExpandedMaximumWidth = 8192, ExpandedFallbackHeight = 720, ExpandedMinimumHeight = 240;
-
-    // As high as the visible reader leaves under the post's chrome (the shared ReaderMediaFit helper of the focus enlargement, glue wave8),
-    // at least 240 dip; 720 dip while the reader's visible height is not known yet.
-    private double ExpandedMaximumHeight =>
-        VisibleFrameHeight() is var visible && double.IsFinite(visible) && visible > 0 ? Math.Max(ExpandedMinimumHeight, visible) : ExpandedFallbackHeight;
+    private const double ExpandedFallbackHeight = 720;
 
     /// <summary>Whether the picture is expanded in its post (the choice "Open in the post"; a second click puts it back).</summary>
     internal bool IsExpanded => _expanded;
@@ -361,7 +356,7 @@ public sealed class ArchiveAttachmentView : UserControl
         if (!WantsEnlarged || !_visible || _bitmap == null || GetLoadingSuspended(this)
             || DataContext is not ArchiveAttachmentRow { LoadSized: { } load } row) return;
         // Expanded: the post column's width (what the frame can get), else the focus factor times the thumbnail width.
-        int target = _expanded ? (int)Math.Ceiling(Math.Max(row.ThumbnailWidth, Math.Min(ExpandedMaximumWidth, Bounds.Width > 1 ? Bounds.Width : row.ThumbnailWidth)))
+        int target = _expanded ? (int)Math.Ceiling(Math.Max(row.ThumbnailWidth, Math.Min(MediaFramePanel.ExpandedMaximumWidth, Bounds.Width > 1 ? Bounds.Width : row.ThumbnailWidth)))
             : (int)Math.Ceiling(Math.Max(1, row.ThumbnailWidth) * factor);
         ReaderDisplayPreferences.ThumbnailDecodeBounds bounds = ReaderDisplayPreferences.DecodeBoundsForWidth(target, row.LargePreview);
         if (ReaderDisplayPreferences.DecodeBoundsForWidth(row.ThumbnailWidth, row.LargePreview).MaximumWidth >= bounds.MaximumWidth
@@ -423,13 +418,14 @@ public sealed class ArchiveAttachmentView : UserControl
 
     public ArchiveAttachmentView()
     {
+        Avalonia.Automation.AutomationProperties.SetAutomationId(_image, "ReaderAttachmentPreview");
         _placeholder[!Border.BackgroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Raised");
         _placeholder.Bind(IsVisibleProperty, _status.GetObservable(IsVisibleProperty));
         // Flat: no raised box around the thumbnail. Semi's hover/pressed tint and the shared focus adorner remain the interaction
         // feedback of the native button; the button is the frame, so both run around the drawn picture and nothing else.
-        Grid surface = new();
-        surface.Children.Add(_placeholder); surface.Children.Add(_image);
-        _button = new MediumButton(this) { Content = surface, Padding = new Thickness(0), Background = Brushes.Transparent,
+        _preview.Children.Add(_placeholder);
+        _preview.Children.Add(_image);
+        _button = new MediumButton(this) { Content = _preview, Padding = new Thickness(0), Background = Brushes.Transparent,
             BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
         _button.Click += (_, _) => ActivateMedium();
@@ -683,6 +679,7 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         if (_slot.Large == large && _slot.Aspect == aspect) return;
         _slot.Large = large; _slot.Aspect = aspect;
+        _preview.Aspect = aspect;
         // MediaFramePanel is nested in AttachmentColumn. Invalidation of the child
         // alone does not make every Avalonia panel remeasure its parent on all
         // backends, so a late header aspect must invalidate the block itself too.

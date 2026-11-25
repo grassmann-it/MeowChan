@@ -396,17 +396,21 @@ public sealed class BooruGalleryInlineTests
                 return null;
             };
             await SearchAsync(harness, model, view);
-            TabControl tabs = ControlField<TabControl>(view, "_tabs");
+            TabControl tabs = Assert.Single(view.GetVisualDescendants().OfType<TabControl>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.TabsName);
+            TabItem searchTab = Assert.IsType<TabItem>(tabs.SelectedItem);
             view.Gallery.SampleDelay = TimeSpan.FromMilliseconds(150);
             Assert.True(view.OpenGallery("101"));
             await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Loading, "the pending sample delay");
             view.ShowWatchers();
+            TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
+            Assert.Equal(BooruWorkbenchView.WatchersTabName, AutomationProperties.GetAutomationId(watchersTab));
             await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Deferred, "the canceled sample delay");
             await Task.Delay(200);
             Assert.Empty(harness.Previews.SampleRequests);
 
             view.Gallery.SampleDelay = TimeSpan.Zero;
-            tabs.SelectedItem = ControlField<TabItem>(view, "_searchTab");
+            tabs.SelectedItem = searchTab;
             await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 1, "a sample after returning to Search");
             shellHost.IsVisible = false;
             await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -432,7 +436,7 @@ public sealed class BooruGalleryInlineTests
             int searches = harness.Search.Requests;
             int tab = view.SearchTabs.Add(copyCurrent: true);
             await wait.UntilAsync(() => view.Gallery.CurrentPostId == "101", "the copied gallery");
-            view.SearchTabs.Select(BooruSearchTabs.PrimaryId);
+            view.SearchTabs.Select(view.SearchTabs.Ids[0]);
             view.SearchTabs.Select(tab);
             await wait.UntilAsync(() => view.Gallery.CurrentPostId == "101", "the restored gallery");
             Assert.Equal(BooruGalleryPicture.Preview, view.Gallery.Picture);
@@ -455,23 +459,34 @@ public sealed class BooruGalleryInlineTests
                 await Task.Delay(Timeout.InfiniteTimeSpan, token);
                 throw new InvalidOperationException();
             };
-            Button button = ControlField<Button>(view, "_downloadAll");
-            Border status = ControlField<Border>(view, "_bulkHost");
             Task bulk = model.Search.DownloadAllAsync();
-            await BooruTestSupport.WaitAsync(() => status.IsVisible && button.IsEnabled, "the original tab's cancel button");
+            await BooruTestSupport.WaitAsync(() => Status().IsVisible && DownloadAll().IsEnabled, "the original tab's cancel button");
             view.SearchTabs.Add(copyCurrent: true);
-            await BooruTestSupport.WaitAsync(() => !status.IsVisible && !button.IsEnabled, "the copy's disabled download button");
-            Assert.Equal(Texts.T("booru.tabs.downloadShort"), button.Content);
-            Assert.StartsWith(Texts.T("booru.bulk.button"), Assert.IsType<string>(ToolTip.GetTip(button)));
+            await BooruTestSupport.WaitAsync(() => !Status().IsVisible && !DownloadAll().IsEnabled, "the copy's disabled download button");
+            Assert.Equal(Texts.T("booru.tabs.downloadShort"), DownloadAll().Content);
+            Assert.StartsWith(Texts.T("booru.bulk.button"), Assert.IsType<string>(ToolTip.GetTip(DownloadAll())));
             model.Search.CancelBulk();
             Assert.False(bulk.IsCompleted);
 
-            view.SearchTabs.Select(BooruSearchTabs.PrimaryId);
-            await BooruTestSupport.WaitAsync(() => status.IsVisible && button.IsEnabled, "the restored cancel button");
-            Assert.Equal(Texts.T("booru.bulk.stop"), button.Content);
+            view.SearchTabs.Select(view.SearchTabs.Ids[0]);
+            await BooruTestSupport.WaitAsync(() => Status().IsVisible && DownloadAll().IsEnabled, "the restored cancel button");
+            Assert.Equal(Texts.T("booru.bulk.stop"), DownloadAll().Content);
             model.Search.CancelBulk();
             await bulk.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(BooruBulkEnd.Canceled, model.Search.Bulk.End);
+
+            Border Status() => Assert.Single(ActiveTabContent().GetLogicalDescendants().OfType<Border>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.BulkStatusName);
+
+            Button DownloadAll() => Assert.Single(ActiveTabContent().GetLogicalDescendants().OfType<Button>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.DownloadAllName);
+
+            Control ActiveTabContent()
+            {
+                TabControl strip = Assert.IsType<TabControl>(view.Body);
+                TabItem selected = Assert.IsType<TabItem>(strip.SelectedItem);
+                return Assert.IsAssignableFrom<Control>(selected.Content);
+            }
         }
     });
 
@@ -507,7 +522,9 @@ public sealed class BooruGalleryInlineTests
             view.GalleryMaximumPixels = () => 2_000_000;
             view.OpenGallery("102");
             await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Shown, "the accepted sample");
-            Assert.Equal(300, Assert.IsAssignableFrom<Avalonia.Media.IImage>(ControlField<Image>(view.Gallery, "_image").Source).Size.Width);
+            Image sample = Assert.Single(view.Gallery.GetLogicalDescendants().OfType<Image>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruGalleryPanel.ImageName);
+            Assert.Equal(300, Assert.IsAssignableFrom<Avalonia.Media.IImage>(sample.Source).Size.Width);
 
             harness.Previews.SampleResult = _ => new BooruSampleResult(null, TimedOut: true);
             view.OpenGallery("101");
@@ -549,9 +566,6 @@ public sealed class BooruGalleryInlineTests
 
     private static TextBlock GalleryPosition(BooruGalleryPanel gallery) => gallery.GetLogicalDescendants().OfType<TextBlock>()
         .Single(block => block.Name == "BooruGalleryPosition");
-
-    private static T ControlField<T>(Control owner, string name) where T : Control =>
-        Assert.IsType<T>(owner.GetType().GetField(name, Private)!.GetValue(owner));
 
     private sealed class WindowScope : IDisposable
     {

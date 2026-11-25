@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop.Booru;
@@ -15,14 +16,17 @@ internal sealed class BooruTabPersistence : IDisposable
     private readonly QueryDebounce _debounce;
     private BooruSearchView _observed;
     private bool _disposed;
+    private bool _inspected;
+    private long _editRevision;
+    private long _writeRevision;
+    private Task<bool> _write = Task.FromResult(true);
 
     internal BooruTabPersistence(BooruWorkbenchView view, BooruSearchTabStore store, Config config)
     {
         _view = view;
         _store = store;
         _config = config;
-        if (config.RestoreBooruSearchTabs
-            && store.Load(view.Model.Search.View, TabLimit, config.BooruSavedResultsPerTab, view.Model.Services.Source) is { } snapshot)
+        if (config.RestoreBooruSearchTabs && InspectExisting() is { } snapshot)
             view.RestoreSearchTabs(snapshot);
 
         _observed = view.Model.Search.View;
@@ -31,7 +35,11 @@ internal sealed class BooruTabPersistence : IDisposable
         view.Model.Search.Changed += OnSearchChanged;
     }
 
-    private int TabLimit => Math.Min(_config.BooruSavedTabs, _view.SearchTabs.Limit + 1);
+    private BooruTabSnapshot? InspectExisting()
+    {
+        _inspected = true;
+        return _store.Load(_view.Model.Search.View, _config.BooruSavedResultsPerTab, _view.Model.Services.Source);
+    }
 
     private void OnSearchChanged()
     {
@@ -40,12 +48,22 @@ internal sealed class BooruTabPersistence : IDisposable
         if (!ReferenceEquals(Interlocked.Exchange(ref _observed, current), current)) Schedule();
     }
 
-    private void Schedule() => _debounce.Request(SaveDelay);
+    private void Schedule()
+    {
+        Interlocked.Increment(ref _editRevision);
+        _debounce.Request(SaveDelay);
+    }
 
     private void Save()
     {
-        if (_config.RestoreBooruSearchTabs)
-            _store.Save(_view.SearchTabs.Capture(TabLimit), _config.BooruSavedResultsPerTab);
+        if (!_config.RestoreBooruSearchTabs) return;
+        long revision = Interlocked.Read(ref _editRevision);
+        if (revision == _writeRevision && _write.IsCompletedSuccessfully && _write.Result) return;
+        // On opt-in, check ownership of the file without replacing the live session with the old one.
+        if (!_inspected) InspectExisting();
+        _store.Save(_view.SearchTabs.Capture(_config.BooruSavedTabs), _config.BooruSavedResultsPerTab);
+        _write = _store.PendingSave;
+        _writeRevision = revision;
     }
 
     public void Dispose()

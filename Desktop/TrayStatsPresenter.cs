@@ -17,10 +17,10 @@ internal sealed record TrayStatsHost(
     Action<Action> Post);
 
 /// <summary>
-/// Network and disk statistics in the tray, text only: the tooltip (rates while downloads run, today's total otherwise) and three
-/// enabled lines in the tray menu. The presenter owns no timer. It holds the hub claim of <see cref="TrayStatsClaim"/>
+/// Network and disk statistics in the tray tooltip and a menu shortcut or three statistics lines. The presenter owns no
+/// timer. It holds the hub claim of <see cref="TrayStatsClaim"/>
 /// (window hidden and tooltip on), refreshes the tooltip on each hub sample while the claim is held and otherwise only when the
-/// window's own tray refresh asks (throttled to one reading per second). Visible menu lines follow the same readings.
+/// window's own tray refresh asks (throttled to one reading per second). Menu lines follow the same readings outside menu tracking.
 /// </summary>
 internal sealed class TrayStatsPresenter : IDisposable
 {
@@ -32,18 +32,15 @@ internal sealed class TrayStatsPresenter : IDisposable
     private readonly TimeProvider _time;
     private readonly TrayStatsClaim _claim;
     private readonly CoalescedUiUpdate _sampled;
-    private readonly NativeMenuItem _ratesItem = new();
-    private readonly NativeMenuItem _diskItem = new();
-    private readonly NativeMenuItem _detailItem = new();
-    private readonly NativeMenuItemBase[] _group;
-    private readonly int _groupIndex;
-    private bool _menuVisible;
+    private readonly bool _useStatisticsShortcut;
+    private readonly NativeMenuItem[] _items;
+    private bool _menuOpen;
     private (bool Paused, int Active, bool Shown, bool ClaimHeld, string Language, bool Menu, bool Tooltip)? _state;
     private long _stamp;
     private bool _disposed;
 
     /// <summary>Appends the statistics group and listens for the menu's update request.</summary>
-    internal TrayStatsPresenter(IoStatsHub hub, NativeMenu menu, TrayStatsHost host, TimeProvider? time = null)
+    internal TrayStatsPresenter(IoStatsHub hub, NativeMenu menu, TrayStatsHost host, bool useStatisticsShortcut, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(hub);
         ArgumentNullException.ThrowIfNull(menu);
@@ -52,32 +49,46 @@ internal sealed class TrayStatsPresenter : IDisposable
         _menu = menu;
         _host = host;
         _time = time ?? TimeProvider.System;
+        _useStatisticsShortcut = useStatisticsShortcut;
         _sampled = new CoalescedUiUpdate(OnSampled, TimeSpan.Zero, null, (action, _) => _host.Post(action));
         _claim = new TrayStatsClaim(hub, _sampled.Request);
-        _ratesItem.Click += OnClick;
-        _diskItem.Click += OnClick;
-        _detailItem.Click += OnClick;
-        _group = [new NativeMenuItemSeparator(), _ratesItem, _diskItem, _detailItem, new NativeMenuItemSeparator()];
-        _groupIndex = menu.Items.Count;
-        if (host.MenuEnabled()) SetMenuVisibility(true);
+        // Both the Linux exporter and the Windows tray presenter ignore separator visibility.
+        _items = useStatisticsShortcut ? [new(Texts.T("stats.settings.title"))] : [new(), new(), new()];
+        bool visible = host.MenuEnabled();
+        foreach (NativeMenuItem item in _items)
+        {
+            item.IsVisible = visible;
+            item.Click += OnClick;
+            menu.Items.Add(item);
+        }
         menu.NeedsUpdate += OnNeedsUpdate;
+        menu.Opening += OnOpening;
+        menu.Closed += OnClosed;
     }
 
     /// <summary>Line one: "Net ↓ x" while rates show, else the state.</summary>
-    internal NativeMenuItem RatesItem => _ratesItem;
+    internal NativeMenuItem RatesItem => _items[0];
     /// <summary>Line two: "Disk y" (written) while rates show, else today's network total.</summary>
-    internal NativeMenuItem DiskItem => _diskItem;
-    internal NativeMenuItem DetailItem => _detailItem;
+    internal NativeMenuItem DiskItem => _items[1];
+    internal NativeMenuItem DetailItem => _items[2];
     internal bool ClaimHeld => _claim.Held;
 
     /// <summary>The tray's own refresh: claim, menu visibility and tooltip. Cheap when nothing changed for less than a second.</summary>
     internal void Refresh(bool force = false) => Update(force);
 
-    // The menu is opening: current numbers into the menu lines and the tooltip.
+    // Native exporters that support NeedsUpdate can read current numbers before opening the menu.
     private void OnNeedsUpdate(object? sender, EventArgs e)
     {
         if (_disposed || _host.Closing()) return;
         Update(force: true);
+    }
+
+    private void OnOpening(object? sender, EventArgs e) => _menuOpen = true;
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        _menuOpen = false;
+        _state = null; // Apply changes on the next refresh, outside the native close callback.
     }
 
     // The hub samples on a pool thread; the coalesced update arrives here on the UI thread.
@@ -96,31 +107,30 @@ internal sealed class TrayStatsPresenter : IDisposable
         bool tooltipOn = _host.TooltipEnabled();
         bool menuOn = _host.MenuEnabled();
         _claim.Update(TrayStatsClaim.Wanted(_host.Closing(), shown, tooltipOn));
-        if (_menuVisible != menuOn) SetMenuVisibility(menuOn);
         (bool paused, int active) = _host.Downloads();
         var key = (paused, active, shown, _claim.Held, Texts.Language, menuOn, tooltipOn);
         long now = _time.GetTimestamp();
         if (!force && key == _state && _time.GetElapsedTime(_stamp, now) < MinimumInterval) return;
         _state = key;
         _stamp = now;
-        // The Linux exporter does not raise the menu update event when the host opens the menu.
-        TrayStatsInput state = tooltipOn || menuOn ? StateOf(paused, active) : default;
-        if (menuOn) ApplyLines(state);
+        bool showMenuValues = !_menuOpen && menuOn && !_useStatisticsShortcut;
+        TrayStatsInput state = tooltipOn || showMenuValues ? StateOf(paused, active) : default;
+        if (!_menuOpen) UpdateMenu(menuOn, state);
         _host.SetTooltip(tooltipOn ? TrayStatsModel.Tooltip(state) : TrayMenuModel.Tooltip(paused, active));
     }
 
-    private void SetMenuVisibility(bool visible)
+    private void UpdateMenu(bool visible, in TrayStatsInput state)
     {
-        _menuVisible = visible;
-        // The Linux exporter always exports separators that belong to the menu.
         if (visible)
         {
-            for (int i = 0; i < _group.Length; i++) _menu.Items.Insert(_groupIndex + i, _group[i]);
+            if (_useStatisticsShortcut)
+                SetHeader(_items[0], Texts.T("stats.settings.title"));
+            else
+                ApplyLines(state);
         }
-        else
-        {
-            foreach (NativeMenuItemBase item in _group) _menu.Items.Remove(item);
-        }
+
+        foreach (NativeMenuItem item in _items)
+            if (item.IsVisible != visible) item.IsVisible = visible;
     }
 
     private TrayStatsInput StateOf(bool paused, int active) =>
@@ -129,9 +139,14 @@ internal sealed class TrayStatsPresenter : IDisposable
     private void ApplyLines(in TrayStatsInput state)
     {
         (string net, string disk, string detail) = TrayStatsModel.MenuLines(state);
-        if (!Equals(_ratesItem.Header, net)) _ratesItem.Header = net;
-        if (!Equals(_diskItem.Header, disk)) _diskItem.Header = disk;
-        if (!Equals(_detailItem.Header, detail)) _detailItem.Header = detail;
+        SetHeader(RatesItem, net);
+        SetHeader(DiskItem, disk);
+        SetHeader(DetailItem, detail);
+    }
+
+    private static void SetHeader(NativeMenuItem item, string text)
+    {
+        if (!Equals(item.Header, text)) item.Header = text;
     }
 
     public void Dispose()
@@ -139,9 +154,9 @@ internal sealed class TrayStatsPresenter : IDisposable
         if (_disposed) return;
         _disposed = true;
         _menu.NeedsUpdate -= OnNeedsUpdate;
-        _ratesItem.Click -= OnClick;
-        _diskItem.Click -= OnClick;
-        _detailItem.Click -= OnClick;
+        _menu.Opening -= OnOpening;
+        _menu.Closed -= OnClosed;
+        foreach (NativeMenuItem item in _items) item.Click -= OnClick;
         _claim.Dispose();
         _sampled.Dispose();
     }

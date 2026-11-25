@@ -59,11 +59,11 @@ internal sealed class ContextMenuBuilder
     /// are commands with icons; the same action shows the same icon as its command elsewhere.
     /// </summary>
     internal ContextMenuBuilder Item(string id, string label, Action invoke, bool available = true, string? reason = null,
-        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null)
+        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null, bool dangerous = false)
     {
         ArgumentNullException.ThrowIfNull(invoke);
         return Add(new(ContextMenuEntryKind.Command, id, label, null, null, false, available, reason, invoke, true,
-            availableWhen, reasonWhen, labelWhen, Icon: icon));
+            availableWhen, reasonWhen, labelWhen, Icon: icon, Dangerous: dangerous));
     }
 
     /// <summary>

@@ -8,6 +8,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
 
@@ -31,6 +32,7 @@ internal sealed partial class GalleryViewer
     // The media marked in the gallery (Shift+Page Down, E4): gallery state, kept while the panel closes and opens again.
     private GalleryMarks? _marks;
     private bool _tagPanelOpen;
+    internal event Action<TagId>? MediaTagFilterRequested;
 
     /// <summary>True while the tag panel (not the post panel) holds the slot.</summary>
     internal bool IsTagPanelOpen => _tagPanelOpen;
@@ -67,6 +69,7 @@ internal sealed partial class GalleryViewer
         _marks ??= new GalleryMarks(owner.Options.MarkedMediaLimit);
         GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks);
         QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, FillSuggestions = true, ReadSourceTags = owner.ReadSourceTags };
+        surface.FilterMediaByTag = MediaTagFilterRequested;
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
         surface.MarkedCount = _marks.Count;

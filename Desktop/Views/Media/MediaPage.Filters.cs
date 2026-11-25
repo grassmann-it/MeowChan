@@ -321,13 +321,13 @@ public sealed partial class MediaPage
         if (focused) FocusGrid();
     }
 
-    /// <summary>A tag chip of a tile: only media that carry this tag, added to the tags already included.</summary>
+    /// <summary>Shows media carrying the chosen tag, keeping the other filters.</summary>
     internal void FilterToTag(Guid id)
     {
-        // A shown tile never carries an excluded tag, so a chip can only be new or already included.
-        if (HasTag(id) || _userData.TagSnapshot?.Find(new TagId(id)) == null) return;
+        if (TagTerms(false).Contains(id) || _userData.TagSnapshot?.Find(new TagId(id)) == null) return;
         bool focused = FocusWithin(_grid);
-        if (!IncludeOrExclude(id, include: true)) return;
+        bool included = TagTerms(true).Contains(id) ? ToggleTagFilter(id) == null : IncludeOrExclude(id, include: true);
+        if (!included) return;
         if (focused) FocusGrid();
     }
 

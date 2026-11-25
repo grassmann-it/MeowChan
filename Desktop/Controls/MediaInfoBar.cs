@@ -65,7 +65,7 @@ internal sealed class MediaInfoBar : Grid
             button.VerticalAlignment = VerticalAlignment.Center;
             ToolTip.SetShowOnDisabled(button, true);
         }
-        _chips = new TagLine(edit) { Name = "ReaderMediaSidebarTags" };
+        _chips = new TagLine(edit, (chip, tag) => TagChipCreated?.Invoke(chip, tag)) { Name = "ReaderMediaSidebarTags" };
         foreach (Control control in new Control[] { _edit, _toggle, _empty, _chips })
             AutomationProperties.SetAutomationId(control, control.Name);
         _toggle.Click += (_, _) =>
@@ -92,9 +92,27 @@ internal sealed class MediaInfoBar : Grid
 
     internal Control EditorAnchor => _edit;
 
+    /// <summary>Called for each tag chip of the line when it is made; the owner gives it the tag's menu.</summary>
+    internal Action<Button, string>? TagChipCreated { get; init; }
+
+    /// <summary>A tag as a compact chip that owns its pointer input, so the panel's media menu yields to the tag's own menu.</summary>
+    internal static Button CreateTagChip(string name, string tag)
+    {
+        Button chip = new()
+        {
+            Name = name, Height = 24, MinHeight = 0, MinWidth = 0, Padding = new Thickness(8, 0), Focusable = true, IsTabStop = true,
+            Classes = { WorkspaceChips.Chip, WorkspaceChips.Compact },
+            Content = new TextBlock { Text = tag, Classes = { WorkspaceChips.Label }, TextWrapping = TextWrapping.NoWrap }
+        };
+        AutomationProperties.SetName(chip, tag);
+        AutomationProperties.SetAutomationId(chip, name);
+        return chip;
+    }
+
     internal void SetTags(IReadOnlyList<string>? tags, string? blocked, bool canEdit)
     {
         _tagCount = tags?.Count ?? 0;
+        Expand.Focusable = Expand.IsTabStop = _tagCount != 0;
         _blocked = blocked;
         _canEdit = canEdit;
         _edit.IsEnabled = canEdit;
@@ -205,9 +223,11 @@ internal sealed class MediaInfoBar : Grid
         private double _lastWidth = double.NaN;
 
         private string[] _tags = [];
+        private readonly Action<Button, string> _chipCreated;
 
-        internal TagLine(Action<Control> edit)
+        internal TagLine(Action<Control> edit, Action<Button, string> chipCreated)
         {
+            _chipCreated = chipCreated;
             AutomationProperties.SetAutomationId(_rest, _rest.Name);
             _rest.Focusable = _rest.IsTabStop = false;
             Children.Add(_rest);
@@ -246,7 +266,11 @@ internal sealed class MediaInfoBar : Grid
                 for (; visible < count; visible++)
                 {
                     if (visible == Children.Count - 1)
-                        Children.Insert(visible, WorkspaceChips.CreateBadge("ReaderMediaSidebarTag", _tags[visible], compact: true));
+                    {
+                        Button made = CreateTagChip("ReaderMediaSidebarTag", _tags[visible]);
+                        _chipCreated(made, _tags[visible]);
+                        Children.Insert(visible, made);
+                    }
                     Control chip = Children[visible];
                     chip.IsVisible = true;
                     chip.Measure(Size.Infinity);

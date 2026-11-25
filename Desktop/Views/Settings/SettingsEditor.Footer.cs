@@ -111,11 +111,14 @@ public partial class SettingsEditor
 
     internal void RefreshConfirmedFooterDisplays()
     {
-        if (_isClosed || _resetFooterDisplaysRequested) return;
+        if (_isClosed) return;
         FooterDisplayPreferences displays = FooterDisplayPreferences.FromConfig(_config);
-        if (ShowFooterNetwork == _footerDisplaysBaseline.Network) ShowFooterNetwork = displays.Network;
-        if (ShowFooterDisk == _footerDisplaysBaseline.Disk) ShowFooterDisk = displays.Disk;
-        if (ShowFooterStatus == _footerDisplaysBaseline.Status) ShowFooterStatus = displays.Status;
+        if (!_resetFooterDisplaysRequested)
+        {
+            if (ShowFooterNetwork == _footerDisplaysBaseline.Network) ShowFooterNetwork = displays.Network;
+            if (ShowFooterDisk == _footerDisplaysBaseline.Disk) ShowFooterDisk = displays.Disk;
+            if (ShowFooterStatus == _footerDisplaysBaseline.Status) ShowFooterStatus = displays.Status;
+        }
         _footerDisplaysBaseline = displays;
         RefreshToggleGroupBaseline(ShowFooterNetworkInput, displays.Network);
         RefreshToggleGroupBaseline(ShowFooterDiskInput, displays.Disk);

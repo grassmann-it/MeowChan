@@ -16,7 +16,7 @@ internal sealed class MediaCompactHeader : Grid
     private readonly TextBlock _title;
     private readonly MediaPositionPill _pill;
     private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
-    private readonly Button[] _labeled;
+    private readonly Button?[] _labeled;
     private readonly string[] _captions = ["", "", ""];
     private readonly bool?[] _visibleLabels = new bool?[3];
     private static readonly int[] LabelPriority = [2, 0, 1];
@@ -25,6 +25,7 @@ internal sealed class MediaCompactHeader : Grid
 
     private readonly Grid _metadata = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), VerticalAlignment = VerticalAlignment.Center };
     internal bool UsesSingleRow => GetRow(_metadata) == 0;
+    internal double FileNameReserve { get; init; } = 112;
     internal TextBlock Position { get; } = new()
     {
         FontWeight = FontWeight.SemiBold, Height = 16, MaxLines = 1, Classes = { "workspace-meta" },
@@ -36,7 +37,7 @@ internal sealed class MediaCompactHeader : Grid
         Name = "ReaderMediaSidebarMeta", Classes = { "workspace-meta" }, MaxLines = 1, Height = 16
     };
 
-    internal MediaCompactHeader(TextBlock title, MediaPositionPill pill, ArchiveFavoriteButton favorite, ToggleButton info, Button open, Button settings, PanelCloseButton close)
+    internal MediaCompactHeader(TextBlock title, MediaPositionPill pill, ArchiveFavoriteButton favorite, ToggleButton info, Button? open, Button? settings, PanelCloseButton close)
     {
         _title = title;
         _pill = pill;
@@ -45,8 +46,9 @@ internal sealed class MediaCompactHeader : Grid
         ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto");
         Children.Add(title);
         Localize();
-        foreach (Button button in new Button[] { favorite, info, open, settings, close })
+        foreach (Button? button in new Button?[] { favorite, info, open, settings, close })
         {
+            if (button == null) continue;
             button.Width = button.Height = WorkspaceMetrics.InputHeight;
             button.MinWidth = 0;
             button.Classes.Add(WorkspaceIcons.SquareClass);
@@ -94,7 +96,10 @@ internal sealed class MediaCompactHeader : Grid
     protected override Size MeasureOverride(Size availableSize)
     {
         double width = availableSize.Width;
-        const double icons = 5 * WorkspaceMetrics.InputHeight + 4 * 4;
+        int actionCount = 0;
+        foreach (Control action in _actions.Children)
+            if (action.IsVisible) actionCount++;
+        double icons = actionCount * WorkspaceMetrics.InputHeight + (actionCount - 1) * _actions.Spacing;
         string prefix = _pill.Bare ?? "";
         string Line(string file) => ReaderMediaSidebarRules.HeaderText("", file, _detail);
         Position.Text = prefix;
@@ -103,7 +108,7 @@ internal sealed class MediaCompactHeader : Grid
         string separator = prefix.Length > 0 && (_file.Length > 0 || _detail.Length > 0) ? " · " : "";
         double titleWidth = MeasureText(_title, _fullTitle);
         // Reserve enough of the actual name to recognize it before spending space on action labels.
-        double fileMinimum = prefixWidth + MeasureText(Meta, separator + Line("")) + Math.Min(112, MeasureText(Meta, _file));
+        double fileMinimum = prefixWidth + MeasureText(Meta, separator + Line("")) + Math.Min(FileNameReserve, MeasureText(Meta, _file));
         if (_file.Length > 0 && _detail.Length > 0) fileMinimum += MeasureText(Meta, " · ");
         double free = width - icons - titleWidth - fileMinimum - 24;
         bool single = free >= 0;
@@ -111,24 +116,25 @@ internal sealed class MediaCompactHeader : Grid
         bool fits = single;
         foreach (int i in LabelPriority)
         {
+            if (_labeled[i] is not { IsVisible: true } button) continue;
             double extra = Math.Ceiling(MeasureText(Meta, _captions[i])) + 16;
             fits = fits && free >= extra;
             if (_visibleLabels[i] != fits)
             {
                 _visibleLabels[i] = fits;
-                if (_labeled[i] is ArchiveFavoriteButton star) star.SetCaption(fits ? _captions[i] : null);
+                if (button is ArchiveFavoriteButton star) star.SetCaption(fits ? _captions[i] : null);
                 else
                 {
                     string command = i == 1 ? "media.sidebar.info" : "gallery.open";
-                    if (fits && i == 1) CommandBindings.ApplyLabeled(_labeled[i], command, _captions[i],
+                    if (fits && i == 1) CommandBindings.ApplyLabeled(button, command, _captions[i],
                         _ => CommandBindings.Tooltip("media.sidebar.info"));
-                    else if (fits) CommandBindings.ApplyLabeled(_labeled[i], command, _captions[i]);
-                    else CommandBindings.Apply(_labeled[i], command, iconOnly: true);
+                    else if (fits) CommandBindings.ApplyLabeled(button, command, _captions[i]);
+                    else CommandBindings.Apply(button, command, iconOnly: true);
                 }
             }
-            _labeled[i].Width = 32 + (fits ? extra : 0);
-            _labeled[i].Classes.Set(WorkspaceIcons.SquareClass, !fits);
-            _labeled[i].Padding = new Thickness(fits ? 4 : 0, 0);
+            button.Width = 32 + (fits ? extra : 0);
+            button.Classes.Set(WorkspaceIcons.SquareClass, !fits);
+            button.Padding = new Thickness(fits ? 4 : 0, 0);
             if (fits) free -= extra;
         }
         _actions.Measure(Size.Infinity);

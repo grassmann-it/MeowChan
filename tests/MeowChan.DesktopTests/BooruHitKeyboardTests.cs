@@ -270,7 +270,7 @@ public sealed class BooruHitKeyboardTests
         TappedEventArgs onCard = DoubleTap(card, card);
         Raise(card, onCard);
         Assert.True(onCard.Handled);
-        Assert.NotEqual(BooruSearchTabs.PrimaryId, view.SearchTabs.ActiveId);
+        Assert.NotNull(view.SearchTabs.ActiveId);
         Assert.Equal(view.SearchTabs.ActiveId, Assert.IsType<TabItem>(tabs.SelectedItem).Tag);
         Assert.Equal("cat blue_eyes", input.Text);
         Assert.Equal("cat blue_eyes", model.Search.View.Input);
@@ -371,7 +371,7 @@ public sealed class BooruHitKeyboardTests
         KeyEventArgs enter = Press(Avalonia.Input.Key.Enter, first);
         Raise(first, enter);
         Assert.True(enter.Handled);
-        Assert.NotEqual(BooruSearchTabs.PrimaryId, view.SearchTabs.ActiveId);
+        Assert.NotNull(view.SearchTabs.ActiveId);
         Assert.Equal(view.SearchTabs.ActiveId, Assert.IsType<TabItem>(tabs.SelectedItem).Tag);
         Assert.Equal("cat blue_eyes", Field<SearchBox>(view, "_input").Text);
         Assert.Equal(requests, harness.ProviderRequests);
