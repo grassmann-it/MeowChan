@@ -49,15 +49,13 @@ internal static partial class TitlePatternMiner
         foreach (Title title in titles.Values)
         {
             token.ThrowIfCancellationRequested();
-            Match code = SlashCode().Match(title.Clean);
-            bool hasOwnCode = code.Success && code.Value == ownCode;
-            while (code.Success && code.Value == ownCode) code = code.NextMatch();
+            string clean = title.Clean;
+            if (clean.Contains(ownCode, StringComparison.Ordinal))
+                clean = Whitespace().Replace(clean.Replace(ownCode, " ", StringComparison.Ordinal), " ").Trim();
+            Match code = SlashCode().Match(clean);
             if (code.Success) Group(slash, code.Value, title);
             else
             {
-                string clean = hasOwnCode
-                    ? Whitespace().Replace(title.Clean.Replace(ownCode, " ", StringComparison.Ordinal), " ").Trim()
-                    : title.Clean;
                 string key = Edges().Replace(Whitespace().Replace(Counters().Replace(clean, "${thread} "), " "), string.Empty);
                 if (key.Length > 0) Group(stripped, key, title with { Clean = clean });
             }

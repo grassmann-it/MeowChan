@@ -38,6 +38,7 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
     private static readonly ThreadTextRule Manual = new(ThreadTextField.Title, ThreadTextAction.Exclude, "spam");
     private static readonly ThreadTextRule Suggested = new(ThreadTextField.Title, ThreadTextAction.Include, Rpt);
     private static readonly string[] ExpectedLiteralRules = ["lens advice crew", "recent photo thread"];
+    private static readonly string[] ExpectedCatalogRequests = ["g", "p"];
 
     [Fact]
     public void ToggleAndEditUpdateTheExistingPreviewAndApplyReturnsOnlyTheDraft() => Run(() =>
@@ -231,13 +232,16 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
         else Assert.Empty(result.Items);
     }
 
-    [Fact]
-    public void OwnBoardCodeDoesNotBecomeAWordRule()
+    [Theory]
+    [InlineData("news", "Camera news")]
+    [InlineData("test_1", "Camera test")]
+    [InlineData("analogphotographers", "Camera analogphotographers")]
+    public void OwnBoardCodeDoesNotBecomeAWordRule(string board, string unrelatedTitle)
     {
-        var rows = Enumerable.Range(1, 3).Select(i => Row(i, "/news/ #" + i, i))
-            .Concat(UnrelatedTitles(16)).Append(Row(99, "Camera news", 1)).ToArray();
+        var rows = Enumerable.Range(1, 3).Select(i => Row(i, $"/{board}/ #{i}", i))
+            .Concat(UnrelatedTitles(16)).Append(Row(99, unrelatedTitle, 1)).ToArray();
 
-        var result = TitlePatternMiner.Mine(rows, "news", Now, 3, 12);
+        var result = TitlePatternMiner.Mine(rows, board, Now, 3, 12);
 
         Assert.Equal(20, result.Scanned);
         Assert.Empty(result.Items);
@@ -331,7 +335,7 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
                 writeLock.ExecuteNonQuery();
             }
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => search!);
-            Assert.Equal(new[] { "g", "p" }, requests.ToArray());
+            Assert.Equal(ExpectedCatalogRequests, requests.ToArray());
         }
         finally
         {
