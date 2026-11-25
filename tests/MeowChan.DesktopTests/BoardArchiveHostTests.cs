@@ -98,6 +98,54 @@ public sealed class BoardArchiveHostTests
     }
 
     [Theory]
+    [InlineData(1)]
+    [InlineData(8)]
+    [InlineData(64)]
+    public async Task ProfileArchiveLimitControlsConditionalSnapshots(int limit)
+    {
+        using TempDirectory profile = new();
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(35));
+        CancellationToken token = deadline.Token;
+        new Config
+        {
+            DownloadPath = Path.Combine(profile.Path, "media"), BoardArchiveCacheLimit = limit,
+            AutomaticUpdateChecks = false, FirstRunSetupVersion = 1
+        }.SaveConfig(profile.Path);
+        await using ArchiveWorker worker = new()
+        {
+            UseCatalogValidators = true,
+            ReadIds = (_, _) => Task.FromResult<string[]>(["123"])
+        };
+        using PluginSourceImageBoard source = worker.CreateSource();
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile.Path, [source],
+            updateSessionFactory: (directory, config) => new UpdateSession(directory, config, disableEnvironment: () => "1")));
+        await host.StartAsync().WaitAsync(token);
+        Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
+
+        Task<IReadOnlyList<BoardArchiveThread>?> Read(int index) =>
+            host.ReadBoardArchiveAsync(Assert.IsType<BoardArchiveLocation>(
+                host.FindBoardArchive($"https://archive.test/board{index}/archive")), token);
+
+        var first = await Read(0);
+        var last = first;
+        for (int board = 1; board < limit; board++) last = await Read(board);
+        Assert.Same(first, await Read(0));
+        var newest = await Read(limit);
+        Assert.Same(newest, await Read(limit));
+        if (limit > 1) Assert.Same(last, await Read(limit - 1));
+        var refreshedFirst = await Read(0);
+        Assert.NotSame(first, refreshedFirst);
+        if (limit == 1) return;
+
+        Config draft = host.Config.Clone();
+        draft.BoardArchiveCacheLimit = 1;
+        await host.ApplySettingsAsync(draft).WaitAsync(token);
+        Assert.Same(last, await Read(limit - 1));
+        Assert.NotSame(refreshedFirst, await Read(0));
+        Assert.NotSame(last, await Read(limit - 1));
+    }
+
+    [Theory]
     [InlineData(PostOrderKind.StableOrdinal, "later", "a1", 10)]
     [InlineData(PostOrderKind.StableOrdinal, "123", "a1", 10)]
     [InlineData(PostOrderKind.DecimalPostId, "100000000000000000000", "99999999999999999999", 30)]
@@ -167,6 +215,7 @@ public sealed class BoardArchiveHostTests
         public PluginDescription Description { get; }
         public PluginWorkerIdentity Identity { get; } = new("test", "build", "config");
         public PluginWorkerSnapshot Snapshot => new(Identity, "ready", null, null, null, []);
+        internal bool UseCatalogValidators { get; init; }
         internal Func<string, CancellationToken, Task<string[]>> ReadIds { get; init; } = (_, _) => Task.FromResult<string[]>([]);
         internal Func<string, CancellationToken, Task<SourcePost[]>> ReadPosts { get; init; } = (_, _) => Task.FromResult<SourcePost[]>([]);
 
@@ -177,12 +226,18 @@ public sealed class BoardArchiveHostTests
             CancellationToken cancellationToken = default)
         {
             Assert.True(request.IsArchive);
+            SourceValidators? validators = UseCatalogValidators ? new(LastModified: Modified) : null;
+            if (request.HasSnapshot && validators != null)
+            {
+                Assert.Equal(validators, request.Validators);
+                return new CatalogUnchanged(request.Board, validators);
+            }
             string[] ids = await ReadIds(request.Board.BoardId, cancellationToken);
             return new CatalogSnapshot(new SourceCatalogSnapshot(request.Board, ids.Select(id =>
             {
                 SourceThreadId thread = new(request.Board.SourceId, request.Board.BoardId, id);
                 return new SourceThreadReference(thread, ThreadUri(thread));
-            }).ToArray(), IsComplete: true));
+            }).ToArray(), IsComplete: true, Validators: validators));
         }
 
         public async Task<ThreadReadResult> ReadThreadAsync(ThreadReadRequest request, PluginOperationContext operation,

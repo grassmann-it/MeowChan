@@ -142,7 +142,7 @@ public sealed class SettingsLimitsUiTests
     public void CatalogHasUniqueBilingualLabelsAndConfigFormattedBounds()
     {
         var entries = SettingsLimitsCatalog.Entries;
-        Assert.Equal(16, entries.Length);
+        Assert.Equal(20, entries.Length);
         Assert.Equal(entries.Length, entries.Select(e => e.Key).Distinct().Count());
         Assert.All(entries, entry =>
         {
