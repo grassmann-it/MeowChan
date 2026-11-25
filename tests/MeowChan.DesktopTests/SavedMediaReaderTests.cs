@@ -47,18 +47,21 @@ public sealed class SavedMediaReaderTests
     {
         long now = 0;
         page.UseManualReaderTicks(() => now);
-        TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        TabControl tabs = ById<TabControl>(window, "ArchiveContentTabs");
+        TabItem posts = ById<TabItem>(tabs, "ArchivePostsTab");
+        TabItem savedMedia = ById<TabItem>(tabs, "ArchiveMediaTab");
         TabItem references = await PopulateReferencesAsync(page, window, host);
         Control bar = ById<Control>(window, "ReaderNavigation");
         int delay = Config.ControlsIdleHideMsDefault;
         page.ReaderNavigationIdleDelayMs = delay;
         foreach (string mode in new[] { Config.ReaderNavigationModeOff, Config.ReaderNavigationModeAlways, Config.ReaderNavigationModeAuto })
         {
-            tabs.SelectedIndex = 0;
+            tabs.SelectedItem = posts;
             page.ReaderNavigationMode = mode;
-            foreach (TabItem tab in new[] { (TabItem)tabs.Items[0]!, references })
+            foreach (TabItem tab in new[] { posts, references })
             {
-                Click(window, tab);
+                tabs.SelectedItem = tab;
+                Layout(window);
                 Assert.Same(tab, tabs.SelectedItem);
                 page.NotifyReaderPointerMoved(default);
                 bool visible = mode != Config.ReaderNavigationModeOff;
@@ -78,7 +81,7 @@ public sealed class SavedMediaReaderTests
                     Assert.Equal(1, bar.Opacity);
                 }
             }
-            tabs.SelectedIndex = 1;
+            tabs.SelectedItem = savedMedia;
             Layout(window);
             page.NotifyReaderPointerMoved(default);
             Assert.False(bar.IsEffectivelyVisible);
@@ -228,10 +231,11 @@ public sealed class SavedMediaReaderTests
         long now = 0;
         page.UseManualReaderTicks(() => now);
         ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
-        TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        TabControl tabs = ById<TabControl>(window, "ArchiveContentTabs");
         page.FindControl<ListBox>("ArchivePosts")!.SelectedIndex = 0;
         TabItem references = await PopulateReferencesAsync(page, window, host);
-        Click(window, references);
+        tabs.SelectedItem = references;
+        Layout(window);
         Assert.Same(references, tabs.SelectedItem);
         now += ReaderMediaSidebarRules.FollowIntervalMs;
         await ShowSidebarSelectionAsync(page, window, sidebar, "post.png");
