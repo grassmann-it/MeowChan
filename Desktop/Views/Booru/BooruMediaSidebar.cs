@@ -174,18 +174,22 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         _aspect = width is > 0 && height is > 0 ? (double)width.Value / height.Value : 1;
         string? dimensions = width is > 0 && height is > 0 ? $"{width} × {height}" : null;
         string? bytesText = post.Original?.ExpectedSize is { } size ? SizeText.Format(size) : null;
-        string? rating = post.Rating == BooruRating.Unknown ? null : BooruText.Rating(post.Rating);
+        string? rating = post.Rating != BooruRating.Unknown ? BooruText.Rating(post.Rating)
+            : string.IsNullOrWhiteSpace(post.RawRating) ? null : BooruText.Rating(post.Rating) + " (" + post.RawRating + ")";
         string? score = post.Score?.ToString(Texts.Culture);
         string? favorites = post.FavoriteCount?.ToString(Texts.Culture);
         string file = post.Original?.Url is { IsAbsoluteUri: true } url
             ? Uri.UnescapeDataString(Path.GetFileName(url.AbsolutePath)) : "";
         _header.Describe(file.Length > 0 ? file : extension ?? "",
             string.Join(" · ", new[] { provider, bytesText }.Where(part => !string.IsNullOrWhiteSpace(part))), hasPostTitle: true);
-        PresentStats(post, rating, score);
+        string ratingLabel = Texts.T("booru.rating.label");
+        string? ratingName = rating is null ? null : Texts.T("media.breakdown.summary", ratingLabel, rating);
+        string? scoreName = score is null ? null : Texts.T("booru.media.provider.score", score);
+        PresentStats(post, rating, ratingName, score, scoreName);
 
         MediaFactGrid facts = new("BooruMediaFactGrid");
-        AddFact("booru.ui.post.field.rating", rating, "BooruMediaRating");
-        AddFact("booru.ui.post.field.score", score, "BooruMediaScore");
+        AddFact(ratingLabel, rating, ratingName, "BooruMediaRating");
+        AddFact(Texts.T("booru.media.provider.score", string.Empty).TrimEnd(), score, scoreName, "BooruMediaScore");
         facts.Add(Texts.T("booru.ui.post.field.favorites"), favorites);
         facts.Add(Texts.T("media.fact.dimensions"), dimensions);
         facts.Add(Texts.T("booru.ui.post.field.created"), post.CreatedAt?.ToLocalTime().ToString("g", Texts.Culture));
@@ -196,11 +200,14 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         _facts.Content = facts;
         InvalidateMeasure();
 
-        void AddFact(string label, string? value, string id)
+        void AddFact(string label, string? value, string? description, string id)
         {
             if (string.IsNullOrWhiteSpace(value)) return;
-            facts.Add(Texts.T(label), value, id);
-            AutomationProperties.SetAutomationId(facts.Children[^1], id);
+            facts.Add(label, value, id);
+            Control fact = facts.Children[^1];
+            AutomationProperties.SetAutomationId(fact, id);
+            AutomationProperties.SetName(fact, description);
+            ToolTip.SetTip(fact, description);
         }
     }
 
@@ -208,23 +215,21 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     /// The provider's own numbers for the post, in place of the local rating and tag editor (Tom, 25.11. 14:48): only
     /// what the provider delivered, no empty placeholders.
     /// </summary>
-    private void PresentStats(BooruPostView post, string? rating, string? score)
+    private void PresentStats(BooruPostView post, string? rating, string? ratingName, string? score, string? scoreName)
     {
-        Show(_ratingStat, rating, rating is null ? null : Texts.T("booru.ui.post.rating", rating));
-        Show(_scoreStat, score is null ? null : Texts.T("booru.ui.result.short.score", score),
-            score is null ? null : Texts.T("booru.ui.post.score", score));
+        Show(_ratingStat, rating, ratingName);
+        Show(_scoreStat, score is null ? null : Texts.T("booru.ui.result.short.score", score), scoreName);
         bool tags = post.Post.Fields.HasFlag(BooruFieldPresence.Tags);
-        _tagCount.Text = post.Tags.Length.ToString(Texts.Culture);
+        _tagCount.Text = tags ? post.Tags.Length.ToString(Texts.Culture) : null;
         string tagName = Texts.Count("booru.media.gallery.tags", post.Tags.Length);
         _tagStat.IsVisible = tags;
         AutomationProperties.SetName(_tagStat, tags ? tagName : null);
         ToolTip.SetTip(_tagStat, tags ? tagName : null);
-        _stats.IsVisible = _ratingStat.IsVisible || _scoreStat.IsVisible || _tagStat.IsVisible;
+        UpdateCompactStats();
 
         static void Show(TextBlock stat, string? text, string? name)
         {
             stat.Text = text;
-            stat.IsVisible = text is not null;
             AutomationProperties.SetName(stat, name);
             ToolTip.SetTip(stat, name);
         }
@@ -241,6 +246,14 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     {
         _facts.IsVisible = visible;
         Info.IsChecked = visible;
+        UpdateCompactStats();
+    }
+
+    private void UpdateCompactStats()
+    {
+        _ratingStat.IsVisible = !_facts.IsVisible && _ratingStat.Text is not null;
+        _scoreStat.IsVisible = !_facts.IsVisible && _scoreStat.Text is not null;
+        _stats.IsVisible = _ratingStat.IsVisible || _scoreStat.IsVisible || _tagStat.IsVisible;
     }
 
     internal void RequestSample(IBooruSamplePort? port, BooruResultTarget target, Func<BooruGallerySampleLimits> limits,
@@ -301,7 +314,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         _facts.Measure(row);
         double bars = _header.DesiredSize.Height + Actions.DesiredSize.Height
             + _stats.DesiredSize.Height + _facts.DesiredSize.Height + 5 * RowSpacing;
-        OpenGallery.Height = Math.Min(width / _aspect, Math.Max(0, availableSize.Height - bars - TagRoom));
+        OpenGallery.Height = Math.Min(width / _aspect, Math.Max(0, availableSize.Height - bars - (Tags.IsVisible ? TagRoom : 0)));
         return base.MeasureOverride(availableSize);
     }
 

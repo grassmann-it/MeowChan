@@ -152,7 +152,9 @@ internal sealed partial class BooruWorkbenchView
         {
             ReleaseSidebarTags();
             _sidebarTagContent = (target, Texts.Language);
-            _mediaSidebar.Tags.Content = BuildSidebarTags(row, result);
+            bool hasTags = row.Post.Post.Fields.HasFlag(BooruFieldPresence.Tags);
+            _mediaSidebar.Tags.Content = hasTags ? BuildSidebarTags(row, result) : null;
+            _mediaSidebar.Tags.IsVisible = hasTags;
         }
         RenderSidebarTagDraft(view);
         if (requestSample && cursor >= 0)

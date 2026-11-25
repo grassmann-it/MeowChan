@@ -258,6 +258,9 @@ public sealed class BooruMediaSidebarTests
         Assert.Equal("https://danbooru.donmai.us/posts/102", Assert.Single(harness.Links.Opened));
         Assert.Equal("https://danbooru.donmai.us/posts/102", Assert.Single(harness.Links.Copied));
         harness.Queue.OnLoad = (_, _) => Task.FromResult(new BooruLoadResult(BooruLoadStatus.AlreadyLoaded));
+        string? ratingBeforeSave = ById<SelectableTextBlock>(sidebar, "BooruMediaRating").Text;
+        string? scoreBeforeSave = ById<SelectableTextBlock>(sidebar, "BooruMediaScore").Text;
+        string? tagsBeforeSave = ById<TextBlock>(sidebar, "BooruMediaStatTagCount").Text;
         Click(ById<Button>(sidebar, "BooruPanelBooruLoad:102"));
         BooruComponentDispatcher.WaitUntil(() => model.Search.View.Rows[1].Load == BooruRowLoad.AlreadyLoaded
             && sidebar.GetVisualDescendants().OfType<Button>().Any(button =>
@@ -267,6 +270,9 @@ public sealed class BooruMediaSidebarTests
         Assert.True(ById<Button>(Hit(view, "102"), "BooruShowInMedia:102").IsEnabled);
         // Tom, 25.11. 14:48: no local rating, tag count or tag editor in the Booru sidebar, saved or not.
         AssertNoLocalEditing(sidebar);
+        Assert.Equal(ratingBeforeSave, ById<SelectableTextBlock>(sidebar, "BooruMediaRating").Text);
+        Assert.Equal(scoreBeforeSave, ById<SelectableTextBlock>(sidebar, "BooruMediaScore").Text);
+        Assert.Equal(tagsBeforeSave, ById<TextBlock>(sidebar, "BooruMediaStatTagCount").Text);
         Click(ById<Button>(sidebar, "BooruPanelBooruShowInMedia:102"));
         Assert.Equal("102", Assert.Single(shown));
     });
@@ -274,7 +280,7 @@ public sealed class BooruMediaSidebarTests
     [Fact]
     public void SidebarOmitsUnknownRatingAndMissingScoreAndTagClicksOnlyEditTheDraft() => InWindow((harness, model, view, window) =>
     {
-        BooruPost post = BooruUiFixtures.Post("101", rating: BooruRating.Unknown).Post;
+        BooruPost post = BooruUiFixtures.Post("101", rating: BooruRating.Unknown, rawRating: "").Post;
         BooruPostView row = BooruPostView.From(post with { Fields = post.Fields & ~BooruFieldPresence.Score });
         harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
             BooruUiFixtures.Page(query, page, true, row)));
