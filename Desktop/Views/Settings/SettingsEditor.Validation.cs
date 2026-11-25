@@ -79,14 +79,14 @@ public partial class SettingsEditor
     private async Task<bool> CheckDestinationAsync(string path, int reserveGiB)
     {
         long revision = _draftRevision;
-        using var wait = new CancellationTokenSource();
-        _destinationWait = wait;
+        _destinationWait = new CancellationTokenSource();
+        CancellationToken cancellation = _destinationWait.Token;
         _isCheckingDestination = true;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCheckingDestination)));
         try
         {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCheckingDestination)));
             DownloadDestinationResult result = await DestinationValidator.CheckAsync(path,
-                _config.DownloadPathBaseDirectory, checked((long)reserveGiB * (1L << 30)), TimeSpan.FromSeconds(5), wait.Token);
+                _config.DownloadPathBaseDirectory, checked((long)reserveGiB * (1L << 30)), TimeSpan.FromSeconds(5), cancellation);
             if (_isClosed || !IsAvailable || revision != _draftRevision) return false;
             _destinationStatus = result.Status;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationStatusText)));
@@ -96,6 +96,7 @@ public partial class SettingsEditor
         }
         finally
         {
+            _destinationWait?.Dispose();
             _destinationWait = null;
             _isCheckingDestination = false;
             if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCheckingDestination)));

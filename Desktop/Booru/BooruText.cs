@@ -117,6 +117,14 @@ internal static class BooruText
 
     // ---- rows ------------------------------------------------------------------------------------
 
+    internal static string ProviderRatingAndScore(BooruPostView post)
+    {
+        string rating = Texts.T("booru.ui.post.rating", Rating(post.Rating));
+        return post.Score is { } score
+            ? rating + " · " + Texts.T("booru.media.provider.score", score.ToString(Texts.Culture))
+            : rating;
+    }
+
     internal static string Rating(BooruRating rating) => Texts.T(Prefix + "rating." + rating);
 
     internal static string TagCategory(BooruTagCategory category) => Texts.T(Prefix + "tagCategory." + category);

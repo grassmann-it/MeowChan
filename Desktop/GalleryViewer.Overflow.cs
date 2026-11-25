@@ -21,7 +21,7 @@ namespace MeowChan.Desktop;
 
 // The gallery toolbar keeps the frequent controls in view (close, previous/next with the position, fit, 1:1, the post
 // panel, favorite, the GIF transport) and moves the rare ones into one "⋯" menu: zoom in/out, rating, tags, export,
-// playback mode and slideshow, the two overlay choices (with a visible check), full screen and the shortcut help.
+// playback mode and slideshow, the two overlay choices, full screen and the shortcut help.
 // The menu hosts the very same controls, so commands, enabled states, tooltips and shortcuts exist once; the shortcuts
 // are routed by the viewer's key handler and work without opening the menu.
 internal sealed partial class GalleryViewer
@@ -34,14 +34,13 @@ internal sealed partial class GalleryViewer
     internal const double MinimumPictureWidth = 300;
 
     // A menu entry: the row content and the parts that change with language, shortcut and state.
-    internal sealed class OverflowItem(string id, Grid root, TextBlock label, TextBlock gesture, Control? check, ContentControl icon, bool keepOpen)
+    internal sealed class OverflowItem(string id, Grid root, TextBlock label, TextBlock gesture, MenuStateChip icon, bool keepOpen)
     {
         internal string Id { get; } = id;
         internal Grid Root { get; } = root;
         internal TextBlock Label { get; } = label;
         internal TextBlock Gesture { get; } = gesture;
-        internal Control? Check { get; } = check;
-        internal ContentControl Icon { get; } = icon;
+        internal MenuStateChip Icon { get; } = icon;
         internal string? IconKey => MenuIcons.KeyOf(Icon.Content as Control);
         internal bool KeepOpen { get; } = keepOpen;
         internal Func<string>? LabelSource { get; init; }
@@ -49,21 +48,15 @@ internal sealed partial class GalleryViewer
 
     private readonly StackPanel _overflowPanel = new()
     {
-        Name = "GalleryOverflowMenu", Spacing = 2, MinWidth = 280, MaxWidth = MenuLayout.DefaultMaximumWidth
+        Name = "GalleryOverflowMenu", MinWidth = 280, MaxWidth = MenuLayout.DefaultMaximumWidth
     };
     private readonly Button _overflowButton = new() { Name = "GalleryMore", Classes = { "command-icon" } };
     private readonly Flyout _overflowFlyout = new() { Placement = PlacementMode.TopEdgeAlignedRight };
     private readonly List<Button> _overflowButtons = new();
-    // One layout for every row of the menu (the context-menu layout, CM1): a row is 16 dip in from the edge (Workspace.Inset.MenuItem 15,6 plus
-    // the 1-px row edge) with the check and icon columns starting there, so the choice boxes and captions between the rows start and end where
-    // the lead marks and shortcuts do. A caption has Space.8 above it and sits Space.4 (2 panel spacing + 2) over its box; a box leaves
-    // Space.4 under it; a separator has Space.8 at the sides and Space.4 above and below.
-    internal const double RowInset = 16;
-    internal static readonly Thickness OverflowCaptionMargin = new(RowInset, 8, RowInset, 2);
-    internal static readonly Thickness OverflowChoiceMargin = new(RowInset, 0, RowInset, 4);
-    internal static readonly Thickness OverflowNoteMargin = new(RowInset, 0, RowInset, 4);
-    private readonly TextBlock _modeCaption = new() { Classes = { "workspace-meta" }, Margin = OverflowCaptionMargin };
-    private readonly TextBlock _secondsCaption = new() { Classes = { "workspace-meta" }, Margin = OverflowCaptionMargin, IsVisible = false };
+    private readonly TextBlock _playbackHeading = MenuGroupHeading("GalleryMenuPlayback");
+    private readonly TextBlock _viewHeading = MenuGroupHeading("GalleryMenuView");
+    private readonly TextBlock _modeCaption = new();
+    private readonly TextBlock _secondsCaption = new();
     private StackPanel _focusTools = null!;
     private StackPanel _slideshowHome = null!;
     private bool _compactToolbar;
@@ -153,17 +146,11 @@ internal sealed partial class GalleryViewer
         ToolTip.SetTip(_overflowButton, name + " · " + help);
     }
 
-    /// <summary>Gives an existing control the look of a menu row (check, icon, label, shortcut) and adds it to the "⋯" menu.</summary>
+    /// <summary>Formats an existing button as a menu row and adds it to the "⋯" menu.</summary>
     private T AddOverflowItem<T>(T button, string id, bool check = false, bool keepOpen = false, Func<string>? label = null,
         Panel? host = null, string? iconKey = null) where T : Button
     {
-        Control? mark = check ? WorkspaceIcons.Create(WorkspaceIcons.Check) : null;
-        if (mark != null && button is ToggleButton toggle)
-        {
-            mark.Opacity = toggle.IsChecked == true ? 1 : 0;
-            toggle.IsCheckedChanged += (_, _) => mark.Opacity = toggle.IsChecked == true ? 1 : 0;
-        }
-        ContentControl icon = new();
+        MenuStateChip icon = MenuLayout.CreateFlyoutChip(button, check ? MenuItemToggleType.CheckBox : MenuItemToggleType.None);
         MenuLayout.SetFlyoutIcon(icon, iconKey ?? (CommandCatalog.TryGet(id, out var command) ? command?.Icon : null));
         TextBlock text = new()
         {
@@ -173,9 +160,10 @@ internal sealed partial class GalleryViewer
         };
         if (label != null) AutomationProperties.SetName(button, text.Text);
         TextBlock gesture = new();
-        Grid root = MenuLayout.CreateFlyoutRow(mark, icon, text, gesture);
-        OverflowItem item = new(id, root, text, gesture, mark, icon, keepOpen) { LabelSource = label };
+        Grid root = MenuLayout.CreateFlyoutRow(icon, text, gesture);
+        OverflowItem item = new(id, root, text, gesture, icon, keepOpen) { LabelSource = label };
         button.Tag = item;
+        AutomationProperties.SetAutomationId(button, id);
         StyleAsOverflowRow(button, true);
         button.Content = root;
         MenuLayout.SetFlyoutShortcut(gesture, CommandCatalog.ShortcutDisplay(id));
@@ -197,6 +185,14 @@ internal sealed partial class GalleryViewer
         [!Border.BackgroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Border")
     });
 
+    private static TextBlock MenuGroupHeading(string id)
+    {
+        var label = new TextBlock { Classes = { "menu-group-label" } };
+        AutomationProperties.SetAutomationId(label, id);
+        AutomationProperties.SetHeadingLevel(label, 1);
+        return label;
+    }
+
     /// <summary>Re-reads labels and shortcut texts of the menu rows; cheap, and safe before the viewer was shown.</summary>
     private void RefreshOverflowItems()
     {
@@ -213,11 +209,13 @@ internal sealed partial class GalleryViewer
             if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root;
         }
         RefreshFrameCommands(); // the moment-dependent rows are enabled exactly while they can act
-        _modeCaption.Text = GalleryPlaybackCatalog.Get("viewer.playback.mode");
-        _secondsCaption.Text = Texts.T("gallery.slideshow.secondsLabel");
-        // A caption belongs to its control's row: it goes with the control when a work view puts it on the toolbar.
-        _modeCaption.IsVisible = ToolInMenu("gallery.toolbar.playback-mode");
-        _secondsCaption.IsVisible = _slideshowSeconds.IsVisible && ToolInMenu("gallery.toolbar.slideshow-seconds");
+        _playbackHeading.Text = GalleryPlaybackCatalog.Get("viewer.playback.group.playback");
+        _viewHeading.Text = GalleryPlaybackCatalog.Get("viewer.playback.group.view");
+        SetSettingLabel(_modeCaption, GalleryPlaybackCatalog.Get("viewer.playback.menu.mode"));
+        SetSettingLabel(_secondsCaption, GalleryPlaybackCatalog.Get("viewer.playback.menu.seconds"));
+        SetSettingLabel(_videoRuleCaption, GalleryPlaybackCatalog.Get("viewer.playback.menu.videos"));
+        MenuLayout.SetFlyoutLead(_overflowButtons.Where(button => button.IsVisible)
+            .Select(button => button.Tag).OfType<OverflowItem>().Select(item => item.Root));
         RefreshWheelBrowseHelp();
         ApplyOverflowButtonText();
     }
@@ -284,8 +282,8 @@ internal sealed partial class GalleryViewer
     {
         if (e.Handled || e.Source is Visual open && open.GetSelfAndVisualAncestors().OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) { flyout.Hide(); e.Handled = true; return; }
-        // A number field keeps its own keys: Up/Down step the value, Home/End move the caret.
-        if (e.Source is Visual number && number.GetSelfAndVisualAncestors().OfType<NumericUpDown>().Any()) return;
+        // Home/End in a number field move the caret. PageUp/PageDown still step its value.
+        if (e.Key is Key.Home or Key.End && e.Source is Visual number && number.GetSelfAndVisualAncestors().OfType<NumericUpDown>().Any()) return;
         if (e.KeyModifiers != KeyModifiers.None || e.Key is not (Key.Down or Key.Up or Key.Home or Key.End)) return;
         Control[] items = MenuFocusables(root).ToArray();
         if (items.Length == 0) return;

@@ -16,7 +16,9 @@ internal enum ContextMenuEntryKind
     /// <summary>A nested menu, used when a choice has a variable number of values.</summary>
     Submenu,
     /// <summary>A disabled explanatory sentence.</summary>
-    Note
+    Note,
+    /// <summary>A heading for the rows below it.</summary>
+    GroupHeading
 }
 
 /// <summary>One entry of a context menu, as plain data (no control); <see cref="Invoke"/> is what a click does. <see cref="Icon"/> is the
