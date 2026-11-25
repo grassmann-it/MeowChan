@@ -39,6 +39,7 @@ public sealed partial class TaggingPage
         CommandBindings.EnsureIconBeforeText(_emptyHow, "help-circle");
         CommandBindings.EnsureIconBeforeText(_emptyReviewSkipped, CommandCatalog.Get("tags.queue.skip").Icon);
         CommandBindings.EnsureIconBeforeText(_emptyMore, "more-horizontal");
+        AutomationProperties.SetAutomationId(_emptyShowAll, _emptyShowAll.Name);
         _emptyMoreHost = new ContextMenuHost(_emptyMore, ComposeEmptyMoreMenu, fallbackFocus: FocusOnOpen);
         _emptyMedia.Click += (_, _) => AddRequested?.Invoke();
         _emptyHow.Click += (_, _) => _help.Popover.ShowAt(_emptyHow);
@@ -52,15 +53,12 @@ public sealed partial class TaggingPage
         {
             if (_emptyKind == TaggingEmptyKind.GroupEmpty)
             {
-                _groupLocalizing = true;
-                try { _group.SelectedItem = GroupChoices[0]; }
-                finally { _groupLocalizing = false; }
                 _selectedGroupId = null;
                 _ungroupedSelected = false;
-                _queueWork.SelectGroup(null, false);
-                Render();
             }
-            else { Filter = TaggingQueueFilter.All; FocusContent(); }
+            if (Filter == TaggingQueueFilter.All) Render();
+            else Filter = TaggingQueueFilter.All;
+            FocusContent();
         };
     }
 
