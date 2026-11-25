@@ -1,7 +1,9 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -47,7 +49,9 @@ public sealed class ReaderMediaSidebarHostClickTests
                     if (!page.PageLayout.Panel) Click(window, page.PanelToggleButton);
                     BooruComponentDispatcher.WaitUntil(() => page.IsPanelShown && page.PanelRow != null, "selected Media tile");
                     BooruComponentDispatcher.Wait(page.PanelTask);
-                    CheckFacts(window, Assert.IsType<ReaderMediaSidebar>(page.Panel), legacyOff);
+                    var sidebar = Assert.IsType<ReaderMediaSidebar>(page.Panel);
+                    CheckFacts(window, sidebar, legacyOff);
+                    CheckTagExpansion(window, sidebar, () => page.MediaMenu, settings);
                 }
                 finally { window.Close(); page.EndLifetime(); }
             }
@@ -75,6 +79,7 @@ public sealed class ReaderMediaSidebarHostClickTests
                     Click(window, sidebar.FavoriteButton);
                     Assert.Equal(media.Asset.AssetId, Assert.Single(writes).Asset.AssetId);
                     Assert.True(sidebar.FavoriteButton.IsChecked);
+                    CheckTagExpansion(window, sidebar, () => page.ArchiveMediaMenu, settings);
                 }
                 finally { window.Close(); page.EndLifetime(); }
             }
@@ -150,5 +155,46 @@ public sealed class ReaderMediaSidebarHostClickTests
         window.MouseUp(point, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();
+    }
+
+    private static void CheckTagExpansion(Window window, ReaderMediaSidebar sidebar, Func<ContextMenu?> openMenu, Config settings)
+    {
+        string[] names = Enumerable.Range(1, 8).Select(index => "long_fixture_tag_" + index).ToArray();
+        sidebar.SetTags(names, null);
+        window.UpdateLayout();
+        var more = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarMoreTags");
+        var frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+        var expanded = SidePanelDesignTests.ById<ScrollViewer>(sidebar, "ReaderMediaSidebarExpanded");
+        var allTags = SidePanelDesignTests.ById<WrapPanel>(sidebar, "ReaderMediaSidebarAllTags");
+        Assert.True(more.IsEffectivelyVisible);
+        Assert.False(expanded.IsEffectivelyVisible);
+        Assert.Equal(Texts.T("media.sidebar.showAllTags"), ToolTip.GetTip(more));
+        Click(window, more);
+        CheckRevealed();
+
+        Click(window, SidePanelDesignTests.ById<ToggleButton>(sidebar, "ReaderMediaSidebarExpand"));
+        Assert.False(expanded.IsEffectivelyVisible);
+        Assert.True(frame.Focus(NavigationMethod.Tab));
+        window.KeyPressQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
+        window.KeyReleaseQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
+        Dispatcher.UIThread.RunJobs();
+        ContextMenu menu = Assert.IsType<ContextMenu>(openMenu());
+        Assert.True(menu.IsOpen);
+        MenuItem show = Assert.Single(menu.Items.OfType<MenuItem>(),
+            item => AutomationProperties.GetAutomationId(item) == "media.sidebar.showAllTags");
+        Assert.Equal(Texts.T("media.sidebar.showAllTags"), show.Header);
+        BooruResultActionsTests.Click(show);
+        window.UpdateLayout();
+        Assert.False(menu.IsOpen);
+        CheckRevealed();
+
+        void CheckRevealed()
+        {
+            Assert.True(expanded.IsEffectivelyVisible);
+            Assert.Equal(names, allTags.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text));
+            Assert.Same(frame, window.FocusManager!.GetFocusedElement());
+            Assert.Null(QuickTagPopover.Current);
+            Assert.False(settings.MediaSidebarPinned);
+        }
     }
 }

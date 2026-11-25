@@ -5008,6 +5008,7 @@
     "media.tags.group.expandedName": "{0}, déplié",
     "media.tags.group.hint": "Entrée ou un clic déplie ou replie le groupe",
     "media.tags.showAll": "Tout afficher ({0})",
+    "media.sidebar.showAllTags": "Afficher toutes les étiquettes",
     "media.tags.showFewer": "Afficher moins",
     "media.tags.none": "Aucune étiquette dans ces résultats.",
     "media.tags.noMatch": "Aucune étiquette ne correspond à « {0} ».",

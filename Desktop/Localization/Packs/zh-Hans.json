@@ -4894,6 +4894,7 @@
     "media.tags.group.expandedName": "{0}，已展开",
     "media.tags.group.hint": "按 Enter 或单击可展开或折叠该组",
     "media.tags.showAll": "全部显示 ({0})",
+    "media.sidebar.showAllTags": "显示所有标签",
     "media.tags.showFewer": "收起",
     "media.tags.none": "这些结果中没有标签。",
     "media.tags.noMatch": "没有与“{0}”匹配的标签。",

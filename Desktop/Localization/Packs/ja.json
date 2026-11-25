@@ -4894,6 +4894,7 @@
     "media.tags.group.expandedName": "{0}、展開",
     "media.tags.group.hint": "Enter またはクリックでグループを開閉します",
     "media.tags.showAll": "すべて表示 ({0})",
+    "media.sidebar.showAllTags": "すべてのタグを表示",
     "media.tags.showFewer": "表示を減らす",
     "media.tags.none": "この結果にはタグがありません。",
     "media.tags.noMatch": "「{0}」に一致するタグはありません。",

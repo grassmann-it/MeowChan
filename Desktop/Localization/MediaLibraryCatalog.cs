@@ -229,6 +229,7 @@ internal static class MediaLibraryCatalog
         ("media.tags.group.expandedName", "{0}, expanded", "{0}, aufgeklappt"),
         ("media.tags.group.hint", "Enter or a click opens or closes the group", "Enter oder Klick klappt die Gruppe auf oder zu"),
         ("media.tags.showAll", "Show all ({0})", "Alle anzeigen ({0})"),
+        ("media.sidebar.showAllTags", "Show all tags", "Alle Tags anzeigen"),
         ("media.tags.showFewer", "Show fewer", "Weniger anzeigen"),
         ("media.tags.none", "No tags in these results.", "Keine Tags in diesen Treffern."),
         ("media.tags.noMatch", "No tag matches “{0}”.", "Kein Tag passt zu „{0}“."),

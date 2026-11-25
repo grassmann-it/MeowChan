@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -16,6 +17,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.Motion;
 
 namespace MeowChan.Desktop;
@@ -78,7 +80,9 @@ internal sealed partial class ReaderMediaSidebar
     private readonly Popup _hoverPopup = new() { Placement = PlacementMode.TopEdgeAlignedLeft, IsLightDismissEnabled = false };
     private readonly MenuFlyout _settingsMenu = new() { Placement = PlacementMode.BottomEdgeAlignedRight };
     private bool _hovered;
+    private int? _expandedTagsRevision;
     private bool Pinned => _infoPreferences.MediaSidebarPinned;
+    private bool TagsRequested => _expandedTagsRevision == _mediumRevision;
     private bool FactsVisible => _infoPreferences.MediaSidebarInfo != "Off" && _infoPreferences.MediaSidebarFacts;
     private bool SizesDiffer => _savedBytes.HasValue && _sourceBytes.HasValue && _savedBytes != _sourceBytes;
     private readonly Grid _layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
@@ -218,7 +222,14 @@ internal sealed partial class ReaderMediaSidebar
         _layout.Children.Add(_hoverPopup);
         _infoBar.Expand.Click += (_, _) =>
         {
+            if (TagsRequested && !Pinned)
+            {
+                _expandedTagsRevision = null;
+                UpdateExpansion();
+                return;
+            }
             bool pinned = !Pinned;
+            _expandedTagsRevision = null;
             _hovered = false;
             _expansionTimer.Stop();
             ConfigureInfo(_infoPreferences with { MediaSidebarPinned = pinned });
@@ -288,8 +299,33 @@ internal sealed partial class ReaderMediaSidebar
     private void ScheduleExpansion()
     {
         _expansionTimer.Stop();
-        if (Pinned || !_details.IsVisible || !_infoBar.Expand.IsVisible) return;
+        if (Pinned || TagsRequested || !_details.IsVisible || !_infoBar.Expand.IsVisible) return;
         _expansionTimer.Start();
+    }
+
+    private void ShowAllTags()
+    {
+        if (_tags is not { Count: > 0 }) return;
+        _expandedTagsRevision = _mediumRevision;
+        _expansionTimer.Stop();
+        _hovered = false;
+        RevealBars();
+        _expandedRows.Offset = default;
+        _frame.Focus();
+    }
+
+    internal MenuItem? ShowAllTagsMenuItem(MediaMenuSession session, Func<Func<Task>, Task> run)
+    {
+        if (_tags is not { Count: > 0 }) return null;
+        const string key = "media.sidebar.showAllTags";
+        int revision = _mediumRevision;
+        MenuItem item = MediaMenuBuilder.ContextItem(session, key, () =>
+        {
+            if (revision == _mediumRevision) ShowAllTags();
+            return Task.CompletedTask;
+        }, () => revision == _mediumRevision, run, icon: "tag");
+        AutomationProperties.SetAutomationId(item, key);
+        return item;
     }
 
     private void PopulateExpandedTags()
@@ -304,6 +340,7 @@ internal sealed partial class ReaderMediaSidebar
     {
         _expansionTimer.Stop();
         _hovered = false;
+        _expandedTagsRevision = null;
         UpdateExpansion();
     }
 
@@ -311,8 +348,9 @@ internal sealed partial class ReaderMediaSidebar
     {
         bool content = _fileName.Length > 0 && (_tags?.Count > 0 || !FactsVisible || !_facts.ShowsFileAndSize ||
             SizesDiffer || _sourceHint != null || !string.IsNullOrEmpty(_provenance) || _historical);
-        bool open = content && _details.IsVisible && (Pinned || _hovered);
-        bool hover = open && !Pinned;
+        bool docked = Pinned || TagsRequested;
+        bool open = content && _details.IsVisible && (docked || _hovered);
+        bool hover = open && !docked;
         if (open && !_expandedRows.IsVisible) PopulateExpandedTags();
         if (open && (!_expandedRows.IsVisible || refreshFacts)) RefreshAdditionalFacts();
         _extraFacts.IsVisible = _extraGrid.Children.Count > 0 || _provenanceNote.IsVisible;
@@ -328,7 +366,7 @@ internal sealed partial class ReaderMediaSidebar
         }
         if (hover) _hoverPopup.IsOpen = true;
         _infoBar.Expand.IsVisible = content;
-        _infoBar.ShowExpansion(open, Pinned);
+        _infoBar.ShowExpansion(open, docked);
     }
 
     private bool HasBarPopup() => _cancelTagEditor != null || TopLevel.GetTopLevel(this)?.OpenedPopups.Any(p =>
@@ -388,7 +426,7 @@ internal sealed partial class ReaderMediaSidebar
     internal void ObserveIdle(long now)
     {
         if (!UseOverlayBars) return;
-        bool popup = (Pinned && _expandedRows.IsVisible) || _hoverPopup.IsOpen || HasBarPopup() || _details.IsKeyboardFocusWithin;
+        bool popup = ((Pinned || TagsRequested) && _expandedRows.IsVisible) || _hoverPopup.IsOpen || HasBarPopup() || _details.IsKeyboardFocusWithin;
         _idle = _idle.Observe(now, _infoPreferences.ControlsIdleHideMs, _headBar.IsPointerOver || _details.IsPointerOver || _closeFace.IsPointerOver,
             _pressedPointers.Count != 0, popup, out bool hide);
         if (!hide || _decisionError.IsVisible || _status.IsVisible)

@@ -5035,6 +5035,7 @@
     "media.tags.group.expandedName": "{0}, развёрнуто",
     "media.tags.group.hint": "Enter или щелчок разворачивает или сворачивает группу",
     "media.tags.showAll": "Показать все ({0})",
+    "media.sidebar.showAllTags": "Показать все теги",
     "media.tags.showFewer": "Показать меньше",
     "media.tags.none": "В этих результатах нет тегов.",
     "media.tags.noMatch": "Нет тегов, подходящих под «{0}».",

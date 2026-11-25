@@ -4894,6 +4894,7 @@
     "media.tags.group.expandedName": "{0}, 펼침",
     "media.tags.group.hint": "Enter 또는 클릭으로 그룹을 펼치거나 접습니다",
     "media.tags.showAll": "모두 보기 ({0})",
+    "media.sidebar.showAllTags": "모든 태그 표시",
     "media.tags.showFewer": "적게 보기",
     "media.tags.none": "이 결과에는 태그가 없습니다.",
     "media.tags.noMatch": "“{0}”와(과) 일치하는 태그가 없습니다.",

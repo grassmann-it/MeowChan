@@ -5008,6 +5008,7 @@
     "media.tags.group.expandedName": "{0}, desplegado",
     "media.tags.group.hint": "Intro o un clic despliega o contrae el grupo",
     "media.tags.showAll": "Mostrar todas ({0})",
+    "media.sidebar.showAllTags": "Mostrar todas las etiquetas",
     "media.tags.showFewer": "Mostrar menos",
     "media.tags.none": "No hay etiquetas en estos resultados.",
     "media.tags.noMatch": "Ninguna etiqueta coincide con «{0}».",

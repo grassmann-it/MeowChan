@@ -5014,6 +5014,7 @@
     "media.tags.group.expandedName": "{0}, expandido",
     "media.tags.group.hint": "Enter ou um clique expande ou recolhe o grupo",
     "media.tags.showAll": "Mostrar todas ({0})",
+    "media.sidebar.showAllTags": "Mostrar todas as tags",
     "media.tags.showFewer": "Mostrar menos",
     "media.tags.none": "Não há tags nestes resultados.",
     "media.tags.noMatch": "Nenhuma tag corresponde a “{0}”.",

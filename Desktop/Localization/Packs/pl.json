@@ -5058,6 +5058,7 @@
     "media.tags.group.expandedName": "{0}, rozwinięte",
     "media.tags.group.hint": "Enter lub kliknięcie rozwija lub zwija grupę",
     "media.tags.showAll": "Pokaż wszystkie ({0})",
+    "media.sidebar.showAllTags": "Pokaż wszystkie tagi",
     "media.tags.showFewer": "Pokaż mniej",
     "media.tags.none": "Brak tagów w tych wynikach.",
     "media.tags.noMatch": "Żaden tag nie pasuje do „{0}”.",

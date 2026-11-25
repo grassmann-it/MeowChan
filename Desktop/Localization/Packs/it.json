@@ -5014,6 +5014,7 @@
     "media.tags.group.expandedName": "{0}, espanso",
     "media.tags.group.hint": "Invio o un clic espande o comprime il gruppo",
     "media.tags.showAll": "Mostra tutti ({0})",
+    "media.sidebar.showAllTags": "Mostra tutti i tag",
     "media.tags.showFewer": "Mostra meno",
     "media.tags.none": "Nessun tag in questi risultati.",
     "media.tags.noMatch": "Nessun tag corrisponde a «{0}».",

@@ -5057,6 +5057,7 @@
     "media.tags.group.expandedName": "{0}, rozbaleno",
     "media.tags.group.hint": "Enter nebo kliknutí skupinu rozbalí nebo sbalí",
     "media.tags.showAll": "Zobrazit vše ({0})",
+    "media.sidebar.showAllTags": "Zobrazit všechny štítky",
     "media.tags.showFewer": "Zobrazit méně",
     "media.tags.none": "V těchto výsledcích nejsou žádné štítky.",
     "media.tags.noMatch": "Žádný štítek neodpovídá „{0}“.",

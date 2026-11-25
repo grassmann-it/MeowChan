@@ -1337,8 +1337,9 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.OpenProviderPost] = () => OpenProviderPostAsync(entry),
             [MediaMenuAction.CopyProviderPost] = () => CopyProviderPostAsync(entry)
         };
-        // Everything below the common section belongs to this page: it works on the grid, not on one medium.
         List<Control> context = new();
+        if (_panel is { } panel && ReferenceEquals(origin, panel.Frame)
+            && panel.ShowAllTagsMenuItem(session, Run) is { } showTags) context.Add(showTags);
         if (several) context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.filter.onlyThread", () => { FilterToThread(entry); return Task.CompletedTask; },
             () => !several, Run, MediaMenuReasons.SeveralSelected, MenuIcon("tags.filter-only")));
