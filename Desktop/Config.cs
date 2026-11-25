@@ -1117,6 +1117,9 @@ namespace MeowChan
             MigratePreferenceDefaults();
             // Couple only after all legacy keys have been read, independent of JSON order.
             NormalizeGalleryControls();
+            BooruCatalogLimitMiB = Math.Clamp(BooruCatalogLimitMiB, BooruCatalogMinimumLimitMiB, BooruCatalogMaximumLimitMiB);
+            ImportCatalogLimitMiB = Math.Clamp(ImportCatalogLimitMiB, ImportCatalogLimitMiBMinimum, ImportCatalogLimitMiBMaximum);
+            FolderSourceCatalogLimitMiB = Math.Clamp(FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBMinimum, FolderSourceCatalogLimitMiBMaximum);
             ReaderThumbnailWidth = Math.Clamp(ReaderThumbnailWidth, ReaderThumbnailWidthMinimum, ReaderThumbnailWidthMaximum);
             ReaderFoldLines = Math.Clamp(ReaderFoldLines, ReaderFoldLinesMinimum, ReaderFoldLinesMaximum);
             ReaderPreviewLines = Math.Clamp(ReaderPreviewLines, ReaderPreviewLinesMinimum, ReaderPreviewLinesMaximum);

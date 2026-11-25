@@ -33,8 +33,7 @@ internal sealed partial class BooruWorkbenchView
         BooruTag[] ordered = ListTagOrder.SelectMany(category => post.Tags.Where(tag => tag.Category == category)).ToArray();
         int savedLimit = TagsShown();
         int limit = savedLimit == Config.BooruResultTagsShownAutomatic ? ordered.Length : savedLimit;
-        int hiddenTagTooltipLimit = _listProfile?.BooruHiddenTagTooltipLimit ?? Config.BooruHiddenTagTooltipLimitDefault;
-        BooruListTagFlow tags = new(post.PostId, ordered, limit, ListLayout.TagLines, hiddenTagTooltipLimit, _expandedTagPosts.Contains(post.PostId),
+        BooruListTagFlow tags = new(post.PostId, ordered, limit, ListLayout.TagLines, HiddenTagTooltipLimit, _expandedTagPosts.Contains(post.PostId),
             CreateItem, expanded =>
             {
                 if (!result.IsCurrent()) return false;

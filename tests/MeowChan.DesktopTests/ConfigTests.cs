@@ -309,6 +309,24 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void AnOldProfileWithAnOutOfRangeCatalogLimitLoadsWithoutABackup()
+    {
+        using TempDirectory directory = new();
+        string settings = SettingsPath(directory);
+        string downloads = Path.Combine(directory.Path, "media");
+        string original = JsonSerializer.Serialize(new { BooruCatalogLimitMiB = 129, RecheckTimer = 120, DownloadPath = downloads });
+        File.WriteAllText(settings, original);
+
+        Config config = Config.LoadConfig(directory.Path);
+
+        Assert.Null(config.LoadWarning);
+        Assert.Equal(Config.BooruCatalogMaximumLimitMiB, config.BooruCatalogLimitMiB);
+        Assert.Equal(120, config.RecheckTimer);
+        Assert.Equal(downloads, config.DownloadPath);
+        Assert.Equal(original, File.ReadAllText(settings));
+    }
+
+    [Fact]
     public void CorruptPrimaryRecoversBackupButOrdinarySaveCannotAuthorizeRecovery()
     {
         using TempDirectory directory = new TempDirectory();
