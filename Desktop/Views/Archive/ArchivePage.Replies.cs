@@ -132,7 +132,8 @@ public partial class ArchivePage
 
     private async Task LoadInlineRepliesAsync(ArchivePostRow row)
     {
-        if (_ended || _busy || !CanRead || _openReader == null || _thread == null || row.RepliesLoading ||
+        // The current rows can still read replies while a write is pending.
+        if (_ended || !CanRead || _openReader == null || _thread == null || row.RepliesLoading ||
             ArchivePosts.ItemsSource is not ReaderPostRows rows || rows.IndexOf(row) < 0) return;
         ResourceId thread = _thread.Summary.Id;
         CancellationToken token = _inlineRepliesCancellation?.Token ?? _lifetime.Token;
