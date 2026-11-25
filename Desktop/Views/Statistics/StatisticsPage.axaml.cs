@@ -224,6 +224,12 @@ public partial class StatisticsPage : UserControl, IDisposable
     {
         if (rates is not { } current)
         {
+            // Like the peak column: keep the arranged width of each block when its values fall back to the dash
+            // (e.g. after Reset). Otherwise the narrower dash lets the wrap panel pull Requests up into the first
+            // line and the history and graphs below jump up. Only a shown rate is retained, not the initial dash.
+            if (RequestsValue.Text is { Length: > 0 } shown && shown != "—")
+                foreach (Control block in new Control[] { NetworkRates, DiskRates, RequestRate })
+                    block.MinWidth = Math.Max(block.MinWidth, block.Bounds.Width);
             NetValue.Text = NetUpValue.Text = DiskReadValue.Text = DiskWriteValue.Text = RequestsValue.Text = "\u2014";
             return;
         }
