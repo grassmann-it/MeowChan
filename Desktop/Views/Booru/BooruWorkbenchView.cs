@@ -304,7 +304,12 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         StackPanel details = new() { Classes = { "workspace-page-header" }, VerticalAlignment = VerticalAlignment.Top, Children = { _title } };
         _searchHelp.Source = () => BuildSearchHelp(_model.Search.View);
         CommandBindings.EnsureIconBeforeText(_openWatchers, "eye");
-        _openWatchers.Click += (_, _) => ShowWatchers();
+        _openWatchers.Focusable = false;
+        _openWatchers.Click += (_, _) =>
+        {
+            if (ReferenceEquals(_tabs.SelectedItem, _watchersTab)) CloseWatchers();
+            else ShowWatchers();
+        };
         WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Top, Children = { _more, _searchHelp } };
         PageHeader.SetRole(actions, PageHeaderRole.Actions);
         PageHeader.SetRole(_openWatchers, PageHeaderRole.Help);

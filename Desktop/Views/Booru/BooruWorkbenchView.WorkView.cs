@@ -45,6 +45,7 @@ internal sealed partial class BooruWorkbenchView
         WorkViewElement.SetId(_results, "booru.results");
         WorkViewElement.SetId(_watchers, "booru.watchers.list");
         WorkViewElement.SetId(_noticeHost, "booru.notice");
+        AutomationProperties.SetAutomationId(_storageHost, CatalogStorageName);
         WorkViewElement.SetId(_storageHost, "booru.catalog.usage");
         _more.Click += (_, _) => OpenMore();
         _workViewRegistered = true;
@@ -109,7 +110,7 @@ internal sealed partial class BooruWorkbenchView
             && WorkViewPolicy.Resolve(storage.Id, _workView, _catalogUsageRevealed) == Presence.Overflow)
         {
             entries.Add(new(storage.OverflowOrder, null, () => Texts.T("budgets.booruCatalog"), RevealCatalogUsage,
-                () => WorkViewElement.GetStateVisible(_storageHost), "info"));
+                () => WorkViewElement.GetStateVisible(_storageHost), "info") { Id = storage.Id });
         }
         return entries.OrderBy(entry => entry.Order).ToArray();
     }
