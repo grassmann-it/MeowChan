@@ -19,11 +19,21 @@ public sealed partial class PluginSourceImageBoard
     private sealed record ArchiveSnapshot(IReadOnlyList<BoardArchiveThread> Threads, SourceValidators? Validators);
 
     // Keep a small session cache. Only an accepted response can become a conditional baseline.
-    private const int ArchiveCacheSize = 8;
     private readonly Dictionary<string, ArchiveSnapshot> _archiveCache = new(StringComparer.Ordinal);
     private readonly object _archiveCacheLock = new();
 
-    internal async Task<IReadOnlyList<BoardArchiveThread>?> ReadBoardArchiveAsync(Uri archiveUri, CancellationToken token)
+    internal void TrimBoardArchiveCache(int limit)
+    {
+        lock (_archiveCacheLock) TrimArchiveSnapshots(limit);
+    }
+
+    private void TrimArchiveSnapshots(int limit)
+    {
+        while (_archiveCache.Count > limit) _archiveCache.Remove(_archiveCache.Keys.First());
+    }
+
+    internal async Task<IReadOnlyList<BoardArchiveThread>?> ReadBoardArchiveAsync(Uri archiveUri, Func<int> cacheLimit,
+        CancellationToken token)
     {
         if (!Router.TryResolve(archiveUri, out SourceResourceKind kind, out string board, out _, out Uri? canonical)
             || kind != SourceResourceKind.BoardArchive)
@@ -32,7 +42,11 @@ public sealed partial class PluginSourceImageBoard
         using CancellationTokenSource lifetime = LinkLifetime(token);
         token = lifetime.Token;
         ArchiveSnapshot? previous;
-        lock (_archiveCacheLock) _archiveCache.TryGetValue(board, out previous);
+        lock (_archiveCacheLock)
+        {
+            TrimArchiveSnapshots(cacheLimit());
+            _archiveCache.TryGetValue(board, out previous);
+        }
         var request = new CatalogReadRequest(new SourceBoardId(Name, board),
             Validators: previous?.Validators, HasSnapshot: previous != null) { IsArchive = true };
         using var history = new PluginHostHttp.MetadataHistory();
@@ -72,14 +86,15 @@ public sealed partial class PluginSourceImageBoard
         lock (_archiveCacheLock)
         {
             token.ThrowIfCancellationRequested();
+            int limit = cacheLimit();
+            TrimArchiveSnapshots(limit);
             // A slower observation must not replace another accepted snapshot.
             if (ReferenceEquals(_archiveCache.GetValueOrDefault(board), previous))
             {
                 if (next is null) _archiveCache.Remove(board);
                 else
                 {
-                    if (previous == null && _archiveCache.Count == ArchiveCacheSize)
-                        _archiveCache.Remove(_archiveCache.Keys.First());
+                    if (previous == null) TrimArchiveSnapshots(limit - 1);
                     _archiveCache[board] = next;
                 }
             }
