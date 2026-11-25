@@ -111,13 +111,12 @@ public sealed class MediaLibraryBadgeTests : IDisposable
     }
 
     [Fact]
-    public void TheFavouriteToggleAppearsOnTileHoverFocusOrSelection() => BooruComponentDispatcher.Run(() =>
+    public void TheFavouriteToggleAppearsOnHoverOrFocusBecauseTheBadgeShowsTheState() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         TransientPopupPolicy.Install();
         MediaLibraryTileView view = new() { FavoriteToggle = _ => Task.CompletedTask, DataContext = Row(Entry(), MediaLibraryFlag.Yes) };
-        ListBoxItem container = new() { Content = view };
-        Window window = new() { Width = 500, Height = 400, Content = container };
+        Window window = new() { Width = 500, Height = 400, Content = new ListBoxItem { Content = view } };
         try
         {
             window.Show();
@@ -134,20 +133,8 @@ public sealed class MediaLibraryBadgeTests : IDisposable
             Assert.True(star.IsHitTestVisible);
             window.MouseMove(new Point(-1, -1));
             BooruComponentDispatcher.WaitUntil(() => star.Opacity == 0, "the tile to hide its star after the pointer leaves");
-
-            // Tom's 25.11. 17:55 decision: the tile is the keyboard target. Its star appears on hover, tile focus or selection.
-            Assert.False(star.IsTabStop);
-            Assert.False(star.Focus(NavigationMethod.Tab));
-            container.IsSelected = true;
-            Assert.False(container.IsKeyboardFocusWithin);
+            Assert.True(star.Focus(NavigationMethod.Tab));
             Assert.Equal(1, star.Opacity);
-            Assert.True(star.IsHitTestVisible);
-            container.IsSelected = false;
-            Assert.Equal(0, star.Opacity);
-
-            Assert.True(container.Focus(NavigationMethod.Tab));
-            Assert.Equal(1, star.Opacity);
-            Assert.True(star.IsHitTestVisible);
         }
         finally { window.Close(); }
     });

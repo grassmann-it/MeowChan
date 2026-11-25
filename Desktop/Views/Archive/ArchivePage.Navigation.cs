@@ -312,23 +312,22 @@ public partial class ArchivePage
     private int? _referencesCount;
     private string ReferencesTabHeader() => _referencesCount is > 0 and var count
         ? Texts.T("archive.referencesCount", count.ToString(Texts.Culture)) : Texts.T("archive.references");
-    internal async Task LoadBacklinksAsync(ArchivePostId post, int offset = 0)
+    private async Task LoadBacklinksAsync()
     {
-        if (_busy || _ended || !CanRead || _openReader == null) return;
+        if (_busy || _ended || !CanRead || _openReader == null || _backlinkPost == null) return;
         int request = ++_referenceRequest;
         _referenceCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _referenceCancellation = loading;
         ClearOperationError("reference");
-        _backlinkPost = post;
-        _referenceOffset = offset;
+        ArchivePostId post = _backlinkPost;
         ShowReferencesTab(null, present: true); // present while loading, so the selection below is a visible tab
         ArchiveContentTabs.SelectedIndex = 2;
         ArchiveReferencesTitle.Text = Texts.T("archive.loading");
         try
         {
             await using ArchiveReader reader = await _openReader(loading.Token);
-            ArchiveQuotePage result = await reader.GetBacklinksAsync(post, offset, PageSize, loading.Token);
+            ArchiveQuotePage result = await reader.GetBacklinksAsync(post, _referenceOffset, PageSize, loading.Token);
             if (_ended || request != _referenceRequest) return;
             _referenceTotal = result.TotalCount;
             ArchiveReferences.ItemsSource = result.Items.Select(quote => new ArchiveQuoteRow(quote, true)).ToArray();
@@ -345,7 +344,7 @@ public partial class ArchivePage
         finally { if (ReferenceEquals(_referenceCancellation, loading)) _referenceCancellation = null; }
     }
     private async void OnPreviousReferences(object? sender, RoutedEventArgs e)
-    { if (_backlinkPost is { } post) await LoadBacklinksAsync(post, Math.Max(0, _referenceOffset - PageSize)); }
+    { _referenceOffset = Math.Max(0, _referenceOffset - PageSize); await LoadBacklinksAsync(); }
     private async void OnNextReferences(object? sender, RoutedEventArgs e)
-    { if (_backlinkPost is { } post && _referenceOffset + PageSize < _referenceTotal) await LoadBacklinksAsync(post, _referenceOffset + PageSize); }
+    { if (_referenceOffset + PageSize >= _referenceTotal) return; _referenceOffset += PageSize; await LoadBacklinksAsync(); }
 }

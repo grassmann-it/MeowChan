@@ -198,16 +198,14 @@ internal static partial class MediaPageChecks
             actions.Clear();
         }
 
-        Control frame = panel.GetVisualDescendants().OfType<Control>().Single(control =>
-            control.IsEffectivelyVisible && AutomationProperties.GetAutomationId(control) == "ReaderMediaSidebarFrame");
-        Press(frame, "I", "media.details");
-        Press(frame, "Primary+E", "media.export-original");
-        Press(frame, "Primary+O", "media.show-in-folder");
-        Press(frame, "Primary+Shift+C", "media.copy-path");
-        Press(frame, "Shift+0", "media.rating.clear");
+        Press(panel.Open, "I", "media.details");
+        Press(panel.Open, "Primary+E", "media.export-original");
+        Press(panel.Open, "Primary+O", "media.show-in-folder");
+        Press(panel.Open, "Primary+Shift+C", "media.copy-path");
+        Press(panel.FavoriteButton, "Shift+0", "media.rating.clear");
         for (int rating = 1; rating <= 5; rating++)
-            Press(frame, "Shift+" + rating, "media.rating.set-" + rating);
-        Console.WriteLine("SMOKE media panel shortcuts: the focused frame routed all four menu commands and direct ratings 0 through 5.");
+            Press(panel.FavoriteButton, "Shift+" + rating, "media.rating.set-" + rating);
+        Console.WriteLine("SMOKE media panel shortcuts: the focused action button and favorite star routed all four menu commands and direct ratings 0 through 5.");
     }
 
     private static async Task PanelUntilAsync(Func<bool> condition, Func<string> describe)

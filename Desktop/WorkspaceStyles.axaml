@@ -2352,14 +2352,14 @@
     <Style Selector="ToggleButton.tile-favorite:checked:disabled, ToggleButton.tile-favorite:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite:disabled">
         <Setter Property="Opacity" Value="0.75" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
-    <!-- MB1b: the shared badge shows the favourite at rest. Tom's 25.11. 17:55 decision keeps focus on the tile,
-         so its toggle is revealed by hover, tile focus or selection. -->
+    <!-- MB1b: where the shared media badges already show the favourite at rest (archive tiles), the toggle is only shown while the tile is
+         hovered or holds keyboard focus, set or not (declared after the rules above, so it wins over ":checked"). -->
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked"><Setter Property="Opacity" Value="0" /><Setter Property="IsHitTestVisible" Value="False" /></Style>
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
     <Style Selector="ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
-    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet, ListBoxItem:selected ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
+    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked:disabled"><Setter Property="Opacity" Value="0" /><Setter Property="IsHitTestVisible" Value="False" /></Style>
-    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:selected ToggleButton.tile-favorite.tile-favorite-quiet:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 
     <!-- D4 (E7, A11Y M7): a chosen chip is never the tint alone. The chip-selected class gives the tint and a solid 2-px accent

@@ -98,8 +98,7 @@ internal static class ReaderShortcutContextChecks
                 && !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "9998");
             await page.MediaLoadTask;
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-            var navigationBar = window.GetVisualDescendants().OfType<Border>()
-                .Single(control => AutomationProperties.GetAutomationId(control) == "ReaderNavigationBar");
+            Button next = page.FindControl<Button>("ReaderNextPost")!;
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             string? Selected() => (posts.SelectedItem as ArchivePostRow)?.Id;
             async Task Probe(Control source, Key key, bool expectedNavigation, string name)
@@ -125,13 +124,10 @@ internal static class ReaderShortcutContextChecks
             }
             await Commit(original);
             await CheckPostMediaContextAsync(page, Check);
-            await Probe(navigationBar, Key.Down, false, "navigation-bar-blocks-down");
-            Check(Selected() == "1000" && navigationBar.IsFocused, "navigation-bar-keeps-post-and-focus");
             await page.FocusPostAsync("1050");
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
             page.ShowReaderNavigation();
-            Press(ReaderUxChecks.FocusSelectedPost(window), Key.Down);
-            await page.ReaderNavigationTask;
+            next.Focus(); Press(next, Key.Down); await page.ReaderNavigationTask;
             Check(Selected() == "1051", "protected-full44-down-1051", new { selected = Selected() });
             Grid surface = page.FindControl<Grid>("ReaderContentSurface")!;
             Button nativeButton = new() { Width = 1, Height = 1, Opacity = 0 };

@@ -4,7 +4,6 @@ using System.Reflection;
 using Pointer = Avalonia.Input.Pointer;
 using System.Text.Json;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
@@ -309,24 +308,6 @@ internal static class ReaderUxChecks
         }
     }
 
-    internal static Control FocusSelectedPost(Window window)
-    {
-        var posts = window.GetVisualDescendants().OfType<ListBox>().Single(list =>
-            list.IsEffectivelyVisible && AutomationProperties.GetAutomationId(list) == "ArchivePosts");
-        window.UpdateLayout();
-        if (posts.SelectedItem is not ArchivePostRow post || posts.ContainerFromItem(post) is not Control card)
-            throw new InvalidOperationException("The selected reader post has no visible card.");
-        Require(card.Focus() && ReferenceEquals(window.FocusManager?.GetFocusedElement(), card),
-            "The selected post did not receive keyboard focus: " + post.Id);
-        return card;
-    }
-
-    private static async Task PressPostArrowAsync(Window window, ArchivePage page, Key key)
-    {
-        PressKey(FocusSelectedPost(window), key);
-        await page.ReaderNavigationTask;
-    }
-
     private static async Task CheckOwnedNavigationAsync(MainWindow window, ArchivePage page, ContentControl reader)
     {
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
@@ -340,24 +321,23 @@ internal static class ReaderUxChecks
         Click(page.FindControl<Button>("ArchiveExportClose")!);
         object? postRows = page.FindControl<ListBox>("ArchivePosts")!.ItemsSource;
         await page.FocusPostAsync("1049");
-        await PressPostArrowAsync(window, page, Key.Down);
+        PressKey(page.FindControl<Button>("ReaderNextPost")!, Key.Down);
         await Program.WaitUntilAsync(() => SelectedPost(page) == "1050");
         Require(ReferenceEquals(postRows, page.FindControl<ListBox>("ArchivePosts")!.ItemsSource),
             "Reader Down replaced the continuous list at the former page break.");
-        await PressPostArrowAsync(window, page, Key.Up);
+        PressKey(page.FindControl<Button>("ReaderPreviousPost")!, Key.Up);
         await Program.WaitUntilAsync(() => SelectedPost(page) == "1049");
         await Program.WaitUntilAsync(() => page.FindControl<Button>("ReaderNextThread")!.IsEnabled);
-        await PressPostArrowAsync(window, page, Key.Right);
+        PressKey(page.FindControl<Button>("ReaderNextThread")!, Key.Right);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "1001");
-        await PressPostArrowAsync(window, page, Key.Left);
+        PressKey(page.FindControl<Button>("ReaderPreviousThread")!, Key.Left);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
         await page.LoadThreadAsync(Hero with { Thread = "1049" });
-        await page.FocusPostAsync("1049");
-        await PressPostArrowAsync(window, page, Key.Right);
+        PressKey(page.FindControl<Button>("ReaderNextThread")!, Key.Right);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "1050");
-        await PressPostArrowAsync(window, page, Key.Right);
+        PressKey(page.FindControl<Button>("ReaderNextThread")!, Key.Right);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "1051");
-        await PressPostArrowAsync(window, page, Key.Right);
+        PressKey(page.FindControl<Button>("ReaderPreviousThread")!, Key.Right);
         Require(page.CurrentThread?.Summary.Id.Thread == "1051" && !page.FindControl<Button>("ReaderNextThread")!.IsEnabled,
             "Reader wrapped beyond the frozen query's final thread.");
         await page.LoadThreadAsync(Hero);
@@ -1150,15 +1130,15 @@ internal static class ReaderUxChecks
                 && page.FindControl<Button>("ReaderPreviousThread")!.IsEnabled
                 && page.FindControl<Button>("ReaderNextThread")!.IsEnabled, "Downloads-first reader did not initialize its navigation.");
             await ExportReaderSizingChecks.RunAsync(window, page);
-            await PressPostArrowAsync(window, page, Key.Right);
+            PressKey(page.FindControl<Button>("ReaderNextThread")!, Key.Right);
             await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "1000");
             // The underlying list may later change order; the open reader retains its snapshot.
             order.Sort(ListSortDirection.Ascending);
-            await PressPostArrowAsync(window, page, Key.Right);
+            PressKey(page.FindControl<Button>("ReaderPreviousThread")!, Key.Right);
             Require(page.CurrentThread?.Summary.Id.Thread == "1000", "Download reader wrapped past its frozen end.");
-            await PressPostArrowAsync(window, page, Key.Left);
+            PressKey(page.FindControl<Button>("ReaderPreviousThread")!, Key.Left);
             await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "1001");
-            await PressPostArrowAsync(window, page, Key.Left);
+            PressKey(page.FindControl<Button>("ReaderPreviousThread")!, Key.Left);
             await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "1002");
             Require(!page.FindControl<Button>("ReaderPreviousThread")!.IsEnabled, "Download reader escaped its originating list scope.");
             Click(page.FindControl<Button>("ArchiveCloseReader")!);

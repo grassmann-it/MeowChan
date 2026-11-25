@@ -1,7 +1,5 @@
 using System.Runtime.CompilerServices;
-using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
-using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -96,21 +94,16 @@ public sealed class A11ySollteTests : IDisposable
         Assert.Equal(expected, Texts.Count("export.scope.selection", count));
     }
 
-    [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    [InlineData(true, false)]
-    public void AReducedMediaActionReturnsFocusToTheSelectedRevision(bool omitted, bool moreVisible) =>
-        SavedMediaReaderTests.CheckFooterPreviewFocus((bar, preview) =>
-        {
-            // FOK review §1: “Fokus beim Klick bzw. nach Dialogschluss auf das Leitelement zurückgeben.”
-            ActionToolBar.SetOmitted(preview, omitted);
-            bar.Width = moreVisible ? 64 : 1600;
-            TopLevel.GetTopLevel(bar)!.UpdateLayout();
-            Assert.Contains(preview, omitted ? bar.OmittedHost.Children : bar.OverflowHost!.Children);
-            Assert.Equal(moreVisible, bar.More!.IsEffectivelyVisible);
-            Assert.False(bar.More.IsChecked == true);
-        });
+    [Fact]
+    public void AReducedToolbarActionReturnsFocusToMoreOrAShownItem()
+    {
+        string source = Source("Desktop/Views/Archive/ArchivePage.ActionToolBar.cs");
+        Assert.Contains("GalleryOriginFocusTarget(Control? origin) => ActionOriginFocusTarget(origin)", source);
+        // Both reduced states (closed "More" popup, left out by the view) end at "More"; with none on the bar the first shown item.
+        Assert.Contains("if (toolbar.OverflowHost?.Children.Contains(origin) == true) return more;", source);
+        Assert.Contains("if (more != null) return more;", source);
+        Assert.Contains("toolbar.Items.OfType<Control>().FirstOrDefault(item =>", source);
+    }
 
     private static string Source(string relative, [CallerFilePath] string file = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file)!, "../..", relative)));

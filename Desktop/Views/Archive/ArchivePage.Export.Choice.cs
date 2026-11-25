@@ -153,12 +153,8 @@ public partial class ArchivePage
 
     private void FocusExportEntry()
     {
-        Control entry = _exportFormat == ExportFormat.LinkList
-            ? Control<Button>("ArchiveExportStart") : Control<TextBox>("ArchiveExportDestination");
-        if (!entry.IsEnabled) return;
-        // A thread export can finish before the first layout attaches the lazy dialog's scroll content.
-        ArchiveExportDialog.UpdateLayout();
-        entry.Focus();
+        if (_exportFormat == ExportFormat.LinkList) Control<Button>("ArchiveExportStart").Focus();
+        else Control<TextBox>("ArchiveExportDestination").Focus();
     }
 
     // Called right after a published result: Close takes over as the primary action and the focus

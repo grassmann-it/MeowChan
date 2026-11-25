@@ -91,13 +91,13 @@ internal sealed partial class MediaLibraryTileView : UserControl
     private readonly TextBlock _thread = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     // The thread acts like a meta tag: its label filters the page to that thread.
     private readonly Button _threadLink = new() { Name = "MediaTileThread", Padding = new Thickness(0), Classes = { "link" },
-        Focusable = false, IsTabStop = false, HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
+        HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _detail = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     // Equal bytes in several places: the hint opens the list of all occurrences.
     private readonly TextBlock _duplicates = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     private readonly Button _duplicatesLink = new() { Name = "MediaTileDuplicates", Padding = new Thickness(0), Classes = { "link" }, IsVisible = false,
-        Focusable = false, IsTabStop = false, HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
-    private readonly MediaBadgeView _badges = new() { Name = "MediaTileBadges", Options = MediaBadgeOptions.MediaPage, IsTabStop = false };
+        HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
+    private readonly MediaBadgeView _badges = new() { Name = "MediaTileBadges", Options = MediaBadgeOptions.MediaPage };
     private string _sentence = string.Empty;
     private readonly ToggleButton _favoriteToggle = WorkspaceChips.CreateFavoriteToggle("MediaTileFavoriteToggle");
     private readonly TextBlock _favorite = new TextBlock { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.CaptionText();
@@ -108,7 +108,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
     private readonly TextBlock _moreTags = new TextBlock { Name = "MediaTileMoreTags", MaxLines = 1, IsVisible = false, VerticalAlignment = VerticalAlignment.Center }.CaptionText();
     // The "+N" is a link that opens the tag editor of the tile (the tooltip lists the names that did not fit).
     private readonly Button _moreTagsLink = new() { Name = "MediaTileMoreTagsLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
-        Focusable = false, IsTabStop = false, BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
+        BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
     private Bitmap? _bitmap;
     private MediaTileAppearance _appearance = MediaTileMetrics.Standard;
     /// <summary>True while the tile shows a verified thumbnail or video poster.</summary>
@@ -140,7 +140,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
     internal Action<MediaLibraryEntry>? ThreadFilter { get; set; }
     /// <summary>Set by the page: shows only the media that carry this own tag.</summary>
     internal Action<Guid>? TagFilter { get; set; }
-    /// <summary>Set by the page: hides the media that carry this own tag (Shift+click or the tag's context menu).</summary>
+    /// <summary>Set by the page: hides the media that carry this own tag (Shift+click or Shift+Enter on the chip, S7).</summary>
     internal Action<Guid>? TagExclude { get; set; }
     /// <summary>Set by the page: lists every occurrence of the tile's bytes.</summary>
     internal Action<MediaLibraryTile>? ShowOccurrences { get; set; }
@@ -189,9 +189,6 @@ internal sealed partial class MediaLibraryTileView : UserControl
     public MediaLibraryTileView()
     {
         MaxWidth = _appearance.CellWidth; Height = _appearance.CellHeight;
-        _favoriteToggle.Focusable = false;
-        AutomationProperties.SetAutomationId(_favoriteToggle, "MediaTileFavoriteToggle");
-        _favoriteToggle.IsTabStop = false;
         // The toggle shares the favourite badge's top-left corner in Media.
         MediaTileView grid = _tile = new(_placeholder, _favoriteToggle, _badges, "MediaTileSelected",
             favoriteAtTopLeft: true)
@@ -234,12 +231,10 @@ internal sealed partial class MediaLibraryTileView : UserControl
             DockPanel content = new() { Children = { mark, label } };
             DockPanel.SetDock(mark, Dock.Left);
             Button chip = _tagChips[index] = WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button { Name = "MediaTileTag", IsVisible = false, Content = content }, compact: true));
-            AutomationProperties.SetAutomationId(chip, "MediaTileTag" + index);
-            chip.Focusable = false;
-            chip.IsTabStop = false;
-            // Shift turns the click into an exclusion.
+            // Shift turns the click (or Enter/Space) into an exclusion; the modifier is read where the gesture starts.
             bool excludeIntent = false;
             chip.AddHandler(PointerPressedEvent, (_, e) => excludeIntent = e.KeyModifiers.HasFlag(KeyModifiers.Shift), RoutingStrategies.Tunnel);
+            chip.AddHandler(KeyDownEvent, (_, e) => { if (e.Key is Key.Enter or Key.Space) excludeIntent = e.KeyModifiers.HasFlag(KeyModifiers.Shift); }, RoutingStrategies.Tunnel);
             chip.Click += (_, e) =>
             {
                 e.Handled = true;
@@ -257,13 +252,6 @@ internal sealed partial class MediaLibraryTileView : UserControl
         foreach (TextBlock text in new[] { _thread, _detail, _duplicates, _favorite, _moreTags }) text.Classes.Add("workspace-meta");
         Content = grid;
         InitializeAffordances(); // the "+N" link, the badge zones, the chips' menus (MediaLibraryTileView.Affordances.cs)
-        AddHandler(PointerPressedEvent, (_, e) =>
-        {
-            if (e.Source is Visual hit && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
-                && hit.GetSelfAndVisualAncestors().TakeWhile(node => !ReferenceEquals(node, this))
-                    .Any(node => node is Button || ReferenceEquals(node, _badges)))
-                this.FindAncestorOfType<ListBoxItem>()?.Focus(NavigationMethod.Pointer);
-        }, RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) => { Reset(); Present(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {

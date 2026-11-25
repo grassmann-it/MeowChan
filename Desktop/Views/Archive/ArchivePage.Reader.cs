@@ -950,7 +950,7 @@ public partial class ArchivePage
     }
 
     // Hidden means transparent and not hit-tested (the fade comes from the reader-cross style and is skipped under reduced
-    // motion); the bar itself stays a keyboard stop, and automation can still reach its buttons.
+    // motion); the buttons stay in the visual tree, so keyboard focus and automation still reach them and show the bar.
     private void UpdateReaderNavigationShown()
     {
         bool shown = ReaderNavigationShown;
@@ -977,7 +977,6 @@ public partial class ArchivePage
             return;
         }
         if (!_largeReader || IsReaderDialogOpen) return;
-        if (SuppressReaderActionArrows(e)) return;
         // An open quote preview is dismissed first: Escape must not also close the reader.
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsQuotePreviewOpen)
         {
@@ -1057,25 +1056,11 @@ public partial class ArchivePage
     internal bool TryNavigateReaderByKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || !_largeReader || _busy || _ended || IsReaderDialogOpen) return false;
-        if (SuppressReaderActionArrows(e)) return true;
         int post = ShortcutService.Current.Matches(e, "reader.previous-post") ? -1 : ShortcutService.Current.Matches(e, "reader.next-post") ? 1 : 0;
         int thread = ShortcutService.Current.Matches(e, "reader.previous-thread") ? -1 : ShortcutService.Current.Matches(e, "reader.next-thread") ? 1 : 0;
         if (post == 0 && thread == 0) return false;
         e.Handled = true;
         ReaderNavigationTask = NavigateReaderAsync(post, thread);
-        return true;
-    }
-
-    private bool SuppressReaderActionArrows(KeyEventArgs e)
-    {
-        if (e.KeyModifiers is not (KeyModifiers.None or KeyModifiers.Shift)
-            || e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down) || e.Source is not Visual source
-            || SidebarToggleGroup.IsSegmentArrow(e)) return false;
-        var path = source.GetSelfAndVisualAncestors();
-        if (!path.Contains(ReaderNavigation)
-            && !(path.Any(visual => visual is Button)
-                && (path.Contains(ReaderToolbar) || path.Contains(ArchiveMediaFooter)))) return false;
-        e.Handled = true;
         return true;
     }
 

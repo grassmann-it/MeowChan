@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -503,7 +502,18 @@ public partial class ArchivePage
     internal bool FocusAfterRateAndTag()
     {
         if (_ended || !ArchiveReaderPane.IsEffectivelyVisible) return false;
-        if (ArchiveMediaTab.IsSelected) return FocusSelectedMedia();
+        if (ReaderPostsInBackground)
+        {
+            if (_mediaTiles)
+            {
+                ListBox tiles = ArchiveMediaTiles;
+                if (!tiles.IsEffectivelyVisible) return false;
+                if (tiles.SelectedItem is { } tile && tiles.ContainerFromItem(tile) is Control container && container.Focus()) return true;
+                return tiles.Focus();
+            }
+            DataGrid grid = ArchiveMediaGrid;
+            return grid.IsEffectivelyVisible && grid.Focus();
+        }
         ListBox posts = ArchivePosts;
         if (!posts.IsEffectivelyVisible) return false;
         if (posts.SelectedItem is { } item && posts.ContainerFromItem(item) is Control card && card.Focus()) return true;
@@ -795,14 +805,6 @@ public partial class ArchivePage
             })
         };
         List<Control> context = new();
-        if (surface is MediaMenuSurface.ArchiveTiles or MediaMenuSurface.ArchiveTable && ManageMediaRatingsAsync != null)
-        {
-            const string manageCommand = "media.rating.manage";
-            MenuItem manage = MediaMenuBuilder.ContextCommandItem(session, manageCommand,
-                ManageSelectedMediaRatingsAsync, () => ManageMediaRatingsAsync != null, Run, null, CommandCatalog.Label(manageCommand));
-            AutomationProperties.SetAutomationId(manage, "ArchiveManageRatingsMenu");
-            context.Add(manage);
-        }
         if (surface is MediaMenuSurface.ArchiveTiles or MediaMenuSurface.ArchiveTable && asset?.Asset.Sha256 is { Length: 64 } hash)
             context.Add(MediaMenuBuilder.ContextItem(session, "archive.media.copySha256",
                 () => MenuClipboard.CopyAsync(origin, hash, reportError), () => true, Run, icon: "copy"));

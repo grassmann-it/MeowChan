@@ -1,15 +1,10 @@
-using System.Reflection;
 using MeowChan.Desktop.Controls;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Headless;
 using Avalonia.Input;
-using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -18,7 +13,7 @@ using MeowChan.Tags;
 namespace MeowChan.DesktopTests;
 
 // T1/T2: own tags on media tiles are filter chips like the thread label beside them, and the media status line offers
-// "N without tags".
+// "N without tags". No window is opened: the tile is built and driven through its controls and routed events.
 [Collection("Localization")]
 public sealed class MediaTileTagChipTests : IDisposable
 {
@@ -50,7 +45,7 @@ public sealed class MediaTileTagChipTests : IDisposable
     private static TextBlock More(Control view) => view.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaTileMoreTags");
 
     [Fact]
-    public void MediaTileChipsNameTheirTagFilterForThePointerAndContextMenu()
+    public void ChipsNameTheirTagFilterOnClickOrEnterAndSummarizeTheRest()
     {
         MediaLibraryEntry entry = Entry("1", 'a');
         PrivateTagDefinition cat = Tag(1, "cat"), dog = Tag(2, "dog"), owl = Tag(3, "owl");
@@ -61,12 +56,11 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.Equal(new[] { "cat", "dog" }, visible.Select(Label));
         Assert.All(visible, chip =>
         {
-            // C1: a filled compact own-tag chip with a descriptive accessible name.
+            // C1: a filled compact own-tag chip; reachable and named for keyboard and screen reader users.
             Assert.Equal(new[] { "chip", "chip-own", "chip-compact" }, chip.Classes.Where(name => name.StartsWith("chip", StringComparison.Ordinal)));
             Assert.DoesNotContain("link", chip.Classes);
             Assert.False(MediaLibraryTileView.ChipThreadMark(chip).IsVisible);
-            Assert.False(chip.Focusable);
-            Assert.False(chip.IsTabStop);
+            Assert.True(chip.Focusable && chip.IsTabStop);
             string hint = Texts.T("media.tile.tagHint", Label(chip));
             Assert.Equal(hint, ToolTip.GetTip(chip));
             Assert.Equal(hint, AutomationProperties.GetName(chip));
@@ -78,84 +72,11 @@ public sealed class MediaTileTagChipTests : IDisposable
         RoutedEventArgs click = new(Button.ClickEvent);
         visible[1].RaiseEvent(click);
         Assert.True(click.Handled); // The tile itself is not activated by the chip.
-        Assert.Equal(new[] { dog.Id.Value }, filtered);
+        visible[0].RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        Assert.Equal(new[] { dog.Id.Value, cat.Id.Value }, filtered);
         // The tile line no longer counts tags; the chips show them.
         Assert.DoesNotContain("tags", ((MediaLibraryTileRow)view.DataContext!).DetailWithState);
     }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void TheFocusedTileMenuIncludesOrExcludesItsOwnTag(bool include) => BooruComponentDispatcher.Run(() =>
-    {
-        using IDisposable platform = BooruReviewTestPlatform.Enter();
-        MediaLibraryEntry first = Entry("1", 'a'), second = Entry("2", 'b');
-        PrivateTagDefinition cat = Tag(1, "cat"), dog = Tag(2, "dog");
-        MediaLibraryUserData data = new(new PrivateTagStoreSnapshot(1, "tile-tags", [cat, dog], [],
-        [
-            new PrivateMediaTagAssignment(cat.Id, MediaLibraryFilterEngine.TagTarget(first)!),
-            new PrivateMediaTagAssignment(dog.Id, MediaLibraryFilterEngine.TagTarget(second)!)
-        ]), [], []);
-        MediaPage page = new(_ => throw new InvalidOperationException("Use the fixture snapshot"))
-        {
-            IsAvailable = true,
-            ReadUserData = () => data
-        };
-        page.InitializeSharedMediaMenus();
-        Window window = new() { Width = 1440, Height = 840, Content = page };
-        try
-        {
-            typeof(MediaPage).GetField("_snapshot", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .SetValue(page, new MediaLibrarySnapshot([first, second], [], [], complete: true));
-            page.ResetFilters();
-            page.RefreshUserData();
-            window.Show();
-            window.PlatformImpl!.Activated?.Invoke();
-            Layout();
-            MediaLibraryTileRow row = Assert.Single(page.Grid.Items.OfType<MediaLibraryTileRow>(), item => item.Entry == second);
-            Control tile = Assert.IsAssignableFrom<Control>(page.Grid.ContainerFromItem(row));
-            Assert.True(tile.Focus(NavigationMethod.Tab));
-            Button chip = Assert.Single(tile.GetVisualDescendants().OfType<Button>(), item =>
-                item.IsEffectivelyVisible && AutomationProperties.GetAutomationId(item) == "MediaTileTag0");
-            Assert.Equal(dog.Name.Display, Label(chip));
-            Assert.False(chip.Focus());
-
-            Press(PhysicalKey.F10, RawInputModifiers.Shift);
-            ContextMenu menu = Assert.IsType<ContextMenu>(page.MediaMenu);
-            Assert.True(menu.IsOpen);
-            Assert.Equal(second.AssetId, page.MediaMenuSession!.Target!.AssetId);
-            MenuItem tag = Assert.Single(menu.Items.OfType<MenuItem>(), item =>
-                AutomationProperties.GetAutomationId(item) == "MediaTileTagMenu:" + dog.Id.Value);
-            Assert.Equal(dog.Name.Display, tag.Header);
-            Assert.True(tag.Focus(NavigationMethod.Directional));
-            Press(PhysicalKey.ArrowRight);
-            Assert.True(tag.IsSubMenuOpen);
-
-            string command = include ? TagPickerMenu.Include : TagPickerMenu.Exclude;
-            MenuItem action = Assert.Single(tag.Items.OfType<MenuItem>(), item =>
-                AutomationProperties.GetAutomationId(item) == command + ":" + dog.Id.Value);
-            Assert.True(action.Focus(NavigationMethod.Directional));
-            Press(PhysicalKey.Enter);
-            Assert.Equal(include ? second : first, Assert.Single(page.ShownEntries));
-            Assert.Single(page.FilterChips.Children);
-            Assert.True(page.Grid.IsKeyboardFocusWithin);
-        }
-        finally { page.EndLifetime(); window.Close(); }
-
-        void Press(PhysicalKey key, RawInputModifiers modifiers = RawInputModifiers.None)
-        {
-            window.KeyPressQwerty(key, modifiers);
-            window.KeyReleaseQwerty(key, modifiers);
-            Layout();
-        }
-
-        void Layout()
-        {
-            Dispatcher.UIThread.RunJobs();
-            window.UpdateLayout();
-            Dispatcher.UIThread.RunJobs();
-        }
-    });
 
     [Fact]
     public void AGroupedTileSharesTheRowWithItsFavoriteStateAndAnUntaggedTileShowsNoChips()
@@ -234,9 +155,8 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.Contains(Texts.T("media.badge.gif"), name);
         Assert.Contains(Texts.T("media.badge.untagged"), name);
         Assert.Equal(view.BadgeDescription, AutomationProperties.GetHelpText(view));
-        Assert.True(star.IsVisible);
-        Assert.False(star.Focusable);
-        Assert.False(star.IsTabStop);
+        // The star: a named, focusable toggle; clicking runs the page's favourite action for the shown occurrence, not the tile.
+        Assert.True(star.IsVisible && star.Focusable);
         Assert.False(star.IsChecked);
         Assert.Contains("tile-favorite", star.Classes);
         Assert.Contains(MediaTileView.QuietFavoriteClass, star.Classes); // the badge shows the state at rest

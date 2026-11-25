@@ -31,13 +31,13 @@ internal static class ReaderInteractionChecks
             await CheckReaderMediaActivationAsync(window, page);
             await CheckSpaceOnSelectedPostAsync(window, page);
             await CheckPendingReaderMediaLifetimeAsync(window);
-            await CheckNativeMediaKeysAsync(window, page);
+            await CheckNativeMediaKeysAsync(page);
         }
         finally { ReaderSmokeSetup.Restore(page, mediaBefore); }
         Console.WriteLine("SMOKE reader native controls and media Enter passed.");
         await CheckReaderShortcutsAsync(page);
         Console.WriteLine("SMOKE current-thread reader shortcuts and dialog input protection passed.");
-        await CheckFavoriteFailureAsync(window, page);
+        await CheckFavoriteFailureAsync(page);
         Console.WriteLine("SMOKE persistent keyboard/automation favorite failure passed.");
         await CheckHistoryAsync(page);
         Console.WriteLine("SMOKE exact cross-page quote anchor and newest-32 history passed.");
@@ -762,12 +762,11 @@ internal static class ReaderInteractionChecks
         finally { page.OpenGallery = previous; await page.LoadThreadAsync(original); await page.FocusPostAsync("1000"); await page.MediaLoadTask; }
     }
 
-    private static async Task CheckNativeMediaKeysAsync(Window window, ArchivePage page)
+    private static async Task CheckNativeMediaKeysAsync(ArchivePage page)
     {
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-        Control card = ReaderUxChecks.FocusSelectedPost(window);
-        Require(!page.ReaderArrowBelongsToNativeControl(card), "The focused post lost reader navigation.");
+        Require(!page.ReaderArrowBelongsToNativeControl(page.FindControl<Button>("ReaderNextPost")), "Ordinary reader toolbar lost post navigation.");
         Require(!page.ReaderArrowBelongsToNativeControl(posts), "The posts list lost reader arrows.");
         Require(page.ReaderArrowBelongsToNativeControl(tabs.GetVisualDescendants().OfType<TabItem>().First()), "Tab headers lost native arrows.");
         Require(page.ReaderArrowBelongsToNativeControl(new Slider()), "Slider arrows were captured by the reader.");
@@ -801,7 +800,7 @@ internal static class ReaderInteractionChecks
         finally { page.OpenMediaGallery = previous; page.MediaTilesPreference = true; tabs.SelectedIndex = 0; }
     }
 
-    private static async Task CheckFavoriteFailureAsync(Window window, ArchivePage page)
+    private static async Task CheckFavoriteFailureAsync(ArchivePage page)
     {
         await page.FocusPostAsync("1000");
         await page.MediaLoadTask;
@@ -810,17 +809,13 @@ internal static class ReaderInteractionChecks
             .First(view => view.GetVisualAncestors().OfType<ListBoxItem>().Any(item => item.DataContext is ArchivePostRow { Id: "1000" }));
         Func<GalleryEntry, bool>? isFavorite = page.IsArchiveFavorite;
         Func<GalleryEntry, Task>? toggle = page.ToggleArchiveFavoriteAsync;
-        var setFavorite = page.SetArchiveFavoriteAsync;
-        var effectiveFavorite = page.EffectiveArchiveFavorite;
         bool marked = false;
         try
         {
             page.IsArchiveFavorite = _ => marked;
             page.ToggleArchiveFavoriteAsync = _ => throw new IOException("Fixture favorite write denied");
             inline.RefreshFavorite();
-            ToggleButton star = inline.GetVisualDescendants().OfType<ToggleButton>()
-                .Single(button => AutomationProperties.GetAutomationId(button) == "ArchiveMediaFavorite");
-            Control post = ReaderUxChecks.FocusSelectedPost(window);
+            ToggleButton star = inline.GetVisualDescendants().OfType<ToggleButton>().Single(button => button.Name == "ArchiveMediaFavorite");
             Click(star);
             page.RefreshArchiveFavoriteControls();
             Require(star.IsChecked == false && (AutomationProperties.GetName(star) ?? string.Empty).Contains("Fixture favorite write denied"), "Favorite refresh hid the failure or claimed success.");
@@ -828,9 +823,7 @@ internal static class ReaderInteractionChecks
             Require((ToolTip.GetTip(star) as string)?.Contains("Fixture favorite write denied") == true
                 && !star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"),
                 "Favorite failure is not in the star's tooltip or still pushes text into the card.");
-            Require(!star.Focusable && !star.IsTabStop && post.IsFocused, "The favorite failure moved focus away from the post.");
-            Require(AutomationProperties.GetLiveSetting(star) == AutomationLiveSetting.Assertive,
-                "The favorite failure lost its assertive announcement.");
+            Require(star.Focusable && AutomationProperties.GetLiveSetting(star) == AutomationLiveSetting.Assertive, "Favorite failure is not keyboard/automation reachable.");
             await FlushAsync();
             await Task.Delay(120);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
@@ -838,20 +831,11 @@ internal static class ReaderInteractionChecks
             Require(top != null && top.Value.Y >= 0 && top.Value.Y + star.Bounds.Height <= posts.Bounds.Height,
                 "Favorite error was tested outside the visible post viewport.");
             Program.CaptureWindow((Window)TopLevel.GetTopLevel(star)!, "smoke-reader-favorite-error.png");
-            page.EffectiveArchiveFavorite = _ => marked;
-            page.SetArchiveFavoriteAsync = (_, value) => { marked = value; return Task.CompletedTask; };
-            Require(post.IsFocused && Press(post, Key.F).Handled, "F on the focused post did not handle the favorite retry.");
-            await page.FavoriteKeyTask;
+            page.ToggleArchiveFavoriteAsync = _ => { marked = true; return Task.CompletedTask; };
+            Click(star);
             Require(star.IsChecked == true && !(AutomationProperties.GetName(star) ?? string.Empty).Contains("denied"), "The next successful favorite action did not clear the failure.");
         }
-        finally
-        {
-            page.IsArchiveFavorite = isFavorite;
-            page.ToggleArchiveFavoriteAsync = toggle;
-            page.EffectiveArchiveFavorite = effectiveFavorite;
-            page.SetArchiveFavoriteAsync = setFavorite;
-            page.RefreshArchiveFavoriteControls();
-        }
+        finally { page.IsArchiveFavorite = isFavorite; page.ToggleArchiveFavoriteAsync = toggle; page.RefreshArchiveFavoriteControls(); }
     }
 
     private static async Task CheckHistoryAsync(ArchivePage page)

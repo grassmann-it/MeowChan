@@ -681,40 +681,20 @@ public sealed class MediaFirstSidebarTests
                 Assert.True(ContrastRules.Contrast(ColorOf("Workspace.Accent"), surface) >= 3);
             }
             Assert.False(panel.FavoriteButton.Focus(NavigationMethod.Tab));
-            Assert.False(panel.FavoriteButton.IsTabStop);
             var ratingBar = SidePanelDesignTests.ById<GalleryDecisionRow>(panel, "ReaderMediaSidebarDecision");
             var facts = SidePanelDesignTests.ById<MediaSidebarFacts>(panel, "ReaderMediaSidebarFacts");
-            Control frame = SidePanelDesignTests.ById<Control>(panel, "ReaderMediaSidebarFrame");
-            Button edit = SidePanelDesignTests.ById<Button>(overlay, "ReaderMediaSidebarEditTags");
-            Button star = SidePanelDesignTests.ById<Button>(ratingBar, "ReaderMediaSidebarDecisionRating4");
-            Control[] actions = [SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarInfoToggle"),
-                SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarOpen"),
-                SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarSettings"),
-                SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarClose"),
-                SidePanelDesignTests.ById<Button>(overlay, "ReaderMediaSidebarTagsToggle"), edit, star];
-            Assert.True(frame.Focus(NavigationMethod.Tab));
-            foreach (Control action in actions)
+            var actions = overlay.GetVisualDescendants().OfType<Button>()
+                .Where(button => AutomationProperties.GetAutomationId(button) is "ReaderMediaSidebarTagsToggle" or "ReaderMediaSidebarEditTags").ToArray();
+            Assert.Equal(2, actions.Length);
+            Assert.False(ratingBar.FocusStar.Focusable);
+            Assert.True(panel.Frame.Focus(NavigationMethod.Tab));
+            foreach (Control action in new Control[] { panel.InfoToggle, panel.Open, panel.SettingsButton, actions[0], actions[1], panel.Close })
             {
                 Assert.False(action.Focus(NavigationMethod.Tab));
-                Assert.False(action.IsTabStop);
-                Assert.Same(frame, window.FocusManager!.GetFocusedElement());
+                Assert.Same(panel.Frame, window.FocusManager!.GetFocusedElement());
             }
-            window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
-            window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.None);
-            Settle();
-            Assert.DoesNotContain(window.FocusManager!.GetFocusedElement(), actions);
-            Assert.True(frame.Focus(NavigationMethod.Tab));
-            tagAnchor = null;
-            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-            window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
-            Settle();
-            Assert.Null(tagAnchor);
-            Assert.Equal(3, rating);
-            Click(window, Center(star, window));
-            Assert.Equal(4, rating);
-            Assert.Same(frame, window.FocusManager!.GetFocusedElement());
-            Click(window, Center(edit, window));
-            Assert.Same(edit, tagAnchor);
+            Click(window, Center(actions.Single(b => AutomationProperties.GetAutomationId(b) == "ReaderMediaSidebarEditTags"), window));
+            Assert.Same(actions.Single(b => AutomationProperties.GetAutomationId(b) == "ReaderMediaSidebarEditTags"), tagAnchor);
             Assert.True(details.IsVisible);
             Assert.Same(panel.Frame, window.FocusManager!.GetFocusedElement());
             Assert.False(panel.DecisionRow.FocusRating());

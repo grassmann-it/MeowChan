@@ -18,8 +18,6 @@ public partial class ArchivePage
 {
     private ArchiveAssetRow? _savedMediaSidebarRow;
     private (ArchivedThreadView Thread, IReadOnlyList<ArchiveAssetRow> Assets, Task<ILookup<GalleryAssetKey, GalleryEntry>> Entries)? _savedSidebarTags;
-    internal Func<GalleryEntry, GalleryDecodeRequest.Fit, CancellationToken, Task<ReaderMediaSidebarContent.Picture>> SavedSidebarImageLoader { get; set; }
-        = DecodeSavedSidebarImageAsync;
 
     private ArchiveAssetRow? SavedMediaSidebarRow => ArchiveMediaTab.IsSelected && _shownMediaThread == _selectedThread
         && ReferenceEquals(_savedMediaSidebarRow, SelectedMediaRow()) ? _savedMediaSidebarRow : null;
@@ -146,7 +144,11 @@ public partial class ArchivePage
             return load.RunAsync(async ct =>
             {
                 if (entry.Kind == SavedMediaKind.Image)
-                    return await SavedSidebarImageLoader(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
+                {
+                    (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry,
+                        new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
+                    return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new(info.Width, info.Height));
+                }
                 if (entry.Kind == SavedMediaKind.Video)
                 {
                     Bitmap? poster = await MediaTileThumbnails.LoadPosterAsync(row.Manifest, row.Asset,
@@ -162,13 +164,6 @@ public partial class ArchivePage
                 sidebar.SetDetail(_sidebarShownDetail);
             });
         });
-    }
-
-    private static async Task<ReaderMediaSidebarContent.Picture> DecodeSavedSidebarImageAsync(GalleryEntry entry,
-        GalleryDecodeRequest.Fit target, CancellationToken token)
-    {
-        (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, target, token);
-        return new(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new(info.Width, info.Height));
     }
 
     private void OfferSavedSidebarVideo(GalleryEntry entry, string key)

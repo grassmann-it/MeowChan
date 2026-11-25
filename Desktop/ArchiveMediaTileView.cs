@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Automation;
-using Avalonia.Input;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Avalonia.Media;
@@ -42,12 +41,13 @@ public sealed class ArchiveMediaTileView : UserControl
     // keep the image decoder. Nothing is fetched or generated beyond the reader.
     internal const int PosterWidth = 340, PosterHeight = 250;
     /// <summary>
-    /// Raised when the rating caption is clicked. The page opens "Rate and tag" for this tile's file.
+    /// Raised (bubbling) when the rating caption is clicked or activated with Enter or Space: the page opens "Rate and tag" for this tile's file
+    /// (dead-affordance audit 15.11.). The tile is the event's source.
     /// </summary>
     internal static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> RateAndTagRequestedEvent =
         Avalonia.Interactivity.RoutedEvent.Register<ArchiveMediaTileView, Avalonia.Interactivity.RoutedEventArgs>("RateAndTagRequested",
             Avalonia.Interactivity.RoutingStrategies.Bubble);
-    /// <summary>The rating caption under the title opens "Rate and tag" on click.</summary>
+    /// <summary>The rating caption under the title (tests and smokes): a tab stop that opens "Rate and tag".</summary>
     internal TextBlock RatingCaption => _rating;
     /// <summary>
     /// The tile size of the surface a tile stands on: set it on the tile list (the reader's Media tab) and every tile in it, realized or made later,
@@ -90,7 +90,7 @@ public sealed class ArchiveMediaTileView : UserControl
 
     public ArchiveMediaTileView()
     {
-        MediaBadgeView badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.ArchiveTile, IsTabStop = false };
+        MediaBadgeView badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.ArchiveTile };
         MediaTileView grid = _tile = new(_message, _favorite, badges, "ArchiveMediaSelected")
         {
             Margin = new Thickness(8), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*"), RowSpacing = 4
@@ -183,23 +183,31 @@ public sealed class ArchiveMediaTileView : UserControl
         else _tile.ShowBadges(ArchiveMediaBadges.ForAsset(row, _missing));
     }
 
+    // The caption is no passive text: pressing it (the press is consumed, so the tile is not selected by it) or Enter / Space on it asks the page for
+    // "Rate and tag". It is a tab stop named by the rating it shows, with the command's gesture as its tooltip.
     private void WireRatingCaption()
     {
         TextBlock caption = _rating;
-        caption.Focusable = false;
-        caption.IsTabStop = false;
+        caption.Focusable = true;
+        caption.IsTabStop = true;
         // A text block without a background is hit only on its glyphs: a click in its padding would fall through to the tile and select it.
         caption.Background = Avalonia.Media.Brushes.Transparent;
         // The hand cursor needs the platform's cursor factory: without a platform (a headless host) the control keeps the arrow.
         try { caption.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); }
         catch (InvalidOperationException) { }
         AutomationProperties.SetControlTypeOverride(caption, Avalonia.Automation.Peers.AutomationControlType.Button);
+        void Raise() { if (DataContext is ArchiveAssetRow) RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(RateAndTagRequestedEvent) { Source = this }); }
         caption.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(caption).Properties.IsLeftButtonPressed || DataContext is not ArchiveAssetRow) return;
-            this.FindAncestorOfType<ListBoxItem>()?.Focus(NavigationMethod.Pointer);
             e.Handled = true;
-            RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(RateAndTagRequestedEvent) { Source = this });
+            Raise();
+        };
+        caption.KeyDown += (_, e) =>
+        {
+            if (e.KeyModifiers != Avalonia.Input.KeyModifiers.None || e.Key is not (Avalonia.Input.Key.Enter or Avalonia.Input.Key.Space)) return;
+            e.Handled = true;
+            Raise();
         };
     }
 

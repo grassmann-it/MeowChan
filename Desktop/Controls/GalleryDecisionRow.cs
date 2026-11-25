@@ -64,7 +64,6 @@ internal sealed class GalleryDecisionRow : StackPanel
         {
             int number = index + 1;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
-            AutomationProperties.SetAutomationId(star, star.Name);
             if (sidebar) star.Focusable = false;
             star.Click += (_, _) => OnStar(number);
             TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
@@ -75,8 +74,6 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.Classes.Add("media-control");
         _clear.Classes.Add("rating-clear");
         _clear.Click += OnClear;
-        AutomationProperties.SetAutomationId(_clear, _clear.Name);
-        AutomationProperties.SetAutomationId(_favorite, _favorite.Name);
         _clear.VerticalAlignment = VerticalAlignment.Center;
         _clear.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(_clear, 2);
