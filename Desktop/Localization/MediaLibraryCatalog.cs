@@ -229,6 +229,7 @@ internal static class MediaLibraryCatalog
         ("media.tags.group.expandedName", "{0}, expanded", "{0}, aufgeklappt"),
         ("media.tags.group.hint", "Enter or a click opens or closes the group", "Enter oder Klick klappt die Gruppe auf oder zu"),
         ("media.tags.showAll", "Show all ({0})", "Alle anzeigen ({0})"),
+        ("media.sidebar.showAllTags", "Show all tags", "Alle Tags anzeigen"),
         ("media.tags.showFewer", "Show fewer", "Weniger anzeigen"),
         ("media.tags.none", "No tags in these results.", "Keine Tags in diesen Treffern."),
         ("media.tags.noMatch", "No tag matches “{0}”.", "Kein Tag passt zu „{0}“."),
@@ -242,7 +243,7 @@ internal static class MediaLibraryCatalog
         ("settings.limits.mediaTagListTop", "Tag list: tags shown per group", "Tag-Liste: angezeigte Tags je Gruppe"),
         ("settings.limits.mediaTagListTop.hint", "The tag list beside the media shows this many tags per group, the most frequent first; “Show all” lists the rest.", "Die Tag-Liste neben den Medien zeigt so viele Tags je Gruppe, die häufigsten zuerst; „Alle anzeigen“ listet den Rest."),
         ("settings.limits.booruResultTagsShown", "Danbooru results: tags shown per result", "Danbooru-Treffer: angezeigte Tags je Treffer"),
-        ("settings.limits.booruResultTagsShown.hint", "Each Danbooru result in the list shows this many source tags; “+N more” shows the rest. With 0, all tags stay behind “+N more”.", "Jeder Danbooru-Treffer in der Liste zeigt so viele Quelltags; „+N weitere“ zeigt den Rest. Bei 0 bleiben alle Tags hinter „+N weitere“."),
+        ("settings.limits.booruResultTagsShown.hint", "Show up to this many source tags per result, depending on the space available. The “+N more” button reveals the rest. At 0, all tags are behind the button. At -1, the available space sets the limit.", "Zeigt je nach Platz bis zu dieser Anzahl an Quelltags pro Treffer. „+N weitere“ zeigt den Rest. Bei 0 bleiben alle Tags hinter der Schaltfläche. Bei -1 bestimmt der verfügbare Platz die Obergrenze."),
         ("settings.limits.mediaTagListWidth", "Tag list: width (dip)", "Tag-Liste: Breite (dip)"),
         ("settings.limits.mediaTagListWidth.hint", "Width of the tag list beside the media. You can also change it by dragging the list's edge.", "Breite der Tag-Liste neben den Medien. Du kannst sie auch ändern, indem du den Rand der Liste ziehst.")
     };

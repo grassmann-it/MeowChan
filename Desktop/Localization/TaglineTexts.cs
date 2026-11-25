@@ -2,7 +2,7 @@ namespace MeowChan.Desktop.Localization;
 
 /// <summary>
 /// The header tagline texts: the fixed lead sentence, the rotating quips (<c>shell.tagline.quip.&lt;id&gt;</c>, one per
-/// <see cref="MeowChan.Desktop.Shell.TaglineCatalog"/> entry, freely translated rather than word for word), the tagline's context
+/// <see cref="MeowChan.Desktop.TaglineCatalog"/> entry, freely translated rather than word for word), the tagline's context
 /// menu and the "Header tagline" setting. English and German are built in; the other ten languages are in the bundled packs.
 /// <c>lead + " — " + quip.cats</c> is <c>shell.subtitle</c> (the About window keeps using that key).
 /// </summary>
@@ -52,6 +52,15 @@ internal static class TaglineTexts
         ("shell.tagline.quip.taglinesfeature", "these taglines are a feature now", "diese Taglines sind jetzt ein Feature"),
         ("shell.tagline.quip.yourarchive", "an archive that belongs to you", "ein Archiv, das dir gehört"),
         ("shell.tagline.quip.sortnothoard", "sorting your media instead of just hoarding it", "Medien ordnen statt nur horten"),
+        ("shell.tagline.quip.fetchthem", "Gonna fetch them all", "Ich schnapp sie mir alle"),
+        ("shell.tagline.quip.tabsbreed", "the tabs are multiplying", "die Tabs vermehren sich"),
+        ("shell.tagline.quip.pawprint", "every archive needs a paw print", "jedes Archiv braucht einen Pfotenabdruck"),
+        ("shell.tagline.quip.sortedquips", "quip by quip, neatly sorted", "Spruch für Spruch, schön sortiert"),
+        ("shell.tagline.quip.snowed", "snowed in with the archive", "eingeschneit mit dem Archiv"),
+        ("shell.tagline.quip.trickorthread", "trick or thread?", "Thread oder Saures?"),
+        ("settings.headerTagline.category.general", "General", "Allgemein"),
+        ("settings.headerTagline.category.release", "By release", "Nach Version"),
+        ("settings.headerTagline.category.seasonal", "Seasonal", "Saisonal"),
         ("shell.tagline.menuAnother", "Another tagline", "Andere Tagline"),
         ("shell.tagline.menuHide", "Hide tagline", "Tagline ausblenden"),
         ("settings.headerTagline.label", "Header tagline", "Tagline in der Kopfleiste"),

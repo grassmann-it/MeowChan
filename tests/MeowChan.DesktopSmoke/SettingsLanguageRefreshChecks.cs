@@ -265,7 +265,8 @@ internal static class SettingsLanguageRefreshChecks
                 await SettleAsync(window);
                 Require(error.IsEffectivelyVisible && error.Text == Texts.T(key),
                     "FirstRun/" + key + "/" + current + ": retained path error was stale or replaced with check status.");
-                Require(Need<TextBlock>(window, "SetupStatus").Text == Texts.T(syntax ? "destination.NotChecked" : "destination.Missing")
+                Require(!Need<TextBlock>(window, "SetupFolderStatus").IsEffectivelyVisible
+                    && string.IsNullOrEmpty(Need<TextBlock>(window, "SetupStatus").Text)
                     && Need<TextBlock>(window, "SetupFolderLabel").Text == Texts.T("settings.downloadPath")
                     && AutomationProperties.GetName(path) == Texts.T("settings.downloadPath"),
                     "FirstRun/" + current + ": status or visible/accessibility label failed to refresh.");

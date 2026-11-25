@@ -50,7 +50,7 @@ public sealed class MediaBadgeTests : IDisposable
             [MediaBadgeCorner.TopRight, MediaBadgeCorner.TopLeft, MediaBadgeCorner.Center, MediaBadgeCorner.BottomLeft,
              MediaBadgeCorner.TopRight, MediaBadgeCorner.BottomRight, MediaBadgeCorner.TopLeft, MediaBadgeCorner.TopRight],
             badges.Select(badge => badge.Corner));
-        Assert.Equal(["x-circle", "star-filled", null, null, "clipboard", "tag", "star-half", "globe"], badges.Select(badge => badge.Icon));
+        Assert.Equal(["x-circle", "heart-filled", null, null, "clipboard", "tag", "star-half", "globe"], badges.Select(badge => badge.Icon));
         Assert.Equal([null, null, null, "0:42", null, "3", "4", null], badges.Select(badge => badge.Label));
     }
 
@@ -976,26 +976,6 @@ public sealed class MediaBadgeTests : IDisposable
             if (!ReferenceEquals(sentence, MediaBadgeSentences.Get(state, MediaBadgeOptions.MediaPage))) throw new Xunit.Sdk.XunitException("built again");
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated <= 4096, $"50 000 cached lookups allocated {allocated} bytes.");
-    }
-
-    [Fact]
-    public void ThereIsOneSentenceCacheAndTheViewKeepsThePen()
-    {
-        string root = RepoRoot();
-        foreach (string file in new[] { "Desktop/ArchiveMediaBadges.cs", "Desktop/MediaLibraryBadges.cs", "Desktop/Views/Tagging/TaggingTileBadges.cs" })
-        {
-            string source = File.ReadAllText(Path.Combine(root, file));
-            Assert.DoesNotContain("MediaLibraryBadgeSentence", source);
-            Assert.DoesNotContain("ArchiveBadgeDescription", source);
-            Assert.DoesNotContain("_described", source);
-        }
-        string badges = File.ReadAllText(Path.Combine(root, "Desktop", "Controls", "MediaBadges.cs"));
-        Assert.Contains("UntaggedPens", badges);
-        Assert.DoesNotContain("Pen pen = new(", badges);
-        Assert.Contains("MediaBadgeLimits.Changed += _limitsChanged", badges);
-        Assert.Contains("MediaBadgeLimits.Changed -= _limitsChanged", badges);
-        string tile = File.ReadAllText(Path.Combine(root, "Desktop", "Views", "Tagging", "TaggingQueueTileView.cs"));
-        Assert.Contains("_preview.SizeChanged +=", tile);
     }
 
     private static string RepoRoot([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>

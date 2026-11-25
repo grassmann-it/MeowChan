@@ -21,7 +21,6 @@ public partial class DiagnosticsPage
     // Until a window applies a view the page shows everything (Advanced), so a page used on its own is complete.
     private WorkView _workView = WorkView.Advanced;
     private bool _workViewApplied;
-    private readonly ContextMenu _moreMenu = ContextMenuBuilder.Empty();
     private readonly Dictionary<(WorkView View, bool Problems), bool> _diagnosticLayoutEdits = [];
     internal Func<WorkView, PresentationProfile>? LoadDiagnosticLayout { get; set; }
     internal Func<WorkView, bool, bool, Task>? SaveDiagnosticLayoutAsync { get; set; }
@@ -37,7 +36,11 @@ public partial class DiagnosticsPage
         bool changed = !_workViewApplied || view != _workView;
         _workView = view;
         _workViewApplied = true;
-        if (changed) ApplyDiagnosticLayout();
+        if (changed)
+        {
+            PopupToggle.Close(MoreButton);
+            ApplyDiagnosticLayout();
+        }
         ApplyWorkViewPresence(changed);
     }
 
@@ -87,6 +90,7 @@ public partial class DiagnosticsPage
         more.IsVisible = count > 0;
         string name = Texts.Count("workview.moreCount", count);
         // The drawn "more" icon in the one icon-only square button (P6), name and localized tooltip from the single source.
+        if (more.Focusable) PopupToggle.Prepare(more);
         WorkViewMoreSurface.Apply(more, name);
     }
 
@@ -103,10 +107,14 @@ public partial class DiagnosticsPage
     // The entries are built when the menu opens, so their enabled state and counts are the buttons' current ones.
     private void OnDiagnosticMoreClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended) return;
+        if (_ended || PopupToggle.ConsumeActivation(MoreButton)) return;
         string Label(Button button) => AutomationProperties.GetName(button) is { Length: > 0 } name ? name
             : WorkViewElement.GetId(button) is { } id && WorkViewPolicy.Get(id).CommandId is { } command ? CommandCatalog.Label(command) : string.Empty;
-        if (WorkViewOverflow.Populate(_moreMenu, ReducibleActions, _workView, Label) > 0) _moreMenu.Open(MoreButton);
+        ContextMenu menu = ContextMenuBuilder.Empty();
+        if (WorkViewOverflow.Populate(menu, ReducibleActions, _workView, Label) == 0) return;
+        menu.Placement = PlacementMode.BottomEdgeAlignedRight;
+        PopupToggle.Track(MoreButton, menu);
+        menu.Open(MoreButton);
     }
 
     // A filter edit may make the group non-default (open it) or default again (the user's own choice stays).

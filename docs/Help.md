@@ -14,6 +14,8 @@ For the separate collection-workflow and transfer preview, see
 [Deutsch](user-guide/collection-workflow-preview.md). Inspecting a transfer package
 is not the same as [importing your own files](#importing-your-own-files).
 
+[Moving from GChan](#moving-from-gchan) · [Deutsche Anleitung](user-guide/gchan-umstieg.md)
+
 The supplied payload contains **24 plugins**: **19 source-plugin entries**
 (including two blocked placeholders) and **5 image filters**. It includes
 **21 editable example/filter source files**; official plugins are prebuilt,
@@ -89,8 +91,9 @@ The footer groups destinations as **Work** (Downloads, Archive, Media, Tagging, 
 (Rules, Plugins) and **Observe** (Status), followed by
 **More** (German: **Mehr**) and **Settings**. The current work view and available
 width decide which destinations stay directly in the footer. **More** contains
-only destinations moved out of the footer; it does not duplicate Downloads or
-Settings. Booru has a footer button by default in Simple and Advanced when there
+only destinations moved out of the footer. When the current page is in **More**, the
+button's tooltip and accessible name identify it and the menu marks its entry.
+Booru has a footer button by default in Simple and Advanced when there
 is room. Barebones and narrow windows can move it under **More**. The ⋯ app menu
 includes **Danbooru search and watchers…** while Booru is available. You can also
 open it from **Media → More → Open Booru** or with its shortcut. **Tagging** (German: **Taggen**) is a numbered footer page right
@@ -101,13 +104,14 @@ In German the destination order is
 **Mehr** and **Einstellungen**. The display switch is described under
 [Booru page and display switch](#booru-page-and-display-switch).
 
-**Continue reading** (German: **Weiterlesen**) is a book icon immediately left
-of Pause in the header, with a labelled entry in the app menu. The icon appears
-when the feature is enabled and a saved reading position or history entry is known;
-it remains visible while the reader or gallery is open. Outside an open thread,
-left-click jumps to the newest saved place. Inside the reader or gallery, left-click
-opens the history list so choosing another place does not replace the current view
-accidentally; the arrow, right-click and Menu key always open that list.
+**Continue reading** (German: **Weiterlesen**) is the book button beside the
+history arrow in the header. The pair appears when the feature is enabled and a
+saved reading position or history entry is known. It remains visible while the
+reader or gallery is open. The book opens the newest saved place. The arrow opens
+the history list, which you can also open with right-click or the Menu key. Tab
+to either button and press Enter to use it. The app menu's **Continue reading**
+entry and its shortcut open the history when a thread is open and resume the
+newest saved place elsewhere.
 
 ### Toolbar layout
 
@@ -243,6 +247,63 @@ appended. This action itself adds nothing.
 The interface calls ongoing observation **watch** (German: **beobachten**).
 **Show details** (**Details anzeigen**) opens details in Downloads, Archive and
 Plugins; it is not a command to start watching or downloading.
+
+### Moving from GChan
+
+[Deutsch](user-guide/gchan-umstieg.md)
+
+In GChan, choose **Copy all thread URLs**. The clipboard contains a
+comma-separated list in this format:
+
+```text
+https://boards.4chan.org/g/thread/123,https://boards.4chan.org/g/thread/456
+```
+
+1. Open **Downloads** in MeowChan, paste your own copied URLs into the URL field
+   and select **Add**. The addresses above illustrate the format.
+
+2. Check the [result for each URL](#add-results-and-rejected-urls). **Added** means
+   a new watch was created. **Already watched** means it was already in MeowChan.
+   If the summary shows **rejected** entries, expand the report to see why. For
+   example, an address with no supported source shows **Unsupported URL**.
+   **Put rejected back into the field** lets you correct those entries and retry.
+   If one URL is new, one is already watched and one is unsupported, the summary
+   reads **1 added · 1 already watched · 1 rejected**.
+
+3. Copy any board URLs separately. Paste a board address such as
+   `https://boards.4chan.org/g/` and choose **Add**. For a new board, the
+   [board preview](#board-admission-and-exclusions) opens by default. Review which
+   threads are checked, then choose **Apply all boards and watch** when ready.
+
+MeowChan’s **Copy session URLs (n)** includes watched threads and boards, even
+those hidden by a filter, with one URL per line. To copy only threads, focus the
+**Threads** list, check or clear its filter, and use **Ctrl+A** then **Ctrl+C**
+(**⌘A** then **⌘C** on macOS). The selection is scoped to the active tab and
+filter. Adding a watch by URL starts from the source as it is now. GChan’s
+download progress, already downloaded IDs and saved posts stay in GChan.
+
+#### Bring over saved files
+
+For example, suppose your old `GChan Downloads` folder contains `g/123/image.png`
+and `g/123/clip.webm`. Try one of these paths:
+
+- **Keep the files where they are.** In **Settings → Storage and limits →
+  Media folders**, select **Add folder…** and choose `GChan Downloads`. Turn on
+  **Include subfolders** for this example. Check **Media → Folders** for the two
+  files. MeowChan reads the [folder](#read-only-media-folders) in place and leaves
+  its contents untouched.
+- **Import a named batch.** Choose **Import files…** from the app menu and add
+  `image.png` and `clip.webm`. Review the SHA-256 duplicate check, name the batch,
+  and start the [import](#importing-your-own-files). New files are copied into
+  `meowchan-import/` under your MeowChan download folder. Exact matches already in
+  the library are linked. If files were copied, **Show batch** opens them in
+  **Media** under **Own imports**.
+
+Both paths make files available in Media. Reader posts and their attachment
+links require captured post data. Keep GChan’s HTML pages with their associated
+files and subfolders so their relative links still work when opened in a browser.
+Set your download path, check interval and parallel downloads manually in
+MeowChan’s **Settings**.
 
 ### Clipboard URL monitor
 
@@ -389,8 +450,8 @@ fort, sendet keine Suche und umgeht diese Regeln nicht.
 Choose **Tag search**, enter up to two tags and one optional `rating:` term, and
 press **Search**. Positive and negative (`-tag`) occurrences both count toward the
 two-tag limit. MeowChan normalizes separators to spaces but adds no hidden terms
-or automatic `g,s` filter. A search is limited to at most 5 pages of 20 posts;
-use **Previous page** and **Next page**, or refine the query. In Gallery, the
+or automatic `g,s` filter. A new search defaults to 5 pages of 20 posts. The Booru search page limit in Settings accepts 1 to 1000.
+Use the arrows or enter a page number below the results. A plus means the total is still unknown. In Gallery, the
 pager's tooltip and accessible status name the query for the current results.
 The search field's tooltip explains the query syntax and how originals are queued.
 
@@ -693,7 +754,7 @@ More defaults that are easy to miss (F1 lists every key of the current area):
 | Key | Action |
 | --- | --- |
 | Ctrl+Shift+I | **Import files…** |
-| Ctrl+Shift+R | **Continue reading** |
+| Ctrl+Shift+R (macOS ⇧⌘R) | **Continue reading** |
 | Ctrl+Shift+N / Ctrl+Shift+L | Reader: **Show new posts** / **Show new posts automatically** |
 | Ctrl+Shift+M | Show or hide the media sidebar (Reader and Media page) |
 | Ctrl+Plus / Ctrl+Minus / Ctrl+0 | Larger / smaller / medium tiles on the Media page, the Tagging grid and the Archive's media tiles; in the reader the same keys change the reading font size |
@@ -710,7 +771,12 @@ More defaults that are easy to miss (F1 lists every key of the current area):
 | [ / ] or X / C | Video: slower / faster; Shift+Backspace sets the normal speed |
 | L / A / Shift+S | Video: repeat / A–B loop / save the frame as an image |
 | Shift+M | Mute or unmute a video |
-| Shift+H, Shift+I, Shift+N, Shift+L, Shift+O, Shift+P, Shift+K, Shift+T | Gallery: show or hide tools, info line, hints, filmstrip, controls overlay, post context, cards (Tagging mode), switch View / Tag |
+| Ctrl/⌘+0 / Z | Gallery: Fit / actual size (1:1) |
+| 1–5 / 0 | Gallery: set a rating from one to five stars / clear the rating |
+| Shift+H, Shift+Z, Shift+N, Shift+L, Shift+O, Shift+P, Shift+K, Shift+T | Gallery: toggle tools, info line, hints, filmstrip, controls overlay, post context, cards (Tagging mode), and View / Tag |
+| Shift+A | Gallery: dock the post panel or show it over the picture |
+| Shift+I | Show or hide facts in the gallery or media sidebar |
+| Ctrl/⌘+Shift+M | Show or hide the media sidebar in the Reader, Archive, Media, Tagging or Booru |
 
 The video keys belong to the gallery; play/pause, mute, repeat, the step keys, speed and the next frame also act on the video of the reader and of the Media page's sidebar.
 
@@ -784,8 +850,8 @@ the gallery. The reader's configurable [media click action](#reader-media-sideba
 applies to media in posts, not to single-clicks on the sidebar picture.
 
 A double-click on the picture or video **inside the local-media gallery** toggles
-window fullscreen, as do F11 and the explicit fullscreen action. Use **0** for
-Fit and **1** for 1:1; zoom and window fullscreen are separate controls.
+window fullscreen, as do F11 and the explicit fullscreen action. Press **Ctrl/⌘+0**
+for Fit and **Z** for 1:1.
 
 If letter keys trigger actions by mistake, for example with speech input, turn off
 **Standard single-key shortcuts (letters, digits, + and −)** under **Keyboard
@@ -852,10 +918,10 @@ Apple notation.
 
 ### Enter and Escape in dialogs and search fields
 
-In a search field, Escape first clears the text without closing the window, dialog
-or search bar around it. A second Escape in the empty field leaves the field or
-closes the search. Enter does not belong to the field: it triggers the action the
-field belongs to, such as search, find next or add.
+In an ordinary search field, Escape first clears the text. A second Escape in the
+empty field leaves it or closes the search. In the Downloads search bar, Escape
+closes the bar and keeps the query. Enter triggers the field's action, such as
+search, find next or add.
 
 In the dialogs described below, Enter invokes the available primary action and
 Escape cancels or leaves the current edit. Multiline editors keep their own keys. In the first-run setup window, Enter inside an input accepts and
@@ -884,16 +950,16 @@ in the Tab order. The other buttons are right-aligned. This holds for the Archiv
 reader's header (**Back to thread list**, **Back to gallery**, **Back to media** and
 **Close reader**; German: **Zurück zur Threadliste**, **Zurück zur Galerie**,
 **Zurück zu Medien**, **Reader schließen**). Inline rows keep their × close action
-at the far right, after the row's own actions: the Downloads search bar
-(**Close**, a labelled button with a chevron instead of a second ×, so it cannot be
-mistaken for the × that clears the search text; **Esc** clears the text first and then
-closes the bar), details panel (**Hide details**, German: **Details ausblenden**),
-and Archive preview (**Close preview**, **Vorschau schließen**). In the reader toolbar,
-**Find** and **Tags** are toggles instead: highlighted with a small × inside while their
-bar is open, and clicking the button again (or **Esc**) closes the bar.
-The gallery keeps **Back to {target}** at the far left with the favorite star
-directly to its right. Tooltips and screen-reader names keep the full action and
-target, including in narrow rows. Esc closes as before.
+at the far right, after the row's own actions, in the details panel (**Hide
+details**, German **Details ausblenden**) and Archive preview (**Close preview**,
+**Vorschau schließen**). The **Search** button or **Ctrl/⌘+F** toggles the Downloads
+search bar. Closing it with the button, shortcut or **Esc** keeps the query and
+result count on screen. Use **Clear** to remove the filter. In the Reader toolbar,
+**Find** and **Tags** show a small × while their bar is open. Click the button
+again or press **Esc** to close the bar.
+The gallery keeps **Back to {target}** at the far left, followed by the favorite
+heart and, when there is room, the rating stars. Tooltips and screen-reader names
+keep the full action and target, including in narrow rows. Esc closes as before.
 Dialogs keep their title-bar × at the right; information windows such as media
 details and About have no extra Close button. Esc first ends a local edit, recording
 or question; it does not close while saving or deleting. Settings asks about unsaved
@@ -1452,14 +1518,15 @@ Choose **Read posts** to open the large thread reader across the work area, with
 readable posts and embedded media. Up/Down moves exactly one post. Left/Right
 moves through the frozen current thread list/search in its sort order, across
 pages, without wrapping. A single thread opened without that scope has no global
-thread sequence. Input fields keep their native arrow-key behavior.
+thread sequence. The Posts tab scrolls continuously from the opening post to the
+final reply. Input fields keep their native arrow-key behavior.
 
 The lower-right navigation cross is an **auto-hiding overlay**. It reserves no
 side lane, does not shorten the viewport and adds no extra scrollable tail after
 the final post. It fades out while the pointer is idle, and reappears on pointer
 movement over the reader or briefly after a navigation shortcut. It stays visible
-while the pointer is over or near it, or it has keyboard focus. Pagination and
-the scrollbar remain usable; hiding the cross does not change the content layout.
+while the pointer is over or near it, or it has keyboard focus. The scrollbar
+remains usable with the navigation overlay visible.
 
 In selected post content, **Enter** (the command **Open medium of the post**) does what a
 click on the medium does under Settings → **Reading & media → Clicking a medium**:
@@ -1526,23 +1593,24 @@ The gallery keeps decoded images in memory and prepares the next three and previ
 moving either direction can show them immediately. The cache is 256 MiB by default; set it to 0 to keep nothing.
 **Gallery image cache**, **Gallery images decoded ahead** and **Gallery images decoded behind** are under Settings →
 **Storage and limits**; their allowed ranges are 0–4096 MiB, 0–20 and 0–20.
-The optional filmstrip above the picture shows neighbouring media; click a
-thumbnail to go there, or press **Shift+L** to show/hide the strip. With auto-hidden
-controls it appears with them or at the top edge; with docked controls it sits
-above the picture. Very short windows leave it out. Its height and thumbnail
-preload are under **Gallery & playback**.
+The optional filmstrip shows neighbouring media. Click a thumbnail to jump to
+it or press **Shift+L** to show or hide the strip. It sits above the video bar
+and tools by default. If docked at the top, it sits below **Back to …**, the
+favorite heart and any rating stars. With auto-hidden controls it appears with
+them, or when the pointer touches the top edge if docked there. Very short windows
+leave it out. Its height and thumbnail preload are under **Gallery & playback**.
 Use the gallery's optional **media focus** view to fold away tools and details
 and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
 This changes the gallery layout independently of F11 window fullscreen. Close the
-gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) alone at the
-far left of the header, before the title, with the favorite star directly to its
-right; the button names the return destination. While the tools are shown, the toolbar
+gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) at the
+far left of the header, before the title. The favorite heart and rating stars sit
+beside it when space permits. The button names the return destination. While the tools are shown, the toolbar
 keeps Previous, position, Next, Fit, 1:1, the post panel and the tools switch available.
 **Shift+H** (or the tools switch) hides the tools: Previous, position, Next, **More** and the way back
 to the tools stay on the bar, but Fit, 1:1, the post panel and the toolbar's favorite
-button leave it; the favorite badge beside **Back to …**, the keys (**0**, **1**,
-**Shift+P**, **F**) and the double-click on the picture keep working. Rating, media tags and slideshow controls move from
+button leave it. The corner heart and stars beside **Back to …** remain available,
+as do **Ctrl/⌘+0**, **Z**, **Shift+P**, **F**, and double-click for fullscreen. Rating, media tags and slideshow controls move from
 **⋯ (More gallery actions)** to the toolbar in Simple; Advanced also brings
 shortcut help onto the bar. The slideshow's seconds per image and its playback
 mode stay under More in every view; the slideshow button stays on the bar. Zoom
@@ -1589,9 +1657,11 @@ transparency uses the docked layout and explains the fallback. Existing profiles
 start docked; later choices are remembered. F11 remains a separate window action.
 
 Show context to read the associated saved post and available local references.
-A media-only item can have no captured post. In the gallery, **Shift+P** toggles the saved-post context, **0** selects Fit,
-**1** selects 1:1, **F** toggles the current media favorite, and F1 or ? opens
-keyboard help. Gallery panel and playback keys follow one scheme: **Shift** plus a
+A media-only item can have no captured post. In the gallery, **Shift+P** toggles the saved-post context,
+and **Shift+A** switches that panel between docked and overlay placement.
+**Shift+I** toggles facts and **Shift+Z** toggles the info line.
+**Ctrl/⌘+0** selects Fit, **Z** selects 1:1, and **1** through **5** set a star
+rating. **0** clears the rating. Press **F1** or **?** for keyboard help. Gallery panel and playback keys follow one scheme: **Shift** plus a
 letter shows or hides a panel or block; a plain letter acts on playback or the
 shown medium. Thus **Shift+K** toggles **Card mode on / off** (German:
 **Kartenmodus ein / aus**) in tagging mode, **Shift+D** starts or pauses **Start / pause
@@ -1604,9 +1674,10 @@ the A–B loop. Favorites use one scheme everywhere: **M** adds the favorite
 toggling it, and **F** on a saved favorite in the gallery asks before it removes
 the mark. **Shift+M** mutes and unmutes a video because **M** is taken by the favorite.
 It joins **Shift+R** (rotate), **Shift+S** (snapshot) and **Shift+D** (slideshow)
-as shifted actions rather than panel switches. A favorite badge
-with a **★ / ☆** sits beside **Back to …** at the upper left; it shows favorite /
-not favorite, a click toggles it, and **…** indicates a pending save. These are
+as shifted actions rather than panel switches. Click the heart beside **Back to …**
+at the upper left to toggle the favorite. A filled heart marks a favorite, and
+**…** indicates a pending save. Click a rating star beside the heart to rate the
+current medium. These are
 default bindings; customized shortcuts still apply. Space plays or pauses an active local video. **Shift+Up/Shift+Down** raises/lowers
 available video volume without changing Playing/Paused; unmodified **Up/Down**
 still navigate posts in the reader. Manual mute/unmute survives media changes within the same
@@ -1616,11 +1687,11 @@ gallery uses the saved **Start videos muted** preference, not the last manual mu
 **Local reading continuation** is off by default. In Settings → Reading & media,
 enable **Remember the last reading position locally** and Save. MeowChan then
 keeps the last deliberately opened reader position and a local history with one
-place per thread for this profile. Right-click **Continue reading** to choose a
-recent thread. **Reading history entries** sets how many thread places the history
+place per thread for this profile. Use the arrow beside **Continue reading** to
+choose a recent thread. **Reading history entries** sets how many thread places the history
 keeps (default 50, 10–500); **Threads in the Continue reading menu** separately
 sets how many recent places the menu lists (default 10, 3–25). After restarting,
-choose the **Continue reading** book icon left of Pause in the header, or the
+choose the **Continue reading** book button in the header, or the
 labelled **Continue reading** entry in the app menu. The app keeps its normal
 start page until you choose that action. Only locally captured posts are read; no
 source request or download is started.
@@ -1845,19 +1916,16 @@ thread's tab.
 | Quote preview delay (ms) | 300 | 0 to 2000 |
 | Reply cards per step | 5 | 1 to 50 |
 | Lines per reply card | 4 | 1 to 20 |
-| Posts per reader page | 50 | 20 to 200 |
 | Maximum conversation indentation depth | 6 | 1 to 16 |
 
 Preview widths default to 240 pixels in the embedded reader and 360 pixels in the
-Reader, which uses 1.5 times the configured width. **Posts per reader page**
-changes the reader's paging, not the archive thread-list page size. It keeps the
-current reading position in view; conversation subtrees can span pages.
+Reader, which uses 1.5 times the configured width.
 
 **Date and time format** offers **System format** (default), **Weekday and seconds**,
 **Since opening post** and **Relative to now**. The exact local date remains in the
 tooltip. If the opening post has no timestamp, **Since opening post** falls back to
 System format; a post with no timestamp has no date text. Relative text is calculated
-when the page is rendered, not refreshed by a timer. Quote previews use the same
+when the list is rendered. Quote previews use the same
 format; their tooltip shows the full local date. A preview of a post from another
 thread has no known opening post here, so **Since opening post** shows System
 format for it.
@@ -1878,12 +1946,10 @@ sidebar and inline-video controls. The full Settings page still uses Save/Discar
 **Enlarge an image while the pointer rests on it** are also switches in View;
 their widths, scale and hover delay are under Settings → **Reading & media**.
 
-The reader toolbar has a **Media sidebar: On/Off** toggle beside the **Reader**
-and gallery actions; it stays out of overflow. It uses the same saved choice as
-View, Ctrl/Cmd+Shift+M and the sidebar's close button. Its On/Off state is the
-saved choice for the current host, not whether the window is currently wide
-enough to show the sidebar. A narrow window can hide an On sidebar without
-turning the preference off; it returns when space is available.
+The reader toolbar groups the **Thread list** and **Media sidebar** icons.
+Click the media sidebar icon or press **Ctrl/⌘+Shift+M** to toggle the saved
+choice for the current view. The sidebar also has a close button. When a narrow
+window hides an enabled sidebar, the sidebar returns when space is available.
 
 **Media sidebar** is on by default. Under **Show the media sidebar in**,
 **Reader only** is the default, so the sidebar toggle starts Off in the Archive view.
@@ -1895,13 +1961,13 @@ expanded under the post. Choose left or right. A post with several media gets a 
 under the picture (**Thumbnails in the media sidebar strip** sets how many show at once,
 12 by default, 2–40; a larger post slides a window along); click a thumbnail or use
 **Alt+Shift+Left** and **Alt+Shift+Right** to step through the post's media. The sidebar header holds the
-post number, the favorite star, **Open in gallery** and a close cross. Drag the divider to change its
+post number, the favorite heart, **Open in gallery** and a close cross. Drag the divider to change its
 saved width. The sidebar hides when the reader is too narrow and returns when
 there is room; it does not replace the embedded reader with a second gallery. Videos in
-the sidebar autoplay and repeat by default, with the sound following your remembered volume;
+the sidebar autoplay and repeat by default, with the sound following your remembered volume.
 **Autoplay videos in the media sidebar**, **Repeat videos in the media sidebar** and
 **Start videos in the media sidebar muted** are separate settings that also cover the
-Archive view and the Media page's sidebar.
+Archive view and the media sidebars on the Media and Tagging pages.
 
 | Setting | Default | Allowed |
 | --- | --- | --- |
@@ -2085,6 +2151,10 @@ or 80 million source pixels are refused by the gallery. Fit decoding is bounded 
 more memory. Corrupt, missing, unsupported or unverifiable files show a reason.
 The verified originals remain on disk even when preview is unavailable. These
 viewer limits are separate from download rules and do not cap total archive size.
+For the Reader, Media and Tagging sidebars, the profile setting
+`SidebarPreviewMaximumPixels` defaults to 80 million source pixels and accepts
+1 to 80 million. If the sidebar skips the preview because of its size, the
+verified original can still be favorited, rated and tagged where supported.
 
 ### Own tags and the shared media menu
 
@@ -2128,7 +2198,8 @@ a replacement for a complete backup.
 beside the medium with favorite, rating and tags that apply directly to the shown
 medium; nothing is added to the tagging queue. Only while walking the tagging queue
 does the decision strip with Back, Skip, Done & next and Stamp & next appear as
-well. The star next to the way back keeps showing the favorite. A slideshow may run
+well. Beside **Back to …**, the heart shows the favorite and the stars show the
+rating when space permits. A slideshow may run
 while tagging: it waits while the tag panel has focus or text in its field, then
 continues with the shown medium.
 
@@ -2137,8 +2208,9 @@ continues with the shown medium.
 Medium an, mit Favorit, Bewertung und Tags, die direkt für das gezeigte Medium
 gelten; in die Tagging-Warteschlange kommt dabei nichts. Beim Durchgehen der
 Tagging-Warteschlange erscheint zusätzlich die Entscheidungszeile mit Zurück,
-Überspringen, Fertig & weiter und Stempel & weiter. Der Stern neben dem Rückweg
-zeigt den Favoriten weiter an. Eine Diashow darf beim Taggen laufen: Sie wartet,
+Überspringen, Fertig & weiter und Stempel & weiter. Neben **Zurück zu …** zeigt
+das Herz den Favoriten. Wenn genug Platz ist, zeigen die Sterne die Bewertung.
+Eine Diashow darf beim Taggen laufen. Sie wartet,
 solange das Tag-Panel den Fokus oder Text im Feld hat, und macht danach mit dem
 gezeigten Medium weiter.
 
@@ -2147,24 +2219,23 @@ in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open t
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
 slot of the post panel and stays open while you page through the gallery. The same
 command, **Esc** or its close button closes it; **Shift+P** switches to the post panel.
-The live medium counter is at the top left of the side panel when shown. Below it,
-**Post | Tags** are on the left and × is on the right. The tabs wrap onto two lines
-when space is tight. The counter updates as you navigate, with localized position
-text and polite accessibility announcements. In the Tags panel, the media title
-is left-aligned above the favorite and rating controls. In the Post panel, the line
-with the source, board and thread is left-aligned above those controls and includes
-the post number when available. When the switch has focus, Left/Right selects
-the segment. Closing returns focus to
-the picture. Drag its left edge to resize it (280–480 DIP); the width is kept per
-layout profile. Below 900 DIP it overlays the picture.
+**Post | Tags** are on the left of the header, followed by the position pill and
+the close button. Both tabs show the same position, including the queue position
+in Tag mode. The counter updates as you navigate, with localized position text
+and polite accessibility announcements. Rating and favorite come first, followed
+by tags, post and file information, and full-width actions. The file name can be
+copied from its context menu. When the switch has focus, Left/Right selects the
+segment. Closing returns focus to the picture. Drag its left edge to resize it
+(280–480 DIP). The layout profile remembers the width. Below 900 DIP the panel
+overlays the picture.
 
-**Deutsch:** Wenn der Positionszähler angezeigt wird, steht er oben links im Galerie-Seitenpanel. Darunter
-stehen **Post | Tags** links und × rechts. Bei wenig Platz werden die Tabs auf zwei
-Zeilen verteilt. Beim Blättern aktualisiert sich der Zähler in der gewählten
-Sprache. Screenreader lesen die neue Position bei der nächsten Sprechpause vor.
-Im Tag-Panel steht der Medientitel linksbündig über den Favoriten- und Bewertungsfunktionen.
-Im Post-Panel ist dort die Zeile mit Quelle, Board und Thread linksbündig. Ist eine
-Post-Nummer verfügbar, steht sie ebenfalls in dieser Zeile.
+**Deutsch:** Im Kopf stehen **Post | Tags**, der Positionszähler und der
+Schließen-Knopf nebeneinander. Beide Tabs zeigen beim Taggen die Position in der
+Warteschlange. Beim Blättern aktualisiert sich der lokalisierte Zähler.
+Screenreader lesen die neue Position bei der nächsten Sprechpause vor. Auf
+Bewertung und Favorit folgen Tags, Angaben zum Post und zur Datei und die
+Aktionen. Über das Kontextmenü des Dateinamens lässt sich der vollständige Name
+kopieren.
 
 **Safe flow.** Nothing is assigned automatically. Type a name and press Enter to
 give your own tag to the shown medium; a new name creates a local own tag. With an
@@ -2323,7 +2394,7 @@ selected files.
 
 ### Favorites and original-file export
 
-Use the star on reader attachments, saved-media items or the gallery to mark a
+Use the heart on reader attachments, saved-media items or the gallery to mark a
 saved original. Favorites persist in the profile and identify that exact media
 revision; a later replacement does not inherit the mark. **Favorites only** filters
 thread media. **Show favorites** opens a searchable overview scoped to the current
@@ -2607,12 +2678,14 @@ another selection; changed content or protection may prevent further deletion.
 
 ## Permanently deleting archived threads
 
-In Archive, select one or more threads and choose **Delete permanently…** from
+In Archive, select one or more threads and choose **Delete from archive…** from
 the context menu, or press **Shift+Delete**. Review the thread count, local file
-count, size and paths before confirming. Cancel leaves everything unchanged.
+count, size and paths before choosing **Delete archive entries and files**.
+Cancel leaves everything unchanged.
 This removes captured posts, indexed search data, manifest-owned originals and
-versions, favorites and cached video posters. Watched boards keep these threads
-excluded; you can explicitly enable them again through board exclusions.
+versions, media favorites and cached video posters. Thread favorite marks stay
+in the profile. Watched boards keep these threads excluded; you can explicitly
+enable them again through board exclusions.
 
 In 1.0, reader-group memberships and post bookmarks with your notes remain;
 deleted posts become locally unavailable through them. Remove unwanted entries
@@ -2622,7 +2695,7 @@ cleaned up; if that fails, the deletion result offers **Retry rating cleanup**.
 Exports and unrelated files remain available. Directories shared with unselected
 archived threads or with unverifiable ownership block deletion. Changed files or
 other failures are reported; affected archive records remain for another attempt.
-Ordinary **Delete** only removes watches and keeps the archive and media.
+**Stop watching** (ordinary **Delete**) removes watches and keeps the archive and media.
 
 ## Portable HTML export
 

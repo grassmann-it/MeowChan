@@ -1,6 +1,7 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -8,6 +9,7 @@ using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -123,6 +125,7 @@ internal static class TaggingPageChecks
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.show-in-media"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("media.show-in-folder"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("media.copy-path"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("media.copy-file-name"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-up"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-down"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-first"),
@@ -263,7 +266,9 @@ internal static class TaggingPageChecks
             Require(!tagging.StartButton.IsEnabled, "Start stays enabled on an empty queue.");
             CheckProgress(tagging, open: 0, finished: 0);
             Program.CaptureWindow(window, "smoke-tagging-page-empty.png");
+            await CheckQueueWalkProgressAsync(window, tagging);
             await CheckGalleryCommandAsync(window, tagging);
+            await CheckPanelAsync(window, tagging);
             Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, selection bar, grid view and switch, stamp, filter, work views, clear; Light/Dark EN/DE/RU/JA captures.");
         }
         finally
@@ -307,8 +312,8 @@ internal static class TaggingPageChecks
                 active.Focus();
                 Press(active, Key.S);
                 await Program.WaitUntilAsync(() => !tagging.IsBusy && tagging.Queue.Items[0].State == TagQueueState.Skipped);
-                tagging.SelectionMoreButton.Focus();
-                Press(tagging.SelectionMoreButton, Key.Escape);
+                Require(tagging.SelectionTagButton.Focus(), "The selection bar has no keyboard target.");
+                Press(tagging.SelectionTagButton, Key.Escape);
                 Require(tagging.SelectedCount == 0 && tagging.ShownList.IsKeyboardFocusWithin, "Esc in the selection bar did not return to results.");
                 await window.SessionHost.SetTagQueueStatesAsync(keys.Select(key => KeyValuePair.Create(key, TagQueueState.Open)).ToArray());
                 tagging.Refresh();
@@ -344,11 +349,13 @@ internal static class TaggingPageChecks
         Button trigger = tagging.StampButton;
         TextBox input = tagging.StampInput;
         Require(!tagging.StampOpen, "An old Open profile value opened the editor.");
-        trigger.Focus();
+        Require(!trigger.Focusable, "The stamp opener is a tab stop.");
+        tagging.FocusContent();
+        Control row = (Control)window.FocusManager!.GetFocusedElement()!;
         foreach (KeyModifiers modifiers in new[] { KeyModifiers.Meta, KeyModifiers.Control, KeyModifiers.Control | KeyModifiers.Alt })
-            PressSpace(trigger, modifiers);
+            PressSpace(row, modifiers);
         Require(!tagging.StampOpen, "A system Space chord opened the stamp.");
-        PressSpace(trigger);
+        PressStampShortcut(tagging, window);
         await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused);
 
         if (!await ClipboardChecks.PasteFixtureTextAsync(input, "surface\nreview\nkeep"))
@@ -366,12 +373,12 @@ internal static class TaggingPageChecks
         await Program.WaitUntilAsync(() => feedback.Text == Texts.T("tagging.page.stamp.already", "surface"));
         Require(window.SessionHost.GetTagQueue()!.Stamp.Count == 0, "The shared stamp went into tag-queue.json.");
         Press(input, Key.Escape);
-        await Program.WaitUntilAsync(() => !tagging.StampOpen && trigger.IsFocused);
+        await Program.WaitUntilAsync(() => !tagging.StampOpen && QueueRowHasFocus(window, tagging));
         Require(Config.LoadConfig().TaggingStampBlock == "Open", "Toggling the flyout wrote a legacy view preference.");
         if (OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") == "1")
         {
             using var native = new MediaNativeInput(window);
-            Press(trigger, Key.Enter);
+            await native.ClickAsync(trigger);
             await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused);
             await native.KeyAsync(MediaNativeInput.Space);
             await Program.WaitUntilAsync(() => input.Text == " ", () => "Stamp input after Space: '" + input.Text + "'");
@@ -387,16 +394,14 @@ internal static class TaggingPageChecks
         await window.SessionHost.SetTagQueueGroupStampAsync(second, ["bbb", "ccc"]);
         tagging.Refresh();
         tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == first);
-        trigger.Focus();
-        Press(trigger, Key.Enter);
+        PressStampShortcut(tagging, window);
         await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused && tagging.StampChips.Children.Count == 1);
         input.Text = "uncommitted";
         tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == second);
         Require(!tagging.StampOpen && string.IsNullOrEmpty(input.Text) && tagging.StampChips.Children.Count == 2
             && AutomationProperties.GetName(trigger)?.Contains("Stamp B", StringComparison.Ordinal) == true,
             "Group A → B retained the old editor, draft or scope.");
-        trigger.Focus();
-        Press(trigger, Key.Enter);
+        PressStampShortcut(tagging, window);
         await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused);
         input.Text = "BBB";
         Press(input, Key.Enter);
@@ -412,12 +417,16 @@ internal static class TaggingPageChecks
         tagging.Refresh();
     }
 
-    private static void CheckProgress(TaggingPage tagging, int open, int finished)
+    private static void CheckProgress(TaggingPage tagging, int open, int finished, int skipped = 0)
     {
+        int total = open + finished + skipped;
+        int decided = finished + skipped;
         Require(tagging.ProgressText.IsEffectivelyVisible
-            && tagging.ProgressText.Text == Texts.Count("tagging.page.progress.results", open + finished, finished, open + finished),
+            && tagging.ProgressText.Text == Texts.Count("tagging.page.progress.results", total, decided, total),
             "Progress: " + tagging.ProgressText.Text);
-        Require(Equals(ToolTip.GetTip(tagging.ProgressText), Texts.T("tagging.page.progress", open, finished, 0)), "Missing progress breakdown.");
+        Require(Equals(ToolTip.GetTip(tagging.ProgressText), Texts.T("tagging.page.progress", open, finished, skipped)), "Missing progress breakdown.");
+        double expected = total == 0 ? 0 : (double)decided / total * 100;
+        Require(Math.Abs(ProgressTrack(tagging).Value - expected) < 0.001, "The track did not match the decisions.");
     }
 
     private static async Task CheckHeaderWidthAsync(MainWindow window, TaggingPage tagging)
@@ -447,8 +456,7 @@ internal static class TaggingPageChecks
             await ResizeAsync(window, 1400);
             CheckHeaderGeometry(tagging, 1, "at breakpoint");
             double tableTop = tagging.ColumnHeader.TranslatePoint(default, tagging)!.Value.Y;
-            tagging.StampButton.Focus(NavigationMethod.Tab);
-            Press(tagging.StampButton, Key.Enter);
+            PressStampShortcut(tagging, window);
             await Program.WaitUntilAsync(() => tagging.StampOpen && tagging.StampInput.IsFocused);
             tagging.StampInput.Text = "resize draft";
             await ResizeAsync(window, 1399);
@@ -463,7 +471,7 @@ internal static class TaggingPageChecks
             Require(tagging.StampOpen && tagging.StampInput.IsFocused && tagging.StampInput.Text == "resize draft",
                 "Resizing closed the stamp or lost its input focus or draft.");
             Press(tagging.StampInput, Key.Escape);
-            await Program.WaitUntilAsync(() => !tagging.StampOpen && tagging.StampButton.IsFocused);
+            await Program.WaitUntilAsync(() => !tagging.StampOpen && QueueRowHasFocus(window, tagging));
 
             await ResizeAsync(window, 760);
             Program.CaptureWindow(window, "smoke-tagging-page-narrow-de.png");
@@ -650,7 +658,7 @@ internal static class TaggingPageChecks
                         await PresentationChecks.SwitchModeAsync(window, view.ToString());
                         foreach (int width in new[] { 1440, 1100, 760 })
                         {
-                            tagging.SelectionMoreButton.Focus(NavigationMethod.Tab);
+                            tagging.FocusContent();
                             await ResizeAsync(window, width);
                             string stage = $"{view}/{language}/{theme}/{width}";
                             CheckHeaderGeometry(tagging, width == 1440 ? 1 : 2, stage);
@@ -668,7 +676,7 @@ internal static class TaggingPageChecks
                             CheckSelection(tagging, selected, stage);
                             CheckSelectionAction(tagging.SelectionTagButton, tagging.SelectionDoneButton);
                             CheckSelectionAction(tagging.SelectionDoneButton, tagging.SelectionMoreButton);
-                            Require(tagging.SelectionMoreButton.IsFocused, "Resizing lost focus on More.");
+                            Require(QueueRowHasFocus(window, tagging), "Resizing lost focus in the queue.");
                             CheckSelectionAction(tagging.SelectionMoreButton, tagging.SelectionClearButton);
                             CheckSegments(tagging, SegmentLabelsVisible(tagging));
                             Program.CaptureWindow(window, $"smoke-tagging-{view}-{language}-{theme}-{width}.png");
@@ -743,7 +751,8 @@ internal static class TaggingPageChecks
             && window.Background is ISolidColorBrush surface && background.Color != surface.Color,
             theme + ": the empty progress track does not stand out from the page.");
         ToggleButton more = tagging.Actions.More ?? throw new InvalidOperationException("The page has no More button.");
-        Control[] stops = [tagging.AddButton, tagging.HelpButton, tagging.StampButton, tagging.GroupBox, tagging.FilterBox,
+        Require(!tagging.HelpButton.Focusable && !tagging.StampButton.Focusable, "A popup opener is a tab stop.");
+        Control[] stops = [tagging.AddButton, tagging.GroupBox, tagging.FilterBox,
             more, tagging.ColumnsButton, tagging.ViewToggle.First, tagging.SelectionTagButton];
         foreach (Control stop in stops)
         {
@@ -757,7 +766,7 @@ internal static class TaggingPageChecks
             if (ReferenceEquals(stop, more))
             {
                 await native.KeyAsync(MediaNativeInput.Space);
-                await Program.WaitUntilAsync(() => more.IsChecked == true && tagging.GroupManageButton.IsFocused);
+                await Program.WaitUntilAsync(() => more.IsChecked == true && tagging.ClearButton.IsFocused);
                 await native.KeyAsync(MediaNativeInput.Escape);
                 await Program.WaitUntilAsync(() => more.IsChecked == false && more.IsFocused);
             }
@@ -787,6 +796,123 @@ internal static class TaggingPageChecks
                 && Equals(ToolTip.GetTip(segment), Texts.T(key + ".hint")), "Missing view segment semantics for " + name);
             Require(segment.Content is StackPanel visual && visual.Children.OfType<TextBlock>().Single() is { } label
                 && label.Text == name && label.IsEffectivelyVisible == labelsVisible, "Wrong label presentation for " + name);
+        }
+    }
+
+    private static async Task CheckQueueWalkProgressAsync(MainWindow window, TaggingPage tagging)
+    {
+        DesktopSessionHost session = window.SessionHost;
+        MediaLibrarySnapshot library = await MediaLibraryIndexBuilder.BuildAsync(session.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync);
+        TagQueueItem a = TagQueueItem.From(library.Entries.Single(entry => entry.PostId == "100"), DateTimeOffset.UtcNow)!;
+        TagQueueItem b = TagQueueItem.From(library.Entries.Single(entry => entry.PostId == "200"), DateTimeOffset.UtcNow)!;
+        ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
+        KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        Exception? primaryFailure = null;
+        try
+        {
+            await session.EnqueueTagQueueAsync([Item(1), a, b, .. Enumerable.Range(4, 198).Select(Item)]);
+            await session.SetTagQueueCursorAsync(1);
+            await Program.WaitUntilAsync(() => tagging.Queue.Count == 201 && tagging.Queue.Cursor == 1 && tagging.StartButton.IsEffectivelyEnabled);
+            CheckProgress(tagging, open: 201, finished: 0);
+            GalleryViewer viewer = await StartWalkAsync();
+            CheckPosition(viewer, a, 2, 201);
+            Program.CaptureWindow(window, "smoke-tagging-queue-position.png");
+            GalleryViewerChecksAccess.Click(viewer, "GalleryNext");
+            await Program.WaitUntilAsync(() => viewer.TagPanelController?.Entry.Post?.PostId == b.PostId);
+            CheckPosition(viewer, b, 3, 201);
+            await ReturnAsync(viewer, b);
+            await Program.WaitUntilAsync(() => tagging.Queue.Cursor == 2);
+            CheckProgress(tagging, open: 201, finished: 0);
+            Require(AutomationProperties.GetName(tagging.StartButton) == "Continue tagging (no. 3)", "Resume did not follow the browsed medium.");
+
+            string groupId = (await session.CreateTagQueueGroupAsync("Progress regression", [a.Key, b.Key])).Groups.Single().Id;
+            await Program.WaitUntilAsync(() => tagging.GroupChoices.Any(choice => choice.Id == groupId));
+            tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == groupId);
+            tagging.Filter = TaggingQueueFilter.Open;
+            Require(AutomationProperties.GetHelpText(tagging.StartButton)?.Contains(Texts.T("tagging.page.lastShown", b.Name, 2, 2), StringComparison.Ordinal) == true,
+                "The resume tooltip did not use the group ordinal.");
+            CheckProgress(tagging, open: 2, finished: 0);
+
+            viewer = await StartWalkAsync();
+            CheckPosition(viewer, b, 2, 2);
+            // Resume rotates the walk: finishing its first medium advances to the earlier open group entry.
+            viewer.Focus();
+            Press(viewer, Key.Enter, primary);
+            await Program.WaitUntilAsync(() => State(b) == TagQueueState.Done && viewer.TagPanelController?.Entry.Post?.PostId == a.PostId);
+            CheckPosition(viewer, a, 1, 2);
+            viewer.Focus();
+            Press(viewer, Key.S);
+            await Program.WaitUntilAsync(() => State(a) == TagQueueState.Skipped && window.GalleryTagging is { Busy: false, Steps: 2 });
+            Require(window.GalleryTagging!.Progress() == (1, 1, 0), "The gallery did not report one finished and one skipped.");
+            viewer.Focus();
+            Press(viewer, Key.Back);
+            await Program.WaitUntilAsync(() => State(a) == TagQueueState.Open && window.GalleryTagging is { Busy: false, Steps: 1 });
+            await ReturnAsync(viewer, a);
+            Require(tagging.SelectedGroupId == groupId && tagging.Filter == TaggingQueueFilter.Open && tagging.Rows.Count == 1,
+                "The group or status filter was lost on return.");
+            CheckProgress(tagging, open: 1, finished: 1);
+
+            viewer = await StartWalkAsync();
+            CheckPosition(viewer, a, 1, 2);
+            viewer.Focus();
+            Press(viewer, Key.S);
+            await Program.WaitUntilAsync(() => State(a) == TagQueueState.Skipped && window.GalleryTagging is { Busy: false, Steps: 1 });
+            await ReturnAsync(viewer, a);
+            tagging.Filter = TaggingQueueFilter.Open;
+            Require(tagging.Rows.Count == 0 && !tagging.StartButton.IsEffectivelyEnabled, "No open entries should remain in the group.");
+            CheckProgress(tagging, open: 0, finished: 1, skipped: 1);
+            Texts.SetLanguage("de");
+            await SettleAsync(window);
+            CheckProgress(tagging, open: 0, finished: 1, skipped: 1);
+            Program.CaptureWindow(window, "smoke-tagging-group-progress.png");
+            Texts.SetLanguage("en");
+            await SettleAsync(window);
+            tagging.GroupBox.SelectedIndex = 0;
+            CheckProgress(tagging, open: 199, finished: 1, skipped: 1);
+            await session.DeleteTagQueueGroupAsync(groupId);
+        }
+        catch (Exception error)
+        {
+            primaryFailure = error;
+            throw;
+        }
+        finally
+        {
+            await SmokeCleanup.RunAsync(primaryFailure, async () =>
+            {
+                Texts.SetLanguage("en");
+                tagging.Filter = TaggingQueueFilter.All;
+                await session.ClearTagQueueAsync();
+                await Program.WaitUntilAsync(() => tagging.Queue.Count == 0);
+            }, error => Console.Error.WriteLine("SMOKE tagging queue walk cleanup: " + error));
+        }
+
+        TagQueueState? State(TagQueueItem item) =>
+            session.GetTagQueue()?.Items.FirstOrDefault(entry => entry.Key == item.Key)?.State;
+
+        async Task<GalleryViewer> StartWalkAsync()
+        {
+            Require(tagging.StartButton.Focus(NavigationMethod.Tab), "The Start button could not take focus.");
+            PressSpace(tagging.StartButton);
+            await Program.WaitUntilAsync(() => host.IsVisible && window.GalleryTagging != null);
+            await GalleryViewerChecksAccess.WaitForLayoutAsync(window);
+            return (GalleryViewer)host.Content!;
+        }
+
+        async Task ReturnAsync(GalleryViewer viewer, TagQueueItem item)
+        {
+            GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
+            await Program.WaitUntilAsync(() => !host.IsVisible && window.SelectedPage == MainWindow.WorkspacePage.Tagging
+                && tagging.SelectedCount == 1 && tagging.ShownList.SelectedItem is TaggingQueueRow row && row.Key == item.Key);
+            await window.GalleryCleanupTask;
+        }
+
+        static void CheckPosition(GalleryViewer viewer, TagQueueItem item, int number, int total)
+        {
+            Require(viewer.TagPanelController?.Entry.Post?.PostId == item.PostId
+                && viewer.SidePanel.Position.IsEffectivelyVisible
+                && AutomationProperties.GetName(viewer.SidePanel.Position) == Texts.T("tagging.position", number, total),
+                $"The gallery did not show {item.Name} at queue position {number} of {total}.");
         }
     }
 
@@ -873,6 +999,265 @@ internal static class TaggingPageChecks
         GalleryViewerChecksAccess.Click(opened, "GalleryClose");
         await window.GalleryCleanupTask.WaitAsync(deadline);
         Console.WriteLine("SMOKE tagging-page gallery: missing bytes and missing manifest warn, an old visit cannot open, and a current visit opens the chosen medium.");
+    }
+
+    internal static async Task SeedAsync(string profile)
+    {
+        await MediaPageChecks.SeedAsync(profile);
+        const string relative = "tests/Fixtures/gallery-playback-vp8.webm";
+        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory != null; directory = directory.Parent)
+        {
+            string fixture = Path.Combine(directory.FullName, relative);
+            if (!File.Exists(fixture)) continue;
+            await VideoGalleryChecks.SeedAsync(profile, fixture, includeSecondVideo: true);
+            return;
+        }
+        throw new FileNotFoundException("The checked-in tagging sidebar video fixture is missing.", relative);
+    }
+
+    private static async Task CheckPanelAsync(MainWindow window, TaggingPage tagging)
+    {
+        double oldWidth = window.Width;
+        TaggingViewMode oldView = tagging.ViewMode;
+        string language = Texts.Language;
+        DesktopSessionHost session = window.SessionHost;
+        Config before = session.Config.Clone();
+        MediaLibrarySnapshot library = await MediaLibraryIndexBuilder.BuildAsync(session.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync);
+        MediaLibraryEntry video = library.Entries.Single(entry => entry.Thread == VideoGalleryChecks.Id && entry.PostId == "2000");
+        MediaLibraryEntry[] images = [library.Entries.Single(entry => entry.PostId == "100"),
+            library.Entries.Single(entry => entry.PostId == "200"), library.Entries.Single(entry => entry.PostId == "2001")];
+        TagQueueItem[] items = images.Append(video).Select((entry, index) =>
+            TagQueueItem.From(entry, DateTimeOffset.UnixEpoch.AddSeconds(index))!).ToArray();
+        using MediaNativeInput input = new(window);
+
+        try
+        {
+            await ReplaceQueueAsync(items);
+            tagging.SetViewMode(TaggingViewMode.List, save: false);
+            tagging.RestorePanelEnabled(true);
+            await ResizeAsync(window, 1400);
+            Control panel = PanelControl<Control>(tagging, "TaggingPanel");
+            ToggleButton toggle = PanelControl<ToggleButton>(tagging, "TaggingPanelToggle");
+            await ShowEntryAsync(1, images[0]);
+            await input.ChordAsync('m', MediaNativeInput.ControlLeft, MediaNativeInput.ShiftLeft);
+            await Program.WaitUntilAsync(() => !panel.IsEffectivelyVisible && !session.Config.TaggingPagePanel);
+            await input.ChordAsync('m', MediaNativeInput.ControlLeft, MediaNativeInput.ShiftLeft);
+            await Program.WaitUntilAsync(() => panel.IsEffectivelyVisible && session.Config.TaggingPagePanel);
+
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Media);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Media && window.MediaPageForTests != null);
+            MediaPage media = window.MediaPageForTests!;
+            MediaPageLayout originalLayout = media.PageLayout;
+            try
+            {
+                media.ApplyLayout(originalLayout with { Panel = true, PanelSide = MediaPanelSide.Right, PanelWidth = 360 }, save: false);
+                await Program.WaitUntilAsync(() => PanelControlOrDefault<Control>(media, "MediaPanel") is { IsEffectivelyVisible: true });
+                await input.ChordAsync('m', MediaNativeInput.ControlLeft, MediaNativeInput.ShiftLeft);
+                await Program.WaitUntilAsync(() => PanelControl<Control>(media, "MediaPanel").IsEffectivelyVisible == false);
+                Require(session.Config.TaggingPagePanel, "The Media shortcut changed the Tagging panel preference.");
+                await ReopenAsync(window, tagging);
+                await CheckSharedSidebarSettingsAsync(media, panel);
+
+                foreach (string variant in new[] { "Light", "Dark" })
+                {
+                    string folder = Path.Combine(Path.GetTempPath(), "W112-73-Abnahme", variant.ToLowerInvariant());
+                    Directory.CreateDirectory(folder);
+                    await SetThemeAsync(window, variant);
+                    foreach (string locale in new[] { "en", "de" })
+                    {
+                        await FooterNavigationChecks.PersistLanguageAsync(window, locale);
+                        await ReopenAsync(window, tagging);
+                        await ShowEntryAsync(1, images[0]);
+                        Program.CaptureWindow(window, $"list-1400-{locale}.png", folder);
+                    }
+
+                    await FooterNavigationChecks.PersistLanguageAsync(window, "en");
+                    await ReopenAsync(window, tagging);
+                    tagging.SetViewMode(TaggingViewMode.Grid, save: false);
+                    await WaitForPictureAsync(images[0]);
+                    Program.CaptureWindow(window, "grid-1400-en.png", folder);
+                    tagging.SetViewMode(TaggingViewMode.List, save: false);
+                    await ResizeAsync(window, 900);
+                    Require(!panel.IsEffectivelyVisible && session.Config.TaggingPagePanel && toggle.IsEffectivelyEnabled,
+                        "The narrow page did not fold the panel while keeping the saved choice.");
+                    Program.CaptureWindow(window, "list-900-collapsed.png", folder);
+                    await ResizeAsync(window, 1400);
+
+                    media.ApplyLayout(media.PageLayout with { PanelSide = MediaPanelSide.Left }, save: false);
+                    tagging.ApplyPanelLayout();
+                    await ShowEntryAsync(1, images[0]);
+                    await Program.WaitUntilAsync(() => panel.TranslatePoint(default, tagging)!.Value.X
+                        < PanelControl<Control>(tagging, "TaggingListArea").TranslatePoint(default, tagging)!.Value.X);
+                    Program.CaptureWindow(window, "panel-left.png", folder);
+                    media.ApplyLayout(media.PageLayout with { PanelSide = MediaPanelSide.Right }, save: false);
+                    tagging.ApplyPanelLayout();
+
+                    // A range is selected with the real list key while the panel follows the third result.
+                    await ShowEntryAsync(1, images[0]);
+                    await input.ChordAsync(MediaNativeInput.Down, MediaNativeInput.ShiftLeft);
+                    await input.ChordAsync(MediaNativeInput.Down, MediaNativeInput.ShiftLeft);
+                    var list = PanelControl<ListBox>(tagging, "tagging.list");
+                    await Program.WaitUntilAsync(() => list.SelectedItems?.Count == 3);
+                    await WaitForPictureAsync(images[2]);
+                    Program.CaptureWindow(window, "multi-select-3.png", folder);
+
+                    await ShowEntryAsync(1, images[0]);
+                    ReaderMediaPreferences preferences = ReaderMediaPreferences.From(session.Config);
+                    foreach (string mode in new[] { "Auto", "Always", "Off" })
+                    {
+                        tagging.ConfigurePanelInfo(preferences with { MediaSidebarInfo = mode, MediaSidebarFacts = true });
+                        await WaitForPictureAsync(images[0]);
+                        // Variant A: "Off" folds the facts only; the bar with stars and tags stays.
+                        await Program.WaitUntilAsync(() => FactArea().IsEffectivelyVisible == (mode != "Off")
+                            && PanelControl<Control>(tagging, "ReaderMediaSidebarInfoBar").IsEffectivelyVisible);
+                        Program.CaptureWindow(window, $"info-{mode.ToLowerInvariant()}.png", folder);
+                    }
+
+                    tagging.ConfigurePanelInfo(preferences with { MediaSidebarInfo = "Always", MediaSidebarFacts = true });
+                    Button editor = PanelControl<Button>(panel, "ReaderMediaSidebarEditTags");
+                    await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.IsEffectivelyEnabled);
+                    await input.ClickButtonAsync(editor);
+                    await Program.WaitUntilAsync(() => Popup() is { IsEffectivelyVisible: true });
+                    Control popover = Popup()!;
+                    using (RenderTargetBitmap screenshot = new(new PixelSize((int)Math.Ceiling(popover.Bounds.Width),
+                        (int)Math.Ceiling(popover.Bounds.Height)), new Vector(96, 96)))
+                    {
+                        screenshot.Render(popover);
+                        screenshot.Save(Path.Combine(folder, "tag-popover-from-panel.png"), PngBitmapEncoderOptions.Default);
+                    }
+                    await input.KeyAsync(MediaNativeInput.Escape);
+                    await Program.WaitUntilAsync(() => Popup() == null);
+
+                    await ShowEntryAsync(4, video);
+                    Image poster = PanelControl<Image>(panel, "ReaderMediaSidebarPicture");
+                    Require(PanelControl<Control>(panel, "ReaderMediaSidebarPlay").IsEffectivelyVisible
+                        && !PanelControl<Control>(panel, "ReaderMediaSidebarVideoRow").IsEffectivelyVisible,
+                        "The tagging sidebar must show a video poster without inline playback.");
+                    Program.CaptureWindow(window, "video-poster.png", folder);
+                    await input.ClickAsync(poster);
+                    ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
+                    await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.Content is GalleryViewer viewer
+                        && viewer.CaptureState().PostId == video.PostId && window.GalleryTagging == null);
+                    GalleryViewerChecksAccess.Click((GalleryViewer)gallery.Content!, "GalleryClose");
+                    await window.GalleryCleanupTask.WaitAsync(TimeSpan.FromSeconds(15));
+
+                    await ReplaceQueueAsync([]);
+                    await Program.WaitUntilAsync(() => !poster.IsEffectivelyVisible && poster.Source == null
+                        && !PanelControl<Button>(panel, "ReaderMediaSidebarOpen").IsEffectivelyEnabled);
+                    Program.CaptureWindow(window, "empty-queue.png", folder);
+                    await ReplaceQueueAsync(items);
+                }
+
+                await ShowEntryAsync(1, images[0]);
+                await input.ClickButtonAsync(PanelControl<Button>(panel, "ReaderMediaSidebarClose"));
+                await Program.WaitUntilAsync(() => !panel.IsEffectivelyVisible
+                    && PanelControl<ListBox>(tagging, "tagging.list").IsKeyboardFocusWithin
+                    && !Config.LoadConfig(session.ProfileDirectory).TaggingPagePanel);
+            }
+            finally
+            {
+                media.ApplyLayout(originalLayout, save: false);
+                await session.SaveViewPreferencesAsync(config => config.MediaLayout = before.MediaLayout);
+            }
+        }
+        finally
+        {
+            await session.SaveViewPreferencesAsync(config =>
+            {
+                config.TaggingPagePanel = before.TaggingPagePanel;
+                config.MediaSidebarFacts = before.MediaSidebarFacts;
+                config.MediaSidebarAutoHide = before.MediaSidebarAutoHide;
+            });
+            tagging.RestorePanelEnabled(before.TaggingPagePanel);
+            tagging.ConfigurePanelInfo(ReaderMediaPreferences.From(before));
+            tagging.SetViewMode(oldView, save: false);
+            await SetThemeAsync(window, before.Theme);
+            await FooterNavigationChecks.PersistLanguageAsync(window, language);
+            await ReopenAsync(window, tagging);
+            if (double.IsFinite(oldWidth)) await ResizeAsync(window, oldWidth);
+        }
+
+        async Task CheckSharedSidebarSettingsAsync(MediaPage media, Control panel)
+        {
+            await ShowEntryAsync(1, images[0]);
+            bool facts = !session.Config.MediaSidebarFacts;
+            bool autohide = !session.Config.MediaSidebarAutoHide;
+            await input.ChordAsync('i', MediaNativeInput.ShiftLeft);
+            await Program.WaitUntilAsync(() => session.Config.MediaSidebarFacts == facts,
+                () => "Shift+I did not persist the Tagging sidebar facts.");
+            Button settings = PanelControl<Button>(panel, "ReaderMediaSidebarSettings");
+            await input.ClickButtonAsync(settings);
+            MenuItem? autohideChoice = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                autohideChoice = PanelControlOrDefault<MenuItem>(window, "ReaderMediaSidebarSettingsAutoHide");
+                return autohideChoice is { IsEffectivelyVisible: true };
+            });
+            await input.ClickAsync(autohideChoice!);
+            await Program.WaitUntilAsync(() => session.Config.MediaSidebarAutoHide == autohide,
+                () => "The Tagging sidebar gear did not persist Autohide.");
+
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Media);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Media);
+            media.ApplyLayout(media.PageLayout with { Panel = true }, save: false);
+            await media.FocusExactEntryAsync(entry => entry.AssetId == images[0].AssetId, "Sidebar fixture missing");
+            await Program.WaitUntilAsync(() => PanelControlOrDefault<ToggleButton>(media, "ReaderMediaSidebarInfoToggle")
+                is { IsEffectivelyVisible: true } info && info.IsChecked == facts);
+            Control mediaPanel = PanelControl<Control>(media, "MediaPanel");
+            Button mediaSettings = PanelControl<Button>(mediaPanel, "ReaderMediaSidebarSettings");
+            await input.ClickButtonAsync(mediaSettings);
+            await Program.WaitUntilAsync(() => window.OpenedPopups.SelectMany(popup =>
+                    popup.Child?.GetSelfAndVisualDescendants().OfType<MenuItem>() ?? [])
+                .Any(item => Equals(item.Tag, "autoHide") && item.IsChecked == autohide));
+            await input.KeyAsync(MediaNativeInput.Escape);
+
+            Config reopened = Config.LoadConfig(session.ProfileDirectory);
+            Require(reopened.MediaSidebarFacts == facts && reopened.MediaSidebarAutoHide == autohide,
+                "The Tagging sidebar settings did not survive reopening the saved profile.");
+            await ReopenAsync(window, tagging);
+        }
+
+        async Task ReplaceQueueAsync(TagQueueItem[] entries)
+        {
+            await session.ClearTagQueueAsync();
+            if (entries.Length != 0) await session.EnqueueTagQueueAsync(entries);
+            await ReopenAsync(window, tagging);
+            await Program.WaitUntilAsync(() => tagging.Rows.Count == entries.Length);
+        }
+
+        async Task ShowEntryAsync(int number, MediaLibraryEntry entry)
+        {
+            await Program.WaitUntilAsync(() => PanelControlOrDefault<ListBoxItem>(tagging, "TaggingListEntry" + number)
+                is { IsEffectivelyVisible: true });
+            await input.ClickAsync(PanelControl<ListBoxItem>(tagging, "TaggingListEntry" + number));
+            await WaitForPictureAsync(entry);
+        }
+
+        Task WaitForPictureAsync(MediaLibraryEntry entry) => Program.WaitUntilAsync(() =>
+        {
+            Control? host = PanelControlOrDefault<Control>(tagging, "TaggingPanel");
+            return entry.Name is { } name && host is { IsEffectivelyVisible: true }
+                && PanelControlOrDefault<Image>(host, "ReaderMediaSidebarPicture") is { IsEffectivelyVisible: true, Source: not null }
+                && PanelControlOrDefault<TextBlock>(host, "ReaderMediaSidebarMeta") is { IsEffectivelyVisible: true } meta
+                && meta.Text?.Contains(name, StringComparison.Ordinal) == true;
+        });
+
+        Control? Popup() => PanelControlOrDefault<Control>(window, "TaggingTagPopoverFrame");
+        Control FactArea() => PanelControl<Control>(tagging, "ReaderMediaSidebarFacts");
+    }
+
+    private static T PanelControl<T>(Control root, string id) where T : Control =>
+        PanelControlOrDefault<T>(root, id) ?? throw new InvalidOperationException("Missing sidebar automation target " + id);
+
+    private static T? PanelControlOrDefault<T>(Control root, string id) where T : Control
+    {
+        IEnumerable<Control> controls = root.GetSelfAndVisualDescendants().OfType<Control>();
+        if (root is TopLevel top)
+            controls = controls.Concat(top.OpenedPopups.SelectMany(popup =>
+                popup.Child?.GetSelfAndVisualDescendants().OfType<Control>() ?? []));
+        return controls.OfType<T>().FirstOrDefault(control =>
+            (AutomationProperties.GetAutomationId(control) is { Length: > 0 } automationId
+                ? automationId : ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId()) == id);
     }
 
     // UX-LEDGER-08: exercise the real selection model and rendered containers. Source-text checks alone
@@ -991,6 +1376,17 @@ internal static class TaggingPageChecks
 
     private static void Press(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
         target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+
+    private static bool QueueRowHasFocus(MainWindow window, TaggingPage tagging) =>
+        tagging.ShownList.IsKeyboardFocusWithin && window.FocusManager?.GetFocusedElement() is Control { DataContext: TaggingQueueRow };
+
+    private static void PressStampShortcut(TaggingPage tagging, MainWindow window)
+    {
+        tagging.FocusContent();
+        Control source = (Control)window.FocusManager!.GetFocusedElement()!;
+        KeyGesture gesture = CommandBindings.Gesture(TaggingPage.StampCommandId)!;
+        Press(source, gesture.Key, gesture.KeyModifiers);
+    }
 
     private static void PressSpace(Control control, KeyModifiers modifiers = KeyModifiers.None)
     {

@@ -59,9 +59,9 @@ public sealed class TaggingPageMenuTests : IDisposable
         TagQueueSnapshot queue = Queue(Item(1), Item(2), Item(3));
         ContextMenuModel model = TaggingQueueMenu.Compose(Context(queue, [1]), id => () => { }).ToModel();
         Assert.Equal(["tagging.continue-here", "media.tags.edit", "tagging.tag-together", "tags.quick.stamp-apply", "tagging.mark-done", "tagging.mark-open",
-            "tagging.mark-skipped", "tagging.group.menu", "gallery.open", "gallery.show-in-thread", "tagging.show-in-media", "media.show-in-folder", "media.copy-path",
+            "tagging.mark-skipped", "tagging.group.menu", "gallery.open", "gallery.show-in-thread", "tagging.show-in-media", "media.show-in-folder", "media.copy-path", "media.copy-file-name",
             "tagging.move-up", "tagging.move-down", "tagging.move-first", "tagging.move-last", "tagging.remove"], model.Entries.Select(entry => entry.Id));
-        Assert.Equal(6, model.Sections.Count);
+        Assert.Equal(7, model.Sections.Count);
         Assert.Empty(model.OversizedSections);
         // The group submenu follows state changes; the destructive entry still stands alone and last.
         Assert.Equal(["tagging.group.menu"], model.Sections[2].Select(entry => entry.Id));

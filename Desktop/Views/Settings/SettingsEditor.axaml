@@ -159,6 +159,31 @@
                     </Border>
                     <Expander x:Name="SettingsInterfaceMoreGroup" wv:WorkViewElement.Id="settings.group.interface-more" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,0">
                         <StackPanel x:Name="SettingsInterfaceMoreBody" Spacing="0" Margin="0,8,0,0">
+                    <TextBlock Text="{Binding FooterDisplaysLabel}" Classes="workspace-field-label settings-subheading" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" VerticalAlignment="Center">
+                                <TextBlock x:Name="ShowFooterNetworkFieldLabel" Text="{Binding FooterNetworkLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="ShowFooterNetworkInput" IsChecked="{Binding ShowFooterNetwork, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterNetworkLabel}" AutomationProperties.HelpText="{Binding FooterNetworkHint}" ToolTip.Tip="{Binding FooterNetworkHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterNetworkFieldLabel}" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" VerticalAlignment="Center">
+                                <TextBlock x:Name="ShowFooterDiskFieldLabel" Text="{Binding FooterDiskLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="ShowFooterDiskInput" IsChecked="{Binding ShowFooterDisk, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterDiskLabel}" AutomationProperties.HelpText="{Binding FooterDiskHint}" ToolTip.Tip="{Binding FooterDiskHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterDiskFieldLabel}" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" VerticalAlignment="Center">
+                                <TextBlock x:Name="ShowFooterStatusFieldLabel" Text="{Binding FooterStatusLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="ShowFooterStatusInput" IsChecked="{Binding ShowFooterStatus, Mode=TwoWay}" AutomationProperties.Name="{Binding FooterStatusLabel}" AutomationProperties.HelpText="{Binding FooterStatusHint}" ToolTip.Tip="{Binding FooterStatusHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ShowFooterStatusFieldLabel}" />
+                        </Grid>
+                    </Border>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
@@ -204,7 +229,9 @@
                                 <TextBlock x:Name="HeaderTaglineFixedFieldLabel" Text="{Binding HeaderTaglineFixedLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding HeaderTaglineFixedHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ComboBox x:Name="HeaderTaglineFixedIdInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFixedFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineFixedLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineFixedHint}" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeaderTaglineFixedChoices}" SelectedItem="{Binding SelectedHeaderTaglineFixed, Mode=TwoWay}">
+                            <ComboBox x:Name="HeaderTaglineFixedIdInput" VerticalAlignment="Center" AutomationProperties.AutomationId="HeaderTaglineFixedIdInput" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFixedFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineFixedLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineFixedHint}" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeaderTaglineFixedChoices}" SelectedItem="{Binding SelectedHeaderTaglineFixed, Mode=TwoWay}">
+                                <!-- The finite built-in list has variable-height headings and wrapped quips. Keep every choice addressable while the popup is open. -->
+                                <ComboBox.ItemsPanel><ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate></ComboBox.ItemsPanel>
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
                         </Grid>
@@ -373,18 +400,6 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <TextBlock x:Name="ReaderPageSizeFieldLabel" Text="{Binding ReaderPageSizeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding ReaderPageSizeHint}" Classes="workspace-help" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <desktop:SettingsNumberInput x:Name="ReaderPageSizeInput" Value="{Binding ReaderPageSize, Mode=TwoWay}" Minimum="{Binding ReaderPageSizeMinimum}" Maximum="{Binding ReaderPageSizeMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPageSizeFieldLabel}" AutomationProperties.Name="{Binding ReaderPageSizeLabel}" AutomationProperties.HelpText="{Binding ReaderPageSizeHelp}" />
-                                        <TextBlock x:Name="ReaderPageSizeInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                            <Border Classes="settings-divider">
-                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <TextBlock x:Name="ReaderThreadingDepthFieldLabel" Text="{Binding ReaderThreadingDepthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderThreadingDepthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
@@ -439,6 +454,18 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ReaderFocusedPostTopPaddingPercentFieldLabel" Text="{Binding ReaderFocusedPostTopPaddingPercentLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ReaderFocusedPostTopPaddingPercentHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderFocusedPostTopPaddingPercentInput" AutomationProperties.AutomationId="ReaderFocusedPostTopPaddingPercentInput" Value="{Binding ReaderFocusedPostTopPaddingPercent, Mode=TwoWay}" Minimum="{Binding ReaderFocusedPostTopPaddingPercentMinimum}" Maximum="{Binding ReaderFocusedPostTopPaddingPercentMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderFocusedPostTopPaddingPercentFieldLabel}" AutomationProperties.Name="{Binding ReaderFocusedPostTopPaddingPercentLabel}" AutomationProperties.HelpText="{Binding ReaderFocusedPostTopPaddingPercentHelp}" />
+                                        <TextBlock x:Name="ReaderFocusedPostTopPaddingPercentInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <TextBlock x:Name="ReaderHoverEnlargeFieldLabel" Text="{Binding ReaderHoverEnlargeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderHoverEnlargeHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
@@ -485,6 +512,17 @@
                                         <TextBlock Text="{Binding ReaderMediaSidebarScopeHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <ComboBox x:Name="ReaderMediaSidebarScopeInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderMediaSidebarScopeChoices}" SelectedItem="{Binding SelectedReaderMediaSidebarScope, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaSidebarScopeFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaSidebarScopeLabel}" AutomationProperties.HelpText="{Binding ReaderMediaSidebarScopeHint}">
+                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                        <TextBlock x:Name="MediaSidebarInfoFieldLabel" Text="{Binding MediaSidebarInfoLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding MediaSidebarInfoHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="MediaSidebarInfoInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding MediaSidebarInfoChoices}" SelectedItem="{Binding SelectedMediaSidebarInfo, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoHint}">
                                     <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                                 </ComboBox>
                                 </Grid>
@@ -619,6 +657,18 @@
                                     <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderInlineVideoMaxFileMiBInput" Value="{Binding ReaderInlineVideoMaxFileMiB, Mode=TwoWay}" Minimum="{Binding ReaderInlineVideoMaxFileMiBMinimum}" Maximum="{Binding ReaderInlineVideoMaxFileMiBMaximum}" Increment="64" AutomationProperties.LabeledBy="{Binding ElementName=ReaderInlineVideoMaxFileMiBFieldLabel}" AutomationProperties.Name="{Binding ReaderInlineVideoMaxFileMiBLabel}" AutomationProperties.HelpText="{Binding ReaderInlineVideoMaxFileMiBHelp}" />
                                         <TextBlock x:Name="ReaderInlineVideoMaxFileMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="SidebarPreviewMaximumPixelsFieldLabel" Text="{Binding SidebarPreviewMaximumPixelsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding SidebarPreviewMaximumPixelsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="SidebarPreviewMaximumPixelsInput" Value="{Binding SidebarPreviewMaximumPixels, Mode=TwoWay}" Minimum="{Binding SidebarPreviewMaximumPixelsMinimum}" Maximum="{Binding SidebarPreviewMaximumPixelsMaximum}" Increment="1000000" AutomationProperties.LabeledBy="{Binding ElementName=SidebarPreviewMaximumPixelsFieldLabel}" AutomationProperties.Name="{Binding SidebarPreviewMaximumPixelsLabel}" AutomationProperties.HelpText="{Binding SidebarPreviewMaximumPixelsHelp}" />
+                                        <TextBlock x:Name="SidebarPreviewMaximumPixelsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -1097,17 +1147,6 @@
                                 <TextBlock Text="{Binding MediaFocusHidesHeaderHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <ToggleSwitch x:Name="MediaFocusHidesHeaderInput" IsChecked="{Binding MediaFocusHidesHeader, Mode=TwoWay}" AutomationProperties.Name="{Binding MediaFocusHidesHeaderLabel}" AutomationProperties.HelpText="{Binding MediaFocusHidesHeaderHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=MediaFocusHidesHeaderFieldLabel}" />
-                        </Grid>
-                    </Border>
-                    <Border Classes="settings-divider">
-                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                <TextBlock x:Name="BooruNewSearchTargetFieldLabel" Text="{Binding BooruNewSearchTargetLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding BooruNewSearchTargetHint}" Classes="workspace-help" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ComboBox x:Name="BooruNewSearchTargetInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding BooruSearchTargetChoices}" SelectedItem="{Binding SelectedBooruNewSearchTarget, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=BooruNewSearchTargetFieldLabel}" AutomationProperties.Name="{Binding BooruNewSearchTargetLabel}" AutomationProperties.HelpText="{Binding BooruNewSearchTargetHint}">
-                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
-                            </ComboBox>
                         </Grid>
                     </Border>
                     <Border Classes="settings-divider">
@@ -1667,6 +1706,10 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+                    <StackPanel x:Name="BooruListBasicFields" />
+                    <Expander x:Name="BooruListAdvanced" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <StackPanel x:Name="BooruListAdvancedFields" />
+                    </Expander>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">

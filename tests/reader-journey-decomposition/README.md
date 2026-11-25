@@ -9,7 +9,7 @@ These are GUI journey definitions, not claims of native acceptance from contract
 | Required independent registry ID | Original coverage | Current execution |
 | --- | --- | --- |
 | `reader-navigation` | 174–211 (plus existing 212–216 scoped return) | Original Downloads-first setup/export sizing, wide geometry, real Archive query, favorites/footer/filter/list-width/poster checks, real reader open/icons/favorites/interaction/ideas/navigation-overlay matrix; returns before all following groups. |
-| `reader-owned-navigation` | 217–248 | `RunJourneyAsync` real query/open → `CheckOwnedNavigationAsync`: loaded large preview and overlay ownership, export inside reader, post-page Down/Up, thread Left/Right and frozen query's 1049→1050→1051 end/no-wrap, reset to Hero/post1000 and await media. |
+| `reader-owned-navigation` | 217–248 | `RunJourneyAsync` real query/open → `CheckOwnedNavigationAsync`: loaded large preview and overlay ownership, export inside reader, Down/Up across posts 1049/1050 and the same continuous list after Down, thread Left/Right and frozen query's 1049→1050→1051 end/no-wrap, reset to Hero/post1000 and await media. |
 | `reader-gallery-roundtrip` | 249–319 | `RunJourneyAsync` real query/open → `CheckGalleryRoundtripAsync`: post1000 attachment button, real gallery bitmap, captions/window/small-overlay chrome, next to1003, zoom/drag/Fit matrix, association key ownership, Read Post→gallery return retaining viewer+zoom, close→reader focus/visible post after preview loading, unassigned asset retains anchor+selection+focus, then 24 Tab containment checks and actual reader close/ownership+embedded margins **after both gallery returns**. |
 | `reader-list-gallery-return` | 320–425 | `RunJourneyAsync` real query/open/actual reader-close button → `CheckListGalleryReturnAsync`: actual Next Threads to second page (2 results), actual result toolbar/overflow hit target and focus, Enter down/up invokes exactly one click, overflow closes, gallery→Read Post→return→close, exact query/page retention and real toolbar-or-More return focus. |
 | `reader-returns` | 426 | Existing `ReaderReturnChecks.RunAsync`, independently selected. |
@@ -71,10 +71,13 @@ roots. Helper coverage details: `tests/test_gif_gui_isolation.py` and
 
 `ReaderJourneyIsolationTests` checks exact invocation/selector exclusion, independent
 root bindings and fixture gates, early-return ordering, required outer-scope bindings,
-real query/open setup, and SHA-256 equality of **every original statement** in all three
-217–425 journey blocks. Normalization removes only trailing line whitespace. This is an
-extraction guard: intentional future journey edits must update the documented baseline
-and hashes after review, not silently delete checks.
+real query/open setup, and SHA-256 equality of every statement in the three reviewed
+journey bodies. The two gallery bodies retain the original statements from lines 249–425.
+For owned navigation, `8be37b24a` replaced the assertion that Down starts a new post page
+with an assertion that it preserves the continuous list. Down and Up still verify the
+selected posts on both sides of the former page boundary. Normalization removes only
+trailing line whitespace. Intentional journey edits must update the documented baseline
+and hashes after review.
 
 `SmokeScenariosTests.EveryRegisteredScenarioHasAReachableEntryPoint` also recognizes the
 registry-driven reader selector read, requiring both the Program dispatch hook and the

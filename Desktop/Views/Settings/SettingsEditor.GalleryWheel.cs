@@ -20,15 +20,15 @@ public partial class SettingsEditor
     public SettingsChoice? SelectedGalleryWheelMode { get => _selectedGalleryWheelMode; set => SetField(ref _selectedGalleryWheelMode, value, nameof(SelectedGalleryWheelMode)); }
 
     public string GalleryWheelModeLabel => Texts.T("settings.galleryWheel");
-    public string GalleryWheelModeHint => Texts.T("settings.galleryWheel.hint");
+    public string GalleryWheelModeHint => GalleryWheelCatalog.Text("settings.galleryWheel.hint");
 
     /// <summary>Rebuilds the localized choices (Zoom / Browse) and selects <paramref name="mode"/>.</summary>
     private void RefreshGalleryWheelModeChoices(string mode)
     {
         GalleryWheelModeChoices = new SettingsChoice[]
         {
-            new(Config.GalleryWheelModeZoom, Texts.T("settings.galleryWheel.zoom")),
-            new(Config.GalleryWheelModeBrowse, Texts.T("settings.galleryWheel.browse")),
+            new(Config.GalleryWheelModeZoom, GalleryWheelCatalog.Text("settings.galleryWheel.zoom")),
+            new(Config.GalleryWheelModeBrowse, GalleryWheelCatalog.Text("settings.galleryWheel.browse")),
         };
         Raise(new[] { nameof(GalleryWheelModeChoices) });
         SelectedGalleryWheelMode = GalleryWheelModeChoices.FirstOrDefault(item => item.Value == mode) ?? GalleryWheelModeChoices[0];

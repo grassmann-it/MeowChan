@@ -2,8 +2,14 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
+using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.LogicalTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
@@ -24,7 +30,6 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderPreviewDelayMs), "settings.reader.previewDelay", nameof(SettingsEditor.ReaderPreviewDelayMsMinimum), nameof(SettingsEditor.ReaderPreviewDelayMsMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderReplyStep), "settings.reader.replyStep", nameof(SettingsEditor.ReaderReplyStepMinimum), nameof(SettingsEditor.ReaderReplyStepMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderReplyLines), "settings.reader.replyLines", nameof(SettingsEditor.ReaderReplyLinesMinimum), nameof(SettingsEditor.ReaderReplyLinesMaximum), "SettingsReadingMediaPage"),
-        (nameof(Config.ReaderPageSize), "settings.reader.pageSize", nameof(SettingsEditor.ReaderPageSizeMinimum), nameof(SettingsEditor.ReaderPageSizeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderThreadingDepth), "settings.reader.threadingDepth", nameof(SettingsEditor.ReaderThreadingDepthMinimum), nameof(SettingsEditor.ReaderThreadingDepthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReadingHistoryLimit), "settings.reader.historyLimit", nameof(SettingsEditor.ReadingHistoryLimitMinimum), nameof(SettingsEditor.ReadingHistoryLimitMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReadingHistoryMenuEntries), "settings.reader.historyMenuEntries", nameof(SettingsEditor.ReadingHistoryMenuEntriesMinimum), nameof(SettingsEditor.ReadingHistoryMenuEntriesMaximum), "SettingsReadingMediaPage"),
@@ -126,7 +131,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
     {
         SettingsEditor editor = CreateValidDraft();
         var draft = typeof(SettingsEditor).GetProperty(name)!;
-        var persisted = typeof(Config).GetProperty(name)!;
+        var persisted = ReaderSettingsPersistenceTests.ConfigNumber(name);
         Assert.Equal((decimal)fallback, draft.GetValue(editor));
         foreach (int number in new[] { min, max })
         {
@@ -266,7 +271,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            typeof(Config).GetProperty(name)!.SetValue(saved, (int)row[2] + 1);
+            ReaderSettingsPersistenceTests.ConfigNumber(name).SetValue(saved, (int)row[2] + 1);
             GetInput(editor, name).Text = "rejected draft";
             typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, null);
         }
@@ -400,6 +405,73 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Assert.Equal("unfinished draft", GetInput(editor, nameof(Config.ReaderFoldLines)).Text);
     }
 
+    [Fact]
+    public void RetiredMinimumFreeHeightIsAbsentFromSettingsAndReaderQuickOptions() => BooruComponentDispatcher.Run(() =>
+    {
+        // Fable #3: remove the free-height control from both surfaces, keeping the facts setting.
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Config config = new() { ReaderMediaSidebar = true };
+        using SettingsEditor editor = new(config, applySettings: _ => Task.CompletedTask);
+        Assert.Contains(editor.GetLogicalDescendants().OfType<Control>(), control => AutomationId(control) == "MediaSidebarInfoInput");
+        Assert.DoesNotContain(editor.GetLogicalDescendants().OfType<Control>(), control => AutomationId(control) == "MediaSidebarInfoMinimumFreeInput");
+
+        ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
+        page.QuickSettingsHost = new QuickSettingsHost { CurrentConfig = () => config, SaveAsync = _ => Task.CompletedTask };
+        Window window = new() { Width = 1440, Height = 840, Content = page };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            page.OpenReaderQuickSettings();
+            QuickSettingsSurface surface = Assert.IsType<QuickSettingsPopover>(page.ReaderQuickSettings).Surface;
+            Assert.Contains(surface.Editors, row => AutomationId(row.Editor) == "ReaderQuickSettingsMediaSidebarInfo");
+            Assert.DoesNotContain(surface.Editors, row => AutomationId(row.Editor) == "ReaderQuickSettingsMediaSidebarInfoMinimumFree");
+        }
+        finally
+        {
+            page.EndLifetime();
+            window.Close();
+        }
+
+        static string? AutomationId(Control control) => ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId();
+    });
+
+    [Fact]
+    public void SavingTheSplitterWidthKeepsUncommittedInfoSettings() => ReaderMediaSidebarLayoutTests.OnDispatcher(() =>
+    {
+        SettingsEditor editor = CreateValidDraft();
+        Config saved = Get<Config>(editor, "_config");
+        saved.ReaderMediaSidebar = true;
+        saved.ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways;
+        saved.ReaderMediaSidebarMinimumWidth = Config.ReaderMediaSidebarMinimumWidthMinimum;
+        saved.ReaderMediaSidebarWidth = 320;
+        editor.SelectedMediaSidebarInfo = new SettingsChoice("Off", "Off");
+        ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
+        try
+        {
+            page.SaveReaderMediaSwitches = (change, fields) =>
+            {
+                change(saved);
+                editor.RefreshConfirmedSettings(fields);
+                return Task.CompletedTask;
+            };
+            page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(saved));
+            Grid root = page.FindControl<Grid>("ArchiveRoot")!;
+            Size size = new(1600, 800);
+            ReaderMediaSidebarLayoutTests.Layout(root, size);
+            ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+            Grid host = Assert.IsType<Grid>(sidebar.Parent);
+            GridSplitter splitter = Assert.Single(host.Children.OfType<GridSplitter>(), control => control.Name == "ReaderMediaSidebarSplitter");
+            host.ColumnDefinitions[Grid.GetColumn(sidebar)].Width = new GridLength(380);
+            ReaderMediaSidebarLayoutTests.Layout(root, size);
+            splitter.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Right });
+            Assert.Equal(380, saved.ReaderMediaSidebarWidth);
+            Assert.Equal(380m, editor.ReaderMediaSidebarWidth);
+            Assert.Equal("Off", editor.SelectedMediaSidebarInfo!.Value);
+        }
+        finally { page.EndLifetime(); }
+    });
+
     private static string DraftValue(SettingsEditor editor, string id)
     {
         PropertyInfo property = typeof(SettingsEditor).GetProperty(id) ?? typeof(SettingsEditor).GetProperty("Selected" + id)!;
@@ -421,7 +493,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            int value = (int)typeof(Config).GetProperty(name)!.GetValue(desired)!;
+            int value = (int)ReaderSettingsPersistenceTests.ConfigNumber(name).GetValue(desired)!;
             typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)value);
             GetInput(editor, name).Value = value;
             GetInput(editor, name).Text = value.ToString(CultureInfo.InvariantCulture);
@@ -440,7 +512,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            int value = (int)typeof(Config).GetProperty(name)!.GetValue(defaults)!;
+            int value = (int)ReaderSettingsPersistenceTests.ConfigNumber(name).GetValue(defaults)!;
             typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)value);
             Set(editor, name + "Input", new SettingsNumberInput
             {

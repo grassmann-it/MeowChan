@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
@@ -9,6 +10,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Rendering;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -123,7 +125,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     });
 
     [Fact]
-    public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible() => BooruComponentDispatcher.Run(() =>
+    public void TheSidebarsCrossIsVisibleAndClickableWithOrWithoutHover() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ReaderMediaSidebar sidebar = new();
@@ -135,8 +137,8 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             window.PlatformImpl!.Activated?.Invoke();
             Dispatcher.UIThread.RunJobs();
             Assert.True(sidebar.Bounds.Width > 0);
-            Assert.Equal(0, sidebar.Close.Opacity);
-            Assert.False(sidebar.Close.IsHitTestVisible);
+            Assert.Equal(1, sidebar.Close.Opacity);
+            Assert.True(sidebar.Close.IsHitTestVisible);
 
             Point inside = sidebar.TranslatePoint(new Point(sidebar.Bounds.Width / 2, 20), window)!.Value;
             window.MouseMove(inside);
@@ -146,115 +148,161 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
 
             window.MouseMove(new Point(window.ClientSize.Width - 1, inside.Y));
             Dispatcher.UIThread.RunJobs();
-            Assert.Equal(0, sidebar.Close.Opacity);
-            Assert.False(sidebar.Close.IsHitTestVisible);
+            Assert.Equal(1, sidebar.Close.Opacity);
+            Assert.True(sidebar.Close.IsHitTestVisible);
         }
         finally { window.Close(); }
     });
 
     [Fact]
-    public void TheHeadersPostNumberIsALinkWhenTheHostGaveItATipAndTheLineStaysWhole() => OnOwnDispatcher(() =>
+    public void TheHeaderNamesThePostOrFileAndKeepsTheFullAccessibleLine() => OnOwnDispatcher(() =>
     {
         ReaderMediaSidebar sidebar = new();
-        int clicks = 0;
-        sidebar.PostLinkClicked += (_, _) => clicks++;
-        sidebar.Describe("No. 75", "cat.png", "880 KiB", canOpen: true, postLinkTip: "Copy >>75");
-        Assert.True(sidebar.PostLink.IsVisible);
-        Assert.Equal("No. 75", sidebar.PostLink.Content);
-        Assert.Equal("Copy >>75", ToolTip.GetTip(sidebar.PostLink));
-        Assert.Equal("No. 75 · cat.png · 880 KiB", sidebar.HeaderLine); // smokes and the screen reader still read one line
-        Assert.Contains("link", sidebar.PostLink.Classes);
-        RoutedEventArgs click = new(Button.ClickEvent);
-        sidebar.PostLink.RaiseEvent(click);
-        Assert.Equal(1, clicks);
-        Assert.True(click.Handled); // the picture and the header are not activated by it
-
-        // A post without a medium: the number alone is still the link.
-        sidebar.Describe("No. 75", string.Empty, string.Empty, canOpen: false, postLinkTip: "Copy >>75");
-        Assert.True(sidebar.PostLink.IsVisible);
-        Assert.Equal("No. 75", sidebar.HeaderLine);
-
-        // The media page's panel gives no tip: its line is the plain text, as before.
-        sidebar.Describe("Post 12", "dog.png", "1 KiB", canOpen: true);
-        Assert.False(sidebar.PostLink.IsVisible);
-        Assert.Equal("Post 12 · dog.png · 1 KiB", sidebar.HeaderLine);
+        sidebar.Describe("No. 75", "cat.png", "880 KiB", canOpen: true);
+        Assert.Equal("No. 75", sidebar.Title.Text);
+        Assert.Equal(sidebar.Title.Text, ToolTip.GetTip(sidebar.Title));
+        Assert.Equal("No. 75 · cat.png · 880 KiB", sidebar.HeaderLine);
+        sidebar.Describe("No. 75", string.Empty, string.Empty, canOpen: false);
+        Assert.Equal("No. 75", sidebar.Title.Text);
+        sidebar.Describe(string.Empty, "dog.png", "1 KiB", canOpen: true);
+        Assert.Equal("dog.png", sidebar.Title.Text);
         sidebar.ShowEmpty();
-        Assert.False(sidebar.PostLink.IsVisible);
+        Assert.Empty(sidebar.Title.Text!);
         Assert.Equal(Texts.T(sidebar.TitleKey), sidebar.HeaderLine);
     });
 
-    // The sidebar's medium has one favourite star: the header toggle. The picture's badges (Tom, 16.11.2026, the sweep's F2) no longer repeat it.
     private static WriteableBitmap Picture() => new(new PixelSize(8, 8), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
 
     [Fact]
-    public void TheSidebarsPictureDrawsNoFavouriteBadgeWhileTheHeaderStarShowsTheFavourite() => OnOwnDispatcher(() =>
+    public void TheSidebarsPictureDrawsNoFavouriteBadgeWhileTheHeaderStarShowsTheFavourite() => BooruComponentDispatcher.Run(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         ReaderMediaSidebar sidebar = new();
+        var star = SidePanelDesignTests.ById<ArchiveFavoriteButton>(sidebar, "ReaderMediaSidebarFavorite");
+        var header = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarHeaderRow");
+        var badges = SidePanelDesignTests.ById<MediaBadgeView>(sidebar, "ReaderMediaSidebarBadges");
+        var play = SidePanelDesignTests.ById<VideoPlayMarkView>(sidebar, "ReaderMediaSidebarPlay");
+        Window window = new() { Width = 320, Height = 820, Content = sidebar };
+        using RenderTargetBitmap videoPreview = new(new PixelSize(400, 300));
         bool favorite = true;
         sidebar.ConfigureFavorite(() => true, () => favorite, () => Task.CompletedTask);
-        sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
-        // The header star is the favourite's one mark ...
-        Assert.True(sidebar.FavoriteButton.IsVisible);
-        Assert.True(sidebar.FavoriteButton.IsChecked);
-        // ... and the picture carries only its kind, no favourite, in the state and in the placed badges.
-        Assert.False(sidebar.Badges.State.Favorite);
-        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Image), sidebar.Badges.State);
-        Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
-        // A video keeps its kind and is still no favourite badge; a refresh after the favourite changed does not bring one.
-        sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: true, double.PositiveInfinity, double.PositiveInfinity);
-        favorite = false; sidebar.RefreshFavorite(); favorite = true; sidebar.RefreshFavorite();
-        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), sidebar.Badges.State);
-        Assert.True(sidebar.FavoriteButton.IsChecked);
-        Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
-        // The accessible sentence of the badges does not name a favourite either (the header star carries that name).
-        Assert.DoesNotContain("Favorite", MediaBadgeSentences.Get(sidebar.Badges.State, sidebar.Badges.Options));
+        try
+        {
+            // W112-72, Fable §§1 and 3: “Favorit nur im Kopf”; variant A keeps the bars docked.
+            window.Show();
+            sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
+            Assert.True(star.IsVisible);
+            Assert.True(star.IsChecked);
+            Assert.False(play.IsVisible);
+            Assert.False(badges.State.Favorite);
+            Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Image), badges.State);
+            Assert.DoesNotContain(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+
+            sidebar.ShowPicture(videoPreview, _ => { }, playable: true, double.PositiveInfinity, double.PositiveInfinity);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            favorite = false;
+            sidebar.RefreshFavorite();
+            Assert.False(star.IsChecked);
+            favorite = true;
+            sidebar.RefreshFavorite();
+            // Overlay spec §5: “Solange der Kopf sichtbar ist, sind die Marken ausgeblendet.” The video has its own play mark.
+            Assert.True(header.IsEffectivelyVisible);
+            Assert.True(star.IsChecked);
+            Assert.True(play.IsEffectivelyVisible);
+            Assert.True(play.Bounds.Width > 0 && play.Bounds.Height > 0);
+            Assert.False(badges.IsVisible);
+            Assert.False(badges.State.Favorite);
+            Assert.DoesNotContain(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+
+            // Variant B §3: “Verborgen bleiben × und die Marken.” The fallback state keeps the video kind.
+            sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true });
+            long idle = Stopwatch.GetTimestamp() + 60 * Stopwatch.Frequency;
+            sidebar.ObserveIdle(idle);
+            sidebar.ObserveIdle(idle + Stopwatch.Frequency);
+            Assert.False(header.IsEffectivelyVisible);
+            Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), badges.State);
+            Assert.DoesNotContain(badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+            Assert.DoesNotContain("Favorite", MediaBadgeSentences.Get(badges.State, badges.Options));
+        }
+        finally { sidebar.ShowEmpty(); window.Close(); }
     });
 
     [Fact]
-    public void TheSidebarsHeaderStarStillTogglesTheFavouriteAndTheBadgesStayWithoutOne() => OnOwnDispatcher(() =>
+    public void OnlyTheSidebarHeaderTogglesTheFavourite() => OnOwnDispatcher(() =>
     {
         ReaderMediaSidebar sidebar = new();
         bool favorite = false;
         int writes = 0;
         sidebar.ConfigureFavorite(() => true, () => favorite, () => { writes++; favorite = !favorite; return Task.CompletedTask; });
         sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
-        Assert.True(sidebar.FavoriteButton.IsEnabled);
-        Assert.False(sidebar.FavoriteButton.IsChecked);
-        sidebar.FavoriteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var header = sidebar.FavoriteButton;
+        var detail = sidebar.DecisionRow.FavoriteButton;
+        Assert.NotSame(header, detail);
+        Assert.True(header.IsEnabled);
+        Assert.False(header.IsChecked);
+        Assert.False(detail.IsVisible);
+        header.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal((1, true), (writes, favorite));
-        Assert.True(sidebar.FavoriteButton.IsChecked);
+        Assert.True(header.IsChecked);
+        Assert.True(detail.IsChecked);
         Assert.False(sidebar.Badges.State.Favorite);
-        sidebar.FavoriteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        header.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal((2, false), (writes, favorite));
-        Assert.False(sidebar.FavoriteButton.IsChecked);
+        Assert.False(header.IsChecked);
+        Assert.False(detail.IsChecked);
         Assert.False(sidebar.Badges.State.Favorite);
-        // A medium without a star (nothing configured) shows no header star and still no badge.
         sidebar.ConfigureFavorite(null, null, null);
-        Assert.False(sidebar.FavoriteButton.IsVisible);
+        Assert.True(header.IsVisible);
+        Assert.False(header.IsEnabled);
+        Assert.False(detail.IsVisible);
         Assert.False(sidebar.Badges.State.Favorite);
+        sidebar.ReleasePicture();
     });
-
-    [Fact]
-    public void OnlyTheSidebarDropsTheFavouriteBadgeTheOtherSurfacesKeepTheirs()
-    {
-        // The state each other surface builds still resolves a favourite badge under its options (the gallery filmstrip, the Media page and the
-        // tagging tiles, the archive's saved-media tiles and the Media tab); the sidebar change is its own view's state, not the shared options.
-        MediaBadgeState favourite = new(Favorite: true);
-        foreach (MediaBadgeOptions options in new[] { MediaBadgeOptions.Filmstrip, MediaBadgeOptions.MediaPage, MediaBadgeOptions.TaggingGrid, MediaBadgeOptions.ArchiveTile, MediaBadgeOptions.Archive })
-            Assert.Contains(MediaBadgeModel.Resolve(favourite, options), badge => badge.Id == MediaBadgeId.Favorite);
-        // The sidebar's own state is never built with the flag.
-        string sidebar = Source("Desktop/Views/Archive/ReaderMediaSidebar.cs");
-        Assert.DoesNotContain("Favorite: favorite", sidebar);
-        Assert.Contains("_badges.Apply(new MediaBadgeState(Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);", sidebar);
-        // The header toggle is still wired into the sidebar and the Media page's panel.
-        Assert.Contains("if (row != null) _favorite.Configure(row);", sidebar);
-        Assert.Contains("panel.ConfigureFavorite(PanelFavoriteAvailable", Source("Desktop/Views/Media/MediaPage.Panel.cs"));
-    }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TheArchivePageWiresTheNumberLinkToTheSameCopyAsThePostsOwnNumber(bool hasMedia) => BooruComponentDispatcher.Run(() =>
+    public void OnlyTheSidebarDropsTheFavouriteBadgeTheOtherSurfacesKeepTheirs(bool docked) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        MediaBadgeState favourite = new(Favorite: true);
+        foreach (MediaBadgeOptions options in new[] { MediaBadgeOptions.Filmstrip, MediaBadgeOptions.MediaPage, MediaBadgeOptions.TaggingGrid, MediaBadgeOptions.ArchiveTile, MediaBadgeOptions.Archive })
+            Assert.Contains(MediaBadgeModel.Resolve(favourite, options), badge => badge.Id == MediaBadgeId.Favorite);
+
+        ReaderMediaSidebar sidebar = new();
+        sidebar.Describe("No. 7", "cat.png", "", true);
+        sidebar.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
+        sidebar.ConfigureRating(() => true, () => 3, _ => Task.CompletedTask);
+        sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = !docked });
+        Window window = new() { Width = 320, Height = 820, Content = sidebar };
+        try
+        {
+            window.Show();
+            using RenderTargetBitmap preview = new(new PixelSize(400, 300));
+            sidebar.ShowPicture(preview, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            // Tom 21:35: only explicit auto-hide conceals the stars and exposes the picture badge.
+            if (!docked)
+            {
+                long idle = System.Diagnostics.Stopwatch.GetTimestamp() + 60 * System.Diagnostics.Stopwatch.Frequency;
+                sidebar.ObserveIdle(idle);
+                sidebar.ObserveIdle(idle + System.Diagnostics.Stopwatch.Frequency);
+            }
+            Assert.Equal(docked, sidebar.IsVisualAncestorOf(sidebar.DecisionRow) && sidebar.DecisionRow.IsEffectivelyVisible);
+            Assert.Equal(true, sidebar.FavoriteButton.IsChecked);
+            Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
+            Assert.Equal(!docked, sidebar.Badges.Plan.Badges.Any(placed => placed.Badge.Id == MediaBadgeId.Rating));
+            sidebar.ReleasePicture();
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheSidebarNamesThePostAndItsCardKeepsTheCopyAction(bool hasMedia) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ArchivePage page = new();
@@ -274,16 +322,14 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             Control card = posts.ItemTemplate!.Build(post)!;
             card.DataContext = post;
             var number = Assert.Single(card.GetLogicalDescendants().OfType<Button>(), button => button.Classes.Contains("reader-post-number"));
-            Assert.True(sidebar.PostLink.IsVisible);
-            Assert.Equal(post.NumberLabel, sidebar.PostLink.Content);
-            Assert.Equal(ToolTip.GetTip(number), ToolTip.GetTip(sidebar.PostLink));
-            Assert.Equal(post.CopyNumberLabel, ToolTip.GetTip(sidebar.PostLink));
+            Assert.Equal(post.NumberLabel, sidebar.Title.Text);
+            Assert.Equal(post.NumberLabel, ToolTip.GetTip(sidebar.Title));
+            Assert.Equal(post.CopyNumberLabel, ToolTip.GetTip(number));
 
             List<string> copied = new();
             page.CopyPostReference = text => { copied.Add(text); return Task.CompletedTask; };
             number.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            sidebar.PostLink.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Assert.Equal(new[] { ">>75", ">>75" }, copied);
+            Assert.Equal(new[] { ">>75" }, copied);
         }
         finally { page.EndLifetime(); }
     });
@@ -525,7 +571,6 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         // The press no longer drops the flag on a Background tick (that came before Avalonia's release-time ContextRequested); the release does.
         Assert.DoesNotContain("Dispatcher.UIThread.Post", pressBody);
         Assert.Contains("_panelPointerContext.BeginPress(); // each press starts its own gesture", pressBody);
-        Assert.Contains("_panelPointerContext.MenuOpenedByPress();", pressBody);
         string releaseBody = panel[released..requested];
         Assert.Contains("_panelPointerContext.Released(e.InitialPressMouseButton)", releaseBody);
         Assert.Contains("panel.AddHandler(PointerReleasedEvent, OnPanelPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);", panel);

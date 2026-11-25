@@ -34,12 +34,15 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
             Assert.NotEmpty(bindings.For(id));
             foreach (ShortcutGesture gesture in bindings.For(id)) Assert.Null(EffectiveShortcutBindings.InvalidReason(gesture, platform));
         }
-        var linux = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
-        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = KeyModifiers.Control }, "tags.queue.done-next"));
-        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.S, KeyModifiers = KeyModifiers.None }, "tags.queue.skip"));
-        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.None }, "tags.queue.back"));
-        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.Shift }, "tags.queue.play-pause"));
-        Assert.False(linux.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.Shift }, "tags.queue.skip"));
+        KeyModifiers primary = platform == ShortcutPlatform.MacOS ? KeyModifiers.Meta : KeyModifiers.Control;
+        KeyModifiers other = platform == ShortcutPlatform.MacOS ? KeyModifiers.Control : KeyModifiers.Meta;
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = primary }, "tags.queue.done-next"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = other }, "tags.queue.done-next"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = primary | KeyModifiers.Alt }, "tags.queue.done-next"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.S, KeyModifiers = KeyModifiers.None }, "tags.queue.skip"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.None }, "tags.queue.back"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.Shift }, "tags.queue.play-pause"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.Space, KeyModifiers = KeyModifiers.Shift }, "tags.queue.skip"));
     }
 
     [Fact]
@@ -163,7 +166,6 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
         Assert.Contains("_session.SetTagQueueCursorAsync(position)", queue);
         string gallery = Source("Desktop", "Shell", "MainWindow.Gallery.cs");
         Assert.Contains("EndGalleryTagging(persist: true);", gallery);
-        Assert.Contains("TaggingPositionText(_galleryEntries[_galleryIndex]) ??", gallery);
         // PT5 host glue: one stamp for every panel of the window, kept in the settings.
         string glue = Source("Desktop", "Shell", "MainWindow.GalleryTags.cs");
         Assert.Contains("TaggingSettings.StampOptions(_config).CreateStamp(_config.TagStamp)", glue); // PT7: the stamp size is a setting

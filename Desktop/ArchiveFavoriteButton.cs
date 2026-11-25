@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -43,6 +44,17 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     private Func<bool>? _marked;
     private Func<Task>? _toggle;
     private bool _running;
+    // A reusable sidebar star shares the current medium's write state with its rating buttons.
+    internal Func<bool>? TargetSaving { get; set; }
+    private bool Saving => TargetSaving?.Invoke() ?? _running;
+    private string? _caption;
+    internal void SetCaption(string? caption)
+    {
+        if (_caption == caption) return;
+        _caption = caption;
+        Refresh();
+    }
+
     private Func<string?>? _errorSource;
     private Func<FavoriteStarHold>? _hold;
     private string? _error;
@@ -53,11 +65,14 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     /// The execution context whose keys the tooltip names (EffectiveShortcutBindings.ExecutionContexts): every star of this kind sits in the reader (a post's
     /// file line, the media sidebar, the Media tab's tiles), whose keys run in "reader".
     /// </summary>
-    internal string KeyContext { get; init; } = "reader";
+    internal string KeyContext { get; set; } = "reader";
 
     internal ArchiveFavoriteButton()
     {
         Name = "ArchiveMediaFavorite";
+        AutomationProperties.SetAutomationId(this, Name);
+        Focusable = false;
+        IsTabStop = false;
         Padding = new Avalonia.Thickness(8);
         CommandBindings.Apply(this, "favorites.toggle", iconOnly: true);
         // One tooltip source (Refresh): a rebinding re-runs Refresh instead of the catalog's "Add / remove favorite · F", which used to replace the
@@ -68,15 +83,25 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         Click += async (_, e) =>
         {
             e.Handled = true;
-            if (_running || _available?.Invoke() != true || _toggle == null) return;
+            if (Saving || _available?.Invoke() != true || _toggle is not { } toggle) return;
             _error = null;
             IsChecked = _marked?.Invoke() == true;
             _running = true; IsEnabled = false;
             Refresh(); // pending: disabled, named "… · saving" until the write returns
-            try { await _toggle(); }
-            catch (Exception error) { _error = error.Message; }
+            try { await toggle(); }
+            catch (Exception error)
+            {
+                if (TargetSaving == null || ReferenceEquals(toggle, _toggle)) _error = error.Message;
+            }
             finally { _running = false; Refresh(); }
         };
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        if (!e.Handled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            this.FindAncestorOfType<ListBoxItem>()?.Focus(NavigationMethod.Pointer);
+        base.OnPointerPressed(e);
     }
 
     internal void Configure(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null, Func<FavoriteStarHold>? hold = null)
@@ -132,13 +157,17 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         // Only a star that is off has a reason; an available one never asks (the callback belongs to the row's wiring, which may already be gone).
         FavoriteStarHold hold = state.Available ? FavoriteStarHold.None : _hold?.Invoke() ?? FavoriteStarHold.None;
         if (!state.Available || _errorSource != null) _error = state.Error;
-        IsEnabled = !_running && state.Available;
+        IsEnabled = !Saving && state.Available;
         IsChecked = marked;
-        // ★ filled when marked, ☆ outline otherwise: the same pair as the thread list and the gallery badge.
+        // A filled heart when marked, an outline otherwise: the same pair as the thread list and the gallery badge.
         Border star = MeowChan.Desktop.Controls.FavoriteStar.Create(marked, tinted: _error == null);
         // Dimmed while the saved copy is still being looked up, as the thread star is while its state loads.
         if (hold == FavoriteStarHold.Loading) star.Opacity = 0.5;
-        Content = star;
+        Content = _caption == null ? star : new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
+            Children = { star, new TextBlock { Text = _caption, VerticalAlignment = VerticalAlignment.Center } }
+        };
         // A failed write keeps the star in place: an error edge plus the reason in the tooltip, which
         // opens once for a new error, instead of a text block that pushes the card layout apart.
         bool failed = _error != null;
@@ -155,7 +184,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         // The name says what a click does; the tooltip adds the keys that do the same here (FavoriteKeys.Tooltip, one line). A write in flight
         // ("saving") and a medium that is not saved say so instead of the keys.
         string label = Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add");
-        string description = _error != null ? label + ": " + _error : _running ? label + " · " + Texts.T("gallery.saving")
+        string description = _error != null ? label + ": " + _error : Saving ? label + " · " + Texts.T("gallery.saving")
             : IsEnabled ? label : HoldText(hold);
         string tip = _error == null && IsEnabled ? FavoriteKeys.Tooltip(marked, KeyContext) : description;
         ToolTip.SetShowOnDisabled(this, true);

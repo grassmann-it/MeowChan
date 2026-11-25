@@ -27,6 +27,13 @@ internal static class MediaFileActions
     internal static bool CanOpenWithDefaultProgram(string? path) =>
         !string.IsNullOrWhiteSpace(path) && !Runnable.Contains(Path.GetExtension(path));
 
+    internal static string? DefaultProgramBlockedReason(string? path) =>
+        !Path.IsPathFullyQualified(path ?? string.Empty) || !File.Exists(path) ? MediaMenuReasons.NotSaved
+        : !CanOpenWithDefaultProgram(path) ? Texts.T("gallery.fileOnly.blocked") : null;
+
+    internal static string? FileName(string? name, string? path = null) =>
+        Path.GetFileName(string.IsNullOrWhiteSpace(name) ? path : name);
+
     /// <summary>"PDF file" for a plain extension; "file" when there is none or it is not a plain extension.</summary>
     internal static string TypeLabel(string? path)
     {

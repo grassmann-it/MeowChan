@@ -62,9 +62,16 @@ public sealed class TrayStatsModelTests : IDisposable
     [Theory]
     [InlineData("en")]
     [InlineData("de")]
+    [InlineData("cs")]
     [InlineData("es")]
     [InlineData("fr")]
+    [InlineData("it")]
+    [InlineData("ja")]
+    [InlineData("ko")]
+    [InlineData("pl")]
+    [InlineData("pt-BR")]
     [InlineData("ru")]
+    [InlineData("zh-Hans")]
     public void EveryStateInEveryLanguageFitsTheWindowsTooltipLimitAtTheWorstCase(string language)
     {
         Texts.SetLanguage(language);
@@ -123,10 +130,10 @@ public sealed class TrayStatsModelTests : IDisposable
     }
 
     [Fact]
-    public void TheLegacyTooltipOfTheTrayMenuModelIsUnchanged()
+    public void TheBasicTooltipUsesAMiddleDotInEachState()
     {
         Texts.SetLanguage("en");
-        Assert.Equal("MeowChan - Image Downloader", TrayMenuModel.Tooltip(false, 0));
+        Assert.Equal("MeowChan · Image Downloader", TrayMenuModel.Tooltip(false, 0));
         Assert.Equal("MeowChan · Active downloads: 2", TrayMenuModel.Tooltip(false, 2));
         Assert.Equal("MeowChan · paused", TrayMenuModel.Tooltip(true, 2));
     }

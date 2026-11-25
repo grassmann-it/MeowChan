@@ -110,7 +110,7 @@ internal static class ReaderNavigationOverlayChecks
                         "Secondary media capture lost its requested language or theme.");
                     await CheckSecondaryNavigationAsync(window, page);
                     CheckSecondaryMediaGeometry(window, page, tiles);
-                    string presentation = tiles ? "tiles" : "table";
+                    string presentation = tiles ? "grid" : "table";
                     Program.CaptureWindow(window, $"smoke-reader-navigation-secondary-media-{presentation}-barebones-640-{code}-{variant.ToString().ToLowerInvariant()}.png");
                 }
                 tabs.SelectedIndex = 2;
@@ -137,6 +137,7 @@ internal static class ReaderNavigationOverlayChecks
                 return hit != null && hit.GetSelfAndVisualAncestors().Contains(dialog);
             });
             page.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await CheckHistoryShortcutAsync(window, page, history);
         }
         catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
@@ -150,7 +151,7 @@ internal static class ReaderNavigationOverlayChecks
                 window.Width = width; window.Height = height;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
                 page.MediaTilesPreference = mediaTiles;
-                if (historyCreated)
+                if (historyCreated && page.CanGoHistoryBack)
                 {
                     history.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     await Program.WaitUntilAsync(() => !history.IsVisible
@@ -161,7 +162,32 @@ internal static class ReaderNavigationOverlayChecks
                 window.UpdateLayout();
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderNavigationOverlayChecks: " + exception));
         }
-        Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-width, full-height overlaid viewport, idle auto-hide and show-on-move, scrollbar/pagebar spacing, controlled toolbar wrapping with visible history label, the 40 dip navigation bar (arrow row, counters, compact form below 700 dip, whole-capsule hit-test, Auto/Always/Off) and adjacent centered pagination, four accessible commands, retained secondary tabs and dialog hit-test passed.");
+        Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-width, full-height overlaid viewport, idle auto-hide and show-on-move, scrollbar spacing, controlled toolbar wrapping with visible history label, the 40 dip navigation bar (arrow row, counters, compact form below 700 dip, whole-capsule hit-test, Auto/Always/Off), four accessible commands, retained secondary tabs and dialog hit-test passed.");
+    }
+
+    private static async Task CheckHistoryShortcutAsync(MainWindow window, ArchivePage page, Button history)
+    {
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        await page.FocusPostAsync("1003");
+        Require(posts.SelectedItem is ArchivePostRow { Id: "1003" } source
+            && posts.ContainerFromItem(source) is ListBoxItem { IsFocused: true },
+            "Reader history shortcut requires focus on post 1003.");
+        Control origin = (Control)window.FocusManager!.GetFocusedElement()!;
+        KeyEventArgs back = new()
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.Left,
+            KeyModifiers = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Alt
+        };
+        origin.RaiseEvent(back);
+        Require(back.Handled, "The reader history shortcut was not handled from the focused post.");
+        await Program.WaitUntilAsync(() => !history.IsVisible
+            && posts.SelectedItem is ArchivePostRow { Id: "1000" } restored
+            && posts.ContainerFromItem(restored) is ListBoxItem { IsFocused: true },
+            () => $"History return: visible={history.IsVisible}, selected={(posts.SelectedItem as ArchivePostRow)?.Id}, "
+                + $"focused={((window.FocusManager?.GetFocusedElement() as Control)?.DataContext as ArchivePostRow)?.Id}.");
+        await page.MediaLoadTask;
+        Console.WriteLine("SMOKE reader history shortcut: post 1003 returned to selected, focused post 1000.");
     }
 
     // Idle auto-hide (mode Auto): any pointer movement over the reader, the pointer over or near the bar, keyboard focus in it and a
@@ -185,10 +211,8 @@ internal static class ReaderNavigationOverlayChecks
             // so an already-running timer would otherwise retain the old interval.
             page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
             page.ReaderNavigationMode = Config.ReaderNavigationModeAuto;
-            // Establish the idle precondition explicitly. The preceding quote-navigation
-            // check may leave keyboard focus on a navigation button; focus is intentionally
-            // a keep-visible condition and must not make this idle assertion flaky.
-            tabs.Focus();
+            // Focus inside the capsule keeps it visible. Start idle with the post focused.
+            ReaderUxChecks.FocusSelectedPost(window);
             await Dispatcher.Yield();
             Point far = new(60, 60);
             Point onBar = Bounds(bar, window) is Rect box ? new Point(box.Center.X, box.Center.Y) : default;
@@ -234,7 +258,8 @@ internal static class ReaderNavigationOverlayChecks
             // Auto-hide collapses ReaderNavigationHitHost, so even an enabled edge action
             // is not a focus target while idle. This is retention coverage, not hidden-bar
             // keyboard discovery: reveal first, without changing any focusability flags.
-            Border focusSurface = page.FindControl<Border>("ReaderNavigationBar")!;
+            Border focusSurface = bar.GetVisualDescendants().OfType<Border>()
+                .Single(control => AutomationProperties.GetAutomationId(control) == "ReaderNavigationBar");
             string FocusState() => $"target={focusSurface.Name} visible={focusSurface.IsEffectivelyVisible} "
                 + $"enabled={focusSurface.IsEffectivelyEnabled} focusable={focusSurface.Focusable} "
                 + $"hostVisible={page.FindControl<Border>("ReaderNavigationHitHost")!.IsVisible} "
@@ -243,18 +268,12 @@ internal static class ReaderNavigationOverlayChecks
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    // Reproduce the historical enabled-edge attempt before revealing the host.
-                    // Enabled alone is not sufficient when an ancestor is collapsed.
-                    Button hiddenEdge = page.FindControl<Button>("ReaderNextPost")!;
-                    if (!hiddenEdge.IsEffectivelyEnabled)
-                        hiddenEdge = page.FindControl<Button>("ReaderPreviousPost")!;
-                    Require(hiddenEdge.IsEffectivelyEnabled && hiddenEdge.Focusable,
-                        "Reader navigation fixture has no enabled focusable edge action.");
-                    Console.WriteLine($"SMOKE reader navigation hidden focus probe: target={hiddenEdge.Name} "
-                        + $"visible={hiddenEdge.IsEffectivelyVisible} enabled={hiddenEdge.IsEffectivelyEnabled} "
-                        + $"focusable={hiddenEdge.Focusable} assigned={hiddenEdge.Focus()}; " + FocusState());
+                    Button edge = page.FindControl<Button>("ReaderNextPost")!;
+                    if (!edge.IsEffectivelyEnabled) edge = page.FindControl<Button>("ReaderPreviousPost")!;
+                    Require(edge.IsEffectivelyEnabled && !edge.Focusable && !edge.IsTabStop && !edge.Focus(),
+                        "A hidden navigation action took focus or the fixture has no enabled post arrow.");
                     page.ShowReaderNavigation();
-                    Require(focusSurface.IsEffectivelyVisible && focusSurface.IsEffectivelyEnabled && focusSurface.Focusable,
+                    Require(focusSurface.IsEffectivelyVisible && focusSurface.IsEffectivelyEnabled && focusSurface.Focusable && focusSurface.IsTabStop,
                         "Reader navigation focus precondition failed: " + FocusState());
                     Require(focusSurface.Focus() && focusSurface.IsFocused && bar.IsKeyboardFocusWithin,
                         "Reader navigation focus could not be assigned: " + FocusState());
@@ -270,7 +289,7 @@ internal static class ReaderNavigationOverlayChecks
                     "The bar lost keyboard focus or hid after the idle delay: " + FocusState());
                 Console.WriteLine("SMOKE reader navigation focus retained beyond idle delay: " + FocusState());
             });
-            Require(page.FindControl<Button>("ArchiveCloseReader")!.Focus() && !bar.IsKeyboardFocusWithin, "Focus did not leave the bar.");
+            Require(ReaderUxChecks.FocusSelectedPost(window).IsFocused && !bar.IsKeyboardFocusWithin, "Focus did not return to the post.");
             await WaitHiddenAsync();
             // A navigation shortcut shows it briefly.
             await page.NavigateReaderAsync(1, 0);
@@ -445,7 +464,8 @@ internal static class ReaderNavigationOverlayChecks
                     tabs.SelectedIndex = 1;
                     page.MediaTilesPreference = tiles;
                     await page.MediaLoadTask;
-                    await PairAsync($"media-{(tiles ? "tiles" : "table")}-{key}");
+                    await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                    Program.CaptureWindow(window, $"media-{(tiles ? "grid" : "table")}-{key}-hidden.png", directory);
                 }
                 tabs.SelectedIndex = 2;
                 await PairAsync($"references-{key}");
@@ -495,30 +515,28 @@ internal static class ReaderNavigationOverlayChecks
         window.UpdateLayout(); window.UpdateLayout();
         Rect pad = Bounds(navigation, window);
         Rect surface = Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window);
-        Rect pageBar = Bounds(page.FindControl<Grid>("ArchivePostNavigation")!, window);
+        Require(page.FindControl<Grid>("ArchivePostNavigation") == null, "A pagination row still takes space from Posts.");
         Console.WriteLine("SMOKE reader navigation precondition: " + System.Text.Json.JsonSerializer.Serialize(new
         {
             mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language,
             theme = Application.Current!.RequestedThemeVariant?.ToString(), scale = window.RenderScaling,
             client = window.ClientSize.ToString(), navigation.IsVisible, navigation.IsEffectivelyVisible,
             navigation.IsMeasureValid, navigation.IsArrangeValid, localBounds = navigation.Bounds.ToString(),
-            pad = pad.ToString(), surface = surface.ToString(), pagebar = pageBar.ToString(),
+            pad = pad.ToString(), surface = surface.ToString(),
             arrows = new[] { "ReaderPreviousPost", "ReaderNextPost", "ReaderPreviousThread", "ReaderNextThread" }
                 .Select(name => new { name, bounds = Bounds(page.FindControl<Button>(name)!, window).ToString() }).ToArray()
         }));
         Require(page.FindControl<WrapPanel>("ReaderStatusLine")!.IsEffectivelyVisible,
             "The posts tab lost its reader status line.");
-        // NAVBAR-01: a 40 dip high capsule, at most 320 dip wide, inset at the lower right just above the page bar.
+        // NAVBAR-01: a 40 dip high capsule, at most 320 dip wide, inset at the lower right just inside the viewport.
         // One device pixel of tolerance for the border's layout rounding.
         double devicePixelDip = 1 / window.RenderScaling;
         Require(navigation.IsEffectivelyVisible && Math.Abs(pad.Height - ReaderNavigationLayout.BarHeight) <= devicePixelDip + 1e-6
             && pad.Width <= ReaderNavigationLayout.BarMaxWidth + devicePixelDip && pad.Width >= 100,
             "NAVBAR-01: the reader navigation is no longer a compact visible bar of 40 dip height and at most 320 dip width: " + pad);
-        Require(pad.Right <= surface.Right - 20 && pad.Bottom <= pageBar.Top - 7
-            && pad.Bottom >= pageBar.Top - 10 && pad.Top >= surface.Top,
-            "NAVBAR-01: the reader navigation is not inset at the lower right above the page bar: " + pad + " in " + surface + ", page bar " + pageBar);
+        Require(pad.Right <= surface.Right - 20 && Math.Abs(pad.Bottom - (surface.Bottom - 16)) <= 1 && pad.Top >= surface.Top,
+            "NAVBAR-01: the reader navigation is not inset at the lower right of the surface: " + pad + " in " + surface);
         CheckBarGeometry(window, page, pad, surface);
-        CheckPaginationGeometry(window, page, pageBar);
         ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
         CheckToolbarGeometry(window, page, toolbar);
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
@@ -533,7 +551,7 @@ internal static class ReaderNavigationOverlayChecks
         Require(posts.Margin == default && Math.Abs(postBounds.Right - Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window).Right) <= 1
             && postBounds.Intersect(pad).Height > 0 && postBounds.Intersect(pad).Width > 0,
             "Navigation is not an overlay inside the full-width, full-height thread viewport.");
-        Console.WriteLine($"SMOKE reader navigation geometry: mode={window.SessionHost.Config.WorkspaceMode}; language={Texts.Language}; theme={Application.Current!.RequestedThemeVariant}; client={window.ClientSize}; scale={window.RenderScaling}; toolbar={toolbar.Bounds.Height}; viewport={scroll.Viewport}; posts={postBounds}; pad={pad}; pagebar={pageBar}; reservation={posts.Margin}.");
+        Console.WriteLine($"SMOKE reader navigation geometry: mode={window.SessionHost.Config.WorkspaceMode}; language={Texts.Language}; theme={Application.Current!.RequestedThemeVariant}; client={window.ClientSize}; scale={window.RenderScaling}; toolbar={toolbar.Bounds.Height}; viewport={scroll.Viewport}; posts={postBounds}; pad={pad}; reservation={posts.Margin}.");
         foreach (ScrollBar bar in posts.GetVisualDescendants().OfType<ScrollBar>()
             .Where(bar => bar.IsEffectivelyVisible && bar.Orientation == Orientation.Vertical && bar.Bounds.Width > 0))
             Require(Separated(Bounds(bar, window), pad, 4),
@@ -543,7 +561,7 @@ internal static class ReaderNavigationOverlayChecks
             (Name: "ReaderNextPost", Id: "reader.next-post") })
         {
             Button button = page.FindControl<Button>(command.Name)!;
-            Require(button.IsEffectivelyVisible && button.Focusable && Bounds(button, window).Width >= 32
+            Require(button.IsEffectivelyVisible && !button.Focusable && !button.IsTabStop && Bounds(button, window).Width >= 32
                 && Bounds(button, window).Height >= 32
                 && AutomationProperties.GetName(button) == CommandCatalog.Label(command.Id)
                 && ToolTip.GetTip(button) as string == CommandBindings.Tooltip(command.Id),
@@ -563,25 +581,31 @@ internal static class ReaderNavigationOverlayChecks
         // The References tab exists only while captured replies are listed; with none it is not there to be chosen.
         Require(!page.FindControl<TabItem>("ArchiveReferencesTab")!.IsVisible || page.FindControl<ListBox>("ArchiveReferences")!.ItemCount > 0,
             "The References tab is shown without any reference.");
-        Control reservedContent = tabs.SelectedIndex == 1
-            ? page.FindControl<Grid>("ArchiveMediaSurface")! : page.FindControl<ListBox>("ArchiveReferences")!;
-        Rect pad = Bounds(navigation, window), content = Bounds(reservedContent, window);
+        bool savedMedia = tabs.SelectedIndex == 1;
+        Control reservedContent = savedMedia ? page.FindControl<Grid>("ArchiveMediaSurface")! : page.FindControl<ListBox>("ArchiveReferences")!;
+        Rect content = Bounds(reservedContent, window);
         WrapPanel status = page.FindControl<WrapPanel>("ReaderStatusLine")!;
         Require(!status.IsVisible && !status.IsEffectivelyVisible,
             "The large reader retains its posts-only status line on a secondary tab.");
         Console.WriteLine("SMOKE reader navigation secondary: " + System.Text.Json.JsonSerializer.Serialize(new
         {
             tab = tabs.SelectedIndex, language = Texts.Language, theme = window.ActualThemeVariant.ToString(),
-            scale = window.RenderScaling, client = window.ClientSize.ToString(), pad = pad.ToString(),
+            scale = window.RenderScaling, client = window.ClientSize.ToString(), pad = navigation.IsEffectivelyVisible ? Bounds(navigation, window).ToString() : null,
             contentName = reservedContent.Name, content = content.ToString(),
             reservation = reservedContent.Margin.ToString(), navigation.IsEffectivelyVisible,
             statusVisible = status.IsVisible, statusEffectivelyVisible = status.IsEffectivelyVisible
         }));
-        Require(navigation.IsEffectivelyVisible && Contains(Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window), pad),
-            "Reader navigation disappeared or is clipped on a secondary tab.");
-        // The content runs to the right edge and the bar floats over it; the last row can scroll clear of the bar.
         Require(reservedContent.Margin == default && Math.Abs(content.Right - Bounds(tabs, window).Right) <= 24,
             "Secondary-tab content does not use the full width: " + content + " in " + Bounds(tabs, window));
+        if (savedMedia)
+        {
+            Require(!navigation.IsVisible && !navigation.IsEffectivelyVisible && !navigation.IsHitTestVisible,
+                "Reader navigation covers Saved media.");
+            return;
+        }
+        Rect pad = Bounds(navigation, window);
+        Require(navigation.IsEffectivelyVisible && Contains(Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window), pad),
+            "Reader navigation disappeared or is clipped on the References tab.");
         Require(pad.Right <= content.Right && pad.Left >= content.Left && pad.Bottom <= content.Bottom + 1,
             "The bar does not float over its secondary-tab content: " + pad + " over " + content);
         // NAVBAR-05: the whole capsule takes the pointer. A point on a counter (full form) or in the gap beside the separator (every form)
@@ -652,14 +676,14 @@ internal static class ReaderNavigationOverlayChecks
             : list.GetVisualDescendants().OfType<DataGridRowsPresenter>().First();
         Rect viewportBox = Bounds(viewport, window), listBox = Bounds(list, window);
         Rect tabBox = Bounds(page.FindControl<TabControl>("ArchiveContentTabs")!, window);
-        Rect pad = Bounds(page.FindControl<WrapPanel>("ReaderNavigation")!, window);
         Rect visibleViewport = viewportBox.Intersect(listBox).Intersect(tabBox).Intersect(new Rect(default(Point), window.ClientSize));
         var items = list.GetVisualDescendants().OfType<Control>()
             .Where(control => (tiles ? control is ArchiveMediaTileView : control is DataGridRow)
                 && control.IsEffectivelyVisible && control.DataContext is ArchiveAssetRow)
             .Select(control => Bounds(control, window).Intersect(visibleViewport)).ToArray();
-        string[] controlNames = { "ArchiveMediaMode", "ArchiveMediaColumnsButton", "ArchiveFavoritesFilter", "ArchiveRatingFilter",
-            "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveEditRatingButton", "PreviewArchiveMediaButton" };
+        string[] controlNames = { "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable", "ArchiveMediaColumnsButton",
+            "ArchiveFavoritesFilter", "ArchiveRatingFilter", "ArchiveMediaSort", "ArchiveVersionScope",
+            "ArchiveEditRatingButton", "PreviewArchiveMediaButton" };
         // A control the bar moved under "More" is detached while the popup is closed (and keeps a stale IsEffectivelyVisible); only
         // the controls on the bar take part in the viewport geometry, the others are checked as "on the bar or under More" below.
         var controls = controlNames.Select(name => page.FindControl<Control>(name))
@@ -681,9 +705,8 @@ internal static class ReaderNavigationOverlayChecks
             "The media viewport has no usable visible asset tile or table row.");
         foreach (var item in controls)
         {
-            Require(item.Box.Width > 0 && item.Box.Height > 0 && Contains(tabBox, item.Box)
-                && Separated(item.Box, pad, 4),
-                item.Control.Name + " is clipped or crowded by navigation on the small reader media tab.");
+            Require(item.Box.Width > 0 && item.Box.Height > 0 && Contains(tabBox, item.Box),
+                item.Control.Name + " is clipped on the small reader media tab.");
             Rect overlap = item.Box.Intersect(visibleViewport);
             Require(overlap.Width <= 1 || overlap.Height <= 1, item.Control.Name + " overlaps the media viewport.");
         }
@@ -758,7 +781,7 @@ internal static class ReaderNavigationOverlayChecks
         // Narrow readers keep history behind More; its label and command semantics move with it.
         TextBlock? label = history.GetVisualDescendants().OfType<TextBlock>()
             .FirstOrDefault(text => (historyInMore || text.IsEffectivelyVisible) && text.Text == expected);
-        Require(history.IsVisible && history.IsEffectivelyEnabled && history.Focusable && label != null
+        Require(history.IsVisible && history.IsEffectivelyEnabled && label != null
             && (historyInMore ? overflowHost!.Children.Contains(history)
                 : history.IsEffectivelyVisible && label.Bounds.Width > 0 && label.DesiredSize.Width <= label.Bounds.Width + 1
                     && Contains(Bounds(history, window), Bounds(label, window)))
@@ -825,34 +848,6 @@ internal static class ReaderNavigationOverlayChecks
             bar = pad.ToString(), arrows = arrows.Select(arrow => arrow.ToString()).ToArray(),
             counters = new[] { threadCounter.Text, postCounter.Text }
         }));
-    }
-
-    private static void CheckPaginationGeometry(MainWindow window, ArchivePage page, Rect pageBar)
-    {
-        Button previous = page.FindControl<Button>("PreviousPostsButton")!;
-        Button next = page.FindControl<Button>("NextPostsButton")!;
-        TextBlock label = page.FindControl<TextBlock>("ArchivePostPage")!;
-        Rect before = Bounds(previous, window), after = Bounds(next, window), text = Bounds(label, window);
-        Rect available = Bounds((Control)page.FindControl<Grid>("ArchivePostNavigation")!.Parent!, window);
-        Console.WriteLine("SMOKE reader navigation pagination: " + System.Text.Json.JsonSerializer.Serialize(new
-        {
-            previous = before.ToString(), range = text.ToString(), next = after.ToString(),
-            group = pageBar.ToString(), available = available.ToString(), label = label.Text
-        }));
-        Require(previous.IsEffectivelyVisible && next.IsEffectivelyVisible && label.IsEffectivelyVisible
-            && !string.IsNullOrWhiteSpace(label.Text) && text.Width > 0,
-            "Reader pagination lost its visible arrows or range label.");
-        Require(Math.Abs(text.Left - before.Right - 8) <= 1
-            && Math.Abs(after.Left - text.Right - 8) <= 1
-            && Math.Abs(before.Center.Y - text.Center.Y) <= 1
-            && Math.Abs(after.Center.Y - text.Center.Y) <= 1,
-            "Reader page arrows are not immediately beside and aligned with the range label.");
-        // Diagnostic06 measured only a 5.68e-14-DIP floating-point remainder at the right edge.
-        Require(Math.Abs(text.Center.X - pageBar.Center.X) <= 1
-            && Math.Abs(pageBar.Center.X - available.Center.X) <= 1
-            && before.Left >= pageBar.Left - GeometryEpsilonDip
-            && after.Right <= pageBar.Right + GeometryEpsilonDip,
-            "Reader pagination is not a centered, contained group.");
     }
 
     private static Rect Bounds(Control control, Visual root) => new(control.TranslatePoint(default, root)

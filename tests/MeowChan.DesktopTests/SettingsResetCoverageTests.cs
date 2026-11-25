@@ -63,10 +63,31 @@ public sealed class SettingsResetCoverageTests : IDisposable
         try { test(editor, defaults); }
         finally
         {
-            editor.EndLifetime();
-            defaults.EndLifetime();
+            editor.Dispose();
+            defaults.Dispose();
         }
     });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResetPersistsTheDefaultSidebarPreviewPixelLimit(bool all)
+    {
+        using TempDirectory profile = new();
+        new Config { SidebarPreviewMaximumPixels = 2_000_000, DownloadPath = profile.Path }.SaveConfig(profile.Path);
+        Config config = Config.LoadConfig(profile.Path);
+        WithEditors(config, (editor, _) =>
+        {
+            editor.IsAvailable = true;
+            editor.ResetDraft(all ? SettingsEditor.SettingsResetScope.All : SettingsEditor.SettingsResetScope.ReadingMedia);
+            // Reset all also resets the download destination. Save against this fixture directory.
+            editor.DownloadPath = profile.Path;
+            editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            BooruComponentDispatcher.Wait(WaitForSaveAsync(editor));
+            Assert.False(editor.HasError, editor.ErrorMessage);
+            Assert.Equal(Config.SidebarPreviewMaximumPixelsDefault, Config.LoadConfig(profile.Path).SidebarPreviewMaximumPixels);
+        });
+    }
 
     [Fact]
     public void CompatibilityEditorKeepsReadingDataUntilTheSettingsCommitSucceeds()
@@ -183,7 +204,9 @@ public sealed class SettingsResetCoverageTests : IDisposable
         probes.Where(probe => !HiddenAliases.Contains(probe.Name, StringComparer.Ordinal));
 
     private static Control Twin(SettingsEditor defaults, string name) =>
-        defaults.FindControl<Control>(name) ?? throw new InvalidOperationException("The default editor has no input " + name + ".");
+        defaults.FindControl<Control>(name)
+        ?? defaults.GetLogicalDescendants().OfType<Control>().SingleOrDefault(control => control.Name == name)
+        ?? throw new InvalidOperationException("The default editor has no input " + name + ".");
 
     private static string StateOf(Control input) => input switch
     {

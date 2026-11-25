@@ -59,7 +59,6 @@ public partial class ArchivePage : UserControl
     private int _previewRequest;
     private int _listOffset;
     private int _listTotal;
-    private int _postOffset;
     private bool _available;
     private bool _busy;
     private bool _ended;
@@ -78,8 +77,8 @@ public partial class ArchivePage : UserControl
     private int _workFilter;
     private bool _threadTable;
     private string _archiveLayout = "List";
-    private double _archiveSplitWidth = Config.ArchiveSplitWidthDefault;
-    internal Func<string, double, Task>? SaveViewPreferencesAsync { get; set; }
+    private double? _archiveSplitWidth;
+    internal Func<string, double?, Task>? SaveViewPreferencesAsync { get; set; }
     internal string ArchiveLayoutPreference
     {
         get => _archiveLayout;
@@ -100,11 +99,17 @@ public partial class ArchivePage : UserControl
             finally { _updatingList = updating; }
         }
     }
-    internal double ArchiveSplitPreference
+    internal double? ArchiveSplitPreference
     {
         get => _archiveSplitWidth;
-        set { _archiveSplitWidth = Config.NormalizeArchiveSplitWidth(value); UpdateLayoutMode(); }
+        set
+        {
+            _archiveSplitWidth = value is double width ? Config.NormalizeArchiveSplitWidth(width) : null;
+            UpdateLayoutMode();
+        }
     }
+    private double ArchiveListPaneWidth => _archiveSplitWidth ?? (_archiveLayout == "Table"
+        ? WorkViewDensity.ArchiveTableMinWidth(ArchiveWorkView) : Config.ArchiveSplitWidthDefault);
     private bool _mediaTiles = true;
     internal bool MediaTilesPreference
     {
@@ -113,15 +118,9 @@ public partial class ArchivePage : UserControl
         {
             MediaPosition? position = _shownMedia.Count > 0 ? CaptureMediaPosition() : null;
             _mediaTiles = value;
-            if (IsInitialized || _largeReader)
-            {
-                ArchiveMediaGrid.IsVisible = !value;
-                ArchiveMediaTiles.IsVisible = value;
-                ArchiveMediaColumnsButton.IsVisible = !value;
-                SyncMediaLayoutSwitch();
-                if (position != null) RestoreMediaPosition(position);
-            }
-            else SyncMediaLayoutHighlight();
+            SyncMediaLayoutSwitch();
+            if (position != null) RestoreMediaPosition(position);
+            FollowSavedMediaSelection();
         }
     }
     internal Func<bool, Task>? SaveMediaTiles { get; set; }
@@ -132,7 +131,9 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons(); InitializeThreadListToggle();
+        InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializeReferencePageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons(); InitializeThreadListToggle();
+        // GridSplitter handles the pointer release internally and raises DragCompleted at the end of a drag.
+        ArchiveSplitter.DragCompleted += async (_, _) => await SaveArchiveSplitAsync();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
@@ -164,9 +165,6 @@ public partial class ArchivePage : UserControl
         Texts.Changed += OnLanguageChanged;
         Localize();
         UpdateLayoutMode();
-        ArchiveMediaGrid.IsVisible = false;
-        ArchiveMediaTiles.IsVisible = true;
-        ArchiveMediaColumnsButton.IsVisible = false;
         ArchiveVersionScope.SelectedIndex = 1;
     }
     internal bool IsAvailable
@@ -231,7 +229,7 @@ public partial class ArchivePage : UserControl
         _runningList = pending;
         CancelArchiveMediaCounts();
         _retryList = null;
-        CancelReferences(); CancelInlineReplies();
+        CancelReferences();
         int generation = ++_contentRequest;
         _contentCancellation?.Cancel();
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, applicationToken);
@@ -359,7 +357,6 @@ public partial class ArchivePage : UserControl
         LocalReadingPosition? initialReadingPosition = resetPage && _selectedThread != id && _largeReader
             ? ReadingPlaceFor?.Invoke(id) : null;
         CancelReferences();
-        CancelInlineReplies();
         int request = ++_contentRequest;
         focusIntent?.BeginContent(request);
         _contentCancellation?.Cancel();
@@ -370,18 +367,18 @@ public partial class ArchivePage : UserControl
         ClosePreview();
         if (resetPage || _selectedThread != id)
         {
-            _postOffset = 0;
+            _readerPostId = null;
+            _projectionSelectionPost = null;
             // F2 (16.11.2026): the way back to the last read place belongs to the thread it was made in. A load of another thread (a jump from
             // Media, Tagging or the gallery, whose list selection runs under _updatingList and so never reaches the list's own clear) starts
             // without it; the same thread re-read in place (live follow, a list page) keeps it.
             _history.Clear();
         }
-        if (_selectedThread != id) _readerPostId = null; // Post ids are local to a thread.
         _retainedMediaPosition = CaptureMediaPosition();
         _mediaProjectionPending = true;
         if (_selectedThread != id) _ = ReleaseInlineVideos(); // R10: another thread starts without players
         _selectedThread = id;
-        _postsAlignOnShow = null;
+        _postsAnchorOnShow = null;
         _mediaMenuPresenter.Invalidate();
         CloseThreadFind();
         _thread = null;
@@ -419,7 +416,6 @@ public partial class ArchivePage : UserControl
             _thread = thread;
             if (thread == null) _mediaProjectionPending = false;
             ReaderSnapshotLoaded();
-            if (_thread != null && _postOffset >= _thread.PostCount) _postOffset = 0;
             _busy = false;
             RenderThread();
             Message(string.Empty);
@@ -428,10 +424,10 @@ public partial class ArchivePage : UserControl
                 MediaLoadTask = LoadMediaAsync(thread);
                 if (filenameNavigation == null && _largeReader && DownloadReaderGate.OpensOnMedia(thread.PostCount, thread.Summary.LastCapturedAt))
                     ArchiveContentTabs.SelectedItem = ArchiveMediaTab; // DL-01: nothing to read, so the open lands on the saved media
-                if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor, focusIntent: focusIntent);
+                if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor, focusIntent: focusIntent, preserveTab: true);
                 else if (filenameNavigation == null && _largeReader && thread.PostCount > 0)
                 {
-                    // The first post of the shown page; a view still being prepared is waited for (the identity is not).
+                    // The first post in the shown order; a view still being prepared is waited for (the identity is not).
                     await AwaitProjectionAsync();
                     if (_ended || request != _contentRequest) return;
                     if (Projection is { Count: > 0 } shown)
@@ -450,7 +446,7 @@ public partial class ArchivePage : UserControl
                         }
                         else
                         {
-                            await FocusPostAsync(shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId,
+                            await FocusPostAsync(shown[0].Post.PostId,
                                 resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent, passiveOpen: true);
                         }
                     }
@@ -567,10 +563,15 @@ public partial class ArchivePage : UserControl
         if (_ended) _retainedMediaPosition = null;
     }
 
-    // refreshMedia: false when only the page of posts changed behind the Media tab (the media list does not depend on it and keeps its focus and selection).
-    private void RenderThread(bool refreshMedia = true)
+    private void RenderThread() => RenderThreadWithReplies(null);
+
+    private void RenderThreadWithReplies(InlineRepliesSnapshot? replies)
     {
         CloseQuotePreview();
+        if (_thread == null) CancelProjectionBuild();
+        ResourceId? threadId = _thread?.Summary.Id ?? _selectedThread;
+        if (_projection is { } previous && previous.Thread.Summary.Id != threadId) _projection = null;
+        if (_quoteGraph is { } graph && graph.Thread != threadId) _quoteGraph = null;
         UpdateReaderThreadActions();
         ArchiveSelectHint.IsVisible = _thread == null && !_busy;
         ArchiveContentTabs.IsVisible = _thread != null;
@@ -587,6 +588,10 @@ public partial class ArchivePage : UserControl
             });
         ReaderPostProjection? projection = _thread != null ? ResolveProjection(out _) : null;
         ArchiveReaderStatus.Text = status + ReaderViewStatus(projection);
+        CancelInlineReplies();
+        SwitchReplyCountSnapshot();
+        BeginPostInteraction(threadId, replies);
+        CancelPreviewWork();
         if (_thread != null)
         {
             string? openingPost = ArchivePresentation.OpeningPostId(_thread);
@@ -597,50 +602,39 @@ public partial class ArchivePage : UserControl
                 && projection[carrier].ThreadIndex >= _thread.FindPostIndex(unreadFirst))
                 unreadCarrier = projection[carrier].Post.PostId;
             _unreadFirstNewId = unreadCarrier;
-            int pageSize = ReaderPageSize;
-            if (projection != null)
-            {
-                if (_projectionPagePost is { } pagePost)
-                {
-                    int position = projection.NearestPosition(pagePost);
-                    _postOffset = position;
-                    _projectionPagePost = null;
-                }
-                // History can retain an offset from another page size even when it has no realized anchor.
-                // Keep every rendered page aligned to the current reader size, including empty/shortened views.
-                _postOffset = projection.PageOffset(_postOffset, pageSize);
-            }
-            Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
             ArchivedThreadView current = _thread;
             bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == current.Summary.Id
-                && !(capturedIds.TryGetValue(target.PostId, out bool captured) ? captured
-                    : capturedIds[target.PostId] = current.FindPostIndex(target.PostId) >= 0);
-            DateTimeOffset? openingPostAt = openingPost == null
-                ? null : current.Posts.FirstOrDefault(candidate => candidate.PostId == openingPost)?.PostedAt;
+                && current.FindPostIndex(target.PostId) < 0;
+            DateTimeOffset? openingPostAt = openingPost != null && current.FindPostIndex(openingPost) is >= 0 and var openingIndex
+                ? current.Posts[openingIndex].PostedAt : null;
             PostRowContext context = new(current, openingPost, openingPostAt, DateTimeOffset.Now, unreadCarrier, unreadCount,
-                _readerView.HideMedia, projection?.IsOrdered == true, IsDead);
-            ArchivePostRow[] posts = projection == null ? Array.Empty<ArchivePostRow>()
-                : projection.Page(_postOffset, pageSize).Select(entry => BuildPostRow(entry, context)).ToArray();
-            _replyAutoExpand.SwitchThread(current.Summary.Id);
-            foreach (ArchivePostRow post in posts) _replyAutoExpand.RestoreChoice(post);
-            ReservePreviewSizes(posts);
+                _readerView.HideMedia, projection?.IsOrdered == true, IsDead, _mediaRead, _postInteraction);
+            ReaderPostRows? posts = projection == null ? null : new(projection, entry => BuildPostRow(entry, context));
+
+            int selected = -1;
+            if (projection != null && _projectionSelectionPost is { } target)
+            {
+                selected = projection.NearestPosition(target);
+                _projectionSelectionPost = null;
+            }
+            if (selected < 0 && _readerPostId is { } retained && projection != null)
+                selected = projection.PositionOf(retained);
+            if (selected < 0 && projection is { Count: > 0 }) selected = 0;
+
+            BeginPostPreviews(current.Summary.Id);
+            BeginInlineReplies(posts);
             ListBox postList = ArchivePosts;
-            // A new page is a new index space. Do not carry its predecessor's
-            // virtualized realization window and estimated item positions over.
+            // Only a new snapshot or view rebuild replaces the virtualizer's index space.
             postList.ItemsSource = null;
             postList.ItemsPanel = ReaderPostList.NewPanelTemplate();
+            if (postList.Scroll is ScrollViewer scroll) scroll.Offset = default;
             postList.ItemsSource = posts;
-            // Replacing ItemsSource clears ListBox selection even when the logical post survives.
-            // Select within the projected page (not the unfiltered thread), without taking keyboard
-            // focus or recording a deliberate reading move. Explicit jumps/anchor restoration still
-            // own their later alignment. Selection also activates focused media and the sidebar.
-            ArchivePostRow? selectedPost = posts.FirstOrDefault(post => post.Id == _readerPostId) ?? posts.FirstOrDefault();
-            _readerPostId = selectedPost?.Id;
-            postList.SelectedItem = selectedPost;
+            if (projection != null) _readerPostId = selected >= 0 ? projection[selected].Post.PostId : null;
+            postList.SelectedIndex = selected;
             UpdateReaderNavigation();
-            RefreshInlineReplies(posts);
+            SchedulePreviewPrefetch();
         }
-        else { CancelPreviewWork(); ArchivePosts.ItemsSource = null; CancelInlineReplies(); _unreadFirstNewId = null; }
+        else { ArchivePosts.ItemsSource = null; _unreadFirstNewId = null; }
         // No captured text, a view still being prepared, or a view nothing passes.
         string? noPosts = _thread == null ? null : _thread.PostCount == 0 ? "archive.noPosts"
             : projection == null ? "reader.view.preparing" : projection.Count == 0 ? "reader.view.empty" : null;
@@ -648,16 +642,15 @@ public partial class ArchivePage : UserControl
         noPostsText.IsVisible = noPosts != null;
         if (noPosts != null && !Equals(noPostsText.Tag, noPosts)) { noPostsText.Tag = noPosts; noPostsText.Text = Texts.T(noPosts); }
         Dispatcher.UIThread.Post(UpdateUnreadReturn, DispatcherPriority.Background);
-        // The new page's rows still get their favourite wiring (ConfigureArchiveMediaFavorites); the media list itself is not rebuilt.
-        if (refreshMedia) RenderMedia(); else ConfigureArchiveMediaFavorites();
+        RenderMedia();
         AnnounceProjection();
     }
 
     private readonly record struct PostRowContext(ArchivedThreadView Thread, string? OpeningPost,
         DateTimeOffset? OpeningPostAt, DateTimeOffset RenderedAt, string? UnreadCarrier, int UnreadCount,
-        bool HideMedia, bool SuppressReplyToggle, Func<ArchiveQuote, bool> IsDead);
+        bool HideMedia, bool SuppressReplyToggle, Func<ArchiveQuote, bool> IsDead, MediaRead Media, PostInteraction Interaction);
 
-    // One immutable row of a page. A placeholder keeps no attachments, so it never offers or loads media.
+    // One row in the shown order. A placeholder keeps no attachments, so it never offers or loads media.
     private ArchivePostRow BuildPostRow(ReaderPostEntry entry, PostRowContext context)
     {
         CapturedPost post = entry.Post;
@@ -678,8 +671,8 @@ public partial class ArchivePage : UserControl
         bool grid = ReaderMediaMultiRules.UseGrid(_readerDisplayPreferences.Media, shownImages, text, columnWidth);
         int tileWidth = grid ? ReaderMediaMultiRules.TileWidth(columnWidth) : textlessWidth;
         IReadOnlyList<ArchiveAttachmentRow> attachments = stub ? Array.Empty<ArchiveAttachmentRow>()
-            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaRead, tileWidth)).ToArray());
-        return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text, attachments)
+            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, context.Media, tileWidth)).ToArray());
+        ArchivePostRow row = new(post.PostId, post.Subject ?? string.Empty, text, attachments)
         {
             Author = post.Author ?? string.Empty,
             Posted = ReaderDateText.Posted(post.PostedAt, this.ReaderDateStyle, context.OpeningPostAt, context.RenderedAt),
@@ -704,6 +697,13 @@ public partial class ArchivePage : UserControl
             MediaGrid = grid,
             SuppressReplyToggle = context.SuppressReplyToggle
         };
+        foreach (ArchiveAttachmentRow attachment in attachments)
+        {
+            ConfigureReaderAttachmentFavorite(context.Thread.Summary, context.Media, row.Id, attachment);
+            if (row.ShowsMedia) ReservePreviewSize(threadId, row.Id, attachment);
+        }
+        RestorePostInteraction(row, context.Interaction, threadId);
+        return row;
     }
 
     private void RenderMedia()
@@ -737,6 +737,7 @@ public partial class ArchivePage : UserControl
         ArchiveThreadMediaTotal.IsVisible = total > 0;
         if (total > 0) ArchiveThreadMediaTotal.Text = Texts.T("thread.media.total", total);
         UpdateActions();
+        FollowSavedMediaSelection();
     }
 
     private IReadOnlyList<ArchiveAssetRow> VisibleAssets()
@@ -782,20 +783,15 @@ public partial class ArchivePage : UserControl
         RefreshArchiveButton.IsEnabled = readReady;
         PreviousThreadsButton.IsEnabled = readReady && _listOffset > 0;
         NextThreadsButton.IsEnabled = readReady && _listOffset + PageSize < _listTotal;
-        int shownPosts = ShownPostCount;
-        PreviousPostsButton.IsEnabled = readReady && _postOffset > 0;
-        NextPostsButton.IsEnabled = readReady && _thread != null && _postOffset + ReaderPageSize < shownPosts;
-        ArchivePostNavigation.IsVisible = shownPosts > ReaderPageSize;
         PreviewArchiveMediaButton.IsEnabled = ready && SelectedMediaRow() != null;
         ArchiveOpenGallery.IsEnabled = ready && _selectedThread != null;
         ArchiveReadPosts.IsEnabled = CanExpandReader;
         ArchiveResultsGallery.IsEnabled = ready && _listTotal > 0;
         ArchiveThreadPage.Text = PageLabel(_listOffset, _listTotal);
-        ArchivePostPage.Text = PageLabel(_postOffset, shownPosts, ReaderPageSize);
         RefreshArchiveResultActions();
         ApplyReaderWorkView();
     }
-    private static string PageLabel(int offset, int total, int pageSize = PageSize) => Texts.T("archive.page", total == 0 ? 0 : offset + 1, Math.Min(offset + pageSize, total), total);
+    private static string PageLabel(int offset, int total) => Texts.T("archive.itemRange", total == 0 ? 0 : offset + 1, Math.Min(offset + PageSize, total), total);
 
     /// <summary>Starts or stops post capture for the open thread (the "Thread" menu's capture entry).</summary>
     internal async Task ToggleThreadCaptureAsync()
@@ -804,7 +800,6 @@ public partial class ArchivePage : UserControl
         ResourceId id = _thread.Summary.Id;
         bool enabled = !_thread.Summary.CaptureEnabled;
         CancelReferences();
-        CancelInlineReplies();
         int request = ++_contentRequest;
         _busy = true;
         try
@@ -999,8 +994,9 @@ public partial class ArchivePage : UserControl
         using SKCodec? codec = SKCodec.Create(managed);
         if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
         PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: a rotated photo has its width and height exchanged
-        if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 40_000_000
-            || (long)shown.Height > 180L * shown.Width)
+        if ((long)shown.Width * shown.Height > 40_000_000)
+            throw new GalleryPreviewTooLargeException();
+        if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Height > 180L * shown.Width)
             throw new InvalidDataException(Texts.T("archive.tooLarge"));
         int width = Math.Min(shown.Width, Math.Min(maximumWidth, Math.Max(1, (int)((long)maximumHeight * shown.Width / shown.Height))));
         stream.Position = 0;
@@ -1036,28 +1032,6 @@ public partial class ArchivePage : UserControl
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await ActivateAsync();
     private async void OnPreviousThreads(object? sender, RoutedEventArgs e) => await NavigateResultsPage(_listOffset / PageSize);
     private async void OnNextThreads(object? sender, RoutedEventArgs e) => await NavigateResultsPage(_listOffset / PageSize + 2);
-    private void OnPreviousPosts(object? sender, RoutedEventArgs e)
-    {
-        if (IsFilenameSearchOpen || _busy || _postOffset == 0) return;
-        ++_readerInteractionRevision;
-        _postOffset = Math.Max(0, _postOffset - ReaderPageSize);
-        ++_readerFocusRequest;
-        _readerPostId = null;
-        _postsAlignOnShow = null; // a new page starts at its top
-        RenderThread(refreshMedia: !ReaderPostsInBackground);
-        QueueReadingPositionCapture(DispatcherPriority.Loaded);
-    }
-    private void OnNextPosts(object? sender, RoutedEventArgs e)
-    {
-        if (IsFilenameSearchOpen || _busy || _thread == null || _postOffset + ReaderPageSize >= ShownPostCount) return;
-        ++_readerInteractionRevision;
-        _postOffset += ReaderPageSize;
-        ++_readerFocusRequest;
-        _readerPostId = null;
-        _postsAlignOnShow = null; // a new page starts at its top
-        RenderThread(refreshMedia: !ReaderPostsInBackground);
-        QueueReadingPositionCapture(DispatcherPriority.Loaded);
-    }
     private void OnBackClick(object? sender, RoutedEventArgs e) { if (IsFilenameSearchOpen) return; CloseThreadFind(); _showReader = false; UpdateLayoutMode(); }
     private void OnMediaSelected(object? sender, SelectionChangedEventArgs e)
     {
@@ -1066,17 +1040,18 @@ public partial class ArchivePage : UserControl
         // Only the list that is shown is read; switching between list and tiles carries the selection over (RestoreMediaPosition).
         if (sender is DataGrid && _mediaTiles || sender is ListBox && !_mediaTiles) return;
         UpdateActions();
+        FollowSavedMediaSelection();
     }
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdateLayoutMode();
     }
     private bool CanShowArchivePreviewBesideList => Bounds.Width >= (_archiveLayout == "Table" ? 1450 : 1000);
-    private void OnArchiveFavoritesFilterClick(object? sender, RoutedEventArgs e)
+    private void OnArchiveFavoritesFilterChanged(object? sender, RoutedEventArgs e)
     {
-        _archiveFavoritesOnly = !_archiveFavoritesOnly;
-        ArchiveFavoritesFilter.Content = Texts.T(
-            _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
+        bool favoritesOnly = ArchiveFavoritesFilter.IsChecked == true;
+        if (_archiveFavoritesOnly == favoritesOnly) return;
+        _archiveFavoritesOnly = favoritesOnly;
         RenderMedia();
     }
     private async void OnArchiveLayoutClick(object? sender, RoutedEventArgs e)
@@ -1096,14 +1071,17 @@ public partial class ArchivePage : UserControl
     private async void OnArchiveSplitKeyUp(object? sender, KeyEventArgs e) => await SaveArchiveSplitAsync();
     private async Task SaveArchiveSplitAsync()
     {
-        if (ArchiveSplit.ColumnDefinitions[0].ActualWidth <= 0) return;
-        _archiveSplitWidth = Config.NormalizeArchiveSplitWidth(ArchiveSplit.ColumnDefinitions[0].ActualWidth);
+        ColumnDefinition list = ArchiveSplit.ColumnDefinitions[0];
+        if (!ArchiveSplitter.IsVisible || !list.Width.IsAbsolute || list.Width.Value == ArchiveListPaneWidth) return;
+        double width = Config.NormalizeArchiveSplitWidth(list.Width.Value);
+        _archiveSplitWidth = width;
+        list.Width = new GridLength(width);
         await PersistArchiveViewAsync();
     }
     private async Task PersistArchiveViewAsync()
     {
         if (SaveViewPreferencesAsync == null) return;
-        try { await SaveViewPreferencesAsync(_archiveLayout, _archiveSplitWidth); }
+        try { await SaveViewPreferencesAsync(_archiveLayout, ArchiveSplitPreference); }
         catch (Exception exception) { if (!_ended) Message(exception.Message, true); }
     }
     private async void OnFavoritesOverviewClick(object? sender, RoutedEventArgs e) => await OpenFavoritesOverviewAsync();
@@ -1127,8 +1105,7 @@ public partial class ArchivePage : UserControl
         // the saved width stays in _archiveSplitWidth.
         bool listOff = beside && _threadListHidden && !_largeReader;
         bool listColumn = beside && !listOff;
-        split.ColumnDefinitions[0].Width = new GridLength(listColumn
-            ? (_archiveLayout == "Table" ? Math.Max(WorkViewDensity.ArchiveTableMinWidth(ArchiveWorkView), _archiveSplitWidth) : _archiveSplitWidth) : 0);
+        split.ColumnDefinitions[0].Width = new GridLength(listColumn ? ArchiveListPaneWidth : 0);
         split.ColumnDefinitions[1].Width = new GridLength(listColumn ? 6 : 0);
         split.ColumnSpacing = listColumn ? 6 : 0;
         // The shared footer row aligns both pane edges only side by side. Stacked,
@@ -1235,8 +1212,6 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(ArchiveBackButton, "archive.back-to-list", iconWithLabel: true);
         CommandBindings.Apply(PreviousThreadsButton, "archive.previous-page", iconOnly: true);
         CommandBindings.Apply(NextThreadsButton, "archive.next-page", iconOnly: true);
-        CommandBindings.Apply(PreviousPostsButton, "pagination.previous", iconOnly: true);
-        CommandBindings.Apply(NextPostsButton, "pagination.next", iconOnly: true);
         CommandBindings.Apply(PreviousReferences, "pagination.previous", iconOnly: true);
         CommandBindings.Apply(NextReferences, "pagination.next", iconOnly: true);
         CommandBindings.Apply(ArchiveHistoryBack, "reader.history-back", iconWithLabel: true);
@@ -1257,8 +1232,7 @@ public partial class ArchivePage : UserControl
         ArchivePostsTab.Header = Texts.T("archive.posts");
         ArchiveMediaTab.Header = Texts.T("archive.media");
         LocalizeMediaLayoutSwitch();
-        ArchiveFavoritesFilter.Content = Texts.T(
-            _archiveFavoritesOnly ? "archive.allMedia" : "archive.favoritesOnly");
+        ArchiveFavoritesFilter.Content = Texts.T("archive.favoritesOnly");
         // Replacing translated labels clears selection synchronously; it is not a new user choice.
         _localizingMediaChoices = true;
         try
@@ -1272,8 +1246,6 @@ public partial class ArchivePage : UserControl
         LocalizeMediaRatings();
         LocalizeMediaSelection();
         UpdateReaderNavigation();
-        DataGrid media = ArchiveMediaGrid;
-        media.Columns[0].Header = Texts.T("archive.name"); media.Columns[1].Header = Texts.T("archive.size"); media.Columns[2].Header = Texts.T("archive.version");
         UpdateActions();
         RefreshMediaSidebarToggle();
     }
@@ -1296,6 +1268,7 @@ public partial class ArchivePage : UserControl
         _ = ReleaseInlineVideos();
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();
+        DisposeThreadTagMenus();
         StopObservingReaderMediaKeys();
         _ = DisposeArchiveMediaCountsAsync();
         EndArchiveCleanupLifetime();
@@ -1310,6 +1283,7 @@ public partial class ArchivePage : UserControl
         ArchiveBoardFilter.EndSuggestions();
         _readerUpdateTimer?.Stop();
         CancelInlineReplies();
+        CancelPreviewWork();
         EndExportDialog();
         ++_contentRequest;
         CancelMediaLoad();

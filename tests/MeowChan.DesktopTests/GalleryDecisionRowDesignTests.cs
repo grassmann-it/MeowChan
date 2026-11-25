@@ -14,8 +14,8 @@ using MeowChan.Desktop.Motion;
 
 namespace MeowChan.DesktopTests;
 
-// Shared "Rate and tag…" decision row: the centered rating bar (five equal star cells and the remove button),
-// the favourite, then a short rating caption. Hover previews, one tab stop, the label of a partly favourite
+// Shared "Rate and tag…" decision row: five equal star cells and the remove button, with the favourite
+// on the same row. Hover previews, one tab stop, the label of a partly favourite
 // selection, and the full help sentence stay intact. Controls without an application have no theme, so geometry is checked on the grid and
 // the real layout of the cells at the popover width and the narrow width belongs to the captures run centrally.
 [Collection("Localization")]
@@ -29,68 +29,74 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     private static GalleryDecisionView View(int? rating, GalleryDecisionCoverage favorite = GalleryDecisionCoverage.None, bool mixed = false, bool available = true) =>
         new(1, favorite, rating, mixed, available);
 
-    private static bool?[] Marks(GalleryDecisionRow row) => row.StarButtons.Select(star => FavoriteStar.MarkOf(star.Content)).ToArray();
+    private static bool?[] Marks(GalleryDecisionRow row) => row.StarButtons.Select(star => RatingStar.FilledOf(star.Content)).ToArray();
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));
 
     // ---- the rating bar ---------------------------------------------------------------------------------------------------------
 
-    [Theory, InlineData(336.0), InlineData(280.0), InlineData(160.0)]
-    public void TheFiveStarCellsAreEqualTouchAndFillTheRowBesideTheRemoveButton(double width)
-    {
-        GalleryDecisionRow row = new("DesignRow", compact: true);
-        row.Show(View(3));
-        Grid bar = Assert.IsType<Grid>(row.RatingGroup);
-        Assert.Equal(7, bar.ColumnDefinitions.Count);
-        Assert.All(bar.ColumnDefinitions.Take(5), column => Assert.Equal(GridUnitType.Star, column.Width.GridUnitType));
-        Assert.Equal(new GridLength(8), bar.ColumnDefinitions[5].Width);
-        Assert.Equal(GridLength.Auto, bar.ColumnDefinitions[6].Width);
-        Assert.Equal(new[] { 0, 1, 2, 3, 4 }, row.StarButtons.Select(Grid.GetColumn));
-        Assert.Equal(6, Grid.GetColumn(row.ClearButton));
-        Assert.All(row.StarButtons, star => Assert.Contains("rating-star", star.Classes));
-        Assert.All(row.StarButtons, star => Assert.Equal(Avalonia.Layout.HorizontalAlignment.Stretch, star.HorizontalAlignment));
-
-        // Only the bar is laid out: a caption needs the platform's text services, which a test without an application does not have.
-        bar.Measure(new Size(width, double.PositiveInfinity));
-        bar.Arrange(new Rect(0, 0, width, bar.DesiredSize.Height));
-        Assert.InRange(bar.Bounds.Width, Math.Min(width, 200) - 0.5, Math.Min(width, 200) + 0.5);
-        Assert.InRange(bar.Bounds.Center.X, width / 2 - 0.5, width / 2 + 0.5);
-        double cell = (bar.Bounds.Width - 8 - row.ClearButton.Bounds.Width) / 5;
-        // Layout rounding snaps each cell to whole pixels, so a cell may differ from the exact fifth by up to one pixel.
-        Assert.All(row.StarButtons, star => Assert.InRange(star.Bounds.Width, cell - 1, cell + 1));
-        for (int index = 0; index < 4; index++)
-            Assert.Equal(row.StarButtons[index].Bounds.Right, row.StarButtons[index + 1].Bounds.Left, 3); // no gap: the hit area is continuous
-        Assert.Equal(0, row.StarButtons[0].Bounds.Left, 3);
-        Assert.InRange(row.ClearButton.Bounds.Right, bar.Bounds.Width - 1, bar.Bounds.Width + 1);
-    }
-
-    [Theory]
-    [InlineData(240)]
-    [InlineData(400)]
-    public void PopoverStarsUseTheFullWidthAndHaveFortyDipTargets(int width) => BooruComponentDispatcher.Run(() =>
+    [Theory, InlineData(336.0), InlineData(280.0), InlineData(200.0)]
+    public void TheFiveStarCellsShareAWidthAndSitBesideTheRemoveButton(double width) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
-        GalleryDecisionRow row = new("PopoverRow") { Width = width };
+        GalleryDecisionRow row = new("DesignRow", compact: true) { Width = width };
         row.Show(View(3));
-        Window window = new() { Width = 440, Height = 240, Content = row };
+        Grid bar = Assert.IsType<Grid>(row.RatingGroup);
+        Assert.Equal(5, bar.ColumnDefinitions.Count);
+        Assert.Equal(GridLength.Auto, bar.ColumnDefinitions[0].Width);
+        Assert.Equal(new GridLength(8), bar.ColumnDefinitions[1].Width);
+        Assert.Equal(GridLength.Auto, bar.ColumnDefinitions[2].Width);
+        Assert.Equal(2, Grid.GetColumn(row.ClearButton));
+        Assert.Equal(GridLength.Auto, bar.ColumnDefinitions[4].Width);
+        Assert.All(row.StarButtons, star => Assert.Contains("rating-star", star.Classes));
+        Assert.Equal(0, Grid.GetRow(row.ClearButton));
+        Assert.Equal(0, Grid.GetRow(row.FavoriteButton));
+        Assert.Equal(4, Grid.GetColumn(row.FavoriteButton));
+
+        Window window = new() { Content = row, Width = 400, Height = 240 };
         try
         {
             window.Show();
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
-            Assert.Equal(width, row.RatingGroup.Bounds.Width);
+            double cellWidth = row.StarButtons[0].Bounds.Width;
+            Assert.Equal(24, cellWidth);
+            Assert.All(row.StarButtons, star => Assert.Equal(cellWidth, star.Bounds.Width, 1));
+            for (int index = 0; index < row.StarButtons.Count - 1; index++)
+                Assert.Equal(row.StarButtons[index].Bounds.Right, row.StarButtons[index + 1].Bounds.Left, 0.5);
+            Assert.Equal(row.StarButtons[^1].Bounds.Right + 8, row.ClearButton.Bounds.Left, 0.5);
+            Assert.True(row.FavoriteButton.Bounds.Right <= bar.Bounds.Width + 0.5);
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
+    [InlineData(240)]
+    [InlineData(280)]
+    [InlineData(360)]
+    [InlineData(480)]
+    public void PopoverKeepsTheSameAxesWithLargerStarTargets(int width) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        GalleryDecisionRow row = new("PopoverRow") { Width = width - 24 };
+        row.Show(View(3));
+        Window window = new() { Width = 520, Height = 240, Content = row };
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
             Assert.All(row.StarButtons, star =>
             {
-                Assert.True(star.Bounds.Width >= 40);
-                Assert.True(star.Bounds.Height >= 40);
+                Assert.Equal(width - 24 < 336 ? 32 : 40, star.Bounds.Width);
+                Assert.Equal(star.Bounds.Width, star.Bounds.Height, 0.5);
                 Assert.InRange(Math.Abs(star.Bounds.Width - row.StarButtons[0].Bounds.Width), 0, 1);
             });
+            Assert.Equal(row.ClearButton.Bounds.Right + 8, row.FavoriteButton.Bounds.Left, 0.5);
+            Assert.Equal(row.StarButtons[0].Bounds.Center.Y, row.FavoriteButton.Bounds.Center.Y, 0.5);
         }
-        finally
-        {
-            window.Close();
-        }
+        finally { window.Close(); }
     });
 
     [Fact]
@@ -99,13 +105,13 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         GalleryDecisionRow row = new("DesignRow");
         Assert.All(row.StarButtons, star => Assert.DoesNotContain(WorkspaceIcons.SquareClass, star.Classes));
         Assert.Contains(WorkspaceIcons.SquareClass, row.ClearButton.Classes);
-        Assert.Contains("subtle", row.ClearButton.Classes);
+        Assert.Contains("media-control", row.ClearButton.Classes);
         string styles = File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"));
         XElement[] all = XDocument.Parse(styles).Root!.Elements(A + "Style").ToArray();
         string? Setting(string selector, string property) => all.Where(style => (string?)style.Attribute("Selector") == selector)
             .SelectMany(style => style.Elements(A + "Setter")).Where(setter => (string?)setter.Attribute("Property") == property)
             .Select(setter => (string?)setter.Attribute("Value")).FirstOrDefault();
-        Assert.Equal("{StaticResource Workspace.Size.Nav}", Setting("ToggleButton.rating-star", "Height"));
+        Assert.Equal("{StaticResource Workspace.Size.Control}", Setting("ToggleButton.rating-star", "Height"));
         Assert.Equal("{StaticResource Workspace.Size.ControlCompact}", Setting("ToggleButton.rating-star", "MinWidth"));
         Assert.Equal("Stretch", Setting("ToggleButton.rating-star", "HorizontalAlignment"));
         Assert.Equal("{StaticResource Workspace.Radius.Control}", Setting("ToggleButton.rating-star", "CornerRadius"));
@@ -239,13 +245,14 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     // ---- the favourite line --------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void FavouriteAndRatingCaptionAreCenteredOnSeparateLines()
+    public void FavouriteFollowsClearInTheSameRow()
     {
         GalleryDecisionRow row = new("DesignRow");
-        Assert.Equal(new Control[] { row.RatingGroup, row.FavoriteButton, row.Summary }, row.Children);
-        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Center, row.FavoriteButton.HorizontalAlignment);
-        Assert.Equal(Avalonia.Media.TextAlignment.Center, row.Summary.TextAlignment);
-        Assert.Equal(8, row.Spacing);
+        Grid group = Assert.IsType<Grid>(row.RatingGroup);
+        Assert.Equal(0, Grid.GetRow(row.FavoriteButton));
+        Assert.Equal(4, Grid.GetColumn(row.FavoriteButton));
+        Assert.Equal(new GridLength(8), group.ColumnDefinitions[3].Width);
+        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Left, row.FavoriteButton.HorizontalAlignment);
     }
 
     [Fact]
@@ -253,27 +260,28 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     {
         GalleryDecisionRow row = new("DesignRow");
         Assert.Contains("rating-favorite", row.FavoriteButton.Classes);
-        Assert.Contains("media-control", row.FavoriteButton.Classes);
+        Assert.DoesNotContain("media-control", row.FavoriteButton.Classes);
         XElement style = XDocument.Parse(File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"))).Root!
             .Elements(A + "Style").Single(style => (string?)style.Attribute("Selector") == "ToggleButton.rating-favorite");
         Dictionary<string, string?> settings = style.Elements(A + "Setter")
             .ToDictionary(setter => (string)setter.Attribute("Property")!, setter => (string?)setter.Attribute("Value"));
-        Assert.Equal("{StaticResource Workspace.Size.Nav}", settings["MinHeight"]);
-        Assert.Equal("11,7", settings["Padding"]);
+        Assert.Equal("{StaticResource Workspace.Size.Control}", settings["MinHeight"]);
+        Assert.Equal("12,0", settings["Padding"]);
         Assert.Equal("Center", settings["HorizontalContentAlignment"]);
         Assert.Equal("Center", settings["VerticalContentAlignment"]);
         Assert.Equal("{StaticResource Workspace.FocusAdorner}", settings["FocusAdorner"]);
-        Assert.DoesNotContain("Height", settings.Keys); // larger text may grow; no fixed-height clipping
-        Assert.DoesNotContain("Background", settings.Keys); // existing media-control theme/state colors stay intact
-        Assert.DoesNotContain("Foreground", settings.Keys);
+        Assert.Equal(settings["MinHeight"], settings["Height"]);
+        Assert.Equal("Transparent", settings["Background"]);
+        Assert.Equal("{DynamicResource Workspace.Text}", settings["Foreground"]);
+        Assert.Equal("{DynamicResource Workspace.ControlBorder}", settings["BorderBrush"]);
         foreach (GalleryDecisionCoverage coverage in Enum.GetValues<GalleryDecisionCoverage>())
         {
             GalleryDecisionView view = View(3, coverage);
             row.Show(view);
             Assert.Equal(GalleryDecisionText.Favorite(view), AutomationProperties.GetHelpText(row.FavoriteButton));
             Grid content = Assert.IsType<Grid>(row.FavoriteButton.Content);
-            Assert.Equal(20, content.Children[0].Width);
-            Assert.Equal(20, content.Children[0].Height);
+            Assert.Equal(16, content.Children[0].Width);
+            Assert.Equal(16, content.Children[0].Height);
         }
     }
 
@@ -287,7 +295,8 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         row.Show(View(null, GalleryDecisionCoverage.None));
         Assert.Equal(Texts.T("gallery.decision.favorite"), FavoriteLabel(row));
         row.Show(View(null, GalleryDecisionCoverage.Some));
-        Assert.Equal(Texts.T("gallery.decision.favorite.some"), FavoriteLabel(row));
+        Assert.Equal(Texts.T("gallery.decision.favorite"), FavoriteLabel(row));
+        Assert.Equal(Texts.T("gallery.decision.favorite.some"), ToolTip.GetTip(row.FavoriteButton));
         Assert.Null(row.FavoriteButton.IsChecked);
         Assert.Equal(Texts.T("gallery.decision.favorite"), AutomationProperties.GetName(row.FavoriteButton)); // the accessible name does not move with the label
         row.Show(View(null, GalleryDecisionCoverage.All));
@@ -297,7 +306,8 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         Assert.Equal(Texts.T("gallery.decision.favorite"), FavoriteLabel(row));
         row.Show(View(null, GalleryDecisionCoverage.Some));
         row.Localize();
-        Assert.Equal(Texts.T("gallery.decision.favorite.some"), FavoriteLabel(row));
+        Assert.Equal(Texts.T("gallery.decision.favorite"), FavoriteLabel(row));
+        Assert.Equal(Texts.T("gallery.decision.favorite.some"), ToolTip.GetTip(row.FavoriteButton));
     }
 
     [Fact]
@@ -306,32 +316,31 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         GalleryDecisionRow row = new("DesignRow");
         GalleryDecisionView rated = View(4, GalleryDecisionCoverage.All);
         row.Show(rated);
-        Assert.Equal(MediaRatingText.Value(4), row.Summary.Text);
-        Assert.DoesNotContain("·", row.Summary.Text);
+        Assert.Equal(MediaRatingText.Value(4), AutomationProperties.GetName(row.RatingBar));
+        Assert.DoesNotContain("·", AutomationProperties.GetName(row.RatingBar));
         Assert.Equal(ShortcutHelp.Append(GalleryDecisionText.Summary(rated), ShortcutHelp.Commands("gallery",
             Enumerable.Range(1, 5).Select(n => "media.rating.set-" + n).Append("media.rating.clear").ToArray())),
             AutomationProperties.GetHelpText(row.RatingGroup));
         Assert.Contains("·", AutomationProperties.GetHelpText(row.RatingGroup));
-        Assert.Equal(1, row.Summary.MaxLines);
-        Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, row.Summary.TextTrimming);
-        Assert.IsType<TrimTipTextBlock>(row.Summary);
+        Assert.Equal(AutomationProperties.GetName(row.RatingBar), ToolTip.GetTip(row.RatingBar));
 
         row.Show(View(null));
-        Assert.Equal(MediaRatingText.Value(null), row.Summary.Text);
+        Assert.Equal(MediaRatingText.Value(null), AutomationProperties.GetName(row.RatingBar));
         row.Show(View(null, mixed: true));
-        Assert.Equal(Texts.T("gallery.decision.rating.mixed"), row.Summary.Text);
+        Assert.Equal(Texts.T("gallery.decision.rating.mixed"), AutomationProperties.GetName(row.RatingBar));
         row.Show(GalleryDecisionView.Unavailable);
-        Assert.Equal(Texts.T("gallery.decision.status.unavailable"), row.Summary.Text);
+        Assert.False(row.StarButtons[0].IsEnabled);
+        Assert.Equal(Texts.T("gallery.decision.status.unavailable"), Assert.Single(row.Children.OfType<TextBlock>(), text => text.IsVisible).Text);
     }
 
     [Fact]
-    public void HidingTheFavouriteHidesOnlyTheToggleAndTheCaptionStaysOnItsLine()
+    public void HidingTheFavouriteKeepsTheRatingAccessible()
     {
         GalleryDecisionRow row = new("DesignRow") { FavoriteVisible = false };
         row.Show(View(3));
         Assert.False(row.FavoriteButton.IsVisible);
-        Assert.True(row.Summary.IsVisible);
-        Assert.Equal(MediaRatingText.Value(3), row.Summary.Text);
-        Assert.Same(row.Summary, row.Children[^1]);
+        Assert.Equal(MediaRatingText.Value(3), ToolTip.GetTip(row.RatingBar));
+        Assert.Same(row.RatingGroup, row.RatingBar.Parent);
     }
+
 }

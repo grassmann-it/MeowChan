@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
@@ -22,18 +25,70 @@ public partial class MainWindow
         CommandBindings.Apply(DownloadsColumnsButton, "table.choose-columns", iconWithLabel: true);
     }
 
-    private void OnDownloadsColumnsClick(object? sender, RoutedEventArgs e)
+    private void ToggleDownloadColumns()
     {
-        if (sender is not Button button) return;
-        ContextMenu menu = BuildDownloadColumnsMenu(DownloadsTabs.SelectedIndex == 1 ? "BoardsDataGrid" : "ThreadsDataGrid");
+        var button = DownloadsColumnsButton;
+        if (PopupToggle.ConsumeActivation(button))
+        {
+            button.IsChecked = false;
+            return;
+        }
+        bool boards = DownloadsTabs.SelectedIndex == 1;
+        ContextMenu menu = BuildDownloadColumnsMenu(boards ? "BoardsDataGrid" : "ThreadsDataGrid");
+        // Barebones and Simple keep "Columns" under "More": with that list closed the button is not on screen, and the shortcut
+        // opens the menu at the visible "More" of the same bar (or at the table when the bar shows no "More").
+        Control anchor = DownloadColumnsAnchor(button, boards);
+        if (!ReferenceEquals(anchor, button))
+        {
+            menu.PlacementTarget = anchor;
+            menu.Placement = PlacementMode.AnchorAndGravity;
+            bool table = anchor is DataGrid;
+            menu.PlacementAnchor = table ? PopupAnchor.TopRight : PopupAnchor.BottomRight;
+            menu.PlacementGravity = PopupGravity.BottomLeft;
+        }
         button.ContextMenu = menu;
-        // The menu is built for the table of the tab shown now; a later right-click on the button must not reopen it for another tab.
-        menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };
+        menu.Closed += (_, _) =>
+        {
+            if (!ReferenceEquals(button.ContextMenu, menu)) return;
+            button.ContextMenu = null;
+            button.IsChecked = false;
+            ReturnFocusFromDownloadColumns(anchor);
+        };
+        menu.AddHandler(InputElement.KeyDownEvent, (_, key) =>
+        {
+            if (ShortcutService.IsCapturing) return;
+            using var context = EffectiveShortcutBindings.EnterKeyContext("downloads");
+            if (!ShortcutService.Current.Matches(key, "table.choose-columns")) return;
+            key.Handled = true;
+            menu.Close();
+        }, RoutingStrategies.Tunnel);
+        PopupToggle.Track(button, menu);
         menu.Open(button);
+        button.IsChecked = menu.IsOpen;
     }
 
+    private Control DownloadColumnsAnchor(Button button, bool boards)
+    {
+        static bool OnScreen(Control control) => control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
+        if (OnScreen(button)) return button;
+        return WorkspaceListActions.More is { } more && OnScreen(more) ? more : DownloadList(boards);
+    }
+
+    // The buttons of the bar take no focus: a closed column menu leaves the keyboard in the table it arranges, unless the
+    // focus already went to another control on purpose (a click into a field, a chosen entry's own target).
+    private void ReturnFocusFromDownloadColumns(Control anchor) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+    {
+        if (_isClosing || DownloadsColumnsButton.ContextMenu != null || _selectedPage != WorkspacePage.Downloads) return;
+        DataGrid list = DownloadList(DownloadsTabs.SelectedIndex == 1);
+        if (list.IsKeyboardFocusWithin || !list.IsEffectivelyVisible) return;
+        if (FocusManager?.GetFocusedElement() is Avalonia.Visual focused && focused.IsAttachedToVisualTree()
+            && !ReferenceEquals(focused, anchor) && !focused.IsVisualAncestorOf(anchor)
+            && !WorkspaceListActions.IsVisualAncestorOf(focused)) return;
+        list.Focus();
+    }, Avalonia.Threading.DispatcherPriority.Input);
+
     // A right-click on a column header of either downloads table opens the same column menu as the "Columns" button; the keyboard
-    // reaches it through that button. Rows keep their own menu (MainWindow.Selection.cs).
+    // can run the column command separately. Rows keep their own menu (MainWindow.Selection.cs).
     private void InitializeDownloadHeaderMenus()
     {
         foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
@@ -42,7 +97,7 @@ public partial class MainWindow
             grid.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent, (_, e) =>
             {
                 // The button is the offer of the work view: where it is hidden, the header does not bring the choice back.
-                if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed || _isClosing || !_restoreCompleted || !DownloadsColumnsButton.IsVisible) return;
+                if (!ContextClick.IsPress(e, grid) || _isClosing || !_restoreCompleted || !DownloadsColumnsButton.IsVisible) return;
                 if ((e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<DataGridColumnHeader>().FirstOrDefault() is not { } header) return;
                 e.Handled = true;
                 ContextMenu menu = BuildDownloadColumnsMenu(gridName);
@@ -68,8 +123,9 @@ public partial class MainWindow
             bool available = !visible || CanHideDownloadColumn(gridName, column.SortMemberPath,
                 grid.Columns.Where(candidate => candidate.IsVisible).Select(candidate => candidate.SortMemberPath).ToArray());
             builder.Check(key, column.Header?.ToString() ?? key, visible,
-                async () => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode), available: available);
-            if (IsAdvancedWorkColumn(column))
+                async () => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode),
+                available: available, reason: available ? null : Texts.T("archive.columns.required"));
+            if (available && IsAdvancedWorkColumn(column))
                 help.Add((key, Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint")));
         }
         builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),

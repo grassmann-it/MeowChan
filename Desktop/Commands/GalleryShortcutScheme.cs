@@ -8,8 +8,9 @@ namespace MeowChan.Desktop.Commands;
 /// <summary>
 /// The key scheme of the gallery (Tom's decision of 14.11.2026, defaults revision 13). One rule keeps the keys guessable:
 /// <list type="bullet">
-/// <item><b>Shift + letter</b> shows or hides a panel or block: <c>Shift+H</c> tools, <c>Shift+I</c> info line, <c>Shift+K</c> cards of the tagging mode, <c>Shift+N</c> hint row,
-/// <c>Shift+L</c> filmstrip, <c>Shift+O</c> controls overlay, <c>Shift+P</c> post panel, <c>Shift+T</c> view / tag mode.</item>
+/// <item><b>Shift + letter</b> shows or hides a panel or block: <c>Shift+H</c> tools, <c>Shift+Z</c> info line, <c>Shift+K</c> cards of the tagging mode, <c>Shift+N</c> hint row,
+/// <c>Shift+L</c> filmstrip, <c>Shift+O</c> controls overlay, <c>Shift+P</c> post panel, <c>Shift+T</c> view / tag mode,
+/// <c>Shift+I</c> facts and <c>Shift+A</c> post-panel placement in the gallery (sidebar auto-hide in Reader and Media).</item>
 /// <item><b>Plain letters</b> act on what plays: <c>L</c> repeat and <c>A</c> the A–B loop. The older plain letters of the gallery (<c>F</c> toggles a favourite, <c>I</c> details, <c>Q</c> queue, <c>R</c> rating,
 /// <c>T</c> show in thread) stay.</item>
 /// <item><b>Favourites, uniformly everywhere</b> (Tom's decision of 15.11.2026, revision 20): <c>M</c> adds, <c>U</c> removes and <c>F</c> toggles, in the gallery as in
@@ -36,7 +37,8 @@ public static class GalleryShortcutScheme
     {
         "gallery.filmstrip-toggle", "gallery.context-toggle", "gallery.mode-toggle", "gallery.tools-toggle",
         "gallery.overlay-toggle", "gallery.overlay-autohide-toggle", "gallery.post-overlay-toggle",
-        "gallery.layout.tools", "gallery.layout.info", "gallery.layout.hints", "tags.queue.cards"
+        "gallery.layout.tools", "gallery.layout.info", "gallery.layout.hints", "tags.queue.cards",
+        "media.sidebar.info", "media.sidebar.autohide"
     });
 
     /// <summary>The plain-letter defaults that act on the shown medium's playback.</summary>
@@ -48,9 +50,7 @@ public static class GalleryShortcutScheme
     /// <summary>The Shift-letter defaults that act on the shown medium instead of showing or hiding a block: mute (Shift+M), rotate (Shift+R), snapshot (Shift+S) and slideshow (Shift+D, revision 22).</summary>
     public static IReadOnlyList<string> ShiftLetterActionIds { get; } = Array.AsReadOnly(new[] { "video.mute", "gallery.rotate", "video.snapshot", "gallery.slideshow-toggle" });
 
-    /// <summary>The Shift-letter defaults of another page that switch what that page shows (the Media page's focus mode, Shift+F next to the favourite's F). They are
-    /// panel-like switches, not actions on a medium, and are no gallery commands, so they sit in neither <see cref="PanelToggleIds"/> nor <see cref="ShiftLetterActionIds"/>.
-    /// <c>ShiftLetterSchemeTests</c> accepts exactly these three lists for a default of the form Shift + one letter.</summary>
+    /// <summary>The Shift-letter switches available only outside the gallery: the Media page's focus mode (Shift+F).</summary>
     public static IReadOnlyList<string> ShiftLetterOtherPanelIds { get; } = Array.AsReadOnly(new[] { "media.focus-mode" });
 
     /// <summary>The favourite keys (revision 20), the same on every surface that shows or selects a medium: M adds, U removes, F toggles.</summary>
@@ -65,7 +65,7 @@ public static class GalleryShortcutScheme
     public static IReadOnlyDictionary<string, string> LayoutDefaults { get; } = new ReadOnlyDictionary<string, string>(
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["gallery.layout.info"] = "Shift+I",
+            ["gallery.layout.info"] = "Shift+Z",
             ["gallery.layout.hints"] = "Shift+N"
         });
 

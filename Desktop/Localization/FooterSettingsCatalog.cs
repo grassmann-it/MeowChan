@@ -8,6 +8,11 @@ internal static class FooterSettingsCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("settings.footer.title", "Footer", "Fußleiste"),
+        ("settings.footer.displays", "Footer displays", "Fußleistenanzeigen"),
+        ("settings.footer.statusLines", "Status lines", "Statuszeilen"),
+        ("settings.footer.network.hint", "Show download and upload rates in the footer.", "Zeigt Download- und Uploadraten in der Fußleiste an."),
+        ("settings.footer.disk.hint", "Show disk read and write rates in the footer.", "Zeigt die Lese- und Schreibraten des Datenträgers in der Fußleiste an."),
+        ("settings.footer.statusLines.hint", "Show the current download status and activity counts in the footer.", "Zeigt den aktuellen Downloadstatus und die Aktivitätszähler in der Fußleiste an."),
         ("settings.footer.help", "Choose which pages have a button of their own in the footer and in which order. A page you hide stays reachable through More, the ⋯ menu and its keyboard shortcut. Ctrl/Cmd+1 to 9 count the footer buttons your work view shows, from the left; the pages under More follow. A work view can still move more pages under More.", "Lege fest, welche Seiten einen eigenen Knopf in der Fußleiste haben und in welcher Reihenfolge. Eine ausgeblendete Seite bleibt über Mehr, das ⋯-Menü und ihr Tastenkürzel erreichbar. Strg/Cmd+1 bis 9 zählen die Fußleisten-Knöpfe, die deine Arbeitsansicht zeigt, von links; die Seiten unter Mehr folgen danach. Eine Arbeitsansicht kann weitere Seiten unter Mehr einsortieren."),
         ("settings.footer.booruHint", "Booru is shown by default. A compact work view or narrow window can move it under More. To hide the page from navigation, turn off “Show Booru actions” below.", "Booru wird standardmäßig angezeigt. Eine kompakte Arbeitsansicht oder ein schmales Fenster kann die Seite unter „Mehr“ verschieben. Um die Seite aus der Navigation auszublenden, schalte unten „Booru-Aktionen anzeigen“ aus."),
         ("settings.footer.booruActions", "Show Booru actions", "Booru-Aktionen anzeigen"),

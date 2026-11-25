@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.MediaActions;
 
 namespace MeowChan.Desktop.Controls;
@@ -18,12 +19,15 @@ namespace MeowChan.Desktop.Controls;
 /// </summary>
 internal sealed class ContextMenuHost : IDisposable
 {
-    // Avalonia may follow a handled key or press with a positionless ContextRequested of its own; it is consumed, not opened again.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, ContextMenuHost> Installed = new();
     private static readonly TimeSpan PairedRequestWindow = TimeSpan.FromMilliseconds(400);
 
     private readonly Control _origin;
     private readonly Func<ContextMenuBuilder?> _compose;
     private readonly Func<Control>? _resolveOrigin;
+    private readonly Func<object?, bool>? _acceptSource;
+    private readonly bool _toggle;
+    private readonly bool _allowNativeContextKey;
     private Control? _openOn;
     private readonly Action? _fallbackFocus;
     private ContextMenu? _menu;
@@ -35,16 +39,25 @@ internal sealed class ContextMenuHost : IDisposable
     /// <param name="fallbackFocus">Where focus goes when neither the previous focus nor the origin can take it any more.</param>
     /// <param name="resolveOrigin">Optional: the control the menu opens on for this opening (a sibling when <paramref name="origin"/> is not on the screen,
     /// for example a button that moved under "More"); the handlers stay on <paramref name="origin"/>.</param>
-    internal ContextMenuHost(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null, Func<Control>? resolveOrigin = null)
+    /// <param name="acceptSource">Optional: whether this source belongs to the surface rather than to a child with its own actions.</param>
+    /// <param name="toggle">Whether explicit activations toggle a button menu on the same anchor.</param>
+    /// <param name="allowNativeContextKey">Whether the origin owns the menu gesture even when it is normally a native input.</param>
+    internal ContextMenuHost(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null, Func<Control>? resolveOrigin = null,
+        Func<object?, bool>? acceptSource = null, bool toggle = false, bool allowNativeContextKey = false)
     {
+        _toggle = toggle;
+        _allowNativeContextKey = allowNativeContextKey;
         _resolveOrigin = resolveOrigin;
+        _acceptSource = acceptSource;
         _origin = origin ?? throw new ArgumentNullException(nameof(origin));
         _compose = compose ?? throw new ArgumentNullException(nameof(compose));
         _fallbackFocus = fallbackFocus;
         // A list or table takes the key in the tunnel phase: its focused item or row consumes Enter, Space, Home, End and the arrows before a bubble
         // handler of the list sees them, so a rebinding of "Open context menu" to one of them would never arrive. Other origins keep the bubble phase,
         // where a child that handles the key itself (a nested chip with a menu of its own) still wins.
-        origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, (origin is ListBox or DataGrid) ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);
+        origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown,
+            origin is ListBox or DataGrid || allowNativeContextKey ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);
+        origin.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         origin.AddHandler(Control.ContextRequestedEvent, OnContextRequested, RoutingStrategies.Bubble);
         // A card/row can be rebuilt while its popup is open (Booru paging, archive refresh, virtualized lists).
         // Close before the detached control can leave a menu whose buttons still point at the old row.
@@ -54,23 +67,62 @@ internal sealed class ContextMenuHost : IDisposable
     /// <summary>The menu that is open now, if any.</summary>
     internal ContextMenu? OpenMenu => _menu is { IsOpen: true } ? _menu : null;
 
+    internal static void Install(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null)
+    {
+        Uninstall(origin);
+        Installed.GetValue(origin, control => new ContextMenuHost(control, compose, fallbackFocus));
+        origin.DetachedFromVisualTree += UninstallOnDetach;
+    }
+
+    internal static void Uninstall(Control origin)
+    {
+        origin.DetachedFromVisualTree -= UninstallOnDetach;
+        if (Installed.TryGetValue(origin, out ContextMenuHost? host)) host.Dispose();
+        Installed.Remove(origin);
+    }
+
+    private static void UninstallOnDetach(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is Control origin) Uninstall(origin);
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_disposed || !MediaMenuPresenter.IsContextKey(e)) return;
+        if (_disposed || e.Handled || ShortcutService.IsCapturing || _acceptSource?.Invoke(e.Source) == false) return;
+        if (!(_allowNativeContextKey ? IsMenuGesture(e) : ContextClick.IsKey(e))) return;
         // In the tunnel phase an interactive part of a row (a nested button or text field) keeps the key.
         if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         _lastKeyOpen = DateTime.UtcNow;
         e.Handled = true;
-        Show(atPointer: false);
+        if (!_toggle && OpenMenu != null) return;
+        Activate(atPointer: false);
+        ContextClick.ConsumeOpeningKeyRelease(OpenMenu, e.Key, TopLevel.GetTopLevel(_origin) ?? _origin);
+    }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_disposed || _acceptSource?.Invoke(e.Source) == false || ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)
+            || MediaMenuPresenter.IsNativeTextSource(e.Source)) return;
+        ContextClick.RequestOnMacControlPress(e, _origin);
     }
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (_disposed || e.Handled) return;
+        if (_disposed || e.Handled || _acceptSource?.Invoke(e.Source) == false) return;
+        if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         bool positioned = e.TryGetPosition(_origin, out _);
+        if ((positioned || !_allowNativeContextKey) && MediaMenuPresenter.IsNativeTextSource(e.Source)) return;
         e.Handled = true;
-        if (!positioned && DateTime.UtcNow - _lastKeyOpen < PairedRequestWindow) return;
-        Show(atPointer: positioned);
+        if (!positioned && (_toggle ? DateTime.UtcNow - _lastKeyOpen < PairedRequestWindow : OpenMenu != null)) return;
+        Activate(atPointer: positioned);
+    }
+
+    internal void Activate(bool atPointer = false)
+    {
+        Control origin = _resolveOrigin?.Invoke() ?? _origin;
+        if (_toggle && ReferenceEquals(_openOn, origin) && OpenMenu != null) { Close(); return; }
+        if (_toggle && origin is Button anchor && PopupToggle.ConsumeActivation(anchor)) return;
+        Show(atPointer);
     }
 
     /// <summary>Opens the menu on the origin: at the pointer, or under the control for the keyboard.</summary>
@@ -95,8 +147,23 @@ internal sealed class ContextMenuHost : IDisposable
             }
             RestoreFocus(menu, previousFocus as Control, origin);
         };
+        if (_toggle)
+        {
+            if (origin is Button button) PopupToggle.Track(button, menu);
+            menu.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+            {
+                if (!PopupToggle.CanToggleMenuFromKey(menu, e)) return;
+                if (!IsMenuGesture(e)) return;
+                _lastKeyOpen = DateTime.UtcNow;
+                e.Handled = true;
+                Close();
+            }, RoutingStrategies.Tunnel);
+        }
         menu.Open(origin);
     }
+
+    private static bool IsMenuGesture(KeyEventArgs e) => e.Key == Key.Apps && e.KeyModifiers == KeyModifiers.None
+        || e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift || ShortcutService.Current.Matches(e, "menu.context-open");
 
     private void OnOriginDetached(object? sender, VisualTreeAttachmentEventArgs e) => Close();
 
@@ -119,13 +186,13 @@ internal sealed class ContextMenuHost : IDisposable
             if (_disposed || _menu != null || menu.IsOpen) return;
             TopLevel? top = TopLevel.GetTopLevel(origin);
             if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible)) return;
-            static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
+            static bool Usable(Control? control) => control is { Focusable: true } && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
             // Focus held by something else that can take it (the page an entry opened) stays; focus left in the closed menu returns.
             object? focused = top?.FocusManager?.GetFocusedElement();
             if (focused is Control current && Usable(current) && !current.GetSelfAndVisualAncestors().OfType<ContextMenu>().Any()) return;
-            if (Usable(previous)) previous!.Focus();
-            else if (Usable(origin)) origin.Focus();
-            else _fallbackFocus?.Invoke();
+            if (Usable(previous) && previous!.Focus()) return;
+            if (Usable(origin) && origin.Focus()) return;
+            _fallbackFocus?.Invoke();
         }, DispatcherPriority.Background);
     }
 
@@ -135,6 +202,7 @@ internal sealed class ContextMenuHost : IDisposable
         Close();
         _disposed = true;
         _origin.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
+        _origin.RemoveHandler(InputElement.PointerPressedEvent, OnPointerPressed);
         _origin.RemoveHandler(Control.ContextRequestedEvent, OnContextRequested);
         _origin.DetachedFromVisualTree -= OnOriginDetached;
     }

@@ -7,12 +7,10 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
-using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
-using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
@@ -53,6 +51,53 @@ public sealed class BooruTileGridTests
     [InlineData(1000, 0, 1)]
     public void TheColumnCountIsWhatFitsAndNeverBelowOne(double width, double cell, int expected) =>
         Assert.Equal(expected, BooruTileMetrics.Columns(width, cell));
+
+    [Theory]
+    [InlineData(BooruRating.General, "G")]
+    [InlineData(BooruRating.Sensitive, "S")]
+    [InlineData(BooruRating.Questionable, "Q")]
+    [InlineData(BooruRating.Explicit, "E")]
+    [InlineData(BooruRating.Unknown, "?")]
+    public void ProviderRatingHasPlainTextAndKeepsZeroScore(BooruRating rating, string code) => OnDispatcher(async () =>
+    {
+        BooruPostView post = BooruUiFixtures.Post("42", rating: rating, score: 0);
+        Assert.Equal("#42 · " + code + " · 0", BooruTileMetrics.Line(post.PostId, post.Rating, post.Score));
+        Assert.Contains(BooruText.Rating(rating), BooruText.ProviderRatingAndScore(post));
+        Assert.Contains("0", BooruText.ProviderRatingAndScore(post));
+        Assert.Equal("#42 · " + code, BooruTileMetrics.Line(post.PostId, post.Rating, null));
+
+        BooruPostView withoutScore = BooruPostView.From(BooruUiFixtures.Post("43", rating: rating).Post with
+        {
+            Fields = BooruFieldPresence.All & ~BooruFieldPresence.Score,
+            Score = null
+        });
+        BooruUiHarness harness = new();
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, post, withoutScore)));
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        view.RestoreResultView(BooruResultView.Grid, MediaTileSize.Medium);
+
+        await BooruTestSupport.SearchAsync(model.Search, "cat");
+        await BooruTestSupport.WaitAsync(() => view.TilePanel?.Children.Count == 2, "the tiles");
+
+        string ratingLabel = "Danbooru rating: " + BooruText.Rating(rating);
+        AssertTile("42", "#42 · " + code + " · 0", ratingLabel + " · Score: 0");
+        AssertTile("43", "#43 · " + code, ratingLabel);
+
+        void AssertTile(string id, string line, string providerFacts)
+        {
+            string automationId = "BooruResult:" + id;
+            Border tile = Assert.Single(view.TilePanel!.Children.OfType<Border>(), child => child.Name == automationId);
+            TextBlock label = Assert.Single(tile.GetLogicalDescendants().OfType<TextBlock>(), text => text.Name == "BooruTileLine:" + id);
+            Assert.Equal(line, label.Text);
+            Assert.Equal(providerFacts, Assert.IsType<string>(ToolTip.GetTip(tile)));
+            Assert.True(tile.Focusable);
+            Assert.True(tile.IsTabStop);
+            Assert.Equal("Post #" + id + " · " + providerFacts, AutomationProperties.GetName(tile));
+            Assert.Equal(automationId, AutomationProperties.GetAutomationId(tile));
+        }
+    });
 
     [Fact]
     public void TheLineUnderATileIsIdRatingCodeAndScoreAndLeavesOutAMissingScore()
@@ -226,7 +271,9 @@ public sealed class BooruTileGridTests
         Assert.Empty(savedSizes);
 
         await BooruTestSupport.SearchAsync(model.Search, "cat");
-        await BooruTestSupport.WaitAsync(() => view.TilePanel?.Children.Count == 3, "the tiles");
+        await BooruTestSupport.WaitAsync(() => view.TilePanel is { Children.Count: 3 } tilePanel
+            && tilePanel.Children.OfType<Border>().Any(tile => tile.Name == "BooruResult:101" && Local(tile).IsVisible),
+            "three result tiles and the local mark for post 101");
         BooruTilePanel panel = view.TilePanel!;
         Assert.Equal(150, panel.ColumnWidth);
         Assert.Equal(AutomationControlType.List, AutomationProperties.GetControlTypeOverride(panel));
@@ -238,7 +285,7 @@ public sealed class BooruTileGridTests
             Assert.True(tile.Focusable);
             Assert.True(tile.IsTabStop);
             string id = tile.Name![^3..];
-            // The selection check and "Open in gallery" are there once and visible; the hidden card does not repeat them.
+            // The selection check and "Open in gallery" are there once and visible; there is one set per tile.
             Assert.Single(tile.GetLogicalDescendants().OfType<CheckBox>(), box => box.Name == "BooruSelect:" + id);
             Button gallery = Assert.Single(tile.GetLogicalDescendants().OfType<Button>(), button => button.Name == "BooruView:" + id);
             Assert.True(gallery.IsEffectivelyVisible || !tile.IsEffectivelyVisible);
@@ -254,13 +301,8 @@ public sealed class BooruTileGridTests
             Assert.Contains(tile.GetLogicalDescendants().OfType<TextBlock>(), text => text.Name == "BooruTileLine:" + id && text.Text!.StartsWith("#" + id, StringComparison.Ordinal));
         }
 
-        // The saved hit shows the local mark; the context menu still offers what the card offers.
         Assert.True(Local(tiles[0]).IsVisible);
         Assert.False(Local(tiles[1]).IsVisible);
-        ContextMenuBuilder? menu = (ContextMenuBuilder?)typeof(BooruWorkbenchView).GetMethod("ComposeResultMenu", Private)!.Invoke(view, new object[] { tiles[1], "102" });
-        string[] entries = Assert.IsType<ContextMenuBuilder>(menu).ToModel().Entries.Select(entry => entry.Id).ToArray();
-        Assert.Contains(BooruWorkbenchView.MenuLoad, entries);
-        Assert.Contains(BooruWorkbenchView.MenuOpenPost, entries);
 
         // An arrow key on a tile is handled there (the move itself needs a window).
         KeyEventArgs right = Press(Key.Right, tiles[0]);
@@ -363,46 +405,6 @@ public sealed class BooruTileGridTests
     private static List<Border> Cards(BooruWorkbenchView view) =>
         ((StackPanel)typeof(BooruWorkbenchView).GetField("_results", Private)!.GetValue(view)!).Children.OfType<Border>().ToList();
 
-    // One actual Avalonia dispatcher owns creation, awaited continuations and assertions (as in BooruHitKeyboardTests).
-    private static void OnDispatcher(Func<Task> test)
-    {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
-        object? previousDispatcher = primary.GetValue(null);
-        SynchronizationContext? previousContext = SynchronizationContext.Current;
-        string language = Texts.Language;
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
-        try
-        {
-            primary.SetValue(null, owner);
-            SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
-            Texts.Initialize();
-            Texts.SetLanguage("en");
-            Task pending = test();
-            DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-            while (!pending.IsCompleted)
-            {
-                owner.RunJobs();
-                if (DateTime.UtcNow >= deadline) throw new TimeoutException("Booru tile test dispatcher did not finish.");
-                if (!pending.IsCompleted) Thread.Sleep(1);
-            }
-            pending.GetAwaiter().GetResult();
-        }
-        finally
-        {
-            Texts.SetLanguage(language);
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-            primary.SetValue(null, previousDispatcher);
-        }
-    }
-
-    private sealed class ActionContext(Dispatcher owner) : SynchronizationContext
-    {
-        public override void Post(SendOrPostCallback callback, object? state) => owner.Post(() =>
-        {
-            SynchronizationContext? previous = Current;
-            SetSynchronizationContext(this);
-            try { callback(state); }
-            finally { SetSynchronizationContext(previous); }
-        });
-    }
+    private static void OnDispatcher(Func<Task> test) =>
+        BooruComponentDispatcher.Run(test, timeout: TimeSpan.FromSeconds(10));
 }

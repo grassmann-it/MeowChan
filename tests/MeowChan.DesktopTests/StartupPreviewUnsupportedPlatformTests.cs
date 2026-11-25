@@ -12,6 +12,7 @@ namespace MeowChan.DesktopTests;
 /// Injects only the optional cache-read failure, not a platform or a UI dispatcher.
 /// The ordinary authoritative SessionStore and host lifecycle remain in use.
 /// </summary>
+[Collection("Avalonia global state")]
 public sealed class StartupPreviewUnsupportedPlatformTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
@@ -257,11 +258,11 @@ public sealed class StartupPreviewUnsupportedPlatformTests
             }
             SessionBytes = File.ReadAllBytes(SessionPath);
             _cacheBytes = File.ReadAllBytes(CachePath);
-            _client = new HttpClient(_transport);
+            _client = new HttpClient(_transport, disposeHandler: false);
             Provider = new ObservedProvider(_client);
             ObservedStore? store = null;
-            Host = new DesktopSessionHost(ProfilePath, new IImageBoard[] { Provider },
-                (directory, lease) => store = new ObservedStore(new SessionStore(directory, lease), failRestore));
+            Host = OwnedUiDispatcher.CreateHost(() => new(ProfilePath, new IImageBoard[] { Provider },
+                (directory, lease) => store = new ObservedStore(new SessionStore(directory, lease), failRestore)));
             Store = store!;
             Assert.Null(Host.Plugins);
             Host.StartupPreviewChanged += () => Interlocked.Increment(ref _previewNotifications);
@@ -298,6 +299,7 @@ public sealed class StartupPreviewUnsupportedPlatformTests
             await Host.DisposeAsync().AsTask().WaitAsync(Deadline);
             // A failed host drain retains the synthetic resources for diagnosis.
             _client.Dispose();
+            _transport.Dispose();
             _profile.Dispose();
         }
     }

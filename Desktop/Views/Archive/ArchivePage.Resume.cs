@@ -132,12 +132,19 @@ public partial class ArchivePage
             // A post that was never captured (or is gone) resolves to the next one that exists, not to the top of the thread.
             if (fallback) index = ReadingJump.Resolve(PostIdsOf(view), position.PostId).Index;
             string postId = view.GetPosts(index, 1).First().PostId;
+            InlineRepliesSnapshot? replies = null;
+            if (_thread is { } current && current.Summary.Id == view.Summary.Id
+                && current.Summary.Revision == view.Summary.Revision && current.PostCount == view.PostCount)
+            {
+                replies = await RefreshResumeRepliesAsync(reader, view.Summary.Id, CaptureInlineReplyState());
+                if (!Current()) return;
+            }
             // The saved anchor is the reading mark: the posts after it have not been read since.
             // A replacement post is not an anchor; clear any old mark from the same thread rather than
             // presenting an unrelated unread line after this explicit Continue reading jump.
             _unreadMark = ResumeUnreadMark(view, position, fallback);
             _history.Clear(); // F2: continue reading is a jump; "Back to last read" never flips to the thread shown before it
-            ShowCapturedView(view, index / PageSize * PageSize, postId);
+            ShowCapturedViewWithReplies(view, postId, replies);
             contentCurrent = CaptureReadingRequestGuard();
             await RevealPostAsync(postId, Current); // The saved place is shown even where the reader view hides it.
             if (!Current()) return;
@@ -160,5 +167,27 @@ public partial class ArchivePage
             if (Current()) ShowReadingPositionMessage(Texts.T("resume.readFailed", error.Message), true);
         }
         finally { _resumingPosition = false; }
+    }
+
+    private async Task<InlineRepliesSnapshot> RefreshResumeRepliesAsync(ArchiveReader reader, ResourceId thread, InlineRepliesSnapshot snapshot)
+    {
+        if (snapshot.Pages.Length == 0) return snapshot;
+        // Captures in other threads can change the incoming quotes, including their order, without changing this revision.
+        ArchiveQuotePage[] prefixes = await reader.ReadBacklinkPrefixesAsync(thread,
+            snapshot.Pages.Select(state => (state.PostId, state.Replies.Count)).ToArray(), _lifetime.Token);
+        InlineReplyState[] refreshed = new InlineReplyState[snapshot.Pages.Length];
+        for (int i = 0; i < refreshed.Length; i++)
+        {
+            InlineReplyState state = snapshot.Pages[i];
+            ArchiveQuotePage prefix = prefixes[i];
+            refreshed[i] = state with
+            {
+                Count = prefix.TotalCount,
+                Replies = prefix.Items,
+                Offset = Math.Min(state.Offset, Math.Max(0, prefix.Items.Count - 1)),
+                Error = null
+            };
+        }
+        return snapshot with { Pages = refreshed };
     }
 }

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
@@ -115,7 +116,8 @@ public sealed class ToolbarGapPatternTests
         Button outlined = new() { Content = "Outlined", Classes = { "bar-button" } };
         ToggleButton toggle = new() { Content = "Toggle" };
         ToggleButton toolbarToggle = new() { Content = "Sidebar", Classes = { "toolbar-toggle" }, IsChecked = true };
-        ToggleButton segment = new() { Content = "List", Classes = { "toolbar-toggle", "segment", "segment-first" } };
+        TextBlock segmentLabel = new() { Text = "List" };
+        ToggleButton segment = new() { Content = segmentLabel, Classes = { "toolbar-toggle", "segment", "segment-first" } };
         SplitButton split = new() { Content = "Split" };
         ActionToolBar bar = new() { Items = { plain, outlined, toggle, toolbarToggle, segment, split } };
         Window window = new() { Width = 1000, Height = 200, Content = bar, RequestedThemeVariant = ThemeVariant.Dark, Classes = { MotionPolicy.OffClass } };
@@ -163,7 +165,17 @@ public sealed class ToolbarGapPatternTests
 
             var segmentState = (IPseudoClasses)segment.Classes;
             segmentState.Set(":pressed", true);
-            Assert.Equal(Colors.Magenta, ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.SegmentPressed"), ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.ControlBorder"), ColorOf(Presenter(segment).BorderBrush));
+            segment.IsChecked = true;
+            Assert.Equal(Token("Workspace.SegmentPressed"), ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.Accent"), ColorOf(Presenter(segment).BorderBrush));
+            Assert.Equal(Token("Workspace.Text"), ColorOf(segmentLabel.Foreground));
+            segmentState.Set(":pressed", false);
+            Assert.Equal(Token("Workspace.ToolbarToggleSurface"), ColorOf(Presenter(segment).Background));
+            Assert.Equal(Colors.White, ColorOf(segmentLabel.Foreground));
+            segment.IsChecked = false;
+            segmentState.Set(":pressed", true);
             segment.IsEnabled = false;
             Assert.Equal(Colors.Transparent, ColorOf(Presenter(segment).Background));
             Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(segment).Foreground));
@@ -243,11 +255,16 @@ public sealed class ToolbarGapPatternTests
     [Fact]
     public void TheTaggingHeaderEndsWithThePageOverflowThenTheJoinedViewControls() => TaggingLayoutRhythmTests.WithPage(page =>
     {
-        ActionToolBar presentation = Assert.IsType<ActionToolBar>(page.Header.Children[^1]);
-        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
-        Assert.Same(page.Actions, page.Header.Children[^2]);
+        ActionToolBar FindBar(string id) => Assert.Single(page.Header.Children.OfType<ActionToolBar>(),
+            bar => AutomationProperties.GetAutomationId(bar) == id);
+        ActionToolBar presentation = FindBar("TaggingListPresentation");
+        ActionToolBar actions = FindBar("TaggingActions");
+        // W112-73 spec §1: "Knopf TaggingPanelToggle in _listPresentation rechts neben TaggingViewToggle".
+        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle, page.PanelToggle }, presentation.Items.Cast<Control>());
+        Assert.Same(page.Actions, actions);
+        Assert.Equal(new Control[] { actions, presentation }, page.Header.Children.TakeLast(2));
         Assert.Equal(new Control[] { page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
-            page.Actions.Items.Cast<Control>());
+            actions.Items.Cast<Control>());
     });
 
     [Fact]

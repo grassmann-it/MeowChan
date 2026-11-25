@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -37,13 +39,13 @@ internal sealed record FolderSourcePanelServices(
 internal sealed class FolderSourcesPanel : UserControl
 {
     private readonly FolderSourcePanelServices _services;
-    private readonly TextBlock _status = new() { Name = "FolderSourcesStatus", TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _blocked = new() { Name = "FolderSourcesBlocked", TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    private readonly TextBlock _empty = new() { Name = "FolderSourcesEmpty", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _status = new() { Name = "FolderSourcesStatus", Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _blocked = new() { Name = "FolderSourcesBlocked", Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _empty = new() { Name = "FolderSourcesEmpty", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _rows = new() { Name = "FolderSourcesRows", Spacing = 8 };
     private readonly Button _add = new() { Name = "FolderSourcesAdd" };
     private readonly Button _pause = new() { Name = "FolderSourcesPause" };
-    private readonly TextBlock _error = new() { Name = "FolderSourcesError", TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _error = new() { Name = "FolderSourcesError", Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private Guid? _confirmRemove;
     private bool _busy, _refreshing, _refreshAgain;
     private IReadOnlyList<FolderSourceView> _views = Array.Empty<FolderSourceView>();
@@ -61,10 +63,6 @@ internal sealed class FolderSourcesPanel : UserControl
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         Name = "FolderSourcesPanel";
-        _status.Classes.Add("workspace-meta");
-        _blocked.Classes.Add("workspace-error");
-        _empty.Classes.Add("muted");
-        _error.Classes.Add("workspace-error");
         _pause.Classes.Add("subtle");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
@@ -85,7 +83,7 @@ internal sealed class FolderSourcesPanel : UserControl
         Render();
     }
 
-    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Render);
+    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => Render());
 
     /// <summary>Reads the folder sources and their activity off the UI thread, then shows them.</summary>
     internal async void Refresh()
@@ -118,7 +116,7 @@ internal sealed class FolderSourcesPanel : UserControl
         finally { _refreshing = false; }
     }
 
-    private void Render()
+    private void Render(Guid? restoreRemoveFocus = null)
     {
         _add.Content = Texts.T("folderSource.section.add");
         AutomationProperties.SetName(_add, Texts.T("folderSource.section.add"));
@@ -137,7 +135,7 @@ internal sealed class FolderSourcesPanel : UserControl
         _empty.Text = Texts.T("folderSource.section.empty");
         _empty.IsVisible = _views.Count == 0 && _blockedError == FolderSourceError.None;
         _rows.Children.Clear();
-        foreach (FolderSourceView view in _views) _rows.Children.Add(Row(view));
+        foreach (FolderSourceView view in _views) _rows.Children.Add(Row(view, view.Root.Id == restoreRemoveFocus));
     }
 
     /// <summary>"Scanning …" while a scan runs, else "Hashing 12,340 of 100,000" while files are unhashed, else nothing.</summary>
@@ -151,25 +149,23 @@ internal sealed class FolderSourcesPanel : UserControl
         return paused ? counts + " · " + Texts.T("folderSource.status.paused") : counts;
     }
 
-    private Control Row(FolderSourceView view)
+    private Control Row(FolderSourceView view, bool restoreRemoveFocus)
     {
         FolderSourceRoot root = view.Root;
         string id = FolderSourceIdentity.Format(root.Id);
-        TextBlock name = new() { Text = root.Name, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
-        SelectableTextBlock path = new() { Text = root.Path, TextWrapping = TextWrapping.Wrap };
-        path.Classes.Add("workspace-meta");
+        TextBlock name = new() { Text = root.Name, Classes = { "workspace-panel-title" }, TextWrapping = TextWrapping.Wrap };
+        SelectableTextBlock path = new() { Text = root.Path, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
         TextBlock counts = new()
         {
-            Name = "FolderSourceCounts_" + id, TextWrapping = TextWrapping.Wrap,
+            Name = "FolderSourceCounts_" + id, Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap,
             Text = Texts.T("folderSource.row.counts", view.Counts.Files.ToString("N0", Texts.Culture),
                 view.Counts.Hashed.ToString("N0", Texts.Culture), view.Counts.Missing.ToString("N0", Texts.Culture))
         };
-        counts.Classes.Add("workspace-help");
-        TextBlock scan = new() { TextWrapping = TextWrapping.Wrap, Text = view.Scanning ? Texts.T("folderSource.row.scanning") : ScanText(root) };
-        scan.Classes.Add("workspace-help");
+        TextBlock scan = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, Text = view.Scanning ? Texts.T("folderSource.row.scanning") : ScanText(root) };
         Button rescan = new() { Name = "FolderSourceRescan_" + id, Content = Texts.T("folderSource.row.rescan"), IsEnabled = !_busy && !view.Scanning };
         Button rename = new() { Name = "FolderSourceRename_" + id, Content = Texts.T("folderSource.row.rename"), IsEnabled = !_busy };
         Button remove = new() { Name = "FolderSourceRemove_" + id, Content = Texts.T("folderSource.row.remove"), IsEnabled = !_busy && !view.Scanning };
+        AutomationProperties.SetAutomationId(remove, remove.Name);
         CommandBindings.ShowIconBeforeText(rescan, "refresh-cw");
         CommandBindings.ShowIconBeforeText(rename, "edit-2");
         CommandBindings.ShowIconBeforeText(remove, "minus");
@@ -185,18 +181,42 @@ internal sealed class FolderSourcesPanel : UserControl
         };
         if (_confirmRemove == root.Id)
         {
-            TextBlock ask = new() { Name = "FolderSourceRemoveAsk", Text = Texts.T("folderSource.remove.ask", root.Name), TextWrapping = TextWrapping.Wrap };
+            TextBlock ask = new() { Name = "FolderSourceRemoveAsk", Classes = { "workspace-body-text" }, Text = Texts.T("folderSource.remove.ask", root.Name), TextWrapping = TextWrapping.Wrap };
             Button yes = new() { Name = "FolderSourceRemoveConfirm", Content = Texts.T("folderSource.remove.confirm") };
             Button no = new() { Name = "FolderSourceRemoveKeep", Content = Texts.T("folderSource.remove.keep") };
+            AutomationProperties.SetAutomationId(ask, ask.Name);
+            AutomationProperties.SetAutomationId(yes, yes.Name);
+            AutomationProperties.SetAutomationId(no, no.Name);
             yes.Classes.Add("danger"); no.Classes.Add("subtle");
             yes.Click += async (_, _) => { _confirmRemove = null; await RunAsync(() => _services.Remove(root.Id)); };
-            no.Click += (_, _) => { _confirmRemove = null; Render(); };
-            row.Children.Add(new StackPanel { Spacing = 4, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { yes, no } } } });
+            no.Click += (_, _) => TryDismissRemoveConfirmation();
+            StackPanel confirmation = new() { Spacing = 4, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { no, yes } } } };
+            confirmation.KeyDown += (_, e) =>
+            {
+                if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+                    e.Handled = TryDismissRemoveConfirmation();
+            };
+            row.Children.Add(confirmation);
             Dispatcher.UIThread.Post(() => no.Focus());
+        }
+        else if (restoreRemoveFocus)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_confirmRemove == null && remove.IsAttachedToVisualTree()) remove.Focus();
+            });
         }
         Border card = new() { Child = row, Padding = new Thickness(12), CornerRadius = new CornerRadius(5) };
         card.Classes.Add("workspace-card");
         return card;
+    }
+
+    internal bool TryDismissRemoveConfirmation()
+    {
+        if (!IsEffectivelyVisible || _confirmRemove is not { } id || !_views.Any(view => view.Root.Id == id)) return false;
+        _confirmRemove = null;
+        Render(restoreRemoveFocus: id);
+        return true;
     }
 
     private static string ScanText(FolderSourceRoot root) => root.LastScanStatus switch

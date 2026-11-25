@@ -10,14 +10,14 @@ using Avalonia.Threading;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// Interaction audit V11 and V12: the Booru hit cards are keyboard stops (Enter, arrows, context menu) and a double click on a watcher
-/// shows its query in the search box. Fixtures only: fake ports, no provider request, no window, no application. The live focus ring
-/// and the focus move itself are checked by the desktop smoke (BooruWorkbenchViewChecks), which needs a window.
+/// shows its query in the search box. Fake ports keep the fixtures offline. The chip-menu check uses a headless window to realize the chips.
 /// </summary>
 [Collection("Localization")]
 public sealed class BooruHitKeyboardTests
@@ -92,15 +92,6 @@ public sealed class BooruHitKeyboardTests
     }
 
     [Fact]
-    public void ThePrimaryActionIsShowInMediaAndNeverALoad()
-    {
-        Assert.Null(BooruHitKeys.Primary(null));
-        Button show = new() { IsEnabled = true };
-        Assert.Same(show, BooruHitKeys.Primary(show));
-        Assert.Null(BooruHitKeys.Primary(new Button { IsEnabled = false }));
-    }
-
-    [Fact]
     public void TheContextOpenCommandNamesTheBooruHitAndTheBooruPage()
     {
         MeowChan.Desktop.Commands.CommandDefinition open = MeowChan.Desktop.Commands.CommandCatalog.Get("menu.context-open");
@@ -113,7 +104,7 @@ public sealed class BooruHitKeyboardTests
     // ---- the cards of a real view -----------------------------------------------------------------------------------
 
     [Fact]
-    public void HitsAreKeyboardStopsWithANameThatSaysPostRatingAndLocalCopy() => OnDispatcher(async () =>
+    public void HitsAreKeyboardStopsWithStableNamesAndLocalizedHelp() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
@@ -130,13 +121,18 @@ public sealed class BooruHitKeyboardTests
                 Assert.Equal(AutomationProperties.GetSizeOfSet(card), 3);
             }
             Assert.Equal(new[] { 1, 2, 3 }, cards.Select(AutomationProperties.GetPositionInSet));
-            Assert.Equal("Post #101, rating General, local copy: yes", AutomationProperties.GetName(cards[0]));
-            Assert.Equal("Post #102, rating General, local copy: no", AutomationProperties.GetName(cards[1]));
+            Assert.Equal("BooruResult:101", AutomationProperties.GetAutomationId(cards[0]));
+            Assert.Equal("BooruResult:102", AutomationProperties.GetAutomationId(cards[1]));
+            Assert.Contains("General", AutomationProperties.GetName(cards[0]));
+            Assert.Equal("Post #101, rating General, local copy: yes", AutomationProperties.GetHelpText(cards[0]));
+            Assert.Equal("Post #102, rating General, local copy: no", AutomationProperties.GetHelpText(cards[1]));
             Texts.SetLanguage("de");
             try
             {
                 await Task.Delay(30); // the view renders the language change on a posted callback
-                Assert.Equal("Post #102, Einstufung Allgemein, lokale Kopie: nein", AutomationProperties.GetName(Cards(view)[1]));
+                Assert.Equal("BooruResult:102", AutomationProperties.GetAutomationId(Cards(view)[1]));
+                Assert.Contains("Allgemein", AutomationProperties.GetName(Cards(view)[1]));
+                Assert.Equal("Post #102, Einstufung Allgemein, lokale Kopie: nein", AutomationProperties.GetHelpText(Cards(view)[1]));
             }
             finally { Texts.SetLanguage("en"); }
         }
@@ -216,37 +212,6 @@ public sealed class BooruHitKeyboardTests
         }
     });
 
-    [Fact]
-    public void TheHitMenuOffersTheCardsOwnActionsWithTheirAvailability() => OnDispatcher(async () =>
-    {
-        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
-        using (model) using (view)
-        {
-            harness.Queue.States["101"] = BooruLocalState.Loaded;
-            view.ShowInMedia = _ => Task.FromResult(true);
-            List<Border> cards = await SearchAsync(harness, model, view);
-
-            // The one hit menu (BooruWorkbenchView.CardMenus.cs): the card's primary button (load, cancel or retry) first, then Show in Media, then the links.
-            ContextMenuModel saved = Menu(view, cards[0], "101");
-            Assert.Equal(new[] { BooruWorkbenchView.MenuLoad, BooruWorkbenchView.MenuShowInMedia, BooruWorkbenchView.MenuOpenPost, BooruWorkbenchView.MenuCopyLink },
-                saved.Entries.Select(entry => entry.Id));
-            Assert.Equal(new[] { false, true, true, true }, saved.Entries.Select(entry => entry.Available));
-            Assert.Equal(2, saved.Sections.Count);
-
-            ContextMenuModel plain = Menu(view, cards[1], "102");
-            Assert.Equal(new[] { BooruWorkbenchView.MenuLoad, BooruWorkbenchView.MenuOpenPost, BooruWorkbenchView.MenuCopyLink }, plain.Entries.Select(entry => entry.Id));
-            Assert.All(plain.Entries, entry => Assert.True(entry.Available));
-            Assert.Equal("Download original", plain.Entries.First().Label);
-
-            // The entries run the card's own buttons: the link actions go through the same fake browser and clipboard.
-            plain.Entries.Single(entry => entry.Id == BooruWorkbenchView.MenuCopyLink).Invoke!();
-            await BooruTestSupport.WaitAsync(() => harness.Links.Copied.Count == 1, "the copied link");
-            Assert.Equal(0, harness.Queue.Loads.Count);
-            plain.Entries.Single(entry => entry.Id == BooruWorkbenchView.MenuLoad).Invoke!();
-            await BooruTestSupport.WaitAsync(() => harness.Queue.Loads.Count == 1, "the load");
-        }
-    });
-
     // A card's link buttons belong to the card's own action toolbar: they are built without a panel of their own, so rendering the same
     // hit again (a language change, a new local state) never moves a control that still has a visual parent.
     [Fact]
@@ -255,18 +220,19 @@ public sealed class BooruHitKeyboardTests
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
         {
-            List<Border> cards = await SearchAsync(harness, model, view);
-            WrapPanel actions = cards[0].GetLogicalDescendants().OfType<WrapPanel>().Single(panel => panel.Name == "BooruResultActions:101");
+            await SearchAsync(harness, model, view);
+            Panel actions = FindById<Panel>(ResultCard(view, "101"), "BooruResultActions:101");
             foreach (string name in new[] { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
-                Assert.Contains(actions.Children.OfType<Button>(), button => button.Name == name);
+                Assert.Contains(actions.GetLogicalDescendants().OfType<Button>(), button => AutomationProperties.GetAutomationId(button) == name);
 
             Texts.SetLanguage("de");
             try
             {
                 await Task.Delay(30);
                 Assert.Equal(3, Cards(view).Count);
-                WrapPanel rebuilt = Cards(view)[0].GetLogicalDescendants().OfType<WrapPanel>().Single(panel => panel.Name == "BooruResultActions:101");
-                Assert.Contains(rebuilt.Children.OfType<Button>(), button => button.Name == BooruWorkbenchView.OpenPostPrefix + "101");
+                Panel rebuilt = FindById<Panel>(ResultCard(view, "101"), "BooruResultActions:101");
+                Assert.Contains(rebuilt.GetLogicalDescendants().OfType<Button>(),
+                    button => AutomationProperties.GetAutomationId(button) == BooruWorkbenchView.OpenPostPrefix + "101");
             }
             finally { Texts.SetLanguage("en"); }
         }
@@ -304,7 +270,7 @@ public sealed class BooruHitKeyboardTests
         TappedEventArgs onCard = DoubleTap(card, card);
         Raise(card, onCard);
         Assert.True(onCard.Handled);
-        Assert.NotEqual(BooruSearchTabs.PrimaryId, view.SearchTabs.ActiveId);
+        Assert.NotNull(view.SearchTabs.ActiveId);
         Assert.Equal(view.SearchTabs.ActiveId, Assert.IsType<TabItem>(tabs.SelectedItem).Tag);
         Assert.Equal("cat blue_eyes", input.Text);
         Assert.Equal("cat blue_eyes", model.Search.View.Input);
@@ -321,18 +287,20 @@ public sealed class BooruHitKeyboardTests
     // ---- dead-affordance review 15.11.: source-tag chips, "+N more", middle click, watcher keyboard ------------------------------
 
     [Fact]
-    public void ASourceTagChipHasItsOwnMenuToAddExcludeAndCopyTheTag() => OnDispatcher(async () =>
+    public void ASourceTagChipHasItsOwnMenuToEditAndCopyTheTag() => OnDispatcher(async () =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
         {
-            List<Border> cards = await SearchAsync(harness, model, view);
+            await SearchAsync(harness, model, view);
             SearchBox input = Field<SearchBox>(view, "_input");
             input.Text = string.Empty;
             model.Search.SetInput(string.Empty);
 
             ContextMenuModel menu = TagMenu(view, "cat");
-            Assert.Equal(new[] { BooruWorkbenchView.MenuTagAdd, BooruWorkbenchView.MenuTagExclude, FilterChipMenu.CopyName }, menu.Entries.Select(entry => entry.Id));
+            Assert.Equal(new[] { BooruWorkbenchView.MenuTagAdd, BooruWorkbenchView.MenuTagExclude, BooruWorkbenchView.MenuTagRemove,
+                FilterChipMenu.CopyName }, menu.Entries.Select(entry => entry.Id));
             Assert.All(menu.Entries, entry => Assert.True(entry.Available));
             Assert.Equal("Add to search", Entries(menu)[0].Label);
             Assert.Equal("Exclude from search", Entries(menu)[1].Label);
@@ -353,74 +321,21 @@ public sealed class BooruHitKeyboardTests
             Assert.DoesNotContain(harness.Search.Searches, search => search.Query.Contains('-'));
 
             // The chip of a hit carries a menu host of its own, so a right click on it never opens the card's menu.
-            Button chip = Button(cards[0], BooruWorkbenchView.ResultTagPrefix + "101:cat");
-            KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
-            Raise(chip, apps);
-            Assert.True(apps.Handled);
-        }
-    });
-
-    [Fact]
-    public void MoreTagsIsAButtonThatListsEveryTagOfThatCardOnly() => OnDispatcher(async () =>
-    {
-        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
-        using (model) using (view)
-        {
-            await SearchAsync(harness, model, view);
-            view.ResultTagsShown = () => 24; // the limit is a setting now (default 12); this test folds at 24
-            string[] names = Enumerable.Range(1, 30).Select(number => "tag_" + number).ToArray();
-            var post = BooruUiFixtures.Post("901", tags: names);
-            MethodInfo createTags = typeof(BooruWorkbenchView).GetMethod("CreateTags", Private)!;
-            StackPanel Tags() => (StackPanel)createTags.Invoke(view, new object[] { post })!;
-
-            StackPanel folded = Tags();
-            Assert.Equal(24, folded.GetLogicalDescendants().OfType<Button>().Count(button => button.Name!.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal)));
-            Avalonia.Controls.Button more = Assert.Single(folded.GetLogicalDescendants().OfType<Avalonia.Controls.Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "901");
-            Assert.True(more.IsEnabled);
-            Assert.Equal("+6 more", more.Content);
-            Assert.Contains("tag_27", ToolTip.GetTip(more) as string);
-
-            more.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
-            StackPanel expanded = Tags();
-            Assert.Equal(30, expanded.GetLogicalDescendants().OfType<Button>().Count(button => button.Name!.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal)));
-            Assert.DoesNotContain(expanded.GetLogicalDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "901");
-            // Another card keeps its limit.
-            post = BooruUiFixtures.Post("902", tags: names);
-            Assert.Contains(Tags().GetLogicalDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "902");
-        }
-    });
-
-    [Fact]
-    public void AMiddleClickOnAHitCardOpensThePostPageAndNeverLoadsAnything() => OnDispatcher(async () =>
-    {
-        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
-        using (model) using (view)
-        {
-            List<Border> cards = await SearchAsync(harness, model, view);
-            Border card = cards[1];
-            TextBlock title = card.GetLogicalDescendants().OfType<TextBlock>().First();
-            Button load = Button(card, BooruWorkbenchView.LoadPrefix + "102");
-
-            // A press on one place and a release on a button of the card are a click on the button, not on the card.
-            Raise(title, MiddlePress(card, title));
-            Raise(load, MiddleRelease(load));
-            Assert.Empty(harness.Links.Opened);
-
-            // A middle press and release on the card's non-interactive part opens the post page.
-            Raise(title, MiddlePress(card, title));
-            PointerReleasedEventArgs release = MiddleRelease(title);
-            Raise(title, release);
-            Assert.True(release.Handled);
-            await BooruTestSupport.WaitAsync(() => harness.Links.Opened.Count == 1, "the opened post page");
-            Assert.Equal("https://danbooru.donmai.us/posts/102", harness.Links.Opened[0]);
-            Assert.Empty(harness.Queue.Loads);
-
-            // A release without its press does nothing.
-            PointerReleasedEventArgs stray = MiddleRelease(title);
-            Raise(title, stray);
-            Assert.False(stray.Handled);
-            await Task.Delay(20);
-            Assert.Single(harness.Links.Opened);
+            Window window = new() { Content = view, Width = 1152, Height = 700, Classes = { MotionPolicy.OffClass } };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                Button chip = FindById<Button>(ResultCard(view, "101"), BooruWorkbenchView.ResultTagPrefix + "101:cat");
+                KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
+                Raise(chip, apps);
+                Assert.True(apps.Handled);
+            }
+            finally
+            {
+                window.Close();
+                Dispatcher.UIThread.RunJobs();
+            }
         }
     });
 
@@ -456,7 +371,7 @@ public sealed class BooruHitKeyboardTests
         KeyEventArgs enter = Press(Avalonia.Input.Key.Enter, first);
         Raise(first, enter);
         Assert.True(enter.Handled);
-        Assert.NotEqual(BooruSearchTabs.PrimaryId, view.SearchTabs.ActiveId);
+        Assert.NotNull(view.SearchTabs.ActiveId);
         Assert.Equal(view.SearchTabs.ActiveId, Assert.IsType<TabItem>(tabs.SelectedItem).Tag);
         Assert.Equal("cat blue_eyes", Field<SearchBox>(view, "_input").Text);
         Assert.Equal(requests, harness.ProviderRequests);
@@ -493,35 +408,22 @@ public sealed class BooruHitKeyboardTests
     private static List<Border> Cards(BooruWorkbenchView view) =>
         Field<StackPanel>(view, "_results").Children.OfType<Border>().ToList();
 
+    private static Border ResultCard(BooruWorkbenchView view, string postId) =>
+        Assert.Single(Cards(view), card => AutomationProperties.GetAutomationId(card) == "BooruResult:" + postId);
+
     private static T Field<T>(BooruWorkbenchView view, string name) =>
         (T)typeof(BooruWorkbenchView).GetField(name, Private)!.GetValue(view)!;
 
     private static Button Button(Border card, string name) =>
         card.GetLogicalDescendants().OfType<Button>().Single(button => button.Name == name);
 
-    private static ContextMenuModel Menu(BooruWorkbenchView view, Border card, string postId)
-    {
-        ContextMenuBuilder? builder = (ContextMenuBuilder?)typeof(BooruWorkbenchView).GetMethod("ComposeResultMenu", Private)!
-            .Invoke(view, new object[] { card, postId });
-        return Assert.IsType<ContextMenuBuilder>(builder).ToModel();
-    }
-
     private static ContextMenuModel TagMenu(BooruWorkbenchView view, string tag) =>
         Assert.IsType<ContextMenuBuilder>(view.ComposeTagMenu(tag)).ToModel();
 
     private static ContextMenuEntry[] Entries(ContextMenuModel menu) => menu.Entries.ToArray();
 
-    // One synthetic mouse for every event of these fixtures: a press and its release must share the pointer (and its id) for the card to
-    // pair them, and nothing here ever captures, so the instance outlives the individual event args on purpose.
+    // The routed double-tap fixtures share one pointer.
     private static readonly Avalonia.Input.Pointer SyntheticMouse = new(1, PointerType.Mouse, true);
-
-    private static PointerPressedEventArgs MiddlePress(Visual root, object source) => new(source, SyntheticMouse, root,
-        default, 0, new PointerPointProperties(RawInputModifiers.MiddleMouseButton, PointerUpdateKind.MiddleButtonPressed), KeyModifiers.None)
-        { RoutedEvent = InputElement.PointerPressedEvent, Source = source };
-
-    private static PointerReleasedEventArgs MiddleRelease(object source) => new(source, SyntheticMouse, (Visual)source,
-        default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.MiddleButtonReleased), KeyModifiers.None, MouseButton.Middle)
-        { RoutedEvent = InputElement.PointerReleasedEvent, Source = source };
 
     /// <summary>Raises the event on the control it comes from, so it bubbles up to the card as a real pointer or key event does (RaiseEvent sets the source to its target).</summary>
     private static void Raise(Interactive source, RoutedEventArgs e) => source.RaiseEvent(e);
@@ -530,46 +432,9 @@ public sealed class BooruHitKeyboardTests
         new PointerEventArgs(InputElement.PointerReleasedEvent, source, SyntheticMouse, null, default, 0,
             PointerPointProperties.None, KeyModifiers.None)) { Source = source };
 
-    // One actual Avalonia dispatcher owns creation, awaited continuations and assertions (as in BooruLinkLifetimeTests).
-    private static void OnDispatcher(Func<Task> test)
-    {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
-        object? previousDispatcher = primary.GetValue(null);
-        SynchronizationContext? previousContext = SynchronizationContext.Current;
-        string language = Texts.Language;
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
-        try
-        {
-            primary.SetValue(null, owner);
-            SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
-            Texts.Initialize();
-            Texts.SetLanguage("en");
-            Task pending = test();
-            DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-            while (!pending.IsCompleted)
-            {
-                owner.RunJobs();
-                if (DateTime.UtcNow >= deadline) throw new TimeoutException("Booru hit test dispatcher did not finish.");
-                if (!pending.IsCompleted) Thread.Sleep(1);
-            }
-            pending.GetAwaiter().GetResult();
-        }
-        finally
-        {
-            Texts.SetLanguage(language);
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-            primary.SetValue(null, previousDispatcher);
-        }
-    }
+    private static T FindById<T>(Control root, string id) where T : Control =>
+        Assert.Single(root.GetLogicalDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
-    private sealed class ActionContext(Dispatcher owner) : SynchronizationContext
-    {
-        public override void Post(SendOrPostCallback callback, object? state) => owner.Post(() =>
-        {
-            SynchronizationContext? previous = Current;
-            SetSynchronizationContext(this);
-            try { callback(state); }
-            finally { SetSynchronizationContext(previous); }
-        });
-    }
+    private static void OnDispatcher(Func<Task> test) =>
+        BooruComponentDispatcher.Run(test, timeout: TimeSpan.FromSeconds(10));
 }

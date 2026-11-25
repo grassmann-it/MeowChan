@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Platform;
 using Avalonia.LogicalTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
@@ -165,21 +166,24 @@ public sealed class GalleryWheelModeTests : IDisposable
         viewer.MoveQueuedBrowse();
     }
 
-    private static PointerWheelEventArgs Wheel(Control target, double deltaY, KeyModifiers modifiers = KeyModifiers.None) =>
-        new(target, new Avalonia.Input.Pointer(Avalonia.Input.Pointer.GetNextFreeId(), PointerType.Mouse, true), target, new Point(5, 5), 0,
+    private static bool RaiseWheel(Control target, double deltaY, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        using Avalonia.Input.Pointer pointer = new(Avalonia.Input.Pointer.GetNextFreeId(), PointerType.Mouse, true);
+        PointerWheelEventArgs wheel = new(target, pointer, target, new Point(5, 5), 0,
             new PointerPointProperties(), modifiers, new Vector(0, deltaY)) { RoutedEvent = InputElement.PointerWheelChangedEvent };
+        target.RaiseEvent(wheel);
+        return wheel.Handled;
+    }
 
     [Fact]
     public void InZoomModeThePlainWheelNeverMovesToAnotherMediumAndCtrlWheelDoes() => WithViewer((viewer, viewport, moves) =>
     {
         Assert.Equal("Zoom", viewer.WheelMode);
-        PointerWheelEventArgs plain = Wheel(viewport, 1);
-        viewport.RaiseEvent(plain);
-        Assert.True(plain.Handled);       // the wheel is the picture's, as it always was
+        Assert.True(RaiseWheel(viewport, 1)); // the wheel is the picture's, as it always was
         Assert.Empty(moves);
-        viewport.RaiseEvent(Wheel(viewport, 1, KeyModifiers.Control));
+        RaiseWheel(viewport, 1, KeyModifiers.Control);
         Land(viewer);
-        viewport.RaiseEvent(Wheel(viewport, -1, KeyModifiers.Control));
+        RaiseWheel(viewport, -1, KeyModifiers.Control);
         Assert.Equal(new[] { -1, 1 }, moves);
     });
 
@@ -188,17 +192,13 @@ public sealed class GalleryWheelModeTests : IDisposable
     {
         viewer.ConfigureWheelMode("Browse");
         Assert.Equal("Browse", viewer.WheelMode);
-        PointerWheelEventArgs up = Wheel(viewport, 1);
-        viewport.RaiseEvent(up);
+        bool upHandled = RaiseWheel(viewport, 1);
         Land(viewer);
-        PointerWheelEventArgs down = Wheel(viewport, -1);
-        viewport.RaiseEvent(down);
-        Assert.True(up.Handled && down.Handled);
+        bool downHandled = RaiseWheel(viewport, -1);
+        Assert.True(upHandled && downHandled);
         Assert.Equal(new[] { -1, 1 }, moves);                         // up: the previous medium, down: the next
         moves.Clear();
-        PointerWheelEventArgs ctrl = Wheel(viewport, 1, KeyModifiers.Control);
-        viewport.RaiseEvent(ctrl);
-        Assert.True(ctrl.Handled);                                    // the zoom path (nothing to zoom without a medium)
+        Assert.True(RaiseWheel(viewport, 1, KeyModifiers.Control));   // the zoom path (nothing to zoom without a medium)
         Assert.Empty(moves);
     });
 
@@ -206,7 +206,7 @@ public sealed class GalleryWheelModeTests : IDisposable
     public void ASpinningWheelSendsOneMoveForTheStepsThatArrivedWhileTheShellWasMoving() => WithViewer((viewer, viewport, moves) =>
     {
         viewer.ConfigureWheelMode("Browse");
-        for (int i = 0; i < 10; i++) viewport.RaiseEvent(Wheel(viewport, -1));   // ten notches while the first move is still on its way
+        for (int i = 0; i < 10; i++) RaiseWheel(viewport, -1);   // ten notches while the first move is still on its way
         Assert.Equal(new[] { 1 }, moves);                                        // only the first went at once
         viewer.MoveQueuedBrowse();
         Assert.Equal(new[] { 1 }, moves);                                        // not while that navigation has not landed
@@ -220,9 +220,9 @@ public sealed class GalleryWheelModeTests : IDisposable
     public void ATurnTheOtherWayDropsTheCollectedStepsAndTheLatestDirectionWins() => WithViewer((viewer, viewport, moves) =>
     {
         viewer.ConfigureWheelMode("Browse");
-        viewport.RaiseEvent(Wheel(viewport, -1));
-        for (int i = 0; i < 5; i++) viewport.RaiseEvent(Wheel(viewport, -1));
-        viewport.RaiseEvent(Wheel(viewport, 1));
+        RaiseWheel(viewport, -1);
+        for (int i = 0; i < 5; i++) RaiseWheel(viewport, -1);
+        RaiseWheel(viewport, 1);
         Land(viewer);
         Assert.Equal(new[] { 1, -1 }, moves);
     });
@@ -231,16 +231,21 @@ public sealed class GalleryWheelModeTests : IDisposable
     public void AnEndOfTheListStopsTheCollectedStepsLikeASingleOne() => WithViewer((viewer, viewport, moves) =>
     {
         viewer.ConfigureWheelMode("Browse");
-        viewport.RaiseEvent(Wheel(viewport, -1));
-        viewport.RaiseEvent(Wheel(viewport, -1));
-        viewport.RaiseEvent(Wheel(viewport, -1));
-        viewer.SetPosition("3 / 3", true, false);                                // the shell shows the last medium: no next one
+        viewer.SetPosition("1 / 3", false, true, mediaAhead: 2);
+        RaiseWheel(viewport, -1);
+        RaiseWheel(viewport, -1);
+        RaiseWheel(viewport, -1);
+        viewer.SetPosition("2 / 3", true, true, mediaAhead: 1);
         Land(viewer);
-        Assert.Equal(new[] { 1 }, moves);
-        // The shell clamps what is left to the list (not before the first entry, not past the place that loads the next thread).
-        string shell = Source("Desktop/Shell/MainWindow.Gallery.cs");
-        Assert.Contains("Math.Max(0, _galleryIndex + delta)", shell);
-        Assert.Contains("Math.Min(_galleryIndex + delta, Math.Max(_galleryEntries.Count, _galleryIndex + 1))", shell);
+        Assert.Equal(new[] { 1, 1 }, moves);
+
+        RaiseWheel(viewport, -1);
+        viewer.SetPosition("3 / 3", true, true, mediaAhead: 0); // the next arrow can still load more
+        Land(viewer);
+        RaiseWheel(viewport, -1);
+        Assert.Equal(new[] { 1, 1 }, moves);
+        RaiseWheel(viewport, 1);
+        Assert.Equal(new[] { 1, 1, -1 }, moves);
     });
 
     [Fact]
@@ -284,14 +289,14 @@ public sealed class GalleryWheelModeTests : IDisposable
     {
         viewer.ConfigureWheelMode("Browse");
         viewer.SetPosition("1 / 3", false, true);
-        viewport.RaiseEvent(Wheel(viewport, 1));    // no previous medium
+        RaiseWheel(viewport, 1);    // no previous medium
         Assert.Empty(moves);
-        viewport.RaiseEvent(Wheel(viewport, -1));
+        RaiseWheel(viewport, -1);
         Assert.Equal(new[] { 1 }, moves);
         moves.Clear();
         Land(viewer);
         viewer.SetPosition("3 / 3", true, false);
-        viewport.RaiseEvent(Wheel(viewport, -1));   // no next medium
+        RaiseWheel(viewport, -1);   // no next medium
         Assert.Empty(moves);
     });
 
@@ -299,15 +304,15 @@ public sealed class GalleryWheelModeTests : IDisposable
     public void ASmallTouchpadDeltaAddsUpAndAnUnknownModeFallsBackToZoom() => WithViewer((viewer, viewport, moves) =>
     {
         viewer.ConfigureWheelMode("Browse");
-        for (int i = 0; i < 3; i++) viewport.RaiseEvent(Wheel(viewport, -0.3));
+        for (int i = 0; i < 3; i++) RaiseWheel(viewport, -0.3);
         Assert.Empty(moves);
-        viewport.RaiseEvent(Wheel(viewport, -0.3));
+        RaiseWheel(viewport, -0.3);
         Assert.Equal(new[] { 1 }, moves);
         viewer.ConfigureWheelMode("sideways");
         Assert.Equal("Zoom", viewer.WheelMode);
         Assert.False(viewer.WheelBrowseToggle.IsChecked);
         moves.Clear();
-        viewport.RaiseEvent(Wheel(viewport, -1));
+        RaiseWheel(viewport, -1);
         Assert.Empty(moves);
     });
 
@@ -435,13 +440,23 @@ public sealed class GalleryWheelModeTests : IDisposable
         }
     }
 
-    [Fact]
-    public void TheSettingsHintNamesBothModesAndTheMenuRowTheCtrlInversion()
+    [Theory]
+    [InlineData("en", ShortcutPlatform.Windows, "Ctrl+wheel", "filmstrip")]
+    [InlineData("en", ShortcutPlatform.Linux, "Ctrl+wheel", "filmstrip")]
+    [InlineData("en", ShortcutPlatform.MacOS, "⌘+wheel", "filmstrip")]
+    [InlineData("de", ShortcutPlatform.Windows, "Strg+Rad", "Filmstreifen")]
+    [InlineData("de", ShortcutPlatform.Linux, "Strg+Rad", "Filmstreifen")]
+    [InlineData("de", ShortcutPlatform.MacOS, "⌘+Rad", "Filmstreifen")]
+    public void TheSettingsAndMenuDescribeThePlatformWheelGestureInBothModes(string language, ShortcutPlatform platform, string gesture, string filmstrip)
     {
-        string hint = BuiltInCatalog.English["settings.galleryWheel.hint"];
-        Assert.Contains("Ctrl+wheel", hint);
-        Assert.Contains("filmstrip", hint, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Ctrl+wheel", BuiltInCatalog.English["gallery.wheelBrowse.help"]);
-        Assert.Contains("Strg+Rad", BuiltInCatalog.German["settings.galleryWheel.hint"]);
+        Texts.SetLanguage(language);
+        string hint = GalleryWheelCatalog.Text("settings.galleryWheel.hint", platform);
+        Assert.Contains(filmstrip, hint);
+        foreach (string key in new[] { "settings.galleryWheel.hint", "settings.galleryWheel.zoom", "settings.galleryWheel.browse", "gallery.wheelBrowse.help" })
+        {
+            string help = GalleryWheelCatalog.Text(key, platform);
+            Assert.Contains(gesture, help);
+            Assert.DoesNotContain("{0}", help);
+        }
     }
 }

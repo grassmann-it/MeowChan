@@ -1,0 +1,159 @@
+using System;
+using System.Globalization;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+using MeowChan.Desktop.Localization;
+
+namespace MeowChan.Desktop.Controls;
+
+internal sealed class MediaFactGrid : Grid
+{
+    protected override Type StyleKeyOverride => typeof(Grid);
+
+    internal MediaFactGrid(string name)
+    {
+        Name = name;
+        ColumnDefinitions = new ColumnDefinitions("Auto,*");
+        ColumnSpacing = WorkspaceMetrics.MediaPanelSectionGap;
+        RowSpacing = 4;
+    }
+
+    internal void Add(string label, string? value, string? name = null, bool fileName = false)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        TextBlock key = new() { Text = label, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Left };
+        SelectableTextBlock text = fileName ? new FileNameValue(value) : new SelectableTextBlock
+        {
+            Text = value, Classes = { "media-fact-value" }, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2
+        };
+        text.Name = name;
+        if (name != null) AutomationProperties.SetAutomationId(text, name);
+        text.Background = Brushes.Transparent;
+        text.TextAlignment = TextAlignment.Left;
+        text.Focusable = true;
+        text.IsTabStop = true;
+        AutomationProperties.SetName(text, value);
+        ToolTip.SetTip(text, value);
+        ContextMenu menu = new ContextMenuBuilder().Named(label)
+            .Item("panel.copy-value", Texts.T("diagnostics.copy"),
+                () => OpenActions.Start(() => MenuClipboard.CopyAsync(text, value), "panel.copy-value"), icon: "copy").Build()!;
+        if (menu.Items[0] is MenuItem item) item.Name = "MediaFactCopy";
+        text.ContextMenu = menu;
+        text.DetachedFromVisualTree += (_, _) => menu.Close();
+        IPointer? controlClick = null;
+        text.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            if (!ContextClick.IsMacControlPress(e, text)) return;
+            controlClick = e.Pointer;
+            e.Pointer.Capture(text);
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        text.PointerCaptureLost += (_, _) => controlClick = null;
+        text.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
+        {
+            if (e.Pointer != controlClick || e.InitialPressMouseButton != MouseButton.Left) return;
+            controlClick = null;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            // A context click opens after release, so the opening left click cannot also choose Copy.
+            if (new Rect(text.Bounds.Size).Contains(e.GetPosition(text))) menu.Open(text);
+        }, RoutingStrategies.Tunnel);
+        text.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+        {
+            if (!ContextClick.IsKey(e)) return;
+            menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+            menu.Open(text);
+            ContextClick.ConsumeOpeningKeyRelease(menu, e.Key);
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        menu.Closed += (_, _) => menu.Placement = PlacementMode.Pointer;
+        Children.Add(key);
+        Children.Add(text);
+        InvalidateMeasure();
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        bool stacked = availableSize.Width < WorkspaceMetrics.MediaFactStackWidth;
+        ColumnDefinitions[0].MaxWidth = stacked ? WorkspaceMetrics.MediaFactLabelWidth
+            : Math.Min(WorkspaceMetrics.MediaFactLabelWidth, availableSize.Width * 0.4);
+        int rows = stacked ? Children.Count : Children.Count / 2;
+        if (RowDefinitions.Count != rows)
+        {
+            RowDefinitions.Clear();
+            for (int i = 0; i < rows; ++i) RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        }
+        RowSpacing = stacked ? 0 : 4;
+        for (int i = 0; i < Children.Count; ++i)
+        {
+            Control child = Children[i];
+            bool label = i % 2 == 0;
+            SetColumn(child, stacked || label ? 0 : 1);
+            SetColumnSpan(child, stacked ? 2 : 1);
+            SetRow(child, stacked ? i : i / 2);
+            child.Margin = new Thickness(0, stacked && i > 0 ? label ? 8 : 2 : 0, 0, 0);
+        }
+        return base.MeasureOverride(availableSize);
+    }
+
+    private sealed class FileNameValue : SelectableTextBlock
+    {
+        private readonly string _fullName;
+
+        protected override Type StyleKeyOverride => typeof(SelectableTextBlock);
+
+        internal FileNameValue(string fullName)
+        {
+            _fullName = fullName;
+            GotFocus += (_, _) => Text = _fullName;
+            LostFocus += (_, _) => InvalidateMeasure();
+            Classes.Add("media-fact-value");
+            TextWrapping = TextWrapping.NoWrap;
+            TextTrimming = TextTrimming.CharacterEllipsis;
+            MaxLines = 1;
+        }
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            Text = IsFocused ? _fullName : FitFileName(_fullName, candidate => Fits(candidate, availableSize.Width));
+            return base.MeasureOverride(availableSize);
+        }
+
+        private bool Fits(string text, double width) => double.IsPositiveInfinity(width)
+            || new FormattedText(text, Texts.Culture, FlowDirection,
+                new Typeface(FontFamily, FontStyle, FontWeight, FontStretch), FontSize, Foreground).Width <= width;
+    }
+
+    internal static string FitFileName(string fullName, Func<string, bool> fits)
+    {
+        if (fullName.Length == 0 || fits(fullName)) return fullName;
+        int[] elements = StringInfo.ParseCombiningCharacters(fullName);
+        int dot = fullName.LastIndexOf('.');
+        int extension = dot > 0 ? Array.BinarySearch(elements, dot) : -1;
+        int suffixLength = extension >= 0 ? elements.Length - extension : 0;
+        if (suffixLength > 0 && !fits("…" + fullName[dot..])) suffixLength = 0;
+        string best = suffixLength > 0 ? "…" + fullName[dot..] : "…";
+        int low = suffixLength + 1;
+        int high = elements.Length - 1;
+        while (low <= high)
+        {
+            int kept = (low + high) / 2;
+            int suffix = Math.Max(suffixLength, kept / 2);
+            int prefix = kept - suffix;
+            string candidate = fullName[..elements[prefix]] + "…" + (suffix == 0 ? "" : fullName[elements[^suffix]..]);
+            if (fits(candidate))
+            {
+                best = candidate;
+                low = kept + 1;
+            }
+            else high = kept - 1;
+        }
+        return best;
+    }
+
+}

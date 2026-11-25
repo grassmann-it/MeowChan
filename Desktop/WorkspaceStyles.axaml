@@ -3,6 +3,10 @@
         xmlns:ursa="https://irihi.tech/ursa">
     <Styles.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://MeowChan/Desktop/MenuItemTemplate.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <SolidColorBrush x:Key="Workspace.MediaScrim">#D2181A1F</SolidColorBrush>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="Workspace.Background">#121416</SolidColorBrush>
@@ -20,6 +24,7 @@
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ToolbarToggleSurface">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.SegmentPressed">#363C45</SolidColorBrush>
                     <!-- D0 surface tokens (design language 4.3): level 2 card with a 1-px CardEdge, level 4 overlay
                          (menu, flyout, filter surface, toast) with the app's only shadow, and the scrim behind blocking
                          in-window overlays. Overlay equals Panel today (separate key so it can be tinted later).
@@ -84,9 +89,9 @@
                     <SolidColorBrush x:Key="ButtonSolidPrimaryBorderBrush">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBackground">#8ABBFF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPointeroverBorderBrush">#8ABBFF</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBackground">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBackground">#5586CC</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPressedForeground">#121416</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#5586CC</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#4A525C</SolidColorBrush>
@@ -304,6 +309,7 @@
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ToolbarToggleSurface">#7D7367</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.SegmentPressed">#CAC2B6</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#726858</SolidColorBrush>
@@ -591,8 +597,7 @@
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
-        <!-- Semi owns every standard control template. These public theme resources
-             retain MeowChan's density without replacing focus, input or state behavior. -->
+        <!-- Semi's public theme resources retain MeowChan's density and interaction behavior. -->
         <Thickness x:Key="DataGridCellTextBlockDefaultMargin">12,0</Thickness>
         <x:Double x:Key="DataGridCellMinHeight">0</x:Double>
         <!-- D6: one radius (8, Workspace.Radius.Group) for every overlay Semi draws: menu, flyout, tooltip, toast, drop-down and
@@ -601,11 +606,12 @@
         <!-- Menu layout (CM1): a popup menu is as wide as its widest row between 224 and 416 dip (28 and 52 steps of 8); MenuLayout (code) reads
              both keys and the label column gives way to the maximum with an ellipsis and a tooltip, never the shortcut column. The shortcut is
              one right-aligned column for all rows, set off from the label by at least 24 dip (MenuItemInputGestureTextMargin, the room in front of
-             it). A row is Workspace.Size.Control (32) high and 16 dip in from the edge: Workspace.Inset.MenuItem 15,6 plus the 1-px row edge. -->
+             it). Rows are at least 32 dip high. From the row edge: 16 dip inset, 24 dip icon/state cell, 8 dip gap, label at 48.
+             Levels without icons or switches start the label at 16. -->
         <x:Double x:Key="MenuFlyoutMinWidth">224</x:Double>
         <x:Double x:Key="MenuFlyoutMaxWidth">416</x:Double>
         <Thickness x:Key="MenuItemInputGestureTextMargin">24,0,0,0</Thickness>
-        <Thickness x:Key="Workspace.Inset.MenuItem">15,6</Thickness>
+        <Thickness x:Key="Workspace.Inset.MenuItem">15,3</Thickness>
         <CornerRadius x:Key="FlyoutCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
         <!-- HB1: no tooltip is wider than 360 dip: longer text wraps (style "ToolTip TextBlock" below). Help popovers have their own,
@@ -752,6 +758,25 @@
                     AdornerLayer.IsClipEnabled="False" IsHitTestVisible="False">
                 <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
                         CornerRadius="{StaticResource Workspace.Radius.Badge}" IsHitTestVisible="False" />
+            </Border>
+        </Template>
+        <!-- Keep the adorner root aligned with the focused element so Avalonia can apply the viewport's clip.
+             The negative margin belongs to the ring inside that coordinate space. -->
+        <Template x:Key="Workspace.ViewportFocusAdorner">
+            <Panel AdornerLayer.IsClipEnabled="True" IsHitTestVisible="False">
+                <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
+                        CornerRadius="{StaticResource Workspace.Radius.Control}" Margin="-4">
+                    <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
+                            CornerRadius="{StaticResource Workspace.Radius.Badge}" />
+                </Border>
+            </Panel>
+        </Template>
+        <!-- Templated controls also clip at their own bounds. Keep both strokes inside those bounds. -->
+        <Template x:Key="Workspace.InsetViewportFocusAdorner">
+            <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
+                    CornerRadius="{StaticResource Workspace.Radius.Control}" AdornerLayer.IsClipEnabled="True" IsHitTestVisible="False">
+                <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
+                        CornerRadius="{StaticResource Workspace.Radius.Badge}" />
             </Border>
         </Template>
     </Styles.Resources>
@@ -928,6 +953,10 @@
         <Setter Property="BorderThickness" Value="0" /><Setter Property="RowHeight" Value="{x:Static desktop:WorkspaceMetrics.NormalRowHeight}" /><Setter Property="ColumnHeaderHeight" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
         <Setter Property="GridLinesVisibility" Value="Horizontal" /><Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Workspace.Border}" />
     </Style>
+    <!-- A populated table draws keyboard focus on its current cell or row inside the rows presenter. -->
+    <Style Selector="DataGrid:not(:empty-rows):not(:empty-columns)">
+        <Setter Property="FocusAdorner" Value="{x:Null}" />
+    </Style>
     <Style Selector="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Padding" Value="10,7" />
@@ -982,15 +1011,35 @@
          ListBoxItem ContentPresenter#PART_ContentPresenter, each binding BorderBrush, BorderThickness and Padding from the row. -->
     <Style Selector="MenuItem"><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="{StaticResource Workspace.Inset.MenuItem}" /></Style>
     <Style Selector="ContextMenu MenuItem, MenuFlyoutPresenter MenuItem, Menu MenuItem MenuItem"><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" /></Style>
+    <Style Selector="ContextMenu MenuItem:not(:separator), MenuFlyoutPresenter MenuItem:not(:separator), Menu MenuItem MenuItem:not(:separator)">
+        <Setter Property="Template" Value="{StaticResource Workspace.PopupMenuItemTemplate}" />
+    </Style>
     <!-- CM1: every popup menu measures to its widest row (MenuLayout); both kinds of popup menu, from code and from XAML, take part. -->
     <Style Selector="ContextMenu, MenuFlyoutPresenter"><Setter Property="controls:MenuLayout.IsManaged" Value="True" /></Style>
     <Style Selector="Menu > MenuItem"><Setter Property="Padding" Value="15,0" /></Style>
     <Style Selector="MenuItem:selected"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
     <Style Selector="MenuItem:pressed"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="MenuItem:pressed /template/ Border#PART_LayoutRoot:pointerover">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
     <!-- Group labels of the header menu (Reading, Collection, App): a small disabled line, not focusable, that names the entries below it. -->
     <Style Selector="MenuItem.menu-group-label">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Padding" Value="15,6,15,2" /><Setter Property="MinHeight" Value="0" /><Setter Property="Focusable" Value="False" />
+    </Style>
+    <Style Selector="MenuItem.menu-group-label /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Grid.Column" Value="0" /><Setter Property="Grid.ColumnSpan" Value="4" />
+    </Style>
+    <Style Selector="TextBlock.menu-group-label">
+        <Setter Property="Height" Value="24" /><Setter Property="Margin" Value="16,0" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="VerticalAlignment" Value="Center" /><Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="TextAlignment" Value="Left" /><Setter Property="Padding" Value="0,4,0,0" />
+    </Style>
+    <Style Selector="Grid.gallery-menu-setting > :is(Control).gallery-menu-input">
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
     </Style>
     <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width):not(.tagging-table) > ListBoxItem:not(.chip-item)">
         <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="11,7" />
@@ -1006,13 +1055,16 @@
     </Style>
 
     <!-- Tagging table heights are COMPLETE container heights, including the invariant selection edge.
-         Zero vertical padding/border leaves 44/32 for the row content; the 3-px edge never changes the inset. -->
+         The normal preview uses the two-line height so its 48-DIP image fits. The compact image fits within 32 DIP. -->
     <Style Selector="ListBox.tagging-table > ListBoxItem">
         <Setter Property="Height" Value="{x:Static desktop:WorkspaceMetrics.NormalRowHeight}" />
         <Setter Property="MinHeight" Value="0" /><Setter Property="Margin" Value="0" />
         <Setter Property="Padding" Value="9,0,12,0" /><Setter Property="BorderThickness" Value="3,0,0,0" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ListBox.tagging-table.with-preview:not(.compact) > ListBoxItem">
+        <Setter Property="Height" Value="{x:Static desktop:WorkspaceMetrics.TwoLineRowHeight}" />
     </Style>
     <Style Selector="ListBox.tagging-table.compact > ListBoxItem">
         <Setter Property="Height" Value="{x:Static desktop:WorkspaceMetrics.CompactRowHeight}" />
@@ -1029,6 +1081,11 @@
     <!-- AX-05 (a11y package): ToggleSwitch and TabItem are listed explicitly; a type selector does not match derived types, so the ToggleButton entry never reached ToggleSwitch, and TabItem was never listed. -->
     <Style Selector="Button, ToggleButton, ToggleSwitch, TabItem, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="ListBox.workspace-selection-bar, ListBox.tagging-table">
+        <Style Selector="^ > ListBoxItem">
+            <Setter Property="FocusAdorner" Value="{StaticResource Workspace.InsetViewportFocusAdorner}" />
+        </Style>
     </Style>
     <Style Selector="Button.row-action">
         <Setter Property="FocusAdorner">
@@ -1056,6 +1113,19 @@
     <Style Selector="TextBlock.workspace-help, SelectableTextBlock.workspace-help, TextBlock.workspace-meta, SelectableTextBlock.workspace-meta">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.workspace-body-text, SelectableTextBlock.workspace-post-body, TextBlock.panel-action-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+    </Style>
+    <Style Selector="TextBlock.workspace-panel-title, SelectableTextBlock.workspace-panel-title">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="SelectableTextBlock.media-fact-value">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.accent-preset"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="ToggleButton.accent-preset TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
@@ -1245,10 +1315,18 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ToggleButton.segment:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ToggleButton.segment:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.segment:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.segment:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
     </Style>
     <Style Selector="ToggleButton.segment:disabled, ToggleButton.segment:pointerover:disabled, ToggleButton.segment:pressed:disabled, ToggleButton.segment:checked:disabled, ToggleButton.segment:checked:pointerover:disabled, ToggleButton.segment:checked:pressed:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="ToggleButton.segment:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
@@ -1359,8 +1437,7 @@
     <Style Selector="ToggleButton#GalleryPanelTags">
         <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
     </Style>
-    <!-- Gallery "⋯" menu: the rare toolbar commands as full-width rows (lead mark, label, shortcut). The check of the two
-         overlay choices is drawn by the row itself, so the toggle's own checked fill is switched off here. -->
+    <!-- Gallery "⋯" menu: full-width rows with the shared icon/state chip, label and shortcut. -->
     <Style Selector="FlyoutPresenter.gallery-overflow">
         <Setter Property="Padding" Value="4" /><Setter Property="MinWidth" Value="300" /><Setter Property="MaxWidth" Value="440" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
@@ -1403,7 +1480,7 @@
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.gallery-overflow-item:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
     <!-- Disabled rows are Muted text on the overlay (7.37:1 / 6.66:1), no extra dimming: the earlier 0.6 opacity put them at 3.54:1 / 2.72:1. -->
     <Style Selector="Button.gallery-overflow-item:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:disabled /template/ ContentPresenter#PART_ContentPresenter">
@@ -1430,23 +1507,46 @@
     <Style Selector="Button.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
-    <!-- Decision-row favourite only: match the rating bar's height and center the icon + label as one unit.
-         A minimum (not a fixed height) and vertical padding allow larger fonts and translated labels to grow. Media-control states retain theme tokens. -->
     <Style Selector="ToggleButton.rating-favorite">
-        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /><Setter Property="Padding" Value="11,7" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="Padding" Value="12,0" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
     </Style>
-    <!-- Rating star (GalleryDecisionRow, design plan 16.11.2026): one of five equal cells of the rating bar of the "Rate and tag" popover and the gallery tag
-         panel. The cells touch (no gaps), so the hit area is continuous; each is Nav high with a 24 dip minimum, a transparent 1-px edge and no fill at rest.
-         The glyph (20 dip) is an outline in Muted while empty; a rated star is filled in Workspace.Favorite. Hover fills the cell with Hover and the stars up to
-         it show as set in the text colour (rating-preview, set by the row); the checked star has no accent fill, the filled stars carry the value; focus is the
-         shared ring; disabled is Muted. -->
+    <Style Selector="ToggleButton.rating-favorite /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-favorite:checked, ToggleButton.rating-favorite:indeterminate">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-favorite:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.rating-favorite:indeterminate /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-favorite:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.rating-favorite:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.rating-favorite:indeterminate:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="Button.panel-action">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="TextBlock.panel-action-label.compact-action-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" />
+    </Style>
+    <Style Selector="TextBlock.panel-action-label">
+        <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="Button.rating-clear">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <Style Selector="ToggleButton.rating-star">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
-        <Setter Property="Height" Value="{StaticResource Workspace.Size.Nav}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.ControlCompact}" /><Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
@@ -1476,8 +1576,28 @@
     <Style Selector="ToggleButton.rating-star:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
+    <Style Selector="Border.media-sidebar-close.floating">
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" />
+    </Style>
+    <Style Selector="Border.media-sidebar-overlay TextBlock.workspace-panel-title">
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.media-sidebar-overlay TextBlock.workspace-meta">
+        <Setter Property="Foreground" Value="#CCFFFFFF" />
+    </Style>
+    <Style Selector="Border.media-sidebar-overlay Button /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.media-sidebar-overlay Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#F0181A1F" />
+    </Style>
+
     <!-- The one hairline of the quick tag popover and the gallery tag panel: between the decision row (favourite, rating) and the tag field. Its own 4 dip
          above and below add to the field area's 8 dip spacing: 12 dip of air on both sides. -->
+    <Style Selector="Button.quick-tag-compact-action">
+        <Setter Property="Padding" Value="4,0" />
+    </Style>
     <Style Selector="Border.quick-tag-divider">
         <Setter Property="Height" Value="1" /><Setter Property="Margin" Value="0,4" /><Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Border}" />
@@ -1486,11 +1606,11 @@
          transparent at rest (the padding gives it back), ControlBorder under the pointer, the accent when pressed or focused by the keyboard.
          The checked fill of a toggle is switched off: the filled gold star is the saved state. -->
     <Style Selector="ToggleButton.gallery-favorite-badge">
-        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="White" /><Setter Property="Padding" Value="7,3" />
     </Style>
     <Style Selector="ToggleButton.gallery-favorite-badge /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="ToggleButton.gallery-favorite-badge:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="#F0181A1F" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="White" />
@@ -1504,7 +1624,7 @@
     <!-- Disabled: the dark scrim stays (a Muted label would be dark on dark in Light), dimmed to 0.75 with no hover, focus or pressed state. -->
     <Style Selector="ToggleButton.gallery-favorite-badge:disabled, ToggleButton.gallery-favorite-badge:checked:disabled, ToggleButton.gallery-favorite-badge:disabled:pointerover, ToggleButton.gallery-favorite-badge:checked:disabled:pointerover, ToggleButton.gallery-favorite-badge:disabled:pressed, ToggleButton.gallery-favorite-badge:checked:disabled:pressed"><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="ToggleButton.gallery-favorite-badge:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:disabled:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-favorite-badge:checked:disabled:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#D2181A1F" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="Slider.media-slider">
         <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />
@@ -1544,20 +1664,20 @@
     <Style Selector="StackPanel.workspace-actions"><Setter Property="HorizontalAlignment" Value="Right" /></Style>
     <Style Selector="TabControl.booru-tabs">
         <Setter Property="ItemsPanel">
-            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.4}" /></ItemsPanelTemplate>
         </Setter>
         <Setter Property="Template">
             <ControlTemplate>
-                <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,Auto">
-                    <ScrollViewer Name="BooruTabStrip" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <Grid RowDefinitions="Auto,*">
+                    <ScrollViewer Name="BooruTabStrip" AutomationProperties.AutomationId="BooruTabStrip"
+                                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                         <Grid>
                             <Border Background="{DynamicResource Workspace.Background}" BorderBrush="{DynamicResource Workspace.Border}"
                                     BorderThickness="0,0,0,1" />
                             <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
                         </Grid>
                     </ScrollViewer>
-                    <ContentControl Grid.Column="1" Name="BooruAddTabHost" VerticalAlignment="Top" />
-                    <ContentPresenter Grid.Row="1" Grid.ColumnSpan="2" Name="PART_SelectedContentHost"
+                    <ContentPresenter Grid.Row="1" Name="PART_SelectedContentHost"
                                       Background="{DynamicResource Workspace.Panel}"
                                       Content="{TemplateBinding SelectedContent}" ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
                 </Grid>
@@ -1598,9 +1718,15 @@
     <Style Selector="TabItem.booru-tab:selected /template/ Border#BooruTabSelection">
         <Setter Property="IsVisible" Value="True" />
     </Style>
+    <Style Selector="TabItem.booru-add-tab">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}" />
+            </ControlTemplate>
+        </Setter>
+    </Style>
     <Style Selector="Button.booru-add-tab-button">
-        <Setter Property="Width" Value="44" />
-        <Setter Property="Height" Value="{StaticResource Workspace.Size.Nav}" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" />
     </Style>
     <Style Selector="Button.booru-tab-close, Button.booru-pager-button">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.ControlCompact}" />
@@ -1684,6 +1810,22 @@
         <Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="6,0,0,0" />
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
         <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.chip-position">
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.ControlCompact}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="8,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Chip}" />
+    </Style>
+    <Style Selector="Border.chip-position.marked">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
+    <Style Selector="Border.chip-position TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="FontWeight" Value="Medium" />
     </Style>
 
     <Style Selector="Border.chip-badge">
@@ -1815,6 +1957,11 @@
     <Style Selector="controls|HeaderBar:compact > Button.header-back TextBlock">
         <Setter Property="IsVisible" Value="False" />
     </Style>
+    <Style Selector=":is(Button).popup-open /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
     <Style Selector="Button.icon-square">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
@@ -1938,8 +2085,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ToggleButton.toolbar-toggle.segment:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter,
-                     ToggleButton.toolbar-toggle.filter-toggle:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ToggleButton.toolbar-toggle.filter-toggle:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
@@ -1953,6 +2099,35 @@
     </Style>
     <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
         <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.surface-toggle:checked:not(:disabled):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.surface-toggle:checked:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="TextDecorations" Value="Underline" />
+    </Style>
+    <Style Selector="ToggleButton.header-icon.surface-toggle:checked Path.header-icon">
+        <Setter Property="RenderTransform" Value="rotate(180deg)" />
+    </Style>
+    <Style Selector="ToggleButton.header-icon.surface-toggle /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.header-icon.surface-toggle:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.header-icon.surface-toggle:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="Opacity" Value="0.75" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:checked:pressed:not(:disabled):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:checked:pressed:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.toolbar-toggle:disabled">
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
@@ -2204,14 +2379,14 @@
     <Style Selector="ToggleButton.tile-favorite:checked:disabled, ToggleButton.tile-favorite:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite:disabled">
         <Setter Property="Opacity" Value="0.75" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
-    <!-- MB1b: where the shared media badges already show the favourite at rest (archive tiles), the toggle is only shown while the tile is
-         hovered or holds keyboard focus, set or not (declared after the rules above, so it wins over ":checked"). -->
+    <!-- MB1b: the shared badge shows the favourite at rest. Tom's 25.11. 17:55 decision keeps focus on the tile,
+         so its toggle is revealed by hover, tile focus or selection. -->
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked"><Setter Property="Opacity" Value="0" /><Setter Property="IsHitTestVisible" Value="False" /></Style>
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
     <Style Selector="ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
-    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
+    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet, ListBoxItem:selected ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked:disabled"><Setter Property="Opacity" Value="0" /><Setter Property="IsHitTestVisible" Value="False" /></Style>
-    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:selected ToggleButton.tile-favorite.tile-favorite-quiet:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 
     <!-- D4 (E7, A11Y M7): a chosen chip is never the tint alone. The chip-selected class gives the tint and a solid 2-px accent
@@ -2413,11 +2588,12 @@
     <!-- MV2 Booru result tile: the media page's tile look without the list host. No card: transparent at rest, with the 1-px edge reserved
          (the picture size is unchanged), a quiet Raised background and ControlBorder edge on hover or keyboard focus, AccentSurface and a
          3-px accent bar (Border.booru-tile-bar) when selected, together with the accent check on the picture. The actions row is transparent
-         until hover, focus inside or selection; it stays focusable. Square corners. -->
+         until hover, focus inside or selection. Square corners. -->
     <Style Selector="Border.booru-tile">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="0" />
-        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+        <Setter Property="ToolTip.Placement" Value="Custom" />
+        <Setter Property="ToolTip.CustomPopupPlacementCallback" Value="{x:Static controls:ViewportToolTip.Place}" />
     </Style>
     <Style Selector="Border.booru-tile:pointerover, Border.booru-tile:focus-within">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
@@ -2437,7 +2613,10 @@
     </Style>
     <!-- A card the keyboard reaches (Booru hit): the shared double focus ring, drawn only for keyboard focus (Avalonia shows the adorner for Tab and arrow focus). -->
     <Style Selector="Border.workspace-card-focusable">
-        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.ViewportFocusAdorner}" />
+    </Style>
+    <Style Selector="Border.workspace-card-focusable.booru-tile">
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.InsetViewportFocusAdorner}" />
     </Style>
     <Style Selector="Border.booru-stage-focus">
         <Setter Property="IsVisible" Value="False" />
@@ -2500,7 +2679,7 @@
         </Setter>
     </Style>
     <!-- The reader navigation bar fades in and out with the pointer's idle state (Fade 120 ms); under reduced motion it switches at once. -->
-    <Style Selector=":is(TopLevel):not(.motion-off) WrapPanel.reader-cross">
+    <Style Selector=":is(TopLevel):not(.motion-off) WrapPanel.reader-cross, :is(TopLevel):not(.motion-off) Border.media-sidebar-overlay">
         <Setter Property="Transitions"><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.12" /></Transitions></Setter>
     </Style>
     <!-- A filter chip appears with a short fade (the tag bar's own chips are rebuilt often and tile chips are recycled: no fade there). -->

@@ -23,6 +23,27 @@ namespace MeowChan
         public double ArchiveSplitWidth { get; set; } = Config.ArchiveSplitWidthDefault;
         public bool DiagnosticsProblemsCollapsed { get; set; }
         public bool DiagnosticsActivityCollapsed { get; set; }
+
+        // Legacy profiles store the same numeric width for automatic sizing and a drag to the default.
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ArchiveSplitWidthIsExplicit { get; set; }
+
+        [JsonIgnore]
+        internal double? ArchiveSplitWidthOverride
+        {
+            get
+            {
+                double width = Config.NormalizeArchiveSplitWidth(ArchiveSplitWidth);
+                return ArchiveSplitWidthIsExplicit || width != Config.ArchiveSplitWidthDefault ? width : null;
+            }
+            set
+            {
+                ArchiveSplitWidth = Config.NormalizeArchiveSplitWidth(value ?? Config.ArchiveSplitWidthDefault);
+                ArchiveSplitWidthIsExplicit = value.HasValue;
+            }
+        }
+
         [JsonConverter(typeof(DesktopPreferenceColumnWidthsConverter))]
         public Dictionary<string, double> ColumnWidths { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, bool> ColumnVisibility { get; set; } = new(StringComparer.Ordinal);
@@ -33,6 +54,7 @@ namespace MeowChan
             CompactDensity = CompactDensity, ArchiveMediaTiles = ArchiveMediaTiles,
             ReadingFontSize = ReadingFontSize, ArchiveThreadLayout = ArchiveThreadLayout,
             ArchiveSplitWidth = ArchiveSplitWidth,
+            ArchiveSplitWidthIsExplicit = ArchiveSplitWidthIsExplicit,
             DiagnosticsProblemsCollapsed = DiagnosticsProblemsCollapsed,
             DiagnosticsActivityCollapsed = DiagnosticsActivityCollapsed,
             ColumnWidths = ColumnWidths == null ? new(StringComparer.Ordinal) : new(ColumnWidths, StringComparer.Ordinal),
@@ -100,12 +122,12 @@ namespace MeowChan
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
         /// <summary>
-        /// Revision of the one-shot migrations of view-preference defaults (1: the archive list width default moved from 270 to 330).
+        /// Revision of the one-shot migrations of view-preference defaults (1: archive list width 270 to 330, 2: Booru tag count 12 to automatic).
         /// A new profile starts at the current value; a file without the field is read as 0 (see OnDeserializing), so an old value is
-        /// migrated exactly once and a width the person chose later, 270 included, is kept.
+        /// migrated exactly once and values the person chooses after the migration are kept.
         /// </summary>
         public int PreferenceDefaultsRevision { get; set; } = CurrentPreferenceDefaultsRevision;
-        internal const int CurrentPreferenceDefaultsRevision = 1;
+        internal const int CurrentPreferenceDefaultsRevision = 2;
         public bool FirstRunSetupPending { get; set; }
         public int FirstRunSetupVersion { get; set; }
         public Dictionary<string, SourceMediaIntegrityPermission> SourceMediaIntegrityPermissions { get; set; } = new(StringComparer.Ordinal);
@@ -151,6 +173,14 @@ namespace MeowChan
         private string[] _footerPages = [];
         /// <summary>The footer layout of <see cref="FooterPages"/>.</summary>
         [JsonIgnore] internal Desktop.Commands.FooterLayout FooterLayout => Desktop.Commands.FooterLayout.FromStored(_footerPages);
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ShowFooterNetwork { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ShowFooterDisk { get; set; }
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ShowFooterStatus { get; set; } = true;
+        private bool _footerDisplayDraft;
+        [JsonIgnore] internal FooterDisplayPreferences? SettingsBaselineFooterDisplays { get; set; }
         internal const int WorkViewSwitchNoticeSecondsMinimum = 0;
         internal const int WorkViewSwitchNoticeSecondsMaximum = 60;
         /// <summary>Whether entering Barebones may shrink the window; layout data itself is retained.</summary>
@@ -247,6 +277,32 @@ namespace MeowChan
         internal const int BoardAdmissionSizeMiBDefault = Admission.BoardAdmissionStore.DefaultSizeMiB;
         internal const int BoardAdmissionSizeMiBMinimum = Admission.BoardAdmissionStore.MinimumSizeMiB;
         internal const int BoardAdmissionSizeMiBMaximum = Admission.BoardAdmissionStore.MaximumSizeMiB;
+        public int BoardWatcherIntervalMinutes { get; set; } = BoardWatcherIntervalMinutesDefault;
+        internal const int BoardWatcherIntervalMinutesDefault = 5;
+        internal const int BoardWatcherIntervalMinutesMinimum = Admission.BoardAdmissionPolicy.MinimumWatcherIntervalMinutes;
+        internal const int BoardWatcherIntervalMinutesMaximum = Admission.BoardAdmissionPolicy.MaximumWatcherIntervalMinutes;
+        public int BoardSuggestionMinThreads { get; set; } = BoardSuggestionMinThreadsDefault;
+        internal const int BoardSuggestionMinThreadsDefault = 3;
+        internal const int BoardSuggestionMinThreadsMinimum = 2;
+        internal const int BoardSuggestionMinThreadsMaximum = 50;
+        public int BoardSuggestionLimit { get; set; } = BoardSuggestionLimitDefault;
+        internal const int BoardSuggestionLimitDefault = 12;
+        internal const int BoardSuggestionLimitMinimum = 3;
+        internal const int BoardSuggestionLimitMaximum = 50;
+        public int BoardSuggestionScanThreads { get; set; } = BoardSuggestionScanThreadsDefault;
+        internal const int BoardSuggestionScanThreadsDefault = 5_000;
+        internal const int BoardSuggestionScanThreadsMinimum = 100;
+        internal const int BoardSuggestionScanThreadsMaximum = Archive.ArchiveReader.BoardTitleHistoryMaximum;
+        [JsonInclude]
+        internal int BoardArchiveCacheLimit { get; set; } = BoardArchiveCacheLimitDefault;
+        internal const int BoardArchiveCacheLimitDefault = 8;
+        internal const int BoardArchiveCacheLimitMinimum = 1;
+        internal const int BoardArchiveCacheLimitMaximum = 64;
+        [JsonInclude]
+        internal int BooruHiddenTagTooltipLimit { get; set; } = BooruHiddenTagTooltipLimitDefault;
+        internal const int BooruHiddenTagTooltipLimitDefault = 60;
+        internal const int BooruHiddenTagTooltipLimitMinimum = 1;
+        internal const int BooruHiddenTagTooltipLimitMaximum = 200;
         /// <summary>Most slash-marker suggestions offered, without changing the text/token scan ceilings.</summary>
         public int SlashTagSuggestionCount { get; set; } = SlashTagSuggestionCountDefault;
         internal const int SlashTagSuggestionCountDefault = Tags.SlashTagSuggestions.DefaultSuggestionCount;
@@ -335,24 +391,26 @@ namespace MeowChan
         internal const int MediaTagListTopDefault = 30;
         internal const int MediaTagListTopMinimum = 5;
         internal const int MediaTagListTopMaximum = 1_000;
-        /// <summary>E2: how many source tag chips a Danbooru result in the list shows before "+N more" (0 shows none until "+N more" is used).</summary>
+        /// <summary>E2: how many source tag chips a Danbooru result in the list shows before "+N more" (-1 fits the available space, 0 initially folds all tags).</summary>
         public int BooruResultTagsShown { get; set; } = BooruResultTagsShownDefault;
-        internal const int BooruResultTagsShownDefault = 12;
-        internal const int BooruResultTagsShownMinimum = 0;
+        internal const int BooruResultTagsShownAutomatic = -1;
+        internal const int BooruResultTagsShownDefault = BooruResultTagsShownAutomatic;
+        internal const int BooruResultTagsShownMinimum = BooruResultTagsShownAutomatic;
         internal const int BooruResultTagsShownMaximum = 200;
-        /// <summary>Destination used when submitting from the Booru search field.</summary>
+        /// <summary>Legacy profile value retained for settings compatibility.</summary>
         public string BooruNewSearchTarget { get; set; } = BooruSearchTargetNewTab;
         internal const string BooruSearchTargetNewTab = "NewTab";
         internal const string BooruSearchTargetCurrentTab = "CurrentTab";
 
-        /// <summary>How many extra search tabs the Booru page may hold during the session.</summary>
+        /// <summary>Maximum total number of search tabs in the Booru workbench.</summary>
+        [JsonConverter(typeof(BooruSearchTabCapacityConverter))]
         public int BooruSearchTabs { get; set; } = BooruSearchTabsDefault;
-        internal const int BooruSearchTabsDefault = 8;
-        internal const int BooruSearchTabsMinimum = 1;
-        internal const int BooruSearchTabsMaximum = 32;
+        internal const int BooruSearchTabsDefault = 9;
+        internal const int BooruSearchTabsMinimum = 2;
+        internal const int BooruSearchTabsMaximum = 33;
         public bool RestoreBooruSearchTabs { get; set; } = true;
         public int BooruSearchPages { get; set; } = BooruSearchPagesDefault;
-        internal const int BooruSearchPagesDefault = BooruSearchPagesMaximum;
+        internal const int BooruSearchPagesDefault = 5;
         internal const int BooruSearchPagesMinimum = 1;
         internal const int BooruSearchPagesMaximum = Desktop.Booru.BooruSearchModel.MaximumPage;
         public int BooruSearchPostsPerPage { get; set; } = BooruSearchPostsPerPageDefault;
@@ -360,9 +418,9 @@ namespace MeowChan
         internal const int BooruSearchPostsPerPageMinimum = 1;
         internal const int BooruSearchPostsPerPageMaximum = Desktop.Booru.BooruSearchModel.PageSize;
         public int BooruSavedTabs { get; set; } = BooruSavedTabsDefault;
-        internal const int BooruSavedTabsDefault = BooruSearchTabsDefault + 1;
+        internal const int BooruSavedTabsDefault = 9;
         internal const int BooruSavedTabsMinimum = 2;
-        internal const int BooruSavedTabsMaximum = BooruSearchTabsMaximum + 1;
+        internal const int BooruSavedTabsMaximum = 33;
         public int BooruSavedResultsPerTab { get; set; } = BooruSavedResultsPerTabDefault;
         internal const int BooruSavedResultsPerTabDefault = BooruSavedResultsPerTabMaximum;
         internal const int BooruSavedResultsPerTabMinimum = 0;
@@ -588,12 +646,8 @@ namespace MeowChan
         internal const int ReaderReplyLinesDefault = ReaderDisplayLimits.ReplyLinesDefault;
         internal const int ReaderReplyLinesMinimum = ReaderDisplayLimits.ReplyLinesMinimum;
         internal const int ReaderReplyLinesMaximum = ReaderDisplayLimits.ReplyLinesMaximum;
-        /// <summary>Expand replies under the selected reader post and fold automatic expansions when selection moves. Defaults to off.</summary>
+        /// <summary>Whether to expand reader replies automatically. Defaults to off.</summary>
         public bool ReaderExpandReplies { get; set; } = false;
-        public int ReaderPageSize { get; set; } = ReaderPageSizeDefault;
-        internal const int ReaderPageSizeDefault = ArchivePage.ReaderPageSizeDefault;
-        internal const int ReaderPageSizeMinimum = ArchivePage.ReaderPageSizeMinimum;
-        internal const int ReaderPageSizeMaximum = ArchivePage.ReaderPageSizeMaximum;
         public int ReaderThreadingDepth { get; set; } = ReaderThreadingDepthDefault;
         internal const int ReaderThreadingDepthDefault = ReaderConversationTree.DepthDefault;
         internal const int ReaderThreadingDepthMinimum = ReaderConversationTree.DepthMinimum;
@@ -624,6 +678,10 @@ namespace MeowChan
         internal const int ReaderFocusedMediaScalePercentDefault = ReaderDisplayPreferences.FocusedMediaScaleDefault;
         internal const int ReaderFocusedMediaScalePercentMinimum = ReaderDisplayPreferences.FocusedMediaScaleMinimum;
         internal const int ReaderFocusedMediaScalePercentMaximum = ReaderDisplayPreferences.FocusedMediaScaleMaximum;
+        public int ReaderFocusedPostTopPaddingPercent { get; set; } = ReaderFocusedPostTopPaddingPercentDefault;
+        internal const int ReaderFocusedPostTopPaddingPercentDefault = ReaderDisplayPreferences.FocusedPostTopPaddingPercentDefault;
+        internal const int ReaderFocusedPostTopPaddingPercentMinimum = ReaderDisplayPreferences.FocusedPostTopPaddingPercentMinimum;
+        internal const int ReaderFocusedPostTopPaddingPercentMaximum = ReaderDisplayPreferences.FocusedPostTopPaddingPercentMaximum;
         public bool ReaderTextlessLargeImages { get; set; } = true;
         public bool ReaderHoverEnlarge { get; set; } = false;
         public bool ReaderFocusedMediaEnlarge { get; set; } = false;
@@ -649,6 +707,34 @@ namespace MeowChan
             set => _readerMediaSidebarScope = string.Equals(value?.Trim(), ReaderMediaSidebarScopeAlways, StringComparison.OrdinalIgnoreCase)
                 ? ReaderMediaSidebarScopeAlways : ReaderMediaSidebarScopeLargeReader;
         }
+        internal static string NormalizeSidebarInfo(string? value) => value?.Trim().ToUpperInvariant() switch
+        {
+            "OFF" => "Off", "OVERLAY" => "Overlay", "ALWAYS" => "Always", _ => "Auto"
+        };
+        private string _mediaSidebarInfo = "Auto";
+        public bool MediaSidebarAutoHide { get; set; }
+        public bool MediaSidebarFacts { get; set; } = true;
+        public bool MediaSidebarPinned { get; set; }
+
+        internal bool SidebarFactsVisible => MediaSidebarInfo != "Off" && MediaSidebarFacts;
+
+        internal void SetSidebarFacts(bool visible)
+        {
+            MediaSidebarFacts = visible;
+            // A click can recover a profile written when Off hid the whole bar.
+            if (MediaSidebarInfo == "Off") MediaSidebarInfo = "Auto";
+        }
+        public string MediaSidebarInfo { get => _mediaSidebarInfo; set => _mediaSidebarInfo = NormalizeSidebarInfo(value); }
+
+        internal const int MediaSidebarInfoMaximumShareMinimum = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareMinimum;
+        internal const int MediaSidebarInfoMaximumShareMaximum = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareMaximum;
+        private int _mediaSidebarInfoMaximumShare = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareDefault;
+        public int MediaSidebarInfoMaximumShare
+        {
+            get => _mediaSidebarInfoMaximumShare;
+            set => _mediaSidebarInfoMaximumShare = Math.Clamp(value, MediaSidebarInfoMaximumShareMinimum, MediaSidebarInfoMaximumShareMaximum);
+        }
+
         public int ReaderMediaSidebarWidth { get; set; } = ReaderMediaSidebarWidthDefault;
         internal const int ReaderMediaSidebarWidthDefault = ReaderDisplayPreferences.MediaSidebarWidthDefault;
         internal const int ReaderMediaSidebarWidthMinimum = ReaderDisplayPreferences.MediaSidebarWidthMinimum;
@@ -729,6 +815,16 @@ namespace MeowChan
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
         internal const int GalleryFitMaxUpscalePercentMaximum = GalleryFitPreferences.MaxUpscalePercentMaximum;
+        internal const int SidebarPreviewMaximumPixelsDefault = SidebarPreviewMaximumPixelsMaximum;
+        internal const int SidebarPreviewMaximumPixelsMinimum = 1_000_000;
+        internal const int SidebarPreviewMaximumPixelsMaximum = (int)ImageOrientation.MaximumPixels;
+        private int _sidebarPreviewMaximumPixels = SidebarPreviewMaximumPixelsDefault;
+        [JsonInclude]
+        internal int SidebarPreviewMaximumPixels
+        {
+            get => _sidebarPreviewMaximumPixels;
+            set => _sidebarPreviewMaximumPixels = Math.Clamp(value, SidebarPreviewMaximumPixelsMinimum, SidebarPreviewMaximumPixelsMaximum);
+        }
         public int GalleryMaxZoomPercent { get; set; } = GalleryMaxZoomPercentDefault;
         internal const int GalleryMaxZoomPercentDefault = GalleryZoomLimits.MaxPercentDefault;
         internal const int GalleryMaxZoomPercentMinimum = GalleryZoomLimits.MaxPercentMinimum;
@@ -849,6 +945,8 @@ namespace MeowChan
             get => _booruPageView;
             set => _booruPageView = Desktop.Booru.BooruResultViews.Parse(value).ToString();
         }
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool BooruMediaSidebar { get; set; } = true;
         private string _booruTileSize = nameof(Desktop.MediaTileSize.Medium);
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string BooruTileSize
@@ -867,6 +965,10 @@ namespace MeowChan
         // C16: the list view's preview column can be hidden without changing the queue data.
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool TaggingPreviewColumn { get; set; } = true;
+
+        /// <summary>Show the media sidebar beside the tagging queue when the page is wide enough.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool TaggingPagePanel { get; set; } = true;
         // TG1: the stamp block of the tagging page: "Auto" (follows the work view: closed in Barebones), "Open" or "Closed" once chosen.
         private string _taggingStampBlock = nameof(TaggingStampBlockState.Auto);
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -1051,13 +1153,15 @@ namespace MeowChan
             MigratePreferenceDefaults();
             // Couple only after all legacy keys have been read, independent of JSON order.
             NormalizeGalleryControls();
+            BooruCatalogLimitMiB = Math.Clamp(BooruCatalogLimitMiB, BooruCatalogMinimumLimitMiB, BooruCatalogMaximumLimitMiB);
+            ImportCatalogLimitMiB = Math.Clamp(ImportCatalogLimitMiB, ImportCatalogLimitMiBMinimum, ImportCatalogLimitMiBMaximum);
+            FolderSourceCatalogLimitMiB = Math.Clamp(FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBMinimum, FolderSourceCatalogLimitMiBMaximum);
             ReaderThumbnailWidth = Math.Clamp(ReaderThumbnailWidth, ReaderThumbnailWidthMinimum, ReaderThumbnailWidthMaximum);
             ReaderFoldLines = Math.Clamp(ReaderFoldLines, ReaderFoldLinesMinimum, ReaderFoldLinesMaximum);
             ReaderPreviewLines = Math.Clamp(ReaderPreviewLines, ReaderPreviewLinesMinimum, ReaderPreviewLinesMaximum);
             ReaderPreviewDelayMs = Math.Clamp(ReaderPreviewDelayMs, ReaderPreviewDelayMsMinimum, ReaderPreviewDelayMsMaximum);
             ReaderReplyStep = Math.Clamp(ReaderReplyStep, ReaderReplyStepMinimum, ReaderReplyStepMaximum);
             ReaderReplyLines = Math.Clamp(ReaderReplyLines, ReaderReplyLinesMinimum, ReaderReplyLinesMaximum);
-            ReaderPageSize = Math.Clamp(ReaderPageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
             ReaderThreadingDepth = Math.Clamp(ReaderThreadingDepth, ReaderThreadingDepthMinimum, ReaderThreadingDepthMaximum);
             ReadingHistoryLimit = Math.Clamp(ReadingHistoryLimit, ReadingHistoryLimitMinimum, ReadingHistoryLimitMaximum);
             ReadingHistoryMenuEntries = Math.Clamp(ReadingHistoryMenuEntries, ReadingHistoryMenuEntriesMinimum, ReadingHistoryMenuEntriesMaximum);
@@ -1065,6 +1169,7 @@ namespace MeowChan
             ReaderHoverEnlargeSize = Math.Clamp(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeMinimum, ReaderHoverEnlargeSizeMaximum);
             ReaderHoverEnlargeDelayMs = Math.Clamp(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsMinimum, ReaderHoverEnlargeDelayMsMaximum);
             ReaderFocusedMediaScalePercent = Math.Clamp(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentMinimum, ReaderFocusedMediaScalePercentMaximum);
+            ReaderFocusedPostTopPaddingPercent = Math.Clamp(ReaderFocusedPostTopPaddingPercent, ReaderFocusedPostTopPaddingPercentMinimum, ReaderFocusedPostTopPaddingPercentMaximum);
             ReaderMediaSidebarWidth = Math.Clamp(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthMinimum, ReaderMediaSidebarWidthMaximum);
             ReaderMediaSidebarMinimumWidth = Math.Clamp(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthMinimum, ReaderMediaSidebarMinimumWidthMaximum);
             ReaderInlineVideoMaxPlayers = Math.Clamp(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersMinimum, ReaderInlineVideoMaxPlayersMaximum);
@@ -1091,6 +1196,12 @@ namespace MeowChan
             ExportHistorySizeMiB = Math.Clamp(ExportHistorySizeMiB, ExportHistorySizeMiBMinimum, ExportHistorySizeMiBMaximum);
             ExportHistoryEntryLimit = Math.Clamp(ExportHistoryEntryLimit, ExportHistoryEntryLimitMinimum, ExportHistoryEntryLimitMaximum);
             BoardAdmissionSizeMiB = Math.Clamp(BoardAdmissionSizeMiB, BoardAdmissionSizeMiBMinimum, BoardAdmissionSizeMiBMaximum);
+            BoardWatcherIntervalMinutes = Math.Clamp(BoardWatcherIntervalMinutes, BoardWatcherIntervalMinutesMinimum, BoardWatcherIntervalMinutesMaximum);
+            BoardSuggestionMinThreads = Math.Clamp(BoardSuggestionMinThreads, BoardSuggestionMinThreadsMinimum, BoardSuggestionMinThreadsMaximum);
+            BoardSuggestionLimit = Math.Clamp(BoardSuggestionLimit, BoardSuggestionLimitMinimum, BoardSuggestionLimitMaximum);
+            BoardSuggestionScanThreads = Math.Clamp(BoardSuggestionScanThreads, BoardSuggestionScanThreadsMinimum, BoardSuggestionScanThreadsMaximum);
+            BoardArchiveCacheLimit = Math.Clamp(BoardArchiveCacheLimit, BoardArchiveCacheLimitMinimum, BoardArchiveCacheLimitMaximum);
+            BooruHiddenTagTooltipLimit = Math.Clamp(BooruHiddenTagTooltipLimit, BooruHiddenTagTooltipLimitMinimum, BooruHiddenTagTooltipLimitMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
             GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
             // A hand-edited file or a newer version with another range must not make the whole profile invalid (Validate throws): clamp like the seek step.
@@ -1130,6 +1241,8 @@ namespace MeowChan
                     foreach (PresentationProfile profile in _deserializedLayoutProfiles.Values)
                         profile.ArchiveSplitWidth = MigrateArchiveSplitWidthDefault(profile.ArchiveSplitWidth);
             }
+            if (PreferenceDefaultsRevision < 2 && BooruResultTagsShown == 12)
+                BooruResultTagsShown = BooruResultTagsShownDefault;
             PreferenceDefaultsRevision = CurrentPreferenceDefaultsRevision;
         }
 
@@ -1729,6 +1842,18 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ExportHistoryEntryLimit), "ExportHistoryEntryLimit is outside its supported range (" + ExportHistoryEntryLimitMinimum + " to " + ExportHistoryEntryLimitMaximum + ").");
             if (BoardAdmissionSizeMiB is < BoardAdmissionSizeMiBMinimum or > BoardAdmissionSizeMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BoardAdmissionSizeMiB), "BoardAdmissionSizeMiB is outside its supported range (" + BoardAdmissionSizeMiBMinimum + " to " + BoardAdmissionSizeMiBMaximum + ").");
+            if (BoardWatcherIntervalMinutes is < BoardWatcherIntervalMinutesMinimum or > BoardWatcherIntervalMinutesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardWatcherIntervalMinutes));
+            if (BoardSuggestionMinThreads is < BoardSuggestionMinThreadsMinimum or > BoardSuggestionMinThreadsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardSuggestionMinThreads));
+            if (BoardSuggestionLimit is < BoardSuggestionLimitMinimum or > BoardSuggestionLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardSuggestionLimit));
+            if (BoardSuggestionScanThreads is < BoardSuggestionScanThreadsMinimum or > BoardSuggestionScanThreadsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardSuggestionScanThreads));
+            if (BoardArchiveCacheLimit is < BoardArchiveCacheLimitMinimum or > BoardArchiveCacheLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardArchiveCacheLimit), $"Board archive cache size must be between {BoardArchiveCacheLimitMinimum} and {BoardArchiveCacheLimitMaximum} boards.");
+            if (BooruHiddenTagTooltipLimit is < BooruHiddenTagTooltipLimitMinimum or > BooruHiddenTagTooltipLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruHiddenTagTooltipLimit), $"The Booru tooltip tag limit must be between {BooruHiddenTagTooltipLimitMinimum} and {BooruHiddenTagTooltipLimitMaximum} tags.");
             if (SlashTagSuggestionCount is < SlashTagSuggestionCountMinimum or > SlashTagSuggestionCountMaximum)
                 throw new ArgumentOutOfRangeException(nameof(SlashTagSuggestionCount), "SlashTagSuggestionCount is outside its supported range (" + SlashTagSuggestionCountMinimum + " to " + SlashTagSuggestionCountMaximum + ").");
             if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
@@ -1763,8 +1888,6 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
             if (BooruResultTagsShown is < BooruResultTagsShownMinimum or > BooruResultTagsShownMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
-            if (BooruNewSearchTarget is not (BooruSearchTargetNewTab or BooruSearchTargetCurrentTab))
-                throw new ArgumentOutOfRangeException(nameof(BooruNewSearchTarget));
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
             if (BooruSearchPages is < BooruSearchPagesMinimum or > BooruSearchPagesMaximum)
@@ -1780,6 +1903,7 @@ namespace MeowChan
             if (BooruGalleryCacheMiB is < BooruGalleryCacheMiBMinimum or > BooruGalleryCacheMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruGalleryCacheMiB), "BooruGalleryCacheMiB is outside its supported range (" + BooruGalleryCacheMiBMinimum + " to " + BooruGalleryCacheMiBMaximum + ").");
             ValidateBooruGalleryLimits();
+            ValidateBooruListLayout();
             if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MediaPanelMinimumPageWidth), "MediaPanelMinimumPageWidth is outside its supported range (" + MediaPanelMinimumPageWidthMinimum + " to " + MediaPanelMinimumPageWidthMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
@@ -1864,8 +1988,6 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderReplyStep), "ReaderReplyStep is outside its supported range.");
             if (ReaderReplyLines is < ReaderReplyLinesMinimum or > ReaderReplyLinesMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderReplyLines), "ReaderReplyLines is outside its supported range.");
-            if (ReaderPageSize is < ReaderPageSizeMinimum or > ReaderPageSizeMaximum)
-                throw new ArgumentOutOfRangeException(nameof(ReaderPageSize), "ReaderPageSize is outside its supported range.");
             if (ReaderThreadingDepth is < ReaderThreadingDepthMinimum or > ReaderThreadingDepthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderThreadingDepth), "ReaderThreadingDepth is outside its supported range.");
             if (ReadingHistoryLimit is < ReadingHistoryLimitMinimum or > ReadingHistoryLimitMaximum)
@@ -1880,6 +2002,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderHoverEnlargeDelayMs), "ReaderHoverEnlargeDelayMs is outside its supported range.");
             if (ReaderFocusedMediaScalePercent is < ReaderFocusedMediaScalePercentMinimum or > ReaderFocusedMediaScalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderFocusedMediaScalePercent), "ReaderFocusedMediaScalePercent is outside its supported range.");
+            if (ReaderFocusedPostTopPaddingPercent is < ReaderFocusedPostTopPaddingPercentMinimum or > ReaderFocusedPostTopPaddingPercentMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderFocusedPostTopPaddingPercent), "ReaderFocusedPostTopPaddingPercent is outside its supported range.");
             if (ReaderMediaSidebarWidth is < ReaderMediaSidebarWidthMinimum or > ReaderMediaSidebarWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarWidth), "ReaderMediaSidebarWidth is outside its supported range.");
             if (ReaderMediaSidebarMinimumWidth is < ReaderMediaSidebarMinimumWidthMinimum or > ReaderMediaSidebarMinimumWidthMaximum)
@@ -2001,6 +2125,14 @@ namespace MeowChan
                 WorkViewSwitchNoticeSeconds = WorkViewSwitchNoticeSeconds,
                 ShowBooruTools = ShowBooruTools,
                 FooterPages = (string[])FooterPages.Clone(),
+                ShowFooterNetwork = ShowFooterNetwork,
+                ShowFooterDisk = ShowFooterDisk,
+                ShowFooterStatus = ShowFooterStatus,
+                // Capture a profile's live values on the first clone and retain them when the draft is frozen.
+                // An unbound settings snapshot or an explicit reset applies its complete footer selection.
+                _footerDisplayDraft = true,
+                SettingsBaselineFooterDisplays = !_footerDisplayDraft && _profileDirectory != null
+                    ? FooterDisplayPreferences.FromConfig(this) : SettingsBaselineFooterDisplays,
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
@@ -2030,6 +2162,12 @@ namespace MeowChan
                 ExportHistorySizeMiB = ExportHistorySizeMiB,
                 ExportHistoryEntryLimit = ExportHistoryEntryLimit,
                 BoardAdmissionSizeMiB = BoardAdmissionSizeMiB,
+                BoardWatcherIntervalMinutes = BoardWatcherIntervalMinutes,
+                BoardSuggestionMinThreads = BoardSuggestionMinThreads,
+                BoardSuggestionLimit = BoardSuggestionLimit,
+                BoardSuggestionScanThreads = BoardSuggestionScanThreads,
+                BoardArchiveCacheLimit = BoardArchiveCacheLimit,
+                BooruHiddenTagTooltipLimit = BooruHiddenTagTooltipLimit,
                 SlashTagSuggestionCount = SlashTagSuggestionCount,
                 ShrinkWindowForBarebones = ShrinkWindowForBarebones,
                 PrivateTagLimit = PrivateTagLimit,
@@ -2048,6 +2186,7 @@ namespace MeowChan
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 MediaTagListTop = MediaTagListTop,
                 BooruResultTagsShown = BooruResultTagsShown,
+                BooruListLayout = BooruListLayout,
                 BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
                 RestoreBooruSearchTabs = RestoreBooruSearchTabs,
@@ -2136,7 +2275,6 @@ namespace MeowChan
                 ReaderReplyStep = ReaderReplyStep,
                 ReaderReplyLines = ReaderReplyLines,
                 ReaderExpandReplies = ReaderExpandReplies,
-                ReaderPageSize = ReaderPageSize,
                 ReaderThreadingDepth = ReaderThreadingDepth,
                 ReadingHistoryLimit = ReadingHistoryLimit,
                 ReadingHistoryMenuEntries = ReadingHistoryMenuEntries,
@@ -2144,12 +2282,18 @@ namespace MeowChan
                 ReaderHoverEnlargeSize = ReaderHoverEnlargeSize,
                 ReaderHoverEnlargeDelayMs = ReaderHoverEnlargeDelayMs,
                 ReaderFocusedMediaScalePercent = ReaderFocusedMediaScalePercent,
+                ReaderFocusedPostTopPaddingPercent = ReaderFocusedPostTopPaddingPercent,
                 ReaderTextlessLargeImages = ReaderTextlessLargeImages,
                 ReaderHoverEnlarge = ReaderHoverEnlarge,
                 ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge,
                 ReaderMediaSidebar = ReaderMediaSidebar,
                 ReaderMediaSidebarSide = ReaderMediaSidebarSide,
                 ReaderMediaSidebarScope = ReaderMediaSidebarScope,
+                MediaSidebarAutoHide = MediaSidebarAutoHide,
+                MediaSidebarFacts = MediaSidebarFacts,
+                MediaSidebarPinned = MediaSidebarPinned,
+                MediaSidebarInfo = MediaSidebarInfo,
+                MediaSidebarInfoMaximumShare = MediaSidebarInfoMaximumShare,
                 ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
                 ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
                 ReaderInlineVideo = ReaderInlineVideo,
@@ -2169,6 +2313,7 @@ namespace MeowChan
                 ReaderPreviewPrefetchPosts = ReaderPreviewPrefetchPosts,
                 ReaderPreviewSizeMemory = ReaderPreviewSizeMemory,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
+                SidebarPreviewMaximumPixels = SidebarPreviewMaximumPixels,
                 GalleryMaxZoomPercent = GalleryMaxZoomPercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
                 HiddenPostLimit = HiddenPostLimit,
@@ -2190,8 +2335,10 @@ namespace MeowChan
                 ArchiveMediaTileSize = ArchiveMediaTileSize,
                 TaggingPageView = TaggingPageView,
                 BooruPageView = BooruPageView,
+                BooruMediaSidebar = BooruMediaSidebar,
                 BooruTileSize = BooruTileSize,
                 TaggingPreviewColumn = TaggingPreviewColumn,
+                TaggingPagePanel = TaggingPagePanel,
                 TaggingStampBlock = TaggingStampBlock,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
@@ -2296,6 +2443,9 @@ namespace MeowChan
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             ShowBooruTools = source.ShowBooruTools;
             FooterPages = (string[])source.FooterPages.Clone();
+            ShowFooterNetwork = source.ShowFooterNetwork;
+            ShowFooterDisk = source.ShowFooterDisk;
+            ShowFooterStatus = source.ShowFooterStatus;
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
@@ -2325,6 +2475,12 @@ namespace MeowChan
             ExportHistorySizeMiB = source.ExportHistorySizeMiB;
             ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
             BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
+            BoardWatcherIntervalMinutes = source.BoardWatcherIntervalMinutes;
+            BoardSuggestionMinThreads = source.BoardSuggestionMinThreads;
+            BoardSuggestionLimit = source.BoardSuggestionLimit;
+            BoardSuggestionScanThreads = source.BoardSuggestionScanThreads;
+            BoardArchiveCacheLimit = source.BoardArchiveCacheLimit;
+            BooruHiddenTagTooltipLimit = source.BooruHiddenTagTooltipLimit;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
@@ -2343,6 +2499,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruListLayout = source.BooruListLayout;
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
@@ -2429,7 +2586,6 @@ namespace MeowChan
             ReaderReplyStep = source.ReaderReplyStep;
             ReaderReplyLines = source.ReaderReplyLines;
             ReaderExpandReplies = source.ReaderExpandReplies;
-            ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
             ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries;
@@ -2437,12 +2593,18 @@ namespace MeowChan
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
             ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent;
+            ReaderFocusedPostTopPaddingPercent = source.ReaderFocusedPostTopPaddingPercent;
             ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
             ReaderHoverEnlarge = source.ReaderHoverEnlarge;
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
             ReaderMediaSidebar = source.ReaderMediaSidebar;
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
+            MediaSidebarAutoHide = source.MediaSidebarAutoHide;
+            MediaSidebarFacts = source.MediaSidebarFacts;
+            MediaSidebarPinned = source.MediaSidebarPinned;
+            MediaSidebarInfo = source.MediaSidebarInfo;
+            MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             ReaderInlineVideo = source.ReaderInlineVideo;
@@ -2462,6 +2624,7 @@ namespace MeowChan
             ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts;
             ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            SidebarPreviewMaximumPixels = source.SidebarPreviewMaximumPixels;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
@@ -2483,8 +2646,10 @@ namespace MeowChan
             ArchiveMediaTileSize = source.ArchiveMediaTileSize;
             TaggingPageView = source.TaggingPageView;
             BooruPageView = source.BooruPageView;
+            BooruMediaSidebar = source.BooruMediaSidebar;
             BooruTileSize = source.BooruTileSize;
             TaggingPreviewColumn = source.TaggingPreviewColumn;
+            TaggingPagePanel = source.TaggingPagePanel;
             TaggingStampBlock = source.TaggingStampBlock;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
@@ -2544,6 +2709,7 @@ namespace MeowChan
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             ShowBooruTools = source.ShowBooruTools;
             FooterPages = (string[])source.FooterPages.Clone();
+            FooterDisplayPreferences.FromConfig(source).ApplyChangesTo(this, source.SettingsBaselineFooterDisplays);
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             MinimizeToTray = source.MinimizeToTray;
@@ -2572,6 +2738,12 @@ namespace MeowChan
             ExportHistorySizeMiB = source.ExportHistorySizeMiB;
             ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
             BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
+            BoardWatcherIntervalMinutes = source.BoardWatcherIntervalMinutes;
+            BoardSuggestionMinThreads = source.BoardSuggestionMinThreads;
+            BoardSuggestionLimit = source.BoardSuggestionLimit;
+            BoardSuggestionScanThreads = source.BoardSuggestionScanThreads;
+            BoardArchiveCacheLimit = source.BoardArchiveCacheLimit;
+            BooruHiddenTagTooltipLimit = source.BooruHiddenTagTooltipLimit;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
@@ -2590,6 +2762,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruListLayout = source.BooruListLayout;
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
@@ -2698,7 +2871,6 @@ namespace MeowChan
             ReaderReplyStep = source.ReaderReplyStep;
             ReaderReplyLines = source.ReaderReplyLines;
             ReaderExpandReplies = source.ReaderExpandReplies;
-            ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
             ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries;
@@ -2706,12 +2878,18 @@ namespace MeowChan
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
             ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent;
+            ReaderFocusedPostTopPaddingPercent = source.ReaderFocusedPostTopPaddingPercent;
             ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
             ReaderHoverEnlarge = source.ReaderHoverEnlarge;
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
             ReaderMediaSidebar = source.ReaderMediaSidebar;
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope;
+            MediaSidebarAutoHide = source.MediaSidebarAutoHide;
+            MediaSidebarFacts = source.MediaSidebarFacts;
+            MediaSidebarPinned = source.MediaSidebarPinned;
+            MediaSidebarInfo = source.MediaSidebarInfo;
+            MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             ReaderInlineVideo = source.ReaderInlineVideo;
@@ -2731,6 +2909,7 @@ namespace MeowChan
             ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts;
             ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            SidebarPreviewMaximumPixels = source.SidebarPreviewMaximumPixels;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;

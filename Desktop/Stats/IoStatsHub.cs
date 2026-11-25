@@ -14,6 +14,8 @@ internal sealed class IoStatsSnapshot
     internal DateOnly Today { get; init; }
     internal DateTimeOffset SessionStart { get; init; }
     internal int RetentionDays { get; init; }
+    /// <summary>A recent rate was measured in the current sampling cadence, including a measured idle rate.</summary>
+    internal bool HasFreshSample { get; init; }
     internal IoRates Rate { get; init; }
     internal IoActivity Activity { get; init; }
     internal IoSeries Series { get; init; } = IoSeries.Empty;
@@ -82,7 +84,7 @@ internal sealed class IoStatsHub : IDisposable
     private long _lastSampleTimestamp;
     private int _zeroRun;
     private DateOnly _today;
-    private bool _dirty, _disposed, _activeLast, _loaded;
+    private bool _dirty, _disposed, _activeLast, _loaded, _hasSample;
     private ITimer? _sampleTimer, _persistTimer;
     private IoStatsVisibility _mode;
     private int _sampleIntervalMs, _sampleGeneration, _persistGeneration;
@@ -279,7 +281,7 @@ internal sealed class IoStatsHub : IDisposable
         {
             CollectLocked();
             ApplyTimersLocked();
-            return new IoStatsPeek(StaleLocked() ? IoRates.Zero : _totalRate, Sum(_session), TodayLocked(), activity);
+            return new IoStatsPeek(HasFreshSampleLocked() ? _totalRate : IoRates.Zero, Sum(_session), TodayLocked(), activity);
         }
     }
 
@@ -292,12 +294,10 @@ internal sealed class IoStatsHub : IDisposable
             CollectLocked();
             ApplyTimersLocked();
             DateOnly oldest = _today.AddDays(-(_options.RetentionDays - 1));
-            bool stale = StaleLocked();
             Dictionary<string, IoCounts> today = _days.TryGet(_today, out Dictionary<string, IoCounts>? bucket)
                 ? new Dictionary<string, IoCounts>(bucket, StringComparer.Ordinal) : new Dictionary<string, IoCounts>(StringComparer.Ordinal);
             Dictionary<string, IoCounts> retained = _days.Sum(oldest, _today.AddDays(2));
-            Dictionary<string, IoRates> rates = stale ? new Dictionary<string, IoRates>(StringComparer.Ordinal) : _rates;
-            return BuildSnapshotLocked(activity, today, retained, rates, stale ? IoRates.Zero : _totalRate);
+            return BuildSnapshotLocked(activity, today, retained, HasFreshSampleLocked());
         }
     }
 
@@ -316,6 +316,7 @@ internal sealed class IoStatsHub : IDisposable
                 _totalRate = _previousTotalRate = IoRates.Zero;
                 _ring.Clear(); _zeroRun = 0; _dirty = false; _lastPersistError = null; _loadNotice = null;
                 _lastSampleTimestamp = _time.GetTimestamp();
+                _hasSample = false;
                 ApplyTimersLocked();
             }
         }
@@ -335,11 +336,8 @@ internal sealed class IoStatsHub : IDisposable
         return probe?.Invoke() ?? default;
     }
 
-    private bool StaleLocked()
-    {
-        if (_sampleTimer == null) return true;
-        return _time.GetElapsedTime(_lastSampleTimestamp, _time.GetTimestamp()) > TimeSpan.FromMilliseconds(3.0 * _sampleIntervalMs);
-    }
+    private bool HasFreshSampleLocked() => _sampleTimer != null && _hasSample
+        && _time.GetElapsedTime(_lastSampleTimestamp, _time.GetTimestamp()) <= TimeSpan.FromMilliseconds(3.0 * _sampleIntervalMs);
 
     private IoCounts TodayLocked() => _days.TryGet(_today, out Dictionary<string, IoCounts>? bucket) ? Sum(bucket) : IoCounts.Zero;
 
@@ -399,6 +397,7 @@ internal sealed class IoStatsHub : IDisposable
             DiskWrite: total.DiskWritten / seconds, DiskRead: total.DiskRead / seconds, Requests: total.Requests / seconds);
         _pending.Clear();
         _lastSampleTimestamp = now;
+        _hasSample = true;
         bool zero = _totalRate == IoRates.Zero;
         if (!intoRing) return !(zero && _previousTotalRate == IoRates.Zero);
         _ring.Add(new IoSample(NetDown: (float)_totalRate.NetDown, NetUp: (float)_totalRate.NetUp,
@@ -500,6 +499,7 @@ internal sealed class IoStatsHub : IDisposable
         CollectLocked();
         _pending.Clear();
         _lastSampleTimestamp = _time.GetTimestamp();
+        _hasSample = false;
         // The ring holds equally spaced samples of the window cadence; a new cadence or a gap starts a clean graph.
         if (windowChanged) { _ring.Clear(); _zeroRun = 0; }
         if (mode != IoStatsVisibility.Window) { _totalRate = _previousTotalRate = IoRates.Zero; _rates = new(StringComparer.Ordinal); }
@@ -541,17 +541,19 @@ internal sealed class IoStatsHub : IDisposable
     // --- snapshot rows --------------------------------------------------------------------------------------------------
 
     private IoStatsSnapshot BuildSnapshotLocked(IoActivity activity, Dictionary<string, IoCounts> today,
-        Dictionary<string, IoCounts> retained, Dictionary<string, IoRates> rates, IoRates totalRate)
+        Dictionary<string, IoCounts> retained, bool hasFreshSample)
     {
+        IoRates totalRate = hasFreshSample ? _totalRate : IoRates.Zero;
         HashSet<string> keys = new(_session.Keys, StringComparer.Ordinal);
-        keys.UnionWith(today.Keys); keys.UnionWith(retained.Keys); keys.UnionWith(rates.Keys);
+        keys.UnionWith(today.Keys); keys.UnionWith(retained.Keys);
+        if (hasFreshSample) keys.UnionWith(_rates.Keys);
         List<IoSourceStats> rows = new(keys.Count);
         foreach (string key in keys)
         {
             _session.TryGetValue(key, out IoCounts session);
             today.TryGetValue(key, out IoCounts day);
             retained.TryGetValue(key, out IoCounts window);
-            rates.TryGetValue(key, out IoRates rate);
+            IoRates rate = hasFreshSample ? _rates.GetValueOrDefault(key) : IoRates.Zero;
             rows.Add(new IoSourceStats(key, session, day, window, rate));
         }
         rows.Sort(static (a, b) => a.Key == IoStatsKeys.Other ? (b.Key == IoStatsKeys.Other ? 0 : 1) : b.Key == IoStatsKeys.Other ? -1
@@ -573,7 +575,7 @@ internal sealed class IoStatsHub : IDisposable
         return new IoStatsSnapshot
         {
             Today = _today, SessionStart = _sessionStart, RetentionDays = _options.RetentionDays, Rate = totalRate, Activity = activity,
-            Series = _ring.ToSeries(), Sources = rows, Total = total
+            HasFreshSample = hasFreshSample, Series = _ring.ToSeries(), Sources = rows, Total = total
         };
     }
 

@@ -34,9 +34,13 @@ These are the default gallery bindings; saved shortcut customizations take prece
 | **M** | Explicitly add the current medium to favorites |
 | **U** | Explicitly remove the favorite mark from the current medium |
 | **F** | Toggle the favorite mark; on a saved favorite it asks before it removes the mark |
-| **↑ / ↓** | Increase or decrease video volume, only with usable audio output |
+| **Ctrl/⌘+0** / **Z** | Fit the medium or show it at actual size (1:1) |
+| **1–5** / **0** | Set a star rating or clear it |
+| **Shift+I** / **Shift+Z** | Toggle facts or the info line |
+| **Shift+A** | Dock the post panel or show it over the picture |
+| **Shift+↑ / Shift+↓** | Increase or decrease video volume, only with usable audio output |
 
-The favorite badge at the upper left, beside **Back to …**, shows **★** for a saved favorite and **☆** for an item that is not a favorite. **…** means a save is pending. The badge remains visible while gallery controls are hidden, and a click on it toggles the mark. While the persisted state of a newly selected medium is still unknown, MeowChan does not claim that it is unfavorited.
+Click the heart at the upper left, beside **Back to …**, to toggle the favorite. A filled heart marks a favorite, and **…** means a save is pending. When space permits, click a star beside the heart to rate the medium. With auto-hidden controls, move the pointer to bring the buttons back.
 
 The favorites overview resolves the chosen scope through saved local manifests. Missing or unverifiable files remain favorites but are reported unavailable and are not exported. The original-file export freezes the displayed selection, reports missing files before copying, and copies only locally verified files. It starts no network retrieval. The favorite marks themselves are not transferred to another profile by this operation.
 

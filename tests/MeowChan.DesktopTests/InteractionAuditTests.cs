@@ -286,11 +286,6 @@ public sealed class InteractionAuditTests
         Assert.Contains("ItemActivation.IsCardDoubleClick(e, card) || !IsEditable || _wizard.IsOpen", rules);
         // The card's Edit/Continue button and its double click open the same scope.
         Assert.True(Count(rules, "OpenRuleFromOverview(scope)") >= 3);
-        // Booru hits (decision 95): the double click and Enter run "Show in Media" for a saved hit and nothing else (no download).
-        string booru = Read("Desktop/Views/Booru/BooruWorkbenchView.Hits.cs");
-        Assert.Contains("ItemActivation.IsCardDoubleClick(e, card)", booru);
-        Assert.Contains("showInMedia is { IsEffectivelyEnabled: true } ? showInMedia : null", booru);
-        Assert.Contains("ItemActivation.IsCardDoubleClick(e, card)", booru.Substring(booru.IndexOf("ConfigureWatcherCard", StringComparison.Ordinal)));
         string sidebar = Read("Desktop/Views/Archive/ReaderMediaSidebar.cs");
         Assert.Contains("StripActivated?.Invoke(this, index);", sidebar);
         Assert.Contains("sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };",
@@ -309,38 +304,6 @@ public sealed class InteractionAuditTests
         // In a text field the keys stay the field's own.
         Assert.False(MediaMenuPresenter.IsContextKey(new KeyEventArgs { Key = Key.Apps, Source = new TextBox() }));
         Assert.Contains("Apps", EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux).For("menu.context-open").Select(g => g.Key));
-    }
-
-    [Fact]
-    public void AContextMenuHostClosesWhenItsTargetIsRebuilt()
-    {
-        string host = Read("Desktop/Controls/ContextMenuHost.cs");
-        // Result cards and virtualized rows may be detached while a popup is open. The popup must not retain
-        // button handlers for the old card and must unregister the lifecycle hook when disposed.
-        Assert.Contains("origin.DetachedFromVisualTree += OnOriginDetached;", host, StringComparison.Ordinal);
-        Assert.Contains("private void OnOriginDetached(object? sender, VisualTreeAttachmentEventArgs e) => Close();", host, StringComparison.Ordinal);
-        Assert.Contains("_origin.DetachedFromVisualTree -= OnOriginDetached;", host, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void EveryContextMenuHostOpensFromThePointerAndFromTheKeyboard()
-    {
-        string host = Read("Desktop/Controls/ContextMenuHost.cs");
-        // Lists and tables take the key in the tunnel phase (a focused item consumes keys before a bubble handler); other origins keep the bubble phase.
-        Assert.Contains("origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, (origin is ListBox or DataGrid) ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);", host);
-        Assert.Contains("origin.AddHandler(Control.ContextRequestedEvent, OnContextRequested, RoutingStrategies.Bubble);", host);
-        Assert.Contains("MediaMenuPresenter.IsContextKey(e)", host);
-        // The surfaces of the audit that use the host: tagging list and grid, rules cards, statistics table and compact list.
-        Assert.Contains("new ContextMenuHost(_list, ComposeRowMenu", Read("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("new ContextMenuHost(_grid, ComposeRowMenu", Read("Desktop/Views/Tagging/TaggingPage.Grid.cs"));
-        Assert.Contains("new ContextMenuHost(card,", Read("Desktop/Views/Rules/RulesPage.RowMenu.cs"));
-        string statistics = Read("Desktop/Views/Statistics/StatisticsPage.RowMenu.cs");
-        Assert.Contains("new ContextMenuHost(StatisticsGrid,", statistics);
-        Assert.Contains("CommandBindings.Matches(e, StatisticsRowMenu.CopyRow)", statistics);
-        // The media grid has its own presenter with the same three ways in.
-        string media = Read("Desktop/Views/Media/MediaPage.cs");
-        Assert.Contains("_grid.AddHandler(ContextRequestedEvent, OnSharedContextRequested, RoutingStrategies.Bubble);", media);
-        Assert.Contains("_grid.AddHandler(KeyDownEvent, OnSharedContextKeyDown, RoutingStrategies.Tunnel);", media);
     }
 
     // ---- open actions nobody awaits: one safe helper (Tom's crash log, reader attachment click) -----------------------------

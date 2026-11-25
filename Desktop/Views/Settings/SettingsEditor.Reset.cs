@@ -123,16 +123,18 @@ public partial class SettingsEditor
     private void OpenResetConfirmation(Button origin, SettingsResetScope scope)
     {
         if (_isClosed || !IsEditable) return;
-        _resetConfirmation?.Hide();
+        EndResetLifetime();
         _resetConfirmationOrigin = origin;
 
         var question = new TextBlock { Text = ResetQuestion(scope), TextWrapping = TextWrapping.Wrap };
         AutomationProperties.SetLiveSetting(question, AutomationLiveSetting.Polite);
         var confirm = new Button { Content = Texts.T("settings.reset.confirm"), HorizontalAlignment = HorizontalAlignment.Stretch };
         confirm.Classes.Add("danger");
+        AutomationProperties.SetAutomationId(confirm, "settings.reset.confirm");
         AutomationProperties.SetName(confirm, Texts.T("settings.reset.confirm"));
         var cancel = new Button { Content = Texts.T("settings.reset.cancel"), HorizontalAlignment = HorizontalAlignment.Stretch };
         cancel.Classes.Add("ghost");
+        AutomationProperties.SetAutomationId(cancel, "settings.reset.cancel");
         AutomationProperties.SetName(cancel, Texts.T("settings.reset.cancel"));
         var actions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(confirm);
@@ -150,19 +152,17 @@ public partial class SettingsEditor
         {
             ResetDraft(scope);
             flyout.Hide();
-            origin.Focus();
         };
-        cancel.Click += (_, _) =>
-        {
-            flyout.Hide();
-            origin.Focus();
-        };
-        flyout.Opened += (_, _) => cancel.Focus();
+        cancel.Click += (_, _) => flyout.Hide();
         flyout.Closed += (_, _) =>
         {
-            if (ReferenceEquals(_resetConfirmation, flyout)) _resetConfirmation = null;
+            panel.IsVisible = false;
+            if (!ReferenceEquals(_resetConfirmation, flyout)) return;
+            _resetConfirmation = null;
+            if (IsEffectivelyVisible && !_isClosed && !origin.Focus()) FocusSettingsContent();
         };
         flyout.ShowAt(origin);
+        if (flyout.IsOpen) cancel.Focus();
     }
 
     // Internal for the tests (SettingsResetCoverageTests): they run every scope against the real controls.
@@ -276,6 +276,7 @@ public partial class SettingsEditor
         // The tagging queue limits and the media-page widths; the widths keep their loaded baseline (the merge on save compares with it).
         LoadTagQueueDraft(defaults, captureBaseline: false);
         LoadBooruGalleryDraft(defaults);
+        LoadBooruListDraft(defaults);
     }
 
     private void ResetUpdatesDraft()
@@ -300,6 +301,7 @@ public partial class SettingsEditor
         Config defaults = ResetDefaults.Values;
         SaveUrlsOnExit = defaults.SaveUrlsOnExit;
         ShowBoardAdmissionWizard = defaults.ShowBoardAdmissionWizard;
+        LoadBoardSuggestionDraft(defaults);
         MonitorClipboardUrls = defaults.MonitorClipboardUrls;
         MinimizeToTray = defaults.MinimizeToTray;
         CloseToTray = defaults.CloseToTray;
@@ -314,8 +316,9 @@ public partial class SettingsEditor
 
     private void EndResetLifetime()
     {
-        _resetConfirmation?.Hide();
+        Flyout? confirmation = _resetConfirmation;
         _resetConfirmation = null;
         _resetConfirmationOrigin = null;
+        confirmation?.Hide();
     }
 }

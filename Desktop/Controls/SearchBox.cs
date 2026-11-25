@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -117,6 +118,8 @@ public class SearchBox : TextBox
     public event EventHandler<HandledEventArgs>? ExitRequested;
 
     public bool HasText => !string.IsNullOrEmpty(Text);
+    internal bool IsComposing => this.GetVisualDescendants().OfType<TextPresenter>()
+        .Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
     public bool IsQueryPending => _debounce?.IsPending == true;
 
     // Test seams; set before the first edit.
@@ -156,14 +159,13 @@ public class SearchBox : TextBox
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (!e.Handled && _scopeChip is { IsEffectivelyEnabled: true } chip && (e.Key == Key.Down && e.KeyModifiers == KeyModifiers.Alt
-            || e.Key == Key.F4 && e.KeyModifiers == KeyModifiers.None))
+        if (!e.Handled && _scopeChip is { IsEffectivelyEnabled: true } chip && SearchScopeChip.IsMenuShortcut(e))
         {
             e.Handled = true;
             chip.ShowMenu();
             return;
         }
-        if (!e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+        if (!e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && !IsComposing)
         {
             if (HasText) { ClearAndFocus(); e.Handled = true; return; }
             HandledEventArgs exit = new();

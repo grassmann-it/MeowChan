@@ -81,7 +81,7 @@ public partial class ArchivePage
                 if (_mediaSidebar != null)
                 {
                     Grid.SetRow(_mediaSidebar, 1);
-                    ApplyMediaSidebarInsets(_mediaSidebar, archiveView: true);
+                    _mediaSidebar.Margin = default;
                     _mediaSidebar.BorderThickness = default;
                 }
                 if (_mediaSidebarSplitter != null) Grid.SetRow(_mediaSidebarSplitter, 1);

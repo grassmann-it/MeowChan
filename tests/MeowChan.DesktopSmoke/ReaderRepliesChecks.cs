@@ -11,6 +11,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
@@ -52,11 +53,14 @@ internal static class ReaderRepliesChecks
             page.IsAvailable = true;
             await page.LoadThreadAsync(id);
             ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
-            ArchivePostRow target = list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == "100");
-            await Program.WaitUntilAsync(() => target.BacklinkCount == 25);
-            ArchivePostRow zero = list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == "125");
+            await page.FocusPostAsync("125");
+            await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "125", BacklinkCount: 0 });
+            ArchivePostRow zero = (ArchivePostRow)list.SelectedItem!;
             Require(zero.HasConfirmedNoReplies && !zero.CanExpandReplies && !zero.HasReplyToggle,
                 "A confirmed zero remained an interactive reply counter.");
+            await page.FocusPostAsync("100");
+            await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "100", BacklinkCount: 25 });
+            ArchivePostRow target = (ArchivePostRow)list.SelectedItem!;
             Require(target.Replies.Count == 0 && !target.RepliesLoaded,
                 "Collapsed replies loaded the backlink page eagerly.");
             Require(target.BacklinksLabel.Contains("25"), "Inline reply count was not displayed.");
@@ -167,37 +171,44 @@ internal static class ReaderRepliesChecks
 
     private static async Task CheckSidebarPostDetailsAsync(Window window, ArchivePage page, Action<TaskCompletionSource> holdNextRead)
     {
-        ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
-        ArchivePostRow[] rows = (ArchivePostRow[])list.ItemsSource!;
-        ArchivePostRow manual = rows.Single(row => row.Id == "100");
-        ArchivePostRow target = rows.Single(row => row.Id == "102");
-        ArchivePostRow intermediate = rows.Single(row => row.Id == "103");
-        ArchivePostRow final = rows.Single(row => row.Id == "120");
-        await Program.WaitUntilAsync(() => target.BacklinkCount == 7 && intermediate.BacklinkCount == 7);
+        ListBox list = ById<ListBox>(page, "ArchivePosts");
+        ArchivePostRow Selected() => (ArchivePostRow)list.SelectedItem!;
+        await page.FocusPostAsync("100");
+        ArchivePostRow manual = Selected();
+        await page.FocusPostAsync("102");
+        ArchivePostRow target = Selected();
+        await Program.WaitUntilAsync(() => target.BacklinkCount == 7);
+        await page.FocusPostAsync("103");
+        ArchivePostRow intermediate = Selected();
+        await Program.WaitUntilAsync(() => intermediate.BacklinkCount == 7);
+        await page.FocusPostAsync("120");
+        ArchivePostRow final = Selected();
+        await Program.WaitUntilAsync(() => final.BacklinkCount == 0);
+        await page.FocusPostAsync(manual.Id);
         await page.SetRepliesExpandedAsync(manual, true);
         window.Width = 1440;
         page.InlineReplyPageSize = 3;
         page.ApplyReaderMediaPreferences(page.ReaderMedia with { Sidebar = true, SidebarAlways = true });
         await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
         ReaderMediaSidebar sidebar = page.MediaSidebar!;
-        ScrollViewer detail = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(view => view.Name == "ReaderSidebarPostDetail");
+        ScrollViewer detail = ById<ScrollViewer>(sidebar, "ReaderSidebarPostDetail");
 
         ListBoxItem Card(ArchivePostRow row) => (ListBoxItem)list.ContainerFromItem(row)!;
         double Top(ArchivePostRow row) => Card(row).TranslatePoint(default, list)!.Value.Y;
-        ReaderBodyTextBlock DetailBody() => detail.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single();
+        ReaderBodyTextBlock DetailBody() => ById<ReaderBodyTextBlock>(detail, "ReaderSidebarPostBody");
         Button[] DetailReplies() => detail.GetVisualDescendants().OfType<Button>()
-            .Where(button => button.Classes.Contains("reader-reply-card") && button.IsEffectivelyVisible).ToArray();
+            .Where(button => AutomationProperties.GetAutomationId(button) == "ReaderReplyCard" && button.IsEffectivelyVisible).ToArray();
 
         await page.FocusPostAsync(target.Id);
         await Program.WaitUntilAsync(() => target.Replies is { Count: 3 } && !target.RepliesLoading);
         await SmokeDispatcher.SettleAsync();
-        Require(detail.IsEffectivelyVisible && sidebar.Shown == null && !sidebar.Open.IsVisible && !sidebar.StripVisible
+        Require(detail.IsEffectivelyVisible && AutomationProperties.GetName(detail) == Texts.T("reader.sidebar.postDetail", target.Id)
+            && sidebar.Shown == null && !sidebar.Open.IsVisible && !sidebar.StripVisible && !sidebar.Details.IsEffectivelyVisible
             && ReferenceEquals(DetailBody().Document, target.BodyDocument) && DetailReplies().Length == 3
             && ReferenceEquals(list.SelectedItem, target) && Card(target).IsFocused && !target.RepliesExpanded,
             "The sidebar did not show the selected text post and its first reply page independently of inline expansion.");
 
-        detail.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, target.MoreRepliesLabel))
-            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        ById<Button>(detail, "ReaderMoreReplies").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => target.Replies.Count == 6 && !target.RepliesLoading);
         await SmokeDispatcher.SettleAsync();
         Require(DetailReplies().Select(button => ((ArchiveQuoteRow)button.DataContext!).Quote.Origin.PostId)
@@ -235,8 +246,8 @@ internal static class ReaderRepliesChecks
             && manual.RepliesExpanded && !target.RepliesExpanded && !intermediate.RepliesExpanded,
             "A rapid focus change or late reply load restored a stale post, reply expansion or offset.");
 
-        ArchivePostRow media = rows.Single(row => row.Id == "121");
-        await page.FocusPostAsync(media.Id);
+        await page.FocusPostAsync("121");
+        ArchivePostRow media = Selected();
         await Program.WaitUntilAsync(() => sidebar.HeaderLine.Contains("reader-fixture.png", StringComparison.Ordinal));
         Require(!detail.IsVisible && ReferenceEquals(list.SelectedItem, media) && Card(media).IsFocused,
             "The post detail remained visible after moving to a media post.");
@@ -261,8 +272,17 @@ internal static class ReaderRepliesChecks
         Require(detailOffset > 0 && Math.Abs(detail.Offset.Y - detailOffset) <= 2
             && ReferenceEquals(list.SelectedItem, manual) && Card(manual).IsFocused,
             "Resizing the sidebar discarded its offset or the reader selection/focus.");
-        Console.WriteLine("SMOKE reader F11: post detail, paged replies, focus/selection/position, resize and manual expansion passed.");
+        await page.FocusPostAsync(media.Id);
+        Require(page.ToggleReaderViewOption("reader.view.hide-media"), "The reader could not hide media.");
+        await page.WaitForReaderViewAsync();
+        await Program.WaitUntilAsync(() => sidebar.StatusText == Texts.T("reader.sidebar.hidden", media.Id));
+        Require(!detail.IsVisible && sidebar.Shown == null && Selected().Id == media.Id,
+            "A post with hidden media lost its notice or showed text/media in its place.");
+        Console.WriteLine("SMOKE reader F11: post detail, paged replies, focus/selection/position, resize, hidden media and manual expansion passed.");
     }
+
+    private static T ById<T>(Control root, string id) where T : Control => root.GetVisualDescendants().OfType<T>()
+        .Single(control => AutomationProperties.GetAutomationId(control) == id);
 
     // Reader post cards (R1-R6): OP on the page and reply cards in their tokens, one-line header with the
     // copyable number and reply count, inline >>No. hit-testing and navigation over displayed plain text,
@@ -271,15 +291,9 @@ internal static class ReaderRepliesChecks
     {
         ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
         // The preceding backlink navigation re-renders the page; read the settled rows.
-        await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemsSource is ArchivePostRow[]);
+        await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemCount > 0);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
-        ArchivePostRow opening = rows.Single(row => row.Id == "100"), reply = rows.Single(row => row.Id == "101"); // Realized right below the long OP.
-        Require(opening.IsOpeningPost && !reply.IsOpeningPost, "The thread-number post was not the only opening post.");
-        await Program.WaitUntilAsync(() => opening.BacklinkCount == 25);
-        // The opening post's manually opened replies survive the quote jump above.
-        // Collapse them so the opening post and its neighbour can share the viewport.
-        if (opening.RepliesExpanded) await page.SetRepliesExpandedAsync(opening, false);
+        bool HasCard(string id) => list.GetRealizedContainers().Any(item => item.DataContext is ArchivePostRow row && row.Id == id);
         ListBoxItem Container(ArchivePostRow row) => list.GetVisualDescendants().OfType<ListBoxItem>()
             .Single(item => ReferenceEquals(item.DataContext, row));
         // The preceding async quote click can still be settling its focus/layout passes after selecting 101.
@@ -287,19 +301,25 @@ internal static class ReaderRepliesChecks
         await page.FocusPostAsync("120");
         Require(list.SelectedItem is ArchivePostRow { Id: "120" },
             "The inactive-card fixture did not finish moving selection away from the sampled posts.");
+        // The quote jump preserves manually opened replies. Close them so both cards fit in the viewport.
+        if (list.Items[0] is ArchivePostRow { RepliesExpanded: true } open)
+            await page.SetRepliesExpandedAsync(open, false);
         // Keep keyboard focus out of the virtualized containers too: an inactive but focused post
         // correctly has an accent edge, which is a different state from the plain-card contract.
-        Require(page.FindControl<Button>("ReaderTagsOpen")!.Focus(),
-            "The inactive-card fixture could not move focus to the reader toolbar.");
+        // The reader tag opener is no longer focusable under the toggle audit.
+        Require(page.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetAutomationId(button) == "ArchiveOpenGallery").Focus(),
+            "The inactive-card fixture could not move focus out of the post list.");
         await Program.WaitUntilAsync(() =>
         {
-            list.ScrollIntoView(opening); list.UpdateLayout();
+            list.ScrollIntoView(0); list.UpdateLayout();
             return list.SelectedItem is ArchivePostRow { Id: not ("100" or "101") }
-                && list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, opening))
-                && list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, reply));
+                && HasCard("100") && HasCard("101");
         }, () => "selected=" + (list.SelectedItem as ArchivePostRow)?.Id + "; realized=" + string.Join(",", list.GetVisualDescendants()
-            .OfType<ListBoxItem>().Select(item => (item.DataContext as ArchivePostRow)?.Id)) + "; rows=" + string.Join(",", rows.Select(row => row.Id))
-            + "; source=" + ReferenceEquals(list.ItemsSource, rows) + "/" + (list.ItemsSource as ArchivePostRow[])?.Length);
+            .OfType<ListBoxItem>().Select(item => (item.DataContext as ArchivePostRow)?.Id)) + "; posts=" + list.ItemCount);
+        ArchivePostRow opening = (ArchivePostRow)list.Items[0]!, reply = (ArchivePostRow)list.Items[1]!;
+        Require(opening.IsOpeningPost && !reply.IsOpeningPost, "The opening post did not retain its header state.");
+        await Program.WaitUntilAsync(() => opening.BacklinkCount == 25);
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         Color Token(string key) => Application.Current!.TryGetResource(key, window.ActualThemeVariant, out object? value)
             && value is ISolidColorBrush brush ? brush.Color : throw new InvalidOperationException("Missing token " + key);

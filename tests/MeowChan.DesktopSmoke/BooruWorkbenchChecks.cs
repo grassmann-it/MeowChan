@@ -17,6 +17,7 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Theming;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.PluginHost.Http;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
@@ -29,6 +30,11 @@ internal static partial class BooruWorkbenchChecks
     internal static async Task RunAsync(MainWindow owner)
     {
         Dispatcher.UIThread.VerifyAccess();
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_BOORU_SIDEBAR_SHOTS") is { Length: > 0 } sidebarShots)
+        {
+            await CaptureMediaSidebarAsync(owner, sidebarShots);
+            return;
+        }
         string originalLanguage = Texts.Language;
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         string shots = Environment.GetEnvironmentVariable("MEOWCHAN_BOORU_SHOTS") ?? AppContext.BaseDirectory;
@@ -99,8 +105,7 @@ internal static partial class BooruWorkbenchChecks
 
             // ---- search: the query is visible exactly as sent -------------------------------------------------------
             // This state walkthrough deliberately reuses a single search tab.
-            page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
-            await CheckSearchRowResizeAsync(owner, h, shots);
+            await CheckSearchRowResizeAsync(owner, shots);
             await CheckLiveGalleryAsync(owner);
             await CheckPopoutBoundsAfterShutdownAsync(owner);
             await CheckTabStripAsync(owner, page, shots);
@@ -120,29 +125,63 @@ internal static partial class BooruWorkbenchChecks
                 "The submitted query and syntax guidance must remain in the search field's accessible help.");
             Require(!h.Search.Searches[0].Query.Contains("rating"), "A rating term was added to the query.");
             string text = Text(page);
-            foreach (string expected in new[] { "Post #101", "Danbooru rating", "Danbooru score",
-                "Source tags (from Danbooru, not your own tags)", "Page 1 of at most 5" })
-                Require(text.Contains(expected), "Result card lacks '" + expected + "'.");
-            // I8: facts as a definition list (values named "term: value"), no address text line, tags as chips in Danbooru order.
-            Grid details = Find<Grid>(page, BooruWorkbenchView.DetailsPrefix + "101");
-            string[] detailNames = details.Children.OfType<TextBlock>().Select(block => AutomationProperties.GetName(block) ?? string.Empty).ToArray();
-            Require(detailNames.Any(name => name.StartsWith("Danbooru rating: General", StringComparison.Ordinal)) && detailNames.Contains("Danbooru score: 12")
-                && details.ColumnDefinitions.Count == 4,
-                "The post facts are not a definition list: " + string.Join(" | ", detailNames));
-            Require(!text.Contains("https://danbooru.donmai.us/posts/101"), "The post address is still shown as a text line.");
-            Button[] chips101 = page.View.GetVisualDescendants().OfType<Button>().Where(button => button.Name?.StartsWith(BooruWorkbenchView.ResultTagPrefix + "101:", StringComparison.Ordinal) == true).ToArray();
-            Require(chips101.Select(button => button.Name![(BooruWorkbenchView.ResultTagPrefix.Length + 4)..]).SequenceEqual(new[] { "sky", "cat", "blue_eyes" })
-                && chips101.All(button => button.Focusable && button.IsTabStop && button.Classes.Contains("chip-source-button")
-                    && button.Content is ChipOutline { IsDashed: true })
+            await SettleAsync(owner);
+            foreach (string expected in new[] { "Post #101", "Page 1+" })
+                Require(text.Contains(expected, StringComparison.Ordinal), "Result card lacks '" + expected + "'.");
+            // Astra W112-69 B, high finding 2: compact visible facts, full accessible facts, and source provenance on the tag group.
+            TextBlock details = FindById<TextBlock>(page, BooruWorkbenchView.DetailsPrefix + "101");
+            string[] facts = details.Text!.Split(" · ", StringSplitOptions.None);
+            string detailName = AutomationProperties.GetName(details) ?? string.Empty;
+            Require(details.IsEffectivelyVisible && facts.Contains("General (g)") && facts.Contains("1920×1080 png")
+                && facts.Contains("1.2 MiB") && facts.Contains("Score 12") && facts.Contains("Favs 3"),
+                "The visible facts are missing or incomplete: " + details.Text);
+            Require(detailName.Contains("Danbooru rating: General (g)", StringComparison.Ordinal)
+                && detailName.Contains("Danbooru score: 12", StringComparison.Ordinal)
+                && detailName.Contains("1920×1080 png 1.2 MiB", StringComparison.Ordinal)
+                && detailName.Contains(Texts.T("booru.ui.post.field.favorites") + ": 3", StringComparison.Ordinal)
+                && detailName.Contains(Texts.T("booru.ui.post.field.created") + ": ", StringComparison.Ordinal)
+                && Equals(detailName, ToolTip.GetTip(details)),
+                "The full post facts are missing from the accessible name or tooltip: " + detailName);
+            Require(!text.Contains("https://danbooru.donmai.us/posts/101", StringComparison.Ordinal), "The post address is still shown as a text line.");
+            Control tags = FindById<Control>(page, "BooruListTags:101");
+            string source = Texts.T("booru.ui.tags.label");
+            Require(tags.IsEffectivelyVisible && AutomationProperties.GetName(tags) == source
+                && tags.GetVisualDescendants().OfType<TextBlock>().Any(mark => mark.IsEffectivelyVisible && Equals(source, ToolTip.GetTip(mark))),
+                "The tag group or its tooltip lost the Danbooru provenance.");
+            Button[] chips101 = new[] { "sky", "cat", "blue_eyes" }
+                .Select(tag => FindById<Button>(tags, BooruWorkbenchView.ResultTagPrefix + "101:" + tag)).ToArray();
+            owner.UpdateLayout();
+            Rect[] chipBounds = chips101.Select(chip => SearchLayoutBounds(chip, owner)).ToArray();
+            Require(chipBounds.Zip(chipBounds.Skip(1)).All(pair => pair.First.Top < pair.Second.Top - 1
+                    || (Math.Abs(pair.First.Top - pair.Second.Top) <= 1 && pair.First.Left < pair.Second.Left))
+                && chips101.All(button => button.IsEffectivelyVisible && button.Focusable && button.IsTabStop && button.Classes.Contains("chip-source-button"))
+                && chips101[0].Content is ChipOutline { IsDashed: true }
+                && chips101.Skip(1).All(button => button.Content is ChipOutline { IsDashed: false }
+                    && AutomationProperties.GetName(button)?.EndsWith("is already in the search.", StringComparison.Ordinal) == true)
                 && AutomationProperties.GetName(chips101[0]) == "Add source tag sky (Artist) to the search",
-                "The source tag chips are not in Danbooru order or not named actions: " + string.Join(",", chips101.Select(button => button.Name)));
-            WrapPanel actionRow = Find<WrapPanel>(page, "BooruResultActions:101");
-            Button gallery = Find<Button>(page, "BooruView:101");
-            Require(actionRow.Children.OfType<Button>().Select(button => button.Name).SequenceEqual(new[]
-                    { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
-                && gallery.Parent is WrapPanel galleryActions && galleryActions.Classes.Contains("workspace-toolbar")
-                && Find<Button>(page, BooruWorkbenchView.LoadPrefix + "101").Content as string == "Download original",
-                "The result-card actions are not compact, grouped, or clearly named.");
+                "The source tag chips have the wrong order, draft state, or accessible name.");
+
+            // Fable design §2: "Bottom == Bildunterkante".
+            Control actionRow = FindById<Control>(page, "BooruResultActions:101");
+            Rect previewBounds = SearchLayoutBounds(FindById<Border>(page, "BooruPreviewFrame:101"), owner);
+            Rect actionBounds = SearchLayoutBounds(actionRow, owner);
+            Require(Math.Abs(actionBounds.Bottom - previewBounds.Bottom) <= 1 && Math.Abs(actionBounds.Height - 24) <= 1,
+                $"The action row does not meet the bottom of the preview: row={actionBounds}, preview={previewBounds}.");
+            double priorRight = actionBounds.Left;
+            foreach ((string prefix, string label) in new[] { (BooruWorkbenchView.LoadPrefix, "Download"),
+                (BooruWorkbenchView.OpenPostPrefix, "Open post"), (BooruWorkbenchView.CopyLinkPrefix, "Copy link"),
+                ("BooruView:", Texts.T("booru.gallery.name")) })
+            {
+                Button button = FindById<Button>(page, prefix + "101");
+                Rect bounds = SearchLayoutBounds(button, owner);
+                Require(button.IsEffectivelyVisible && button.Opacity > 0 && button.IsHitTestVisible
+                    && bounds.Left >= priorRight - 1 && Math.Abs(bounds.Top - actionBounds.Top) <= 1
+                    && Math.Abs(bounds.Bottom - actionBounds.Bottom) <= 1 && bounds.Right <= actionBounds.Right + 1
+                    && button.GetVisualDescendants().OfType<TextBlock>().Any(block => block.IsEffectivelyVisible
+                        && block.Text == label && bounds.Contains(SearchLayoutBounds(block, owner))),
+                    $"The {label} button lacks a visible label or is outside the action row: {bounds} in {actionBounds}.");
+                priorRight = bounds.Right;
+            }
             Require(Find<Button>(page, BooruWorkbenchView.PreviousName).IsVisible == false
                 || !Find<Button>(page, BooruWorkbenchView.PreviousName).IsEnabled, "Previous page enabled on page 1.");
             await CheckResultsFooterAsync(owner, page);
@@ -150,14 +189,13 @@ internal static partial class BooruWorkbenchChecks
 
             // ---- post link actions: canonical page only, explicit clicks, keyboard reachable --------------------------------
             Require(h.Links.Opened.Count == 0 && h.Links.Copied.Count == 0, "Showing results opened or copied a link.");
-            Button openPost = Find<Button>(page, BooruWorkbenchView.OpenPostPrefix + "101");
-            Button copyPost = Find<Button>(page, BooruWorkbenchView.CopyLinkPrefix + "101");
-            Require(openPost.Focusable && openPost.IsTabStop && copyPost.Focusable && copyPost.IsTabStop, "The link buttons are not keyboard reachable.");
+            Button openPost = FindById<Button>(page, BooruWorkbenchView.OpenPostPrefix + "101");
+            Button copyPost = FindById<Button>(page, BooruWorkbenchView.CopyLinkPrefix + "101");
+            Require(!openPost.IsTabStop && !copyPost.IsTabStop, "The labeled actions should use the card menu for keyboard access.");
             Require(AutomationProperties.GetName(openPost) == "Open post 101 in the browser"
                 && AutomationProperties.GetName(copyPost) == "Copy link of post 101", "The link buttons lack their automation names.");
-            Require(openPost.Classes.Contains("icon-only") && copyPost.Classes.Contains("icon-only")
-                && (ToolTip.GetTip(openPost) as string)?.Contains("https://danbooru.donmai.us/posts/101", StringComparison.Ordinal) == true
-                && (ToolTip.GetTip(copyPost) as string)?.StartsWith("Copy link", StringComparison.Ordinal) == true, "The link buttons are not icon buttons with tooltips.");
+            Require((ToolTip.GetTip(openPost) as string)?.Contains("https://danbooru.donmai.us/posts/101", StringComparison.Ordinal) == true
+                && (ToolTip.GetTip(copyPost) as string)?.StartsWith("Copy link", StringComparison.Ordinal) == true, "The labeled link buttons lack their tooltips.");
             Require(!Text(page).Contains("Original available"), "The original status line is shown although the original is available.");
             Click(openPost);
             await Program.WaitUntilAsync(() => h.Links.Opened.Count == 1, () => "open not requested");
@@ -166,6 +204,14 @@ internal static partial class BooruWorkbenchChecks
             await Program.WaitUntilAsync(() => h.Links.Copied.Count == 1 && Text(page).Contains("Link copied: https://danbooru.donmai.us/posts/101"),
                 () => "copy note missing");
             Require(h.Links.Copied[0] == "https://danbooru.donmai.us/posts/101", "The clipboard got another text: " + h.Links.Copied[0]);
+            Border hit = FindById<Border>(page, "BooruResult:101");
+            await InvokeResultMenuAsync(hit, BooruWorkbenchView.MenuOpenPost, Key.F10, KeyModifiers.Shift);
+            await Program.WaitUntilAsync(() => h.Links.Opened.Count == 2, () => "The keyboard menu did not open the post exactly once.");
+            await InvokeResultMenuAsync(hit, BooruWorkbenchView.MenuCopyLink, Key.Apps, KeyModifiers.None);
+            await Program.WaitUntilAsync(() => h.Links.Copied.Count == 2, () => "The keyboard menu did not copy the post link exactly once.");
+            const string postUrl = "https://danbooru.donmai.us/posts/101";
+            Require(h.Links.Opened.SequenceEqual(new[] { postUrl, postUrl }) && h.Links.Copied.SequenceEqual(new[] { postUrl, postUrl }),
+                "A keyboard menu action reached a different post or ran more than once.");
             Require(h.Search.Requests == 1 && h.Queue.Loads.Count == 0, "A link action caused a provider or queue request.");
             Capture(owner, shots, "search-links-light");
 
@@ -192,7 +238,7 @@ internal static partial class BooruWorkbenchChecks
             await Program.WaitUntilAsync(() => Text(page).Contains("could not be opened in your browser"), () => "open failure not shown");
             h.Links.OnOpen = null;
             Click(Find<Button>(page, BooruWorkbenchView.OpenPostPrefix + "102"));
-            await Program.WaitUntilAsync(() => !Text(page).Contains("could not be opened in your browser") && h.Links.Opened.Count == 3,
+            await Program.WaitUntilAsync(() => !Text(page).Contains("could not be opened in your browser") && h.Links.Opened.Count == 4,
                 () => "open failure note not cleared");
             // The real clipboard path (no injected copier): the shell's own top-level clipboard receives exactly the canonical link.
             BooruWorkbenchServices plain = new(h.Search, h.Queue, h.Watchers, h.Previews, h.Clock);
@@ -226,8 +272,10 @@ internal static partial class BooruWorkbenchChecks
                 && !Find<Button>(page, BooruWorkbenchView.LoadPrefix + "302").IsEnabled, "A post without an original has an enabled load button.");
             Require(Text(page).Contains("Danbooru offers no original for this post") && Text(page).Contains("Original restricted by Danbooru"),
                 "Original availability is not explained.");
-            Require(Find<Grid>(page, BooruWorkbenchView.DetailsPrefix + "303").Children.OfType<TextBlock>()
-                .Any(block => AutomationProperties.GetName(block)?.StartsWith("Danbooru rating: Explicit", StringComparison.Ordinal) == true), "The provider rating is not shown as provider metadata.");
+            TextBlock restrictedFacts = FindById<TextBlock>(page, BooruWorkbenchView.DetailsPrefix + "303");
+            Require(restrictedFacts.IsEffectivelyVisible && restrictedFacts.Text?.StartsWith("Explicit (e)", StringComparison.Ordinal) == true
+                && AutomationProperties.GetName(restrictedFacts)?.StartsWith("Danbooru rating: Explicit (e)", StringComparison.Ordinal) == true,
+                "The provider rating is missing from the visible facts or accessible metadata.");
             Require(h.Queue.Loads.Count == 1, "A search or a disabled button queued something.");
 
             // ---- states ----------------------------------------------------------------------------------------------------
@@ -559,26 +607,95 @@ internal static partial class BooruWorkbenchChecks
 
     // ---- accessibility (1.1.0 audit H1-H3, M2, M3) ---------------------------------------------------------------------------
 
-    private static async Task CheckSearchRowResizeAsync(MainWindow owner, BooruUiHarness h, string shots)
+    private static async Task CaptureMediaSidebarAsync(MainWindow owner, string shots)
+    {
+        Directory.CreateDirectory(shots);
+        BooruPostView[] posts = [BooruUiFixtures.Post("101"), BooruUiFixtures.Post("102", sample: true, score: 0),
+            BooruUiFixtures.Post("103")];
+        const int sampleWidth = 192;
+        const int sampleHeight = 108;
+        Dictionary<Uri, byte[]> images = new()
+        {
+            [posts[0].PreviewUrl!] = BooruUiFixtures.Png(101),
+            [posts[1].PreviewUrl!] = BooruUiFixtures.Png(102),
+            [posts[2].PreviewUrl!] = BooruUiFixtures.Png(103),
+            [posts[1].SampleUrl!] = DanbooruStub.Png(sampleWidth, sampleHeight, 0xFF4A90D9, 102)
+        };
+        SourceDescription source = new(BooruUiFixtures.Source, "Danbooru", new Uri("https://danbooru.donmai.us/"),
+            SourceCapabilities.PostSearch | SourceCapabilities.Previews, [],
+            [new("cdn.donmai.us", HttpHostPurpose.PreviewMedia)], new("1", []));
+        using BooruSidebarMediaTransport handler = new(images);
+        using HttpClient transport = new(handler, disposeHandler: false);
+        using BooruPreviewHttp media = new(transport, source);
+        BooruUiHarness harness = new(new BooruHostPreviewPort(media, source.SourceId));
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, posts)));
+        using BooruPage page = new(harness.Services);
+        Window window = new() { Width = 1280, Height = 850, Content = page, ShowInTaskbar = false };
+        try
+        {
+            page.View.RestoreMediaSidebar(open: true);
+            window.Show(owner);
+            await SettleAsync(window);
+            TextBox input = FindById<TextBox>(page, BooruWorkbenchView.InputName);
+            Button submit = FindById<Button>(page, BooruWorkbenchView.SubmitName);
+            input.Text = "cat";
+            await Program.WaitUntilAsync(() => submit.IsEnabled,
+                () => "the Booru sidebar fixture search was not ready");
+            Click(submit);
+            await Program.WaitUntilAsync(() => Previews(page) == 3, () => "the Booru sidebar fixture previews did not arrive");
+            foreach (int width in new[] { 1280, 1920 })
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+            {
+                window.Width = width;
+                window.RequestedThemeVariant = theme;
+                foreach (BooruResultView mode in new[] { BooruResultView.List, BooruResultView.Grid })
+                {
+                    page.View.SetResultView(mode, save: false);
+                    page.View.RestoreMediaSidebar(open: false);
+                    page.View.RestoreMediaSidebar(open: true);
+                    page.View.SetCursor("102");
+                    await SettleAsync(window);
+                    Require(Math.Abs(window.ClientSize.Width - width) <= 1, $"The sidebar capture is not {width} DIP wide.");
+                    Image image = FindById<Image>(page, "BooruMediaPreview");
+                    IImage preview = image.Source ?? throw new InvalidOperationException("The sidebar preview did not arrive.");
+                    string stem = $"booru-sidebar-{width}-{mode}-{theme}".ToLowerInvariant();
+                    Capture(window, shots, stem + "-preview");
+                    page.View.SetCursor("102", requestSidebarSample: true);
+                    await Program.WaitUntilAsync(() => image.Source != null && !ReferenceEquals(image.Source, preview),
+                        () => "the Booru sidebar sample did not arrive");
+                    Require(image.Source is Bitmap sample && sample.PixelSize.Width == sampleWidth && sample.PixelSize.Height == sampleHeight,
+                        "The Booru sidebar did not show the fixture sample.");
+                    await SettleAsync(window);
+                    Capture(window, shots, stem + "-sample");
+                }
+            }
+        }
+        finally { window.Close(); }
+    }
+
+    private static async Task CheckSearchRowResizeAsync(MainWindow owner, string shots)
     {
         string language = Texts.Language;
+        BooruUiHarness h = new();
+        h.Search.OnSearch = (query, number, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, number, true, BooruUiFixtures.Post("101", tags: [], preview: false))));
         using BooruPage page = new(h.Services);
-        page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
-        // Keep the same page layout across the resize, including below the Advanced shell's native minimum.
-        Window window = new() { Width = 1440, Height = 850, Content = page, ShowInTaskbar = false };
+        Window window = new() { Width = 1920, Height = 850, Content = page, ShowInTaskbar = false };
         int requests = h.ProviderRequests, loads = h.Queue.Loads.Count, watcherCalls = h.Watchers.Calls.Count;
         try
         {
             window.Show(owner);
             await SettleAsync(window);
-            TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
-            ComboBox mode = Find<ComboBox>(page, BooruWorkbenchView.ModeName);
-            WrapPanel actions = Find<WrapPanel>(page, "BooruSearchActions");
-            Button submit = Find<Button>(page, BooruWorkbenchView.SubmitName);
-            Button create = Find<Button>(page, BooruWorkbenchView.CreateWatcherName);
-            Button[] secondary = { Find<Button>(page, BooruWorkbenchView.AlternateSubmitName), Find<Button>(page, BooruWorkbenchView.OpenInNewTabName),
-                create, Find<Button>(page, BooruWorkbenchView.DownloadAllName) };
-            Control row = (Control)input.Parent!;
+            TextBox input = FindById<TextBox>(page, BooruWorkbenchView.InputName);
+            ComboBox mode = FindById<ComboBox>(page, BooruWorkbenchView.ModeName);
+            Button submit = FindById<Button>(page, BooruWorkbenchView.SubmitName);
+            Button overflow = FindById<Button>(page, BooruWorkbenchView.SearchOverflowName);
+            Button create = FindById<Button>(page, BooruWorkbenchView.CreateWatcherName);
+            Button alternate = FindById<Button>(page, BooruWorkbenchView.AlternateSubmitName);
+            Button[] secondary = { alternate, create, FindById<Button>(page, BooruWorkbenchView.DownloadAllName) };
+            Control row = FindById<Control>(page, "BooruSearchToolbar");
+            MenuFlyout menu = (MenuFlyout)overflow.Flyout!;
             foreach ((string nextLanguage, bool post, int narrowWidth) in new[]
             {
                 ("en", false, 760), ("de", false, 760), ("ru", true, 640)
@@ -593,75 +710,104 @@ internal static partial class BooruWorkbenchChecks
                     && mode.SelectionBoxItem as string == Texts.T(modeKey) && submit.Content as string == Texts.T(submitKey)
                     && submit.IsEffectivelyEnabled && create.IsEffectivelyEnabled == !post,
                     () => "Search resize fixture did not apply language/mode: " + nextLanguage);
-                Button alternate = secondary[0], duplicate = secondary[1];
-                Require(AutomationProperties.GetName(alternate) == alternate.Content as string
-                    && AutomationProperties.GetHelpText(alternate)?.Contains(Texts.T("booru.tabs.searchNew"), StringComparison.Ordinal) == true
-                    && AutomationProperties.GetName(create) == create.Content as string
-                    && AutomationProperties.GetName(duplicate) == Texts.T("booru.tabs.duplicate")
-                    && duplicate.Content as string == Texts.T("booru.tabs.duplicate"),
-                    "The localized actions do not expose their visible labels as accessible names: " + nextLanguage);
+                Require(AutomationProperties.GetName(create) == create.Content as string,
+                    "The localized Watch action does not expose its visible label: " + nextLanguage);
                 double wideWidth = 0;
+                double[] fullWidths = [];
                 int pass = 0;
-                foreach (int requestedWidth in new[] { 1440, narrowWidth, 1440 })
+                foreach (int requestedWidth in new[] { 1920, narrowWidth, 1920 })
                 {
-                    window.Width = requestedWidth;
-                    await SettleAsync(window);
-                    await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
-                        && Math.Abs(window.ClientSize.Width - requestedWidth) <= 1
-                        && Math.Abs(window.Bounds.Width - window.ClientSize.Width) <= 1,
-                        () => $"Search resize {nextLanguage}/{requestedWidth}: native client={window.ClientSize}, bounds={window.Bounds}");
-                    await SettleAsync(window);
+                    await ResizeAsync(requestedWidth);
                     Rect modeBounds = SearchLayoutBounds(mode, window);
                     Rect inputBounds = SearchLayoutBounds(input, window);
                     Rect submitBounds = SearchLayoutBounds(submit, window);
-                    Rect actionBounds = SearchLayoutBounds(actions, window);
                     Rect rowBounds = SearchLayoutBounds(row, window);
-                    string measured = $"{nextLanguage}/{requestedWidth}: row={rowBounds}, mode={modeBounds}, input={inputBounds}, submit={submitBounds}, actions={actionBounds}";
+                    string measured = $"{nextLanguage}/{requestedWidth}: row={rowBounds}, mode={modeBounds}, input={inputBounds}, submit={submitBounds}";
                     Require(ReferenceEquals(TopLevel.GetTopLevel(input), window) && input.IsEffectivelyVisible
-                        && mode.IsEffectivelyVisible && actions.IsEffectivelyVisible && inputBounds.Width >= 160,
-                        "Search controls are not realized in the native window: " + measured);
-                    bool submitWrapped = submitBounds.Top > inputBounds.Top + 1;
+                        && mode.IsEffectivelyVisible && inputBounds.Width >= 160, "Search controls are not realized: " + measured);
                     Require(Math.Abs(inputBounds.Left - modeBounds.Right - 8) <= 1
-                        && (submitWrapped
-                            ? Math.Abs(submitBounds.Left - rowBounds.Left) <= 1 && Math.Abs(submitBounds.Top - inputBounds.Bottom - 8) <= 1
-                            : Math.Abs(submitBounds.Left - inputBounds.Right - 8) <= 1 && Math.Abs(submitBounds.Height - inputBounds.Height) <= 1),
-                        "The primary action has the wrong position beside or under the search field: " + measured);
-                    Require(requestedWidth == narrowWidth
-                        ? Math.Abs(actionBounds.Left - rowBounds.Left) <= 1 && Math.Abs(actionBounds.Top - submitBounds.Bottom - 8) <= 1
-                        : !submitWrapped && Math.Abs(actionBounds.Left - submitBounds.Right - 8) <= 1 && Math.Abs(actionBounds.Top - rowBounds.Top) <= 1,
-                        "Secondary actions did not wrap as a group: " + measured);
-                    if (pass == 0) wideWidth = inputBounds.Width;
+                        && Math.Abs(submitBounds.Left - inputBounds.Right - 8) <= 1
+                        && Math.Abs(submitBounds.Center.Y - inputBounds.Center.Y) <= 1,
+                        "The primary action did not stay beside the search field: " + measured);
+
+                    int inlineCount = secondary.TakeWhile(action => action.IsEffectivelyVisible).Count();
+                    Require(secondary.Skip(inlineCount).All(action => !action.IsEffectivelyVisible)
+                        && overflow.IsEffectivelyVisible == (requestedWidth == narrowWidth)
+                        && overflow.IsEffectivelyVisible == (inlineCount < secondary.Length),
+                        "Search actions did not overflow from the right: " + measured);
+                    if (overflow.IsEffectivelyVisible)
+                    {
+                        Require(Math.Abs(SearchLayoutBounds(overflow, window).Left - submitBounds.Right - 8) <= 1,
+                            "The overflow button is not next to Search: " + measured);
+                        Require(ToolTip.GetTip(overflow) as string == Texts.T("booru.tabs.moreActions"),
+                            "The overflow button has the wrong tooltip: " + measured);
+                    }
+
+                    Require(inputBounds.Width <= 512, "Search input exceeded its maximum width: " + measured);
+                    if (pass == 0)
+                    {
+                        wideWidth = inputBounds.Width;
+                        fullWidths = secondary.Select(action => action.Bounds.Width).ToArray();
+                    }
                     else if (pass == 1) Require(inputBounds.Width < wideWidth - 8, "The input did not shrink: " + measured);
                     else Require(Math.Abs(inputBounds.Width - wideWidth) <= 1 && (!post || wideWidth > 240),
                         "The input did not recover its wider size: " + measured);
-                    foreach (Button action in secondary.Append(submit))
+                    Rect prior = inputBounds;
+                    foreach (Button action in new[] { submit, overflow }.Concat(secondary).Where(action => action.IsEffectivelyVisible))
                     {
                         Rect bounds = SearchLayoutBounds(action, window);
-                        Require(action.IsEffectivelyVisible && action.Focusable && action.IsTabStop
-                            && bounds.Width > 0 && bounds.Left >= rowBounds.Left - 1 && bounds.Right <= rowBounds.Right + 1
-                            && bounds.Top >= 0 && bounds.Bottom <= window.ClientSize.Height + 1
+                        Require(!action.Focusable && !action.IsTabStop && bounds.Width > 0 && bounds.Left >= prior.Right - 1
+                            && bounds.Right <= rowBounds.Right + 1 && bounds.Top >= rowBounds.Top - 1
+                            && bounds.Bottom <= rowBounds.Bottom + 1 && Math.Abs(bounds.Center.Y - prior.Center.Y) <= 1
                             && ToolTip.GetTip(action) is string { Length: > 0 },
-                            "Search action is clipped or unreachable: " + action.Name + " " + bounds + "; " + measured);
-                        if (!action.IsEffectivelyEnabled) continue;
-                        action.Focus(NavigationMethod.Tab);
-                        await Program.WaitUntilAsync(() => ReferenceEquals(window.FocusManager?.GetFocusedElement(), action),
-                            () => "Search action cannot receive keyboard focus: " + action.Name);
+                            "Search action is clipped or off the row: " + AutomationProperties.GetAutomationId(action) + " " + bounds + "; " + measured);
+                        int secondaryIndex = Array.IndexOf(secondary, action);
+                        if (secondaryIndex >= 0)
+                            Require(Math.Abs(bounds.Width - fullWidths[secondaryIndex]) <= 1, "Search action lost width: " + measured);
+                        Require(!action.Focus(NavigationMethod.Tab), "Search action took keyboard focus: " + AutomationProperties.GetAutomationId(action));
+                        prior = bounds;
                     }
                     Capture(window, shots, $"search-layout-{nextLanguage}-{requestedWidth}" + (pass == 2 ? "-restored" : ""));
                     pass++;
                 }
             }
 
-            // A constrained host still gives a long translated lookup its own line.
-            row.MaxWidth = 328;
-            await SettleAsync(window);
-            Rect field = SearchLayoutBounds(input, window), button = SearchLayoutBounds(submit, window);
-            Rect toolbar = SearchLayoutBounds(row, window);
-            Require(field.Width >= 160 && Math.Abs(button.Top - field.Bottom - 8) <= 1 && button.Right <= toolbar.Right + 1,
-                $"The Russian post lookup did not wrap within the toolbar: input={field}, submit={button}, toolbar={toolbar}.");
             Require(h.ProviderRequests == requests && h.Queue.Loads.Count == loads && h.Watchers.Calls.Count == watcherCalls,
                 "Search resize/language/focus caused a provider, queue or watcher call.");
-            Console.WriteLine("SMOKE booru search layout: EN/DE tags at 1440/760/1440 DIP, RU post at 1440/640/1440 DIP; flexible input, wrapped lookup in a constrained host, reachable actions and no port calls.");
+
+            Texts.SetLanguage("en");
+            mode.SelectedIndex = 0;
+            input.Text = "cat";
+            await ResizeAsync(640);
+            using MediaNativeInput native = new(window);
+            await native.ClickAsync(submit);
+            await Program.WaitUntilAsync(() => page.Model.Search.View.ExecutedQuery == "cat");
+            input.Text = "dog";
+            await Program.WaitUntilAsync(() => alternate.IsEnabled);
+            await native.ClickAsync(overflow);
+            await Program.WaitUntilAsync(() => menu.IsOpen);
+            string[] entryIds = secondary.Select(button => AutomationProperties.GetAutomationId(button) + "Overflow").ToArray();
+            MenuItem[] entries = menu.Items.OfType<MenuItem>().Where(item => item.IsEffectivelyVisible).ToArray();
+            Require(entries.Select(AutomationProperties.GetAutomationId).SequenceEqual(entryIds), "Narrow overflow did not list all three search actions.");
+            MenuItem alternateEntry = entries.Single(item => AutomationProperties.GetAutomationId(item) == BooruWorkbenchView.AlternateSubmitName + "Overflow");
+            Require(alternateEntry.InputGesture is { Key: Key.Enter, KeyModifiers: KeyModifiers.Shift }, "The alternate-search menu gesture is missing.");
+            Capture(window, shots, "search-overflow-en-640");
+            await native.ClickAsync(alternateEntry);
+            await Program.WaitUntilAsync(() => !menu.IsOpen && input.IsFocused && page.Model.Search.View.ExecutedQuery == "dog",
+                () => "Choosing the overflow action did not search in a new tab and refocus the search field.");
+            Require(page.View.SearchTabs.Ids.Count == 2, "The overflow action did not open a second search tab.");
+            Console.WriteLine("SMOKE booru search layout: EN/DE tags and RU post stay on one row at wide and narrow sizes; native overflow activates a new-tab search and returns focus.");
+
+            async Task ResizeAsync(int width)
+            {
+                window.Width = width;
+                await SettleAsync(window);
+                await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
+                    && Math.Abs(window.ClientSize.Width - width) <= 1
+                    && Math.Abs(window.Bounds.Width - window.ClientSize.Width) <= 1,
+                    () => $"Search resize {Texts.Language}/{width}: native client={window.ClientSize}, bounds={window.Bounds}");
+                await SettleAsync(window);
+            }
         }
         finally
         {
@@ -674,8 +820,12 @@ internal static partial class BooruWorkbenchChecks
     private static async Task CheckTabStripAsync(MainWindow owner, BooruPage page, string shots)
     {
         TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
-        TabItem first = (TabItem)tabs.SelectedItem!;
         Button add = Find<Button>(page, BooruWorkbenchView.NewSearchTabName);
+        Require(page.View.SearchTabs.Ids.Count == 0 && Find<TextBox>(page, BooruWorkbenchView.InputName).IsEffectivelyVisible,
+            "The initial search field needs to be visible on an empty tab strip.");
+        Click(add);
+        await SettleAsync(owner);
+        TabItem first = (TabItem)tabs.SelectedItem!;
         Rect firstBounds = SearchLayoutBounds(first, owner);
         Rect addBounds = SearchLayoutBounds(add, owner);
         Require(Math.Abs(firstBounds.Height - addBounds.Height) <= 1 && addBounds.Width >= 44 && addBounds.Left > firstBounds.Right,
@@ -710,7 +860,11 @@ internal static partial class BooruWorkbenchChecks
         }
         finally { Application.Current.RequestedThemeVariant = theme; }
         Click(close);
-        Require(ReferenceEquals(tabs.SelectedItem, first), "Closing the extra tab did not restore the first search tab.");
+        Require(ReferenceEquals(tabs.SelectedItem, first), "Closing the second tab did not restore the first search tab.");
+        Click(first.GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("booru-tab-close")));
+        await SettleAsync(owner);
+        Require(page.View.SearchTabs.Ids.Count == 0 && Find<TextBox>(page, BooruWorkbenchView.InputName).IsEffectivelyVisible,
+            "Closing the last tab did not return to the empty search field.");
     }
 
     private static async Task CheckResultsFooterAsync(MainWindow owner, BooruPage page)
@@ -719,16 +873,16 @@ internal static partial class BooruWorkbenchChecks
         string summary = BooruText.SearchStatus(page.Model.Search.View, paused: false);
         Require(Controls(page).OfType<TextBlock>().Count(block => block.IsEffectivelyVisible && block.Text == summary) == 1,
             "The search result summary must be exposed exactly once.");
-        Button previous = Find<Button>(page, BooruWorkbenchView.PreviousName);
-        Button next = Find<Button>(page, BooruWorkbenchView.NextName);
-        Grid pager = (Grid)previous.Parent!;
-        TextBlock info = pager.Children.OfType<TextBlock>().Single();
+        Button previous = FindById<Button>(page, BooruWorkbenchView.PreviousName);
+        Button next = FindById<Button>(page, BooruWorkbenchView.NextName);
+        TextBlock info = FindById<TextBlock>(page, "BooruPageInfo");
+        Button jump = FindById<Button>(page, "BooruPageJump");
         Rect left = SearchLayoutBounds(previous, owner), right = SearchLayoutBounds(next, owner), label = SearchLayoutBounds(info, owner);
-        Rect footer = SearchLayoutBounds((Control)pager.Parent!, owner);
+        Rect footer = SearchLayoutBounds(FindById<Control>(page, "BooruResultsFooter"), owner);
         Require(left.Size == new Size(24, 24) && right.Size == left.Size && Math.Abs(left.Top - right.Top) <= 1
             && Math.Abs(label.Width - info.DesiredSize.Width) <= 1
             && Math.Abs(label.Left - left.Right - 8) <= 1 && Math.Abs(right.Left - label.Right - 8) <= 1
-            && Math.Abs((left.Left + right.Right) / 2 - footer.Center.X) <= 1,
+            && Math.Abs((left.Left + SearchLayoutBounds(jump, owner).Right) / 2 - footer.Center.X) <= 1,
             $"The pager is not centered and symmetric: previous={left}, label={label}, next={right}, footer={footer}");
     }
 
@@ -840,12 +994,34 @@ internal static partial class BooruWorkbenchChecks
     private static List<FeedbackToastContent> Toasts(Window window) => window.GetVisualDescendants().OfType<NotificationCard>()
         .Where(card => !card.IsClosing && !card.IsClosed).Select(card => card.Content).OfType<FeedbackToastContent>().ToList();
 
+    internal static T FindById<T>(Control root, string id) where T : Control =>
+        Controls(root).OfType<T>().SingleOrDefault(control => AutomationProperties.GetAutomationId(control) == id)
+        ?? throw new InvalidOperationException("Automation control not found: " + id);
+
+    private static async Task InvokeResultMenuAsync(Border hit, string actionId, Key key, KeyModifiers modifiers)
+    {
+        Require(hit.Focus(NavigationMethod.Tab), "The result card did not take keyboard focus.");
+        hit.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+        await Program.WaitUntilAsync(() => hit.ContextMenu is { IsOpen: true }, () => "The keyboard did not open the result menu.");
+        ContextMenu menu = hit.ContextMenu!;
+        menu.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key, KeyModifiers = modifiers });
+        try
+        {
+            MenuItem item = menu.Items.OfType<MenuItem>().Single(entry => AutomationProperties.GetAutomationId(entry) == actionId);
+            Require(item.IsEffectivelyEnabled && item.Command?.CanExecute(null) == true, "The keyboard result menu disabled " + actionId);
+            item.Command!.Execute(null);
+        }
+        finally { menu.Close(); }
+    }
+
     private static bool Exists(Control root, string name) => Controls(root).Any(control => control.Name == name);
 
     private static List<Control> Cards(Control root, string prefix) => Controls(root).OfType<Border>()
         .Where(border => border.Name is { } name && name.StartsWith(prefix, StringComparison.Ordinal)).Cast<Control>().ToList();
 
-    private static int Previews(Control root) => Controls(root).OfType<Image>().Count(image => image.Source is Bitmap);
+    private static int Previews(Control root) =>
+        Controls(root).OfType<Image>().Count(image => image.IsEffectivelyVisible && image.Source is Bitmap
+            && AutomationProperties.GetAutomationId(image)?.StartsWith("BooruPreview:", StringComparison.Ordinal) == true);
 
     private static string Text(Control root) => string.Join('\n', Controls(root).Where(control => control.IsEffectivelyVisible)
         .Select(control => control switch

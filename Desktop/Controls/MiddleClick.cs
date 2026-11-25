@@ -8,7 +8,7 @@ namespace MeowChan.Desktop.Controls;
 
 /// <summary>
 /// The middle click on a row or tile (audit V5): a press and a release of the middle button on the same item run that item's quick action (a thread
-/// row opens its source in the browser, a media tile opens its folder). A press on one item and a release on another is a drag, not a click; the
+/// row opens its source in the browser, a media tile opens the saved file). A press on one item and a release on another is a drag, not a click; the
 /// buttons, chips and links inside an item keep their own meaning. The action itself is always the command the item's menu has, with that command's
 /// own rules for when it is available.
 /// </summary>
@@ -36,6 +36,9 @@ internal sealed class MiddleClickTracker
 
     /// <summary>Whether the event is the release of the middle button.</summary>
     internal static bool IsRelease(PointerReleasedEventArgs e) => e.InitialPressMouseButton == MouseButton.Middle;
+
+    // Mouse capture can leave Source on the pressed row when the pointer is released elsewhere.
+    internal static IInputElement? HitAt(PointerReleasedEventArgs e, Control surface) => surface.InputHitTest(e.GetPosition(surface));
 
     /// <summary>
     /// The data of the row or list item a pointer event's source lies in, when the source is not an interactive part of it and the item carries a

@@ -16,64 +16,103 @@ public partial class ArchivePage
 {
     // InlineReplyPageSize, ReplyCardMaxLines and ReplyCardMaxCharacters are clamped instance properties (ArchivePage.ReaderLimits.cs).
     private CancellationTokenSource? _inlineRepliesCancellation;
-    private int _inlineRepliesRequest;
-    private ArchivePostRow[] _inlineReplyRows = Array.Empty<ArchivePostRow>();
-    internal Func<CancellationToken, Task>? BeforeInlineReplyCountsPublicationAsync { get; set; }
+    private bool _loadingReplyCounts;
+    private ReaderPreviewReservation.PostWindow _inlineReplyWindow;
+    private ArchivedThreadView? _replyCountSnapshot;
+    private IReadOnlyDictionary<string, int>? _legacyReplyCounts;
+    internal Task InlineReplyCountsTask { get; private set; } = Task.CompletedTask;
+    internal Func<ResourceId, IReadOnlyList<string>, CancellationToken, Task>? BeforeInlineReplyCountsPublicationAsync { get; set; }
 
-    private void RefreshInlineReplies(ArchivePostRow[] rows)
+    private void SwitchReplyCountSnapshot()
     {
-        CancelInlineReplies();
-        _inlineReplyRows = rows;
-        if (rows.Length == 0 || _thread == null || _openReader == null || !CanRead || _ended) return;
-        int request = _inlineRepliesRequest;
-        ResourceId thread = _thread.Summary.Id;
-        CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _inlineRepliesCancellation = loading;
-        _ = LoadInlineReplyCountsAsync(rows, thread, request, loading.Token);
+        if (ReferenceEquals(_replyCountSnapshot, _thread)) return;
+        _replyCountSnapshot = _thread;
+        _legacyReplyCounts = null;
+    }
+
+    private void BeginInlineReplies(ReaderPostRows? rows)
+    {
+        if (rows is { Count: > 0 } && _openReader != null && CanRead && !_ended)
+            _inlineRepliesCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
     }
 
     private void CancelInlineReplies()
     {
-        ++_inlineRepliesRequest;
         _inlineRepliesCancellation?.Cancel();
         _inlineRepliesCancellation?.Dispose();
         _inlineRepliesCancellation = null;
-        _inlineReplyRows = Array.Empty<ArchivePostRow>();
+        _loadingReplyCounts = false;
+        _inlineReplyWindow = default;
     }
 
-    private async Task LoadInlineReplyCountsAsync(ArchivePostRow[] rows, ResourceId thread,
-        int request, CancellationToken token)
+    private void RequestInlineReplyCounts(ReaderPostRows source, ReaderPreviewReservation.PostWindow window)
     {
+        _inlineReplyWindow = window;
+        if (_loadingReplyCounts || _inlineRepliesCancellation is not { } loading || _thread is not { } snapshot) return;
+        List<ArchivePostRow> pending = new();
+        // GetBacklinkCountsAsync accepts at most 500 IDs per read. A larger viewport is picked up in the next pass.
+        for (int index = window.Start; index < window.End && pending.Count < 500; index++)
+        {
+            ArchivePostRow row = source[index];
+            if (!row.IsStub && !row.SuppressReplyToggle && row.BacklinkCount == null && !row.HasRepliesError && !row.RepliesLoading)
+                pending.Add(row);
+        }
+        if (pending.Count == 0) return;
+        _loadingReplyCounts = true;
+        InlineReplyCountsTask = LoadInlineReplyCountsAsync(source, pending, snapshot.Summary.Id, loading.Token);
+    }
+
+    private async Task LoadInlineReplyCountsAsync(ReaderPostRows source, List<ArchivePostRow> pending, ResourceId thread,
+        CancellationToken token)
+    {
+        bool InWindow(ArchivePostRow row) => _inlineReplyWindow.Contains(source.IndexOf(row));
         try
         {
-            await using ArchiveReader reader = await _openReader!(token);
-            IReadOnlyDictionary<string, int> counts = await reader.GetBacklinkCountsAsync(thread,
-                rows.Select(row => row.Id).ToArray(), token);
-            if (!InlineReplyPageCurrent(rows, thread, request)) return;
-            if (BeforeInlineReplyCountsPublicationAsync is { } beforePublication)
+            string[] ids = pending.Select(row => row.Id).ToArray();
+            IReadOnlyDictionary<string, int> counts;
+            if (_legacyReplyCounts is { } cached) counts = cached;
+            else
             {
-                await beforePublication(token);
-                if (!InlineReplyPageCurrent(rows, thread, request)) return;
+                await using ArchiveReader reader = await _openReader!(token);
+                counts = reader.HasIndexedBacklinks
+                    ? await reader.GetBacklinkCountsAsync(thread, ids, token)
+                    : await reader.GetThreadBacklinkCountsAsync(thread, token);
+                if (!InlineReplyRowsCurrent(source, token)) return;
+                // Schema 1 scans the archive. Later viewport windows reuse the counts for this reader generation.
+                if (!reader.HasIndexedBacklinks) _legacyReplyCounts = counts;
             }
+            if (!InlineReplyRowsCurrent(source, token)) return;
+            if (BeforeInlineReplyCountsPublicationAsync is { } beforePublication) await beforePublication(thread, ids, token);
+            if (!InlineReplyRowsCurrent(source, token)) return;
+            ArchivePostRow[] applicable = pending.Where(InWindow).ToArray();
+            if (applicable.Length == 0) return;
             Func<Task>? restoreLayout = CaptureReaderCountLayoutCorrection();
-            foreach (ArchivePostRow row in rows) row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));
+            foreach (ArchivePostRow row in applicable)
+                if (row.BacklinkCount == null) row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));
             UpdateFocusedReplies();
-            foreach (ArchivePostRow row in rows)
-                if (row.RepliesExpanded && ArchivePosts.ContainerFromItem(row) != null) LoadExpandedReplies(row);
-            if (ArchivePosts.SelectedItem is ArchivePostRow selected) LoadSidebarPostReplies(selected);
+            foreach (ArchivePostRow row in applicable)
+                if (ArchivePosts.ContainerFromItem(row) != null) LoadExpandedReplies(row);
             if (restoreLayout != null) await restoreLayout();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (!InlineReplyPageCurrent(rows, thread, request)) return;
-            foreach (ArchivePostRow row in rows) row.SetRepliesError(exception.Message);
+            if (!InlineReplyRowsCurrent(source, token)) return;
+            foreach (ArchivePostRow row in pending)
+                if (row.BacklinkCount == null && InWindow(row)) row.SetRepliesError(exception.Message);
+        }
+        finally
+        {
+            if (InlineReplyRowsCurrent(source, token))
+            {
+                _loadingReplyCounts = false;
+                SchedulePreviewPrefetch();
+            }
         }
     }
 
-    private bool InlineReplyPageCurrent(ArchivePostRow[] rows, ResourceId thread, int request)
-        => !_ended && request == _inlineRepliesRequest && ReferenceEquals(rows, _inlineReplyRows)
-            && _thread?.Summary.Id == thread;
+    private bool InlineReplyRowsCurrent(ReaderPostRows rows, CancellationToken token)
+        => !_ended && !token.IsCancellationRequested && ReferenceEquals(rows, ArchivePosts.ItemsSource);
 
     // The header counter opens and closes the nested reply cards; the first opening loads the first page.
     private async void OnReplyToggleClick(object? sender, RoutedEventArgs e)
@@ -83,11 +122,11 @@ public partial class ArchivePage
 
     internal async Task SetRepliesExpandedAsync(ArchivePostRow row, bool open)
     {
-        if (_ended || !ContainsInlineReplyRow(row)) return;
-        Func<Task>? restore = CaptureReaderCountLayoutCorrection();
+        if (_ended || ArchivePosts.ItemsSource is not ReaderPostRows rows || rows.IndexOf(row) < 0) return;
+        Func<Task>? restore = ReaderJumpOwnsScroll ? null : CaptureReaderCountLayoutCorrection();
         _replyAutoExpand.RememberChoice(row, open);
         if (restore != null) await restore();
-        if (row.RepliesExpanded && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
+        if (open && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
     }
     private async void OnMoreRepliesClick(object? sender, RoutedEventArgs e)
     {
@@ -96,21 +135,18 @@ public partial class ArchivePage
 
     private void LoadExpandedReplies(ArchivePostRow row)
     {
-        if (row is { RepliesExpanded: true, HasBacklinks: true, RepliesLoaded: false, HasRepliesError: false })
+        if (row is { RepliesExpanded: true, HasBacklinks: true, RepliesLoaded: false, RepliesLoading: false, HasRepliesError: false })
             OpenActions.Start(() => LoadInlineRepliesAsync(row), "archive.reader.replies");
     }
 
-    private bool ContainsInlineReplyRow(ArchivePostRow row) =>
-        _inlineReplyRows.Any(item => ReferenceEquals(item, row));
-
     private async Task LoadInlineRepliesAsync(ArchivePostRow row)
     {
-        if (_ended || _busy || !CanRead || _openReader == null || _thread == null || row.RepliesLoading ||
-            !ContainsInlineReplyRow(row)) return;
-        int request = _inlineRepliesRequest;
-        ArchivePostRow[] rows = _inlineReplyRows;
+        // The current rows can still read replies while a write is pending.
+        if (_ended || !CanRead || _openReader == null || _thread == null || row.RepliesLoading ||
+            ArchivePosts.ItemsSource is not ReaderPostRows rows || rows.IndexOf(row) < 0) return;
         ResourceId thread = _thread.Summary.Id;
         CancellationToken token = _inlineRepliesCancellation?.Token ?? _lifetime.Token;
+        bool Current() => InlineReplyRowsCurrent(rows, token) && rows.IndexOf(row) >= 0;
         int loadedBefore = row.Replies.Count;
         row.SetRepliesLoading(true);
         row.SetRepliesError(null);
@@ -121,21 +157,25 @@ public partial class ArchivePage
             ArchiveQuotePage page = await reader.GetBacklinksAsync(new ArchivePostId(thread, row.Id),
                 loadedBefore, InlineReplyPageSize, token);
             // A history restore may have put loaded pages on the row while this one was on its way; its offset is then stale.
-            if (!InlineReplyPageCurrent(rows, thread, request) || row.Replies.Count != loadedBefore) return;
-            restore = row.RepliesExpanded ? CaptureReaderCountLayoutCorrection() : null;
+            if (!Current() || row.Replies.Count != loadedBefore) return;
+            bool selected = ReferenceEquals(ArchivePosts.SelectedItem, row);
+            if (!ReaderJumpOwnsScroll && (row.RepliesExpanded || (selected && _replyAutoExpand.Enabled)))
+                restore = CaptureReaderCountLayoutCorrection();
             row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => ReplyCard(quote, thread))).ToArray()),
                 page.TotalCount, page.Offset);
+            if (selected) UpdateFocusedReplies();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (InlineReplyPageCurrent(rows, thread, request))
+            if (Current())
             {
-                restore = CaptureReaderCountLayoutCorrection();
+                if (!ReaderJumpOwnsScroll && ArchivePosts.ContainerFromItem(row) != null)
+                    restore = CaptureReaderCountLayoutCorrection();
                 row.SetRepliesError(exception.Message);
             }
         }
-        finally { if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesLoading(false); }
+        finally { if (Current()) row.SetRepliesLoading(false); }
         if (restore != null) await restore();
     }
 

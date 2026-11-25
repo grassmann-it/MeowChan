@@ -86,8 +86,7 @@ internal static partial class BooruWorkbenchChecks
         Click(Find<Button>(page, "BooruView:101"));
         BooruGalleryPanel gallery = page.View.Gallery;
         Border resultLine = Find<Border>(page, "BooruResultsLine");
-        var pager = (Grid)Find<Button>(page, BooruWorkbenchView.PreviousName).Parent!;
-        TextBlock pageInfo = pager.Children.OfType<TextBlock>().Single();
+        TextBlock pageInfo = FindById<TextBlock>(page, "BooruPageInfo");
         string result = BooruText.SearchStatus(page.Model.Search.View, false);
         Require(!resultLine.IsVisible && pageInfo.IsEffectivelyVisible
             && AutomationProperties.GetLiveSetting(pageInfo) == AutomationLiveSetting.Polite
@@ -137,7 +136,6 @@ internal static partial class BooruWorkbenchChecks
         BooruUiHarness h = new();
         h.Serve(pages: 3, perPage: 4);
         using BooruPage page = new(h.Services);
-        page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
         Window window = new() { Width = 1120, Height = 792, Content = page, ShowInTaskbar = false };
         try
         {
@@ -146,7 +144,6 @@ internal static partial class BooruWorkbenchChecks
             using MediaNativeInput native = new(window);
             TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
             TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
-            TabItem original = (TabItem)tabs.SelectedItem!;
             Button add = Find<Button>(page, BooruWorkbenchView.NewSearchTabName);
             BooruGalleryPanel gallery = page.View.Gallery;
             var toggle = page.View.ViewToggle;
@@ -161,6 +158,7 @@ internal static partial class BooruWorkbenchChecks
             await Program.WaitUntilAsync(() => help.Flyout?.IsOpen == false);
             await native.ClickAsync(Find<Button>(page, BooruWorkbenchView.SubmitName));
             await Program.WaitUntilAsync(() => Cards(page, "BooruResult:").Count == 4);
+            TabItem original = (TabItem)tabs.SelectedItem!;
 
             IInputElement? FocusedControl() => window.FocusManager?.GetFocusedElement();
             Task Picture(string id, bool focused = true) => Program.WaitUntilAsync(
@@ -216,7 +214,10 @@ internal static partial class BooruWorkbenchChecks
             await Picture("202", focused: false);
             Require(gallery.SelectBox.IsChecked == true, "A visit to an empty tab lost the original mark.");
 
-            await native.ClickAsync(Find<Button>(page, BooruWorkbenchView.OpenInNewTabName));
+            await native.RightClickAsync((Control)original.Header!);
+            await Program.WaitUntilAsync(() => original.ContextMenu?.IsOpen == true);
+            MenuItem duplicate = original.ContextMenu!.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "booru.tabs.duplicate"));
+            await native.ClickAsync(duplicate);
             await Picture("202", focused: false);
             Require(gallery.SelectBox.IsChecked == false && page.Model.Search.View.Page == 2, "The duplicate did not take the page and cursor with an independent selection.");
             gallery.NextButton.Focus(NavigationMethod.Tab);
@@ -254,14 +255,14 @@ internal static partial class BooruWorkbenchChecks
             Rect shortMode = SearchLayoutBounds(toggle, window);
             Rect pager = SearchLayoutBounds(nextPage, window);
             Rect viewport = SearchLayoutBounds(results, window);
-            Require(results.Offset.Y > 0 && mode == shortMode && shortMode.Bottom <= viewport.Top && pager.Bottom <= viewport.Bottom + 1,
+            Require(results.Offset.Y == 0 && mode == shortMode && shortMode.Bottom <= viewport.Top
+                && pager.Top >= viewport.Bottom - 1 && pager.Bottom <= window.ClientSize.Height,
                 $"The short window cannot show the view switch and pager together: mode={shortMode}, viewport={viewport}, pager={pager}.");
 
-            for (int i = 0; i < 4; i++)
+            while (page.View.SearchTabs.CanAdd)
             {
                 await native.ClickAsync(add);
                 await Program.WaitUntilAsync(() => input.IsFocused && string.IsNullOrEmpty(input.Text));
-                input.Text = $"ordinary_subject_with_a_long_name_{i} another_subject_label";
                 await SettleAsync(window);
             }
             TabItem active = (TabItem)tabs.SelectedItem!;

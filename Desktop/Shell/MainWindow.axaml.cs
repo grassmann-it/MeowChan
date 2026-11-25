@@ -68,7 +68,11 @@ public partial class MainWindow : Window
 
     public MainWindow() : this(null) { }
 
-    internal MainWindow(DesktopSessionHost? session)
+    internal MainWindow(DesktopSessionHost? session) : this(session, static () => new DesktopSessionHost()) { }
+
+    internal static MainWindow CreateWithSessionFactory(Func<DesktopSessionHost> createSession) => new(null, createSession);
+
+    private MainWindow(DesktopSessionHost? session, Func<DesktopSessionHost> createSession)
     {
         RecordStartupTiming(StartupTimingPoint.ConstructorBegin);
         // The quick tag popover swallows the repeats of the key that opened it (R held a little long), so it must know which keys are down.
@@ -81,11 +85,11 @@ public partial class MainWindow : Window
             throw;
         }
         InitializeGlyphIcons();
-        _session = session ?? new DesktopSessionHost();
+        _session = session ?? createSession();
         _config = _session.Config;
-        InitializeStartupWindowSize();
         try
         {
+            InitializeStartupWindowSize();
             AttachStartupTiming();
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.texts-init")) Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
             Texts.SetLanguage(_config.Language);
@@ -140,6 +144,7 @@ public partial class MainWindow : Window
             // Section and rule-template registrations belong to pages built after the first frame
             // (EnsureDeferredWorkspacePages installs them there).
             RegisterTagAndFilterCommands();
+            RegisterMediaSidebarInfoCommands();
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             InitializeStatusColumnRedundancy();
@@ -161,17 +166,20 @@ public partial class MainWindow : Window
         }
         catch
         {
-            DetachStartupTiming();
-            Texts.Changed -= OnLanguageChanged;
-            _session.ProjectionPublished -= OnSessionChanged;
-            _session.StartupPreviewChanged -= OnStartupPreviewChanged;
-            _session.CatalogReadableChanged -= OnCatalogReadableChanged;
-            DisposeWorkspace();
-            DisposeWorkspacePages();
-            _sessionRefresh?.Dispose();
-            StopClipboardMonitor();
-            DisposeTrayIcon();
-            _session.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            try
+            {
+                DetachStartupTiming();
+                Texts.Changed -= OnLanguageChanged;
+                _session.ProjectionPublished -= OnSessionChanged;
+                _session.StartupPreviewChanged -= OnStartupPreviewChanged;
+                _session.CatalogReadableChanged -= OnCatalogReadableChanged;
+                DisposeWorkspace();
+                DisposeWorkspacePages();
+                _sessionRefresh?.Dispose();
+                StopClipboardMonitor();
+                DisposeTrayIcon();
+            }
+            finally { _session.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
             throw;
         }
     }
@@ -634,13 +642,13 @@ public partial class MainWindow : Window
         try
         {
             allAccepted = await SubmitAdmissionBatchAsync(input);
-            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened)
+            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened && !_admissionArchiveOpened)
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);
                 ShowNotification(Texts.T(fromClipboard ? "clipboard.title" : "admission.results"),
                     Texts.T(fromClipboard ? "clipboard.empty" : "admission.empty"), NotificationType.Information, operation: "admission.empty");
             }
-            return allAccepted && (_admissionResults.Count != 0 || _admissionBooruOpened);
+            return allAccepted && (_admissionResults.Count != 0 || _admissionBooruOpened || _admissionArchiveOpened);
         }
         catch (OperationCanceledException) when (_isClosing)
         {
@@ -857,7 +865,6 @@ public partial class MainWindow : Window
         _trayLogo = ThemeLogo.Follow(trayIcon);
         trayIcon.ToolTipText = TrayMenuModel.BaseTooltip;
         NativeMenu menu = new NativeMenu();
-        AddTrayStatsItems(menu); // two statistics lines and a separator (hidden by the setting); text only
         NativeMenuItem openItem = CreateTrayCommandItem("app.show");
         _trayOpenItem = openItem;
         openItem.Click += (sender, e) =>
@@ -865,6 +872,7 @@ public partial class MainWindow : Window
             RestoreWindow();
         };
         menu.Items.Add(openItem);
+        AddTrayStatsItems(menu);
         NativeMenuItem folderItem = CreateTrayCommandItem("location.open-folder");
         _trayFolderItem = folderItem;
         folderItem.Click += (sender, e) => OpenDirectory(_config.DownloadPath);
@@ -881,6 +889,7 @@ public partial class MainWindow : Window
         _trayUpdateItem = new NativeMenuItem { IsVisible = false };
         _trayUpdateItem.Click += OnTrayUpdateClick;
         menu.Items.Add(_trayUpdateItem);
+        menu.Items.Add(new NativeMenuItemSeparator());
         AddTrayNavigationItems(menu); // statistics and settings, then a separator
         NativeMenuItem exitItem = CreateTrayCommandItem("app.quit");
         _trayExitItem = exitItem;
@@ -1279,8 +1288,6 @@ public partial class MainWindow : Window
             candidate.Theme = MeowChan.Desktop.Theming.ThemePreference.Toggled(_config.Theme, ActualThemeVariant == ThemeVariant.Dark);
             await SaveAppearanceAsync(candidate);
         };
-        InspectorCopyUrlButton.Click += async (sender, e) =>
-            await CopyUrlsAsync(GetInspectorUrl() is string url ? new[] { url } : Array.Empty<string>());
     }
 
     private async Task SaveAppearanceAsync(Config candidate)

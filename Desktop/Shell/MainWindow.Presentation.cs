@@ -37,8 +37,6 @@ public partial class MainWindow
         if (_workspaceInitialized) return;
         _workspaceInitialized = true;
         _workspaceRefresh = new CoalescedUiUpdate(RefreshWorkspace);
-        // Escape clears the typed search first (SearchBox); in an empty field it closes the search bar.
-        DownloadSearchInput.ExitRequested += (_, e) => { if (_downloadSearchOpen) { OnDownloadSearchClose(DownloadSearchInput, new RoutedEventArgs()); e.Handled = true; } };
         UrlList.CollectionChanged += OnWorkspaceCollectionChanged;
         BoardsList.CollectionChanged += OnWorkspaceCollectionChanged;
         Texts.Changed += OnWorkspaceLanguageChanged;
@@ -47,8 +45,8 @@ public partial class MainWindow
         ShellActionErrorBanner.PropertyChanged += OnShellFeedbackVisibilityChanged;
         ApplyWindowChrome();
         PropertyChanged += OnWindowChromePropertyChanged;
-        KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
+        InitializeFooterDisplays();
         InitializeDownloadsHeader();
         InitializeWorkViews();
         SetupInspectorLocalActions();
@@ -69,6 +67,7 @@ public partial class MainWindow
         CloseLargeReader(restoreOrigin: false);
         if (!_workspaceInitialized) return;
         _workspaceInitialized = false;
+        DisposeFooterDisplays();
         StopSpeedSampling();
         DisposeWorkspacePages();
         _workspaceRefresh?.Dispose();
@@ -79,7 +78,6 @@ public partial class MainWindow
         WorkspaceBody.SizeChanged -= OnWorkspaceBodySizeChanged;
         ShellActionErrorBanner.PropertyChanged -= OnShellFeedbackVisibilityChanged;
         PropertyChanged -= OnWindowChromePropertyChanged;
-        KeyDown -= OnWorkspaceKeyDown;
         DisposeShellPresentation();
         DisposeWindowPreferences();
     }
@@ -125,16 +123,6 @@ public partial class MainWindow
         KeepSelectedDownloadVisible();
     }
 
-    private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Handled || IsNativeShortcutSource(e.Source) || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
-        if (_selectedPage != WorkspacePage.Downloads || e.Key != Key.Escape || !WorkspaceInspector.IsVisible) return;
-        OnDetailsToggleClick(sender, e);
-        WorkspaceControl<DataGrid>(DownloadsTabs.SelectedIndex == 1
-            ? "BoardsDataGrid" : "ThreadsDataGrid").Focus();
-        e.Handled = true;
-    }
-
     private void OnWorkspaceLanguageChanged(object? sender, EventArgs e)
     {
         if (!_workspaceInitialized) return;
@@ -163,6 +151,7 @@ public partial class MainWindow
                 _archivePage.SlashTagSuggestionCountPreference = _config.SlashTagSuggestionCount;
             }
             if (_mediaPage != null) _mediaPage.ArchiveTagFilterTagsPerListPreference = _config.ArchiveTagFilterTagsPerList;
+            ApplyFooterDisplayPreferences();
             UpdateMediaFocusChrome(); // the "hide the app header" setting applies to a focus mode that is already on
             if (_gallery?.TagPanelController is { } tagPanel
                 && tagPanel.Suggestions.Options.SlashSuggestionCount != _config.SlashTagSuggestionCount)
@@ -289,7 +278,11 @@ public partial class MainWindow
         {
             DataGrid grid = WorkspaceControl<DataGrid>(gridName);
             if (grid.ContextMenu is ContextMenu menu)
+            {
                 foreach (Control control in menu.GetLogicalDescendants().OfType<Control>()) LocalizeWorkspaceControl(control);
+                foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(item => item.Tag is "watch.check" or "watch.retry-media"))
+                    CommandBindings.Refresh(item);
+            }
             foreach (DataGridColumn column in grid.Columns)
             {
                 string? key = column.SortMemberPath switch
@@ -330,12 +323,12 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(InspectorOpenFolderButton, "location.open-folder", Texts.T("action.openFolder"));
         CommandBindings.ApplyLabeled(InspectorOpenBrowserButton, "location.open-source", Texts.T("action.openBrowser"));
         CommandBindings.ApplyLabeled(InspectorMediaRetryButton, "watch.retry-media", Texts.T("work.retry"));
-        CommandBindings.ApplyLabeled(InspectorCopyUrlButton, "selection.copy-links", Texts.T("action.copyUrl"));
-        CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", Texts.T("action.remove"));
         // Offers and notices of the shell that carried a word only: the same catalog icons as the rest of the page.
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionAccept, "plus");
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionDismiss, "x");
         CommandBindings.EnsureIconBeforeText(DownloadSearchClear, "x");
+        CommandBindings.EnsureIconBeforeText(InspectorCopyUrlButton, "copy");
+        CommandBindings.EnsureIconBeforeText(InspectorCopyDirectoryButton, "copy");
         CommandBindings.EnsureIconBeforeText(WorkViewNoticeAdvanced, "eye");
         CommandBindings.EnsureIconBeforeText(WorkViewNoticeDismiss, "check");
         LocalizeShellFeedbackAction();
@@ -343,7 +336,6 @@ public partial class MainWindow
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
         LocalizeHeaderTagline();
-        LocalizeDownloadSearchClose();
         LocalizeAdmissionDismiss();
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
@@ -418,6 +410,7 @@ public partial class MainWindow
 
     private void RefreshWorkspaceStatusText()
     {
+        ApplyFooterDisplayPreferences(); // a retried view-preference write also publishes a confirmed configuration
         string stateKey = _isClosing ? "shell.stopping" : _session.Projection.IsPauseTransitioning ? "shell.pausing" : _importing ? "shell.importing" : _session.Projection.View.State switch
         {
             DesktopSessionState.Ready => _session.Projection.IsPaused ? "shell.paused" : "shell.ready",
@@ -433,6 +426,7 @@ public partial class MainWindow
     private void RefreshDetailsToggleIcon()
     {
         bool visible = WorkspaceInspector.IsVisible;
+        DetailsToggleButton.IsChecked = visible;
         CommandBindings.ApplyLabeled(DetailsToggleButton,
             visible ? "inspector.close" : "thread.details",
             Texts.T(visible ? "action.hideDetails" : "action.showDetails"));
@@ -467,13 +461,6 @@ public partial class MainWindow
         return thread != null && UrlList.Contains(thread) ? thread : null;
     }
 
-    private string? GetInspectorUrl() => GetWorkspaceSelection() switch
-    {
-        ThreadRow thread => thread.Url,
-        BoardRow board => board.Url,
-        _ => null
-    };
-
     private void RefreshWorkspaceInspector()
     {
         if (_sessionRowsApplying) return;
@@ -482,7 +469,20 @@ public partial class MainWindow
         bool hasSelection = selected != null;
         InspectorEmptyState.IsVisible = !hasSelection;
         InspectorSelection.IsVisible = hasSelection;
-        if (selected == null) return;
+        int removeCount = selected switch
+        {
+            ThreadRow => SelectedThreads().Length,
+            BoardRow => SelectedBoards().Length,
+            _ => 0
+        };
+        string removeLabel = CommandCatalog.Label("watch.remove");
+        if (removeCount > 1) removeLabel += $" ({removeCount})";
+        CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", removeLabel);
+        if (selected == null)
+        {
+            BindInspectorCopyValues(null, null, null);
+            return;
+        }
 
         bool isThread = selected is ThreadRow;
         string title;
@@ -521,8 +521,7 @@ public partial class MainWindow
         InspectorTitle.Text = title;
         InspectorSource.Text = source;
         InspectorStatus.Text = status;
-        InspectorUrl.Text = url;
-        InspectorDirectory.Text = directory;
+        BindInspectorCopyValues(selected, url, directory);
         InspectorMediaSection.IsVisible = isThread;
         SelectableTextBlock workContext = InspectorContext;
         workContext.Text = context;
@@ -538,7 +537,7 @@ public partial class MainWindow
         InspectorNextStep.Text = needsRetry ? WorkNextStep.Text(CommandCatalog.Label("watch.retry-media"),
             CommandCatalog.ShortcutDisplay("watch.retry-media")) : string.Empty;
         InspectorRemoveHint.Text = Texts.T(isThread ? "detail.removeHint" : "detail.boardRemoveHint");
-        foreach (string name in new[] { "InspectorOpenFolderButton", "InspectorOpenBrowserButton", "InspectorCopyUrlButton" })
+        foreach (string name in new[] { "InspectorOpenFolderButton", "InspectorOpenBrowserButton" })
             WorkspaceControl<Button>(name).IsEnabled = !_isClosing;
         InspectorRemoveButton.IsEnabled = _restoreCompleted && !_isClosing;
         DiagnosticTarget target = selected is ThreadRow selectedThread
@@ -657,20 +656,24 @@ public partial class MainWindow
         RefreshWorkspace();
     }
 
-    private void OnDetailsToggleClick(object? sender, RoutedEventArgs e)
+    private void OnDetailsToggleClick(object? sender, RoutedEventArgs e) => ToggleWorkspaceDetails();
+
+    private void ToggleWorkspaceDetails()
     {
+        bool closing = WorkspaceInspector.IsVisible;
+        if (closing) DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
         if (_workspaceNarrowLayout) _workspaceNarrowInspectorVisible = !_workspaceNarrowInspectorVisible;
         else _workspaceInspectorVisible = !_workspaceInspectorVisible;
         UpdateWorkspaceLayout();
         RefreshWorkspace();
     }
 
-    private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_refreshingDownloadSearch) return;
+        if (_workspaceInitialized && ReferenceEquals(e.Source, DownloadsTabs))
+            DownloadsColumnsButton.ContextMenu?.Close();
         RefreshWorkspace();
     }
-    private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
     private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e) => GoToDownloads();
 
     // The footer button and the empty states of Archive and Media share this destination.

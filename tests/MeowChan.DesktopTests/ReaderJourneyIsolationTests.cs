@@ -66,13 +66,14 @@ public sealed class ReaderJourneyIsolationTests
         Assert.Contains("await GalleryCloseChecks.RunAsync(mainWindow, videoFixture,", source[lifecycle..]);
     }
 
-    // Hash the original contiguous journey statements (ba1842af4 lines 217–425).
-    // Keep assertions/actions intact when moving them; new setup belongs outside these blocks.
+    // Owned navigation keeps the continuous-list assertion from 8be37b24a and the frozen query checks.
+    // Per Tom's 1.1.2 FOK-3 decision (25 Nov, 17:55), arrows now start on the focused post card.
+    // The two gallery journeys still match ba1842af4 lines 249–425.
     [Theory]
-    [InlineData("CheckOwnedNavigationAsync", "C4D4414489682918FAF73F8F1F1E1ACEC11EA106469EE541550D2C1201A297F8")]
+    [InlineData("CheckOwnedNavigationAsync", "3B05815D54A3CC49B69A49D4B5700893C56E64B5842C904286BB816A7945C686")]
     [InlineData("CheckGalleryRoundtripAsync", "D56D7315DB3A2C848CB94F63F856CEA96B48A1208130A002C93AD2CF64F97F7C")]
     [InlineData("CheckListGalleryReturnAsync", "BDEFAB3078B96B9D0F39958B9C6B69A28F72E1C55EAF8E24690F5EF9FE483292")]
-    public void ExtractedJourneyRetainsEveryOriginalStatement(string method, string expected)
+    public void ExtractedJourneyRetainsEveryReviewedStatement(string method, string expected)
     {
         string source = Read("ReaderUxChecks.cs");
         int start = source.IndexOf("private static async Task " + method, StringComparison.Ordinal);

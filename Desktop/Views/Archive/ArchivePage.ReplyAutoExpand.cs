@@ -21,7 +21,7 @@ public partial class ArchivePage
 
     private void UpdateFocusedReplies(bool keepPosition = false)
     {
-        if (_ended || !_replyAutoExpand.Enabled && _replyAutoExpand.AutomaticallyOpened == null) return;
+        if (_ended || (!_replyAutoExpand.Enabled && _replyAutoExpand.AutomaticallyOpened == null)) return;
         Func<Task>? restore = keepPosition && !ReaderJumpOwnsScroll ? CaptureReaderCountLayoutCorrection() : null;
         ArchivePostRow? previous = _replyAutoExpand.AutomaticallyOpened;
         _replyAutoExpand.Focus(ArchivePosts.SelectedItem as ArchivePostRow);

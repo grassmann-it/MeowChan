@@ -124,12 +124,16 @@ internal static class Alpha2CopyChecks
 
             // A delayed successful grant remains bound to its captured source;
             // the new strict selection must not inherit its hint or focus command.
+            window.WindowState = WindowState.Normal;
+            window.Width = 760; window.Height = 500;
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 760, 500));
             sources.SelectSource(First); await ToggleAsync(window, sources, false);
             pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
             await ActivatePermissionAsync(window, sources);
             Require(sources.IsBusy && saves[^1] is { Source: First, Allow: true }, "Pending grant lost its captured target.");
-            sources.SelectSource(Second);
-            await FinishPendingOnSelectionAsync(window, sources, pending);
+            // An external projection change can replace the selection while user selection is blocked.
+            sources.Refresh([providers[1]], session.GetView(), true);
+            await FinishPendingOnSelectionAsync(window, sources, providers[1], pending);
             pending = null;
             AssertSource(sources, providers[1], granted: false, active: true, hasPolicy: true);
             Require(first.GetView().IsGranted && !second.GetView().IsGranted,
@@ -138,12 +142,13 @@ internal static class Alpha2CopyChecks
 
             // A delayed failure on the old source may not place an error or hint
             // onto the currently selected strict source or steal its focus.
+            sources.Refresh(providers, session.GetView(), true);
             sources.SelectSource(First); failSave = true;
             pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
             await ActivatePermissionAsync(window, sources);
             Require(sources.IsBusy && saves[^1] is { Source: First, Allow: false }, "Pending revoke lost its captured target.");
-            sources.SelectSource(Second);
-            await FinishPendingOnSelectionAsync(window, sources, pending);
+            sources.Refresh([providers[1]], session.GetView(), true);
+            await FinishPendingOnSelectionAsync(window, sources, providers[1], pending);
             pending = null; failSave = false;
             AssertSource(sources, providers[1], granted: false, active: true, hasPolicy: true);
             Require(first.GetView().IsGranted && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible
@@ -264,24 +269,25 @@ internal static class Alpha2CopyChecks
             "The current identity, saved permission, scope or status was overwritten by retry guidance.");
     }
 
-    private static async Task FinishPendingOnSelectionAsync(MainWindow window, SourcesPage page, TaskCompletionSource gate)
+    private static async Task FinishPendingOnSelectionAsync(MainWindow window, SourcesPage page, ProviderDescriptor selected,
+        TaskCompletionSource gate)
     {
-        // The current source's settings button remains enabled while a consent
-        // save is pending. Drain the intentional selection-focus request first,
-        // then observe whether completion displaces this new selection's focus.
         await Settle();
-        Button focus = C<Button>(page, "SourcePluginButton");
+        AssertSource(page, selected, granted: false, active: true, hasPolicy: true);
+        // The narrow source detail keeps Back available during a consent save.
+        Button focus = C<Button>(page, "SourceBackButton");
         await RevealAsync(window, focus);
         Require(focus.IsEffectivelyEnabled && focus.Focus(NavigationMethod.Tab),
-            "Current source settings button refused focus during the pending action.");
+            "Back on the selected source refused focus during the pending action.");
         await Settle();
-        Require(focus.IsFocused, "Focus was not established before completing the delayed action.");
+        Require(page.IsBusy && focus.IsFocused, "Focus was not established while the delayed action was pending.");
         gate.SetResult();
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await Settle();
         Require(focus.IsFocused && InViewport(window, focus)
             && window.SelectedPage == MainWindow.WorkspacePage.Sources,
             "A late completion navigated away or displaced the selected source focus.");
+        Observation(window, "late-selection-focus", new { source = selected.SourceId, focus = State(window, focus) });
     }
 
     private static async Task ToggleAsync(MainWindow window, SourcesPage page, bool intended, bool? expectedSaved = null)

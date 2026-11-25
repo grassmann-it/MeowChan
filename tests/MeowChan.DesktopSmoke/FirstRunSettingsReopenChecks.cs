@@ -91,7 +91,7 @@ internal static class FirstRunSettingsReopenChecks
         finally
         {
             Dispatcher.UIThread.VerifyAccess();
-            abandoned.EndLifetime();
+            abandoned.Dispose();
             first.Close();
         }
         Require(!first.IsVisible, "Abandoned editor window did not close before reopen.");
@@ -114,7 +114,7 @@ internal static class FirstRunSettingsReopenChecks
         finally
         {
             Dispatcher.UIThread.VerifyAccess();
-            editor.EndLifetime();
+            editor.Dispose();
             second.Close();
         }
         Require(!second.IsVisible, "Reopened editor window did not close.");

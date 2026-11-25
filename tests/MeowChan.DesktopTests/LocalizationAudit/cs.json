@@ -37,6 +37,7 @@
   "media.badge.video": {"text": "Video", "reason": "Same-spelling Czech term “Video” in this context."},
   "media.badge.videoDuration": {"text": "Video {0}", "reason": "Same-spelling video label followed by the duration."},
   "media.breakdown.summary": {"text": "{0}: {1}", "reason": "Formatting template consisting of placeholders and punctuation."},
+  "media.fact.sizeHint": {"text": "{0} {1} ({2})", "reason": "Shared formatting for the provider size, unit and precision."},
   "media.filter.board": {"text": "Board", "reason": "Imageboard term retained in this locale."},
   "media.filter.boardOfSource": {"text": "/{0}/ ({1})", "reason": "Board identifier and count in shared imageboard notation."},
   "media.rating.accessibleValue": {"text": "{0}: {1}", "reason": "Formatting template consisting of placeholders and punctuation."},

@@ -46,6 +46,7 @@ internal static partial class SmokeScenarios
     {
         "video-lifecycle" => VideoLifecycleChecks.RunAsync(),
         "window-minimum" => WindowMinimumChecks.RunAsync(window),
+        "reader-sidebar-header" => ReaderMediaSidebarChecks.RunAsync(window, headerOnly: true),
         "reader-owned-navigation" or "reader-gallery-roundtrip" or "reader-list-gallery-return"
             => ReaderUxChecks.RunJourneyAsync(window, id),
         _ => ReaderUxChecks.RunAsync(window)
@@ -119,7 +120,7 @@ internal static partial class SmokeScenarios
         ["theme-colors"] = new(SmokeStage.Ready, mainWindow => ThemeColorsChecks.RunAsync(mainWindow)),
         ["tagging-page"] = new(SmokeStage.Ready, mainWindow => TaggingPageChecks.RunAsync(mainWindow))
         {
-            Seed = MediaPageChecks.SeedAsync,
+            Seed = TaggingPageChecks.SeedAsync,
             Configure = config => { config.Theme = "Light"; config.WorkViewSwitchNoticeSeconds = 0; }
         },
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),

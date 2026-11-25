@@ -36,7 +36,7 @@ public partial class ArchivePage
         ArchiveMediaTiles.ItemsPanel = new FuncTemplate<Panel?>(() =>
         {
             ArchiveTileAppearance appearance = ArchiveTileMetrics.For(_tileSize);
-            return new MediaTilePanel { ColumnWidth = appearance.CellWidth, ItemHeight = appearance.CellHeight };
+            return new MediaTilePanel { ColumnWidth = appearance.CellWidth, ItemHeight = appearance.CellHeight, FillColumns = true };
         });
         ArchiveMediaTileView.SetTileSize(ArchiveMediaTiles, _tileSize);
         _tileSizeInput = TileSizeInput.Install(ArchiveMediaTiles, TileSizeCommands.Archive, () => _tileSize, ChooseMediaTileSize);

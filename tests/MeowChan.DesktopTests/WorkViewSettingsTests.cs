@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan.DesktopTests;
@@ -158,6 +159,86 @@ public sealed class WorkViewSettingsTests
         // A change that is taken back never opens anything.
         Assert.False(SettingsGroupRules.ShouldOpen(2, 1, false, false));
     }
+
+    [Fact]
+    public void ConfirmedFooterDisplaysDoNotCountAsDraftEdits() => BooruComponentDispatcher.Run(() =>
+    {
+        TokenApplication.Bind();
+        Config config = new() { WorkspaceMode = WorkView.Barebones.ToSetting() };
+        SettingsEditor editor = new(config);
+        try
+        {
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(InterfaceGroup().Expanded);
+            Assert.False(editor.HasUnsavedChanges);
+
+            config.ShowFooterNetwork = config.ShowFooterDisk = true;
+            config.ShowFooterStatus = false;
+            editor.RefreshConfirmedFooterDisplays();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(editor.ShowFooterNetwork);
+            Assert.True(editor.ShowFooterDisk);
+            Assert.False(editor.ShowFooterStatus);
+            Assert.Equal(0, InterfaceGroup().Changed);
+            Assert.False(InterfaceGroup().Expanded);
+            Assert.False(editor.HasUnsavedChanges);
+
+            editor.ShowFooterNetwork = false;
+            editor.ShowFooterStatus = true;
+            editor.CompactDensity = !config.CompactDensity;
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(InterfaceGroup().Expanded);
+            Assert.Equal(3, InterfaceGroup().Changed);
+
+            config.ShowFooterNetwork = config.ShowFooterDisk = false;
+            editor.RefreshConfirmedFooterDisplays();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(editor.ShowFooterNetwork);
+            Assert.False(editor.ShowFooterDisk);
+            Assert.True(editor.ShowFooterStatus);
+            Assert.NotEqual(config.CompactDensity, editor.CompactDensity);
+            Assert.Equal(2, InterfaceGroup().Changed);
+            Assert.True(editor.HasUnsavedChanges);
+        }
+        finally { editor.EndLifetime(); }
+
+        SettingsEditor.GroupState InterfaceGroup() => Assert.Single(editor.GroupStates(), group => group.Id == "settings.group.interface-more");
+    });
+
+    [Fact]
+    public void InterfaceResetKeepsItsFooterDraftAndCountsChangesAgainstTheConfirmedDisplays() => BooruComponentDispatcher.Run(() =>
+    {
+        TokenApplication.Bind();
+        Config config = new();
+        SettingsEditor editor = new(config);
+        try
+        {
+            Assert.False(editor.ShowFooterNetwork);
+            editor.ResetDraft(SettingsEditor.SettingsResetScope.Interface);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(0, InterfaceGroup().Changed);
+
+            // FIX-112-CI round 2 review: a confirmed footer menu choice changes the reference while a reset holds the draft.
+            config.ShowFooterNetwork = true;
+            editor.RefreshConfirmedFooterDisplays();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal((false, false, true), (editor.ShowFooterNetwork, editor.ShowFooterDisk, editor.ShowFooterStatus));
+            Assert.Equal(1, InterfaceGroup().Changed);
+            Assert.True(editor.HasUnsavedChanges);
+
+            config.ShowFooterNetwork = false;
+            editor.RefreshConfirmedFooterDisplays();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(0, InterfaceGroup().Changed);
+        }
+        finally { editor.EndLifetime(); }
+
+        SettingsEditor.GroupState InterfaceGroup() => Assert.Single(editor.GroupStates(), group => group.Id == "settings.group.interface-more");
+    });
 
     [Fact]
     public void HeaderCarriesTheCounterAndTheChangedCountOnlyWhenThereIsOne()

@@ -323,8 +323,13 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
     public Func<FavoriteStarHold>? FavoriteHold { get; set; }
     public string Name => Asset.OriginalFileName ?? System.IO.Path.GetFileName(Asset.Path);
     public string Size => SizeText.Format(Asset.Length);
-    public string TileSummary => Size + " · " + Texts.T(Asset.IsCurrent ? "gallery.latestVersions" : "gallery.earlierVersion");
-    public string Version => Asset.Sha256[..Math.Min(12, Asset.Sha256.Length)];
+    public string ExactSize => MediaProvenanceText.FactSize(Asset.Length);
+    private string Revision => Texts.T(Asset.IsCurrent ? "archive.media.revision.current" : "archive.media.revision.earlier");
+    public string TileSummary => Size.Replace(' ', '\u00A0') + " · " + Revision;
+    public string Version => string.IsNullOrEmpty(Asset.Sha256) ? Revision
+        : Revision + " · " + Asset.Sha256[..Math.Min(12, Asset.Sha256.Length)];
+    public string VersionDetail => string.IsNullOrEmpty(Asset.Sha256) ? Revision
+        : Revision + Environment.NewLine + Texts.T("archive.media.sha256", Asset.Sha256);
     public string Path => Asset.Path;
 }
 
@@ -351,11 +356,5 @@ internal static class ArchivePresentation
         return (header, body);
     }
 
-    // 4chan/8kun number the opening post with the thread number, so a thread whose OP was not
-    // captured has none. Other sources: the first captured post opens the thread.
-    internal static string? OpeningPostId(ArchivedThreadView thread) => OpeningPostId(thread.Summary.Id,
-        id => thread.FindPostIndex(id) >= 0, thread.PostCount == 0 ? null : thread.GetPosts(0, 1)[0].PostId);
-
-    internal static string? OpeningPostId(ResourceId thread, Func<string, bool> captured, string? firstPost) =>
-        thread.Thread is { } id && captured(id) ? id : thread.Source is "4chan" or "8kun" ? null : firstPost;
+    internal static string? OpeningPostId(ArchivedThreadView thread) => ArchivePostOrder.OpeningPostId(thread);
 }

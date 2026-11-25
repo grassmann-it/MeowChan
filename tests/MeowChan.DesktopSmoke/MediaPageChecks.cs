@@ -121,6 +121,7 @@ internal static partial class MediaPageChecks
             Require(page.Snapshot is { Complete: true } && page.Snapshot.Threads.Count == 2, "Index did not cover both threads.");
             Require(page.ShownEntries.Count == 3 && page.ShownEntries.All(entry => entry.Presence == MediaLibraryPresence.Present),
                 "Default view must show exactly the three saved files.");
+            await CheckNarrowMediaToolbarAsync(window, page);
             // By thread: the newer thread B first, then A's post file, then A's file without a post.
             Require(page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")).SequenceEqual(new[] { "200:200", "100:100", "100:-" }),
                 "By-thread order is wrong: " + string.Join(",", page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + entry.PostId)));
@@ -391,6 +392,7 @@ internal static partial class MediaPageChecks
             await host.SetMediaTagAsync(keep.Tag, MediaLibraryFilterEngine.TagTarget(fixtureTwo)!, true).WaitAsync(Deadline);
             List<MediaLibraryEntry> edited = new();
             MediaPage page = new(host.OpenArchiveReaderAsync) { ReadUserData = () => UserData(host), EditTags = entry => { edited.Add(entry); return Task.CompletedTask; } };
+            page.InitializeSharedMediaMenus();
             Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Synthetic media state", ShowInTaskbar = false };
             try
             {
@@ -415,7 +417,7 @@ internal static partial class MediaPageChecks
                 // T2: own tags are chips beside the thread link; a chip filters by its tag (a thread tag reaches the whole thread),
                 // a second chip narrows further, and the chip in the filter row removes it again.
                 Button chip = null!;
-                await UntilAsync(() => (chip = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
+                await UntilAsync(() => (chip = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => AutomationProperties.GetAutomationId(button) == "MediaTileTag0"
                     && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == two)!) != null);
                 Require(MediaLibraryTileView.ChipLabel(chip).Text == "keep" && Equals(ToolTip.GetTip(chip), Texts.T("media.tile.tagHint", "keep"))
                     && chip.Classes.Contains("chip-own") && chip.Classes.Contains("chip-compact") && !MediaLibraryTileView.ChipThreadMark(chip).IsVisible
@@ -426,18 +428,15 @@ internal static partial class MediaPageChecks
                 Require(chipEnd is { } end && end.Y <= chipTile.Bounds.Height && end.X <= chipTile.Bounds.Width
                     && (chipTile.Content as Control)!.DesiredSize.Height <= MediaLibraryTileView.TileHeight, "The tag chip must fit inside its tile: " + chipEnd);
                 Program.CaptureWindow(window, "smoke-media-tag-chips.png");
-                Require(chip.Focus(), "A tag chip must take keyboard focus.");
-                chip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-                Require(page.ShownEntries.SequenceEqual(new[] { two }) && page.FilterChips.Children.Count == 1, "Enter on the tag chip did not filter by it.");
+                Require(!chip.Focus(), "A tag chip must leave focus on the tile.");
+                await UseTileTagMenuAsync(TagPickerMenu.Include);
+                Require(page.ShownEntries.SequenceEqual(new[] { two }) && page.FilterChips.Children.Count == 1, "The tile menu did not include the selected tag.");
                 await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
                 RemoveChip(page.FilterChips, 0);
-                // S7: Shift+Enter (like Shift+click) on a tile chip hides the media that carry the tag; its filter chip says "Without tag".
-                await UntilAsync(() => (chip = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
-                    && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == two)!) != null);
-                Require(chip.Focus(), "A tag chip must take keyboard focus for the exclusion.");
-                chip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, KeyModifiers = KeyModifiers.Shift });
+                // S7: excluding a tile's tag hides the media that carry it and shows a "Without tag" filter chip.
+                await UseTileTagMenuAsync(TagPickerMenu.Exclude);
                 Require(!page.ShownEntries.Contains(two) && page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().Single().Classes.Contains("chip-exclude"),
-                    "Shift+Enter on the tag chip did not exclude its tag.");
+                    "The tile menu did not exclude the selected tag.");
                 await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
                 RemoveChip(page.FilterChips, 0);
                 Button threadTag = null!;
@@ -450,6 +449,28 @@ internal static partial class MediaPageChecks
                 Require(page.ShownEntries.Count == 2 && page.ShownEntries.All(entry => entry.Thread == A), "The thread tag chip must reach the whole thread.");
                 page.ResetFilters();
                 Require(page.ShownEntries.Count == 3, "Reset did not clear the chip filter.");
+
+                async Task UseTileTagMenuAsync(string command)
+                {
+                    Control? lead = null;
+                    await UntilAsync(() => (lead = page.Grid.ContainerFromItem(Row(two)))?.IsEffectivelyVisible == true);
+                    Require(lead!.Focus(NavigationMethod.Tab), "The tagged tile must take keyboard focus.");
+                    SendKey(lead, Key.F10, KeyModifiers.Shift);
+                    ContextMenu menu = page.MediaMenu ?? throw new InvalidOperationException("The tile did not open its menu.");
+                    Require(menu.IsOpen && page.MediaMenuSession?.Target?.AssetId == two.AssetId, "The menu must belong to the tagged medium.");
+                    MenuItem tag = menu.Items.OfType<MenuItem>()
+                        .Single(item => AutomationProperties.GetAutomationId(item) == "MediaTileTagMenu:" + keep.Tag.Value);
+                    Require(tag.Focus(NavigationMethod.Directional), "The tag submenu must take keyboard focus.");
+                    SendKey(tag, Key.Right);
+                    await UntilAsync(() => tag.IsSubMenuOpen);
+                    MenuItem action = tag.Items.OfType<MenuItem>()
+                        .Single(item => AutomationProperties.GetAutomationId(item) == command + ":" + keep.Tag.Value);
+                    Require(action.Focus(NavigationMethod.Directional), "The filter action must take keyboard focus.");
+                    SendKey(action, Key.Enter);
+                }
+
+                static void SendKey(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
+                    target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
 
                 // The tile carries the same text as a tooltip and as its automation name.
                 MediaLibraryTileView tile = null!;

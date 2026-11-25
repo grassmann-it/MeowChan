@@ -158,9 +158,8 @@ public partial class ArchivePage
         ResourceId? selected = _selectedThread;
         MediaRead media = _mediaRead;
         bool reader = _showReader;
-        int offset = _postOffset;
         int tab = ArchiveContentTabs.SelectedIndex;
-        ReaderAnchor? readerAnchor = reader && tab == 0 ? CaptureReaderAnchor() : null;
+        ReaderAnchor? readerAnchor = reader ? CaptureReaderAnchor() : null;
         ArchiveSearchSpec query = _query;
         ArchiveSearchRequest? appliedSearch = _appliedSearch;
         var appliedWork = _appliedWork;
@@ -173,8 +172,10 @@ public partial class ArchivePage
         ResourceId? listLead = _archiveLeadId;
         ArchiveAssetRow[] mediaSelection = SelectedMediaRows().ToArray();
         MediaPosition? mediaPosition = CaptureMediaPosition();
+        if (mediaPosition != null && restoreReaderFocus && ArchiveMediaTab.IsSelected)
+            mediaPosition = mediaPosition with { FocusSelection = true };
         string? postSelection = (ArchivePosts.SelectedItem as ArchivePostRow)?.Id;
-        InlineReplyState[] inlineReplies = CaptureInlineReplyState();
+        InlineRepliesSnapshot inlineReplies = CaptureInlineReplyState();
         var history = _history.ToArray();
         ReaderAnchor? backlinkOrigin = _backlinkOriginAnchor;
         ArchivePostId? backlinkPost = _backlinkPost;
@@ -217,7 +218,10 @@ public partial class ArchivePage
             CloseThreadFind();
             _thread = thread; _selectedThread = selected;
             ReaderSnapshotLoaded();
-            _postOffset = offset; _showReader = reader;
+            _readerPostId = postSelection;
+            _projectionSelectionPost = null;
+            _postsAnchorOnShow = null;
+            _showReader = reader;
             // A gallery can open while the origin's manifests are still being read. Use the result
             // if it arrived while away, keep the active read, or restart a read cancelled by a jump.
             bool restartMedia = false;
@@ -246,17 +250,19 @@ public partial class ArchivePage
                 RestoreArchiveSelection(listRows);
             }
             finally { _updatingList = false; }
-            RenderThread(); UpdateLayoutMode();
+            RenderThreadWithReplies(inlineReplies); UpdateLayoutMode();
             if (restartMedia) MediaLoadTask = LoadMediaAsync(thread!);
-            RestoreInlineReplyState(inlineReplies);
             ArchiveContentTabs.SelectedIndex = tab;
             SetMediaSelection(mediaSelection);
-            if (ArchivePosts.ItemsSource is IEnumerable<ArchivePostRow> posts)
-                ArchivePosts.SelectedItem = posts.FirstOrDefault(post => post.Id == postSelection);
+            if (Projection != null) ArchivePosts.SelectedItem = FindPostRow(postSelection);
             foreach (var item in scroll) item.View.Offset = item.Offset;
             if (_mediaLoading && _assets.Count == 0) _retainedMediaPosition = mediaPosition;
-            else RestoreMediaPosition(mediaPosition);
-            if (readerAnchor != null) _ = RestoreReaderAnchorAsync(readerAnchor, restoreReaderFocus);
+            else
+            {
+                RestoreMediaPosition(mediaPosition);
+                FollowSavedMediaSelection();
+            }
+            if (readerAnchor != null) _ = RestoreReaderAnchorAsync(readerAnchor, restoreReaderFocus, preserveTab: true);
         };
     }
 
@@ -414,29 +420,20 @@ public partial class ArchivePage
         if (_thread == null) return;
         if (_thread.FindPostIndex(postId) < 0) return;
         if (reveal) RevealPostNow(postId);
-        // Pages are cut from the shown order; a view still being prepared puts its page at the post when it is ready.
-        if (Projection is not { } projection) { _projectionPagePost = postId; return; }
+        if (Projection is not { } projection) { _projectionSelectionPost = postId; return; }
         int index = projection.NearestPosition(postId);
         if (index < 0) return;
-        postId = projection[index].Post.PostId;
-        int offset = index / ReaderPageSize * ReaderPageSize;
-        // Moving within a page keeps realized controls, pending previews and their geometry.
-        if (offset != _postOffset || ArchivePosts.ItemsSource is not IEnumerable<ArchivePostRow> current
-            || !current.Any(post => post.Id == postId))
-        {
-            _postOffset = offset;
-            RenderThread(refreshMedia: !background);
-        }
         if (!background)
         {
-            _postsAlignOnShow = null; // an explicit jump aligns the list itself
+            _postsAnchorOnShow = null; // an explicit jump aligns the list itself
             ArchiveContentTabs.SelectedIndex = 0;
         }
-        ListBox list = ArchivePosts;
-        if (list.ItemsSource is System.Collections.Generic.IEnumerable<ArchivePostRow> posts)
+        ArchivePosts.SelectedIndex = index;
+        if (scroll)
         {
-            list.SelectedItem = posts.FirstOrDefault(post => post.Id == postId);
-            if (scroll && list.SelectedItem != null) list.ScrollIntoView(list.SelectedItem);
+            // A reveal can rebuild the panel, and the Posts tab may have just attached its content.
+            ArchivePosts.UpdateLayout();
+            ArchivePosts.ScrollIntoView(index);
         }
     }
 }

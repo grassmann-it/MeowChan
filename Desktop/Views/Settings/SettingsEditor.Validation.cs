@@ -79,14 +79,14 @@ public partial class SettingsEditor
     private async Task<bool> CheckDestinationAsync(string path, int reserveGiB)
     {
         long revision = _draftRevision;
-        using var wait = new CancellationTokenSource();
-        _destinationWait = wait;
+        _destinationWait = new CancellationTokenSource();
+        CancellationToken cancellation = _destinationWait.Token;
         _isCheckingDestination = true;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCheckingDestination)));
         try
         {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCheckingDestination)));
             DownloadDestinationResult result = await DestinationValidator.CheckAsync(path,
-                _config.DownloadPathBaseDirectory, checked((long)reserveGiB * (1L << 30)), TimeSpan.FromSeconds(5), wait.Token);
+                _config.DownloadPathBaseDirectory, checked((long)reserveGiB * (1L << 30)), TimeSpan.FromSeconds(5), cancellation);
             if (_isClosed || !IsAvailable || revision != _draftRevision) return false;
             _destinationStatus = result.Status;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationStatusText)));
@@ -96,6 +96,7 @@ public partial class SettingsEditor
         }
         finally
         {
+            _destinationWait?.Dispose();
             _destinationWait = null;
             _isCheckingDestination = false;
             if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCheckingDestination)));
@@ -182,6 +183,7 @@ public partial class SettingsEditor
         NotifyBooruSearchHelpChanged();
         NotifyTagQueueHelpChanged();
         NotifyBooruGalleryHelpChanged();
+        UpdateBooruListHelp();
         NotifyViewerHelpChanged();
         NotifyQuickTagHelpChanged();
         NotifyLimitsHelpChanged();
@@ -312,10 +314,12 @@ public partial class SettingsEditor
         foreach (var field in BooruSearchNumericFields()) yield return field;
         foreach (var field in TagQueueNumericFields()) yield return field;
         foreach (var field in BooruGalleryNumericFields()) yield return field;
+        foreach (var field in BooruListNumericFields()) yield return field;
         foreach (var field in ViewerNumericFields()) yield return field;
         foreach (var field in HeaderTaglineNumericFields()) yield return field;
         foreach (var field in QuickTagNumericFields()) yield return field;
         foreach (var field in LimitsNumericFields()) yield return field;
+        foreach (var field in BoardSuggestionNumericFields()) yield return field;
     }
 
     private void ClearFieldErrors()
@@ -328,7 +332,7 @@ public partial class SettingsEditor
         _fieldHelpErrors.Clear();
         foreach (var field in NumericFields())
         {
-            TextBlock error = this.FindControl<TextBlock>(field.Input.Name + "Error")!;
+            TextBlock error = FindSettingsFieldError(field.Input.Name + "Error")!;
             error.IsVisible = false;
             error.Text = null;
 
@@ -362,13 +366,13 @@ public partial class SettingsEditor
             string messageKey = key;
             NumericUpDown input = field.Input;
             Func<string> message = () => RenderNumericFieldError(input, messageKey);
-            TextBlock error = this.FindControl<TextBlock>(field.Input.Name + "Error")!;
+            TextBlock error = FindSettingsFieldError(field.Input.Name + "Error")!;
             error.Text = message();
             error.IsVisible = true;
             SetFieldErrorHelp(field.Input, message);
             _firstInvalidInput ??= field.Input;
         }
-        return FinishFieldValidation(focusError);
+        return FinishFieldValidation(focusError) && ValidateBooruListDraft(focusError);
     }
 
     // Validate the raw draft as well as Value: a rejected edit can leave Value at
@@ -402,7 +406,7 @@ public partial class SettingsEditor
         // technical details and the user's expander state. Do not validate again.
         foreach (var field in _fieldHelpErrors)
         {
-            TextBlock error = this.FindControl<TextBlock>(field.Key + "Error")!;
+            TextBlock error = FindSettingsFieldError(field.Key + "Error")!;
             error.Text = field.Value();
         }
         if (GallerySlideshowSecondsInputError.IsVisible)
@@ -414,8 +418,11 @@ public partial class SettingsEditor
     // The visible field error is what explains a failed save. It can sit well below its input (hints,
     // preview and check button in between), so a small window or large text would otherwise keep it off
     // screen while only the input's own row was revealed.
+    private TextBlock? FindSettingsFieldError(string name) => this.FindControl<TextBlock>(name)
+        ?? BooruListError(name) ?? BoardSuggestionError(name) ?? CatalogLimitError(name);
+
     private TextBlock? VisibleFieldError(Control input)
-        => input.Name != null && this.FindControl<TextBlock>(input.Name + "Error") is { IsVisible: true } error ? error : null;
+        => input.Name != null && FindSettingsFieldError(input.Name + "Error") is { IsVisible: true } error ? error : null;
 
     private Control FieldRevealTarget(Control input) => VisibleFieldError(input) ?? input.Parent as Control ?? input;
 

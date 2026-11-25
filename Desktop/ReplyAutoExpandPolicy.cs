@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using MeowChan.Interfaces;
 
 namespace MeowChan.Desktop;
@@ -42,11 +43,16 @@ internal sealed class ReplyAutoExpandPolicy
         row.RepliesExpanded = open;
     }
 
-    internal bool? ManualChoice(ArchivePostRow row) =>
-        _manualChoices.TryGetValue(row.Id, out bool open) ? open : null;
+    internal KeyValuePair<string, bool>[] CaptureManualChoices() => _manualChoices.ToArray();
+
+    internal void RestoreManualChoices(IEnumerable<KeyValuePair<string, bool>> choices)
+    {
+        _manualChoices.Clear();
+        foreach ((string id, bool open) in choices) _manualChoices.Add(id, open);
+    }
 
     internal void RestoreChoice(ArchivePostRow row)
     {
-        if (ManualChoice(row) is bool open) row.RepliesExpanded = open;
+        if (_manualChoices.TryGetValue(row.Id, out bool open)) row.RepliesExpanded = open;
     }
 }

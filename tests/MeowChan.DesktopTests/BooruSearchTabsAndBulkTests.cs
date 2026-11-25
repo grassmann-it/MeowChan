@@ -1,10 +1,17 @@
+using System.Text.Json;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using MeowChan;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class BooruSearchTabsAndBulkTests : IDisposable
 {
     private readonly BooruUiHarness _h = new();
@@ -16,11 +23,94 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
     public void Dispose() => _model.Dispose();
 
     [Fact]
-    public void TheSettingIsDefaultEightWithinOneAndThirtyTwo()
+    public void StopNamesTheRunningQueryAfterAnotherSearchInTheSameTab() => BooruComponentDispatcher.Run(() =>
     {
-        Assert.Equal((8, 1, 32), (new Config().BooruSearchTabs, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { BooruSearchTabs = 0 }.Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { BooruSearchTabs = 33 }.Validate());
+        BooruUiHarness harness = new();
+        harness.Serve(pages: 1, perPage: 1);
+        using BooruWorkbenchView view = new(harness.Services);
+        BooruSearchModel search = view.Model.Search;
+        BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(search, "cat"));
+        TaskCompletionSource<BooruCallResult<BooruResultPage>> response = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken ownerToken = default;
+        harness.Search.OnSearch = (query, page, token) =>
+        {
+            if (query == "dog") return Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true)));
+            ownerToken = token;
+            return response.Task;
+        };
+        Task bulk = search.DownloadAllAsync();
+        try
+        {
+            BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(search, "dog"));
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("dog", search.View.ExecutedQuery);
+            Assert.True(search.Bulk.IsRunning);
+            TabItem tab = Assert.IsType<TabItem>(Assert.IsType<TabControl>(view.Body).SelectedItem);
+            Button stop = Assert.Single(Assert.IsAssignableFrom<Control>(tab.Content).GetLogicalDescendants().OfType<Button>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.DownloadAllName);
+            Assert.True(stop.IsEnabled);
+            Assert.Contains("cat", Assert.IsType<string>(stop.Content));
+            Assert.Contains("cat", Assert.IsType<string>(ToolTip.GetTip(stop)));
+            Assert.Contains("cat", AutomationProperties.GetName(stop));
+            stop.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.True(ownerToken.IsCancellationRequested);
+        }
+        finally
+        {
+            response.SetResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page("cat", 1, true)));
+            BooruComponentDispatcher.Wait(bulk);
+        }
+        Assert.Equal(BooruBulkEnd.Canceled, search.Bulk.End);
+    });
+
+    [Fact]
+    public void BulkStatusFollowsTheTabAndResultsThatStartedIt() => BooruComponentDispatcher.Run(() =>
+    {
+        BooruUiHarness harness = new();
+        harness.Serve(pages: 1, perPage: 1);
+        using BooruWorkbenchView view = new(harness.Services);
+        BooruSearchModel search = view.Model.Search;
+        BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(search, "cat"));
+        BooruComponentDispatcher.Wait(search.DownloadAllAsync());
+        Dispatcher.UIThread.RunJobs();
+
+        int original = Assert.Single(view.SearchTabs.Ids);
+        Assert.True(Status().IsVisible);
+        Assert.True(view.SearchTabs.Add(copyCurrent: true) > 0);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(Status().IsVisible);
+        Assert.True(view.SearchTabs.Select(original));
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(Status().IsVisible);
+        BooruComponentDispatcher.Wait(search.SubmitAsync());
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(Status().IsVisible);
+
+        Border Status()
+        {
+            TabControl strip = Assert.IsType<TabControl>(view.Body);
+            TabItem selected = Assert.IsType<TabItem>(strip.SelectedItem);
+            Control content = Assert.IsAssignableFrom<Control>(selected.Content);
+            return Assert.Single(content.GetLogicalDescendants().OfType<Border>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.BulkStatusName);
+        }
+    });
+
+    [Theory]
+    [InlineData(1, 2)]
+    [InlineData(8, 9)]
+    [InlineData(32, 33)]
+    public void OldCapacityIsConvertedOnceThroughProfileAndTransfer(int legacy, int total)
+    {
+        Assert.Equal((9, 2, 33), (new Config().BooruSearchTabs, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum));
+        Config old = JsonSerializer.Deserialize($$"""{"BooruSearchTabs":{{legacy}}}""", ConfigJsonContext.Default.Config)!;
+        Assert.Equal(total, old.BooruSearchTabs);
+        old.Validate();
+        var transfer = SettingsTransfer.Export(old);
+        Assert.Equal(legacy, transfer[nameof(Config.BooruSearchTabs)]!.GetValue<int>());
+        Assert.Equal(total, transfer.Deserialize(ConfigJsonContext.Default.Config)!.BooruSearchTabs);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { BooruSearchTabs = 1 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { BooruSearchTabs = 34 }.Validate());
     }
 
     [Fact]
@@ -46,7 +136,7 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
         int second = tabs.Add(copyCurrent: true);
         _h.Queue.States["101"] = BooruLocalState.Loaded;
 
-        Assert.True(tabs.Select(BooruSearchTabs.PrimaryId));
+        Assert.True(tabs.Select(tabs.Ids[0]));
         Assert.True(tabs.Select(second));
         await BooruTestSupport.WaitAsync(() => _model.View.Rows[0].Load == BooruRowLoad.AlreadyLoaded, "the restored queue state");
         Assert.Equal("cat", _model.View.ExecutedQuery);
@@ -96,35 +186,41 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
         int copy = tabs.Add(copyCurrent: true);
         Assert.Equal("cat", _model.View.ExecutedQuery);
         Assert.Equal(copy, tabs.ActiveId);
-        tabs.Add(false); tabs.Add(false);
-        Assert.Equal(3, tabs.ExtraCount);
+        tabs.Add(false);
+        Assert.Equal(3, tabs.Ids.Count);
         Assert.False(tabs.CanAdd);
         Assert.Equal(-1, tabs.Add(false));
-        Assert.Equal(3, tabs.ExtraCount);
+        Assert.Equal(3, tabs.Ids.Count);
     }
 
     [Fact]
-    public async Task ClosingTheActiveTabActivatesItsLeftNeighbourAndTheSearchTabStays()
+    public async Task ClosingTheActiveTabActivatesItsLeftNeighbourAndTheLastTabReturnsToEmpty()
     {
         BooruSearchTabs tabs = new(_model, () => _limit);
         await BooruTestSupport.SearchAsync(_model, "cat");
         int a = tabs.Add(false);
         await BooruTestSupport.SearchAsync(_model, "dog");
         int b = tabs.Add(false);
-        Assert.False(tabs.Close(BooruSearchTabs.PrimaryId));
+        int first = tabs.Ids[0];
         Assert.True(tabs.Close(b));
         Assert.Equal(a, tabs.ActiveId);
         Assert.Equal("dog", _model.View.ExecutedQuery);
         Assert.True(tabs.Close(a));
-        Assert.Equal(BooruSearchTabs.PrimaryId, tabs.ActiveId);
+        Assert.Equal(first, tabs.ActiveId);
         Assert.Equal("cat", _model.View.ExecutedQuery);
+        Assert.True(tabs.Close(first));
+        Assert.Empty(tabs.Ids);
+        Assert.Null(tabs.ActiveId);
+        Assert.Empty(_model.View.Input);
+        Assert.Null(_model.View.ExecutedQuery);
     }
 
     [Fact]
-    public void ALimitBelowTheMinimumStillAllowsOneTab()
+    public void ALimitBelowTheMinimumStillAllowsTwoTabs()
     {
         BooruSearchTabs tabs = new(_model, () => -5);
-        Assert.Equal(1, tabs.Limit);
+        Assert.Equal(2, tabs.Limit);
+        Assert.True(tabs.Add(false) > 0);
         Assert.True(tabs.Add(false) > 0);
         Assert.False(tabs.CanAdd);
     }
@@ -132,6 +228,7 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
     [Fact]
     public async Task DownloadAllReadsAtMostFivePagesQueuesEachOriginalOnceAndNeverClaimsCompletion()
     {
+        _ = new BooruSearchTabs(_model);
         _h.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, false,
             Enumerable.Range(0, 20).Select(i => BooruUiFixtures.Post((page * 100 + i).ToString())).ToArray())));
         await BooruTestSupport.SearchAsync(_model, "cat");
@@ -149,6 +246,7 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
     [Fact]
     public async Task DownloadAllCountsWithoutOriginalAndStopsAtTheSourceEndOrAnError()
     {
+        _ = new BooruSearchTabs(_model);
         _h.Search.OnSearch = (query, page, _) => Task.FromResult(page == 1
             ? BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, 1, false, BooruUiFixtures.Post("1"), BooruUiFixtures.Post("2", BooruOriginalAccess.NotOffered), BooruUiFixtures.Post("1")))
             : BooruCallResult<BooruResultPage>.Of(BooruCallStatus.RateLimited));
@@ -156,6 +254,30 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
         await _model.DownloadAllAsync();
         BooruBulkView bulk = _model.Bulk;
         Assert.Equal((BooruBulkEnd.Blocked, 1, 2, 1, 1), (bulk.End, bulk.PagesRead, bulk.Found, bulk.Queued, bulk.NoOriginal));
+    }
+
+    [Fact]
+    public async Task ClosingTheBulkOwnerCancelsEvenIfTheProviderCompletesAfterCancellation()
+    {
+        BooruSearchTabs tabs = new(_model);
+        _h.Serve(pages: 1, perPage: 1);
+        await BooruTestSupport.SearchAsync(_model, "cat");
+        int owner = tabs.Ids[0];
+        TaskCompletionSource<BooruCallResult<BooruResultPage>> response = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        _h.Search.OnSearch = (_, _, cancellation) => { token = cancellation; return response.Task; };
+        Task bulk = _model.DownloadAllAsync();
+        int second = tabs.Add(copyCurrent: true);
+        Assert.Equal(owner, _model.Bulk.TabId);
+        _model.CancelBulk();
+        Assert.False(token.IsCancellationRequested);
+        Assert.True(tabs.Close(owner));
+        Assert.Equal(second, tabs.ActiveId);
+        Assert.True(token.IsCancellationRequested);
+        response.SetResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page("cat", 1, true, BooruUiFixtures.Post("101"))));
+        await bulk.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(BooruBulkEnd.Canceled, _model.Bulk.End);
+        Assert.Empty(_h.Queue.Loads);
     }
 
     [Fact]

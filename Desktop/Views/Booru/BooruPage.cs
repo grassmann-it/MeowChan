@@ -51,8 +51,11 @@ internal sealed class BooruPage : UserControl, IDisposable
     internal BooruWorkbenchModel Model => _view.Model;
     internal bool HasSources(IReadOnlyList<BooruWorkbenchServices> sources) => Model.Sources.SequenceEqual(sources);
 
-    internal void RestoreSearchTabs(BooruSearchTabStore store, Config config) =>
+    internal void RestoreSearchTabs(BooruSearchTabStore store, Config config)
+    {
+        _view.ApplyListProfile(config);
         _tabPersistence = new BooruTabPersistence(_view, store, config);
+    }
 
     internal void FlushSearchTabs() => _tabPersistence?.Dispose();
 
@@ -92,7 +95,7 @@ internal sealed class BooruPage : UserControl, IDisposable
         // normal page insets, a bounded body for the results viewport, and the workbench's notes below.
         Grid layout = new() { Name = "BooruPageLayout", RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         header.Classes.Add("workspace-page-header");
-        Border heading = new() { Name = "BooruPageHeader", Child = header, Margin = new Thickness(12, 8, 12, 4) };
+        Border heading = new() { Name = "BooruPageHeader", Child = header, Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8) };
         ScrollViewer scroll = new()
         {
             Name = "BooruPageScroll", Content = body, Padding = new Thickness(12),

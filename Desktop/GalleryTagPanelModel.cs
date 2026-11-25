@@ -14,7 +14,7 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 /// <summary>Where the shown medium sits in the gallery list: "Medium 4 of 27"; <see cref="More"/> when more threads are still to be resolved.</summary>
-internal readonly record struct GalleryTagPanelPosition(int Number, int Count, bool More);
+internal readonly record struct GalleryTagPanelPosition(int Number, int Count, bool More, bool Queue = false);
 
 /// <summary>What the gallery tag panel needs from the window that owns the gallery: targets, the list, the session-wide recent list,
 /// limits and the full dialog. The viewer only shows state and raises requests; this is the one place that touches the tag store.</summary>
@@ -96,27 +96,6 @@ internal static class GalleryTagPanelCommands
         QuickTagNavigation.Previous or QuickTagNavigation.UnmarkPrevious => -1,
         _ => 0
     };
-
-    /// <summary>"Medium 4 of 27" for the counter chip and the live region; with <paramref name="marked"/> "Medium 4 of 27 · marked".
-    /// Null without a position.</summary>
-    internal static string? CounterText(GalleryTagPanelPosition? position, bool marked = false)
-    {
-        if (position is not { } value) return null;
-        string text = value.Number > 0
-            ? Texts.T(value.More ? "tags.quick.gallery.positionMore" : "tags.quick.gallery.position", value.Number, value.Count)
-            : Texts.T("thread.media.total", value.Count);
-        return marked ? Texts.T("tags.quick.marked.counter", text) : text;
-    }
-
-    /// <summary>The short form of <see cref="CounterText"/> for the panel header: "No. 4 / 27", "No. 4 / 27+" while threads resolve (the long text is its tooltip).</summary>
-    internal static string? ShortCounterText(GalleryTagPanelPosition? position, bool marked = false)
-    {
-        if (position is not { } value) return null;
-        string text = value.Number > 0
-            ? Texts.T(value.More ? "tags.quick.gallery.positionMoreShort" : "tags.quick.gallery.positionShort", value.Number, value.Count)
-            : Texts.T("thread.media.total", value.Count);
-        return marked ? Texts.T("tags.quick.marked.counter", text) : text;
-    }
 
     /// <summary>What the polite status line says after a mark request; null when nothing changed and nothing needs saying.</summary>
     internal static string? MarkAnnouncement(GalleryMarkResult result)
@@ -306,8 +285,7 @@ internal sealed class GalleryTagPanelController : IDisposable
     internal int ClearMarks() => Marks.Clear();
 
     /// <summary>The counter chip's text for <paramref name="entry"/>: position, with "marked" when this medium is.</summary>
-    internal string? ShortCounterFor(GalleryEntry entry) => GalleryTagPanelCommands.ShortCounterText(_owner.CounterPosition, IsMarked(entry));
-    internal string? CounterFor(GalleryEntry entry) => GalleryTagPanelCommands.CounterText(_owner.CounterPosition, IsMarked(entry));
+    internal string? CounterFor(GalleryEntry entry) => MediaPositionText.Long(_owner.CounterPosition, IsMarked(entry));
 
     /// <summary>
     /// Moves the panel to <paramref name="entry"/>: a fresh target frozen to exactly that entry, the session's medium name and the

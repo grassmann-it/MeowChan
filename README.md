@@ -7,15 +7,15 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>1.1.1 · Latest release</strong></p>
+<p align="center"><strong>1.1.2 · Latest release</strong></p>
 
 <p align="center">Original media. Better viewing. Your archive, offline.</p>
 
 Save the threads you care about—and make them worth coming back to. **MeowChan** watches imageboard threads and boards, saves original media and captured posts, and turns your collection into a searchable offline reading workspace. Browse images and video, pick up where you left off, or take saved posts and verified originals with you as portable HTML.
 
-[**Get MeowChan 1.1.1 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.1) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.1.md) · [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
+[**Get MeowChan 1.1.2 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.2) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.2.md) · [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
 
-## What's new in 1.1.1
+## Features introduced in 1.1.1
 
 - **Danbooru searches you can return to.** Booru is in the default navigation. Searches open in tabs and can be restored at startup. The **Watchers** button opens the watcher overview from beside the search tabs.
 - **A gallery for search results.** Switch between List, Grid and Gallery on the same page of results. The inline gallery and separate viewer share controls, shortcuts and tag tools.
@@ -24,8 +24,6 @@ Save the threads you care about—and make them worth coming back to. **MeowChan
 - **A clearer Downloads table.** Search and URL copying sit with the Threads and Boards tabs. Keyboard navigation highlights the whole focused row.
 
 **Upgrading from 1.1.0.** Back up your profile first. Eligible profiles reconnect the bundled Danbooru plugin to the verified 1.1.1 build when you install into a new directory. If the build needs review, the startup notice opens the repair dialog. To change Booru visibility, use **Show Booru actions** in Settings → Interface → Footer. [Upgrade details and limits](docs/releases/v1.1.1.md#upgrading-from-110)
-
-**Validation status.** These screenshots come from a Linux source build using offline demo data. The release notes track the final candidate, validation workflow and Tom’s Windows and macOS package acceptance. [Validation status](docs/releases/v1.1.1.md#validation-status)
 
 ## Features introduced in 1.1.0
 
@@ -44,7 +42,7 @@ See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and 
 - **More chans, one collection.** **11 supplied sources** cover 4chan, 8kun, Lainchan, Kohlchan, Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Experimental sources are marked and start disabled; registration does not guarantee live availability.
 - **Keep the media you want.** **5 local media filters** cover dimensions, file size/original names, SHA-256 blocklists, animation/actual format and PNG metadata fields. The supplied inventory totals **16 plugins**, with **14 editable C# examples** and a bundled compiler. See the [plugin guide](docs/plugins/README.md) for installation, permissions and limits.
 - **Settle in and read.** Save named reader groups, use optional Continue reading to return to your saved place, and keep post bookmarks and notes.
-- **Find your favorites again.** Save archive searches, star threads and media, and rate media. Search captured posts and browse your collection without contacting the source.
+- **Find your favorites again.** Save archive searches, mark threads and media with a heart, and rate media with stars. Search captured posts and browse your collection without contacting the source.
 - **Clear out the clutter.** Archive cleanup previews threads with **0–2 saved media versions**, protects favorites and other retained reading information, and lets you review losses before deletion.
 - **Enjoy the originals.** Give images and video more room with the gallery’s optional **media focus** view; video has compact Play/Pause, seek, audio and repeat controls. Export verified originals or portable offline HTML collections.
 
@@ -89,13 +87,15 @@ Earlier captures and their provenance are available for [1.1.0](docs/screenshots
 
 Desktop packages cover **Windows x64, Linux x64/ARM64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs. It requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
 
-| Platform | Download 1.1.1 |
+| Platform | Download 1.1.2 |
 | --- | --- |
-| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/01-MeowChan-1.1.1-win-x64.zip) |
-| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/02-MeowChan-1.1.1-osx-arm64.dmg) |
-| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/03-MeowChan-1.1.1-osx-x64.dmg) |
-| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/04-MeowChan-1.1.1-linux-x64.AppImage) |
-| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/05-MeowChan-1.1.1-linux-arm64.AppImage) |
+| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/01-MeowChan-1.1.2-win-x64.zip) |
+| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/02-MeowChan-1.1.2-osx-arm64.dmg) |
+| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/03-MeowChan-1.1.2-osx-x64.dmg) |
+| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/04-MeowChan-1.1.2-linux-x64.AppImage) |
+| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/05-MeowChan-1.1.2-linux-arm64.AppImage) |
+
+[1.1.2 validation status](docs/releases/v1.1.2.md#validation-status)
 
 1. Download the package for your platform. Extract the **whole archive** and start `MeowChan.exe` or `./MeowChan`, make the AppImage executable and run it, or open the DMG and drag `MeowChan.app` to Applications before launching it. [macOS first-launch guidance](docs/macos-signing.md)
 2. Set your download folder and media rules in Settings, then Save.
@@ -104,13 +104,13 @@ Desktop packages cover **Windows x64, Linux x64/ARM64 and macOS Intel/Apple Sili
 
 ### Choosing a Linux package
 
-Both `linux-x64` and `linux-arm64` have an AppImage and two archive variants. [All 1.1.1 packages](docs/releases/v1.1.1.md#downloads) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/SHA256SUMS)
+Both `linux-x64` and `linux-arm64` have an AppImage and two archive variants. [All 1.1.2 packages](docs/releases/v1.1.2.md#downloads) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/SHA256SUMS)
 
 | Filename suffix | VLC requirement |
 | --- | --- |
-| `MeowChan-1.1.1-<RID>.AppImage` | Includes VLC. Make it executable and run it. |
-| `MeowChan-1.1.1-<RID>-bundled-vlc.tar.gz` | Includes VLC. Extract the whole archive and run `./MeowChan`. |
-| `MeowChan-1.1.1-<RID>-system-vlc.tar.gz` | Install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
+| `MeowChan-1.1.2-<RID>.AppImage` | Includes VLC. Make it executable and run it. |
+| `MeowChan-1.1.2-<RID>-bundled-vlc.tar.gz` | Includes VLC. Extract the whole archive and run `./MeowChan`. |
+| `MeowChan-1.1.2-<RID>-system-vlc.tar.gz` | Install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
 
 Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
 
@@ -166,13 +166,16 @@ Desktop builds target Windows, macOS and Linux. Self-contained archives include 
 
 ## Downloading
 
+Moving from GChan? Follow the [GChan migration guide](docs/Help.md#moving-from-gchan)
+to bring over watch URLs and use your saved files. [Deutsche Anleitung](docs/user-guide/gchan-umstieg.md).
+
 Enter one or more thread or board URLs and select **Add**, or press **Enter** in the URL field. Separate URLs with commas or newlines; **Shift+Enter** inserts a newline. A board watch discovers its threads automatically. Each entry receives a result, and invalid or failed entries do not prevent later entries from being processed. If any entry fails, the complete input list remains available for correction. Successful input is cleared only if it has not been edited during the import.
 
 Selecting **Add** with an empty field reads the clipboard once. Explicit input uses only the entered text. **Ctrl+L** (**Cmd+L** on macOS) returns to Downloads and focuses the retained URL field. **Ctrl+V/Cmd+V** in Downloads outside native controls imports the clipboard; inside text fields it pastes normally. The tray also offers clipboard import. These manual actions remain user-triggered and do not require clipboard-monitor opt-in.
 
 Separately, **Scan clipboard for URLs** is an optional setting under Settings → Behavior and is off by default. After it is enabled and saved, MeowChan passively checks while open and ready, including when hidden or in the tray; the suggestion itself is shown only when the main window can display it. Texts longer than 65,536 UTF-16 code units (64 Ki characters, not bytes) are not evaluated; for shorter texts, only the first 32 HTTP(S) URL candidates are visited, including invalid or unsupported candidates. A passive banner offers the frozen URL list without starting downloads. Click **Add URLs (Enter)** to submit it through the normal Add flow, or focus that button and press **Enter**; Enter elsewhere does not accept the suggestion. Optional performance diagnostics may retain classified URL targets in their bounded in-memory run, even before confirmation; there is no blanket no-logging guarantee. See the [clipboard and download limits guide (German)](docs/user-guide/clipboard-and-download-limits.md) for polling, visibility and privacy boundaries, and [download scheduling](docs/Help.md#download-scheduling) for the effective transfer-slot limit `min(desired parallelism, safety cap)`, not a hard byte/RAM budget.
 
-Use **Copy URL** for a single row or **Copy all URLs** for every watched thread and board, regardless of the selected tab. The copied list contains one URL per line and can be imported again.
+Use **Copy URL** for a single row or **Copy session URLs (n)** for every watched thread and board, including entries hidden by the filter. The copied list contains one URL per line and can be imported again.
 
 Double-click a thread row to open the Reader. Shift+Enter or the context menu opens its gallery. Board rows open details; a double-click on a saved-media row or tile in Archive or on a tile of the Media page opens the gallery at that item. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
 
@@ -216,9 +219,9 @@ Choose List or Table for Archive threads; the layout and list/reader split are s
 
 The Reader fills the work area with readable posts and embedded media; Up/Down moves exactly one post. Left/Right moves to the previous/next thread in the frozen current list or search order, including across result pages, without wrapping. A thread opened without a list scope does not gain a global thread sequence. Text fields retain their normal arrow keys. F11 enters/exits fullscreen while preserving the active workspace; Escape dismisses active overlays before leaving fullscreen. F1 shows keyboard help. See the [shortcut guide](docs/Help.md#selection-and-shortcuts).
 
-In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpad gestures control zoom; fractional touchpad deltas produce finer changes. Zooming out stops at Fit, where the image is centered and pan resets. Drag a zoomed image to pan; double-click switches Fit/1:1 and Escape closes the gallery. Open from reader post A, navigate to media associated with saved post D, and close to return to the Reader at D. Without a saved post association, retain the prior reader anchor. Search/media-list origins instead restore their query, filters, page, scroll and focus.
+In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpad gestures control zoom; fractional touchpad deltas produce finer changes. Zooming out stops at Fit, where the image is centered and pan resets. Drag a zoomed image to pan. Double-click toggles fullscreen, and Escape closes the gallery. Open from reader post A, navigate to media associated with saved post D, and close to return to the Reader at D. Without a saved post association, retain the prior reader anchor. Search/media-list origins instead restore their query, filters, page, scroll and focus.
 
-**M** adds the current medium to the favorites, **U** removes it and **F** toggles it; **Shift+P** toggles post context, **0** selects Fit and **1** selects 1:1. Stars also mark reader attachments and saved-media items. **Show favorites** offers current-thread, selected-thread, matching-thread and all-favorite scopes. **Export favorite originals…** copies verified originals by source/board/thread without overwriting existing files or fetching remote content; **Export original…** copies one item. Marks persist for the exact saved revision. See [favorites and original export](docs/Help.md#favorites-and-original-file-export).
+**Ctrl/⌘+0** fits the current medium and **Z** shows it at 1:1. **1** through **5** set a rating and **0** clears it. **Shift+I** toggles facts, **Shift+Z** toggles the info line, **Shift+P** toggles post context, and **Shift+A** docks that panel or shows it over the picture. The favorite heart and rating stars sit beside **Back to …** when space permits. **M** adds the favorite, **U** removes it and **F** toggles it. Reader attachments and saved-media items also use hearts. **Show favorites** offers current-thread, selected-thread, matching-thread and all-favorite scopes. **Export favorite originals…** copies verified originals by source/board/thread without overwriting existing files or fetching remote content; **Export original…** copies one item. Marks persist for the exact saved revision. See [favorites and original export](docs/Help.md#favorites-and-original-file-export).
 
 PNG, JPEG, GIF, WebP and BMP depend on decoder support. The gallery animates supported GIFs from verified originals, with pause/resume and zoom; other animated image formats use a still first-frame preview. GIF playback is limited to 64 MiB, 16 million source pixels and 1024 frames; damaged or over-limit GIFs are unavailable rather than silently played as stills. Other image previews are limited to 64 MiB and 80 million source pixels, with Fit buffers bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
 

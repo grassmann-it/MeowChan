@@ -76,7 +76,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private readonly ToggleButton _toolsToggle;
     private bool _mediaFocus;
     private readonly TextBlock _quality = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly StackPanel _context = new() { Spacing = 12 };
+    private readonly MediaPanelSections _context = new();
     private readonly Border _contextPanel = new() { Name = "GalleryContext", Classes = { "workspace-section" }, IsVisible = false };
     private readonly Grid _body = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
     private readonly Grid _visualRoot = new() { Background = Brushes.Transparent, ClipToBounds = true, RowDefinitions = new RowDefinitions("*,Auto,Auto") };
@@ -238,9 +238,13 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     internal void SetRating(int? value, string? error, bool available = true, bool pending = false)
     {
         bool changedError = _ratingError != error;
+        // A change of the shown medium's rating (never its first known value) flashes the heart and its stars like a favourite change.
+        bool changed = _ratingAvailable && available && _ratingValue != value;
         _ratingValue = value; _ratingError = error; _ratingAvailable = available; _ratingPending = pending;
         UpdateRatingStatusText();
         if (changedError) ReportDiagnostic("rating", error);
+        UpdateRatingIndicators();
+        if (changed) FlashFavoriteBadge();
         ApplyChrome();
         RefreshDecisionRow(); // the Tags panel's row shows the same rating
         RefreshPostDecision(); // and so does the Post row, with the error of a failed write under it
@@ -274,6 +278,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         if (IsFavoriteConfirmOpen) { CloseFavoriteConfirm(); return true; }
         if (_helpOpen) { SetHelp(false); return true; }
+        if (TryDismissThreadTagSection()) return true;
         if (_contextOpen) { SetContextOpen(false); return true; }
         return false;
     }
@@ -447,6 +452,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         AddOverflowSeparator();
         _slideshowLoan.PlaceAtHome(); // FP1: the one owner of the settings panel is "⋯"; placing it twice is a no-op (the flyout borrows it later)
         AddOverflowSeparator();
+        _overflowPanel.Children.Add(_viewHeading);
         AddOverflowItem(_overlayToggle, "gallery.overlay-toggle", check: true);
         AddOverflowItem(_postOverlayToggle, "gallery.post-overlay-toggle", check: true);
         _fullscreenButton = Command(_overflowPanel, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke(), overflow: true);
@@ -498,10 +504,9 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         {
             Name = "GalleryPanelPostScroll",
             Content = _context,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
         };
-        // The content keeps the section inset on both sides; the vertical scrollbar owns the outer gutter and is not mistaken for right padding.
-        postScroll[!ScrollViewer.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Section");
         CreateSidePanel(postScroll);
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
         root.Children.Add(_close); // First child: first in the tab order, as the toolbar button was.
@@ -515,6 +520,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         Content = root;
         InitializeOverlayInteraction();
         InitializeFavoriteIndicators();
+        InitializeRatingIndicators(); // the five stars right of the heart, a badge of their own in each root (Tom, 25.11.2026)
         InitializeFavoriteConfirm();
         _nativeVideoOverlay.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         _nativeVideoOverlay.AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -813,7 +819,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         if (_close == null) return;
         bool autoHidden = OverlayControlsEffective && _overlayHidden;
-        bool pointer = HasCurrentGalleryPointer && (_close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver);
+        bool pointer = HasCurrentGalleryPointer && (_close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver
+            || RatingBadgePointerOver);
         bool focus = _close.IsKeyboardFocusWithin || _favoriteIndicator.IsKeyboardFocusWithin || _nativeFavoriteIndicator.IsKeyboardFocusWithin;
         // A pointer click that left the focus on a control does not pin the pair (as for the footer); only keyboard focus holds it.
         bool held = IsGalleryWindowActive && (pointer || _keyboardInteraction && focus);
@@ -824,6 +831,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         back.ApplyTo(_close);
         star.ApplyTo(_favoriteIndicator);
         star.ApplyTo(_nativeFavoriteIndicator);
+        ApplyRatingCornerChrome(star); // the stars beside the heart come and go with it
         // A hidden control must not keep the focus (it would type into nothing): the focus returns to the picture.
         bool focusLost = _close.IsKeyboardFocusWithin && !back.Focusable
             || (_favoriteIndicator.IsKeyboardFocusWithin || _nativeFavoriteIndicator.IsKeyboardFocusWithin) && !star.Focusable;
@@ -914,9 +922,13 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         }
         panel.Children.Add(button); return button;
     }
-    internal void SetPosition(string label, bool previous, bool next)
+    internal void SetPosition(string label, bool previous, bool next, GalleryTagPanelPosition? sidebarPosition = null,
+        int? mediaAhead = null)
     {
+        _sidebarPosition = sidebarPosition;
+        _mediaAhead = mediaAhead;
         _position.Text = _compactPosition.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next;
+        RefreshTaggingBack();
         ToolTip.SetTip(_compactPosition, ThreadPositions is { Unavailable: > 0 } media
             ? Texts.T("thread.media.unavailable", media.Unavailable) : null);
         RefreshPanelCounter();
@@ -1101,7 +1113,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             .Distinct(StringComparer.Ordinal).Where(id => CommandCatalog.TryGet(id, out _)).ToArray();
         WorkView view = _workView;
         WorkViewPage[] pages = { WorkViewPage.Shell, WorkViewPage.Gallery };
-        return new Views.Shortcuts.ShortcutHelpContext(ShortcutGroups.Gallery, preferred, id => WorkViewHelp.UnderMore(id, view, pages),
+        return new Views.Shortcuts.ShortcutHelpContext(ShortcutGroups.Gallery, preferred,
+            id => WorkViewHelp.UnderMore(id == "media.sidebar.autohide" ? "gallery.post-overlay-toggle" : id, view, pages),
             CommandScope.None, new[] { "viewer.help.scheme", EscapeHelpKey },
             ExpandedAreas: new[] { ShortcutGroups.TagPanel });
     }
@@ -1117,8 +1130,14 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             ? new[] { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.add", "favorites.remove", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "gallery.slideshow-toggle", "gallery.overlay-toggle", "gallery.post-overlay-toggle", "window.fullscreen", "gallery.close" }
             : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.add", "favorites.remove", "gallery.context-toggle", "gallery.slideshow-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
-            && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
-            _helpContent.Children.Add(new TextBlock { Text = id == "gallery.close" ? CommandBindings.Tooltip(id, visibleLabel: CloseLabel) : CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
+            && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id))
+            .Select(id => id == "media.sidebar.autohide" ? "gallery.post-overlay-toggle" : id).Distinct())
+            _helpContent.Children.Add(new TextBlock { Text = id switch
+            {
+                "gallery.close" => CommandBindings.Tooltip(id, visibleLabel: CloseLabel),
+                "gallery.post-overlay-toggle" => PostPanelPlacementHelp(),
+                _ => CommandBindings.Tooltip(id)
+            }, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
         AddTaggingHelp();
         _helpContent.Children.Add(new TextBlock { Text = Texts.T(EscapeHelpKey), Classes = { "workspace-help" } });
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
@@ -1208,6 +1227,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         // steal focus from a native video control before it receives the release.
         if (_viewerInteractionStopped || !_interactionAvailable || _videoSuspended || _mediaFailed
             || _sessionCancellation.IsCancellationRequested || sender is not Control root || !IsEffectivelyVisible) return;
+        if (!ItemActivation.IsOwnedByInteractivePart(e.Source, root)) ContextClick.RequestOnMacControlPress(e, root);
+        if (e.Handled) return;
         if (IsVideoView)
         {
             // A video is dragged only while it is zoomed in, and only by the picture itself, never by the transport.
@@ -1262,6 +1283,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ResetViewForMedium(entry);
         ReleaseTransientOverlays();
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
+        RefreshPanelCounter();
         _exportOriginal.IsEnabled = true;
         _saveFrame.IsEnabled = false; // a frame can be saved once the video is ready (RefreshFrameCommands)
         RefreshTaggingStrip(); // the decisions follow the shown medium (PT3)
@@ -1478,8 +1500,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ++_contextGeneration; // Invalidate callbacks retained by controls from an older entry/revision/language.
         _provenance.Text = MediaProvenanceText.Summary(_entry?.AttachmentResolution?.Binding);
         _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
-        if (_entry == null) { _context.Children.Clear(); _contextDirty = false; return; }
-        if (!PostContextVisible) { _contextDirty = true; return; }
+        if (_entry == null) { ClearPostSections(); _contextDirty = false; return; }
+        if (!PostContextVisible) { _contextDirty = true; RefreshTagPanelInfo(_entry); return; }
         BuildContext();
     }
 
@@ -1499,74 +1521,26 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _contextDirty = false;
         int generation = _contextGeneration;
         Interlocked.Increment(ref _contextBuilds);
-        _context.Children.Clear();
+        ClearPostSections();
         if (_entry == null) return;
         GalleryEntry entry = _entry;
         Button ContextCommand(Panel panel, string name, string label, Action action) => Command(panel, name, label, () =>
         {
-            if (generation == _contextGeneration && _contextOpen) action();
+            if (generation == _contextGeneration && PostContextVisible) action();
         });
-        // V2: the post as a card. The host's header (segment and ×) is GallerySidePanel; the card starts with where the post is.
         try
         {
-            var post = entry.Post;
-            AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread
-                + (post != null ? " · #" + post.PostId : string.Empty), "workspace-meta", "GalleryPostWhere").TextAlignment = TextAlignment.Left;
-            // Review 15.11.: favourite and stars, then the medium's tags, stand on top of the card, with or without a post (GalleryViewer.PostPanel.cs).
-            _context.Children.Add(PostDecisionSection());
-            _context.Children.Add(BuildPostTagsSection(ContextCommand));
-            _context.Children.Add(PostRule());
-            IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
-            if (associations.Count > 1)
+            GalleryPostParts parts = BuildPostParts(entry, ContextCommand);
+            _context.Rating = PostDecisionSection();
+            _context.Tags = BuildPostTagsSection();
+            _context.Info = _postFactsVisible ? parts.Info : null;
+            if (_tagNames != null)
             {
-                ComboBox selector = new() { Name = "GalleryPostAssociation", HorizontalAlignment = HorizontalAlignment.Stretch,
-                    ItemsSource = associations.Select(value => "#" + value.Post!.PostId + " · " + (value.Attachment?.Position + 1)).ToArray(),
-                    SelectedIndex = associations.ToList().FindIndex(value => value.Post?.PostId == entry.Post?.PostId && value.Attachment?.Position == entry.Attachment?.Position) };
-                AutomationProperties.SetName(selector, Texts.T("gallery.viewer9"));
-                selector.SelectionChanged += (_, _) =>
-                {
-                    if (generation != _contextGeneration || !_contextOpen || selector.SelectedIndex < 0 || selector.SelectedIndex >= associations.Count) return;
-                    InvalidateMediaMenu(); _entry = associations[selector.SelectedIndex]; UpdateContext(); AssociationRequested?.Invoke(_entry);
-                };
-                _context.Children.Add(selector);
+                Button edit = ContextCommand(parts.Actions, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"),
+                    () => OnSidePanelSegmentRequested(GallerySidePanelSegment.Tags, focusContent: true));
+                PanelActionStack.Present(edit, CommandCatalog.Get("media.tags.edit").Icon, compactLabel: true, compactSpacing: true);
             }
-            if (post == null)
-            {
-                IReadOnlyList<string>? provider = ProviderContext?.Invoke(entry);
-                if (provider == null) AddContext(Texts.T("gallery.noPost"));
-                else foreach (string line in provider) AddContext(line);
-                AddFileFacts(entry);
-                return;
-            }
-            string byline = string.Join(" · ", new[] { ArchivePresentation.PlainText(post.Author), post.PostedAt?.ToString("g", Texts.Culture) }
-                .Where(part => !string.IsNullOrWhiteSpace(part)));
-            if (byline.Length > 0) AddContext(byline, "workspace-meta", "GalleryPostByline");
-            string subject = ArchivePresentation.PlainText(post.Subject);
-            if (!string.IsNullOrWhiteSpace(subject)) AddContext(subject, null, "GalleryPostSubject").FontWeight = FontWeight.SemiBold;
-            string text = ArchivePresentation.PlainText(post.Html);
-            if (!string.IsNullOrWhiteSpace(text)) AddContext(text, null, "GalleryPostText");
-            // Quotes as a row of offered chips; a click opens the quoted post as before.
-            if (Uri.TryCreate(entry.ThreadUrl, UriKind.Absolute, out Uri? threadUrl) && threadUrl.Scheme is "http" or "https")
-            {
-                WrapPanel quotes = new() { Name = "GalleryPostQuotes", ItemSpacing = 8, LineSpacing = 8 };
-                foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(entry.Key.Thread, entry.ThreadUrl!, post))
-                {
-                    if (quote.Target == null || quote.IsExternal) continue;
-                    Button chip = ContextCommand(quotes, "GalleryQuote", quote.Label, () => { PauseSlideshow(); QuoteRequested?.Invoke(quote); });
-                    CommandBindings.BindExisting(chip, "reader.open-quote"); // a key bound to "Show quoted post" opens the focused chip, as in the reader
-                    WorkspaceChips.MarkOffered(chip);
-                    chip.Tag = quote.Target;
-                }
-                if (quotes.Children.Count > 0) _context.Children.Add(quotes);
-            }
-            AddFileFacts(entry);
-            // The action at the bottom left: the post in its thread (T).
-            StackPanel actions = new() { Name = "GalleryPostActions", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left };
-            // I1b: the one action of the post card carries its command icon before the text (the label stays the content and the name).
-            CommandBindings.ShowIconBeforeText(
-                ContextCommand(actions, "GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); }),
-                CommandCatalog.Get("gallery.show-in-thread").Icon);
-            _context.Children.Add(actions);
+            _context.Actions = parts.Actions.Children.Count > 0 ? parts.Actions : null;
         }
         finally
         {
@@ -1583,15 +1557,91 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         }
     }
 
-    // The file of the card: its name, the saved size (KiB/MiB with the exact byte count), its provenance and the historical note.
-    private void AddFileFacts(GalleryEntry entry)
+    private void ClearPostSections()
     {
-        AddContext(entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName, "workspace-meta", "GalleryPostFile");
-        AddContext(MediaProvenanceText.LocalSize(entry.Asset.Length), "workspace-meta", "GalleryPostFileSize");
-        string provenance = MediaProvenanceText.Context(entry.AttachmentResolution?.Binding);
-        if (provenance.Length > 0) AddContext(provenance);
-        if (entry.Historical) AddContext(Texts.T("gallery.viewer8"), "workspace-help");
+        _context.Rating = null;
+        _context.Tags = null;
+        _context.Info = null;
+        _context.Actions = null;
     }
+
+    private readonly record struct GalleryPostParts(StackPanel Info, PanelActionStack Actions);
+
+    private GalleryPostParts BuildPostParts(GalleryEntry entry, Func<Panel, string, string, Action, Button> command)
+    {
+        StackPanel info = new() { Name = "GalleryPostInfo", Spacing = 8 };
+        PanelActionStack actions = new("GalleryPostActions") { KeepPairOnOneLine = true };
+        IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
+        if (associations.Count > 1)
+        {
+            ComboBox selector = new() { Name = "GalleryPostAssociation", HorizontalAlignment = HorizontalAlignment.Stretch,
+                ItemsSource = associations.Select(value => "#" + value.Post!.PostId + " · " + (value.Attachment?.Position + 1)).ToArray(),
+                SelectedIndex = associations.ToList().FindIndex(value => value.Post?.PostId == entry.Post?.PostId && value.Attachment?.Position == entry.Attachment?.Position) };
+            AutomationProperties.SetName(selector, Texts.T("gallery.viewer9"));
+            int generation = _contextGeneration;
+            selector.SelectionChanged += (_, _) =>
+            {
+                if (generation != _contextGeneration || !_contextOpen || selector.SelectedIndex < 0 || selector.SelectedIndex >= associations.Count) return;
+                InvalidateMediaMenu(); _entry = associations[selector.SelectedIndex]; UpdateContext(); AssociationRequested?.Invoke(_entry);
+            };
+            info.Children.Add(selector);
+        }
+        if (entry.Post is { } post)
+        {
+            string subject = ArchivePresentation.PlainText(post.Subject);
+            if (!string.IsNullOrWhiteSpace(subject)) AddContext(info, subject, "workspace-panel-title", "GalleryPostSubject");
+            string text = ArchivePresentation.PlainText(post.Html);
+            if (!string.IsNullOrWhiteSpace(text)) AddContext(info, text, "workspace-post-body", "GalleryPostText");
+            if (Uri.TryCreate(entry.ThreadUrl, UriKind.Absolute, out Uri? threadUrl) && threadUrl.Scheme is "http" or "https")
+            {
+                WrapPanel quotes = new() { Name = "GalleryPostQuotes", ItemSpacing = 8, LineSpacing = 8 };
+                foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(entry.Key.Thread, entry.ThreadUrl!, post))
+                {
+                    if (quote.Target == null || quote.IsExternal) continue;
+                    Button chip = command(quotes, "GalleryQuote", quote.Label, () => { PauseSlideshow(); QuoteRequested?.Invoke(quote); });
+                    CommandBindings.BindExisting(chip, "reader.open-quote");
+                    WorkspaceChips.MarkOffered(chip);
+                    chip.Tag = quote.Target;
+                }
+                if (quotes.Children.Count > 0) info.Children.Add(quotes);
+            }
+            Button show = command(actions, "GalleryReadPost", Texts.T("gallery.viewer10"),
+                () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
+            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon,
+                compactLabel: true, compactSpacing: true, allowIconOnly: true);
+        }
+        else
+        {
+            IReadOnlyList<string> provider = ProviderContext?.Invoke(entry) ?? [Texts.T("gallery.noPost")];
+            foreach (string line in provider) AddContext(info, line, "workspace-post-body");
+        }
+        AddFileFacts(info, entry);
+        return new(info, actions);
+    }
+
+    private static void AddFileFacts(Panel panel, GalleryEntry entry)
+    {
+        MediaFactGrid facts = new("GalleryPostFacts");
+        var post = entry.Post;
+        string location = entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread
+            + (post != null ? " · #" + post.PostId : string.Empty);
+        facts.Add(Texts.T("media.fact.location"), location, "GalleryPostWhere");
+        facts.Add(Texts.T("media.fact.author"), ArchivePresentation.PlainText(post?.Author));
+        facts.Add(Texts.T("media.fact.posted"), post?.PostedAt?.ToString("g", Texts.Culture));
+        facts.Add(Texts.T("media.fact.file"), entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName, "GalleryPostFile", fileName: true);
+        facts.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(entry.Asset.Length), "GalleryPostFileSize");
+        var binding = entry.AttachmentResolution?.Binding;
+        if (binding?.Provider.ExpectedSize is long size)
+            facts.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(size), "GalleryPostSourceSize");
+        if (binding?.Provider.ProviderSizeHint is { } hint)
+            facts.Add(Texts.T("media.fact.sourceHint"), Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
+        facts.Add("SHA-256", entry.Asset.Sha256, "GalleryPostHash");
+        panel.Children.Add(facts);
+        string provenance = MediaProvenanceText.Summary(binding);
+        if (provenance.Length > 0) AddContext(panel, provenance, "workspace-meta");
+        if (entry.Historical) AddContext(panel, Texts.T("gallery.viewer8"), "workspace-meta");
+    }
+
     /// <summary>A "×" that closes the layer it sits in (help, post panel): 32×32, top right, tooltip "{what it does} · Esc".</summary>
     private static Button CloseLayerButton(string name, Action close)
     {
@@ -1614,13 +1664,12 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ToolTip.SetTip(button, tip);
     }
 
-    private SelectableTextBlock AddContext(string text, string? style = null, string? name = null)
+    private static SelectableTextBlock AddContext(Panel panel, string text, string style, string? name = null)
     {
-        SelectableTextBlock line = new() { Text = text, Name = name, TextWrapping = TextWrapping.Wrap };
+        SelectableTextBlock line = new() { Text = text, Name = name, TextWrapping = TextWrapping.Wrap, Classes = { style } };
         // The meta and help classes bring their own muted foreground; the post's own text stays the full text colour.
-        if (style == null) line[!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        else line.Classes.Add(style);
-        _context.Children.Add(line);
+        if (style == "workspace-post-body") line[!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
+        panel.Children.Add(line);
         return line;
     }
     private void LayoutContext()
@@ -1678,10 +1727,17 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         // (sweep S2 F4). With the focus on another control of the dock (a tool, the info line; not the filmstrip or the video bar) they open the
         // layout menu, as a right-click on free dock area does (GL3). The handled key's key-up is consumed (ConsumeContextKey): no second menu.
         if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && ContextKeyOwner(e.Source) is { } menuOwner && OpenOwnContextMenu(menuOwner))
-        { ConsumeContextKey(e); return; }
+        { ConsumeContextKey(e, menuOwner.ContextMenu); return; }
         if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e) && IsLayoutMenuKeySource(e.Source) && ShowLayoutContextMenu())
-        { ConsumeContextKey(e); return; }
-        if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); ConsumeContextKey(e); return; }
+        { ConsumeContextKey(e, LayoutContextMenu); return; }
+        if (_entry != null && ContextClick.IsKey(e))
+        {
+            Control? panel = e.Source is Visual source && _contextPanel.IsVisualAncestorOf(source) ? _contextPanel : null;
+            if (panel != null && ItemActivation.IsOwnedByInteractivePart(e.Source, panel)) return;
+            ShowMediaMenu(anchor: panel, keyboard: true);
+            ConsumeContextKey(e, _mediaMenuPresenter.Menu);
+            return;
+        }
         if (RouteDecisionRowKey(e)) return; // the stars of the panel rove with the arrows and Esc returns to the picture
         // The tagging mode's card keys are the bare digits 1 to 5 while the cards are shown: they come before the rating's 1 to 5 (Lightroom keys).
         if (_tagging != null && _cardsOn && _tagSurface?.IsKeyboardFocusWithin != true && RouteCardKey(e)) return;
@@ -1702,6 +1758,13 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             if (_video.MatchesTransportShortcut(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
         }
         if (!IsGalleryShortcutInput(e)) return;
+        if (CommandBindings.Matches(e, "media.sidebar.info")) { TogglePostFacts(); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "media.sidebar.autohide"))
+        {
+            e.Handled = true;
+            OpenActions.Start(() => ExecutePlaybackActionAsync("gallery.post-overlay-toggle"), "gallery.post-overlay-toggle");
+            return;
+        }
         if (HandleFilmstripKey(e) || HandleLayoutKey(e)) return;
         if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTagMode); e.Handled = true; return; }
         foreach (var (_, id) in PlaybackActions())
@@ -1968,7 +2031,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ClearBitmaps(); _entry = null; _info = null; _restore = null;
         _provenance.Text = string.Empty; _provenance.IsVisible = false;
         _exportOriginal.IsEnabled = false; _saveFrame.IsEnabled = false;
-        _associationIndex = null; _context.Children.Clear(); _contextDirty = false; ++_contextGeneration;
+        _associationIndex = null; ClearPostSections(); _contextDirty = false; ++_contextGeneration;
         ReleaseTagPanel(); _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
         if (_video != null) await _video.DisposeAsync();
         // Native stop/disposal has completed. Release the overlay as a subtree;

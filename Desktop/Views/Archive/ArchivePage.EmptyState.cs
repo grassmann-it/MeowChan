@@ -67,9 +67,8 @@ public partial class ArchivePage
         ReaderFindOpen.IsEnabled = shown && !_busy;
         ReaderThreadOpen.IsEnabled = shown;
         string? why = shown ? null : ReaderThreadActionsReason;
-        string threadLabel = Texts.T("reader.thread.menu");
         SetReaderActionTip(ReaderFindOpen, ReaderFindTip());
-        SetReaderActionTip(ReaderThreadOpen, why == null ? threadLabel : threadLabel + " · " + why);
+        SetReaderActionTip(ReaderThreadOpen, CommandBindings.Tooltip("reader.thread-menu", why, keyContext: "reader"));
         SetReaderActionTip(ReaderTagsOpen, ReaderTagsTip());
         // Read, Gallery and Export are applied from their commands: the reason is theirs to name, and they are applied again only when it appears or goes.
         bool noThread = _selectedThread == null;

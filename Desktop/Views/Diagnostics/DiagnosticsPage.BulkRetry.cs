@@ -141,9 +141,28 @@ public partial class DiagnosticsPage
     internal void FocusSearch()
     {
         TextBox text = this.FindControl<TextBox>("DiagnosticTextFilter")!;
-        if (!text.IsEffectivelyVisible) return;
+        if (!IsEffectivelyVisible || _ended) return;
+        if (FiltersSection.IsExpanded && text.IsKeyboardFocusWithin)
+        {
+            CloseDiagnosticFilters();
+            return;
+        }
+        FiltersSection.IsExpanded = true;
         text.Focus(Avalonia.Input.NavigationMethod.Tab);
         text.SelectAll();
+    }
+
+    internal bool TryDismissDiagnosticFilters()
+    {
+        if (!IsEffectivelyVisible || !FiltersSection.IsExpanded || !FiltersSection.IsKeyboardFocusWithin) return false;
+        CloseDiagnosticFilters();
+        return true;
+    }
+
+    private void CloseDiagnosticFilters()
+    {
+        FiltersSection.IsExpanded = false;
+        this.FindControl<DataGrid>("DiagnosticsGrid")!.Focus(Avalonia.Input.NavigationMethod.Tab);
     }
 
     private void RefreshDiagnosticFilterLabels()

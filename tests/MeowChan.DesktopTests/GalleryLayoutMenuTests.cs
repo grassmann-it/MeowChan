@@ -1,9 +1,14 @@
 using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.Gallery;
+using MeowChan.Storage;
+using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
@@ -30,6 +35,46 @@ public sealed class GalleryLayoutMenuTests : IDisposable
 
     private static GalleryLayoutChoice? Apply(string id, GalleryChromeInput input) =>
         GalleryLayoutMenu.Apply(id, GalleryChromePlan.Resolve(input), input.Choice, GalleryChromePlan.ViewDefault(input.Mode, input.View), input);
+
+    [Fact]
+    public void AppsReleaseAtThePopupKeepsTheGalleryLayoutMenuOpen() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory files = new();
+        GalleryViewer viewer = new();
+        viewer.ApplyWorkView(WorkView.Advanced);
+        byte[] image = BooruUiFixtures.Png(1);
+        string path = Path.Combine(files.Path, "image.png");
+        File.WriteAllBytes(path, image);
+        MediaAssetReference asset = new("image", "image", "original", "image.png", path, image.Length,
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image)), "", "image.png", true);
+        MediaAssetSnapshot snapshot = new(files.Path, MediaManifestStatus.Available, 1, "generation", [asset]);
+        GalleryEntry entry = new(new(new("fixture", "b", "42"), files.Path, asset.AssetId), snapshot, asset, null, null, false, true);
+        Window host = new() { Width = 1260, Height = 800, Content = viewer };
+        try
+        {
+            host.Show();
+            ContextGestures.Settle(host);
+            BooruComponentDispatcher.Wait(viewer.ShowAsync(entry, CancellationToken.None));
+            ContextGestures.Settle(host);
+            Button tool = Assert.Single(viewer.GetGalleryVisualDescendants().OfType<Button>(), candidate => candidate.Name == "GalleryFit");
+            Assert.True(tool.Focus());
+            host.KeyPress(Key.Apps, RawInputModifiers.None, PhysicalKey.ContextMenu, null);
+            ContextGestures.Settle(host);
+            ContextMenu layout = Assert.IsType<ContextMenu>(viewer.LayoutContextMenu);
+            TopLevel popup = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(layout));
+            Assert.True(layout.Items.OfType<MenuItem>().First(item => item.IsEnabled).Focus());
+            popup.KeyRelease(Key.Apps, RawInputModifiers.None, PhysicalKey.ContextMenu, null);
+            ContextGestures.Settle(popup);
+            Assert.Same(layout, viewer.LayoutContextMenu);
+            Assert.Null(viewer.MediaMenu);
+        }
+        finally
+        {
+            host.Close();
+            BooruComponentDispatcher.Wait(viewer.DisposeAsync().AsTask());
+        }
+    });
 
     // ---- the rows ----------------------------------------------------------------------------------------------------------------
 
@@ -267,6 +312,7 @@ public sealed class GalleryLayoutMenuTests : IDisposable
         ContextMenuEntry[] entries = model.Entries.ToArray();
         Assert.Equal(ContextMenuEntryKind.Note, entries[0].Kind); // the title names the mode
         Assert.Equal(menu.Title, entries[0].Label);
+        Assert.Null(entries[0].Icon);
         ContextMenuEntry[] rows = entries.Where(entry => entry.Kind != ContextMenuEntryKind.Note).ToArray();
         Assert.Equal(menu.Interactive.Select(row => row.Id), rows.Select(entry => entry.Id));
         foreach (LayoutMenuRow row in menu.Interactive)
@@ -275,6 +321,7 @@ public sealed class GalleryLayoutMenuTests : IDisposable
             Assert.Equal(row.Label, entry.Label);
             Assert.Equal(row.Enabled, entry.Available);
             Assert.Equal(row.DisabledReason, entry.Reason);
+            Assert.Equal(row.ActionIcon, entry.Icon);
             Assert.Equal(row.Kind switch
             {
                 LayoutMenuRowKind.Toggle => ContextMenuEntryKind.Check,
@@ -290,7 +337,6 @@ public sealed class GalleryLayoutMenuTests : IDisposable
         rows.Single(entry => entry.Id == "gallery.layout.tools").Invoke!();
         rows.Single(entry => entry.Id == "gallery.layout.reset").Invoke!();
         Assert.Equal(["gallery.layout.tools", "gallery.layout.reset"], chosen);
-        Assert.NotNull(LayoutMenuBuilder.ToContextMenu(menu, _ => { }, "Layout").Build());
     }
 
     [Fact]
@@ -421,15 +467,10 @@ public sealed class GalleryLayoutMenuTests : IDisposable
     }
 
     [Fact]
-    public void TheSlideshowControlShowsPlayWhileStoppedAndPauseWhileRunningOnTheBarAndInTheMenu()
+    public void TheSlideshowCommandHasPlayAndPauseMasks()
     {
         Assert.Equal("play", MeowChan.Desktop.Commands.CommandCatalog.IconForState("gallery.slideshow-toggle", "stopped"));
         Assert.Equal("pause", MeowChan.Desktop.Commands.CommandCatalog.IconForState("gallery.slideshow-toggle", "running"));
-        string playback = Source("Desktop/GalleryViewer.Playback.cs");
-        Assert.Contains("PresentSlideshowIcon();", playback);                 // every refresh of the playback controls
-        Assert.Contains("item.Root.Children[0] = lead;", playback);            // the menu row swaps its lead icon, keeps its text
-        string overflow = Source("Desktop/GalleryViewer.Overflow.cs");
-        Assert.Equal(2, overflow.Split("PresentSlideshowIcon();").Length - 1); // after a move between the bar and the menu, and on a density change
     }
 
     private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string source = "") =>

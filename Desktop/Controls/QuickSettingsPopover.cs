@@ -580,12 +580,15 @@ internal sealed class QuickSettingsPopover : IDisposable
 {
     private readonly Flyout _flyout = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
     private readonly QuickSettingsSurface _surface;
+    private readonly Action<Control>? _restoreContentFocus;
     private Control? _anchor;
     private bool _hadFocus, _restoreFocus = true, _disposed;
 
-    internal QuickSettingsPopover(QuickSettingsSpec spec, QuickSettingsHost host, string name = "QuickSettings", QuickSettingsSession? session = null)
+    internal QuickSettingsPopover(QuickSettingsSpec spec, QuickSettingsHost host, string name = "QuickSettings",
+        QuickSettingsSession? session = null, Action<Control>? restoreContentFocus = null)
     {
         _surface = new QuickSettingsSurface(spec, host, name, session: session);
+        _restoreContentFocus = restoreContentFocus;
         _flyout.FlyoutPresenterClasses.Add("quick-settings");
         _flyout.Content = _surface;
         _surface.CloseRequested += Hide;
@@ -636,7 +639,8 @@ internal sealed class QuickSettingsPopover : IDisposable
         Control? anchor = _anchor;
         if (!_hadFocus || !_restoreFocus || _disposed || anchor is not { IsEffectivelyVisible: true }) return;
         _hadFocus = false;
-        anchor.Focus(_surface.KeyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
+        if (_restoreContentFocus != null) _restoreContentFocus(anchor);
+        else anchor.Focus(_surface.KeyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
     }
 
     public void Dispose()

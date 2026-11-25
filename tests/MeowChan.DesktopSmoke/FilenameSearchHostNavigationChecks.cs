@@ -69,8 +69,8 @@ internal static class FilenameSearchHostNavigationChecks
             Require(origin.Summary.Id == Origin && origin.PostCount == 251
                 && origin.FindPostIndex(TargetPost) == 250
                 && origin.GetPosts(0, 1).Single().PostId == "p000"
-                && beforeRows.SequenceEqual(new[] { TargetPost }) && beforeSelected == TargetPost,
-                "Origin must select final-page collision post, distinct from firstpost fallback.");
+                && beforeRows.Length == origin.PostCount && beforeRows[250] == TargetPost && beforeSelected == TargetPost,
+                "The origin must select the deep collision post in the full list.");
             int beforeOpen = Volatile.Read(ref factories);
             // Actual product entry (AP2): reader find bar, File name scope, Search; not injected Show/Navigate.
             Button entry = UnifiedSearchEntry.ReaderScope(page, MeowChan.Desktop.Controls.SearchScope.FileName);
@@ -121,9 +121,9 @@ internal static class FilenameSearchHostNavigationChecks
                 {
                     Require(page.CurrentThread?.Summary.Id == Target && page.CurrentThread.FindPostIndex(TargetPost) == 250,
                         "Result choice did not load exact other stored resource/offscreen post.");
-                    Require(Rows(page).SequenceEqual(new[] { TargetPost })
+                    Require(Rows(page).Length == 251 && Rows(page)[250] == TargetPost
                         && C<ListBox>(page, "ArchivePosts").SelectedItem is ArchivePostRow { Id: TargetPost },
-                        "Wrong post page, no explicit selection, or first-post fallback.");
+                        "The filename result did not select its exact post in the full thread.");
                     Require(page.CurrentThread.Summary.Revision == hit.CatalogThreadRevision,
                         "Fresh snapshot revision differs from the selected captured claim.");
                     CapturedAttachment attachment = page.CurrentThread.GetPosts(250, 1).Single().Attachments!.Single();

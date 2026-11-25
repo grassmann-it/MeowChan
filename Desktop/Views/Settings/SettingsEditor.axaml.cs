@@ -20,7 +20,7 @@ using MeowChan.Desktop.Updates;
 
 namespace MeowChan
 {
-    public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost
+    public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost, IDisposable
     {
         /// <summary>The limits of the tag panel's suggestion box, read by the XAML so it never repeats the numbers (the Config constants are internal).</summary>
         public static decimal QuickTagPanelSuggestionLimitMinimum => Config.QuickTagPanelSuggestionLimitMinimum;
@@ -220,6 +220,7 @@ namespace MeowChan
         {
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
+            InitializeBooruListFields();
             InitializeResetIcons();
             CommandBindings.EnsureIconBeforeText(ThemeColorsButton, "sliders");
             CommandBindings.EnsureIconBeforeText(GalleryLayoutResetButton, "rotate-ccw");
@@ -269,6 +270,7 @@ namespace MeowChan
             LoadBooruSearchDraft(config);
             LoadTagQueueDraft(config);
             LoadBooruGalleryDraft(config);
+            LoadBooruListDraft(config);
             LoadTaggingDraft(config);
             LoadViewerDraft(config);
             LoadExportFilenameTemplateDraft(config);
@@ -740,18 +742,29 @@ namespace MeowChan
             }, DispatcherPriority.Loaded);
         }
 
-        public void EndLifetime()
+        public void EndLifetime() => Dispose();
+
+        public void Dispose()
         {
-            if (_isClosed) return;
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || _isClosed) return;
             _isClosed = true;
+            SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
+            _destinationWait?.Cancel();
+            _destinationWait?.Dispose();
+            _destinationWait = null;
+            EndSettingsTransferLifetime();
             EndSearchVisit();
             _conditionalReveal.Release(keepEdited: false);
             _rowMenu?.Dispose();
-            _destinationWait?.Cancel();
             DownloadDestinationValidator.Shared.CleanupFailed -= OnDestinationCleanupFailed;
             _sectionNavigation?.Dispose();
             EndResetLifetime();
-            EndSettingsTransferLifetime();
             EndWorkViewOverviewLifetime();
             Texts.Changed -= OnLanguageChanged;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
@@ -817,6 +830,7 @@ namespace MeowChan
             LoadBooruSearchDraft(_config);
             LoadTagQueueDraft(_config);
             LoadBooruGalleryDraft(_config);
+            LoadBooruListDraft(_config);
             LoadTaggingDraft(_config);
             LoadViewerDraft(_config);
             LoadExportFilenameTemplateDraft(_config);
@@ -906,6 +920,18 @@ namespace MeowChan
             {
                 if (_isClosed)
                     return;
+
+                TextBox? input = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as TextBox;
+                Rect visibleInput = default;
+                if (input is { IsEffectivelyVisible: true }
+                    && SettingsScrollViewer.IsVisualAncestorOf(input)
+                    && input.FindAncestorOfType<NumericUpDown>() != null
+                    && input.FindAncestorOfType<Avalonia.Controls.Presenters.ScrollContentPresenter>() is { } presenter
+                    && presenter.TranslatePoint(default, input) is Point viewportOrigin)
+                {
+                    visibleInput = new Rect(input.Bounds.Size).Intersect(new Rect(viewportOrigin, presenter.Viewport));
+                }
+
                 RefreshChoiceLabels();
                 // Refresh only labels/help; a language change is not a numeric Value change.
                 foreach (string property in new[]
@@ -946,6 +972,7 @@ namespace MeowChan
                 RaiseReaderTextsChanged();
                 RaiseTagQueueTextsChanged();
                 RaiseBooruGalleryTextsChanged();
+                UpdateBooruListTexts();
                 RaiseViewerTextsChanged();
                 RaiseExportFilenameTemplateTextsChanged();
                 RaiseQuickTagTextsChanged();
@@ -965,6 +992,19 @@ namespace MeowChan
                 finally { _refreshingLanguageLabels = false; }
                 ApplyCommandIcons();
                 RefreshSectionNavigation();
+
+                if (input != null && visibleInput is { Width: > 0, Height: > 0 })
+                {
+                    // Translated labels can move the text box while it keeps keyboard focus.
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!_isClosed && input is { IsFocused: true, IsEffectivelyVisible: true }
+                            && SettingsScrollViewer.IsVisualAncestorOf(input))
+                        {
+                            input.BringIntoView(visibleInput.Intersect(new Rect(input.Bounds.Size)));
+                        }
+                    }, DispatcherPriority.Loaded);
+                }
             }
 
             if (Dispatcher.UIThread.CheckAccess())
@@ -995,13 +1035,12 @@ namespace MeowChan
             string readerPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
             string headerTagline = SelectedHeaderTagline?.Value ?? _config.HeaderTagline;
             string headerTaglineFixed = SelectedHeaderTaglineFixed?.Value ?? _config.HeaderTaglineFixedId;
-            string booruSearchTarget = SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
             try
             {
                 RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth, headerTagline, headerTaglineFixed);
-                RefreshBooruSearchChoices(booruSearchTarget);
+                RefreshBooruSearchLabels();
             }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
@@ -1264,6 +1303,7 @@ namespace MeowChan
                 ApplyBooruSearchDraft(candidate);
                 ApplyTagQueueDraft(candidate);
                 ApplyBooruGalleryDraft(candidate);
+                candidate.BooruListLayout = CaptureBooruListDraft();
                 ApplyViewerDraft(candidate);
                 ApplyExportFilenameTemplateDraft(candidate);
                 ApplyQuickTagDraft(candidate);
@@ -1351,6 +1391,7 @@ namespace MeowChan
             LoadBooruSearchDraft(_config);
             LoadTagQueueDraft(_config);
             LoadBooruGalleryDraft(_config);
+            LoadBooruListDraft(_config);
             LoadTaggingDraft(_config);
             LoadViewerDraft(_config);
             LoadExportFilenameTemplateDraft(_config);
@@ -1434,7 +1475,7 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedBooruNewSearchTarget) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
                     or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode) or nameof(SelectedGalleryFilmstripFlagUntagged) or nameof(SelectedGalleryWheelMode)
                     or nameof(SelectedTaggingCard1) or nameof(SelectedTaggingCard2) or nameof(SelectedTaggingCard3) or nameof(SelectedTaggingCard4) or nameof(SelectedTaggingCard5);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))

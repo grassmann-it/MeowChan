@@ -52,7 +52,7 @@ public static class ShortcutGroups
     public static string? AreaOf(string executionContext)
     {
         if (executionContext.StartsWith("dialog", StringComparison.Ordinal)) return Dialogs;
-        // The reader's own surfaces: its history, its gallery return and its post pages.
+        // The reader's own surfaces: its history, its gallery return and its reference pages.
         if (executionContext.StartsWith("reader-", StringComparison.Ordinal)) return Reader;
         return executionContext switch
         {

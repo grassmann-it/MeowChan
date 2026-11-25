@@ -144,7 +144,7 @@ internal static class InlineVideoDisposal
 
 /// <summary>
 /// One place in the reader where a video can play inline: a post's attachment or the media sidebar. It owns the activator button over
-/// the poster (focusable, named, Enter or click plays), the row under the frame with the moved transport, a visible error line and a
+/// the poster (named for the video, a click plays), the row under the frame with the moved transport, a visible error line and a
 /// polite live region that announces play and pause. Only the reader's current video shows its transport (one set of video controls
 /// in the reader at a time); a paused older one keeps its picture and shows the activator again to continue. Nothing is created until
 /// the video is asked to play; the player is given back to the controller when the medium changes or the owner leaves the tree.
@@ -161,10 +161,14 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private GalleryInlineVideoPlayer? _player;
     private CancellationTokenSource? _activation;
     private string? _key;
+    private string? _posterKey;
     private Func<CancellationToken, Task<GalleryEntry?>>? _resolve;
     private string _name = string.Empty;
     private Action? _openGallery;
+    private string? _playerKey;
+    private (IPointer Pointer, string? Key)? _pointerPlay;
     private bool _current;
+    private bool _startsBlocked;
 
     /// <summary>
     /// Whether one of the owner's own commands has a key (the argument says whether the key is a command's gesture): the video key then gives way to it.
@@ -173,9 +177,11 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     internal string ShortcutContext { get; set; } = "reader";
     internal Func<Func<string, bool>, bool> OwnerClaims { get; set; } = ReaderVideoKeys.ReaderClaims;
 
-    /// <summary>The identity of an attachment for the slot: the same file at the same place of a rebuilt row keeps its player.</summary>
+    /// <summary>The identity of an attachment for the slot: the same file at the same place of a rebuilt row keeps its player. A legacy row without a
+    /// revision key tells a replaced file only by its checksum, so the checksum is part of the identity.</summary>
     internal static string KeyOf(MeowChan.Archive.CapturedAttachment attachment) => string.Join("\n", attachment.Position,
-        attachment.MediaId ?? string.Empty, attachment.Variant, attachment.OriginalFileName ?? string.Empty, attachment.AttachmentRevisionKey ?? string.Empty);
+        attachment.MediaId ?? string.Empty, attachment.Variant, attachment.OriginalFileName ?? string.Empty, attachment.AttachmentRevisionKey ?? string.Empty,
+        attachment.ExpectedMd5 ?? string.Empty);
 
     internal ReaderInlineVideoSlot(Panel area, bool activatorWhenIdle)
     {
@@ -185,7 +191,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         // (Semi's hover tint would otherwise turn the whole picture into a flat grey rectangle) and shows a thin ring on hover.
         Activator = new Button
         {
-            Name = "ReaderInlineVideoPlay", Classes = { "video-activator" },
+            Name = "ReaderInlineVideoPlay", Classes = { "video-activator" }, Focusable = false, IsTabStop = false,
             HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, IsVisible = false,
             Cursor = new Cursor(StandardCursorType.Hand)
         };
@@ -194,13 +200,34 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         Activator.AddHandler(InputElement.KeyDownEvent, (_, e) =>
         {
             if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || _openGallery == null) return;
+            if (_activatorWhenIdle && !ShortcutService.Current.Matches(e, "gallery.open", ShortcutContext)) return;
             e.Handled = true;
             _openGallery();
         }, RoutingStrategies.Tunnel);
-        Activator.AddHandler(InputElement.PointerPressedEvent, (_, _) => _pointerPlay = true, RoutingStrategies.Tunnel, handledEventsToo: true);
-        Activator.AddHandler(InputElement.PointerReleasedEvent, (_, _) => Dispatcher.UIThread.Post(() => _pointerPlay = false, DispatcherPriority.Background),
-            RoutingStrategies.Bubble, handledEventsToo: true);
-        Activator.Click += (_, e) => { e.Handled = true; OpenActions.Start(() => PlayAsync(), "reader.video.play"); };
+        Activator.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(Activator).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+                _pointerPlay = (e.Pointer, _key);
+        }, RoutingStrategies.Tunnel);
+        Activator.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
+        {
+            if (e.InitialPressMouseButton != MouseButton.Left || _pointerPlay is not { } press || press.Pointer != e.Pointer) return;
+            Dispatcher.UIThread.Post(() => { if (_pointerPlay is { } current && current == press) _pointerPlay = null; }, DispatcherPriority.Background);
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
+        Activator.PointerCaptureLost += (_, e) => { if (_pointerPlay?.Pointer == e.Pointer) _pointerPlay = null; };
+        Activator.Click += (_, e) =>
+        {
+            e.Handled = true;
+            var pointer = _pointerPlay;
+            _pointerPlay = null;
+            if (pointer is { } press && (press.Key != _key || _area.FindAncestorOfType<ReaderMediaSidebar>() is { } sidebar
+                && !sidebar.CanPlayFromFrame(press.Pointer, _posterKey)))
+            {
+                ReturnFocusToOwner();
+                return;
+            }
+            OpenActions.Start(() => PlayAsync(muted: false, pointer: pointer.HasValue), "reader.video.play");
+        };
         area.Children.Add(Activator);
         Activator.AttachedToVisualTree += (_, _) => { ShortcutService.Changed += RefreshActivationHelp; RefreshActivationHelp(); };
         Activator.DetachedFromVisualTree += (_, _) => ShortcutService.Changed -= RefreshActivationHelp;
@@ -227,30 +254,34 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     /// <summary>The row under the frame as its type (the owner gives it the frame's width).</summary>
     internal ReaderInlineVideoRow Row { get; }
 
-    /// <summary>The focusable "Play video here" button over the poster (keyboard path; also over a paused older video).</summary>
+    /// <summary>The "Play video here" button over the poster or a paused older video.</summary>
     internal Button Activator { get; }
     /// <summary>The row the owner places under the media frame: transport (current video only), error line, live region.</summary>
     internal Control Below => Row;
     internal bool IsLive => _player != null;
-    internal bool IsOffered => _key != null && _controller?.Options.Enabled == true;
+    internal bool IsOffered => !_startsBlocked && _key != null && _controller?.Options.Enabled == true;
     internal bool IsPlaying => _player?.IsPlaying == true;
     internal string LiveText => _live.Text ?? string.Empty;
     internal string ErrorText => _error.IsVisible ? _error.Text ?? string.Empty : string.Empty;
     internal GalleryVideoPlayer? Player => _player?.Player;
     internal Task ActivationTask { get; private set; } = Task.CompletedTask;
 
+    internal bool IsPlayerFor(GalleryVideoPlayer player, string? key) => ReferenceEquals(Player, player) && _playerKey == key;
+
     /// <summary>
     /// The video this slot can play now (a key per attachment, so a rebuilt row keeps a running player), or none. A different video
     /// or none gives the player back. <paramref name="controller"/> null or switched off offers nothing.
     /// </summary>
     internal void Offer(ReaderInlineVideoController? controller, string? key, Func<CancellationToken, Task<GalleryEntry?>>? resolve, string name,
-        Action? openGallery = null)
+        Action? openGallery = null, string? posterKey = null)
     {
+        if (_startsBlocked) return;
         bool usable = controller is { Options.Enabled: true } && key != null && resolve != null;
         if (!usable) { key = null; resolve = null; name = string.Empty; }
         if (!ReferenceEquals(controller, _controller) || !string.Equals(key, _key, StringComparison.Ordinal)) _ = ReleaseAsync();
         _controller = controller;
         _key = key;
+        _posterKey = posterKey ?? key;
         _resolve = resolve;
         _name = name;
         _openGallery = usable ? openGallery : null;
@@ -262,11 +293,11 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     }
 
     /// <summary>Click, Enter or autoplay: plays the offered video here (creating its player if the bound allows), or resumes it.</summary>
-    internal Task PlayAsync(bool muted = false)
+    internal Task PlayAsync(bool muted = false) => PlayAsync(muted, pointer: false);
+
+    private Task PlayAsync(bool muted, bool pointer)
     {
         if (_controller is not { } controller || !IsOffered) return Task.CompletedTask;
-        bool pointer = _pointerPlay;
-        _pointerPlay = false;
         bool focus = Activator.IsKeyboardFocusWithin && !pointer;
         Task task;
         if (_player != null) task = ActivationTask = ResumeAsync(controller, focus);
@@ -282,8 +313,6 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             _ = task.ContinueWith(_ => Dispatcher.UIThread.Post(back, DispatcherPriority.Loaded), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
         return task;
     }
-
-    private bool _pointerPlay;
 
     /// <summary>
     /// After a click on the bar's own buttons (mute, play or pause) the keys go back to the owner, as after a click on the activator: the owner's hook
@@ -311,17 +340,21 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private async Task CreateAsync(ReaderInlineVideoController controller, CancellationTokenSource activation, bool muted, bool focus)
     {
         string? key = _key;
+        bool Current() => ReferenceEquals(_activation, activation) && !activation.IsCancellationRequested
+            && ReferenceEquals(_controller, controller) && _key == key && IsOffered;
         try
         {
             ShowError(null);
             GalleryEntry? entry = _resolve == null ? null : await _resolve(activation.Token);
-            if (activation.IsCancellationRequested || key != _key) return;
+            if (!Current()) return;
             if (entry == null) { ShowError(Texts.T("archive.notSaved")); return; }
             if (entry.Kind != SavedMediaKind.Video) { ShowError(Texts.T("reader.sidebar.unavailable")); return; }
             if (ReaderInlineVideoRules.LimitReason(controller.Options, entry.Asset.Length, _name) is { } reason) { ShowError(reason); return; }
             ReaderInlineVideoOptions options = controller.Options;
             await controller.PlayAsync(this, () =>
             {
+                // The controller yields before creating a player, so a release may have cancelled this activation.
+                activation.Token.ThrowIfCancellationRequested();
                 GalleryInlineVideoPlayer player = new(_area, Activator, _transportHost, entry, options,
                     _activatorWhenIdle ? ReaderInlineVideoRules.StartMutedViewer(options, controller.SessionMuted)
                         : ReaderInlineVideoRules.StartMuted(options, controller.SessionMuted, autoplay: muted),
@@ -332,15 +365,16 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
                 player.ShortcutFocusRequested += () => { if (ReferenceEquals(_player, player)) ReturnFocusToOwner(); };
                 player.Clicked += () => { if (ReferenceEquals(_player, player)) OpenActions.Start(() => controller.ToggleAsync(this), "reader.video.toggle"); };
                 _player = player;
+                _playerKey = key;
                 UpdatePresentation();
                 if (focus) Dispatcher.UIThread.Post(FocusTransport, DispatcherPriority.Loaded);
                 return player;
-            });
+            }, canCreate: Current);
         }
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            if (key == _key) ShowError(Texts.T("reader.video.failed", UserFacingError.Report(error, "Starting an inline reader video")));
+            if (Current()) ShowError(Texts.T("reader.video.failed", UserFacingError.Report(error, "Starting an inline reader video")));
         }
         finally
         {
@@ -360,6 +394,15 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         _activation = null;
         try { activation?.Cancel(); } catch (ObjectDisposedException) { }
         return _player != null && _controller != null ? _controller.ReleaseAsync(this) : Task.CompletedTask;
+    }
+
+    internal Task CloseForShutdownAsync()
+    {
+        _startsBlocked = true;
+        _openGallery = null;
+        Task release = ReleaseAsync();
+        UpdatePresentation();
+        return Task.WhenAll(ActivationTask, release);
     }
 
     /// <summary>The page applies the viewport rule (scrolled out pauses; on a native surface, partly out releases).</summary>
@@ -402,7 +445,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         // Enter opens the offered medium; Space controls playback. Buttons retain their native activation.
         if (e.Source is not Button)
         {
-            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && _openGallery != null)
+            if (!_activatorWhenIdle && e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && _openGallery != null)
             {
                 e.Handled = true;
                 _openGallery();
@@ -479,6 +522,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     void IReaderInlineVideoOwner.PlayerReleased()
     {
         _player = null;
+        _playerKey = null;
         _current = false;
         UpdatePresentation();
     }

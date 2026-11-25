@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -25,6 +26,28 @@ public partial class MainWindow
 {
     private MediaPage? _mediaPage;
     internal MediaPage? MediaPageForTests => _mediaPage;
+
+    private void RegisterMediaSidebarInfoCommands()
+    {
+        if (_shortcutRouter == null) return;
+        foreach (string id in new[] { "media.sidebar.info", "media.sidebar.autohide" })
+        {
+            void Report(string? hint)
+            {
+                if (!string.IsNullOrWhiteSpace(hint))
+                    ShowNotification(CommandCatalog.Label(id), hint, NotificationType.Information);
+            }
+            if (_archivePage is { } archive && archive.FindControl<Control>("ArchiveReaderPane") is { } readerPane)
+                _shortcutRouter.RegisterOwned(new CommandRegistration(id, readerPane,
+                    () => _gallery == null && !HasBlockingPageDecision() && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive),
+                    () => archive.CanToggleMediaSidebar,
+                    () => Report(archive.RunSidebarCommand(id)), Priority: 100));
+            if (_mediaPage is { } media)
+                _shortcutRouter.RegisterOwned(new CommandRegistration(id, media,
+                    () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                    () => media.CanTogglePanel, () => Report(media.RunSidebarCommand(id)), Priority: 100));
+        }
+    }
 
     private int ConfiguredMediaTagListWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).TagListWidth;
 
@@ -45,8 +68,11 @@ public partial class MainWindow
     // and file limits, and the gallery's fit limit for its picture.
     private void ConfigureMediaPanel()
     {
+        _mediaPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
+        _taggingPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
         _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true }, ReaderSettingsPreferences.Gallery(_session.Config));
         ConfigureGalleryScrubPreview(); // the panel's timeline hover preview uses the profile's scrub cache (the gallery's)
+        ConfigureTaggingPanelVideo();
     }
 
     private void InitializeMediaPage()
@@ -66,6 +92,7 @@ public partial class MainWindow
             EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
             TagPopoverAsync = OpenMediaLibraryTagPopoverAsync,
             TagPopoverOptions = TagPopoverDefaults,
+            BuildPanelTagMenu = BuildSidebarTagMenu,
             DecisionForEntries = DecisionForMediaEntries,
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             PendingFavorite = PendingMediaFavorite,
@@ -125,6 +152,13 @@ public partial class MainWindow
         // the tag list switch stays in its own key (MediaBooruMode), so both ways of switching it write the same state.
         _mediaPage.RestoreLayout(MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode));
         ConfigureMediaPanel();
+        _mediaPage.SavePanelSetting = update => OpenActions.Start(async () =>
+        {
+            bool previous = _config.SidebarFactsVisible;
+            await SaveQuickSettingsAsync(update);
+            if (previous != _config.SidebarFactsVisible)
+                _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
+        }, "media.sidebar.info");
         _mediaPage.SaveLayoutAsync = layout => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = layout.TagList; config.MediaLayout = layout.Format(); });
         _session.StateChanged += OnMediaTagQueueChanged;
         Closed += (_, _) => _session.StateChanged -= OnMediaTagQueueChanged;
@@ -255,9 +289,12 @@ public partial class MainWindow
         return _favoriteChanges.IsPending(key) ? _favoriteChanges.Target(key, false) : null;
     }
 
-    private async Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent)
+    private Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent) =>
+        ExecuteMediaLibraryMenuActionAsync(id, indexed, presentationCurrent, taggingCurrent: null);
+
+    private async Task ExecuteMediaLibraryMenuActionAsync(string id, MediaLibraryEntry indexed, Func<bool> presentationCurrent, Func<bool>? taggingCurrent)
     {
-        Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
+        Func<bool> hostCurrent = taggingCurrent ?? CaptureMediaPageMenuGuard();
         bool Current() => hostCurrent() && presentationCurrent();
         if (!Current()) return;
         Control? origin = FocusManager?.GetFocusedElement() as Control;
@@ -267,7 +304,9 @@ public partial class MainWindow
             await HashFolderItemForActionAsync(indexed);
             if (!Current()) return;
             GalleryEntry? entry = await MediaMenuIdentity.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
-                Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog);
+                Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog,
+                fromTagQueue: taggingCurrent != null,
+                decisionOnly: id.StartsWith("favorites.", StringComparison.Ordinal) || id.StartsWith("media.rating.", StringComparison.Ordinal));
             if (!Current()) return;
             if (entry == null)
             {
@@ -308,6 +347,7 @@ public partial class MainWindow
                     if (Path.GetDirectoryName(entry.Asset.Path) is string directory) OpenDirectory(directory);
                     break;
                 case "media.copy-path": await CopyMediaPathAsync(entry); break;
+                case "media.open-external": await OpenMediaFileExternallyAsync(entry); break;
                 case "media.details": await ShowGalleryDetailsAsync(entry); break;
                 case "media.tags.edit": await EditMediaLibraryTagsForMenuAsync(indexed, Current, entry); break;
                 default: throw new InvalidOperationException("Unsupported media menu action: " + id);
@@ -321,7 +361,7 @@ public partial class MainWindow
         }
         finally
         {
-            RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
+            if (taggingCurrent == null) RefreshMediaPageAfterMenuAction(origin, hostCurrent, presentationCurrent);
         }
     }
 
@@ -332,10 +372,10 @@ public partial class MainWindow
         EditMediaLibraryTagsForMenuAsync(entry, () => true);
 
     private async Task EditMediaLibraryTagsForMenuAsync(MediaLibraryEntry indexed, Func<bool> presentationCurrent,
-        GalleryEntry? alreadyResolved = null, Control? returnTo = null)
+        GalleryEntry? alreadyResolved = null, Control? returnTo = null, CancellationToken sidebarToken = default)
     {
         Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
-        bool Current() => hostCurrent() && presentationCurrent();
+        bool Current() => !sidebarToken.IsCancellationRequested && hostCurrent() && presentationCurrent();
         if (!Current() || _mediaTagDialogOpen) return;
         _mediaTagDialogOpen = true;
         Control? origin = returnTo ?? FocusManager?.GetFocusedElement() as Control;
@@ -355,11 +395,16 @@ public partial class MainWindow
                     NotificationType.Warning, operation: "media.tags");
                 return;
             }
-            MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
-                _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), _session.ReadBooruCatalog);
+            MediaTagSession session = NewPopoverTagSession(target, Current, sidebarToken);
+            using MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), _session.ReadBooruCatalog);
             MediaPageTagWindow = dialog;
-            await dialog.ShowDialog(this);
+            Task shown = dialog.ShowDialog(this);
+            using CancellationTokenRegistration closeOnTargetChange = sidebarToken.Register(() =>
+            {
+                if (Dispatcher.UIThread.CheckAccess()) dialog.CloseForLifetime();
+                else Dispatcher.UIThread.Post(dialog.CloseForLifetime);
+            });
+            await shown;
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
             or Microsoft.Data.Sqlite.SqliteException)
@@ -426,10 +471,13 @@ internal static class MediaMenuIdentity
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
         Func<bool> isCurrent, CancellationToken token, Func<BooruCatalogSnapshot?>? readBooruCatalog = null,
-        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
+        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null, bool fromTagQueue = false, bool decisionOnly = false)
     {
         if (!isCurrent() || token.IsCancellationRequested || indexed.Presence != MediaLibraryPresence.Present
             || indexed.Directory == null) return null;
+        Task<Stream> OpenOriginalAsync(GalleryEntry entry) => decisionOnly
+            ? Task.Run(() => GallerySidebarOriginal.OpenAsync(entry, token), token)
+            : entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token);
         GalleryEntry? resolved;
         if (indexed.FolderItemId != null)
         {
@@ -438,7 +486,7 @@ internal static class MediaMenuIdentity
             if (resolved == null || !Matches(indexed, resolved) || !isCurrent() || token.IsCancellationRequested) return null;
             try
             {
-                await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+                await using Stream verified = await OpenOriginalAsync(resolved);
                 return isCurrent() && !token.IsCancellationRequested ? resolved : null;
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
@@ -454,7 +502,7 @@ internal static class MediaMenuIdentity
             if (resolved == null || !Matches(indexed, resolved) || !isCurrent() || token.IsCancellationRequested) return null;
             try
             {
-                await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+                await using Stream verified = await OpenOriginalAsync(resolved);
                 return isCurrent() && !token.IsCancellationRequested ? resolved : null;
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
@@ -469,7 +517,7 @@ internal static class MediaMenuIdentity
             if (resolved == null || !Matches(indexed, resolved) || !isCurrent() || token.IsCancellationRequested) return null;
             try
             {
-                await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+                await using Stream verified = await OpenOriginalAsync(resolved);
                 return isCurrent() && !token.IsCancellationRequested ? resolved : null;
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
@@ -478,7 +526,8 @@ internal static class MediaMenuIdentity
         {
             if (!isCurrent()) return null;
             ArchivedThreadView? thread = await reader.ReadThreadAsync(indexed.Thread, token);
-            if (!isCurrent() || thread == null || thread.Summary.Revision != indexed.ThreadRevision) return null;
+            // A queue entry persists the occurrence, independently of later captures of its thread.
+            if (!isCurrent() || thread == null || (!fromTagQueue && thread.Summary.Revision != indexed.ThreadRevision)) return null;
             IReadOnlyList<string> directories = await reader.GetMediaDirectoriesAsync(indexed.Thread, token);
             if (!isCurrent() || !directories.Contains(indexed.Directory, StringComparer.Ordinal)) return null;
             List<MediaAssetSnapshot> manifests = new();
@@ -488,13 +537,16 @@ internal static class MediaMenuIdentity
                 if (!isCurrent()) return null;
             }
             GalleryEntry[] matches = GallerySelection.Build(thread, manifests, allSavedVersions: true, includeOtherMedia: true)
-                .Entries.Where(entry => Matches(indexed, entry)).ToArray();
+                // Older queue files omit the binding revision. All the other occurrence fields must still match uniquely.
+                .Entries.Where(entry => Matches(fromTagQueue && indexed.AttachmentRevisionKey == null
+                    ? indexed with { AttachmentRevisionKey = entry.AttachmentResolution?.Binding?.Reference.RevisionKey }
+                    : indexed, entry)).Take(2).ToArray();
             resolved = matches.Length == 1 ? matches[0] : null;
         }
         if (resolved == null || !isCurrent() || token.IsCancellationRequested) return null;
         try
         {
-            await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+            await using Stream verified = await OpenOriginalAsync(resolved);
             return isCurrent() && !token.IsCancellationRequested ? resolved : null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }

@@ -158,7 +158,8 @@ public partial class MainWindow
         if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
         await _playbackGate.EnterGalleryAsync(() => Task.WhenAll(
             _archivePage?.ReleaseInlineVideos() ?? Task.CompletedTask,
-            _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask));
+            _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask,
+            _taggingPage?.ReleasePanelVideos() ?? Task.CompletedTask));
         if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
         bool largeReaderOrigin = _largeReaderOpen;
         bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;
@@ -241,6 +242,8 @@ public partial class MainWindow
         // Open actions nobody awaits (interaction audit): a failure is logged and shown, never an unobserved task (OpenActions).
         _gallery.ReadPostsRequested += () => OpenActions.Start(ReadEmptyGalleryPostsAsync, "gallery.readPosts");
         _gallery.MoveRequested += delta => OpenActions.Start(() => MoveGalleryAsync(delta), "gallery.move");
+        _gallery.LoadMoreRequested += () => OpenActions.Start(
+            () => ResolveNextGalleryEntryAsync(_galleryRequest, _galleryEntries.Count), "gallery.loadMore");
         _gallery.ReadPostRequested += entry => OpenActions.Start(() => ReadGalleryPostAsync(entry), "gallery.readPost");
         _gallery.QuoteRequested += quote => OpenActions.Start(() => ReadGalleryQuoteAsync(quote), "gallery.readQuote");
         _gallery.AssociationRequested += entry =>
@@ -284,10 +287,10 @@ public partial class MainWindow
         }
         if (_galleryStartMissing) _gallery.SetNotice(Texts.T("gallery.selectedUnavailable"));
         else if (_galleryEntries.Count > 0) await ShowGalleryEntryAsync();
-        else await ResolveNextGalleryEntryAsync(request);
+        else await ResolveNextGalleryEntryAsync(request, _galleryIndex);
     }
 
-    private async Task ResolveNextGalleryEntryAsync(int request)
+    private async Task ResolveNextGalleryEntryAsync(int request, int requestedIndex)
     {
         if (_gallery == null || _galleryCancellation == null || _galleryResolvingRequest == _galleryRequest) return;
         _galleryResolvingRequest = request;
@@ -295,22 +298,27 @@ public partial class MainWindow
         CancellationToken token = _galleryCancellation.Token;
         GalleryViewer resolvingViewer = _gallery;
         int mediaGeneration = resolvingViewer.MediaRequestGeneration;
+        bool continuing = resolvingViewer.Filmstrip.CurrentIndex >= 0;
         bool Current() => request == _galleryRequest && !token.IsCancellationRequested && ReferenceEquals(_gallery, resolvingViewer)
             && _archivePage?.IsArchiveCleanupOpen != true;
         try
         {
-            while (_galleryThreadIndex < _galleryThreads.Count && _galleryEntries.Count <= _galleryIndex)
+            while (_galleryThreadIndex < _galleryThreads.Count && _galleryEntries.Count <= requestedIndex)
             {
                 token.ThrowIfCancellationRequested();
-                ResourceId id = _galleryThreads[_galleryThreadIndex++];
-                resolvingViewer.SetLoadingNotice(Texts.T("gallery.more"));
+                ResourceId id = _galleryThreads[_galleryThreadIndex];
+                resolvingViewer.SetLoadingNotice(Texts.T(continuing ? "gallery.filmstrip.more" : "gallery.more"));
                 bool allVersions = _galleryAllVersions;
                 bool singleThread = _galleryThreads.Count == 1;
                 ArchivedThreadView? thread;
                 await using (ArchiveReader reader = await _session.OpenArchiveReaderAsync(token))
                     thread = await reader.ReadThreadAsync(id, token);
                 if (!Current()) return;
-                if (thread == null) continue;
+                if (thread == null)
+                {
+                    ++_galleryThreadIndex;
+                    continue;
+                }
                 if (singleThread && thread.MediaPositions.Count > 0)
                     resolvingViewer.SetLoadingNotice(Texts.T("gallery.loading") + " " + Texts.T("thread.media.total", thread.MediaPositions.Count));
 
@@ -318,12 +326,17 @@ public partial class MainWindow
                 {
                     List<MediaAssetSnapshot> manifests = new();
                     List<string> errors = new();
+                    Exception? manifestFailure = null;
                     foreach (string directory in thread.MediaDirectories)
                     {
                         token.ThrowIfCancellationRequested();
                         try { manifests.Add(await MediaAssetReader.OpenAsync(directory, token)); }
                         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-                        catch (Exception exception) { errors.Add(directory + ": " + exception.Message); }
+                        catch (Exception exception)
+                        {
+                            manifestFailure ??= exception;
+                            errors.Add(directory + ": " + exception.Message);
+                        }
                     }
                     GalleryThreadResult built = GallerySelection.Build(thread, manifests, allVersions, includeOtherMedia: true);
                     List<GalleryEntry> verified = new();
@@ -343,6 +356,9 @@ public partial class MainWindow
                         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                         catch (Exception exception) { errors.Add(entry.Asset.Path + ": " + exception.Message); }
                     }
+                    // Keep this thread as the retry target when a manifest failed and nothing usable was found.
+                    if (continuing && verified.Count == 0 && manifestFailure != null)
+                        throw new IOException("Could not read a media manifest for " + id, manifestFailure);
                     return (new GalleryThreadResult(verified.AsReadOnly(), new List<string>(built.Warnings.Concat(errors))),
                         singleThread ? ThreadGalleryPositions.Create(thread.MediaPositions, verified) : null);
                 }, token);
@@ -352,26 +368,30 @@ public partial class MainWindow
                     int start = -1;
                     for (int i = 0; i < result.Entries.Count; i++)
                         if (result.Entries[i].EntryKey == _galleryStart) { start = i; break; }
-                    if (start >= 0) _galleryIndex = _galleryEntries.Count + start;
+                    if (start >= 0) requestedIndex = _galleryEntries.Count + start;
                     else _galleryStartMissing = true;
                     _galleryStart = null;
                 }
                 _galleryEntries.AddRange(result.Entries);
+                ++_galleryThreadIndex;
                 _galleryThreadPositions = resolvingViewer.ThreadPositions = positions;
                 if (positions != null) UpdateGalleryScope();
                 ++_galleryAssociationsRevision;
                 _galleryWarnings.AddRange(result.Warnings);
                 resolvingViewer.SetWarnings(string.Join(Environment.NewLine, _galleryWarnings.Distinct()));
             }
-            if (request != _galleryRequest || _gallery == null) return;
-            if (_galleryStartMissing) _gallery.SetNotice(Texts.T("gallery.selectedUnavailable"));
-            else if (_galleryIndex < _galleryEntries.Count) await ShowGalleryEntryAsync();
+            if (!Current()) return;
+            if (_galleryStartMissing) resolvingViewer.SetNotice(Texts.T("gallery.selectedUnavailable"));
+            else if (requestedIndex < _galleryEntries.Count)
+            {
+                _galleryIndex = requestedIndex;
+                await ShowGalleryEntryAsync();
+            }
             else
             {
                 // A lookahead over image-less threads must keep the last image navigable.
                 if (_galleryEntries.Count > 0)
                 {
-                    _galleryIndex = _galleryEntries.Count - 1;
                     await ShowGalleryEntryAsync();
                 }
                 else
@@ -387,11 +407,17 @@ public partial class MainWindow
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (request == _galleryRequest && ReferenceEquals(_gallery, resolvingViewer))
+            if (Current())
             {
-                Task failure = resolvingViewer.SetMediaUnavailable(UserFacingError.Report(exception, "Resolving the gallery media"), mediaGeneration);
-                TrackNativeGalleryCleanup(failure);
-                await failure;
+                string diagnosis = UserFacingError.Report(exception, "Resolving the gallery media");
+                if (continuing && mediaGeneration == resolvingViewer.MediaRequestGeneration)
+                    resolvingViewer.ReportGalleryContinuationFailure(diagnosis);
+                else
+                {
+                    Task failure = resolvingViewer.SetMediaUnavailable(diagnosis, mediaGeneration);
+                    TrackNativeGalleryCleanup(failure);
+                    await failure;
+                }
             }
         }
         finally
@@ -444,9 +470,13 @@ public partial class MainWindow
         if (_gallery == null || _galleryCancellation == null || _galleryResolvingRequest == _galleryRequest) return;
         if (delta < 0 && _galleryIndex == 0) return;
         // A sum of wheel steps never overshoots the ends: not before the first entry, not past the one-past-the-last place that loads the next thread.
-        _galleryIndex = delta < 0 ? Math.Max(0, _galleryIndex + delta) : Math.Min(_galleryIndex + delta, Math.Max(_galleryEntries.Count, _galleryIndex + 1));
-        if (_galleryIndex >= _galleryEntries.Count) await ResolveNextGalleryEntryAsync(_galleryRequest);
-        else await ShowGalleryEntryAsync();
+        int target = Math.Clamp(_galleryIndex + delta, 0, _galleryEntries.Count);
+        if (target == _galleryEntries.Count) await ResolveNextGalleryEntryAsync(_galleryRequest, target);
+        else
+        {
+            _galleryIndex = target;
+            await ShowGalleryEntryAsync();
+        }
     }
 
     private async Task ShowGalleryEntryAsync()
@@ -472,6 +502,10 @@ public partial class MainWindow
     private void UpdateGalleryPosition()
     {
         if (_gallery == null) return;
+        bool ready = _galleryResolvingRequest != _galleryRequest;
+        bool moreThreads = _galleryThreadIndex < _galleryThreads.Count;
+        bool canLoadMore = moreThreads && _galleryEntries.Count > 0;
+        _gallery.SetFilmstripContinuation(canLoadMore, !ready && (canLoadMore || _gallery.Filmstrip.Count > 0));
         if (CurrentGalleryPosition() is not { } position)
         {
             _gallery.SetPosition(string.Empty, false, false);
@@ -479,15 +513,15 @@ public partial class MainWindow
         }
         // MoveGalleryAsync cannot accept navigation while resolving. Do not
         // expose enabled arrows before that guard is released after decoding.
-        bool ready = _galleryResolvingRequest != _galleryRequest;
         // The tagging mode names the place in the whole queue ("Queue 12 of 200") instead of the place in the walk's list (PT3).
-        string label = _galleryThreadPositions == null
-            ? position.Number + (position.More ? " · " + Texts.T("gallery.more") : " / " + position.Count)
+        string label = position.Queue ? MediaPositionText.Long(position)! : _galleryThreadPositions == null
+            ? position.Number + " / " + position.Count
             : position.Number > 0 ? Texts.T("reader.sidebar.position", position.Number, position.Count)
             : Texts.T("thread.media.total", position.Count);
-        _gallery.SetPosition(TaggingPositionText(_galleryEntries[_galleryIndex]) ?? label,
+        _gallery.SetPosition(label,
             ready && _galleryIndex > 0,
-            ready && (_galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count));
+            ready && (_galleryIndex + 1 < _galleryEntries.Count || moreThreads), position,
+            mediaAhead: _galleryEntries.Count - _galleryIndex - 1);
     }
 
     private GalleryTagPanelPosition? GalleryListPosition() =>
@@ -497,8 +531,9 @@ public partial class MainWindow
     private GalleryTagPanelPosition? CurrentGalleryPosition()
     {
         GalleryTagPanelPosition? current = GalleryListPosition();
-        return current != null && _galleryThreadPositions is { } media
-            ? new(media.NumberAt(_galleryIndex) ?? 0, media.Count, false) : current;
+        if (current == null) return null;
+        return TaggingPosition(_galleryEntries[_galleryIndex]) ?? (_galleryThreadPositions is { } media
+            ? new(media.NumberAt(_galleryIndex) ?? 0, media.Count, false) : current);
     }
 
     private async Task ReadGalleryPostAsync(GalleryEntry entry)

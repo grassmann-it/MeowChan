@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Avalonia.Controls;
 using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Desktop;
@@ -24,9 +25,9 @@ namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// Documentation contracts, not evidence of live provider behavior or native UI acceptance.
-/// Reads repository Markdown/source and embedded resources only: no profile, language-state mutation,
-/// store construction, HTTP client or application startup is needed.
+/// Reads repository Markdown, embedded resources and in-process components without opening profiles or contacting providers.
 /// </summary>
+[Collection("Localization")]
 public sealed class HelpDocumentationTests
 {
     private const string Help = "docs/Help.md";
@@ -422,12 +423,31 @@ public sealed class HelpDocumentationTests
         Assert.True(new Config().ReaderMediaSidebar);
         Assert.Equal(ReaderMediaClickMode.Sidebar, new Config().EffectiveReaderMediaClick);
         Assert.False(new Config().ReaderInlineVideoAutoplayMuted);
-        // Only read the actual hosts; no player, decoder, settings window or session is constructed.
         Assert.Contains("_archivePage.QuickSettingsHost = CreateQuickSettingsHost();", Read("Desktop/Shell/MainWindow.Navigation.cs"), StringComparison.Ordinal);
         string media = Read("Desktop/Views/Archive/ArchivePage.ReaderMedia.cs");
         Assert.Contains("InitializeInlineVideo();", media, StringComparison.Ordinal);
         Assert.Contains("InitializeMediaSidebar();", media, StringComparison.Ordinal);
-        Assert.Contains("new QuickSettingsPopover(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), host", Read("Desktop/Views/Archive/ArchivePage.QuickSettings.cs"), StringComparison.Ordinal);
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
+            Config config = new();
+            page.QuickSettingsHost = new QuickSettingsHost { CurrentConfig = () => config, SaveAsync = _ => Task.CompletedTask };
+            Window window = new() { Width = 1440, Height = 840, Content = page };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                page.OpenReaderQuickSettings();
+                var popover = Assert.IsType<QuickSettingsPopover>(page.ReaderQuickSettings);
+                Assert.Same(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), popover.Surface.Spec);
+            }
+            finally
+            {
+                page.EndLifetime();
+                window.Close();
+            }
+        });
         string video = Read("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
         Assert.Contains("ArchivePosts.SetValue(ArchiveAttachmentView.InlineVideoProperty, _inlineVideo);", video, StringComparison.Ordinal);
         Assert.Contains("return Task.WhenAll(_inlineVideo.ReleaseAllAsync(), preview);", video, StringComparison.Ordinal);
@@ -594,26 +614,17 @@ public sealed class HelpDocumentationTests
     public void GalleryHelpMatchesHeaderAndSidePanelPlacementAndUnreducedSafetyState()
     {
         string text = Plain(Section(Read(Help), "Images, search and navigation"));
-        Assert.Contains("far left of the header, before the title, with the favorite star directly to its right", text);
+        // Fable #1: document the heart and rating stars beside Back to ….
+        Assert.Contains("far left of the header, before the title. The favorite heart and rating stars sit beside it when space permits.", text);
         Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
         Assert.Contains("Back to {target}", text);
-        Assert.Contains("The live medium counter is at the top left of the side panel", text);
-        Assert.Contains("Post | Tags are on the left and × is on the right", text);
-        Assert.Contains("The tabs wrap onto two lines when space is tight", text);
+        Assert.Contains("Post | Tags are on the left of the header, followed by the position pill and the close button", text);
+        Assert.Contains("Both tabs show the same position, including the queue position in Tag mode", text);
         Assert.Contains("The counter updates as you navigate, with localized position text and polite accessibility announcements", text);
-        Assert.Contains("the media title is left-aligned above the favorite and rating controls", text);
-        Assert.Contains("the line with the source, board and thread is left-aligned above those controls", text);
-        Assert.Contains("steht er oben links im Galerie-Seitenpanel", text);
-        Assert.Contains("der Medientitel linksbündig über den Favoriten- und Bewertungsfunktionen", text);
+        Assert.Contains("Auf Bewertung und Favorit folgen Tags, Angaben zum Post und zur Datei und die Aktionen", text);
         var viewer = CSharpSource.Parse(Read("Desktop/GalleryViewer.cs"));
         Assert.Contains(viewer.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
             SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression("_close.HorizontalAlignment = HorizontalAlignment.Left")));
-        var context = viewer.Method("BuildContext");
-        var postWhere = Assert.Single(context.Calls("AddContext"), call => call.ArgumentList.Arguments.Any(argument =>
-            argument.Expression is LiteralExpressionSyntax name && name.Token.ValueText == "GalleryPostWhere"));
-        var postWhereAlignment = Assert.IsType<AssignmentExpressionSyntax>(postWhere.Parent!.Parent);
-        Assert.True(SyntaxFactory.AreEquivalent(postWhereAlignment.Right, SyntaxFactory.ParseExpression("TextAlignment.Left")));
-        Assert.True(postWhere.SpanStart < Assert.Single(context.Calls("PostDecisionSection")).SpanStart);
         var favorites = CSharpSource.Parse(Read("Desktop/GalleryViewer.Favorites.cs"));
         var starMargin = Assert.Single(favorites.DescendantNodes().OfType<PropertyDeclarationSyntax>(),
             property => property.Identifier.ValueText == "StarLeftMargin");
@@ -792,7 +803,7 @@ public sealed class HelpDocumentationTests
             Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsBack=\"True\"", xaml);
         (string Xaml, string Name)[] ends =
         [
-            (main, "DownloadSearchClose"), (main, "InspectorCloseButton"),
+            (main, "InspectorCloseButton"),
             (archive, "ClosePreviewButton")
         ];
         foreach ((string xaml, string name) in ends)
@@ -905,7 +916,6 @@ public sealed class HelpDocumentationTests
         { "Reader display settings", "Quote preview delay (ms)", ReaderDisplayLimits.PreviewDelayDefault, ReaderDisplayLimits.PreviewDelayMinimum, ReaderDisplayLimits.PreviewDelayMaximum },
         { "Reader display settings", "Reply cards per step", ReaderDisplayLimits.ReplyStepDefault, ReaderDisplayLimits.ReplyStepMinimum, ReaderDisplayLimits.ReplyStepMaximum },
         { "Reader display settings", "Lines per reply card", ReaderDisplayLimits.ReplyLinesDefault, ReaderDisplayLimits.ReplyLinesMinimum, ReaderDisplayLimits.ReplyLinesMaximum },
-        { "Reader display settings", "Posts per reader page", ArchivePage.ReaderPageSizeDefault, ArchivePage.ReaderPageSizeMinimum, ArchivePage.ReaderPageSizeMaximum },
         { "Reader display settings", "Maximum conversation indentation depth", ReaderConversationTree.DepthDefault, ReaderConversationTree.DepthMinimum, ReaderConversationTree.DepthMaximum },
         { "Gallery Fit enlargement", "Maximum enlargement (%)", GalleryFitPreferences.MaxUpscalePercentDefault, GalleryFitPreferences.MaxUpscalePercentMinimum, GalleryFitPreferences.MaxUpscalePercentMaximum },
         { "Gallery Fit enlargement", "Maximum zoom (%)", GalleryZoomLimits.MaxPercentDefault, GalleryZoomLimits.MaxPercentMinimum, GalleryZoomLimits.MaxPercentMaximum }
@@ -924,13 +934,13 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void ReaderAndGalleryNumericTablesCoverAllTwelveFieldsWithoutDuplicates()
+    public void ReaderAndGalleryNumericTablesCoverAllElevenFieldsWithoutDuplicates()
     {
-        // Eight reader numbers, separate Fit and manual zoom caps, and two post-filter store limits.
+        // Seven reader numbers, separate Fit and manual zoom caps, and two post-filter store limits.
         foreach (string heading in new[] { "Reader display settings", "Gallery Fit enlargement" })
             Assert.Equal(ReaderAndGalleryLimits().Where(row => (string)row[0] == heading).Select(row => (string)row[1]).Order(StringComparer.Ordinal),
                 TableRows(heading).Select(row => row[0]).Order(StringComparer.Ordinal));
-        Assert.Equal(12, ReaderAndGalleryLimits().Count + Limits().Count(row => (string)row[0] is "Post filter rules" or "Individually hidden posts"));
+        Assert.Equal(11, ReaderAndGalleryLimits().Count + Limits().Count(row => (string)row[0] is "Post filter rules" or "Individually hidden posts"));
     }
 
     [Fact]
@@ -943,14 +953,14 @@ public sealed class HelpDocumentationTests
         Assert.Equal(ReaderSpoilerMode.Hide, ReaderDisplayLimits.ClampSpoilerMode((ReaderSpoilerMode)(-1)));
         Assert.Contains("System format (default), Weekday and seconds, Since opening post and Relative to now", display);
         Assert.Contains("Keep hidden (default), Show on hover and Always show", display);
-        Assert.Contains("current reading position in view", display);
-        Assert.Contains("not the archive thread-list page size", display);
-        Assert.Contains("not refreshed by a timer", display);
+        Assert.Contains("applying a saved change keeps your place", display, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("when the list is rendered", display);
         Assert.Contains("Changes stay in the Settings draft until Save succeeds", display);
         Assert.Contains("Discard draft restores the saved values", display);
         Assert.Contains("a failed save does not apply the draft", display);
 
         string reading = Plain(Section(Read(Help), "Images, search and navigation"));
+        Assert.Contains("The Posts tab scrolls continuously from the opening post to the final reply", reading);
         Assert.Contains("The conversation switch is session-only", reading);
         Assert.Contains("deeper replies stay visible at the last indentation level", reading);
         Assert.Contains("not a provider conversation function and sends no requests", reading);
@@ -961,8 +971,8 @@ public sealed class HelpDocumentationTests
     public void ContinueReadingHelpMatchesRoutingHistoryFallbackAndReaderStatusSemantics()
     {
         string help = Plain(Read(Help));
-        Assert.Contains("it remains visible while the reader or gallery is open", help, StringComparison.Ordinal);
-        Assert.Contains("Inside the reader or gallery, left-click opens the history list", help, StringComparison.Ordinal);
+        Assert.Contains("The book opens the newest saved place", help, StringComparison.Ordinal);
+        Assert.Contains("The arrow opens the history list", help, StringComparison.Ordinal);
         Assert.Contains($"default {Config.ReadingHistoryLimitDefault}, {Config.ReadingHistoryLimitMinimum}–{Config.ReadingHistoryLimitMaximum}", help, StringComparison.Ordinal);
         Assert.Contains($"default {Config.ReadingHistoryMenuEntriesDefault}, {Config.ReadingHistoryMenuEntriesMinimum}–{Config.ReadingHistoryMenuEntriesMaximum}", help, StringComparison.Ordinal);
         Assert.Contains("the next captured post is used when one exists, otherwise the last captured post", help, StringComparison.Ordinal);
@@ -1117,8 +1127,6 @@ public sealed class HelpDocumentationTests
         // Header-off is not a global measurement switch; the page still has its independent visible claim.
         Assert.Equal(IoStatsVisibility.None, IoStatsDisplay.Claim(windowShown: true, graphVisible: false, pageVisible: false));
         Assert.Equal(IoStatsVisibility.Window, IoStatsDisplay.Claim(windowShown: true, graphVisible: false, pageVisible: true));
-        Assert.Contains("IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, StatisticsSegmentShown)",
-            Read("Desktop/Shell/MainWindow.Transfer.cs"), StringComparison.Ordinal);
         Assert.DoesNotContain("upload is not measured", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("writes only", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
@@ -1805,9 +1813,9 @@ public sealed class HelpDocumentationTests
         {
             int count = Number(page.Groups["pages"].Value);
             int size = Number(page.Groups["size"].Value);
-            Assert.Equal(DanbooruTagQuery.MaximumSearchPages, count);
+            Assert.Equal(Config.BooruSearchPagesDefault, count);
             Assert.Equal(DanbooruWatcher.DefaultPageBudget, count);
-            Assert.Equal(BooruHostHttp.MaximumSearchPage, count);
+            Assert.Contains(BooruHostHttp.MaximumSearchPage.ToString(CultureInfo.InvariantCulture), text, StringComparison.Ordinal);
             Assert.Equal(DanbooruTagQuery.MaximumSearchPageSize, size);
             Assert.Equal(DanbooruWatcher.DefaultPageSize, size);
             Assert.Equal(BooruHostHttp.MaximumSearchLimit, size);

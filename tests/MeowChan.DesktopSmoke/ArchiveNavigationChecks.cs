@@ -50,7 +50,7 @@ internal static class ArchiveNavigationChecks
                 await fixture.NavigateQuoteAsync(originRow.Quotes[0]);
                 Require(fixture.CurrentThread?.Summary.Id == target, "Cross-board local navigation failed.");
                 ListBox posts = fixture.FindControl<ListBox>("ArchivePosts")!;
-                Require(posts.SelectedItem is ArchivePostRow { Id: "475" } && posts.ItemsSource!.Cast<ArchivePostRow>().First().Id == "450", "Target was not selected on its actual post page.");
+                Require(posts.SelectedItem is ArchivePostRow { Id: "475" } && posts.SelectedIndex == 75 && posts.ItemCount == fixture.CurrentThread!.PostCount, "The quote target was not selected within the full thread.");
                 await Program.WaitUntilAsync(() => posts.ContainerFromItem(posts.SelectedItem!) is Control);
                 Program.CaptureWindow(window, "smoke-archive-search-quote-target.png");
                 ArchivePostRow targetRow = (ArchivePostRow)posts.SelectedItem!;

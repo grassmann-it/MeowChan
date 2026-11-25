@@ -1,7 +1,10 @@
 using Avalonia;
 using Avalonia.Automation;
-using Avalonia.Controls.Primitives;
-using Avalonia.LogicalTree;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -108,26 +111,46 @@ public sealed class MediaLibraryBadgeTests : IDisposable
     }
 
     [Fact]
-    public void TheFavouriteToggleIsQuietAtRestBecauseTheBadgeShowsTheState()
+    public void TheFavouriteToggleAppearsOnTileHoverFocusOrSelection() => BooruComponentDispatcher.Run(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        TransientPopupPolicy.Install();
         MediaLibraryTileView view = new() { FavoriteToggle = _ => Task.CompletedTask, DataContext = Row(Entry(), MediaLibraryFlag.Yes) };
-        ToggleButton star = view.FavoriteToggleButton;
-        Assert.Contains(MediaLibraryTileView.QuietFavoriteClass, star.Classes);
-        Assert.True(star.IsChecked == true && view.Badges.State.Favorite);
-        string styles = File.ReadAllText(Path.Combine(Root(), "Desktop/WorkspaceStyles.axaml"));
-        Assert.Contains("ToggleButton.tile-favorite.tile-favorite-quiet:checked", styles);
-        Assert.Contains("ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet", styles);
-    }
+        ListBoxItem container = new() { Content = view };
+        Window window = new() { Width = 500, Height = 400, Content = container };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+            var star = view.FavoriteToggleButton;
+            Assert.True(star.IsChecked == true && view.Badges.State.Favorite);
+            Assert.Equal(0, star.Opacity);
+            Assert.False(star.IsHitTestVisible);
 
-    [Fact]
-    public void TheTopRightExtentKeepsTheSelectionCheckBesideABadgeOfThatCorner()
-    {
-        MediaBadgePlan none = MediaBadgeLayout.Plan(new MediaBadgeState(Favorite: true), new Size(120, 90), MediaBadgeOptions.MediaPage);
-        Assert.Equal(0, MediaLibraryBadges.TopRightExtent(none, 120));
-        MediaBadgePlan missing = MediaBadgeLayout.Plan(new MediaBadgeState(Missing: true), new Size(120, 90), MediaBadgeOptions.MediaPage);
-        PlacedBadge badge = Assert.Single(missing.Badges);
-        Assert.Equal(120 - badge.Bounds.Left + MediaLibraryBadges.CornerGap, MediaLibraryBadges.TopRightExtent(missing, 120), 6);
-    }
+            window.MouseMove(star.TranslatePoint(new Point(4, 4), window)!.Value);
+            BooruComponentDispatcher.WaitUntil(() => star.Opacity == 1, "the hovered tile to reveal its star");
+            Assert.True(star.IsHitTestVisible);
+            window.MouseMove(new Point(-1, -1));
+            BooruComponentDispatcher.WaitUntil(() => star.Opacity == 0, "the tile to hide its star after the pointer leaves");
+
+            // Tom's 25.11. 17:55 decision: the tile is the keyboard target. Its star appears on hover, tile focus or selection.
+            Assert.False(star.IsTabStop);
+            Assert.False(star.Focus(NavigationMethod.Tab));
+            container.IsSelected = true;
+            Assert.False(container.IsKeyboardFocusWithin);
+            Assert.Equal(1, star.Opacity);
+            Assert.True(star.IsHitTestVisible);
+            container.IsSelected = false;
+            Assert.Equal(0, star.Opacity);
+
+            Assert.True(container.Focus(NavigationMethod.Tab));
+            Assert.Equal(1, star.Opacity);
+            Assert.True(star.IsHitTestVisible);
+        }
+        finally { window.Close(); }
+    });
 
     private static (Rect Badges, Rect Check, MediaBadgePlan Plan, Rect Play) Lay(double aspect, bool slotMarks, MediaBadgeOptions options)
     {
@@ -174,12 +197,39 @@ public sealed class MediaLibraryBadgeTests : IDisposable
     }
 
     [Fact]
-    public void TheTileArrangesBadgesCheckAndStarOnTheSlotsCorners()
+    public void TheTileArrangesBadgesCheckAndStarOnTheSlotsCorners() => BooruComponentDispatcher.Run(() =>
     {
-        string tile = File.ReadAllText(Path.Combine(Root(), "Desktop/MediaLibraryTileView.cs"));
-        Assert.Contains("preview.MarksOnSlot = true", tile);
-        Assert.Contains("_preview.Bounds.Size", tile);   // the slot size is handed to the badge view
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        MediaLibraryEntry missing = Entry() with { Presence = MediaLibraryPresence.Missing };
+        MediaLibraryTileView view = new() { FavoriteToggle = _ => Task.CompletedTask, DataContext = Row(Entry(), MediaLibraryFlag.Yes) };
+        Window window = new() { Width = 500, Height = 400, Content = new ListBoxItem { Content = view, IsSelected = true } };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            MediaTileView frame = Assert.Single(view.GetVisualDescendants().OfType<MediaTileView>());
+            MediaBadgeView badges = Assert.Single(frame.GetVisualDescendants().OfType<MediaBadgeView>());
+            Control slot = Assert.IsAssignableFrom<Control>(badges.GetVisualParent());
+            Border check = Assert.Single(slot.GetVisualDescendants().OfType<Border>(), mark => mark.Name == "MediaTileSelected");
+            Assert.Equal(new Rect(slot.Bounds.Size), badges.Bounds);
+            Assert.True(check.IsVisible);
+            Assert.Equal(2, view.FavoriteToggleButton.Bounds.Top);
+            Assert.Equal(2, view.FavoriteToggleButton.Bounds.Left);
+
+            MediaLibraryTileRow rebound = new(new MediaLibraryTile(missing, [missing]), 1);
+            view.DataContext = rebound;
+            foreach (MediaTileSize size in Enum.GetValues<MediaTileSize>())
+            {
+                view.Appearance = MediaTileMetrics.For(size, MediaTileCaption.All);
+                window.UpdateLayout();
+                Assert.Same(rebound, view.DataContext);
+                Assert.Equal(view.Appearance.PreviewHeight, slot.Bounds.Height);
+                PlacedBadge flag = Assert.Single(badges.Plan.Badges, mark => mark.Badge.Id == MediaBadgeId.Missing);
+                Assert.True(check.Bounds.Right < flag.Bounds.Left);
+            }
+        }
+        finally { window.Close(); }
+    });
 
     [Fact]
     public void RebindingAnUnchangedStateAllocatesNothing()
@@ -193,20 +243,5 @@ public sealed class MediaLibraryBadgeTests : IDisposable
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Same(sentence, view.BadgeDescription);
         Assert.True(allocated < 16 * 1024, "A refresh of an unchanged state must not allocate: " + allocated + " bytes over 2000 refreshes.");
-    }
-
-    [Fact]
-    public void TheOldPerTileMarksAreGone()
-    {
-        string tile = File.ReadAllText(Path.Combine(Root(), "Desktop/MediaLibraryTileView.cs"));
-        foreach (string gone in new[] { "_kindBadge", "_stateMark", "_queueMark", "_tagCountBadge", "_providerBadge" }) Assert.DoesNotContain(gone, tile);
-        Assert.Contains("new() { Name = \"MediaTileBadges\", Options = MediaBadgeOptions.MediaPage }", tile);
-    }
-
-    private static string Root()
-    {
-        string? directory = AppContext.BaseDirectory;
-        while (directory != null && !File.Exists(Path.Combine(directory, "MeowChan.csproj"))) directory = Path.GetDirectoryName(directory);
-        return directory ?? throw new DirectoryNotFoundException("MeowChan.csproj");
     }
 }

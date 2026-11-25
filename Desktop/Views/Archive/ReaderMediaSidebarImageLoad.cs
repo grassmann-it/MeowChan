@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
 
@@ -59,13 +60,45 @@ internal sealed class ReaderMediaSidebarImageLoad
         _view.Load.Finished(_ticket.Request);
     }
 
-    private void Unavailable(string textKey)
+    private void Unavailable(string textKey, bool keepPicture = true)
     {
         if (!Current) return;
         Finish();
         // Resolution, decoding and poster failures all obey the same rule: keep a valid preview of THIS medium, never another post's.
-        if (!string.Equals(_view.Load.ShownKey, _key, StringComparison.Ordinal))
+        if (!keepPicture || !string.Equals(_view.Load.ShownKey, _key, StringComparison.Ordinal))
             _view.ShowPlaceholder(Texts.T(textKey));
+    }
+
+    internal async Task<ReaderMediaSidebarContent.Picture> ReadImageAsync(GalleryEntry entry, GalleryDecodeRequest.Fit target,
+        CancellationToken token, Action<bool>? verificationChanged = null,
+        Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap Bitmap, GalleryImageInfo Info)>>? decodeForTests = null)
+    {
+        bool verified = false;
+        try
+        {
+            int maximumPixels = _fit.PreviewMaximumPixels;
+            (Bitmap bitmap, GalleryImageInfo info) = decodeForTests != null
+                ? await decodeForTests(entry, target, token)
+                : await GalleryImageCache.DecodeThrough(GalleryImageCache.Shared,
+                    (saved, request, ct) => GalleryImageDecoder.DecodePreviewAsync(saved, request, maximumPixels, () => verified = true, ct),
+                    entry, target, token);
+            // A cache hit proves the requested occurrence. Apply the sidebar's setting to cached images too.
+            verified = true;
+            if (info.Pixels > maximumPixels)
+            {
+                GalleryImageCache.Shared.Release(bitmap);
+                throw new GalleryPreviewTooLargeException();
+            }
+            return new(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
+        }
+        finally
+        {
+            if (Current && !token.IsCancellationRequested)
+            {
+                _view.SetImageVerification(verified, verified ? entry : null);
+                verificationChanged?.Invoke(verified);
+            }
+        }
     }
 
     internal async Task RunAsync(Func<CancellationToken, Task<ReaderMediaSidebarContent>> load,
@@ -103,6 +136,7 @@ internal sealed class ReaderMediaSidebarImageLoad
             }
             else if (content is ReaderMediaSidebarContent.Unavailable missing) Unavailable(missing.TextKey);
         }
+        catch (GalleryPreviewTooLargeException) { Unavailable("archive.tooLarge", keepPicture: false); }
         catch (OperationCanceledException) { Unavailable("reader.sidebar.unavailable"); }
         catch (Exception error) when (error is not OutOfMemoryException)
         {

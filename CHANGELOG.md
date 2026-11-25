@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.1.2
+
+- Use a heart for favorites and five stars for ratings in the gallery. Click the
+  selected star again to clear the rating. Keep your position when switching
+  between Post and Tags, and load more media from the end of the filmstrip.
+- **Changed shortcuts.** In the gallery, Shift+I now toggles facts and Shift+Z
+  toggles the info line. In the Booru search field, Enter always searches the
+  current tab and Shift+Enter opens a new tab. The 1.1.1 setting **New search
+  opens in** has been retired.
+- Read past post 50 in an archived thread and jump to distant posts by quote or
+  navigator. The thread search shows the current match between the arrows.
+  The Saved media sidebar follows the selected revision. The table shows sizes
+  in KiB, MiB or GiB and offers the full SHA-256 checksum.
+- Share video autoplay, loop and mute settings across Reader, Media and
+  Tagging. Rate, favorite or tag saved originals beyond the preview pixel limit
+  and see why a preview was skipped in the sidebar or tile. The preview limit
+  defaults to 80 MP and ranges from 1 to 80 MP. Remove the **Minimum free height**
+  setting from Settings and the Reader’s quick settings.
+- Preview and edit tags on the current file in Tagging List or Grid. Continue
+  from the next unfinished file, revisit skipped files and see which decision
+  **Back** will undo.
+- Keep Booru pagination visible, jump directly to a page and move search actions
+  into **More** on narrow screens. Edit searches from result tags and retain draft
+  searches when restoring tabs. Toggle the Booru media sidebar with Ctrl+Shift+M
+  on Windows and Linux or ⇧⌘M on macOS.
+- Close Booru **Watchers** and **More**, Reader and Archive popups, and plugin
+  action menus with a second click on their opening buttons.
+- Preview a thread from a supported 4chan board archive before watching it.
+  Name board watchers, set their check interval and use suggested title patterns
+  from your local archive. Downloads indicates matches on the other tab and
+  shows how many selected entries can be checked or retried.
+- Save a rating or tag change on the newly selected medium even while an earlier
+  save is in progress. Copy the full filename from the sidebar or gallery, and
+  retain the Archive table width across view changes and restarts.
+- Keep saved shortcuts on upgrade and refresh shortcut labels when the language
+  changes. Update Help and README for the current gallery shortcuts and favorite
+  heart.
+- Keep the KDE Plasma tray menu steady during transfer updates and open live
+  rates from **Statistics**. Windows refreshes the rates in the open menu and
+  macOS refreshes them when the menu opens.
+- See the [1.1.2 release notes](docs/releases/v1.1.2.md) for more fixes and limits.
+
 ## 1.1.1
 
 - Show Booru in the default navigation, including profiles that used the 1.1.0

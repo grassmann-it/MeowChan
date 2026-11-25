@@ -40,7 +40,7 @@ internal static class ReaderConversationChecks
             window.Show(owner);
             page.IsAvailable = true;
             await page.LoadThreadAsync(id);
-            await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchivePosts")?.ItemsSource is ArchivePostRow[] { Length: > 0 });
+            await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchivePosts") is { ItemCount: > 0 });
 
             Require(page.ReaderThreadingDepth == ReaderConversationTree.DepthDefault, "Conversation depth did not start at 6.");
             Require(page.ToggleReaderViewOption("reader.view.conversation"), "Conversation was not registered in the View menu.");

@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Skia;
 using Avalonia.Threading;
@@ -13,26 +14,32 @@ namespace MeowChan.DesktopTests;
 internal static class BooruComponentDispatcher
 {
     private const BindingFlags StaticPrivate = BindingFlags.Static | BindingFlags.NonPublic;
+    private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ShutdownGrace = TimeSpan.FromSeconds(10);
 
-    internal static void Run(Action test, Func<string>? waitingFor = null)
+    [ThreadStatic]
+    private static Owner? _current;
+
+    internal static void Run(Action test, Func<string>? waitingFor = null, TimeSpan? timeout = null)
     {
-        ExceptionDispatchInfo? failure = null;
-        Thread ownerThread = new(() =>
-        {
-            try { RunOnOwnedDispatcher(test); }
-            catch (Exception exception) { failure = ExceptionDispatchInfo.Capture(exception); }
-        }) { IsBackground = true, Name = "Booru component dispatcher" };
-        ownerThread.Start();
-        if (!ownerThread.Join(TimeSpan.FromSeconds(30)))
-            throw new TimeoutException(waitingFor is null ? "The Booru component dispatcher did not settle."
-                : "The Booru component dispatcher timed out waiting for " + waitingFor());
-        failure?.Throw();
+        using Owner owner = new(test, waitingFor, timeout ?? Deadline);
+        owner.Run();
     }
 
-    // Async component work must be waited for on the owner thread. A synchronous Result/Wait
-    // would block the dispatcher that the continuation needs, which is especially visible on
-    // slower ARM runners. Pump only this owned dispatcher; the outer Run join still owns the
-    // lifetime and bounds a genuinely stuck component.
+    internal static void Run(Func<Task> test, TimeSpan? timeout = null) => Run(() =>
+    {
+        AvaloniaSynchronizationContext.InstallIfNeeded();
+        Wait(test());
+    }, timeout: timeout);
+
+    internal static CancellationToken Cancellation => Current.Cancellation;
+
+    internal static Delegate[] LanguageSubscribers() =>
+        (Field(typeof(Texts), nameof(Texts.Changed)).GetValue(null) as Delegate)?.GetInvocationList() ?? [];
+
+    private static Owner Current => _current
+        ?? throw new InvalidOperationException("This operation must run on the component dispatcher.");
+
     internal static T Wait<T>(Task<T> task)
     {
         PumpUntilCompleted(task);
@@ -45,6 +52,9 @@ internal static class BooruComponentDispatcher
         task.GetAwaiter().GetResult();
     }
 
+    internal static void WaitUntil(Func<bool> condition, string expected) =>
+        Wait(BooruTestSupport.WaitAsync(condition, expected));
+
     private static void PumpUntilCompleted(Task task)
     {
         ArgumentNullException.ThrowIfNull(task);
@@ -52,9 +62,68 @@ internal static class BooruComponentDispatcher
         owner.VerifyAccess();
         while (!task.IsCompleted)
         {
+            Current.CheckDeadline();
             owner.RunJobs();
-            Thread.Yield();
+            if (!task.IsCompleted) Thread.Sleep(1);
         }
+    }
+
+    private sealed class Owner : IDisposable
+    {
+        private readonly CancellationTokenSource _deadline;
+        private readonly TimeSpan _timeout;
+        private readonly Thread _thread;
+        private readonly Func<string>? _waitingFor;
+        private ExceptionDispatchInfo? _failure;
+
+        internal Owner(Action test, Func<string>? waitingFor, TimeSpan timeout)
+        {
+            _timeout = timeout;
+            _waitingFor = waitingFor;
+            _deadline = new();
+            _thread = new Thread(() => Execute(test)) { IsBackground = true, Name = "Booru component dispatcher" };
+        }
+
+        internal CancellationToken Cancellation => _deadline.Token;
+
+        internal void CheckDeadline()
+        {
+            if (Cancellation.IsCancellationRequested) throw Timeout();
+        }
+
+        private TimeoutException Timeout() => new("The component dispatcher timed out waiting for "
+            + (_waitingFor?.Invoke() ?? "component work to finish") + ".");
+
+        internal void Run()
+        {
+            _deadline.CancelAfter(_timeout);
+            _thread.Start();
+            if (!_thread.Join(_timeout + ShutdownGrace))
+            {
+                // VSTest executes this assembly in a separate testhost. If a callback refuses
+                // to return, end that process before any test can inherit the live dispatcher.
+                Environment.FailFast("The component dispatcher did not acknowledge cancellation and shut down.");
+            }
+            _failure?.Throw();
+        }
+
+        private void Execute(Action test)
+        {
+            _current = this;
+            try
+            {
+                RunOnOwnedDispatcher(test);
+                CheckDeadline();
+            }
+            catch (OperationCanceledException) when (Cancellation.IsCancellationRequested)
+            {
+                _failure = ExceptionDispatchInfo.Capture(Timeout());
+            }
+            catch (Exception exception) { _failure = ExceptionDispatchInfo.Capture(exception); }
+            finally { _current = null; }
+        }
+
+        public void Dispose() => _deadline.Dispose();
     }
 
     private static void RunOnOwnedDispatcher(Action test)
@@ -65,6 +134,12 @@ internal static class BooruComponentDispatcher
         object? previousHandlers = languageHandlers.GetValue(null);
         string language = Texts.Language;
         Dispatcher owner = Dispatcher.CurrentDispatcher;
+        // Avalonia shares preedit and hyperlink decorations across dispatchers.
+        FieldInfo decorationDispatcher = typeof(AvaloniaObject).GetField("<Dispatcher>k__BackingField",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var decorations = TextDecorations.Underline.Concat(TextDecorations.Strikethrough)
+            .Concat(TextDecorations.Overline).Concat(TextDecorations.Baseline)
+            .Select(decoration => (Decoration: decoration, Previous: decoration.Dispatcher)).ToArray();
         using IDisposable scope = AvaloniaLocator.EnterScope();
         using ShortcutTestState shortcuts = new();
         try
@@ -74,10 +149,12 @@ internal static class BooruComponentDispatcher
             // would mutate controls owned by its original thread during fixture cleanup.
             languageHandlers.SetValue(null, null);
             primary.SetValue(null, owner);
+            foreach (var entry in decorations) decorationDispatcher.SetValue(entry.Decoration, owner);
             // EnterScope alone inherits the parent's MediaContext and its animation clock.
             // Rendering and transitions must resolve services owned by this dispatcher.
             AvaloniaLocator.Current = AvaloniaLocator.CurrentMutable = new AvaloniaLocator();
             AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
             SkiaPlatform.Initialize(); // Compiled bitmap icons, without native windows.
             BooruReviewTestPlatform.BindTextShaper();
             owner.Invoke(() =>
@@ -93,7 +170,14 @@ internal static class BooruComponentDispatcher
             {
                 // Fixture disposal has ended the page lifetime. Drain only work posted to this
                 // fresh scope; it cannot contain callbacks inherited from another test.
-                owner.RunJobs();
+                try { owner.RunJobs(); }
+                finally
+                {
+                    // Avalonia's tray shutdown handler queries the application after the window fixture has disposed its scope.
+                    if (Application.Current == null)
+                        AvaloniaLocator.CurrentMutable.Bind<Application>().ToConstant(new Application());
+                    owner.InvokeShutdown();
+                }
             }
             finally
             {
@@ -105,6 +189,7 @@ internal static class BooruComponentDispatcher
                 {
                     languageHandlers.SetValue(null, previousHandlers);
                     primary.SetValue(null, previousDispatcher);
+                    foreach (var entry in decorations) decorationDispatcher.SetValue(entry.Decoration, entry.Previous);
                 }
             }
         }

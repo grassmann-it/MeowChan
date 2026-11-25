@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -9,7 +10,7 @@ using Serilog;
 
 namespace MeowChan.Desktop;
 
-// The reader's shared foundation (plan P0, section 3): one projection "thread -> shown order" that every page,
+// The reader's shared foundation (plan P0, section 3): one projection "thread -> shown order" that the post list,
 // navigation and reading-mark computation works against. P0's "Only posts with media", P2's post filters and P4's
 // conversation view only contribute verdicts or an order; placeholders, indentation and revealing belong to P0.
 
@@ -179,34 +180,14 @@ internal sealed class ReaderPostProjection
         }
     }
 
-    /// <summary>
-    /// The page containing a position in the shown order. Retained offsets (history, settings changes) may belong
-    /// to an older page size or a longer projection; always realign them before rendering or paging again.
-    /// </summary>
-    internal int PageOffset(int position, int pageSize)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
-        return Count == 0 ? 0 : Math.Clamp(position, 0, Count - 1) / pageSize * pageSize;
-    }
-
-    internal IReadOnlyList<ReaderPostEntry> Page(int offset, int count)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(offset);
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        int length = offset >= Count ? 0 : Math.Min(count, Count - offset);
-        ReaderPostEntry[] page = new ReaderPostEntry[length];
-        if (_entries != null) Array.Copy(_entries, offset, page, 0, length);
-        else for (int index = 0; index < length; index++) page[index] = new(offset + index, _posts[offset + index], 0, -1, default);
-        return Array.AsReadOnly(page);
-    }
-
     /// <summary>The shown position of a post; -1 when this view hides it or it was not captured.</summary>
     internal int PositionOf(string postId)
     {
         int index = Thread.FindPostIndex(postId);
-        if (index < 0) return -1;
-        return _positionOf == null ? index : _positionOf[index];
+        return PositionOfThreadIndex(index);
     }
+
+    internal int PositionOfThreadIndex(int index) => (uint)index >= (uint)_posts.Count ? -1 : _positionOf?[index] ?? index;
 
     /// <summary>The post itself when shown, otherwise the next shown post by thread index, otherwise the one before;
     /// -1 for an uncaptured post or an empty view.</summary>
@@ -381,4 +362,59 @@ internal sealed class ReaderPostProjection
             return hash.ToHashCode();
         }
     }
+}
+
+// ItemsSourceView uses IList directly. Giving it only an enumerable would make it copy every row before layout.
+internal sealed class ReaderPostRows(ReaderPostProjection projection, Func<ReaderPostEntry, ArchivePostRow> build)
+    : IReadOnlyList<ArchivePostRow>, IList
+{
+    // Callers can hold a row before its card is realized. Keep that identity until the list is replaced.
+    private readonly Dictionary<int, ArchivePostRow> _rows = new();
+
+    public int Count => projection.Count;
+    internal int BuiltCount { get; private set; }
+    internal IEnumerable<ArchivePostRow> Materialized => _rows.Values;
+
+    public ArchivePostRow this[int index]
+    {
+        get
+        {
+            if (_rows.TryGetValue(index, out ArchivePostRow? row)) return row;
+            row = build(projection[index]);
+            _rows.Add(index, row);
+            ++BuiltCount;
+            return row;
+        }
+    }
+
+    internal int IndexOf(ArchivePostRow row)
+    {
+        int index = projection.PositionOfThreadIndex(row.ThreadIndex);
+        return _rows.TryGetValue(index, out ArchivePostRow? current) && ReferenceEquals(current, row) ? index : -1;
+    }
+
+    internal ArchivePostRow? MaterializedAt(int index) => _rows.GetValueOrDefault(index);
+
+    public IEnumerator<ArchivePostRow> GetEnumerator()
+    {
+        for (int index = 0; index < Count; index++) yield return this[index];
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    object? IList.this[int index] { get => this[index]; set => throw new NotSupportedException(); }
+    int IList.IndexOf(object? item) => item is ArchivePostRow row ? IndexOf(row) : -1;
+    bool IList.Contains(object? item) => ((IList)this).IndexOf(item) >= 0;
+    bool IList.IsReadOnly => true;
+    bool IList.IsFixedSize => true;
+    bool ICollection.IsSynchronized => false;
+    object ICollection.SyncRoot => this;
+    void ICollection.CopyTo(Array array, int index)
+    {
+        foreach (ArchivePostRow row in this) array.SetValue(row, index++);
+    }
+    int IList.Add(object? value) => throw new NotSupportedException();
+    void IList.Clear() => throw new NotSupportedException();
+    void IList.Insert(int index, object? value) => throw new NotSupportedException();
+    void IList.Remove(object? value) => throw new NotSupportedException();
+    void IList.RemoveAt(int index) => throw new NotSupportedException();
 }

@@ -13,6 +13,9 @@ internal sealed class IoManualClock(DateTimeOffset startUtc) : TimeProvider
     public override DateTimeOffset GetUtcNow() => startUtc + TimeSpan.FromTicks(_ticks);
     public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
 
+    /// <summary>Moves time forward while timer callbacks are delayed.</summary>
+    internal void AdvanceWithoutCallbacks(TimeSpan duration) => _ticks += duration.Ticks;
+
     internal int ActiveTimers { get { lock (_timers) return _timers.Count(timer => timer.Due != null); } }
 
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)

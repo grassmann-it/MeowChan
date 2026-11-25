@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -95,7 +96,13 @@ public sealed class ReaderMediaSidebarLayoutTests
         {
             large.SetValue(page, largeReader);
             page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(saved));
-            page.SaveReaderMediaSwitches = update => { update(saved); writes++; return Task.CompletedTask; };
+            page.SaveReaderMediaSwitches = (update, fields) =>
+            {
+                Assert.Equal(new[] { SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarScope }, fields);
+                update(saved);
+                writes++;
+                return Task.CompletedTask;
+            };
             ToggleButton button = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
             Assert.Equal("panel-right", IconButtons.KeyOf(button));
             bool initial = largeReader;
@@ -188,12 +195,14 @@ public sealed class ReaderMediaSidebarLayoutTests
                     Assert.True(host.Bounds.Height > 0);
                     Assert.Equal(host.Bounds.Height, sidebar.Bounds.Height);
                     Assert.Equal(0, sidebar.TranslatePoint(default, host)!.Value.Y);
-                    Assert.Equal(0, sidebar.Padding.Top);
-                    Assert.Equal(0, sidebar.Padding.Bottom);
-                    Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
-                    Assert.Equal(16, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
-                    Assert.Equal(sidebar.Bounds.Height - 16 - sidebar.HeaderRow.Bounds.Height, sidebar.Card.Bounds.Height);
-                    Assert.Equal(sidebar.Bounds.Height, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
+                    Assert.Equal(8, sidebar.Padding.Top);
+                    Assert.Equal(8, sidebar.Padding.Bottom);
+                    // Tom 19:55: “Der Kopf ist einzeilig, solange es passt.”
+                    Assert.Equal(32, sidebar.HeaderRow.Bounds.Height);
+                    // Fable §2.1: “Höhe 40 DIP (4 + 32 + 4)” (56 DIP with a second line).
+                    Assert.Equal(12, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
+                    Assert.Equal(sidebar.Bounds.Height - 32 - sidebar.HeaderRow.Bounds.Height, sidebar.Card.Bounds.Height);
+                    Assert.Equal(sidebar.Bounds.Height - 8, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
                     double chrome = sidebar.Bounds.Height - sidebar.Frame.Bounds.Height;
                     chromeHeight ??= chrome;
                     Assert.Equal(chromeHeight.Value, chrome);
@@ -237,65 +246,102 @@ public sealed class ReaderMediaSidebarLayoutTests
     });
 
     [Theory]
+    [InlineData(280)]
+    [InlineData(360)]
+    [InlineData(480)]
+    public void SidebarTitlePillAndCloseShareTheHeaderRow(int width) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Texts.Initialize();
+        Texts.SetLanguage("en");
+        ReaderMediaSidebar sidebar = new()
+        {
+            OpenTagsAsync = (_, _) => Task.CompletedTask
+        };
+        sidebar.Describe("No. 123", "example.png", "100 KiB", true, new(16, 23, false));
+        Window window = new() { Content = sidebar, Width = width, Height = 480 };
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            SidePanelDesignTests.AssertCompactHeader(sidebar);
+            if (sidebar.PositionPill.IsVisible) Assert.Contains("16 / 23", sidebar.PositionPill.Label.Text);
+            Assert.Equal("Medium 16 of 23", ToolTip.GetTip(sidebar.PositionPill));
+            // Tom 20:05 / Fable §12: the gear also reflects whether its menu is open.
+            Assert.Equal(new[] { sidebar.FavoriteButton, sidebar.InfoToggle, sidebar.SettingsButton },
+                sidebar.HeaderRow.GetVisualDescendants().OfType<ToggleButton>().ToArray());
+            Assert.Equal("No. 123", sidebar.Title.Text);
+            // 19:55: position in the filename line, without a pill or an opening action.
+            Assert.Empty(sidebar.HeaderRow.GetVisualDescendants().OfType<MediaPositionPill>());
+            Assert.Equal("16 / 23", SidePanelDesignTests.ById<TextBlock>(sidebar, "ReaderMediaSidebarPosition").Text);
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
     [InlineData(8, 512, 240, 720)]
+    [InlineData(8, 512, 280, 720)]
     [InlineData(8, 512, 360, 720)]
     [InlineData(512, 8, 360, 720)]
-    [InlineData(64, 64, 500, 900)]
-    public void HeaderWrapsLongFileNamesAndCardFillsTheRemainingHeight(int pixelWidth, int pixelHeight, int width, int height) => OnDispatcher(() =>
+    [InlineData(64, 64, 480, 900)]
+    public void CompactMetadataKeepsSizeAndDimensionsAndTheCardFillsTheRemainingHeight(int pixelWidth, int pixelHeight, int width, int height) => BooruComponentDispatcher.Run(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         ReaderMediaSidebar view = new();
+        Window window = new() { Width = width, Height = height, Content = view };
         using WriteableBitmap picture = new(new PixelSize(pixelWidth, pixelHeight), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
         void Layout()
         {
-            // This standalone control has no layout root to schedule invalidated ancestors.
-            foreach (Layoutable child in view.GetVisualDescendants().OfType<Layoutable>().Reverse()) child.InvalidateMeasure();
-            view.InvalidateMeasure();
-            view.Measure(new Size(width, height));
-            view.Arrange(new Rect(0, 0, width, height));
-            Assert.InRange(view.HeaderRow.Bounds.Height, 32, 64);
+            window.UpdateLayout();
+            Assert.Equal(((MediaCompactHeader)view.HeaderRow).UsesSingleRow ? 32 : 48, view.HeaderRow.Bounds.Height);
             Assert.Equal(height, view.Bounds.Height);
-            Assert.Equal(view.Padding.Top + 8, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
-            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 8, view.Card.Bounds.Height);
+            // Fable §2.1: “Höhe 40 DIP (4 + 32 + 4)” (56 DIP with a second line).
+            Assert.Equal(view.Padding.Top + 4, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
+            Control details = view.Details;
+            double detailsHeight = details.IsVisible ? details.Bounds.Height + details.Margin.Top : 0;
+            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 16 - detailsHeight, view.Card.Bounds.Height, 1);
         }
-        Layout();
-        Rect emptyHeader = view.HeaderRow.Bounds;
-        Rect emptyCard = view.Card.Bounds;
-        Assert.Equal(32, emptyHeader.Height);
-        string positionText = Texts.T("reader.sidebar.position", 1234567890, 1234567891);
-        view.Describe("No. 123", new string('x', 500) + ".png", "100 MiB · 50000×100", true,
-            "Copy post reference", positionText);
-        view.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
-        view.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
-        Layout();
-        Control headerRow = Assert.IsType<MediaSidebarHeader>(view.HeaderRow);
-        TextBlock metadata = headerRow.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "ReaderMediaSidebarHeader");
-        TextBlock position = headerRow.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "ReaderMediaSidebarThreadPosition");
-        Point At(Control control) => control.TranslatePoint(default, headerRow)!.Value;
-        Assert.Equal(0, At(view.PostLink).X);
-        Assert.Equal(0, At(metadata).X);
-        Assert.Equal(32, At(metadata).Y);
-        Assert.Equal(2, metadata.TextLayout.TextLines.Count);
-        Assert.Equal(view.HeaderLine, ToolTip.GetTip(metadata));
-        Assert.True(At(view.Open).X >= At(view.FavoriteButton).X + view.FavoriteButton.Bounds.Width);
-        Assert.Equal(headerRow.Bounds.Width, At(view.Close).X + view.Close.Bounds.Width, 0.5);
-        Assert.True(position.Bounds.Width > 0);
-        Assert.Equal(positionText, ToolTip.GetTip(position));
-        Assert.Equal(At(view.Close).Y + view.Close.Bounds.Height / 2, At(position).Y + position.Bounds.Height / 2, 0.5);
-        Assert.True(At(view.PostLink).X + view.PostLink.Bounds.Width + 8 <= At(position).X + 0.5);
-        Assert.True(At(position).X + position.Bounds.Width + 8 <= At(view.FavoriteButton).X + 0.5);
-        Assert.Equal(width == 240, Assert.Single(position.TextLayout.TextLines).HasCollapsed);
-        Rect header = view.HeaderRow.Bounds;
-        Rect card = view.Card.Bounds;
-        Assert.Equal(view.Card.Bounds.Height, view.Frame.Bounds.Height);
-        view.ShowStrip(3, 0, 3, index => "file" + index, samePost: false);
-        Layout();
-        Assert.Equal(header, view.HeaderRow.Bounds);
-        Assert.Equal(card, view.Card.Bounds);
-        Assert.True(view.Frame.Bounds.Height > 0);
-        Assert.True(view.Frame.Bounds.Height < view.Card.Bounds.Height);
-        view.ShowEmpty();
-        Layout();
-        Assert.Equal(emptyHeader, view.HeaderRow.Bounds);
-        Assert.Equal(emptyCard, view.Card.Bounds);
+        try
+        {
+            window.Show();
+            Layout();
+            Rect emptyHeader = view.HeaderRow.Bounds;
+            Rect emptyCard = view.Card.Bounds;
+            // Tom 19:55: “Der Kopf ist einzeilig, solange es passt.”
+            Assert.Equal(32, emptyHeader.Height);
+            GalleryTagPanelPosition mediaPosition = new(1234567890, 1234567891, false);
+            string positionText = MediaPositionText.Long(mediaPosition)!;
+            view.Describe("No. 123", new string('x', 500) + ".png", "50000×100", true,
+                mediaPosition, 100L * 1024 * 1024);
+            view.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
+            view.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
+            Layout();
+            SidePanelDesignTests.AssertCompactHeader(view);
+            TextBlock metadata = ((MediaCompactHeader)view.HeaderRow).Meta;
+            Assert.Contains(new string('x', 500) + ".png", ToolTip.GetTip(metadata)?.ToString());
+            Assert.EndsWith("100 MiB", metadata.Text);
+            Assert.Contains(view.GetVisualDescendants().OfType<SelectableTextBlock>(), t => t.Text == "50000×100" && t.IsEffectivelyVisible);
+            Assert.Equal(view.PositionPill.Bare, SidePanelDesignTests.ById<TextBlock>(view, "ReaderMediaSidebarPosition").Text);
+            Assert.Equal(positionText, ToolTip.GetTip(view.PositionPill));
+            Assert.True(view.Open.IsEffectivelyVisible);
+            // 19:55: “Unten liegt eine feste Infoleiste: Sterne · Tags ... darunter die Fakten.”
+            Assert.True(view.DecisionRow.IsEffectivelyVisible);
+            Assert.Single(view.GetVisualDescendants().OfType<MediaSidebarFacts>(), facts => facts.IsEffectivelyVisible);
+            Rect header = view.HeaderRow.Bounds;
+            Rect card = view.Card.Bounds;
+            Assert.Equal(view.Card.Bounds.Height - 2, view.Frame.Bounds.Height);
+            view.ShowStrip(3, 0, 3, index => "file" + index, samePost: false);
+            Layout();
+            Assert.Equal(header, view.HeaderRow.Bounds);
+            Assert.Equal(card, view.Card.Bounds);
+            Assert.True(view.Frame.Bounds.Height > 0);
+            Assert.True(view.Frame.Bounds.Height < view.Card.Bounds.Height);
+            view.ShowEmpty();
+            Layout();
+            Assert.Equal(emptyHeader, view.HeaderRow.Bounds);
+            Assert.Equal(emptyCard, view.Card.Bounds);
+        }
+        finally { window.Close(); }
     });
 }

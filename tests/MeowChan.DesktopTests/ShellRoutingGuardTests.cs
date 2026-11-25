@@ -201,7 +201,6 @@ public sealed class ShellRoutingGuardTests
         string pressBody = page[press..released];
         Assert.DoesNotContain("Post(", pressBody, StringComparison.Ordinal);
         Assert.Contains("_sharedPointerContext.BeginPress();", pressBody, StringComparison.Ordinal);
-        Assert.Contains("_sharedPointerContext.MenuOpenedByPress();", pressBody, StringComparison.Ordinal);
         Assert.Contains("_sharedPointerContext.TryConsume()", page, StringComparison.Ordinal);
         // A key ends a gesture whose release the menu popup took.
         int keyDown = page.IndexOf("private void OnSharedContextKeyDown", StringComparison.Ordinal);

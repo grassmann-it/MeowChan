@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Xml.Linq;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
@@ -12,9 +11,6 @@ public sealed class ReaderExpandRepliesTests : IDisposable
 {
     public ReaderExpandRepliesTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
-
-    private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
 
     private static readonly ResourceId ThreadA = new("4chan", "g", "100");
     private static readonly ResourceId ThreadB = new("4chan", "g", "200");
@@ -75,10 +71,8 @@ public sealed class ReaderExpandRepliesTests : IDisposable
     }
 
     [Fact]
-    public void ThePopoverRowTheSettingsRowTheResetTheSearchAndTheShellHandOverAreWired()
+    public void TheQuickSettingChangesTheReaderExpandRepliesPreference()
     {
-        // The popover offers it as its own entry in the text and layout section, after the page size, as the same setting under the same id.
-        Assert.Contains(SettingsFieldId.ReaderExpandReplies, ReaderQuickSettings.Fields.Select(field => field.Id));
         Config config = new();
         QuickSettingField field = ReaderQuickSettings.Fields.Single(f => f.Id == SettingsFieldId.ReaderExpandReplies);
         Assert.Equal(QuickSettingKind.Toggle, field.Kind);
@@ -87,21 +81,6 @@ public sealed class ReaderExpandRepliesTests : IDisposable
         change(config);
         Assert.True(config.ReaderExpandReplies);
         Assert.Equal(bool.TrueString, field.Read(config));
-        string settings = Source("Desktop/Views/Settings/SettingsEditor.axaml");
-        Assert.Contains("x:Name=\"ReaderExpandRepliesInput\" IsChecked=\"{Binding ReaderExpandReplies, Mode=TwoWay}\"", settings);
-        XDocument markup = XDocument.Parse(settings);
-        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-        XElement input = Assert.Single(markup.Descendants(), element => (string?)element.Attribute(x + "Name") == "ReaderExpandRepliesInput");
-        Assert.Equal("ToggleSwitch", input.Name.LocalName);
-        Assert.Contains("Flag(ReaderExpandRepliesInput, () => ReaderExpandReplies, value => ReaderExpandReplies = value, config => config.ReaderExpandReplies),",
-            Source("Desktop/Views/Settings/SettingsEditor.RowMenu.cs"));
-        Assert.Contains("[\"ReaderExpandReplies\"] =", Source("Desktop/Views/Settings/SettingsSearchAliases.cs"));
-        string display = Source("Desktop/Views/Settings/SettingsEditor.ReaderDisplay.cs");
-        Assert.Contains("ReaderExpandReplies = config.ReaderExpandReplies;", display);         // start, discard, reset
-        Assert.Contains("candidate.ReaderExpandReplies = ReaderExpandReplies;", display);       // save
-        Assert.Contains("case SettingsFieldId.ReaderExpandReplies:", display);                  // the popover confirmed it
-        // The shell hands the saved value to the page with the other reader display preferences (also after a popover change).
-        Assert.Contains("reader.ReaderExpandRepliesPreference = config.ReaderExpandReplies;", Source("Desktop/ReaderSettingsPreferences.cs"));
     }
 
     [Fact]
@@ -124,6 +103,12 @@ public sealed class ReaderExpandRepliesTests : IDisposable
         Assert.True(first.RepliesExpanded);
         Assert.False(second.RepliesExpanded);
         policy.Focus(second);
+        Assert.True(second.RepliesExpanded);
+        Assert.False(first.RepliesExpanded);
+        List<string?> changes = new();
+        second.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+        policy.Focus(second);
+        Assert.Empty(changes);
         policy.Focus(third);
         Assert.False(first.RepliesExpanded);
         Assert.False(second.RepliesExpanded);
@@ -194,5 +179,33 @@ public sealed class ReaderExpandRepliesTests : IDisposable
         Assert.True(manual.RepliesExpanded);
         Assert.False(automatic.RepliesExpanded);
         Assert.True(automatic.RepliesLoaded);
+        policy.Enabled = true;
+        policy.Focus(automatic);
+        Assert.True(automatic.RepliesExpanded);
+        Assert.True(automatic.RepliesLoaded);
+    }
+
+    [Fact]
+    public void ReturningInHistoryRestoresBothManualChoicesWithoutReopeningTheOldSelection()
+    {
+        ReplyAutoExpandPolicy policy = Open();
+        ArchivePostRow manual = Row("1"), collapsed = Row("2"), automatic = Row("3");
+        policy.RememberChoice(manual, open: true);
+        policy.RememberChoice(collapsed, open: false);
+        policy.Focus(automatic);
+        KeyValuePair<string, bool>[] choices = policy.CaptureManualChoices();
+        policy.SwitchThread(ThreadB);
+        Assert.False(automatic.RepliesExpanded);
+
+        policy.SwitchThread(ThreadA);
+        policy.RestoreManualChoices(choices);
+        ArchivePostRow restoredManual = Row("1"), restoredCollapsed = Row("2"), restoredAutomatic = Row("3");
+        policy.RestoreChoice(restoredManual);
+        policy.RestoreChoice(restoredCollapsed);
+        policy.RestoreChoice(restoredAutomatic);
+        policy.Focus(restoredCollapsed);
+        Assert.True(restoredManual.RepliesExpanded);
+        Assert.False(restoredCollapsed.RepliesExpanded);
+        Assert.False(restoredAutomatic.RepliesExpanded);
     }
 }

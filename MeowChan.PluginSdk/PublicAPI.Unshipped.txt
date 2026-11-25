@@ -58,6 +58,8 @@ MeowChan.PluginSdk.BooruSourceProfile.Ratings.get -> System.Collections.Generic.
 MeowChan.PluginSdk.BooruSourceProfile.Ratings.init -> void
 MeowChan.PluginSdk.BooruSourceProfile.TagCategories.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruTagCategory>!
 MeowChan.PluginSdk.BooruSourceProfile.TagCategories.init -> void
+MeowChan.PluginSdk.CatalogReadRequest.IsArchive.get -> bool
+MeowChan.PluginSdk.CatalogReadRequest.IsArchive.init -> void
 MeowChan.PluginSdk.ITaggerPlugin
 MeowChan.PluginSdk.ITaggerPlugin.TagAsync(MeowChan.PluginSdk.TaggerBatchRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.IProgress<MeowChan.PluginSdk.TaggerBatchProgress!>? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.TaggerBatchResult!>!
 MeowChan.PluginSdk.PluginDescription.Taggers.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.TaggerDescription!>?
@@ -65,6 +67,7 @@ MeowChan.PluginSdk.PluginDescription.Taggers.init -> void
 MeowChan.PluginSdk.SettingScope.Tagger = 3 -> MeowChan.PluginSdk.SettingScope
 MeowChan.PluginSdk.SourceDescription.BooruProfile.get -> MeowChan.PluginSdk.BooruSourceProfile?
 MeowChan.PluginSdk.SourceDescription.BooruProfile.init -> void
+MeowChan.PluginSdk.SourceResourceKind.BoardArchive = 2 -> MeowChan.PluginSdk.SourceResourceKind
 MeowChan.PluginSdk.TaggerBatchProgress
 MeowChan.PluginSdk.TaggerBatchProgress.CompletedItems.get -> int
 MeowChan.PluginSdk.TaggerBatchProgress.CompletedItems.init -> void

@@ -332,15 +332,13 @@ public sealed class ChipStyleTests
     }
 
     [Fact]
-    public void BooruDetailsAndResultCardsUseSourceChipsAndBadges()
+    public void BooruDetailsUseSourceChipsAndBadges()
     {
         string details = File.ReadAllText(Root("Desktop/Views/Media/BooruMediaDetailsDialog.cs"));
         Assert.Contains("WorkspaceChips.CreateSourceTag(name, category, compact: false)", details);
         Assert.Contains("Classes = { WorkspaceChips.Item }", details);
         Assert.Contains("WorkspaceChips.CreateBadge(name, text)", details);
         Assert.DoesNotContain("CornerRadius(10)", details);
-        string card = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
-        Assert.Contains("WorkspaceChips.CreateSourceTag(name, category, compact: true)", card);
     }
 
     private static int Count(string source, string text)

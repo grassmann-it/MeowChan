@@ -56,11 +56,11 @@
         <ScrollViewer x:Name="DiagnosticsContentScroll" KeyboardNavigation.TabNavigation="Local" TabIndex="0" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnDiagnosticScrollSizeChanged">
             <Grid x:Name="DiagnosticsContentRoot" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                 <!-- Work views: Barebones starts with the filters closed (an active filter opens them, R6); the data and the default values are the same in every view. -->
-                <Expander x:Name="DiagnosticFiltersSection" wv:WorkViewElement.Id="diagnostics.filters" IsExpanded="True"
+                <Expander x:Name="DiagnosticFiltersSection" AutomationProperties.AutomationId="DiagnosticFiltersSection" wv:WorkViewElement.Id="diagnostics.filters" IsExpanded="True"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <WrapPanel Classes="workspace-toolbar">
                         <ComboBox x:Name="DiagnosticSourceFilter" Width="170" SelectionChanged="OnDiagnosticFilterChanged" />
-                        <controls:SearchBox x:Name="DiagnosticTextFilter" Width="180" TextChanged="OnDiagnosticFilterChanged" />
+                        <controls:SearchBox x:Name="DiagnosticTextFilter" AutomationProperties.AutomationId="DiagnosticTextFilter" Width="180" TextChanged="OnDiagnosticFilterChanged" />
                         <CheckBox x:Name="DiagnosticProblemsOnly" IsCheckedChanged="OnDiagnosticFilterChanged" />
                         <CheckBox x:Name="DiagnosticIncludeWaiting" IsChecked="False"
                                   IsCheckedChanged="OnDiagnosticFilterChanged">
@@ -78,7 +78,7 @@
                         <!-- The platform facts live in their own group below, so this table holds requests and problems only and
                              its "nothing to show" text can sit over the empty grid. -->
                         <Grid>
-                            <DataGrid x:Name="DiagnosticsGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="120"
+                            <DataGrid x:Name="DiagnosticsGrid" AutomationProperties.AutomationId="DiagnosticsGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="120"
                                       GridLinesVisibility="None" SelectionMode="Extended" RowHeight="44"
                                       RowGroupTheme="{StaticResource DiagnosticRowGroupTheme}"
                                       CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">

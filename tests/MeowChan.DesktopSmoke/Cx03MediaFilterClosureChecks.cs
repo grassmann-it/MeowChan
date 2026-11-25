@@ -197,11 +197,11 @@ internal static partial class MediaPageChecks
             await seed.AudioScanTask.WaitAsync(Deadline);
             var snapshot = seed.Snapshot!;
             Require(snapshot.Complete && snapshot.Entries.Count == 3, "Audio replacement fixture must have three videos.");
-            page = new(host.OpenArchiveReaderAsync, async (directory, _) =>
+            page = new(host.OpenArchiveReaderAsync, async (directory, cancellationToken) =>
             {
                 entered.TrySetResult();
                 await release.Task;
-                return await MediaAssetReader.OpenAsync(directory);
+                return await MediaAssetReader.OpenAsync(directory, cancellationToken);
             });
             MethodInfo start = typeof(MediaPage).GetMethod("StartAudioProbe", BindingFlags.Instance | BindingFlags.NonPublic)!;
             start.Invoke(page, [snapshot]);

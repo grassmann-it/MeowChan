@@ -18,6 +18,8 @@ public partial class MainWindow
 
     private DownloadMenuTarget? CaptureDownloadMenu(bool boards)
     {
+        DesktopSessionProjection projection = _session.Projection;
+        bool CanCheck(DiagnosticTarget target) => DesktopSessionHost.CanRequestCheck(projection, target);
         if (boards)
         {
             BoardRow? lead = LeadBoard;
@@ -25,7 +27,7 @@ public partial class MainWindow
             BoardRow[] rows = SelectedBoards();
             return new(true, lead.Snapshot.Id, lead.WatchId, lead.DownloadDirectory, lead.Url,
                 rows.Select(row => row.WatchId).ToArray(), rows.Select(row => row.Url).ToArray(), Array.Empty<ResourceId>(), Array.Empty<ResourceId>(),
-                rows.Select(row => new DiagnosticTarget(DiagnosticTargetKind.Board, row.WatchId)).Where(_session.CanRequestCheck).ToArray(),
+                rows.Select(row => new DiagnosticTarget(DiagnosticTargetKind.Board, row.WatchId)).Where(CanCheck).ToArray(),
                 Array.Empty<DiagnosticTarget>(), lead);
         }
         else
@@ -36,8 +38,10 @@ public partial class MainWindow
             return new(false, lead.Snapshot.Id, lead.WatchId, lead.DownloadDirectory, lead.Url,
                 rows.Select(row => row.WatchId).ToArray(), rows.Select(row => row.Url).ToArray(), rows.Select(row => row.Snapshot.Id).ToArray(),
                 DownloadList(false).CollectionView.Cast<ThreadRow>().Where(row => !row.IsHistorical).Select(row => row.Snapshot.Id).ToArray(),
-                rows.Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).Where(_session.CanRequestCheck).ToArray(),
-                rows.Where(row => row.CanRetryMedia).Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).ToArray(), null);
+                rows.Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).Where(CanCheck).ToArray(),
+                projection.IsStale || projection.View.State != DesktopSessionState.Ready
+                    ? [] : rows.Where(row => DesktopSessionHost.HasRetriableMedia(row.Snapshot.Work))
+                    .Select(row => new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId)).ToArray(), null);
         }
     }
 
@@ -70,6 +74,20 @@ public partial class MainWindow
                 action();
             }, CanExecute(), Reason(), label, availableWhen: CanExecute, reasonWhen: Reason);
         }
+        void AddCheck(string id, DiagnosticTarget[] targets, bool retry)
+        {
+            int selectionCount = frozen.WatchIds.Length;
+            string Label() => selectionCount == 1 ? CommandCatalog.Label(id)
+                : Texts.T("selection.actionSubset", CommandCatalog.Label(id), targets.Length, selectionCount);
+            bool CanExecute() => ready && targets.Length > 0 && !RowCommandBusy && !_selectionCommandRunning;
+            string? Reason() => CanExecute() ? null : Unavailable(id);
+            // The original eligible subset bounds the command. Recheck each member after the
+            // projection settles, since an earlier request can change the later targets.
+            bool IsExecutable(DiagnosticTarget target) => grid.IsEffectivelyVisible && IsCurrentDownloadTarget(target)
+                && (retry ? _session.CanRetryMissingMedia(target.WatchId) : _session.CanRequestCheck(target));
+            builder.Command(id, () => OpenActions.Start(() => RunCheckTargetsAsync(targets, retry, IsExecutable), id),
+                CanExecute(), Reason(), availableWhen: CanExecute, reasonWhen: Reason, labelWhen: Label);
+        }
         if (!frozen.Boards)
         {
             Add("thread.read", () => OpenActions.Start(() => OpenFrozenReaderAsync(frozen, grid), "downloads.menu.read"),
@@ -81,21 +99,28 @@ public partial class MainWindow
         }
         Add("thread.details", () => OpenFrozenDetails(frozen));
         if (frozen.Boards) Add("board.filters", async () => { if (frozen.Board != null) await OpenBoardAdmissionAsync(frozen.Board); });
+        if (frozen.Boards && _session.FindBoardArchive(frozen.Url, fromBoard: true) is { } archive)
+            Add("board.browse-archive", () => OpenActions.Start(() => OpenBoardArchiveAsync(archive, grid), "board.browse-archive"));
         builder.Section();
         if (!frozen.Boards) Add("export.open-html-dialog", async () => await ExportFrozenThreadsAsync(frozen.Threads, grid), count: frozen.Threads.Length);
         Add("selection.copy-links", async () => await CopyUrlsAsync(frozen.Urls), count: frozen.Urls.Length);
         Add("location.open-folder", () => OpenDirectory(frozen.Folder));
         Add("location.open-source", () => OpenTarget(frozen.Url));
         builder.Section();
-        Add("watch.check", async () => await RunCheckTargetsAsync(frozen.Checkable, retry: false, IsCurrentDownloadTarget), frozen.Checkable.Length > 0, frozen.Checkable.Length);
+        AddCheck("watch.check", frozen.Checkable, retry: false);
         if (!frozen.Boards)
-            Add("watch.retry-media", async () => await RunCheckTargetsAsync(frozen.Retriable, retry: true, IsCurrentDownloadTarget), frozen.Retriable.Length > 0, frozen.Retriable.Length);
+            AddCheck("watch.retry-media", frozen.Retriable, retry: true);
         if (!frozen.Boards) AddUserPriorityMenus(builder, ready);
         Add("rules.edit-scope", () => EditFrozenRules(frozen.Lead));
         builder.Section();
         Add("watch.remove", async () => await RemoveWatchesWithUndoAsync(frozen.WatchIds,
             frozen.Boards, id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
         builder.Populate(menu);
+        if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "thread.details")) is { } details)
+        {
+            details.ToggleType = MenuItemToggleType.CheckBox;
+            details.IsChecked = ShowsDownloadDetails(frozen);
+        }
         foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(item => item.Tag is "priority.menuHigh" or "priority.menuNormal"))
             item.Icon = CommandBindings.Icon(Equals(item.Tag, "priority.menuHigh") ? "reader.previous-post" : "reader.next-post");
     }
@@ -111,9 +136,7 @@ public partial class MainWindow
         string[] urls = frozen.Urls.Where(url => frozen.Boards ? SelectedBoards().Any(row => row.Url == url)
             : SelectedThreads().Any(row => row.Url == url)).ToArray();
         return frozen with { WatchIds = ids, Threads = threads, Urls = urls,
-            Scope = frozen.Scope.Where(id => VisibleThreads.Any(row => row.Snapshot.Id == id)).ToArray(),
-            Checkable = frozen.Checkable.Where(target => ids.Contains(target.WatchId) && _session.CanRequestCheck(target)).ToArray(),
-            Retriable = frozen.Retriable.Where(target => ids.Contains(target.WatchId) && SelectedThreads().Any(row => row.WatchId == target.WatchId && row.CanRetryMedia)).ToArray() };
+            Scope = frozen.Scope.Where(id => VisibleThreads.Any(row => row.Snapshot.Id == id)).ToArray() };
     }
 
     private async Task OpenFrozenReaderAsync(DownloadMenuTarget frozen, Control origin)
@@ -122,15 +145,25 @@ public partial class MainWindow
         await ArchivePage.OpenReaderOnThreadAsync(frozen.Lead, () => OpenLargeReader(origin, frozen.Scope));
     }
 
+    private bool ShowsDownloadDetails(DownloadMenuTarget target) =>
+        WorkspaceInspector.IsEffectivelyVisible && (GetWorkspaceSelection() switch
+        {
+            BoardRow selected => target.Boards && selected.WatchId == target.LeadWatch,
+            ThreadRow selected => !target.Boards && selected.WatchId == target.LeadWatch,
+            _ => false
+        });
+
     private void OpenFrozenDetails(DownloadMenuTarget frozen)
     {
         DataGrid grid = DownloadList(frozen.Boards);
+        bool sameTarget = ShowsDownloadDetails(frozen);
         if (frozen.Boards && _boardRows.TryGetValue(frozen.LeadWatch, out BoardRow? board) && VisibleBoards.Contains(board))
         { _boardLeadId = board.WatchId; if (!grid.SelectedItems.Contains(board)) grid.SelectedItem = board; }
         else if (!frozen.Boards && _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? thread) && VisibleThreads.Contains(thread))
         { _threadLeadId = thread.WatchId; if (!grid.SelectedItems.Contains(thread)) grid.SelectedItem = thread; }
         else return;
-        OpenWorkspaceDetails();
+        if (sameTarget) ToggleWorkspaceDetails();
+        else OpenWorkspaceDetails();
     }
 
     private void EditFrozenRules(ResourceId id)

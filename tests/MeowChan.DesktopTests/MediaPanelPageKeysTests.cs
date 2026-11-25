@@ -1,7 +1,5 @@
-using System.Reflection;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Gallery;
@@ -15,8 +13,6 @@ namespace MeowChan.DesktopTests;
 [Collection("Booru exact navigation")]
 public sealed class MediaPanelPageKeysTests
 {
-    private const BindingFlags InstanceNonPublic = BindingFlags.Instance | BindingFlags.NonPublic;
-
     private sealed class Recorder
     {
         internal List<(string Id, MediaLibraryEntry Entry)> Actions { get; } = new();
@@ -28,7 +24,12 @@ public sealed class MediaPanelPageKeysTests
     {
         Recorder recorder = new();
         MediaPage page = fixture.Page;
-        page.ExecuteMediaMenuActionAsync = (id, entry, _) => { recorder.Actions.Add((id, entry)); return Task.CompletedTask; };
+        page.ExecuteMediaMenuActionAsync = (id, entry, current) =>
+        {
+            Assert.True(current());
+            recorder.Actions.Add((id, entry));
+            return Task.CompletedTask;
+        };
         page.ShowInThread = entry => { recorder.Threads.Add(entry); return Task.CompletedTask; };
         page.AddToTagQueue = entries => { recorder.Queued.Add(entries); return Task.FromResult("queued"); };
         fixture.Grid.SelectedIndex = 1;
@@ -50,8 +51,10 @@ public sealed class MediaPanelPageKeysTests
     [InlineData("Primary+O", "media.show-in-folder")]
     [InlineData("Primary+Shift+C", "media.copy-path")]
     [InlineData("I", "media.details")]
-    public void TheMenuCommandKeysRunOnThePanelsMediumWithTheFocusInThePanel(string shortcut, string id) => WithPanel((fixture, recorder, open) =>
+    public void TheMenuCommandKeysRunOnThePanelsMediumWithTheFocusInThePanel(string shortcut, string id) => WithPanel((fixture, recorder, _) =>
     {
+        fixture.Grid.SelectedIndex = 0;
+        Control open = fixture.ShowPanelOn(1);
         KeyGesture gesture = ShortcutGesture.Parse(shortcut).Resolve(EffectiveShortcutBindings.CurrentPlatform);
         KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         KeyModifiers other = OperatingSystem.IsMacOS() ? KeyModifiers.Control : KeyModifiers.Meta;
@@ -67,6 +70,7 @@ public sealed class MediaPanelPageKeysTests
         (string actual, MediaLibraryEntry entry) = Assert.Single(recorder.Actions);
         Assert.Equal(id, actual);
         Assert.Same(fixture.Entries[1], entry);
+        Assert.Equal(0, fixture.Grid.SelectedIndex);
     });
 
     [Theory]

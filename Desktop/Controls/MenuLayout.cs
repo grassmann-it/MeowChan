@@ -2,15 +2,30 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan.Desktop.Controls;
+
+internal static class MenuIcons
+{
+    private static readonly ConditionalWeakTable<Control, string> Keys = new();
+
+    internal static void Record(Control icon, string key) => Keys.Add(icon, key);
+
+    internal static string? KeyOf(MenuItem item) => KeyOf(item.Icon as Control);
+
+    internal static string? KeyOf(Control? icon) => icon != null && Keys.TryGetValue(icon, out string? key) ? key : null;
+}
 
 /// <summary>
 /// The width rules of a popup menu, as plain numbers so they can be tested without a window. A row is a label and an optional shortcut;
@@ -26,7 +41,7 @@ internal static class MenuLayoutPlan
     /// <param name="Minimum">The narrowest menu.</param>
     /// <param name="Maximum">The widest menu; only labels give way to it.</param>
     /// <param name="Gap">The room between the label column and the shortcut column (at least <see cref="MenuLayout.MinimumShortcutGap"/> by the design).</param>
-    /// <param name="Leading">Everything before the label: the row's edge and padding, the check and the icon column.</param>
+    /// <param name="Leading">Everything before the label: the row's edge, padding and the icon/state column.</param>
     /// <param name="Trailing">Everything after the last column: the row's padding and edge.</param>
     /// <param name="Chevron">The width of the submenu chevron column, when a row has a submenu.</param>
     internal sealed record Options(double Minimum, double Maximum, double Gap, double Leading, double Trailing, double Chevron);
@@ -74,6 +89,78 @@ internal sealed class MenuLayout : AvaloniaObject
 
     /// <summary>The smallest room between a label and the shortcut column, in dip (the design asks for at least three 8-dip steps).</summary>
     internal const double MinimumShortcutGap = 24;
+    internal const double ChipColumn = 24;
+    internal const double ColumnGap = 8;
+    internal const double RowInset = 16;
+    internal const double SettingHeight = 40;
+    internal const double SettingControlWidth = 144;
+
+    internal static MenuStateChip CreateFlyoutChip(Button button, MenuItemToggleType kind)
+    {
+        var chip = new MenuStateChip { ToggleType = kind };
+        if (kind != MenuItemToggleType.None)
+            chip.Bind(MenuStateChip.IsCheckedProperty, new Binding(nameof(ToggleButton.IsChecked)) { Source = button });
+        return chip;
+    }
+
+    internal static Grid CreateFlyoutRow(MenuStateChip chip, Control text, TextBlock shortcut)
+    {
+        shortcut.Classes.Add("workspace-meta");
+        shortcut.HorizontalAlignment = HorizontalAlignment.Right;
+        shortcut.VerticalAlignment = VerticalAlignment.Center;
+        shortcut.IsHitTestVisible = false;
+        return CreateFlyoutGrid(chip, text, shortcut);
+    }
+
+    private static Grid CreateFlyoutGrid(MenuStateChip chip, Control text, Control trailing)
+    {
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("32,*,Auto") };
+        Grid.SetColumn(text, 1);
+        Grid.SetColumn(trailing, 2);
+        row.Children.Add(chip);
+        row.Children.Add(text);
+        row.Children.Add(trailing);
+        return row;
+    }
+
+    internal static Grid CreateFlyoutSetting(Control input, TextBlock label, string? icon = null)
+    {
+        var chip = new MenuStateChip();
+        SetFlyoutIcon(chip, icon);
+        var row = CreateFlyoutGrid(chip, label, input);
+        row.Classes.Add("gallery-menu-setting");
+        row.Height = SettingHeight;
+        row.Margin = new Thickness(RowInset, 0);
+        row.ColumnDefinitions[2].Width = new GridLength(SettingControlWidth);
+        label.Margin = new Thickness(0, 0, RowInset, 0);
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.TextTrimming = TextTrimming.CharacterEllipsis;
+        input.Classes.Add("gallery-menu-input");
+        input.HorizontalAlignment = HorizontalAlignment.Stretch;
+        input.VerticalAlignment = VerticalAlignment.Center;
+        return row;
+    }
+
+    internal static void SetFlyoutLead(IEnumerable<Grid> rows)
+    {
+        Grid[] visible = rows.ToArray();
+        bool hasLead = visible.Any(row => row.Children.OfType<MenuStateChip>().Any(chip => chip.IsVisible));
+        var width = new GridLength(hasLead ? ChipColumn + ColumnGap : 0);
+        foreach (Grid row in visible)
+            row.ColumnDefinitions[0].Width = width;
+    }
+
+    internal static void SetFlyoutShortcut(TextBlock shortcut, string? text)
+    {
+        shortcut.Text = text ?? string.Empty;
+        shortcut.Margin = string.IsNullOrEmpty(text) ? default : new Thickness(MinimumShortcutGap, 0, 0, 0);
+    }
+
+    internal static void SetFlyoutIcon(MenuStateChip slot, string? key)
+    {
+        if (MenuIcons.KeyOf(slot.Content as Control) != key)
+            slot.Content = key == null ? null : CommandBindings.IconFromKey(key);
+    }
 
     /// <summary>The fallback menu widths (tokens MenuFlyoutMinWidth and MenuFlyoutMaxWidth in WorkspaceStyles) when a theme does not define them.</summary>
     internal const double DefaultMinimumWidth = 224;
@@ -258,9 +345,8 @@ internal sealed class MenuLayout : AvaloniaObject
         Reserve(menu);
     }
 
-    // The cells of a menu row that line up across the rows: the check, the icon, the shortcut and the submenu chevron (Semi shares one column
-    // for each in the rows of a menu).
-    private static readonly string[] SharedParts = ["PART_ToggleIconPresenter", "PART_IconPresenter", "PART_InputGestureText", "PART_ExpandIcon"];
+    // The cells shared by the rows of one popup level: the icon/state chip, shortcut and submenu chevron.
+    private static readonly string[] SharedParts = ["PART_IconPresenter", "PART_InputGestureText", "PART_ExpandIcon"];
 
     /// <summary>
     /// Gives the menu the width its rows will have once the shared columns are final. Grid applies a shared column's width to the other rows
@@ -278,7 +364,16 @@ internal sealed class MenuLayout : AvaloniaObject
         // columns at their final width already, and the rows measure with them: nothing is left to add.
         bool final = rows.Any(row => Part(row, "PART_InputGestureText") is { Parent: Grid grid } cell
             && Grid.GetColumn(cell) is var index && index < grid.ColumnDefinitions.Count && grid.ColumnDefinitions[index].ActualWidth > 0);
-        double rowWidth = rows.Select((row, index) => row.DesiredSize.Width + (final ? 0 : column.Sum() - own[index].Sum())).Max();
+        double sharedWidth = column.Sum();
+        double rowWidth = rows.Select((row, index) => row.DesiredSize.Width + (final ? 0 : sharedWidth - own[index].Sum())).Max();
+        // A reopened submenu row can already have a trimmed header at the previous language's width.
+        // Its desired size then understates the space its full label needs next to the shared cells.
+        foreach (MenuItem row in rows)
+        {
+            if (!row.HasSubMenu || Part(row, "PART_HeaderPresenter") is not ContentPresenter { Child: TextBlock } header) continue;
+            Thickness inset = row.Margin + row.BorderThickness + row.Padding;
+            rowWidth = Math.Max(rowWidth, inset.Left + sharedWidth + NaturalLabelWidth(header) + inset.Right);
+        }
         double frame = Math.Max(0, menu.DesiredSize.Width - rows.Max(row => row.DesiredSize.Width));
         double wanted = Math.Min(Math.Max(frame + rowWidth, minimum), maximum);
         if (menu.DesiredSize.Width >= maximum - 0.5) wanted = maximum;

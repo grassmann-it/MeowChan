@@ -74,7 +74,7 @@ public sealed class QuickTagScrollFlowTests
             using QuickTagSurface surface = popover?.Surface ?? new QuickTagSurface(session, options) { FillSuggestions = true, Suggestions = suggestions };
             surface.FocusOnAttach = false;
             if (popover != null) popover.Frame.Width = width;
-            GallerySidePanel? panel = host == "panel" ? new GallerySidePanel(new Button())
+            GallerySidePanel? panel = host == "panel" ? new GallerySidePanel(new PanelCloseButton("Close"))
                 { TagContent = surface, Segment = GallerySidePanelSegment.Tags } : null;
             Root root = new() { Child = popover?.Frame ?? (Control?)panel ?? surface };
             ScrollViewer scroll = Assert.IsType<ScrollViewer>(surface.Content);
@@ -128,7 +128,8 @@ public sealed class QuickTagScrollFlowTests
                 Grid suggestionArea = content.Children.OfType<Grid>().Single(child => child.Name?.EndsWith("SuggestionArea") == true);
                 Assert.Empty(assignedBlock.GetVisualDescendants().OfType<ScrollViewer>());
                 Assert.Empty(suggestionArea.GetVisualDescendants().OfType<ScrollViewer>());
-                Assert.All(content.RowDefinitions, row => Assert.Equal(GridUnitType.Auto, row.Height.GridUnitType));
+                Assert.Equal(new GridLength(32), content.RowDefinitions[0].Height);
+                Assert.All(content.RowDefinitions.Skip(1), row => Assert.Equal(GridUnitType.Auto, row.Height.GridUnitType));
                 Assert.False(scroll.Focusable);
                 Assert.Equal(1, KeyboardNavigation.GetTabIndex(surface.Header));
                 Assert.True(surface.AssignedButtons.Select(item => item.Chip.TranslatePoint(default, assignedBlock)!.Value.Y).Distinct().Count() > 3);

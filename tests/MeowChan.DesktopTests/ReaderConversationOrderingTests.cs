@@ -103,7 +103,7 @@ public sealed class ReaderConversationOrderingTests
         Assert.Equal(projection.PositionOf(hideParent ? "702" : "701"), projection.NearestPosition("701"));
         Assert.Equal(hideParent ? -1 : 1, projection.PositionOf("701"));
         Assert.Equal(new[] { "700", "701", "703", "704", "707", "702", "706", "705", "708" }
-            .Where(id => !hideParent || id != "701"), projection.Page(0, projection.Count).Select(entry => entry.Post.PostId));
+            .Where(id => !hideParent || id != "701"), Entries(projection).Select(entry => entry.Post.PostId));
         ReaderPostProjection chronological = ReaderPostProjection.Build(view, null, classifiers, null,
             new HashSet<string>(), CancellationToken.None);
         Assert.NotEqual(chronological.PositionOf("707"), projection.PositionOf("707"));
@@ -112,7 +112,7 @@ public sealed class ReaderConversationOrderingTests
 
         ReaderPostProjection revealed = projection.WithRevealed(new HashSet<string> { "701" });
         Assert.Equal(new[] { "700", "701", "703", "704", "707", "702", "706", "705", "708" },
-            revealed.Page(0, revealed.Count).Select(entry => entry.Post.PostId));
+            Entries(revealed).Select(entry => entry.Post.PostId));
         Assert.Equal((2, 3), (revealed[revealed.PositionOf("704")].Depth, revealed[revealed.PositionOf("704")].ParentIndex));
         Assert.Equal(ReaderPostMarks.Revealed, revealed[revealed.PositionOf("701")].Verdict.Marks);
         // Revealing is a new projection, not a mutation of the previous view or the captured posts.
@@ -124,12 +124,12 @@ public sealed class ReaderConversationOrderingTests
     }
 
     [Theory]
-    [InlineData(1, 20)]
-    [InlineData(6, 50)]
-    [InlineData(16, 200)]
-    public void CappedReorderedPagesRoundTripPostIdentityAcrossSessionViewChanges(int depth, int pageSize)
+    [InlineData(1)]
+    [InlineData(6)]
+    [InlineData(16)]
+    public void CappedConversationOrderRoundTripsPostIdentityAcrossSessionViewChanges(int depth)
     {
-        const int count = 603; // More than the reader's largest page, with two interleaved reply chains.
+        const int count = 603; // Two interleaved reply chains across a large thread.
         ArchivedThreadView view = MakeThread(Enumerable.Range(0, count).Select(index =>
             new CapturedPost((700 + index).ToString(), index, PostFieldPresence.All,
                 Html: index < 3 ? "" : Quote((700 + index - 2).ToString()))).ToArray());
@@ -145,32 +145,29 @@ public sealed class ReaderConversationOrderingTests
             .Concat(Enumerable.Range(1, count - 1).Where(index => index % 2 == 0)).ToArray();
 
         Assert.False(conversation.OrderFellBack);
-        Assert.Equal(expected, conversation.Page(0, count).Select(entry => entry.ThreadIndex));
+        Assert.Equal(expected, Entries(conversation).Select(entry => entry.ThreadIndex));
         Assert.NotEqual(chronological.PositionOf("702"), conversation.PositionOf("702"));
-        for (int offset = 0; offset < count; offset += pageSize)
+        for (int position = 0; position < count; position++)
         {
-            IReadOnlyList<ReaderPostEntry> page = conversation.Page(offset, pageSize);
-            Assert.Equal(expected.Skip(offset).Take(pageSize), page.Select(entry => entry.ThreadIndex));
-            for (int index = 0; index < page.Count; index++)
-            {
-                ReaderPostEntry entry = page[index];
-                Assert.Equal(offset + index, conversation.PositionOf(entry.Post.PostId));
-                Assert.Equal(entry.ThreadIndex, chronological.PositionOf(entry.Post.PostId));
-                Assert.Equal(entry.ThreadIndex, view.FindPostIndex(entry.Post.PostId));
-                Assert.Equal(entry.ThreadIndex < 3 ? -1 : entry.ThreadIndex - 2, entry.ParentIndex);
-                Assert.Equal(Math.Min(depth, Math.Max(0, (entry.ThreadIndex - 1) / 2)), entry.Depth);
-            }
+            ReaderPostEntry entry = conversation[position];
+            Assert.Equal(position, conversation.PositionOf(entry.Post.PostId));
+            Assert.Equal(entry.ThreadIndex, chronological.PositionOf(entry.Post.PostId));
+            Assert.Equal(entry.ThreadIndex, view.FindPostIndex(entry.Post.PostId));
+            Assert.Equal(entry.ThreadIndex < 3 ? -1 : entry.ThreadIndex - 2, entry.ParentIndex);
+            Assert.Equal(Math.Min(depth, Math.Max(0, (entry.ThreadIndex - 1) / 2)), entry.Depth);
         }
-        Assert.Empty(conversation.Page(count, pageSize));
         state.Conversation = false;
         Assert.False(ordering.IsActive(Thread));
         ReaderPostProjection restored = ReaderPostProjection.Build(view, null, [], ordering.IsActive(Thread) ? ordering : null,
             new HashSet<string>(), CancellationToken.None);
         Assert.True(restored.IsIdentity);
         Assert.False(new ReaderViewState().Conversation); // New in-memory sessions start with the switch off.
-        Assert.Equal(Enumerable.Range(0, count), restored.Page(0, count).Select(entry => entry.ThreadIndex));
+        Assert.Equal(Enumerable.Range(0, count), Entries(restored).Select(entry => entry.ThreadIndex));
         Assert.Equal(chronological.PositionOf("702"), restored.PositionOf("702"));
     }
+
+    private static IEnumerable<ReaderPostEntry> Entries(ReaderPostProjection projection) =>
+        Enumerable.Range(0, projection.Count).Select(index => projection[index]);
 
     private sealed class BoundaryClassifier(ReaderPostVisibility parentVisibility) : IReaderPostClassifier
     {

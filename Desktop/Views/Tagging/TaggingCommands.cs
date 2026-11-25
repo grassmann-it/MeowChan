@@ -26,6 +26,7 @@ internal static class TaggingCommands
     internal const string ShowInMedia = "tagging.show-in-media";
     internal const string ShowInFolder = "media.show-in-folder";
     internal const string CopyPath = "media.copy-path";
+    internal const string CopyFileName = "media.copy-file-name";
     internal const string MoveUp = "tagging.move-up";
     internal const string MoveDown = "tagging.move-down";
     internal const string MoveFirst = "tagging.move-first";
@@ -45,7 +46,8 @@ internal static class TaggingCommands
     [
         [ContinueHere, Tag, TagTogether, ApplyStamp],
         [MarkDone, MarkOpen, MarkSkipped],
-        [OpenGallery, ShowInThread, ShowInMedia, ShowInFolder, CopyPath],
+        [OpenGallery, ShowInThread, ShowInMedia, ShowInFolder],
+        [CopyPath, CopyFileName],
         [MoveUp, MoveDown, MoveFirst, MoveLast],
         [Remove]
     ];
@@ -130,6 +132,9 @@ internal static class TaggingRowCommands
             case TaggingCommands.CopyPath:
                 if (selected.Count != 1) return TaggingCommandState.No("tagging.menu.reason.needOne");
                 return can.CanCopy ? TaggingCommandState.Yes : TaggingCommandState.No("tagging.menu.reason.notReady");
+            case TaggingCommands.CopyFileName:
+                return selected.All(row => !string.IsNullOrWhiteSpace(row.Item.Name))
+                    ? TaggingCommandState.Yes : TaggingCommandState.No("media.menu.reason.notSaved");
             case TaggingCommands.MoveUp:
             case TaggingCommands.MoveDown:
             {
@@ -181,7 +186,7 @@ internal static class TaggingQueueMenu
             foreach (string id in TaggingCommands.Sections[section])
             {
                 TaggingCommandState state = TaggingRowCommands.Evaluate(id, context);
-                menu.Command(id, action(id), state.Available, state.Reason, keyContext: "tagging");
+                menu.Command(id, action(id), state.Available, state.Reason, dangerous: id == TaggingCommands.Remove, keyContext: "tagging");
             }
             if (section == 0 && openSuggestions is not null && context.Selected.Count == 1)
                 menu.Item("tagging.suggestions", Texts.T("tagging.page.suggestions.open"), openSuggestions);

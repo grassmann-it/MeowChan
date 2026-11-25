@@ -19,7 +19,7 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
     private PollingTrigger _checkTrigger = new PollingTrigger();
     protected object StateLock { get; } = new object();
     private FailureInfo? _lastCheckFailure;
-    private readonly CoalescedEvent<PropertyChangedEventHandler> _propertyChanges;
+    private readonly CoalescedSubscriptions<PropertyChangedEventHandler> _propertyChanges;
     private readonly SingleOwnerCallback<Func<IThread, CancellationToken, ValueTask>> _discovery = new SingleOwnerCallback<Func<IThread, CancellationToken, ValueTask>>();
     private RequestPolicyProgress? _requestProgress;
     private CancellationTokenSource? _monitoringCancellation;
@@ -37,7 +37,7 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
     public abstract Uri BoardUri { get; }
     protected BaseBoard()
     {
-        _propertyChanges = new CoalescedEvent<PropertyChangedEventHandler>(
+        _propertyChanges = new CoalescedSubscriptions<PropertyChangedEventHandler>(
             handler => handler(this, new PropertyChangedEventArgs(string.Empty)),
             exception => Logger.Error(exception, "Board property observer failed for {BoardCode}", BoardCode));
     }
@@ -151,6 +151,15 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
         }
     }
 
+    internal TimeSpan NextMonitoringInterval
+    {
+        get
+        {
+            lock (_monitoringLock)
+                return _sessionQueue?.BoardWatcherInterval?.Invoke(this) ?? _monitoringInterval;
+        }
+    }
+
     private async Task MonitorAsync(CancellationToken cancellationToken)
     {
         try
@@ -186,8 +195,8 @@ public abstract class BaseBoard : IBoard, INotifyPropertyChanged, ICheckRequestS
                     Logger.Error(exception, "Error checking for new threads on board {BoardCode}", BoardCode);
                 }
                 cancellationToken.ThrowIfCancellationRequested();
-                TimeSpan interval;
-                lock (_monitoringLock) { interval = _monitoringInterval; }
+                // The persisted policy is the override. Session updates only affect the fallback.
+                TimeSpan interval = NextMonitoringInterval;
                 if (deferredCheck != null)
                 {
                     TimeSpan due = deferredCheck.Remaining(_sessionQueue?.UtcNow ?? DateTimeOffset.UtcNow);

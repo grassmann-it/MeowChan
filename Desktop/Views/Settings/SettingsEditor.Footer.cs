@@ -2,6 +2,7 @@ using System;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Stats;
 using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
@@ -14,12 +15,40 @@ public partial class SettingsEditor
     private FooterLayoutEditor? _footerEditor;
     // The layout the draft was loaded from: a change of the confirmed layout from outside (the Booru hint) replaces the draft only if it is untouched.
     private FooterLayout _footerBaseline = FooterLayout.Default;
+    private FooterDisplayPreferences _footerDisplaysBaseline;
+    private bool _resetFooterDisplaysRequested;
 
     public string FooterLayoutLabel => Texts.T("settings.footer.title");
     public string FooterLayoutHelp => Texts.T("settings.footer.help");
     public string FooterLayoutBooruHint => Texts.T("settings.footer.booruHint");
     public string ShowBooruActionsLabel => Texts.T("settings.footer.booruActions");
     public string ShowBooruActionsHint => Texts.T("settings.footer.booruActions.hint");
+    public string FooterDisplaysLabel => Texts.T("settings.footer.displays");
+    public string FooterNetworkLabel => IoStatsDisplay.NetworkTitle();
+    public string FooterDiskLabel => IoStatsDisplay.DiskTitle();
+    public string FooterStatusLabel => Texts.T("settings.footer.statusLines");
+    public string FooterNetworkHint => Texts.T("settings.footer.network.hint");
+    public string FooterDiskHint => Texts.T("settings.footer.disk.hint");
+    public string FooterStatusHint => Texts.T("settings.footer.statusLines.hint");
+
+    private bool _showFooterNetwork, _showFooterDisk, _showFooterStatus;
+    public bool ShowFooterNetwork
+    {
+        get => _showFooterNetwork;
+        set => SetField(ref _showFooterNetwork, value, nameof(ShowFooterNetwork));
+    }
+
+    public bool ShowFooterDisk
+    {
+        get => _showFooterDisk;
+        set => SetField(ref _showFooterDisk, value, nameof(ShowFooterDisk));
+    }
+
+    public bool ShowFooterStatus
+    {
+        get => _showFooterStatus;
+        set => SetField(ref _showFooterStatus, value, nameof(ShowFooterStatus));
+    }
 
     // "Show Booru actions": the profile's Config.ShowBooruTools (the master of the Booru page and the Danbooru tools). It used to be the check box
     // at the right of the footer; it is a draft like every other setting of this page now.
@@ -53,13 +82,23 @@ public partial class SettingsEditor
     private void LoadFooterDraft(Config config)
     {
         _footerBaseline = config.FooterLayout;
+        _footerDisplaysBaseline = FooterDisplayPreferences.FromConfig(config);
+        _resetFooterDisplaysRequested = false;
+        LoadFooterDisplayDraft(_footerDisplaysBaseline);
         _showBooruActionsBaseline = config.ShowBooruTools;
         ShowBooruActions = config.ShowBooruTools;
         FooterEditor.SetNumberingContext(WorkViewSetting.Parse(SelectedWorkspaceMode?.Value ?? config.WorkspaceMode), config.ShowBooruTools);
         FooterEditor.Load(_footerBaseline);
     }
 
-    /// <summary>The saved layout changed outside this page (a hint switched Booru on): show it unless the person has unsaved footer edits.</summary>
+    private void LoadFooterDisplayDraft(FooterDisplayPreferences displays)
+    {
+        ShowFooterNetwork = displays.Network;
+        ShowFooterDisk = displays.Disk;
+        ShowFooterStatus = displays.Status;
+    }
+
+    /// <summary>Refresh the footer layout after a hint change, keeping any edits in the draft.</summary>
     internal void RefreshConfirmedFooter()
     {
         if (_isClosed) return;
@@ -70,22 +109,48 @@ public partial class SettingsEditor
         _showBooruActionsBaseline = _config.ShowBooruTools;
     }
 
+    internal void RefreshConfirmedFooterDisplays()
+    {
+        if (_isClosed) return;
+        FooterDisplayPreferences displays = FooterDisplayPreferences.FromConfig(_config);
+        if (!_resetFooterDisplaysRequested)
+        {
+            if (ShowFooterNetwork == _footerDisplaysBaseline.Network) ShowFooterNetwork = displays.Network;
+            if (ShowFooterDisk == _footerDisplaysBaseline.Disk) ShowFooterDisk = displays.Disk;
+            if (ShowFooterStatus == _footerDisplaysBaseline.Status) ShowFooterStatus = displays.Status;
+        }
+        _footerDisplaysBaseline = displays;
+        RefreshToggleGroupBaseline(ShowFooterNetworkInput, displays.Network);
+        RefreshToggleGroupBaseline(ShowFooterDiskInput, displays.Disk);
+        RefreshToggleGroupBaseline(ShowFooterStatusInput, displays.Status);
+        QueueGroupSweep();
+    }
+
     private void ResetFooterDraft()
     {
         FooterEditor.Load(FooterLayout.Default);
-        ShowBooruActions = new Config().ShowBooruTools;
+        Config defaults = new();
+        ShowBooruActions = defaults.ShowBooruTools;
+        LoadFooterDisplayDraft(FooterDisplayPreferences.FromConfig(defaults));
+        _resetFooterDisplaysRequested = true;
     }
 
     private void ApplyFooterDraft(Config candidate)
     {
         candidate.FooterPages = FooterEditor.Layout.ToStored();
         candidate.ShowBooruTools = ShowBooruActions;
+        candidate.ShowFooterNetwork = ShowFooterNetwork;
+        candidate.ShowFooterDisk = ShowFooterDisk;
+        candidate.ShowFooterStatus = ShowFooterStatus;
+        candidate.SettingsBaselineFooterDisplays = _resetFooterDisplaysRequested ? null : _footerDisplaysBaseline;
     }
 
     private void RaiseFooterTextsChanged()
     {
         if (_isClosed) return;
-        foreach (string property in new[] { nameof(FooterLayoutLabel), nameof(FooterLayoutHelp), nameof(FooterLayoutBooruHint), nameof(ShowBooruActionsLabel), nameof(ShowBooruActionsHint) })
+        foreach (string property in new[] { nameof(FooterLayoutLabel), nameof(FooterLayoutHelp), nameof(FooterLayoutBooruHint),
+            nameof(ShowBooruActionsLabel), nameof(ShowBooruActionsHint), nameof(FooterDisplaysLabel), nameof(FooterNetworkLabel), nameof(FooterDiskLabel), nameof(FooterStatusLabel),
+            nameof(FooterNetworkHint), nameof(FooterDiskHint), nameof(FooterStatusHint) })
             PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(property));
     }
 }

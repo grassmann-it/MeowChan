@@ -5,7 +5,9 @@ using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -15,6 +17,7 @@ public partial class MainWindow
     public ObservableCollection<ThreadRow> VisibleThreads { get; } = new();
     public ObservableCollection<BoardRow> VisibleBoards { get; } = new();
     private bool _refreshingDownloadSearch;
+    private bool _steppingDownloadSearch;
     private bool _downloadSearchOpen;
     private long _downloadSearchQueryRevision;
     private long _appliedDownloadSearchRevision = -1;
@@ -64,23 +67,49 @@ public partial class MainWindow
         input.SelectAll();
     }
 
-    private void OnDownloadSearchClick(object? sender, RoutedEventArgs e) => FocusDownloadSearch();
+    private void OnDownloadSearchClick(object? sender, RoutedEventArgs e) => ToggleDownloadSearch();
 
-    // DL-07: the close of the open bar is a labelled "Close" with the collapse chevron, not a second ×
-    // (DownloadSearchCloseButton). Esc clears the text first (SearchBox) and closes the bar from an empty field (ExitRequested, InitializeWorkspace).
-    private void LocalizeDownloadSearchClose() => DownloadSearchCloseButton.Apply(DownloadSearchClose);
-
-    private void OnDownloadSearchClose(object? sender, RoutedEventArgs e)
+    private void ToggleDownloadSearch()
     {
+        if (_downloadSearchOpen) CloseDownloadSearch();
+        else FocusDownloadSearch();
+    }
+
+    private bool IsDownloadSearchSource(object? source) => CanFocusDownloadSearch && _downloadSearchOpen
+        && source is Avalonia.Visual visual && visual.GetSelfAndVisualAncestors().Contains(DownloadSearchBar);
+
+    private bool DownloadSearchIsComposing() => DownloadSearchInput is SearchBox { IsComposing: true };
+
+    private void CloseDownloadSearch()
+    {
+        DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
         _downloadSearchOpen = false;
         RefreshDownloadSearchPresentation();
-        DownloadSearchButton.Focus();
     }
     private void OnDownloadSearchClear(object? sender, RoutedEventArgs e)
     {
         DownloadSearchInput.Text = string.Empty;
         if (_downloadSearchOpen) DownloadSearchInput.Focus();
     }
+
+    private void OnDownloadSearchEmptyAction(object? sender, RoutedEventArgs e)
+    {
+        if (!CanFocusDownloadSearch || !DownloadResultsCurrent || VisibleResultCount != 0
+            || string.IsNullOrWhiteSpace(DownloadSearchText)) return;
+
+        bool boards = DownloadsTabs.SelectedIndex == 1;
+        if ((boards ? VisibleThreads.Count : VisibleBoards.Count) > 0)
+        {
+            DownloadsTabs.SelectedIndex = boards ? 0 : 1;
+            if (!DownloadList(!boards).Focus()) FocusDownloadSearch();
+        }
+        else
+        {
+            FocusDownloadSearch();
+            OnDownloadSearchClear(sender, e);
+        }
+    }
+
     private void OnDownloadSearchChanged(object? sender, TextChangedEventArgs e)
     {
         if (!_workspaceInitialized) return;
@@ -127,6 +156,13 @@ public partial class MainWindow
     // callback advances only one plan. The current literal query never changes under an in-flight plan.
     private bool StepDownloadSearch(DesktopSessionProjection projection)
     {
+        _steppingDownloadSearch = true;
+        try { return StepDownloadSearchCore(projection); }
+        finally { _steppingDownloadSearch = false; }
+    }
+
+    private bool StepDownloadSearchCore(DesktopSessionProjection projection)
+    {
         BeginDownloadSearch(projection);
         if (!_threadSearchReconciliation!.IsCompleted)
         {
@@ -150,7 +186,6 @@ public partial class MainWindow
                 _appliedThreadSearchReconciliation = _threadSearchReconciliation;
                 _appliedBoardSearchReconciliation = _boardSearchReconciliation;
                 _threadSearchReconciliation = null; _boardSearchReconciliation = null;
-                RefreshDownloadSearchPresentation();
                 return true;
             }
             _restoreDownloadSelection.Current();
@@ -173,13 +208,36 @@ public partial class MainWindow
             yield return () => { if (_boardSearchReconciliation!.Includes(row) && !boards.SelectedItems.Contains(row)) boards.SelectedItems.Add(row); };
     }
 
+    private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_refreshingDownloadSearch) { RefreshWorkspace(); return; }
+        if (!_sessionRowsApplying || _steppingDownloadSearch || !ReferenceEquals(e.Source, sender)) return;
+
+        // A selection can arrive after a slice inserts visible rows and before selection repair runs.
+        // Keep those changes, while discarding selection churn from the collection changes within a slice.
+        if (ReferenceEquals(sender, ThreadsDataGrid))
+        {
+            _retainedThreadSelection = _retainedThreadSelection.Except(e.RemovedItems.OfType<ThreadRow>())
+                .Union(e.AddedItems.OfType<ThreadRow>().Where(row => !row.IsHistorical)).ToArray();
+            _retainedThreadSet = new(_retainedThreadSelection);
+        }
+        else if (ReferenceEquals(sender, BoardsDataGrid))
+        {
+            _retainedBoardSelection = _retainedBoardSelection.Except(e.RemovedItems.OfType<BoardRow>())
+                .Union(e.AddedItems.OfType<BoardRow>()).ToArray();
+            _retainedBoardSet = new(_retainedBoardSelection);
+        }
+        _restoreDownloadSelection?.Dispose();
+        _restoreDownloadSelection = null;
+    }
+
     private void RefreshDownloadSearchPresentation()
     {
         if (!_workspaceInitialized) return;
         bool active = !string.IsNullOrWhiteSpace(DownloadSearchText);
         DownloadSearchBar.IsVisible = _downloadSearchOpen || active;
         DownloadSearchInput.IsVisible = _downloadSearchOpen;
-        DownloadSearchClose.IsVisible = _downloadSearchOpen;
+        DownloadSearchButton.IsChecked = _downloadSearchOpen;
         // While the field is shown its own clear button is the way to empty it; the bar button covers the folded bar.
         DownloadSearchClear.IsVisible = active && !_downloadSearchOpen;
         TextBlock summary = DownloadSearchSummary;
@@ -210,14 +268,33 @@ public partial class MainWindow
         BoardsEmptyState.Text = current ? Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty") : pending;
         ThreadsEmptyState.IsVisible = _startupPreviewShown ? HistoricThreads.Count == 0 : VisibleThreads.Count == 0;
         ThreadsEmptyPanel.IsVisible = ThreadsEmptyState.IsVisible;
-        // The next step is offered only for a truly empty, current list; not for a search without hits or a pending claim.
         ThreadsEmptyImportButton.IsVisible = ThreadsEmptyState.IsVisible && current && !active;
         BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
         BoardsEmptyPanel.IsVisible = BoardsEmptyState.IsVisible;
         BoardsEmptyImportButton.IsVisible = BoardsEmptyState.IsVisible && current && !active;
+        string? actionLabel = null;
+        if (current && active && VisibleResultCount == 0)
+        {
+            int matches = boards ? VisibleThreads.Count : VisibleBoards.Count;
+            actionLabel = matches == 0 ? Texts.T("downloads.searchClearQuery")
+                : boards ? Texts.Count("downloads.searchShowThreads", matches)
+                : Texts.Count("downloads.searchShowBoards", matches);
+        }
+        UpdateDownloadSearchEmptyAction(ThreadsEmptySearchButton, boards ? null : actionLabel);
+        UpdateDownloadSearchEmptyAction(BoardsEmptySearchButton, boards ? actionLabel : null);
         RefreshDownloadsToolbarEmptiness(active);
         TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");
         AutomationProperties.SetName(input, Texts.T("downloads.searchPlaceholder"));
+    }
+
+    private static void UpdateDownloadSearchEmptyAction(Button button, string? label)
+    {
+        if (label != null)
+        {
+            button.Content = label;
+            AutomationProperties.SetName(button, label);
+        }
+        button.IsVisible = label != null;
     }
 }

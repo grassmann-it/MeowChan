@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 
@@ -16,7 +17,8 @@ namespace MeowChan.Desktop.Booru;
 internal sealed partial class BooruWorkbenchView
 {
     private readonly Button _more = new() { Name = "BooruMore", IsVisible = false };
-    private readonly List<Button> _resultWorkViewActions = new();
+    private readonly List<Button> _resultWorkViewButtons = new();
+    private readonly List<ResultActions> _resultActions = new();
     private readonly List<Button> _watcherWorkViewActions = new();
     private WorkView _workView = WorkView.Advanced;
     private bool _workViewRegistered;
@@ -44,10 +46,27 @@ internal sealed partial class BooruWorkbenchView
         WorkViewElement.SetId(_results, "booru.results");
         WorkViewElement.SetId(_watchers, "booru.watchers.list");
         WorkViewElement.SetId(_noticeHost, "booru.notice");
+        AutomationProperties.SetAutomationId(_storageHost, CatalogStorageName);
         WorkViewElement.SetId(_storageHost, "booru.catalog.usage");
-        _more.Click += (_, _) => WorkViewMoreSurface.Open(_more, MoreEntries());
+        PopupToggle.Prepare(_more);
+        _more.Click += (_, _) => OpenMore();
         _workViewRegistered = true;
         WorkViewMoreSurface.Configure(_more, 0);
+    }
+
+    private void OpenMore()
+    {
+        if (PopupToggle.ConsumeActivation(_more)) return;
+        IReadOnlyList<WorkViewMoreSurface.Entry> entries = MoreEntries();
+        if (entries.Count == 0) return;
+        ContextMenu menu = WorkViewMoreSurface.CreateMenu(entries, _more);
+        _more.ContextMenu = menu;
+        PopupToggle.Track(_more, menu);
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_more.ContextMenu, menu)) _more.ContextMenu = null;
+        };
+        menu.Open(_more);
     }
 
     private void RefreshWorkViewPresentation()
@@ -64,7 +83,7 @@ internal sealed partial class BooruWorkbenchView
         WorkViewGate.Apply(_noticeHost, _workView, WorkViewElement.GetStateVisible(_noticeHost));
         WorkViewGate.Apply(_storageHost, _workView, WorkViewElement.GetStateVisible(_storageHost), _catalogUsageRevealed);
 
-        foreach (Button button in _resultWorkViewActions.Concat(_watcherWorkViewActions))
+        foreach (Button button in _resultWorkViewButtons.Concat(_sidebarWorkViewButtons).Concat(_watcherWorkViewActions))
             WorkViewGate.Apply(button, _workView, WorkViewElement.GetStateVisible(button));
 
         WorkViewMoreSurface.Configure(_more, MoreEntries().Count);
@@ -72,24 +91,39 @@ internal sealed partial class BooruWorkbenchView
 
     private IReadOnlyList<WorkViewMoreSurface.Entry> MoreEntries()
     {
-        List<WorkViewMoreSurface.Entry> entries = WorkViewMoreSurface
-            .ForButtons(_resultWorkViewActions.Concat(_watcherWorkViewActions), _workView).ToList();
+        List<WorkViewMoreSurface.Entry> entries = new();
+        object? tab = _tabs.SelectedItem;
+        if (IsSearchItem(tab))
+        {
+            foreach (ResultActions result in _resultActions)
+            {
+                foreach (ResultCommand link in result.LinkCommands())
+                {
+                    WorkViewEntry policy = WorkViewPolicy.Get(link.WorkViewId!);
+                    if (policy.For(_workView) == Presence.Overflow)
+                        entries.Add(new(policy.OverflowOrder, policy.CommandId, () => link.Name, () => result.Run(link.Action),
+                            () => ReferenceEquals(tab, _tabs.SelectedItem) && policy.For(_workView) == Presence.Overflow
+                                && result.CanRun(link.Action), link.Icon));
+                }
+            }
+        }
+        entries.AddRange(WorkViewMoreSurface.ForButtons(_watcherWorkViewActions, _workView));
         WorkViewEntry storage = WorkViewPolicy.Get("booru.catalog.usage");
         if (WorkViewElement.GetStateVisible(_storageHost)
-            && WorkViewPolicy.Resolve(storage.Id, _workView, _catalogUsageRevealed) == Presence.Overflow)
+            && storage.For(_workView) == Presence.Overflow)
         {
-            entries.Add(new(storage.OverflowOrder, null, () => Texts.T("budgets.booruCatalog"), RevealCatalogUsage,
-                () => WorkViewElement.GetStateVisible(_storageHost), "info"));
+            entries.Add(new(storage.OverflowOrder, null, () => Texts.T("budgets.booruCatalog"), ToggleCatalogUsage,
+                () => WorkViewElement.GetStateVisible(_storageHost), "info") { Id = storage.Id, Checked = _catalogUsageRevealed });
         }
         return entries.OrderBy(entry => entry.Order).ToArray();
     }
 
-    private void RevealCatalogUsage()
+    private void ToggleCatalogUsage()
     {
-        if (_closed || !WorkViewElement.GetStateVisible(_storageHost)) return;
-        _catalogUsageRevealed = true;
+        if (_closed || !WorkViewElement.GetStateVisible(_storageHost) || WorkViewPolicy.Resolve("booru.catalog.usage", _workView) != Presence.Overflow) return;
+        _catalogUsageRevealed = !_catalogUsageRevealed;
         RefreshWorkViewPresentation();
-        _storageHost.BringIntoView();
+        if (_catalogUsageRevealed) _storageHost.BringIntoView();
     }
 
     private void RegisterWorkViewAction(Button button, string id, ICollection<Button> owner)

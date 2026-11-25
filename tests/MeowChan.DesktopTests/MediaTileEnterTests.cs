@@ -158,6 +158,25 @@ public sealed class MediaTileEnterTests
     });
 
     [Fact]
+    public void TheFocusedPanelFrameOnlyOpensItsMediumThroughTheGalleryBinding() => Run(fixture =>
+    {
+        fixture.ShowPanelOn(Fixture.LocalIndex);
+        Control frame = fixture.PanelView!.Frame;
+        var original = ShortcutService.CurrentSection;
+        try
+        {
+            ShortcutService.Publish(new ShortcutBindingsSection().Set("gallery.open", [ShortcutGesture.Parse("Alt+O")]));
+            fixture.Press(frame, Key.Enter);
+            fixture.Press(frame, Key.Enter, KeyModifiers.Control);
+            Assert.Empty(fixture.Opened);
+            fixture.Press(frame, Key.O, KeyModifiers.Alt);
+            (IReadOnlyList<MediaLibraryEntry> entries, int start) = Assert.Single(fixture.Opened);
+            Assert.Same(fixture.Entries[Fixture.LocalIndex], entries[start]);
+        }
+        finally { ShortcutService.Publish(original); }
+    });
+
+    [Fact]
     public void EnterOnATileWhoseFileIsNotSavedSaysSoInsteadOfDoingNothing() => Run(fixture =>
     {
         fixture.Grid.SelectedIndex = Fixture.MissingIndex;
@@ -192,6 +211,15 @@ public sealed class MediaTileEnterTests
 
     internal sealed class Fixture : IDisposable
     {
+        private static readonly FuncControlTemplate<ContentControl> BareContentTemplate = new((_, scope) =>
+        {
+            ContentPresenter presenter = new() { Name = "PART_ContentPresenter" };
+            presenter[!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty);
+            presenter[!ContentPresenter.ContentTemplateProperty] = new TemplateBinding(ContentControl.ContentTemplateProperty);
+            presenter.RegisterInNameScope(scope);
+            return presenter;
+        });
+
         private readonly MediaPage _page;
         private readonly Root _root = new();
 
@@ -237,27 +265,14 @@ public sealed class MediaTileEnterTests
             {
                 Setters =
                 {
-                    new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<ListBoxItem>((item, scope) =>
-                    {
-                        ContentPresenter presenter = new() { Name = "PART_ContentPresenter" };
-                        presenter[!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty);
-                        presenter[!ContentPresenter.ContentTemplateProperty] = new TemplateBinding(ContentControl.ContentTemplateProperty);
-                        presenter.RegisterInNameScope(scope);
-                        return presenter;
-                    }))
+                    new Setter(TemplatedControl.TemplateProperty, BareContentTemplate)
                 }
             });
             _root.Styles.Add(new Style(selector => selector.OfType<UserControl>())
             {
                 Setters =
                 {
-                    new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<UserControl>((_, scope) =>
-                    {
-                        ContentPresenter presenter = new() { Name = "PART_ContentPresenter" };
-                        presenter[!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty);
-                        presenter.RegisterInNameScope(scope);
-                        return presenter;
-                    }))
+                    new Setter(TemplatedControl.TemplateProperty, BareContentTemplate)
                 }
             });
             _root.Child = _page;
@@ -275,14 +290,30 @@ public sealed class MediaTileEnterTests
                 }
         }
 
-        /// <summary>Shows the media panel on a tile by its own state (no layout pass) and returns its "Open in gallery" button, a control inside the panel that can have the focus.</summary>
+        /// <summary>Presents the given panel row independently of grid selection and returns its visible "Open in gallery" button.</summary>
         internal Control ShowPanelOn(int index)
         {
-            ReaderMediaSidebar panel = PanelView = (ReaderMediaSidebar)typeof(MediaPage).GetMethod("EnsurePanel", InstanceNonPublic)!.Invoke(_page, null)!;
+            MediaLibraryTileRow row = Rows[index];
+            // Seed the shown row so the layout can attach the panel without starting an image load.
             Set("_panelShown", true);
-            Set("_panelRow", Rows[index]);
-            Set("_panelWanted", Rows[index]);
-            return panel.Open;
+            Set("_panelRow", row);
+            Set("_panelWanted", row);
+            _page.ApplySavedPanelWidth(_page.PageLayout.PanelWidth);
+            ReaderMediaSidebar panel = PanelView = Assert.IsType<ReaderMediaSidebar>(_page.Panel);
+            typeof(MediaPage).GetMethod("DescribePanel", InstanceNonPublic)!.Invoke(_page, [panel, row]);
+            // Without the image load, stand in for its result: the shown file was checked (73-2: actions wait for that check).
+            panel.SetImageVerification(true);
+
+            // Attach the header to the page so the real key event bubbles through both.
+            _page.ApplyTemplate();
+            _page.Presenter!.UpdateChild();
+            Assert.Contains(panel, panel.Open.GetVisualAncestors());
+            Assert.Contains(_page, panel.Open.GetVisualAncestors());
+            // Kürzelschema §Vorrang: “Panelknöpfe nehmen in 1.1.2 keinen Fokus.”
+            Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled);
+            Assert.False(panel.Open.Focusable);
+            Assert.True(panel.Frame.Focusable);
+            return SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarOpen");
         }
 
         internal Control Container(int index) => Grid.ContainerFromIndex(index)

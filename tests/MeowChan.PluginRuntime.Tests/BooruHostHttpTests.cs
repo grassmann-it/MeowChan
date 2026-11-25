@@ -534,7 +534,7 @@ public sealed class BooruHostHttpTests
     [InlineData("https://danbooru.test/posts/1234567890123456789.json")]
     [InlineData("https://danbooru.test/posts/5.json?x=1")]
     [InlineData("https://danbooru.test/posts/5")]
-    [InlineData("https://danbooru.test/posts.json?tags=cat&page=6&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=1001&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=0&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=1&limit=21")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=1&limit=20&only=id")]
@@ -542,7 +542,7 @@ public sealed class BooruHostHttpTests
     [InlineData("https://danbooru.test/posts.json?tags=a+b+c+d&page=1&limit=20")]
     [InlineData("https://danbooru.test:8443/posts.json")]
     [InlineData("http://danbooru.test/posts.json")]
-    // Every page form other than 1..5 or "b" + a canonical post id of at most 18 digits.
+    // Numbered pages are limited to 1..1000; a before cursor is "b" followed by a canonical post id of at most 18 digits.
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b0&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b01&limit=20")]
@@ -583,7 +583,9 @@ public sealed class BooruHostHttpTests
     [Theory]
     [InlineData("https://danbooru.test/posts.json")]
     [InlineData("https://danbooru.test/posts.json?tags=rating%3Ag%20cat_ears&page=5&limit=20")]
+    [InlineData("https://danbooru.test/posts.json?tags=cat&page=1000&limit=20")]
     [InlineData("https://danbooru.test/posts/12345.json")]
+    [InlineData("https://danbooru.test/posts/999999999999999999.json")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b1&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=rating%3Ag%20cat_ears&page=b12345&limit=20")]
     [InlineData("https://danbooru.test/posts.json?tags=cat&page=b999999999999999999&limit=20")]

@@ -21,6 +21,7 @@ public partial class ArchivePage
         e.Container.Classes.Set("reader-op", item is ArchivePostRow { IsOpeningPost: true });
         DecorateReaderPost(e.Container, item as ArchivePostRow, ArchivePosts.Bounds.Width);
         if (item is ArchivePostRow post) LoadExpandedReplies(post);
+        SchedulePreviewPrefetch();
     }
 
     // A click on an inline >>No. in the post text navigates exactly like its quote button.

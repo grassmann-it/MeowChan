@@ -76,7 +76,7 @@ internal sealed record DanbooruWatcher
     internal const int DefaultPageSize = MaximumPageSize;
     internal const int MaximumPageSize = DanbooruTagQuery.MaximumSearchPageSize;
     internal const int DefaultPageBudget = MaximumPageBudget;
-    internal const int MaximumPageBudget = DanbooruTagQuery.MaximumSearchPages;
+    internal const int MaximumPageBudget = 5;
 
     private DanbooruWatcher(string watcherId, DanbooruTagQuery query,
         DateTimeOffset createdAtUtc, int pageSize, int pageBudget)

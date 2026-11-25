@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -58,10 +59,16 @@ internal sealed partial class GalleryViewer
         Config.GallerySlideshowVideoSecondsMinimum, Config.GallerySlideshowVideoSecondsMaximum);
     private readonly AccessibleNumberInput _videoRepeats = SlideshowNumber("GallerySlideshowVideoRepeatsInput",
         Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum);
-    private readonly TextBlock _videoRuleCaption = new() { Classes = { "workspace-meta" }, Margin = OverflowCaptionMargin, IsVisible = false };
-    private readonly TextBlock _videoValueCaption = new() { Classes = { "workspace-meta" }, Margin = OverflowCaptionMargin, IsVisible = false };
+    private readonly TextBlock _videoRuleCaption = new();
+    private readonly TextBlock _videoSecondsCaption = new();
+    private readonly TextBlock _videoRepeatsCaption = new();
+    private Grid _modeSetting = null!;
+    private Grid _secondsSetting = null!;
+    private Grid _videoRuleSetting = null!;
+    private Grid _videoSecondsSetting = null!;
+    private Grid _videoRepeatsSetting = null!;
     private readonly TextBlock _reducedMotionNote = new() { Name = "GallerySlideshowReducedMotionNote", Classes = { "workspace-help" },
-        Margin = OverflowNoteMargin, TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
+        Margin = new Thickness(MenuLayout.RowInset, 0, MenuLayout.RowInset, 4), TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
     // "Pause when MeowChan loses focus" (off by default): a row of the slideshow settings, shown with the other slideshow choices.
     private readonly ToggleButton _pauseOnFocusLossToggle = new() { Name = "GallerySlideshowPauseOnFocusLossToggle" };
     private readonly ToggleButton _slideshowToggle = new() { Name = "GallerySlideshowToggle" }; // on the bar it is the main half of the split button (class split-main, set by PlaceSlideshowToggle)
@@ -127,9 +134,8 @@ internal sealed partial class GalleryViewer
         _slideshow.SetMode(_playbackPreferences.Mode);
         _slideshow.SetImageDuration(TimeSpan.FromSeconds(_playbackPreferences.ImageSeconds));
         ApplySlideshowVideoRule();
-        // Playback choices are rows of the "⋯" menu: "Repeat video", then a caption above each slideshow choice, then the
-        // slideshow control (it moves to the toolbar while a slideshow is chosen, see PlaceSlideshowToggle).
-        _slideshowHome = new StackPanel { Name = "GalleryPlaybackTools", Spacing = 2 };
+        // The settings panel is shared by "⋯" and the slideshow flyout.
+        _slideshowHome = new StackPanel { Name = "GalleryPlaybackTools", Children = { _playbackHeading } };
         AddOverflowItem(_videoRepeatToggle, "video.loop", check: true, keepOpen: true,
             label: () => GalleryPlaybackCatalog.Get("viewer.playback.repeat"), host: _slideshowHome);
         _videoRepeatToggle.Click += (_, _) =>
@@ -138,22 +144,14 @@ internal sealed partial class GalleryViewer
             if (enabled) ReleaseSlideshowForVideoRepeat();
             ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = enabled });
         };
-        // One inset for everything in the menu: a choice box starts where a row's lead mark starts and ends where its shortcut ends,
-        // a caption is a field label of the box below it (Space.4 between them), and the box leaves Space.4 before the next row.
-        foreach (Control choice in new Control[] { _playbackMode, _slideshowSeconds, _videoRule, _videoSeconds, _videoRepeats })
-        { choice.HorizontalAlignment = HorizontalAlignment.Stretch; choice.Margin = OverflowChoiceMargin; }
-        _slideshowHome.Children.Add(_modeCaption);
-        _slideshowHome.Children.Add(_playbackMode);
-        _slideshowHome.Children.Add(_secondsCaption);
-        _slideshowHome.Children.Add(_slideshowSeconds);
-        _slideshowHome.Children.Add(_videoRuleCaption);
-        _slideshowHome.Children.Add(_videoRule);
-        _slideshowHome.Children.Add(_videoValueCaption);
-        _slideshowHome.Children.Add(_videoSeconds);
-        _slideshowHome.Children.Add(_videoRepeats);
+        _modeSetting = AddPlaybackSetting(_playbackMode, _modeCaption, "play");
+        _secondsSetting = AddPlaybackSetting(_slideshowSeconds, _secondsCaption);
+        _videoRuleSetting = AddPlaybackSetting(_videoRule, _videoRuleCaption);
+        _videoSecondsSetting = AddPlaybackSetting(_videoSeconds, _videoSecondsCaption);
+        _videoRepeatsSetting = AddPlaybackSetting(_videoRepeats, _videoRepeatsCaption);
         _slideshowHome.Children.Add(_reducedMotionNote);
         AddOverflowItem(_pauseOnFocusLossToggle, "gallery.slideshow-pause-on-focus-loss", check: true, keepOpen: true,
-            label: () => GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss"), host: _slideshowHome);
+            label: () => GalleryPlaybackCatalog.Get("viewer.playback.pauseOnFocusLoss"), host: _slideshowHome, iconKey: "pause-circle");
         _pauseOnFocusLossToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { PauseOnFocusLoss = !_playbackPreferences.PauseOnFocusLoss });
         void Number(AccessibleNumberInput input, Func<int, GalleryPlaybackPreferences> change) => input.ValueChanged += (_, e) =>
         {
@@ -192,6 +190,22 @@ internal sealed partial class GalleryViewer
         RefreshPlaybackControls();
     }
 
+    private Grid AddPlaybackSetting(Control input, TextBlock label, string? icon = null)
+    {
+        AutomationProperties.SetAutomationId(input, input.Name);
+        AutomationProperties.SetAutomationId(label, input.Name + "Label");
+        var row = MenuLayout.CreateFlyoutSetting(input, label, icon);
+        AutomationProperties.SetAutomationId(row, input.Name + "Row");
+        _slideshowHome.Children.Add(row);
+        return row;
+    }
+
+    private static void SetSettingLabel(TextBlock label, string text)
+    {
+        label.Text = text;
+        ToolTip.SetTip(label, text);
+    }
+
     private (ToggleButton Button, string Id)[] PlaybackActions() => new[]
     {
         (_slideshowToggle, "gallery.slideshow-toggle"), (_overlayToggle, "gallery.overlay-toggle"),
@@ -224,7 +238,18 @@ internal sealed partial class GalleryViewer
                 break;
             case "gallery.overlay-toggle":
             case "gallery.overlay-autohide-toggle": // Compatibility alias, not a second visible setting.
-                ChangePlaybackPreferences(_playbackPreferences.WithControlsOverlay(!_playbackPreferences.OverlayControls)); break;
+                // Switching overlay placement moves the toolbar that anchors More. Close while the anchor is still
+                // attached, then return keyboard focus after the new placement has been laid out.
+                bool returnToPicture = _overflowFlyout.IsOpen && _overflowHadFocus && _keyboardInteraction;
+                if (_overflowFlyout.IsOpen) _overflowFlyout.Hide();
+                ChangePlaybackPreferences(_playbackPreferences.WithControlsOverlay(!_playbackPreferences.OverlayControls));
+                if (returnToPicture)
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!_terminalRetirement && !_viewerInteractionStopped && _keyboardInteraction && IsGalleryWindowActive && !HasGalleryPopup)
+                            FocusGallerySurface();
+                    }, DispatcherPriority.Loaded);
+                break;
             case "gallery.post-overlay-toggle": ChangePlaybackPreferences(_playbackPreferences with { OverlayPostContext = !_playbackPreferences.OverlayPostContext }); break;
         }
         RefreshPlaybackControls();
@@ -322,7 +347,7 @@ internal sealed partial class GalleryViewer
             SetToggleLabel(_overlayToggle, GalleryPlaybackCatalog.Get("viewer.playback.controlsOverlay"));
             SetToggleLabel(_autoHideToggle, GalleryPlaybackCatalog.Get("viewer.playback.autoHide"));
             ToolTip.SetTip(_autoHideToggle, GalleryPlaybackCatalog.Get("viewer.playback.autoHideHelp"));
-            SetToggleLabel(_postOverlayToggle, GalleryPlaybackCatalog.Get("viewer.playback.postOverlay"));
+            SetToggleLabel(_postOverlayToggle, CommandCatalog.Label("gallery.post-overlay-toggle"));
             _overlayToggle.IsChecked = _playbackPreferences.OverlayControls;
             _autoHideToggle.IsChecked = _playbackPreferences.AutoHideControls;
             _autoHideToggle.IsEnabled = _playbackPreferences.OverlayControls && !_nativeOverlayFallback;
@@ -336,7 +361,7 @@ internal sealed partial class GalleryViewer
                         ? GalleryPlaybackCatalog.Get("viewer.playback.enableOverlay") : null;
                 // A menu row's content is its Grid (the row layout), never a text: the visible label is the row's label block.
                 string label = LabelOf(button) ?? CommandCatalog.Label(id);
-                string tip = CommandBindings.Tooltip(id, reason, label);
+                string tip = id == "gallery.post-overlay-toggle" ? PostPanelPlacementHelp() : CommandBindings.Tooltip(id, reason, label);
                 ToolTip.SetTip(button, tip); AutomationProperties.SetHelpText(button, tip);
             }
             PresentSlideshowMenu();
@@ -349,6 +374,12 @@ internal sealed partial class GalleryViewer
         }
         finally { _updatingPlaybackControls = false; }
         UpdateViewerInteractionTimer();
+    }
+
+    private static string PostPanelPlacementHelp()
+    {
+        string label = CommandCatalog.Label("gallery.post-overlay-toggle");
+        return Commands.ShortcutHelp.GalleryPostPanelKeys() is { } keys ? label + " · " + keys : label;
     }
 
     // Compare resolved text rather than a language code: Texts.Changed also fires
@@ -377,12 +408,7 @@ internal sealed partial class GalleryViewer
         string key = CommandCatalog.IconForState("gallery.slideshow-toggle", _slideshow.IsRunning ? "running" : "stopped");
         if (_slideshowToggle.Tag is OverflowItem item)
         {
-            if (item.Root.Children.Count == 0 || item.Root.Children[0].Tag as string == key) return;
-            Border lead = (Border)CommandBindings.Icon("gallery.slideshow-toggle", 16, _slideshow.IsRunning ? "running" : "stopped");
-            lead.HorizontalAlignment = HorizontalAlignment.Center;
-            lead.Bind(Border.BackgroundProperty, lead.GetObservable(Avalonia.Controls.Documents.TextElement.ForegroundProperty));
-            lead.Tag = key;
-            item.Root.Children[0] = lead;
+            MenuLayout.SetFlyoutIcon(item.Icon, key);
             return;
         }
         string label = AutomationProperties.GetName(_slideshowToggle) ?? string.Empty;
@@ -412,12 +438,20 @@ internal sealed partial class GalleryViewer
             Name = name, Minimum = minimum, Maximum = maximum, Increment = 1, FormatString = "0",
             ParsingNumberStyle = System.Globalization.NumberStyles.Integer, ClipValueToMinMax = true, IsVisible = false, MinWidth = 120
         };
-        // ±1 with the arrows and the spinner (the control's own), ±10 with PageUp/PageDown.
+        // The menu reserves plain Up/Down for navigation. Alt+Up/Down still step the number there.
         input.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (e.KeyModifiers != Avalonia.Input.KeyModifiers.None || e.Key is not (Avalonia.Input.Key.PageUp or Avalonia.Input.Key.PageDown)) return;
+            int step = (e.KeyModifiers, e.Key) switch
+            {
+                (Avalonia.Input.KeyModifiers.Alt, Avalonia.Input.Key.Up) => 1,
+                (Avalonia.Input.KeyModifiers.Alt, Avalonia.Input.Key.Down) => -1,
+                (Avalonia.Input.KeyModifiers.None, Avalonia.Input.Key.PageUp) => 10,
+                (Avalonia.Input.KeyModifiers.None, Avalonia.Input.Key.PageDown) => -10,
+                _ => 0
+            };
+            if (step == 0) return;
             decimal current = input.Value ?? (decimal)input.Minimum;
-            input.Value = Math.Clamp(current + (e.Key == Avalonia.Input.Key.PageUp ? 10 : -10), (decimal)input.Minimum, (decimal)input.Maximum);
+            input.Value = Math.Clamp(current + step, (decimal)input.Minimum, (decimal)input.Maximum);
             e.Handled = true;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         return input;
@@ -456,6 +490,8 @@ internal sealed partial class GalleryViewer
         bool slideshow = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow;
         SetNumber(_slideshowSeconds, _playbackPreferences.ImageSeconds, slideshow, Texts.T("gallery.slideshow.secondsLabel"),
             GalleryPlaybackCatalog.Get("viewer.playback.numberHelp"));
+        _modeSetting.IsVisible = ReferenceEquals(_playbackMode.Parent, _modeSetting);
+        _secondsSetting.IsVisible = slideshow && ReferenceEquals(_slideshowSeconds.Parent, _secondsSetting);
         string[] rules =
         {
             GalleryPlaybackCatalog.Get("viewer.playback.videoRule.once"), GalleryPlaybackCatalog.Get("viewer.playback.videoRule.atLeast"),
@@ -469,9 +505,8 @@ internal sealed partial class GalleryViewer
             if (_videoRule.SelectedIndex != (int)_playbackPreferences.VideoRule) _videoRule.SelectedIndex = (int)_playbackPreferences.VideoRule;
         }
         finally { _updatingPlaybackControls = wasUpdating; }
-        _videoRule.IsVisible = _videoRuleCaption.IsVisible = slideshow;
+        _videoRule.IsVisible = _videoRuleSetting.IsVisible = slideshow;
         string ruleName = GalleryPlaybackCatalog.Get("viewer.playback.videoRule");
-        _videoRuleCaption.Text = ruleName;
         AutomationProperties.SetName(_videoRule, ruleName);
         string ruleHelp = GalleryPlaybackCatalog.Get("viewer.playback.videoRuleHelp");
         AutomationProperties.SetHelpText(_videoRule, ruleHelp);
@@ -482,8 +517,10 @@ internal sealed partial class GalleryViewer
         string repeatsName = GalleryPlaybackCatalog.Get("viewer.playback.videoRepeats");
         SetNumber(_videoSeconds, _playbackPreferences.VideoSeconds, seconds, secondsName, GalleryPlaybackCatalog.Get("viewer.playback.videoSecondsHelp"));
         SetNumber(_videoRepeats, _playbackPreferences.VideoRepeats, repeats, repeatsName, GalleryPlaybackCatalog.Get("viewer.playback.numberHelp"));
-        _videoValueCaption.IsVisible = seconds || repeats;
-        _videoValueCaption.Text = seconds ? secondsName : repeats ? repeatsName : string.Empty;
+        _videoSecondsSetting.IsVisible = seconds;
+        _videoRepeatsSetting.IsVisible = repeats;
+        SetSettingLabel(_videoSecondsCaption, secondsName);
+        SetSettingLabel(_videoRepeatsCaption, repeatsName);
         _reducedMotionNote.Text = GalleryPlaybackCatalog.Get("viewer.playback.reducedMotion");
         _reducedMotionNote.IsVisible = slideshow && Motion.MotionPolicy.IsOff && _playbackPreferences.VideoRule != SlideshowVideoRule.PlayOnce;
         _pauseOnFocusLossToggle.IsChecked = _playbackPreferences.PauseOnFocusLoss;

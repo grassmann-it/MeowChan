@@ -1,10 +1,6 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -43,7 +39,7 @@ public partial class ArchivePage
         if (_thread == null || _unreadMark is not { } mark || mark.Thread != _thread.Summary.Id) return (null, 0);
         int last = _thread.FindPostIndex(mark.LastReadPostId);
         if (last < 0 || last + 1 >= _thread.PostCount) return (null, 0);
-        return (_thread.GetPosts(last + 1, 1).FirstOrDefault()?.PostId, _thread.PostCount - last - 1);
+        return (_thread.Posts[last + 1].PostId, _thread.PostCount - last - 1);
     }
 
     // The posts after the later of the saved anchor and the saved selection were not read yet.
@@ -61,20 +57,9 @@ public partial class ArchivePage
 
     private bool IsPastUnreadLine()
     {
-        if (_thread == null || _unreadFirstNewId == null || ArchivePosts.ItemsSource is not ArchivePostRow[] rows
-            || Projection is not { } shown) return false;
-        // Positions in the shown order: the line sits on the first shown post at or after the first new one.
-        int line = shown.PositionOf(_unreadFirstNewId);
-        if (line < 0) return false;
-        if (line < _postOffset) return true; // The line is on an earlier page of posts.
-        if (line >= _postOffset + ReaderPageSize) return false;
-        // The post that carries the line is asked directly: no walk over the realized cards on every scroll event.
-        int index = line - _postOffset;
-        if (index < 0 || index >= rows.Length || rows[index].Id != _unreadFirstNewId)
-        {
-            index = Array.FindIndex(rows, row => row.Id == _unreadFirstNewId);
-            if (index < 0) return false;
-        }
+        if (_unreadFirstNewId == null || Projection is not { } shown) return false;
+        int index = shown.PositionOf(_unreadFirstNewId);
+        if (index < 0) return false;
         ListBox list = ArchivePosts;
         if (list.ContainerFromIndex(index) is Control container)
         {

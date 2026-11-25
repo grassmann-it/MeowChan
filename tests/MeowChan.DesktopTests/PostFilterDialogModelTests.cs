@@ -38,7 +38,7 @@ public sealed class PostFilterDialogModelTests
         }
     }
 
-    private static (PostFilterSession Session, PostFilterStore Store) Open(ProfileLease lease, string directory)
+    internal static (PostFilterSession Session, PostFilterStore Store) Open(ProfileLease lease, string directory)
     {
         PostFilterStore store = new(directory, lease);
         return (new PostFilterSession(new StoreService(store), () => new DateTimeOffset(2026, 11, 13, 12, 0, 0, TimeSpan.Zero)), store);

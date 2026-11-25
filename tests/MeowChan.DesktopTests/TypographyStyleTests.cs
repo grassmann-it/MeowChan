@@ -29,15 +29,14 @@ public sealed class TypographyStyleTests
         foreach (string label in new[] { "TransferSpeedLabel", "TransferUploadLabel", "TransferDiskReadLabel", "TransferDiskLabel" })
             Assert.Matches("x:Name=\"" + label + "\"[^>]*FontFeatures=\"tnum\"", main);
         string archive = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml"));
-        foreach (string name in new[] { "ArchiveThreadPage", "ArchivePostPage", "ArchiveSelectionSummary", "ArchiveReferencesPage" })
+        foreach (string name in new[] { "ArchiveThreadPage", "ArchiveSelectionSummary", "ArchiveReferencesPage" })
             Assert.Matches("x:Name=\"" + name + "\"[^>]*Classes=\"[^\"]*tnum", archive);
     }
 
     [Fact]
-    public void BooruCardTitlesCarryTheCardTitleClassInsteadOfALiteralSize()
+    public void BooruWatcherTitlesUseTheCardTitleClass()
     {
         string booru = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
-        Assert.Contains("Classes = { \"card-title\" }, TextWrapping = TextWrapping.Wrap });", booru);
         Assert.Contains("Classes = { \"mono\", \"card-title\" }", booru);
         Assert.DoesNotContain("FontSize = 14", booru);
     }

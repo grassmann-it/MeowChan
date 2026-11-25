@@ -8,58 +8,78 @@ using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
 public partial class SettingsEditor
 {
-    private MenuFlyout? _settingsMore;
+    internal const string MoreActionsCommandId = "settings.more";
+    private ContextMenu? _settingsMore;
     private CancellationTokenSource? _settingsExportCancellation;
     internal Task SettingsExportTask { get; private set; } = Task.CompletedTask;
     public string SettingsMoreLabel => Texts.T("settings.transfer.more");
 
-    private void OnSettingsMoreClick(object? sender, RoutedEventArgs e)
+    private void OnSettingsMoreClick(object? sender, RoutedEventArgs e) => ToggleSettingsMore();
+
+    internal void ToggleSettingsMore()
     {
-        if (_isClosed || !IsEditable || sender is not Button origin) return;
-        _settingsMore?.Hide();
+        Button origin = SettingsMoreButton;
+        if (_isClosed || !IsEditable || !origin.IsEffectivelyVisible) return;
+        if (PopupToggle.ConsumeActivation(origin)) return;
         // The two entries of the head's More button: the export (a download) and the rare, destructive "Reset all", set apart by a separator.
         var export = new MenuItem { Header = Texts.T("settings.transfer.export"), Icon = CommandBindings.NamedIcon("download") };
+        AutomationProperties.SetAutomationId(export, "settings.transfer.export");
         AutomationProperties.SetName(export, Texts.T("settings.transfer.export"));
         export.Click += (_, _) =>
         {
-            _settingsMore?.Hide();
+            _settingsMore?.Close();
             SettingsExportTask = ExportSavedSettingsAsync();
         };
         var resetAll = new MenuItem { Header = ResetAllLabel, Icon = CommandBindings.NamedIcon("rotate-ccw") };
+        AutomationProperties.SetAutomationId(resetAll, "settings.reset.all");
         AutomationProperties.SetName(resetAll, ResetAllLabel);
         resetAll.Click += (_, _) =>
         {
-            _settingsMore?.Hide();
+            _settingsMore?.Close();
             OpenResetConfirmation(origin, SettingsResetScope.All);
         };
-        _settingsMore = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight, Items = { export, new Separator(), resetAll } };
-        _settingsMore.ShowAt(origin);
+        ContextMenu menu = new() { Placement = PlacementMode.BottomEdgeAlignedRight, Items = { export, new Separator(), resetAll } };
+        _settingsMore = menu;
+        menu.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!PopupToggle.CanToggleMenuFromKey(menu, e)) return;
+            using var context = EffectiveShortcutBindings.EnterKeyContext("settings");
+            if (!ShortcutService.Current.Matches(e, MoreActionsCommandId)) return;
+            e.Handled = true;
+            menu.Close();
+        }, RoutingStrategies.Tunnel);
+        PopupToggle.Track(origin, menu);
+        menu.Open(origin);
+        Dispatcher.UIThread.Post(() => { if (menu.IsOpen) export.Focus(NavigationMethod.Tab); }, DispatcherPriority.Loaded);
     }
 
-    private async Task ExportSavedSettingsAsync()
+    internal async Task ExportSavedSettingsAsync(IStorageProvider? storageProvider = null)
     {
         if (_isClosed || !IsEditable) return;
-        IsBusy = true; // synchronously excludes Save/Discard/reset and a second picker
-        using var cancellation = new CancellationTokenSource();
-        _settingsExportCancellation = cancellation;
+        _settingsExportCancellation = new CancellationTokenSource();
+        CancellationToken cancellation = _settingsExportCancellation.Token;
         // Do not clear draft validation or saved/unsaved status merely for exporting (including Cancel).
         try
         {
+            IsBusy = true; // synchronously excludes Save/Discard/reset and a second picker
             // This is the confirmed Config, never this editor's uncommitted draft properties.
             Config snapshot = SettingsExportUi.CaptureSavedSnapshot(_config);
-            IStorageProvider? provider = TopLevel.GetTopLevel(this)?.StorageProvider;
+            IStorageProvider? provider = storageProvider ?? TopLevel.GetTopLevel(this)?.StorageProvider;
             if (provider == null) throw new NotSupportedException();
-            await SettingsExportUi.ExportSnapshotAsync(snapshot, provider, DateTime.Now, cancellation.Token);
+            await SettingsExportUi.ExportSnapshotAsync(snapshot, provider, DateTime.Now, cancellation);
         }
         catch (OperationCanceledException) { /* Closing or cancelling a picker is not an export error. */ }
         catch (Exception)
@@ -73,6 +93,7 @@ public partial class SettingsEditor
         }
         finally
         {
+            _settingsExportCancellation?.Dispose();
             _settingsExportCancellation = null;
             IsBusy = false;
         }
@@ -82,15 +103,17 @@ public partial class SettingsEditor
     {
         Raise(new[] { nameof(SettingsMoreLabel) });
         // Avoid a stale-language menu while keeping an already open system picker untouched.
-        _settingsMore?.Hide();
+        _settingsMore?.Close();
         _settingsMore = null;
     }
 
     private void EndSettingsTransferLifetime()
     {
-        _settingsMore?.Hide();
+        _settingsMore?.Close();
         _settingsMore = null;
         _settingsExportCancellation?.Cancel();
+        _settingsExportCancellation?.Dispose();
+        _settingsExportCancellation = null;
         // A started provider write drains; it never gets abandoned for a close/cancel.
     }
 }
@@ -133,9 +156,10 @@ internal static class SettingsExportUi
                 await using Stream stream = await file.OpenWriteAsync().ConfigureAwait(false);
                 if (stream.CanSeek) { stream.Position = 0; stream.SetLength(0); }
                 // After opening the target, finish and flush even if the editor closes, to avoid cancellation-torn JSON.
-                await stream.WriteAsync(bytes).ConfigureAwait(false);
-                await stream.FlushAsync().ConfigureAwait(false);
+                await stream.WriteAsync(bytes, CancellationToken.None).ConfigureAwait(false);
+                await stream.FlushAsync(CancellationToken.None).ConfigureAwait(false);
             }
-        }).ConfigureAwait(false);
+        // Ensure the delegate takes ownership of (and disposes) the file even if cancellation arrives before it starts.
+        }, CancellationToken.None).ConfigureAwait(false);
     }
 }

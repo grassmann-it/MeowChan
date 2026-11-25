@@ -43,8 +43,7 @@ internal sealed class MediaTagSidebar : UserControl
     private MediaTagCountResult? _counts;
     private IReadOnlyList<MediaFilterTerm> _terms = Array.Empty<MediaFilterTerm>();
     private IReadOnlyList<MediaTagListItem> _items = Array.Empty<MediaTagListItem>();
-    private MediaTagListItem? _menuRow;
-    private ContextMenuHost? _menuHost;
+    private ContextMenuTarget? _menuTarget;
     private bool _localizing;
 
     /// <summary>Called for a gesture on a tag row: the row's term (included polarity) and the change the gesture makes.</summary>
@@ -98,7 +97,7 @@ internal sealed class MediaTagSidebar : UserControl
         layout.Children.Add(_search); Grid.SetRow(_search, 1);
         layout.Children.Add(_status); Grid.SetRow(_status, 2);
         layout.Children.Add(_list); Grid.SetRow(_list, 3);
-        Content = new Border { Child = layout, Padding = new Thickness(8), Classes = { "workspace-section-flush" } };
+        Content = new Border { Child = layout, Padding = new Thickness(8, 12, 8, 8), Classes = { "workspace-section-flush" } };
         _sort.SelectionChanged += (_, _) =>
         {
             if (_localizing) return;
@@ -108,12 +107,17 @@ internal sealed class MediaTagSidebar : UserControl
         _search.QueryChanged += (_, _) => Rebuild();
         _list.AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble);
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
-        _list.AddHandler(PointerPressedEvent, (_, e) =>
+        AttachedToVisualTree += (_, _) =>
         {
-            if (e.GetCurrentPoint(_list).Properties.IsRightButtonPressed) _menuRow = RowAt(e.Source);
-        }, RoutingStrategies.Tunnel);
-        AttachedToVisualTree += (_, _) => _menuHost ??= WorkspaceChips.AttachMenu(_list, ComposeMenu, () => _list.Focus(NavigationMethod.Tab));
-        DetachedFromVisualTree += (_, _) => { _menuHost?.Dispose(); _menuHost = null; };
+            ContextMenuHost.Install(_list, ComposeMenu, () => _list.Focus(NavigationMethod.Tab));
+            // Tunnel handlers on this control run newest first. Capture before the host handles a key or a Ctrl+press.
+            _menuTarget = new ContextMenuTarget(_list);
+        };
+        DetachedFromVisualTree += (_, _) =>
+        {
+            _menuTarget?.Detach();
+            _menuTarget = null;
+        };
         Localize();
     }
 
@@ -261,8 +265,8 @@ internal sealed class MediaTagSidebar : UserControl
     // The menu of a tag row: the row under the pointer of a right-click, else the selected one (the Menu key, Shift+F10).
     private ContextMenuBuilder? ComposeMenu()
     {
-        MediaTagListItem? row = _menuRow ?? _list.SelectedItem as MediaTagListItem;
-        _menuRow = null;
+        MediaTagListItem? row = RowAt(_menuTarget?.Source);
+        if (_menuTarget?.IsPointer != true) row ??= _list.SelectedItem as MediaTagListItem;
         if (row is not { Kind: MediaTagListKind.Tag, Term: { } term }) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(row.AccessibleName);
         if (row.Polarity <= 0) menu.Command("tags.filter-include", () => Changed?.Invoke(term, MediaTagListChange.Include));
@@ -283,7 +287,7 @@ internal sealed class MediaTagListRowView : Border
         Name = "MediaTagRowMark", Width = 12, Height = 12, Stretch = Stretch.None, StrokeThickness = 1.5, StrokeLineCap = PenLineCap.Round,
         VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false
     };
-    private readonly TextBlock _name = new() { Name = "MediaTagRowName", TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _name = new() { Name = "MediaTagRowName", Classes = { "workspace-body-text" }, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _count = new() { Name = "MediaTagRowCount", Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
     private string? _geometry;
 

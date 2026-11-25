@@ -44,7 +44,7 @@ public partial class ArchivePage
         _favoriteKeyLatch.Observe(this);
         // A held key repeats KeyDown: only its first press acts. The latch is taken even while the last write runs, so the key does not act when it ends.
         if (_favoriteKeyLatch.IsRepeat(e.Key) || !FavoriteKeyTask.IsCompleted) return true;
-        FavoriteKeyTask = WriteFavoriteKeyAsync(action, targets);
+        FavoriteKeyTask = WriteFavoriteKeyAsync(action, targets, source);
         return true;
     }
 
@@ -62,8 +62,11 @@ public partial class ArchivePage
             return rows.Select(row => AssetEntry(threadId, row)).ToArray();
         }
         // The media sidebar: the medium it shows (a thumbnail of its strip: that file).
-        if (SidebarStripContext(ancestors) is { } thumbnail)
-            return AttachmentEntry(threadId, thumbnail.PostId, thumbnail.Attachment) is { } stripped ? new[] { stripped } : Array.Empty<GalleryEntry>();
+        if (ArchiveMediaTab.IsSelected && IsMediaSidebarSource(source))
+            return ActionableSavedMediaSidebarRow is { } saved ? new[] { AssetEntry(threadId, saved) } : Array.Empty<GalleryEntry>();
+        if (IsSidebarStripSource(ancestors))
+            return SidebarStripContext(ancestors) is { } thumbnail && AttachmentEntry(threadId, thumbnail.PostId, thumbnail.Attachment) is { } stripped
+                ? new[] { stripped } : Array.Empty<GalleryEntry>();
         if (SidebarMediaContext(ancestors) is { } shown)
             return AttachmentEntry(threadId, shown.PostId, shown.Attachment) is { } entry ? new[] { entry } : Array.Empty<GalleryEntry>();
         // A post: the medium of the shared resolver, the one Space and Enter act on.
@@ -85,7 +88,7 @@ public partial class ArchivePage
         FindMatchingAsset(threadId, postId, attachment.Attachment, _assets) is { } asset ? AssetEntry(threadId, asset) : null;
 
     // One decision for the whole target (FavoriteKeys.Writes), then the explicit write for each medium that changes, one after the other.
-    private async Task WriteFavoriteKeyAsync(FavoriteKeyAction action, IReadOnlyList<GalleryEntry> targets)
+    private async Task WriteFavoriteKeyAsync(FavoriteKeyAction action, IReadOnlyList<GalleryEntry> targets, Control source)
     {
         if ((EffectiveArchiveFavorite ?? IsArchiveFavorite) is not { } isFavorite) return;
         Action<string> reportError = CaptureActionErrorReporter();
@@ -95,7 +98,13 @@ public partial class ArchivePage
         foreach ((int index, bool selected) in FavoriteKeys.Writes(action, marked))
         {
             if (_ended) return;
-            try { await ToggleArchiveMediaFavoriteAsync(targets[index], selected); }
+            GalleryEntry target = targets[index];
+            try
+            {
+                var verify = CaptureSidebarTargetGuard(source, target);
+                if (verify != null && !await verify(default)) return;
+                await ToggleArchiveMediaFavoriteAsync(target, selected);
+            }
             catch (Exception error) { reportError(error.Message); return; }
         }
     }

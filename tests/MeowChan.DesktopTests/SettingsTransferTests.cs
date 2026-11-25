@@ -11,6 +11,7 @@ public sealed class SettingsTransferTests
 {
     private static readonly string[] ExcludedKeys =
     [
+        nameof(Config.BooruNewSearchTarget),
         nameof(Config.WindowWidth), nameof(Config.WindowHeight), nameof(Config.WindowPositionX), nameof(Config.WindowPositionY),
         nameof(Config.WindowMaximized), nameof(Config.FirstRunSetupPending), nameof(Config.FirstRunSetupVersion),
         nameof(Config.WorkViewNoticePending), nameof(Config.SourceMediaIntegrityPermissions), nameof(Config.DownloadsPaused),
@@ -19,6 +20,16 @@ public sealed class SettingsTransferTests
         nameof(Config.StatusPageSegment),
         nameof(Config.LastTaglineVersion),
     ];
+
+    [Fact]
+    public void SidebarPreviewPixelLimitSurvivesCloneCopyAndPortableJson()
+    {
+        Config source = new() { SidebarPreviewMaximumPixels = 2_000_123 };
+        Config copy = new();
+        copy.CopyFrom(source.Clone());
+        Config restored = JsonSerializer.Deserialize(SettingsTransfer.Export(copy, "1.1.2").ToJsonString(), ConfigJsonContext.Default.Config)!;
+        Assert.Equal(2_000_123, restored.SidebarPreviewMaximumPixels);
+    }
 
     [Fact]
     public void ExportAddsSchemaAndProducerAndExcludesProfileLocalState()
@@ -71,6 +82,9 @@ public sealed class SettingsTransferTests
             StatsHeaderIcons = true,
             ArchiveTagFilterTagsPerList = 71,
             UrlTextExportLimitMiB = 17,
+            BoardSuggestionMinThreads = 4,
+            BoardSuggestionLimit = 8,
+            BoardSuggestionScanThreads = 2_000,
             SlashTagSuggestionCount = 13,
             ShrinkWindowForBarebones = false,
             VideoScrubCacheLimitMiB = 96,
@@ -99,6 +113,9 @@ public sealed class SettingsTransferTests
         Assert.Equal(source.StatsHeaderIcons, restored.StatsHeaderIcons);
         Assert.Equal(source.ArchiveTagFilterTagsPerList, restored.ArchiveTagFilterTagsPerList);
         Assert.Equal(source.UrlTextExportLimitMiB, restored.UrlTextExportLimitMiB);
+        Assert.Equal(source.BoardSuggestionMinThreads, restored.BoardSuggestionMinThreads);
+        Assert.Equal(source.BoardSuggestionLimit, restored.BoardSuggestionLimit);
+        Assert.Equal(source.BoardSuggestionScanThreads, restored.BoardSuggestionScanThreads);
         Assert.Equal(source.SlashTagSuggestionCount, restored.SlashTagSuggestionCount);
         Assert.Equal(source.ShrinkWindowForBarebones, restored.ShrinkWindowForBarebones);
         Assert.Equal(source.VideoScrubCacheLimitMiB, restored.VideoScrubCacheLimitMiB);

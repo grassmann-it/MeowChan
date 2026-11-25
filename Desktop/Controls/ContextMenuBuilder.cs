@@ -59,31 +59,42 @@ internal sealed class ContextMenuBuilder
     /// are commands with icons; the same action shows the same icon as its command elsewhere.
     /// </summary>
     internal ContextMenuBuilder Item(string id, string label, Action invoke, bool available = true, string? reason = null,
-        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null)
+        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null, bool dangerous = false)
     {
         ArgumentNullException.ThrowIfNull(invoke);
         return Add(new(ContextMenuEntryKind.Command, id, label, null, null, false, available, reason, invoke, true,
-            availableWhen, reasonWhen, labelWhen, Icon: icon));
+            availableWhen, reasonWhen, labelWhen, Icon: icon, Dangerous: dangerous));
     }
 
     /// <summary>
     /// One value of an exclusive choice; the entries of one <paramref name="group"/> are the choices, one of them checked. An entry that is
     /// <paramref name="available"/> = false stays visible with its state, disabled, and says <paramref name="reason"/> as its tooltip and help text.
     /// </summary>
-    internal ContextMenuBuilder Radio(string group, string id, string label, bool isChecked, Action invoke, bool available = true, string? reason = null)
+    internal ContextMenuBuilder Radio(string group, string id, string label, bool isChecked, Action invoke, bool available = true,
+        string? reason = null, string? icon = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(group);
         ArgumentNullException.ThrowIfNull(invoke);
         if (isChecked && _sections.SelectMany(section => section).Any(entry => entry.Kind == ContextMenuEntryKind.Radio && entry.Group == group && entry.Checked))
             throw new ArgumentException("Only one entry of the group \"" + group + "\" can be checked.", nameof(isChecked));
-        return Add(new(ContextMenuEntryKind.Radio, id, label, null, group, isChecked, available, reason, invoke, true));
+        return Add(new(ContextMenuEntryKind.Radio, id, label, null, group, isChecked, available, reason, invoke, true, Icon: icon));
     }
 
     /// <summary>A switch; a switch that is not <paramref name="available"/> stays visible with its state, disabled, and says <paramref name="reason"/>.</summary>
-    internal ContextMenuBuilder Check(string id, string label, bool isChecked, Action invoke, bool available = true, string? reason = null)
+    internal ContextMenuBuilder Check(string id, string label, bool isChecked, Action invoke, bool available = true,
+        string? reason = null, string? icon = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
-        return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, available, reason, invoke, true));
+        return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, available, reason, invoke, true, Icon: icon));
+    }
+
+    /// <summary>A switch presented with its catalog command's icon, label and shortcut.</summary>
+    internal ContextMenuBuilder Check(string commandId, bool isChecked, Action invoke, bool available = true, string? reason = null)
+    {
+        ArgumentNullException.ThrowIfNull(invoke);
+        string Label() => CommandCatalog.Label(commandId);
+        return Add(new(ContextMenuEntryKind.Check, commandId, Label(), commandId, null, isChecked, available, reason, invoke,
+            LabelFactory: Label));
     }
 
     /// <summary>A submenu whose children are composed with the same section and availability rules.</summary>
@@ -98,6 +109,9 @@ internal sealed class ContextMenuBuilder
     /// <summary>A disabled explanatory sentence.</summary>
     internal ContextMenuBuilder Note(string text) =>
         Add(new(ContextMenuEntryKind.Note, "note:" + _sections.Sum(section => section.Count), text, null, null, false, false, null, null, false));
+
+    internal ContextMenuBuilder GroupHeading(string id, string text) =>
+        Add(new(ContextMenuEntryKind.GroupHeading, id, text, null, null, false, false, null, null, false));
 
     private ContextMenuBuilder Add(ContextMenuEntry entry)
     {
@@ -196,18 +210,31 @@ internal sealed class ContextMenuBuilder
 
     private static Control Item(ContextMenuEntry entry)
     {
-        if (entry.Kind == ContextMenuEntryKind.Note) return MediaMenuBuilder.Note(entry.Label);
+        if (entry.Kind == ContextMenuEntryKind.Note)
+        {
+            MenuItem note = MediaMenuBuilder.Note(entry.Label);
+            AutomationProperties.SetAutomationId(note, entry.Id);
+            return note;
+        }
+        if (entry.Kind == ContextMenuEntryKind.GroupHeading)
+        {
+            MenuItem heading = new() { Tag = entry.Id, Header = entry.Label, IsEnabled = false, Classes = { "menu-group-label" } };
+            AutomationProperties.SetName(heading, entry.Label);
+            AutomationProperties.SetAutomationId(heading, entry.Id);
+            return heading;
+        }
         if (entry.Kind == ContextMenuEntryKind.Submenu)
         {
             MenuItem submenu = new() { Header = entry.Label, IsEnabled = entry.Available, ItemsSource = Items(entry.Children ?? Array.Empty<IReadOnlyList<ContextMenuEntry>>()) };
             AutomationProperties.SetName(submenu, entry.Label);
+            AutomationProperties.SetAutomationId(submenu, entry.Id);
             if (!entry.Available && entry.Reason is { } unavailable)
             {
                 ToolTip.SetShowOnDisabled(submenu, true);
                 ToolTip.SetTip(submenu, entry.Label + " · " + unavailable);
                 AutomationProperties.SetHelpText(submenu, unavailable);
             }
-            if (entry.Icon != null) submenu.Icon = CommandBindings.IconFromKey(entry.Icon);
+            if (entry.Icon != null) submenu.Icon = CommandBindings.IconFromKey(entry.Icon, deferMask: true);
             submenu.Tag = entry.Id;
             return submenu;
         }
@@ -221,7 +248,7 @@ internal sealed class ContextMenuBuilder
         else
         {
             item = new MenuItem { Header = Label(), Command = new DelegateCommand(invoke, Available), IsEnabled = Available() };
-            if (entry.Icon != null) item.Icon = CommandBindings.IconFromKey(entry.Icon);
+            if (entry.Icon != null) item.Icon = CommandBindings.IconFromKey(entry.Icon, deferMask: true);
             AutomationProperties.SetName(item, Label());
             if (!Available() && Reason() != null)
             {
@@ -231,6 +258,7 @@ internal sealed class ContextMenuBuilder
             }
         }
         item.Tag = entry.Id;
+        AutomationProperties.SetAutomationId(item, entry.Id);
         if (entry.Dangerous) item.Classes.Add("danger");
         if (entry.Kind == ContextMenuEntryKind.Radio)
         {

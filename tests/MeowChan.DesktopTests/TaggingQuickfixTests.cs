@@ -115,8 +115,11 @@ public sealed class TaggingQuickfixTests : IDisposable
         Assert.Equal(1, page.TagCountOf(tagged));
         Assert.Equal(0, page.TagCountOf(bare));
         Assert.Null(page.TagCountOf(unknown)); // no key and no index: unknown, never "no tags"
-        Render(page, Queue(0, tagged, bare, unknown), TaggingQueueFilter.Untagged);
+        Render(page, Queue(1, tagged, bare, unknown), TaggingQueueFilter.Untagged);
         Assert.Equal(new[] { bare.Key }, page.Rows.Select(row => row.Key).ToArray());
+        Assert.Equal("0 of 3 results", page.ProgressText.Text);
+        Assert.Equal("Continue tagging (no. 2)", AutomationProperties.GetName(page.StartButton));
+        Assert.Contains("Last shown: file-2.png · position 2 of 3", AutomationProperties.GetHelpText(page.StartButton));
     });
 
     [Fact]
@@ -196,13 +199,13 @@ public sealed class TaggingQuickfixTests : IDisposable
     public void ProgressAndStartSayWhatTheyCountAndTheLongSentenceIsTheTooltip() => WithPage(page =>
     {
         TagQueueSnapshot queue = Queue(2, Item(1, TagQueueState.Done), Item(2, TagQueueState.Skipped), Item(3), Item(4), Item(5));
-        Assert.Equal(("2 of 5 results", "2 of 5 done"), TaggingQueueView.ProgressCount(queue, null, false));
+        Assert.Equal("2 of 5 results", TaggingQueueView.ProgressCount(queue, null, false));
         Assert.Equal("Continue tagging (no. 3)", TaggingQueueView.StartLabel(queue));
         Render(page, queue);
         Assert.Equal("2 of 5 results", page.ProgressText.Text);
-        Assert.Equal("2 of 5 done", AutomationProperties.GetName(page.ProgressText));
+        Assert.Equal("Progress of the tagging queue · 2 of 5 results", AutomationProperties.GetName(page.ProgressText));
         Assert.Equal("Open: 3 · Finished: 1 · Skipped: 1", ToolTip.GetTip(page.ProgressText));
-        Assert.Equal(("2 von 5 Treffern", "2 von 5 erledigt"), WithLanguage("de", () => TaggingQueueView.ProgressCount(queue, null, false)));
+        Assert.Equal("2 von 5 Treffern", WithLanguage("de", () => TaggingQueueView.ProgressCount(queue, null, false)));
         Assert.Equal("Weiter taggen (Nr. 3)", WithLanguage("de", () => TaggingQueueView.StartLabel(queue)));
     });
 

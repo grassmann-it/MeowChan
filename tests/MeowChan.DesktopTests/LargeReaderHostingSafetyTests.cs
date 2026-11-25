@@ -250,7 +250,7 @@ public sealed class LargeReaderHostingSafetyTests
             "/synthetic-never-opened/media", ThreadSourceState.NotFound, true, DateTimeOffset.UnixEpoch,
             DateTimeOffset.UnixEpoch, 1, 1), [new CapturedPost("42", 0, PostFieldPresence.All, Html: "stored post")]);
         typeof(ArchivePage).GetMethod("ShowCapturedView", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(page, [view, 0, "42"]);
+            .Invoke(page, [view, "42"]);
         Assert.Same(view, page.CurrentThread);
         ContentControl host = new() { IsVisible = false };
         StackPanel root = new();

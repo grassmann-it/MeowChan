@@ -108,8 +108,6 @@ public partial class SettingsEditor
             Number(LocalTaggerWeightsMiBInput, () => LocalTaggerWeightsMiB, value => LocalTaggerWeightsMiB = value, config => config.LocalTaggerWeightsMiB),
             Number(LocalTaggerInputTensorMiBInput, () => LocalTaggerInputTensorMiB, value => LocalTaggerInputTensorMiB = value, config => config.LocalTaggerInputTensorMiB),
             Number(BooruCatalogMiBInput, () => BooruCatalogMiB, value => BooruCatalogMiB = value, config => config.BooruCatalogLimitMiB),
-            Choice(BooruNewSearchTargetInput, () => SelectedBooruNewSearchTarget?.Value,
-                value => SelectedBooruNewSearchTarget = Choice(BooruSearchTargetChoices, value), config => config.BooruNewSearchTarget),
             Flag(RestoreBooruSearchTabsInput, () => RestoreBooruSearchTabs, value => RestoreBooruSearchTabs = value, config => config.RestoreBooruSearchTabs),
             Number(BooruSearchPagesInput, () => BooruSearchPages, value => BooruSearchPages = value, config => config.BooruSearchPages),
             Number(BooruSearchPostsPerPageInput, () => BooruSearchPostsPerPage, value => BooruSearchPostsPerPage = value, config => config.BooruSearchPostsPerPage),
@@ -159,6 +157,9 @@ public partial class SettingsEditor
             Flag(MinimizeToTrayInput, () => MinimizeToTray, value => MinimizeToTray = value, config => config.MinimizeToTray),
             Flag(CloseToTrayInput, () => CloseToTray, value => CloseToTray = value, config => config.CloseToTray),
             Flag(CompactDensityInput, () => CompactDensity, value => CompactDensity = value, config => config.CompactDensity),
+            Flag(ShowFooterNetworkInput, () => ShowFooterNetwork, value => ShowFooterNetwork = value, config => config.ShowFooterNetwork),
+            Flag(ShowFooterDiskInput, () => ShowFooterDisk, value => ShowFooterDisk = value, config => config.ShowFooterDisk),
+            Flag(ShowFooterStatusInput, () => ShowFooterStatus, value => ShowFooterStatus = value, config => config.ShowFooterStatus),
             Flag(RememberReadingPositionInput, () => RememberReadingPosition, value => RememberReadingPosition = value, config => config.RememberReadingPosition),
             Flag(MonitorClipboardUrlsInput, () => MonitorClipboardUrls, value => MonitorClipboardUrls = value, config => config.MonitorClipboardUrls),
             Flag(AutomaticUpdatesInput, () => AutomaticUpdateChecks, value => AutomaticUpdateChecks = value, config => config.AutomaticUpdateChecks),
@@ -183,7 +184,8 @@ public partial class SettingsEditor
             Choice(StatsHeaderGraphInput, () => SelectedStatsHeaderGraph?.Value, value => SelectedStatsHeaderGraph = StatsHeaderGraphChoices.FirstOrDefault(item => item.Value == value) ?? SelectedStatsHeaderGraph, config => config.StatsHeaderGraph),
             Text(DownloadPathInput, () => DownloadPath, value => DownloadPath = value, config => config.DownloadPath),
             Text(ExportFilenameTemplateInput, () => ExportFilenameTemplate, value => ExportFilenameTemplate = value, config => config.ExportFilenameTemplate),
-    }.ToDictionary(setting => setting.Input, StringComparer.Ordinal);
+    }.Concat(BooruListDefaults()).Concat(BoardSuggestionDefaults()).Concat(CatalogLimitDefaults())
+        .ToDictionary(setting => setting.Input, StringComparer.Ordinal);
 
     /// <summary>The names of the inputs that can be reset (tests check that each one is an input of this page).</summary>
     internal IReadOnlyCollection<string> ResettableInputNames => DefaultSettings().Keys;

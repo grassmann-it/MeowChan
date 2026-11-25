@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
@@ -40,7 +41,7 @@ internal enum QuickTagPopoverCloseReason
 /// What the favourite and rating row of a popover reads and writes. The host owns the stores and reports a failed write itself; the popover
 /// shows <see cref="View"/> again after every request, so a refused write leaves the row on the real state.
 /// </summary>
-internal sealed record QuickTagPopoverDecision
+internal record QuickTagPopoverDecision
 {
     /// <summary>What the targets carry now (read again after every request).</summary>
     internal required Func<GalleryDecisionView> View { get; init; }
@@ -65,7 +66,9 @@ internal enum QuickTagInitialFocus { TagInput, Rating }
 /// still offers the stars and says the reason as text.</param>
 /// <param name="FocusFallback">Where the keyboard goes after the popover closed when the control it was opened from is gone or hidden (the page's
 /// selected post, tile or list); see <see cref="QuickTagPopoverOptions.FocusFallback"/>.</param>
-internal sealed record RateAndTagRequest(QuickTagInitialFocus InitialFocus = QuickTagInitialFocus.TagInput, string? TagsBlocked = null, Func<bool>? FocusFallback = null);
+/// <param name="SidebarToken">The lifetime of the displayed sidebar target, from resolution through tag writes. Tile and menu requests use the default.</param>
+internal sealed record RateAndTagRequest(QuickTagInitialFocus InitialFocus = QuickTagInitialFocus.TagInput, string? TagsBlocked = null,
+    Func<bool>? FocusFallback = null, CancellationToken SidebarToken = default);
 
 /// <summary>What a host passes besides the target: the suggestion source, the guard and the tag dialog hand-over.</summary>
 internal sealed record QuickTagPopoverOptions
@@ -157,6 +160,13 @@ internal sealed class QuickTagPopover
     private readonly Action? _unsubscribe;
     private readonly QuickTagSession? _session;
     private readonly GalleryDecisionRow? _decisionRow;
+    private Func<CancellationToken, Task<bool>>? _verifySidebarImage;
+
+    internal void SetSidebarWriteGuard(Func<CancellationToken, Task<bool>> verify)
+    {
+        _verifySidebarImage = verify;
+        if (Surface != null) Surface.VerifyBeforeWriteAsync = verify;
+    }
     private DispatcherTimer? _guard;
     private bool _decisionRunning;
     private Control? _origin;
@@ -168,9 +178,11 @@ internal sealed class QuickTagPopover
         Control content, Action? unsubscribe, GalleryDecisionRow? decisionRow = null)
     {
         _anchor = anchor;
+        _verifySidebarImage = anchor.GetSelfAndVisualAncestors().OfType<ReaderMediaSidebar>().FirstOrDefault()?.CaptureImageActionGuard();
         _decisionRow = decisionRow;
         _options = options;
         Surface = surface;
+        if (surface != null) surface.VerifyBeforeWriteAsync = _verifySidebarImage;
         _session = session;
         _unsubscribe = unsubscribe;
         _frame.Child = content;
@@ -246,6 +258,8 @@ internal sealed class QuickTagPopover
                 NavigationEnabled = false
             };
             surface = createdSurface;
+            surface.UseWrappingActions();
+            if (TopLevel.GetTopLevel(anchor) is MainWindow window) surface.FilterMediaByTag = window.FilterFromOwnedTag;
             creationProbe?.Invoke();
             if (options.Suggestions is { } source)
             {
@@ -301,11 +315,11 @@ internal sealed class QuickTagPopover
         ArgumentNullException.ThrowIfNull(anchor);
         options ??= new QuickTagPopoverOptions();
         string title = string.IsNullOrWhiteSpace(label) ? Texts.T("tags.quick.heading") : Texts.T("tags.quick.title", label.Trim());
-        TextBlock heading = new() { Text = title, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1,
+        TextBlock heading = new() { Text = title, Classes = { "workspace-panel-title" }, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1,
             VerticalAlignment = VerticalAlignment.Center, Name = options.Name + "Title" };
         ToolTip.SetTip(heading, title);
-        Button close = new() { Name = options.Name + "Close", VerticalAlignment = VerticalAlignment.Center };
-        WorkspaceIcons.MakeSquare(close, WorkspaceIcons.Close, Texts.T("tags.quick.close"), Texts.T("tags.quick.closeTip"));
+        PanelCloseButton close = new(options.Name + "Close") { VerticalAlignment = VerticalAlignment.Center };
+        close.Localize(Texts.T("tags.quick.close"));
         // Same header as the surface: the title on the left, the × alone at the right edge, 24 dip of empty space between.
         Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,24,Auto"), Name = options.Name + "Header" };
         header.Children.Add(heading);
@@ -333,7 +347,7 @@ internal sealed class QuickTagPopover
         GalleryDecisionRow row = new(options.Name + "Decision") { FavoriteVisible = decision.SetFavorite != null, KeyContext = options.TooltipKeyContext };
         row.Show(SafeView(decision));
         // The caption (the rating value) is said when it changes; the gallery panel announces through its status line instead.
-        AutomationProperties.SetLiveSetting(row.Summary, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(row.RatingBar, AutomationLiveSetting.Polite);
         return row;
     }
 
@@ -355,11 +369,19 @@ internal sealed class QuickTagPopover
 
     private async Task RunDecisionAsync(GalleryDecisionRow row, QuickTagPopoverDecision decision, Func<Task> write)
     {
+        CheckCurrent();
         if (_closed) return;
         if (_decisionRunning) { row.Show(SafeView(decision)); return; }
         _decisionRunning = true;
-        try { await write(); }
-        catch (Exception error) when (error is not OutOfMemoryException) { /* the host reports it; the row shows the real state below */ }
+        row.SetError(null);
+        try
+        {
+            if ((_verifySidebarImage == null || await _verifySidebarImage(default)) && !_closed) await write();
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            if (!_closed) row.SetError(Texts.T("gallery.decision.status.failed"));
+        }
         finally
         {
             _decisionRunning = false;
@@ -379,6 +401,8 @@ internal sealed class QuickTagPopover
     {
         ArgumentNullException.ThrowIfNull(showAt);
         if (_closed || _shown) return this;
+        CheckCurrent();
+        if (_closed) return this;
         Current?.Close(QuickTagPopoverCloseReason.Replaced);
         _shown = true;
         Current = this;
@@ -564,6 +588,7 @@ internal sealed class QuickTagPopover
 
     private void OnGuardedRootKey(object? sender, KeyEventArgs e)
     {
+        CheckCurrent();
         if (_closed || !_shown || _keyGuardRoot == null) return;
         TopLevel root = _keyGuardRoot;
         if (GuardedRootKey(e, visual => ReferenceEquals(TopLevel.GetTopLevel(visual), root), _frame, Surface != null) is not { } action) return;

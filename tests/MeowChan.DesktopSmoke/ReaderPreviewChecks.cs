@@ -105,7 +105,7 @@ internal static class ReaderPreviewChecks
             }
             object? rows = posts.ItemsSource;
             await page.FocusPostAsync("110125033");
-            Require(ReferenceEquals(rows, posts.ItemsSource), "Same-page navigation replaced live attachment loaders.");
+            Require(ReferenceEquals(rows, posts.ItemsSource), "Navigation within the thread replaced live attachment loaders.");
             Task earlierFocus = page.FocusPostAsync("110125032");
             Task latestFocus = page.FocusPostAsync("110125033");
             await Task.WhenAll(earlierFocus, latestFocus);
@@ -114,10 +114,10 @@ internal static class ReaderPreviewChecks
             double before = PostTop(posts, "110125033");
             mediaReader.Gate.SetResult(); await page.MediaLoadTask;
             await WaitPreviewAsync(posts, "110125033"); await SmokeDispatcher.SettleAsync();
-            // Stable previews: the header pass reserves every post of the page at its picture's size (1800 x 1000), not only the visible ones.
+            // Stable previews: the header pass reserves every post of this five-post fixture at its picture's size (1800 x 1000), not only the visible ones.
             await page.PreviewSizePassTask; await SmokeDispatcher.SettleAsync();
             Require(PageAttachments(posts).All(row => row.KnownAspect is { } aspect && Math.Abs(aspect - 1.8) < 0.02),
-                "The header read did not reserve every preview of the page at the picture's size before it was shown.");
+                "The header read did not reserve every nearby preview at the picture's size before it was shown.");
             Require(Math.Abs(PostTop(posts, "110125033") - before) <= 2,
                 $"Completing delayed previews moved the focused post: {before} → {PostTop(posts, "110125033")}.");
             ArchiveAttachmentView preview = posts.GetVisualDescendants().OfType<ArchiveAttachmentView>()
@@ -156,7 +156,7 @@ internal static class ReaderPreviewChecks
             page.EndLifetime(); window.Content = null;
             await CheckReservedHeightAsync(window);
             await CheckCancellationAndLateResultsAsync(window);
-            Console.WriteLine("SMOKE reader preview: five-post delayed images keep geometry/scroll; header-read and remembered sizes keep the post height when the preview arrives; same-page focus retains loaders; refresh retains selection/anchor; detach/remount reloads; source cancellation/timeout terminate Loading and stale results cannot replace current pixels.");
+            Console.WriteLine("SMOKE reader preview: five-post delayed images keep geometry/scroll; header-read and remembered sizes keep the post height when the preview arrives; focus within the thread retains loaders; refresh retains selection/anchor; detach/remount reloads; source cancellation/timeout terminate Loading and stale results cannot replace current pixels.");
         }
         finally
         {
@@ -404,7 +404,7 @@ internal static class ReaderPreviewChecks
                 page.IsBusy, page.IsMediaLoading, mediaTask = page.MediaLoadTask.Status.ToString(),
                 contentRequest = State("_contentRequest"), focusRequest = State("_readerFocusRequest"),
                 interactionRevision = State("_readerInteractionRevision"), retainedPostId = State("_readerPostId"),
-                postOffset = State("_postOffset"), ended = State("_ended"), available = State("_available"),
+                ended = State("_ended"), available = State("_available"),
                 largeReader = State("_largeReader"), selectedThread = State("_selectedThread")?.ToString(),
                 host = new
                 {

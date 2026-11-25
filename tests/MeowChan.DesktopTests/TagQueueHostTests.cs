@@ -10,6 +10,7 @@ namespace MeowChan.DesktopTests;
 
 // PT1: the host commands of the tagging queue write before they complete, publish the committed view, keep the walk's undo history and
 // report every outcome as one localized sentence. Nothing here assigns a tag, favorite or rating.
+[Collection("Avalonia global state")]
 public sealed class TagQueueHostTests
 {
     private static readonly ResourceId Thread = new("source", "board", "42");
@@ -22,7 +23,7 @@ public sealed class TagQueueHostTests
 
     private static async Task<DesktopSessionHost> StartAsync(string directory)
     {
-        DesktopSessionHost host = new(directory, Array.Empty<IImageBoard>());
+        DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(directory, Array.Empty<IImageBoard>()));
         await host.StartAsync();
         return host;
     }
@@ -263,7 +264,7 @@ public sealed class TagQueueHostTests
         string sentence = await TagQueueActions.AddAsync(host, Items(1, 1), 0);
         Assert.Equal(Texts.T("queue.error.unreadable"), sentence);
 
-        await host.ClearTagQueueAsync();
+        await host.ClearTagQueueAsync(resetDamaged: true);
         Assert.Null(host.TagQueueError);
         Assert.Equal(0, host.GetTagQueue()!.Count);
         Assert.Contains(Directory.GetFiles(temp.Path, "tag-queue*"), path => File.ReadAllText(path) == "damaged");

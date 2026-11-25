@@ -53,14 +53,18 @@ public sealed class MacShortcutDefaultsTests
 
     [Theory]
     [InlineData("window.fullscreen", "⌃⌘F / F11 (Fn)", "F11")]
+    [InlineData("input.focus-download-search", "⌘F", "Ctrl+F")]
     [InlineData("watch.remove", "⌘⌫ / ⌦", "Delete")]
     [InlineData("archive.delete-permanently", "⇧⌘⌫ / ⇧⌦", "Shift+Delete")]
     [InlineData("thread.details", "⌘I / ⌥↩", "Alt+Enter")]
     [InlineData("watch.check", "⌥⌘R / F5 (Fn)", "F5")]
     [InlineData("watch.retry-media", "⌥⇧⌘R / ⇧F5 (Fn)", "Shift+F5")]
+    [InlineData("navigation.continue-reading", "⇧⌘R", "Ctrl+Shift+R")]
     [InlineData("archive.previous-page", "⌥⌘← / ⌥⇞", "Alt+PageUp")]
     [InlineData("archive.next-page", "⌥⌘→ / ⌥⇟", "Alt+PageDown")]
     [InlineData("media.return", "⌘←", "Alt+Left")]
+    [InlineData("tagging.stamp", "⌥⌘S / F9 (Fn)", "F9")]
+    [InlineData("settings.more", "⌃⌘M / ⇧⌘F10 (Fn)", "Ctrl+Shift+F10")]
     public void MacStandardsDifferFromWindowsAndLinuxWhichKeepTheirOwn(string id, string mac, string other)
     {
         Assert.Equal(mac, EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS).Display(id));

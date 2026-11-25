@@ -15,6 +15,7 @@ public partial class DiagnosticsPage
 {
     private void InitializeRowInteraction()
     {
+        AddHandler(KeyDownEvent, (_, e) => RouteDiagnosticFilterKey(e), RoutingStrategies.Tunnel);
         foreach (string name in new[] { "DiagnosticsGrid", "PlatformGrid" })
         {
             DataGrid grid = this.FindControl<DataGrid>(name)!;
@@ -22,6 +23,26 @@ public partial class DiagnosticsPage
             // Tunnel: the table moves to the next row on Enter and copies its cells on Ctrl+C before a bubbling handler would see the key.
             grid.AddHandler(KeyDownEvent, OnDiagnosticRowKeyDown, RoutingStrategies.Tunnel);
         }
+    }
+
+    // Both the page and the shell defer to the native dropdown or IME for these keys.
+    internal bool RouteDiagnosticFilterKey(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing) return false;
+        bool escape = e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None;
+        using var context = EffectiveShortcutBindings.EnterKeyContext("diagnostics");
+        if (!escape && !CommandBindings.Matches(e, "input.focus-diagnostics-search")) return false;
+        if (this.FindControl<ComboBox>("DiagnosticSourceFilter")!.IsDropDownOpen) return true;
+        SearchBox text = this.FindControl<SearchBox>("DiagnosticTextFilter")!;
+        if (text.IsKeyboardFocusWithin && text.IsComposing) return true;
+        if (escape)
+        {
+            e.Handled = TryDismissDiagnosticFilters();
+            return e.Handled;
+        }
+        FocusSearch();
+        e.Handled = true;
+        return true;
     }
 
     /// <summary>Whether the row has a primary action (a target that can be shown in Downloads).</summary>
@@ -40,14 +61,13 @@ public partial class DiagnosticsPage
         if (sender is not DataGrid grid || e.Handled || ShortcutService.IsCapturing || !MainWindow.IsListCommandSource(e.Source, grid)
             || grid.SelectedItem is not DiagnosticEntry entry) return;
         // The rebindable "Open context menu" (Shift+F10 and the Menu key by default), like the Downloads, Archive and Plugins lists.
-        if (CommandBindings.Matches(e, "menu.context-open"))
+        if (ContextClick.IsKey(e))
         {
             e.Handled = true;
             OpenDiagnosticKeyboardMenu(grid);
+            ContextClick.ConsumeOpeningKeyRelease(grid.ContextMenu, e.Key, grid);
             return;
         }
-        // The Menu key stays native. A Shift+F10 that was rebound must not open the menu through its old native accelerator.
-        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (ItemActivation.IsPrimaryKey(e))
         {
             if (!HasPrimaryAction(entry) || grid.SelectedItems.Count != 1) return;

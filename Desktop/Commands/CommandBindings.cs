@@ -16,6 +16,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Platform;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using SkiaSharp;
@@ -34,26 +35,57 @@ public static class CommandBindings
     // never per command/label/shortcut or arbitrary caller key. Do not dispose on menu/window close.
     private static readonly Dictionary<(string Mask, bool Dark), Bitmap> NativeIcons = new();
     private static readonly ConditionalWeakTable<Button, ButtonContent> ButtonContents = new();
-    private static readonly ConditionalWeakTable<object, RefreshCallback> Presentations = new();
+    private static readonly ConditionalWeakTable<AvaloniaObject, RefreshCallback> Presentations = new();
     // One callback holder per owner. Observe swaps Refresh in place and registers the owner with the ShortcutService once per
     // snapshot (Revision): re-applying a presentation many times must not add an observer entry each time. The service only
     // invokes an entry after taking it out of its list, so an invoked holder counts as unregistered again, whatever the revision.
     private sealed class RefreshCallback
     {
+        private readonly Dispatcher _dispatcher;
         public Action Refresh;
         public readonly Action Invoke;
         public long RegisteredRevision = -1;
-        public RefreshCallback(Action refresh) { Refresh = refresh; Invoke = () => { RegisteredRevision = -1; Refresh(); }; }
+
+        public RefreshCallback(AvaloniaObject owner, Action refresh)
+        {
+            _dispatcher = owner.Dispatcher;
+            Refresh = refresh;
+            Invoke = RefreshFromSnapshot;
+        }
+
+        private void RefreshFromSnapshot()
+        {
+            if (_dispatcher.CheckAccess())
+            {
+                ApplySnapshot();
+                return;
+            }
+
+            // A window's presentation belongs to its own dispatcher. A queued refresh must not keep a closed window alive.
+            long revision = ShortcutService.Revision;
+            var pending = new WeakReference<RefreshCallback>(this);
+            _dispatcher.Post(() =>
+            {
+                if (pending.TryGetTarget(out RefreshCallback? callback) && callback.RegisteredRevision < revision)
+                    ShortcutService.RefreshObserver(callback.Invoke);
+            });
+        }
+
+        private void ApplySnapshot()
+        {
+            RegisteredRevision = -1;
+            Refresh();
+        }
     }
     private static readonly ConditionalWeakTable<Control, ActionPresentation> Actions = new();
     private sealed record ActionPresentation(string Id, bool PreserveHelp);
     private static void Track(Control control, string id, bool preserveHelp = false)
     { Actions.Remove(control); Actions.Add(control, new(id, preserveHelp)); }
-    private static void Observe(object owner, Action refresh)
+    private static void Observe(AvaloniaObject owner, Action refresh)
     {
         if (!Presentations.TryGetValue(owner, out RefreshCallback? callback))
         {
-            callback = new RefreshCallback(refresh);
+            callback = new RefreshCallback(owner, refresh);
             Presentations.Add(owner, callback);
         }
         else callback.Refresh = refresh;
@@ -163,6 +195,19 @@ public static class CommandBindings
     {
         Track(button, id);
         Observe(button, () => Apply(button, id, unavailableReason, iconOnly, iconSize, iconWithLabel));
+        PresentButton(button, id, unavailableReason, iconOnly, iconSize, iconWithLabel);
+    }
+
+    // The owning view routes this key from its working control. A visible sibling's button must never claim it.
+    internal static void ApplyLocallyRoutedButton(Button button, string id)
+    {
+        Observe(button, () => ApplyLocallyRoutedButton(button, id));
+        PresentButton(button, id, null, iconOnly: false, iconSize: 16, iconWithLabel: true);
+    }
+
+    private static void PresentButton(Button button, string id, Func<string?>? unavailableReason,
+        bool iconOnly, int iconSize, bool iconWithLabel)
+    {
         string label = CommandCatalog.Label(id);
         button.Classes.Set("command-icon", iconOnly || iconWithLabel);
         if (iconOnly || iconWithLabel)
@@ -303,19 +348,30 @@ public static class CommandBindings
     }
 
     /// <summary>The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon.</summary>
-    internal static Control IconFromKey(string icon, int size = 16)
+    internal static Control IconFromKey(string icon, int size = 16, bool deferMask = false)
     {
-        return new Border
+        var mask = new ImageBrush { Stretch = Stretch.Uniform };
+        var visual = new Border
         {
             Width = size,
             Height = size,
             [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Text"),
-            OpacityMask = new ImageBrush
-            {
-                Source = IconMask(icon),
-                Stretch = Stretch.Uniform
-            }
+            OpacityMask = mask
         };
+        if (deferMask)
+        {
+            // Menu items can reserve the icon column before the rendering platform is available.
+            visual.AttachedToVisualTree += LoadMask;
+
+            void LoadMask(object? sender, VisualTreeAttachmentEventArgs e)
+            {
+                mask.Source = IconMask(icon);
+                visual.AttachedToVisualTree -= LoadMask;
+            }
+        }
+        else mask.Source = IconMask(icon);
+        MenuIcons.Record(visual, icon);
+        return visual;
     }
 
     internal static Bitmap IconMask(string icon)

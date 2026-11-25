@@ -37,7 +37,7 @@ public sealed partial class MediaPage
     private readonly ReaderInlineVideoController _panelVideoController = new();
     private bool _panelShown, _panelCollapsed;
     private MediaLibraryTileRow? _panelRow, _panelWanted;
-    private string _panelSizeText = string.Empty, _panelDimensions = string.Empty;
+    private string _panelDimensions = string.Empty;
     private readonly ReaderMediaFollowThrottle _panelThrottle = new();
     private readonly Stopwatch _panelClock = Stopwatch.StartNew();
     private DispatcherTimer? _panelFollowTimer, _panelAnnounceTimer;
@@ -46,6 +46,7 @@ public sealed partial class MediaPage
     private string _panelAnnouncement = string.Empty;
     private GalleryFitPreferences _panelFit = new();
     private readonly PressOpenedContextGate _panelPointerContext = new();
+    private readonly MiddleClickTracker _panelMiddleClick = new();
 
     /// <summary>The panel view (smoke and test seam); null until the panel was shown once.</summary>
     internal ReaderMediaSidebar? Panel => _panel;
@@ -73,6 +74,15 @@ public sealed partial class MediaPage
     /// <summary>The profile's timeline hover-preview cache (the gallery's own); the shell sets it. Videos started after it is set show the preview on their timeline.</summary>
     internal void ConfigureScrubPreviewCache(VideoScrubPreviewCache? cache) => _panelVideoController.ScrubCache = cache;
 
+    private ReaderMediaPreferences _panelPreferences = ReaderMediaPreferences.Default;
+    internal Action<Action<Config>>? SavePanelSetting { get; set; }
+
+    internal void ConfigurePanelInfo(ReaderMediaPreferences preferences)
+    {
+        _panelPreferences = preferences;
+        _panel?.ConfigureInfo(preferences);
+    }
+
     /// <summary>
     /// The video options of the panel (the shell: the gallery's volume, start-muted choice and seek step, the reader's player and file limits; the panel
     /// always plays inline) and the gallery's fit limit, which the panel's picture follows. A change applies to what the panel shows now; the shell
@@ -82,14 +92,26 @@ public sealed partial class MediaPage
     internal void ConfigurePanel(ReaderInlineVideoOptions video, GalleryFitPreferences fit)
     {
         bool fitChanged = _panelFit != fit;
+        bool limitChanged = _panelFit.PreviewMaximumPixels != fit.PreviewMaximumPixels;
         _panelFit = fit;
         _ = _panelVideoController.ConfigureAsync((video with { Enabled = true }).Clamped());
         if (!_panelShown) return;
+        if (limitChanged && _panel?.Load.ShownSource is { } source && (long)source.Width * source.Height > fit.PreviewMaximumPixels)
+            _panel.ShowPlaceholder(Texts.T("archive.tooLarge"));
         OfferPanelVideo(_panelRow);
         if (fitChanged) RefreshPanel();
     }
 
     // ---- the view -------------------------------------------------------------------------------------------------------------
+
+    internal Func<Control, string, ContextMenuBuilder>? BuildPanelTagMenu { get; set; }
+
+    internal string? RunSidebarCommand(string id)
+    {
+        bool shown = _panelShown;
+        if (!shown && id == "media.sidebar.info" && !_layout.Panel) TogglePanelByShortcut();
+        return EnsurePanel().RunBarCommand(id, shown) ?? (_panelShown ? null : PanelHint());
+    }
 
     private ReaderMediaSidebar EnsurePanel()
     {
@@ -97,12 +119,18 @@ public sealed partial class MediaPage
         ReaderMediaSidebar panel = _panel = new ReaderMediaSidebar
         {
             Name = "MediaPanel", IsVisible = false, UseGalleryCursor = true, TitleKey = "media.panel.title", EmptyKey = "media.panel.empty",
-            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle", ShowEmptyTitle = true
+            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle", ShowEmptyTitle = true, DecisionKeyContext = "media",
+            BuildTagMenu = BuildPanelTagMenu
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
         // The full-height panel owns the header and card, with a horizontal inset from both edges.
-        panel.Padding = new Thickness(16, 0, 16, 0);
+        panel.ConfigureInfo(_panelPreferences);
+        panel.SaveSidebarSetting = update =>
+        {
+            _panelPreferences = panel.CopyBarSettingsTo(_panelPreferences);
+            SavePanelSetting?.Invoke(update);
+        };
         panel.Localize();
         panel.ShowEmpty();
         // The drag handle's name and tip exist from the start, not only after the first language change.
@@ -110,14 +138,16 @@ public sealed partial class MediaPage
         Avalonia.Automation.AutomationProperties.SetName(_panelHandle, resize);
         ToolTip.SetTip(_panelHandle, resize);
         panel.Frame.SizeChanged += (_, _) => OnPanelFrameResized();
+        panel.OpenTagsAsync = (anchor, token) => _panelRow is { } row
+            ? OpenPanelTagsAsync(row, anchor, token) : Task.CompletedTask;
         panel.Open.Click += (_, e) => { e.Handled = true; StartOpenPanelMedia(); };
         panel.GalleryRequested += (_, _) => StartOpenPanelMedia();
         panel.PictureActivated += (_, _) => OnPanelPictureActivated();
         panel.Close.Click += (_, e) => { e.Handled = true; ClosePanel(); };
-        // In the panel the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
+        // In the panel the play button covers the poster while idle. Playback keys stay with the working grid.
         ReaderInlineVideoSlot slot = _panelVideo = new ReaderInlineVideoSlot(panel.FrameArea, activatorWhenIdle: true)
         {
-            OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
+            ShortcutContext = "media", OwnerClaims = MediaPanelKeys.PageClaims, PointerPlayFocus = FocusGridAfterPointerPlay
         };
         _panelVideoController.NavigationKeys = TryNavigateGridFromPanel;
         panel.VideoRow.Children.Add(slot.Below);
@@ -149,7 +179,7 @@ public sealed partial class MediaPage
         if (_lifetime.IsCancellationRequested || !_panelShown) return;
         object? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
         if (focused is Visual visual && (_panel == null || !visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, _panel)))) return;
-        _grid.Focus(NavigationMethod.Pointer);
+        FocusGridNow();
     }
 
     private Window? _panelWindow;
@@ -174,6 +204,7 @@ public sealed partial class MediaPage
     {
         if (_panelObscured == covers) return;
         _panelObscured = covers;
+        if (covers) _panel?.InvalidateTagEditor();
         if (covers) { _ = PausePanelVideo(); return; }
         if (_panelDirty && _panelShown) { _panelDirty = false; RefreshPanel(); }
     }
@@ -197,9 +228,12 @@ public sealed partial class MediaPage
         _panelFollowTimer?.Stop();
         _panelAnnounceTimer?.Stop();
         _panelThrottle.Reset();
-        _panelRow = _panelWanted = null;
-        _panelSizeText = _panelDimensions = string.Empty;
+        _panel?.InvalidateTagEditor();
+        _panelWanted = null;
+        SetPanelRow(null);
+        _panelDimensions = string.Empty;
         OfferPanelVideo(null);
+        _panel?.ResetInfoOverride();
         _panel?.ShowEmpty();
         _ = ReleasePanelVideos();
     }
@@ -236,11 +270,14 @@ public sealed partial class MediaPage
         MediaLibraryTileRow? previous = _panelRow ?? _panelWanted;
         MediaLibraryTileRow? rebound = previous == null ? null : RowOfTile(MediaLibraryTileKey.Of(previous.Tile), previous.Index);
         MediaLibraryTileRow? pick = rebound != null && _grid.Selection.IsSelected(rebound.Index) ? rebound : SelectedRow ?? rebound;
-        bool sameMedium = pick != null && _panelRow != null && MediaLibraryTileKey.Of(pick.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
-        if (sameMedium)
+        bool sameMedium = pick != null && _panelRow != null
+            && MediaLibraryTileKey.Of(pick.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile)
+            && PanelVideoKey(pick.Entry) == PanelVideoKey(_panelRow.Entry);
+        if (sameMedium && SamePanelTagTarget(pick!.Entry, _panelRow!.Entry))
         {
-            // Same tile in a new list: no new decode, only the header and the star.
-            _panelRow = _panelWanted = pick;
+            // The same occurrence in a new list keeps its decoded picture.
+            SetPanelRow(pick);
+            _panelWanted = pick;
             DescribePanel(_panel, pick!);
             return;
         }
@@ -262,7 +299,8 @@ public sealed partial class MediaPage
 
     private void RequestPanel(MediaLibraryTileRow? row)
     {
-        if (!ReferenceEquals(_panelWanted, row)) CancelPanelLoad(); // retire now, not after the follow throttle
+        if (!ReferenceEquals(_panelWanted, row)) CancelPanelLoad();
+        if (!SamePanelTagTarget(_panelWanted?.Entry, row?.Entry)) _panel?.InvalidateDecisionTarget();
         _panelWanted = row;
         long now = _panelClock.ElapsedMilliseconds;
         if (_panelThrottle.Request(now)) { RefreshPanel(); return; }
@@ -315,8 +353,8 @@ public sealed partial class MediaPage
         CancelPanelLoad();
         MediaLibraryTileRow? row = _panelWanted;
         bool same = row != null && _panelRow != null && MediaLibraryTileKey.Of(row.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
-        _panelRow = row;
-        if (!same) { _panelSizeText = _panelDimensions = string.Empty; }
+        SetPanelRow(row);
+        if (!same) { _panelDimensions = string.Empty; }
         if (row == null)
         {
             OfferPanelVideo(null);
@@ -325,19 +363,20 @@ public sealed partial class MediaPage
             return;
         }
         MediaLibraryEntry entry = row.Entry;
-        _panelSizeText = entry.Length is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
         // Tom (16.11.2026): the medium already shown (a larger frame, a changed fit limit, a rebuilt grid) keeps its picture: no load while it covers the
         // frame, otherwise a larger decode that swaps in place (ReaderMediaSidebarLoadState).
         string mediumKey = PanelVideoKey(entry);
         (double Width, double Height) target = PanelTarget(panel);
         ReaderMediaLoadTicket ticket = panel.Load.Begin(mediumKey, target);
+        if (!ticket.UpToDate && !ticket.SameMedium)
+            panel.SetImageVerification(entry is { Kind: SavedMediaKind.Image, Presence: MediaLibraryPresence.Present } ? null : true);
         DescribePanel(panel, row);
         OfferPanelVideo(row);
         // A refresh of the same medium (a larger frame, a changed setting) is no news for a screen reader: only another medium is announced.
         if (!same)
         {
-            (int number, int total) = PanelPositionOf(row);
-            ScheduleAnnouncement(Texts.T("media.panel.region", number, total,
+            GalleryTagPanelPosition position = PanelPositionOf(row);
+            ScheduleAnnouncement(Texts.T("media.panel.region", position.Number, position.Count,
                 ReaderMediaSidebarRules.FileText(new CapturedAttachmentText(row.Name, entry.Length))));
         }
         if (ticket.UpToDate)
@@ -347,7 +386,7 @@ public sealed partial class MediaPage
             {
                 panel.LimitPicture(ReaderMediaSidebarRules.MaximumDisplay(source.Width, _panelFit), ReaderMediaSidebarRules.MaximumDisplay(source.Height, _panelFit));
                 _panelDimensions = $"{source.Width}×{source.Height}";
-                panel.SetDetail(PanelDetail());
+                panel.SetDetail(_panelDimensions);
             }
             return;
         }
@@ -356,24 +395,37 @@ public sealed partial class MediaPage
         PanelTask = LoadPanelAsync(panel, row, mediumKey, ticket, target, loading.Token);
     }
 
-    private string PanelDetail() => _panelDimensions.Length == 0 ? _panelSizeText
-        : _panelSizeText.Length == 0 ? _panelDimensions : _panelSizeText + " · " + _panelDimensions;
+    private void SetPanelRow(MediaLibraryTileRow? row)
+    {
+        bool changed = !SamePanelTagTarget(_panelRow?.Entry, row?.Entry);
+        _panelRow = row;
+        if (changed)
+        {
+            if (_mediaMenuPresenter.Origin == _panel?.Frame) _mediaMenuPresenter.Invalidate();
+            _panel?.InvalidateDecisionTarget();
+        }
+    }
 
-    // The header (post number, name, size and pixels), "open in gallery" and the star.
     private void DescribePanel(ReaderMediaSidebar panel, MediaLibraryTileRow row)
     {
         MediaLibraryEntry entry = row.Entry;
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
-            : row.IsProviderMedium ? Texts.T("booru.media.tile.post", entry.BooruPostId!) : string.Empty;
-        panel.Describe(postLine, row.Name, PanelDetail(), OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
-            threadPosition: PanelPositionText(row));
-        // The star reads the panel's row when it is asked, so a new presentation (own state changed) needs no new wiring.
-        panel.ConfigureFavorite(PanelFavoriteAvailable, () => _panelRow?.State?.Favorite == MediaLibraryFlag.Yes,
-            () => _panelRow is { } current ? ToggleTileFavoriteAsync(current.Entry) : Task.CompletedTask);
+            : row.IsProviderMedium ? Texts.T("reader.postNumber", entry.BooruPostId!) : string.Empty;
+        panel.Describe(postLine, row.Name, _panelDimensions, OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
+            threadPosition: PanelPositionOf(row), savedBytes: entry.Length, mediumKey: PanelVideoKey(entry));
+        // Each write freezes the panel row even when the grid refreshes its selection.
+        panel.ConfigureFavorite(() => ReferenceEquals(_panelRow, row) && PanelFavoriteAvailable(),
+            () => PendingFavorite?.Invoke(entry) ?? row.State?.Favorite == MediaLibraryFlag.Yes,
+            () => ExecuteMediaActionAsync("favorites.toggle", entry, () => ReferenceEquals(_panelRow, row)));
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && _panelShown && ReferenceEquals(_panelRow, row);
+        panel.ConfigureRating(() => Current() && !_selectionBusy && ExecuteMediaMenuActionAsync != null && row.State?.RatingKnown == true,
+            () => _panelRow?.State?.UserRating, value => ExecuteMediaActionAsync(value is int rating ? "media.rating.set-" + rating : "media.rating.clear", entry, Current));
+        panel.SetTags(row.State?.CanEditMediaTags == true ? row.State.MediaTags : null, TagsBlockedReason(entry, row.State));
+        panel.SetSourceFacts(row.ThreadLabel, null, entry.PostedAt?.ToString("g", Texts.Culture), entry.Length, null, null, hash: entry.Sha256);
     }
 
     private bool PanelFavoriteAvailable() => !_lifetime.IsCancellationRequested && ExecuteMediaMenuActionAsync != null
-        && _panelRow is { Entry.Presence: MediaLibraryPresence.Present, Tile.IsGroup: false, State.Favorite: not MediaLibraryFlag.Unknown };
+        && _panelRow is { Entry.Presence: MediaLibraryPresence.Present, State.Favorite: not MediaLibraryFlag.Unknown };
 
     // The frame's size in physical pixels; before the first layout an estimate from the configured width and the window height.
     private (double Width, double Height) PanelTarget(ReaderMediaSidebar panel)
@@ -406,11 +458,16 @@ public sealed partial class MediaPage
         {
             GalleryEntry? entry = await ResolvePanelEntryAsync(row.Entry, ct);
             ct.ThrowIfCancellationRequested();
-            if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+            if (entry == null)
+            {
+                if (IsCurrentPanelRequest(ticket.Request) && row.Entry.Presence == MediaLibraryPresence.Present)
+                    panel.SetImageVerification(false);
+                return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+            }
             if (entry.Kind == SavedMediaKind.Image)
             {
-                (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
-                return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
+                if (panel.BeforePreviewDecodeForTests is { } beforeDecode) await beforeDecode(entry.Asset.Path, ct);
+                return await load.ReadImageAsync(entry, new(target.Width, target.Height), ct);
             }
             if (entry.Kind == SavedMediaKind.Video)
             {
@@ -423,7 +480,7 @@ public sealed partial class MediaPage
         }, picture =>
         {
             _panelDimensions = picture.Source is { } source ? $"{source.Width}×{source.Height}" : string.Empty;
-            panel.SetDetail(PanelDetail());
+            panel.SetDetail(_panelDimensions);
         });
     }
 
@@ -441,7 +498,8 @@ public sealed partial class MediaPage
 
     // ---- the video -------------------------------------------------------------------------------------------------------------------
 
-    private static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Directory, entry.AssetId, entry.Sha256 ?? string.Empty, entry.Length);
+    internal static string PanelVideoKey(MediaLibraryEntry entry) => string.Join("\n", entry.Thread, entry.Directory, entry.AssetId,
+        entry.MediaId, entry.Variant, entry.Sha256, entry.Length);
 
     /// <summary>The panel shows this tile (or none): a saved video offers inline playback in the panel; any other medium gives a player back.</summary>
     private void OfferPanelVideo(MediaLibraryTileRow? row)
@@ -521,13 +579,38 @@ public sealed partial class MediaPage
 
     // ---- keys and the menu -----------------------------------------------------------------------------------------------------------
 
-    private void OnPanelGridKeyDown(object? sender, KeyEventArgs e) => TryRoutePanelKey(e, fromPanel: false);
+    private void OnPanelGridKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!TryDismissPanelTagEditor(e)) TryRoutePanelKey(e, fromPanel: false);
+    }
+
+    internal bool TryDismissPanelTagEditor(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None
+            || e.Source is not Visual source || !source.GetSelfAndVisualAncestors().Contains(this)
+            || _panel?.InvalidateTagEditor() != true) return false;
+        e.Handled = true;
+        return true;
+    }
 
     private void OnPanelKeyDown(object? sender, KeyEventArgs e)
     {
         _panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came
+        if (TryDismissPanelTagEditor(e)) return;
+        if (_panelShown && _panel is { } panel && _panelRow is { } row && ContextClick.IsKey(e) && OwnsPanelMenu(e.Source, panel))
+        {
+            if (panel.IsShowingStalePicture) { ContextClick.RejectKeyPress(panel, e); return; }
+            e.Handled = true;
+            OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard: true);
+            ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
+            return;
+        }
         if (!TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
     }
+
+    private bool OwnsPanelMenu(object? source, ReaderMediaSidebar panel) =>
+        !IsNativeContextSource(source) && !panel.IsInfoMenuSource(source)
+        && (!ItemActivation.IsOwnedByInteractivePart(source, panel) || panel.IsMediaSurfaceSource(source, _panelVideo));
 
     private bool TryRoutePanelKey(KeyEventArgs e, bool fromPanel)
     {
@@ -554,13 +637,19 @@ public sealed partial class MediaPage
     private void OnPanelPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         _panelPointerContext.BeginPress(); // each press starts its own gesture
-        if (e.Handled || _lifetime.IsCancellationRequested || IsNativeContextSource(e.Source) || _panel is not { } panel
-            || !e.GetCurrentPoint(panel).Properties.IsRightButtonPressed || _panelRow == null) return;
-        if (!_grid.Selection.SelectedItems.Contains(_panelRow)) _grid.SelectedItem = _panelRow;
-        panel.Frame.Focusable = true;
-        panel.Frame.Focus();
-        OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
-        _panelPointerContext.MenuOpenedByPress();
+        _panelMiddleClick.Cancel();
+        if (e.Handled || _lifetime.IsCancellationRequested || _panel is not { } panel || _panelRow is not { } row) return;
+        Point position = e.GetPosition(panel);
+        if (MiddleClickTracker.IsPress(e, panel) && panel.IsCurrentMediaSurface(e.Source, position, _panelVideo))
+            _panelMiddleClick.Pressed(row);
+        if (!ContextClick.IsPress(e, panel) || !OwnsPanelMenu(e.Source, panel)) return;
+        if (!panel.IsShowingStalePicture)
+        {
+            panel.Frame.Focusable = true;
+            panel.Frame.Focus();
+            OpenSharedMediaMenu(row, panel.Frame, _panelVideo);
+        }
+        _panelPointerContext.MenuOpenedByPress(ContextClick.Button(e, panel));
         e.Handled = true;
     }
 
@@ -568,20 +657,26 @@ public sealed partial class MediaPage
     private void OnPanelPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         _panelPointerContext.Released(e.InitialPressMouseButton);
+        if (!MiddleClickTracker.IsRelease(e)) return;
+        MediaLibraryTileRow? row = !e.Handled && _panelShown && !_panelObscured && _panel is { } panel
+            && panel.IsCurrentMediaSurface(MiddleClickTracker.HitAt(e, panel), e.GetPosition(panel), _panelVideo) ? _panelRow : null;
+        if (!_panelMiddleClick.Released(row) || row == null) return;
+        e.Handled = true;
+        OpenActions.Start(() => RunMediaCommandOnTileAsync("media.open-external", row), "media.panel.middleClick");
     }
 
     private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (e.Handled || IsNativeContextSource(e.Source) || _panel is not { } panel) return;
-        if (_panelPointerContext.TryConsume()) { e.Handled = true; return; }
-        if (_panelRow == null) return;
-        if (e.TryGetPosition(panel, out _))
+        if (e.Handled || _panel is not { } panel || !OwnsPanelMenu(e.Source, panel)) return;
+        if (_panelPointerContext.TryConsume() || panel.IsShowingStalePicture) { e.Handled = true; return; }
+        if (_panelRow is not { } row) return;
+        bool keyboard = !e.TryGetPosition(panel, out _);
+        if (!keyboard)
         {
-            if (!_grid.Selection.SelectedItems.Contains(_panelRow)) _grid.SelectedItem = _panelRow;
             panel.Frame.Focusable = true;
             panel.Frame.Focus();
         }
-        OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
+        OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard);
         e.Handled = true;
     }
 }

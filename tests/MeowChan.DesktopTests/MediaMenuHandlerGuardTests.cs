@@ -41,8 +41,8 @@ public sealed class MediaMenuHandlerGuardTests
         (ContextMenu menu, List<(MediaMenuSurface, MediaMenuAction)> noOps) = fixture.Menu(surface);
         MenuItem[] enabled = Common(menu).Where(item => item.IsEnabled).ToArray();
         // Everything the fixture wires is on offer: a saved file of one post, a shell that opens galleries, folders, the queue, the popover.
-        Assert.Equal(new[] { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original", "media.show-in-folder",
-            "media.copy-path", "media.details", "gallery.show-in-thread" }, enabled.Select(item => (string)item.Tag!).ToArray());
+        Assert.Equal(new[] { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original", "media.copy-path",
+            "media.copy-file-name", "media.show-in-folder", "media.open-external", "media.details", "gallery.show-in-thread" }, enabled.Select(item => (string)item.Tag!).ToArray());
         foreach (MenuItem item in enabled.Where(item => (string)item.Tag! != "gallery.show-in-thread")) // the jump needs the reader's list (smokes)
         {
             Assert.True(item.Command!.CanExecute(null), item.Tag + " looks enabled but refuses");
@@ -54,6 +54,7 @@ public sealed class MediaMenuHandlerGuardTests
         Assert.Single(fixture.Popovers);
         Assert.Single(fixture.Queued);
         Assert.Equal(new[] { fixture.Second.Asset.Path }, fixture.CopiedPaths);
+        Assert.Equal(fixture.Second.Asset.Path, Assert.Single(fixture.OpenedFiles));
         Assert.Equal(new[] { Path.GetDirectoryName(fixture.Second.Asset.Path) }, fixture.Folders);
     });
 
@@ -228,6 +229,8 @@ public sealed class MediaMenuHandlerGuardTests
         MediaMenuAction.Export => "media.export-original",
         MediaMenuAction.ShowInFolder => "media.show-in-folder",
         MediaMenuAction.CopyPath => "media.copy-path",
+        MediaMenuAction.CopyFileName => "media.copy-file-name",
+        MediaMenuAction.OpenExternal => "media.open-external",
         MediaMenuAction.Details => "media.details",
         MediaMenuAction.ShowInThread => "gallery.show-in-thread",
         _ => action.ToString()
@@ -239,7 +242,8 @@ public sealed class MediaMenuHandlerGuardTests
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
         // The design tokens the page's XAML looks up, as the product's application has them (no theme, no window).
         TokenApplication.Bind();
-        try { test(new Fixture()); }
+        using TempDirectory directory = new();
+        try { test(new Fixture(directory.Path)); }
         finally { MediaMenuHandlers.NoOp = null; }
     });
 
@@ -248,8 +252,8 @@ public sealed class MediaMenuHandlerGuardTests
     private sealed class Fixture
     {
         internal ArchivePage Page { get; } = new();
-        internal BoundAsset First { get; } = Bound("p1", 0, "first.png");
-        internal BoundAsset Second { get; } = Bound("p2", 0, "second.png");
+        internal BoundAsset First { get; }
+        internal BoundAsset Second { get; }
         internal ArchiveAttachmentRow Attachment { get; }
         internal ArchiveAssetRow[] Assets { get; }
         internal List<(IReadOnlyList<GalleryEntry> Entries, GalleryEntryKey Key)> MediaGalleries { get; } = new();
@@ -258,10 +262,14 @@ public sealed class MediaMenuHandlerGuardTests
         internal List<GalleryEntry> Popovers { get; } = new();
         internal List<GalleryEntry> Queued { get; } = new();
         internal List<string> CopiedPaths { get; } = new();
+        internal List<string> OpenedFiles { get; } = new();
         internal List<string> Folders { get; } = new();
 
-        internal Fixture()
+        internal Fixture(string directory)
         {
+            First = Bound(directory, "p1", 0, "first.png");
+            Second = Bound(directory, "p2", 0, "second.png");
+            File.WriteAllText(Second.Asset.Path, "png");
             MediaAssetSnapshot snapshot = new(First.Snapshot.Directory, MediaManifestStatus.Available, 3, "fixture", new[] { First.Asset, Second.Asset },
                 attachmentBindings: First.Snapshot.AttachmentBindings.Concat(Second.Snapshot.AttachmentBindings).ToDictionary(pair => pair.Key, pair => pair.Value));
             Assets = snapshot.GetPage().Select(asset => new ArchiveAssetRow(snapshot, asset)).ToArray();
@@ -283,6 +291,7 @@ public sealed class MediaMenuHandlerGuardTests
             Page.TagPopoverAsync = (entry, _, _, _, _) => { Popovers.Add(entry); return Task.CompletedTask; };
             Page.AddToTagQueue = entries => { Queued.AddRange(entries); return Task.FromResult(string.Empty); };
             Page.CopyFilePathAsync = path => { CopiedPaths.Add(path); return Task.CompletedTask; };
+            Page.OpenMediaExternallyAsync = entry => { OpenedFiles.Add(entry.Asset.Path); return Task.CompletedTask; };
         }
 
         internal void Set(string name, object? value) => typeof(ArchivePage).GetField(name, Instance)!.SetValue(Page, value);
@@ -352,9 +361,8 @@ public sealed class MediaMenuHandlerGuardTests
         }
     }
 
-    private static BoundAsset Bound(string post, int position, string file)
+    private static BoundAsset Bound(string directory, string post, int position, string file)
     {
-        string directory = Path.Combine(Path.GetTempPath(), "media-menu-guard-fixture");
         var provider = new MediaProviderMetadata(file, "original", "https://offline.invalid/" + file, file, 3, null, null);
         string sha = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(file))).ToLowerInvariant();
         var actual = new MediaActualIntegrity(3, Convert.ToBase64String(MD5.HashData(Encoding.UTF8.GetBytes(file))), sha);

@@ -124,9 +124,9 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
                 shifted.Add(gesture.Key, command.Id);
         Assert.Equal(new Dictionary<string, string>
         {
-            // GL3's layout rows are registered in wave 6, so Shift+I (info line) and Shift+N (hints) are live defaults.
+            // Tom 25.11. 19:55: Shift+I toggles facts, Shift+A auto-hide, Shift+Z the separate gallery info line.
             // Revision 20: Shift+M mutes (an action on the shown medium, like Shift+R: GalleryShortcutScheme.ShiftLetterActionIds).
-            ["D"] = "gallery.slideshow-toggle", ["H"] = "gallery.tools-toggle", ["I"] = "gallery.layout.info", ["K"] = "tags.queue.cards", ["L"] = "gallery.filmstrip-toggle",
+            ["D"] = "gallery.slideshow-toggle", ["H"] = "gallery.tools-toggle", ["I"] = "media.sidebar.info", ["A"] = "media.sidebar.autohide", ["Z"] = "gallery.layout.info", ["K"] = "tags.queue.cards", ["L"] = "gallery.filmstrip-toggle",
             ["M"] = "video.mute", ["N"] = "gallery.layout.hints", ["O"] = "gallery.overlay-toggle", ["P"] = "gallery.context-toggle", ["R"] = "gallery.rotate", ["S"] = "video.snapshot", ["T"] = "gallery.mode-toggle"
         }.OrderBy(pair => pair.Key), shifted.OrderBy(pair => pair.Key));
         // Every Shift letter that is no show / hide switch is one of the scheme's listed actions.
@@ -145,7 +145,9 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         Assert.Equal(new[] { "F" }, bindings.For("favorites.toggle").Select(Identity).ToArray());
         Assert.Equal(new[] { "Shift+M" }, bindings.For("video.mute").Select(Identity).ToArray());
         foreach (string id in GalleryShortcutScheme.FavoriteKeyIds)
-            Assert.Equal(new[] { "archive", "gallery", "media", "reader" }, CommandCatalog.Get(id).ExecutionContexts.Order(StringComparer.Ordinal));
+            // W112-73 spec §2: F is "Favorit … des Cursor-Mediums" on the tagging page too; M and U stay as they were.
+            Assert.Equal(id == "favorites.toggle" ? new[] { "archive", "gallery", "media", "reader", "tagging" } : new[] { "archive", "gallery", "media", "reader" },
+                CommandCatalog.Get(id).ExecutionContexts.Order(StringComparer.Ordinal));
         Assert.Equal(new[] { "gallery", "media", "reader" }, CommandCatalog.Get("video.mute").ExecutionContexts.Order(StringComparer.Ordinal));
         // No other command of any context has plain M or U, nor Shift+M; B belongs to nobody (revision 21).
         foreach ((string key, string[] modifiers, string[] owners) in new[]

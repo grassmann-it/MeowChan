@@ -17,40 +17,19 @@ public sealed class ReaderStateGatesAndHostingTests
 {
     // ---- class 3: the paging gesture ----
 
-    // previous, referencesTab, readReady, hasThread, postOffset, pageSize, shown, hasBacklinkPost, refOffset, refTotal, refPageSize
-    private static ReaderPageTarget Page(bool previous, bool references = false, bool ready = true, bool thread = true, int offset = 0,
-        int size = 25, int shown = 100, bool backlink = true, int refOffset = 0, int refTotal = 60, int refSize = 20)
-        => ReaderPaging.Target(previous, references, ready, thread, offset, size, shown, backlink, refOffset, refTotal, refSize);
-
     [Fact]
-    public void PostsPageByStateAloneWhateverThePagerRowShows()
+    public void TheReferencesShortcutUsesAvailabilityAndBoundaries()
     {
-        // No input says whether a pager button is visible: the target is the same with the pager collapsed, hidden by a work view or moved to More.
-        Assert.Equal(ReaderPageTarget.Posts, Page(previous: false));
-        Assert.Equal(ReaderPageTarget.Posts, Page(previous: true, offset: 25));
-        Assert.Equal(ReaderPageTarget.None, Page(previous: true, offset: 0));
-        Assert.Equal(ReaderPageTarget.None, Page(previous: false, offset: 75));
-        Assert.Equal(ReaderPageTarget.Posts, Page(previous: false, offset: 50));
-    }
+        static bool Available(bool previous, bool ready = true, bool thread = true, bool backlink = true, int offset = 0) =>
+            ReaderPaging.CanPageReferences(previous, ready, thread, backlink, offset, 60, 20);
 
-    [Fact]
-    public void ThePagingGestureDoesNothingWhereThereIsNothingToPage()
-    {
-        Assert.Equal(ReaderPageTarget.None, Page(previous: false, shown: 25)); // one page: no pager row, nothing to page
-        Assert.Equal(ReaderPageTarget.None, Page(previous: false, ready: false));
-        Assert.Equal(ReaderPageTarget.None, Page(previous: false, thread: false));
-    }
-
-    [Fact]
-    public void TheReferencesTabPagesTheBacklinksAndNotThePosts()
-    {
-        Assert.Equal(ReaderPageTarget.References, Page(previous: false, references: true));
-        Assert.Equal(ReaderPageTarget.None, Page(previous: true, references: true, refOffset: 0));
-        Assert.Equal(ReaderPageTarget.References, Page(previous: true, references: true, refOffset: 20));
-        Assert.Equal(ReaderPageTarget.None, Page(previous: false, references: true, refOffset: 40));
-        Assert.Equal(ReaderPageTarget.None, Page(previous: false, references: true, backlink: false));
-        // On the References tab the posts' offset does not matter, even when posts could be paged.
-        Assert.Equal(ReaderPageTarget.None, Page(previous: true, references: true, offset: 50, refOffset: 0));
+        Assert.True(Available(previous: false));
+        Assert.False(Available(previous: true));
+        Assert.True(Available(previous: true, offset: 20));
+        Assert.False(Available(previous: false, offset: 40));
+        Assert.False(Available(previous: false, backlink: false));
+        Assert.False(Available(previous: false, ready: false));
+        Assert.False(Available(previous: false, thread: false));
     }
 
     [Fact]

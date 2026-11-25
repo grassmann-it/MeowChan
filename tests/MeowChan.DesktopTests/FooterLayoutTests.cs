@@ -579,9 +579,16 @@ public sealed class FooterLayoutTests
     [Fact]
     public void EveryFooterTextExistsInAllTwelveLanguagesWithTheSamePlaceholders()
     {
+        const string prefix = "settings.footer.";
+        // 74b4de840 added accessible help for the network, disk and status-line display switches.
+        string[] expectedSuffixes =
+        [
+            "title", "displays", "statusLines", "network.hint", "disk.hint", "statusLines.hint", "help", "booruHint",
+            "booruActions", "booruActions.hint", "show", "always", "moveUp", "moveDown", "reset", "reset.hint", "position", "shortcut"
+        ];
         string[] keys = FooterSettingsCatalog.Entries.Select(entry => entry.Key).ToArray();
-        Assert.Equal(13, keys.Length);
-        Assert.All(keys, key => Assert.StartsWith("settings.footer.", key, StringComparison.Ordinal));
+        Assert.Equal(expectedSuffixes.Select(suffix => prefix + suffix).Order(StringComparer.Ordinal), keys.Order(StringComparer.Ordinal));
+        Assert.All(keys, key => Assert.StartsWith(prefix, key, StringComparison.Ordinal));
         Assert.Equal(keys.Length, keys.Distinct().Count());
         foreach (var entry in FooterSettingsCatalog.Entries)
         {

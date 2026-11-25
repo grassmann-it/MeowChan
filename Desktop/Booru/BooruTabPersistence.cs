@@ -18,7 +18,8 @@ internal sealed class BooruTabPersistence : IDisposable
     private BooruSearchView _observed;
     private BooruSearchTabState _lastSnapshot;
     private Task<bool> _lastSave = Task.FromResult(true);
-    private readonly bool _loadFailed;
+    private bool _inspected;
+    private bool _loadFailed;
     private bool _disposed;
 
     internal BooruTabPersistence(BooruWorkbenchView view, BooruSearchTabStore store, Config config)
@@ -26,16 +27,8 @@ internal sealed class BooruTabPersistence : IDisposable
         _view = view;
         _store = store;
         _config = config;
-        try
-        {
-            if (config.RestoreBooruSearchTabs && store.Read() is { } snapshot)
-                view.RestoreSearchTabs(snapshot, config.BooruSavedTabs, config.BooruSavedResultsPerTab);
-        }
-        catch (Exception error) when (BooruSearchTabStore.IsStoreError(error))
-        {
-            _loadFailed = true;
-            Log.Warning("Could not restore local Booru search tabs");
-        }
+        if (config.RestoreBooruSearchTabs && InspectExisting(migrateLegacy: true) is { } snapshot)
+            view.RestoreSearchTabs(snapshot, config.BooruSavedTabs, config.BooruSavedResultsPerTab);
 
         _observed = view.Model.Search.View;
         _lastSnapshot = Capture();
@@ -46,6 +39,18 @@ internal sealed class BooruTabPersistence : IDisposable
 
     private BooruSearchTabState Capture() =>
         _view.SearchTabs.CaptureTargets(_config.BooruSavedTabs, _config.BooruSavedResultsPerTab);
+
+    private BooruSearchTabState? InspectExisting(bool migrateLegacy)
+    {
+        _inspected = true;
+        try { return _store.Read(migrateLegacy); }
+        catch (Exception error) when (BooruSearchTabStore.IsStoreError(error))
+        {
+            _loadFailed = true;
+            Log.Warning("Could not restore local Booru search tabs");
+            return null;
+        }
+    }
 
     private void OnSearchChanged()
     {
@@ -62,6 +67,9 @@ internal sealed class BooruTabPersistence : IDisposable
         BooruSearchTabState snapshot = Capture();
         if (snapshot.HasSameContent(_lastSnapshot) && (!_lastSave.IsCompleted || _lastSave.IsCompletedSuccessfully && _lastSave.Result))
             return;
+        // On opt-in, inspect the previous file while keeping the current workbench session.
+        if (!_inspected) _ = InspectExisting(migrateLegacy: false);
+        if (_loadFailed) return;
         _lastSnapshot = snapshot;
         _lastSave = _store.Save(snapshot);
     }

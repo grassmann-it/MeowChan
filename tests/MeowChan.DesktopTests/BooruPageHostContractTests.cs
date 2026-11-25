@@ -12,15 +12,13 @@ using MeowChan.Tests.Shared;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// BP2 host contracts using real controls/models and in-memory ports. No application, Window,
-/// renderer, dispatcher pump, bitmap, profile or network. These do not measure layout or prove
-/// visual attach/detach behavior; those require the parent's native page-host smoke.
+/// Host contracts using real controls, an owned dispatcher, and in-memory ports.
 /// </summary>
 [Collection("Localization")]
 public sealed class BooruPageHostContractTests
 {
     [Fact]
-    public void TheActualViewAndAllThreePartsStayInsideThePage()
+    public void TheActualViewAndAllThreePartsStayInsideThePage() => BooruComponentDispatcher.Run(() =>
     {
         RecordingPorts ports = new();
         using BooruPage page = new(ports.Services);
@@ -49,21 +47,24 @@ public sealed class BooruPageHostContractTests
         Assert.Equal(2, Grid.GetRow(notes));
         AssertNoRemoteWork(ports);
         Assert.Equal(0, ports.ListReads);
-    }
+    });
 
     [Fact]
-    public void BothRealWorkbenchTabsAndTheirContentNamesArePreserved()
+    public void BothRealWorkbenchTabsAndTheirContentNamesArePreserved() => BooruComponentDispatcher.Run(() =>
     {
         RecordingPorts ports = new();
         using BooruPage page = new(ports.Services);
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
         Assert.Equal(BooruWorkbenchView.TabsName, tabs.Name);
-        TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        Assert.Single(segments);
-        Control search = Assert.IsAssignableFrom<Control>(Assert.Single(segments, tab => tab.Tag is BooruSearchTabs.PrimaryId).Content);
+        Assert.Equal(BooruWorkbenchView.TabsName, AutomationProperties.GetAutomationId(tabs));
+        // A05 exposes the search surface while the strip still has no search tabs.
+        Assert.Empty(page.View.SearchTabs.Ids);
+        TabItem start = Assert.IsType<TabItem>(tabs.SelectedItem);
+        Control search = Assert.IsAssignableFrom<Control>(start.Content);
         page.View.ShowWatchers();
         TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
         Assert.Equal(BooruWorkbenchView.WatchersTabName, watchersTab.Name);
+        Assert.Equal(BooruWorkbenchView.WatchersTabName, AutomationProperties.GetAutomationId(watchersTab));
         Control watchers = Assert.IsAssignableFrom<Control>(watchersTab.Content);
         string?[] names = search.GetLogicalDescendants().Concat(watchers.GetLogicalDescendants())
             .Concat(page.View.Footer.GetLogicalDescendants()).OfType<Control>().Select(control => control.Name).ToArray();
@@ -77,14 +78,15 @@ public sealed class BooruPageHostContractTests
             BooruWorkbenchView.LinkNoteName, BooruWorkbenchView.InputIssueName, BooruWorkbenchView.NoticeName,
             BooruWorkbenchView.WatcherNoticeName, BooruWorkbenchView.ResetCooldownName, BooruWorkbenchView.CatalogStorageName })
             Assert.Contains(name, names);
-        var input = Assert.Single(search.GetVisualDescendants().OfType<TextBox>(), box => box.Name == BooruWorkbenchView.InputName);
+        var input = Assert.Single(search.GetVisualDescendants().OfType<TextBox>(),
+            box => AutomationProperties.GetAutomationId(box) == BooruWorkbenchView.InputName);
         Assert.Contains(MeowChan.Desktop.Localization.Texts.T("booru.ui.noFilterNote"), AutomationProperties.GetHelpText(input));
         Assert.Equal(AutomationProperties.GetHelpText(input), ToolTip.GetTip(input));
         AssertNoRemoteWork(ports);
-    }
+    });
 
     [Fact]
-    public void ServiceIdentityIsFixedAndTheViewHookExposesTheOwnedModel()
+    public void ServiceIdentityIsFixedAndTheViewHookExposesTheOwnedModel() => BooruComponentDispatcher.Run(() =>
     {
         RecordingPorts ports = new();
         using BooruPage page = new(ports.Services);
@@ -94,18 +96,19 @@ public sealed class BooruPageHostContractTests
         foreach (string property in new[] { nameof(BooruPage.Services), nameof(BooruPage.View), nameof(BooruPage.Model) })
             Assert.Null(typeof(BooruPage).GetProperty(property, BindingFlags.Instance | BindingFlags.NonPublic)!.GetSetMethod(true));
         Assert.Throws<ArgumentNullException>(() => new BooruPage(null!));
-    }
+    });
 
     [Fact]
-    public void QueryHandoffTagAdditionAndClearOnlyEditTheRealDraft()
+    public void QueryHandoffTagAdditionAndClearOnlyEditTheRealDraft() => BooruComponentDispatcher.Run(() =>
     {
         RecordingPorts ports = new();
         using BooruPage page = new(ports.Services);
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
-        TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
+        Assert.Empty(page.View.SearchTabs.Ids);
+        TabItem start = Assert.IsType<TabItem>(tabs.SelectedItem);
         page.View.ShowWatchers();
         page.ShowQuery("cat");
-        Assert.Same(segments[0], tabs.SelectedItem);
+        Assert.Same(start, tabs.SelectedItem);
         Assert.Equal(BooruInputMode.Tags, page.Model.Search.View.Mode);
         Assert.Equal("cat", page.Model.Search.View.Input);
         page.AddTagToSearch("sky");
@@ -117,10 +120,10 @@ public sealed class BooruPageHostContractTests
         Assert.Null(page.Model.Search.View.ExecutedQuery);
         Assert.Equal(0, ports.ListReads);
         AssertNoRemoteWork(ports);
-    }
+    });
 
     [Fact]
-    public async Task RepeatedActivationSharesOneLocalInitializationAndNeverSearches()
+    public void RepeatedActivationSharesOneLocalInitializationAndNeverSearches() => BooruComponentDispatcher.Run(async () =>
     {
         TaskCompletionSource<IReadOnlyList<BooruWatcherView>> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         RecordingPorts ports = new() { ListResult = release.Task };
@@ -140,10 +143,10 @@ public sealed class BooruPageHostContractTests
         Assert.Equal(1, ports.CatalogReads);
         Assert.Equal(BooruWatcherListStatus.Empty, page.Model.Watchers.View.Status);
         AssertNoRemoteWork(ports);
-    }
+    });
 
     [Fact]
-    public async Task EndLifetimeAndRepeatedDisposeReleaseEachPortSubscriptionOnce()
+    public void EndLifetimeAndRepeatedDisposeReleaseEachPortSubscriptionOnce() => BooruComponentDispatcher.Run(async () =>
     {
         RecordingPorts ports = new();
         using BooruPage page = new(ports.Services);
@@ -167,10 +170,10 @@ public sealed class BooruPageHostContractTests
         Assert.Equal("cat", page.Model.Search.View.Input);
         Assert.Equal(0, ports.ListReads);
         AssertNoRemoteWork(ports);
-    }
+    });
 
     [Fact]
-    public async Task ParentReplacementUsesNewServicesEvenForTheSameProvider()
+    public void ParentReplacementUsesNewServicesEvenForTheSameProvider() => BooruComponentDispatcher.Run(async () =>
     {
         RecordingPorts oldPorts = new(), newPorts = new();
         using BooruPage oldPage = new(oldPorts.Services);
@@ -195,10 +198,10 @@ public sealed class BooruPageHostContractTests
         Assert.Equal(1, newPorts.WatcherSubscribers);
         AssertNoRemoteWork(oldPorts);
         AssertNoRemoteWork(newPorts);
-    }
+    });
 
     [Fact]
-    public async Task DisposalCancelsPendingLocalInitializationAndRejectsItsLateRows()
+    public void DisposalCancelsPendingLocalInitializationAndRejectsItsLateRows() => BooruComponentDispatcher.Run(async () =>
     {
         TaskCompletionSource<IReadOnlyList<BooruWatcherView>> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         RecordingPorts ports = new() { ListResult = release.Task };
@@ -216,10 +219,10 @@ public sealed class BooruPageHostContractTests
         await page.ActivateAsync();
         Assert.Equal(1, ports.ListReads);
         AssertNoRemoteWork(ports);
-    }
+    });
 
     [Fact]
-    public async Task DisposalCancelsAnExplicitSearchAndRejectsItsLateResult()
+    public void DisposalCancelsAnExplicitSearchAndRejectsItsLateResult() => BooruComponentDispatcher.Run(async () =>
     {
         TaskCompletionSource<BooruCallResult<BooruResultPage>> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         RecordingPorts ports = new() { SearchResult = release.Task };
@@ -240,10 +243,10 @@ public sealed class BooruPageHostContractTests
         Assert.Equal(0, ports.PreviewReads);
         Assert.Equal(0, ports.LocalStateReads);
         Assert.Equal(0, ports.QueueLoads);
-    }
+    });
 
     [Fact]
-    public void EscapeElsewhereDoesNotClearTheDraftOrBecomeACloseAction()
+    public void EscapeElsewhereDoesNotClearTheDraftOrBecomeACloseAction() => BooruComponentDispatcher.Run(() =>
     {
         RecordingPorts ports = new();
         using BooruPage page = new(ports.Services);
@@ -258,10 +261,10 @@ public sealed class BooruPageHostContractTests
         Assert.False(empty.Handled);
         Assert.Same(page.View, page.Content);
         AssertNoRemoteWork(ports);
-    }
+    });
 
     [Fact]
-    public async Task EscapeCancelsOnlyAnOpenRemovalQuestionOnTheWatcherTab()
+    public void EscapeCancelsOnlyAnOpenRemovalQuestionOnTheWatcherTab() => BooruComponentDispatcher.Run(async () =>
     {
         RecordingPorts ports = new()
         {
@@ -281,7 +284,7 @@ public sealed class BooruPageHostContractTests
         Assert.True(escape.Handled);
         Assert.False(Assert.Single(page.Model.Watchers.View.Rows).ConfirmingRemoval);
         AssertNoRemoteWork(ports);
-    }
+    });
 
     [Fact]
     public void StaticHostDeclarationKeepsActivationExplicitAndLifetimeFinalNotDetachDriven()

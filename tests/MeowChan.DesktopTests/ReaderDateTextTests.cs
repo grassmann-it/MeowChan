@@ -60,8 +60,8 @@ public sealed class ReaderDateTextTests : IDisposable
             Texts.SetLanguage(language.Code);
             foreach (string key in ReaderDateCatalog.Entries.Select(entry => entry.Key).Concat(new[]
             {
-                "settings.reader.thumbnailWidth", "settings.reader.thumbnailWidth.hint", "settings.reader.pageSize",
-                "settings.reader.pageSize.hint", "settings.reader.dateStyle", "settings.reader.dateStyle.hint",
+                "settings.reader.thumbnailWidth", "settings.reader.thumbnailWidth.hint",
+                "settings.reader.dateStyle", "settings.reader.dateStyle.hint",
                 "settings.reader.dateStyle.system", "settings.reader.dateStyle.long", "settings.reader.dateStyle.sinceOp",
                 "settings.reader.dateStyle.relative"
             }))

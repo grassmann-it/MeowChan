@@ -86,7 +86,7 @@ public partial class ArchivePage
         LocalizePrivateTags();
     }
 
-    private bool IsTagBarSource(object? source) => source is Visual visual
+    internal bool IsTagBarSource(object? source) => source is Visual visual
         && visual.GetSelfAndVisualAncestors().Contains(ReaderTagBar);
 
     private bool CanEditThreadTags => _available && !_ended && !_privateTagBusy && _privateTags != null
@@ -119,6 +119,7 @@ public partial class ArchivePage
         // no list reload, so selection and scroll position stay. An unreadable store clears them.
         RefreshThreadTagRows(ArchiveVisibleRows);
         OnPrivateTagsChangedForFilter();
+        RefreshMediaSidebarDecisions();
     }
 
     private void RefreshThreadTagRows(IEnumerable<ArchiveThreadRow> rows)
@@ -165,7 +166,12 @@ public partial class ArchivePage
     private void OnOpenThreadTags(object? sender, RoutedEventArgs e)
     {
         if (_ended || IsReaderDialogOpen || _thread == null) return;
-        if (_tagBarWanted) { CloseTagBar(); return; }
+        if (_tagBarWanted) { CloseTagBar(restoreFocus: true); return; }
+        ShowThreadTags();
+    }
+
+    private void ShowThreadTags()
+    {
         ReloadPrivateTags();
         _tagBarWanted = true;
         _sourceTagSuggestions.Load();
@@ -175,21 +181,32 @@ public partial class ArchivePage
         if (CanEditThreadTags) ReaderTagInput.Focus();
     }
 
-    // The thread list menu's "Tags…": show that thread in the reader pane and open its tag bar there.
-    // Opening only ever shows the bar; an already open bar is kept and takes focus instead of toggling shut.
+    private bool ShowsThreadTags(ResourceId id) => _thread?.Summary.Id == id && ReaderTagBar.IsEffectivelyVisible;
+
+    // A different target always opens its tags, even if the previous thread's tag bar was visible.
     internal async Task OpenThreadTagsAsync(ResourceId id)
     {
         if (_ended || IsReaderDialogOpen) return;
+        if (ShowsThreadTags(id))
+        {
+            CloseTagBar(restoreFocus: true);
+            return;
+        }
         if (_thread?.Summary.Id != id)
         {
             await LoadThreadAsync(id);
             if (_ended || _thread?.Summary.Id != id) return;
         }
-        if (!_tagBarWanted) OnOpenThreadTags(null, new RoutedEventArgs());
+        if (!_showReader)
+        {
+            _showReader = true;
+            UpdateLayoutMode();
+        }
+        if (!_tagBarWanted) ShowThreadTags();
         // The closing menu hands focus back to the list afterwards; ask again once it has settled.
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_ended && _tagBarWanted && _thread?.Summary.Id == id && CanEditThreadTags) ReaderTagInput.Focus();
+            if (!_ended && ShowsThreadTags(id) && CanEditThreadTags) ReaderTagInput.Focus();
         }, DispatcherPriority.Input);
     }
 
@@ -205,25 +222,39 @@ public partial class ArchivePage
         if (ThreadTagsShortcutTarget is ResourceId id) OpenActions.Start(() => OpenThreadTagsAsync(id), "archive.threadTags.open");
     }
 
-    private void CloseTagBar(bool focusOpen = false)
+    private void CloseTagBar(bool restoreFocus = false)
     {
+        ReaderTagInput.Dismiss();
         _tagBarWanted = false;
         ReaderTagBar.IsVisible = false;
         _privateTagMessage = null;
         _tagBarRendered = null;
-        if (focusOpen && ReaderTagsOpen.IsEffectivelyVisible) ReaderTagsOpen.Focus();
+        if (restoreFocus) FocusSelectedPostOrList();
+    }
+
+    private bool TryDismissThreadTags(object? source)
+    {
+        if (!ReaderTagBar.IsVisible || !IsTagBarSource(source)) return false;
+        if (ReaderTagInput.IsDropDownOpen) ReaderTagInput.Dismiss();
+        else CloseTagBar(restoreFocus: true);
+        return true;
     }
 
     private void OnTagBarKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
-            || !ReaderTagBar.IsVisible || !IsTagBarSource(e.Source)
-            || e.KeyModifiers != KeyModifiers.None) return;
+            || !ReaderTagBar.IsVisible || !IsTagBarSource(e.Source) || ReaderInputIsComposing(e.Source)) return;
+        if (CommandBindings.IsTextSafeChord(e) && ShortcutService.Current.Matches(e, "thread.tags"))
+        {
+            e.Handled = true;
+            CloseTagBar(restoreFocus: true);
+            return;
+        }
+        if (e.KeyModifiers != KeyModifiers.None) return;
         bool inInput = e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(ReaderTagInput);
         TagFieldKey key = inInput ? TagSuggestionInput.Route(ReaderTagInput, e) : TagFieldKey.None;
         // The first Escape in the field closes its open suggestion list, the next one the bar.
-        if (key == TagFieldKey.CloseList) { e.Handled = true; ReaderTagInput.Dismiss(); }
-        else if (e.Key == Key.Escape) { e.Handled = true; CloseTagBar(focusOpen: true); }
+        if (e.Key == Key.Escape) e.Handled = TryDismissThreadTags(e.Source);
         // Enter adds only from the text field; buttons keep their native activation. A highlighted
         // suggestion is left to the field, which accepts and then adds it.
         else if (key == TagFieldKey.CommitTyped)
@@ -308,13 +339,15 @@ public partial class ArchivePage
         bool canFilter = CanFilterArchiveByTag;
         bool canManage = CanOpenTagManager;
         return new MeowChan.Desktop.Controls.ContextMenuBuilder().Named(display)
-            .Item("reader.tag.remove", Texts.T("tags.remove", display), () => PrivateTagTask = RemoveThreadTagAsync(tag), canEdit, editReason, icon: "x")
             .Item("reader.tag.filter", Texts.T("tags.filter.includeHint"), () => _ = FilterArchiveByTagAsync(tag), canFilter,
                 canFilter ? null : Texts.T("menu.unavailable.target"), icon: "filter")
             .Section()
             .Item("reader.tag.copy-name", CommandCatalog.Label("tags.copy-name"), () => _ = CopyChipTextAsync(this, display), icon: "copy")
             .Item("reader.tag.manage", Texts.T("tags.manage.open"), () => TagManagerTask = OpenTagManagerAsync(ReaderTagChips), canManage,
-                canManage ? null : Texts.T("menu.unavailable.target"), icon: "tag");
+                canManage ? null : Texts.T("menu.unavailable.target"), icon: "tag")
+            .Section()
+            .Item("reader.tag.remove", Texts.T("tags.remove", display), () => PrivateTagTask = RemoveThreadTagAsync(tag), canEdit, editReason,
+                icon: "x", dangerous: true);
     }
 
     private bool CanFilterArchiveByTag => _available && !_ended && !_busy && CanRead && !IsFilenameSearchOpen && !IsReaderDialogOpen;
@@ -360,6 +393,14 @@ public partial class ArchivePage
         return names;
     }
 
+    private readonly List<MeowChan.Desktop.Controls.ContextMenuHost> _threadTagMenus = new();
+
+    private void DisposeThreadTagMenus()
+    {
+        foreach (MeowChan.Desktop.Controls.ContextMenuHost menu in _threadTagMenus) menu.Dispose();
+        _threadTagMenus.Clear();
+    }
+
     private void RenderTagBar()
     {
         ArchivedThreadView thread = _thread!;
@@ -378,6 +419,7 @@ public partial class ArchivePage
 
         WrapPanel chips = ReaderTagChips;
         AutomationProperties.SetName(chips, Texts.T("tags.assigned"));
+        DisposeThreadTagMenus();
         chips.Children.Clear();
         PrivateTagDefinition[] assigned = _privateTags?.TagsOf(id).ToArray() ?? Array.Empty<PrivateTagDefinition>();
         foreach (PrivateTagDefinition tag in assigned)
@@ -391,8 +433,9 @@ public partial class ArchivePage
             ToolTip.SetTip(chip, hint);
             chip.Click += (_, _) => PrivateTagTask = RemoveThreadTagAsync(tagId);
             // Right-click, Menu key, Shift+F10: remove (the click), show the threads that have the tag, copy its name, manage the tags.
-            MeowChan.Desktop.Controls.WorkspaceChips.AttachMenu(chip, () => ComposeThreadTagChipMenu(tag.Name.Display, tagId),
-                fallbackFocus: () => { if (CanEditThreadTags) ReaderTagInput.Focus(); });
+            _threadTagMenus.Add(MeowChan.Desktop.Controls.WorkspaceChips.AttachMenu(chip,
+                () => ComposeThreadTagChipMenu(tag.Name.Display, tagId),
+                fallbackFocus: () => { if (CanEditThreadTags) ReaderTagInput.Focus(); }));
             chips.Children.Add(chip);
         }
         if (assigned.Length == 0)

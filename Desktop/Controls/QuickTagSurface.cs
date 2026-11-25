@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -288,8 +290,6 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly ShortcutPlatform _platform;
     private readonly string _name;
     private readonly SourceTagSuggestions _sourceTags = new();
-    private readonly Border _counter;
-    private readonly TextBlock _counterLabel;
     // Gallery marking (E4): "3 marked" with a button that clears the marks; shown below the field while the host has marks.
     private readonly Border _markedBadge;
     private readonly TextBlock _markedLabel;
@@ -298,29 +298,31 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     // The field with what sits around it: an optional decision row above (PT6), the field, the marks bar under it.
     private readonly StackPanel _fieldArea;
     private Control? _decisionContent;
+    private MediaPanelSections? _sidebarSections;
+    private ContentControl? _sidebarActions;
     // The hairline between the decision row and the field (12 dip of air on both sides: the field area's 8 plus the line's own 4).
     private Border? _decisionDivider;
     private IQuickTagExtraUndo? _extraUndo;
-    private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Button _close = new();
-    private readonly IdentitySuggestionBox _input = new() { ProtectComposition = true };
-    private readonly TextBlock _suggestionsHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _title = new() { Classes = { "workspace-panel-title" }, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
+    private readonly PanelCloseButton _close;
+    private readonly IdentitySuggestionBox _input = new() { Height = WorkspaceMetrics.InputHeight, ProtectComposition = true };
+    private readonly TextBlock _suggestionsHeading = new() { FontWeight = FontWeight.SemiBold, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _strip = new() { ItemSpacing = StripItemSpacing, LineSpacing = 0, VerticalAlignment = VerticalAlignment.Top };
     // One viewport for the entire surface in both hosts. Assigned tags and suggestions never scroll independently.
     private readonly ScrollViewer _flow = new() { HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, Focusable = false };
     private readonly Border _stripHost = new();
     private readonly Border _upper = new();
-    private readonly TextBlock _stripEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _stripEmpty = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _more = new() { Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _allHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _allHeading = new() { Classes = { "workspace-meta" }, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _allChips = new() { ItemSpacing = AssignedItemSpacing, LineSpacing = AssignedLineSpacing };
-    private readonly TextBlock _someHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _someHeading = new() { Classes = { "workspace-meta" }, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _someChips = new() { ItemSpacing = AssignedItemSpacing, LineSpacing = AssignedLineSpacing };
-    private readonly TextBlock _assignedEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _assignedEmpty = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _assigned;
     private readonly ContentControl _extra = new() { IsVisible = false };
     // Two lines, then the ellipsis; a status cut there shows in full as its tooltip (narrow-window sweep, 16.11.2026).
-    private readonly TextBlock _status = new TrimTipTextBlock { TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _status = new TrimTipTextBlock { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Button _undo = new();
     private readonly Button _stamp = new();
     private readonly Button _advanced = new();
@@ -341,8 +343,6 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private IQuickTagSuggestionSource _decorated = null!;
     private IReadOnlyList<QuickTagSuggestion> _shown = Array.Empty<QuickTagSuggestion>();
     private string _targetLabel = string.Empty;
-    private string? _counterText;
-    private string? _counterShortText;
     private int _markedCount;
     // A short host notice (a mark was set or refused) in the polite status line; it gives way to the next step's status.
     private string? _notice;
@@ -360,17 +360,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _name = string.IsNullOrWhiteSpace(name) ? "QuickTag" : name;
         Name = _name;
         Focusable = false;
-        _close.Name = _name + "Close"; _input.Name = _name + "Input"; _strip.Name = _name + "Suggestions"; _more.Name = _name + "More";
+        _close = new PanelCloseButton(_name + "Close");
+        _input.Name = _name + "Input"; _strip.Name = _name + "Suggestions"; _more.Name = _name + "More";
         _allChips.Name = _name + "Assigned"; _someChips.Name = _name + "AssignedSome"; _status.Name = _name + "Status";
         _undo.Name = _name + "Undo"; _stamp.Name = _name + "Stamp"; _advanced.Name = _name + "Advanced"; _title.Name = _name + "Title"; _extra.Name = _name + "Extra";
         _stripHost.Name = _name + "SuggestionsHost"; _upper.Name = _name + "Body"; _flow.Name = _name + "Scroll";
         _stripEmpty.Name = _name + "SuggestionsEmpty"; _assignedEmpty.Name = _name + "AssignedEmpty";
         _markedClear.Name = _name + "MarkedClear";
-
-        _counter = WorkspaceChips.CreateBadge(_name + "Counter", string.Empty, compact: true);
-        _counterLabel = (TextBlock)_counter.Child!;
-        _counter.IsVisible = false;
-        _counter.VerticalAlignment = VerticalAlignment.Center;
+        AutomationProperties.SetAutomationId(_input, _input.Name);
+        AutomationProperties.SetAutomationId(_advanced, _advanced.Name);
 
         _markedBadge = WorkspaceChips.CreateBadge(_name + "Marked", string.Empty, compact: true);
         _markedLabel = (TextBlock)_markedBadge.Child!;
@@ -378,25 +376,22 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetLiveSetting(_markedBadge, AutomationLiveSetting.Polite);
         _markBar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, IsVisible = false, Name = _name + "MarkBar", Children = { _markedBadge, _markedClear } };
 
-        // Header: counter and title on the left, the close button alone at the right edge (owner rule 14.11.), 24 dip apart at least.
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,24,Auto"), ColumnSpacing = 0, Name = _name + "Header" };
-        header.Children.Add(_counter);
-        header.Children.Add(_title); Grid.SetColumn(_title, 1);
-        header.Children.Add(_close); Grid.SetColumn(_close, 3);
-        _counter.Margin = new Thickness(0, 0, 8, 0);
-        WorkspaceIcons.MakeSquare(_close, WorkspaceIcons.Close, Texts.T("tags.quick.close"), Texts.T("tags.quick.closeTip"));
+        Grid header = new() { Height = WorkspaceMetrics.InputHeight, ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Name = _name + "Header" };
+        header.Children.Add(_title);
+        header.Children.Add(_close); Grid.SetColumn(_close, 1);
         _close.VerticalAlignment = VerticalAlignment.Center;
 
-        _assigned = new StackPanel { Spacing = 8, Children = { _allHeading, _allChips, _someHeading, _someChips, _assignedEmpty } };
+        _assigned = new StackPanel { Spacing = 4, Children = { _allHeading, _allChips, _someHeading, _someChips, _assignedEmpty } };
         // Natural-height siblings: scroll past every assigned row to reach the complete suggestion block.
         _upper.Child = new StackPanel { Spacing = 8, Children = { _assigned, _extra } };
         _stripHost.Child = new StackPanel { Children = { _strip, _stripEmpty } };
-        Grid suggestionArea = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 8, Name = _name + "SuggestionArea" };
+        Grid suggestionArea = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 4, Name = _name + "SuggestionArea" };
         Control suggestionsHeader = SuggestionsHeader();
         suggestionArea.Children.Add(suggestionsHeader);
         suggestionArea.Children.Add(_stripHost); Grid.SetRow(_stripHost, 1);
         suggestionArea.Children.Add(_more); Grid.SetRow(_more, 2);
         _more.VerticalAlignment = VerticalAlignment.Bottom;
+        _more.Margin = new Thickness(0, 4, 0, 0);
 
         // The footer: three buttons of icon and text. In a narrow host (the side panel) they are stacked at full width, otherwise in a row.
         Grid actions = new() { Name = _name + "Actions" };
@@ -409,7 +404,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         BuildFooterButton(_advanced, AdvancedIcon);
         ApplyFooterLayout(stacked: false);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,Auto"), RowSpacing = 12 };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("32,Auto,Auto,Auto,Auto,Auto"), RowSpacing = 12, VerticalAlignment = VerticalAlignment.Top };
         layout.Children.Add(header);
         // The field with the marks bar under it (a single row, so a hidden bar leaves no gap).
         StackPanel fieldArea = new() { Spacing = 8, Children = { _input, _markBar }, Name = _name + "Field" };
@@ -437,7 +432,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _undo.Click += OnUndo;
         _stamp.Click += OnStamp;
         _advanced.Click += OnAdvanced;
+        PopupToggle.Prepare(_more);
+        AutomationProperties.SetAutomationId(_input, _input.Name);
         _more.Click += OnMore;
+        _input.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == IdentitySuggestionBox.IsDropDownOpenProperty) PopupToggle.Present(_more, _input.IsDropDownOpen);
+        };
         _decorated = new QuickTagStampSource(_source, _session.Stamp);
         TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, _session.OnAll, () => OpenActions.Start(() => AddTypedAsync(), "tags.quick.add.key"), _sourceTags);
         // Rate-and-tag opens with the rating row focused for R.  Some Avalonia/Ursa templates do not
@@ -477,25 +478,57 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal TextBlock Title => _title;
     internal Grid Header { get; }
 
-    /// <summary>
-    /// Gives a flush side-panel host the shared section inset inside this surface's own scroll viewport.
-    /// The scrollbar remains in the outer gutter, so it neither covers nor substitutes for the right content inset.
-    /// </summary>
-    internal void UseSectionInset() =>
-        _flow[!ScrollViewer.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Section");
-
-    /// <summary>Moves the live counter to a containing header; this surface still owns its text, visibility and updates.</summary>
-    internal Border DetachCounter()
+    /// <summary>Uses the gallery header and the shared panel section order.</summary>
+    internal void UseSidebarHeader()
     {
-        Header.Children.Remove(_counter);
-        _counter.Margin = default;
-        // Keep the position badge on one line within the width given by the host.
-        _counterLabel.TextWrapping = TextWrapping.NoWrap;
-        _counterLabel.TextAlignment = TextAlignment.Center;
-        _counterLabel.TextTrimming = TextTrimming.CharacterEllipsis;
-        _counterLabel.MaxLines = 1;
-        return _counter;
+        if (_sidebarSections != null) return;
+        Grid layout = (Grid)_flow.Content!;
+        Control suggestionArea = layout.Children[3];
+        layout.Children.Clear();
+        Header.Children.Clear();
+        _close.IsVisible = false;
+        _title.Classes.Remove("workspace-panel-title");
+        _title.Classes.Add("workspace-meta");
+        StackPanel tags = new() { Name = _name + "Tags", Spacing = 8,
+            Children = { new StackPanel { Spacing = 4, Children = { _title, _fieldArea } }, _upper, suggestionArea, _status } };
+        _sidebarActions = new ContentControl { IsVisible = false };
+        UseWrappingActions();
+        StackPanel actions = new() { Spacing = FooterGap, Children = { _sidebarActions, Footer } };
+        _sidebarSections = new MediaPanelSections { Tags = tags, Actions = actions };
+        _flow.Content = _sidebarSections;
+        ApplyFooterMode();
+        RefreshTexts();
     }
+
+    internal void UseWrappingActions()
+    {
+        Footer.Children.Clear();
+        Footer.ColumnDefinitions.Clear();
+        Footer.RowDefinitions.Clear();
+        Button[] buttons = [_undo, _stamp, _advanced];
+        PanelActionStack actions = new(_name + "FooterActions");
+        foreach (Button button in buttons)
+        {
+            PanelActionStack.SizeButton(button);
+            button.Classes.Remove("quick-tag-compact-action");
+            actions.Children.Add(button);
+        }
+        Footer.Children.Add(actions);
+        FooterStacked = false;
+    }
+
+    internal void SetSidebarInfo(Control info, PanelActionStack actions)
+    {
+        if (_sidebarSections == null || _sidebarActions == null) return;
+        _sidebarSections.Info = info;
+        // Keep the thread and editor commands together when the current post's actions are rebuilt.
+        if (_advanced.Parent is Panel previous) previous.Children.Remove(_advanced);
+        PanelActionStack.SizeButton(_advanced, compactSpacing: true);
+        actions.Children.Add(_advanced);
+        _sidebarActions.Content = actions;
+        _sidebarActions.IsVisible = true;
+    }
+
     /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>
     internal Grid Footer { get; }
     /// <summary>True while the footer buttons are stacked, one per line at full width.</summary>
@@ -519,20 +552,6 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         get => _targetLabel;
         set { _targetLabel = value ?? string.Empty; RefreshTexts(); }
-    }
-
-    /// <summary>A host-given counter ("3 marked"); null shows the file count of a selection automatically.</summary>
-    internal string? CounterText
-    {
-        get => _counterText;
-        set { _counterText = value; RefreshTexts(); }
-    }
-
-    /// <summary>The short form shown on the chip ("No. 4 / 27") while <see cref="CounterText"/> stays its tooltip and accessible name; null shows the full text.</summary>
-    internal string? CounterShortText
-    {
-        get => _counterShortText;
-        set { _counterShortText = value; RefreshTexts(); }
     }
 
     /// <summary>How many media the host has marked ("3 marked" with a clear button under the field); 0 hides the bar.</summary>
@@ -607,9 +626,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         set
         {
             if (ReferenceEquals(_decisionContent, value)) return;
+            if (_sidebarSections != null)
+            {
+                _sidebarSections.Rating = _decisionContent = value;
+                return;
+            }
             if (_decisionContent != null) _fieldArea.Children.Remove(_decisionContent);
             if (_decisionDivider != null) { _fieldArea.Children.Remove(_decisionDivider); _decisionDivider = null; }
             _decisionContent = value;
+            ApplyFooterMode();
             if (value == null) return;
             _fieldArea.Children.Insert(0, value);
             // One divider between what is decided (favourite, rating) and what is typed (tags): the one line of the popover and the panel.
@@ -638,6 +663,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     /// <summary>Puts the focus into the field when the surface is shown (both hosts want it; off for tests and special hosts).</summary>
     internal bool FocusOnAttach { get; set; } = true;
+
+    /// <summary>The optional lifetime of writes started from this surface.</summary>
+    internal CancellationToken WriteToken { get; set; }
+    internal Func<CancellationToken, Task<bool>>? VerifyBeforeWriteAsync { get; set; }
 
     internal event Action? CloseRequested;
     /// <summary>The marks button was pressed: the host clears its marks and retargets the surface.</summary>
@@ -927,15 +956,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         if (_disposed) return;
         string label = _targetLabel.Trim();
-        _title.Text = label.Length == 0 ? Texts.T("tags.quick.heading") : Texts.T("tags.quick.title", label);
-        ToolTip.SetTip(_title, _title.Text);
         TagCoverage coverage = _session.Coverage();
-        string? counter = _counterText ?? (_session.IsSelection && coverage.Total > 1 ? Texts.Count("tags.quick.files", coverage.Total) : null);
-        _counter.IsVisible = !string.IsNullOrEmpty(counter);
-        _counterLabel.Text = (_counterText != null ? _counterShortText : null) ?? counter ?? string.Empty;
-        AutomationProperties.SetName(_counter, counter ?? string.Empty);
-        ToolTip.SetTip(_counter, counter);
-
+        if (_session.IsSelection && coverage.Total > 1 && label.Length == 0) label = Texts.Count("tags.quick.files", coverage.Total);
+        _title.Text = _sidebarSections != null || label.Length == 0 ? Texts.T("tags.quick.heading") : Texts.T("tags.quick.title", label);
+        ToolTip.SetTip(_title, _title.Text);
         _stripEmpty.IsVisible = _shown.Count == 0;
         _strip.IsVisible = _shown.Count > 0;
         _more.IsVisible = _session.Snapshot is { Tags.Count: > 0 };
@@ -956,7 +980,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _status.Text = noticed ? _notice! : status.Text;
         _status.IsVisible = _status.Text.Length > 0;
         _status.Classes.Set("workspace-error", status.IsError);
-        _status.Classes.Set("workspace-help", !status.IsError);
+        _status.Classes.Set("workspace-meta", !status.IsError);
         AutomationProperties.SetLiveSetting(_status, status.IsError ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite);
 
         // Not disabled while a write runs (the session ignores the click), so a focused undo button keeps the focus.
@@ -964,8 +988,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _undo.IsEnabled = _session.UndoSteps.Count > 0 && _session.Snapshot != null || extraSteps > 0;
         AutomationProperties.SetName(_undo, Texts.T("tags.quick.undoName", _session.UndoSteps.Count + extraSteps));
         _stamp.IsEnabled = _session.Snapshot != null && _session.Stamp.Count > 0;
-        AutomationProperties.SetName(_stamp, StampName());
-        ToolTip.SetTip(_stamp, StampName());
+        string stampName = StampName();
+        AutomationProperties.SetName(_stamp, stampName);
+        ToolTip.SetTip(_stamp, FooterTip("tags.quick.stamp.button", stampName));
         _advanced.IsEnabled = _session.Snapshot != null;
 
         AutomationProperties.SetName(this, Texts.T("tags.quick.name", label.Length == 0 ? Texts.T("tags.quick.heading") : label));
@@ -980,8 +1005,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         if (NavigationEnabled) hint += " " + QuickTagKeys.TextWithKey("tags.quick.fieldHintNavigation", QuickTagKeys.CommitNextGesture(_platform));
         AutomationProperties.SetHelpText(_input, hint);
         ToolTip.SetTip(_input, hint);
-        AutomationProperties.SetName(_close, Texts.T("tags.quick.close"));
-        ToolTip.SetTip(_close, Texts.T("tags.quick.closeTip"));
+        _close.Localize(Texts.T("tags.quick.close"));
         _suggestionsHeading.Text = Texts.T("tags.quick.suggestions");
         AutomationProperties.SetName(_strip, Texts.T("tags.quick.suggestions"));
         AutomationProperties.SetHelpText(_strip, Texts.T("tags.quick.suggestions.help"));
@@ -995,17 +1019,25 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetHelpText(_allChips, Texts.T("tags.quick.assigned.help"));
         AutomationProperties.SetHelpText(_someChips, Texts.T("tags.quick.assigned.help"));
         _assignedEmpty.Text = Texts.T("tags.quick.assigned.empty");
-        ToolTip.SetTip(_undo, QuickTagKeys.TextWithKey("tags.quick.undoTip", QuickTagKeys.UndoGesture(_platform)));
+        ToolTip.SetTip(_undo, FooterTip("tags.quick.undo", QuickTagKeys.TextWithKey("tags.quick.undoTip", QuickTagKeys.UndoGesture(_platform))));
         if (QuickTagKeys.StampGesture(_platform) is { } stampKey) AutomationProperties.SetAcceleratorKey(_stamp, stampKey);
         else _stamp.ClearValue(AutomationProperties.AcceleratorKeyProperty);
-        AutomationProperties.SetName(_advanced, Texts.T("tags.quick.advancedName"));
-        ToolTip.SetTip(_advanced, Texts.T("tags.quick.advancedName"));
+        string advancedName = Texts.T("tags.quick.advancedName");
+        AutomationProperties.SetName(_advanced, advancedName);
+        ToolTip.SetTip(_advanced, FooterTip("tags.quick.advanced", advancedName));
         AutomationProperties.SetHelpText(_undo, QuickTagKeys.TextWithKey("tags.quick.undoHelp", QuickTagKeys.UndoGesture(_platform)));
         AutomationProperties.SetHelpText(_stamp, QuickTagKeys.TextWithKey("tags.quick.stamp.help", QuickTagKeys.StampGesture(_platform)));
         AutomationProperties.SetHelpText(_advanced, Texts.T("tags.quick.advancedHelp"));
         // A disabled button still explains itself (the stamp says why it is empty).
         foreach (Button button in new[] { _undo, _stamp, _advanced }) ToolTip.SetShowOnDisabled(button, true);
         ApplyFooterMode();
+    }
+
+    private string FooterTip(string labelKey, string description)
+    {
+        if (_sidebarSections == null) return description;
+        string label = Texts.T(labelKey);
+        return description.StartsWith(label, StringComparison.Ordinal) ? description : label + " · " + description;
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
@@ -1043,7 +1075,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private static void BuildFooterButton(Button button, string icon)
     {
         ContentControl slot = new() { Width = 16, Height = 16, Tag = icon, Focusable = false, IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, FooterGap, 0) };
-        TextBlock text = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
+        TextBlock text = new() { Classes = { "panel-action-label" }, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(text, 1);
         button.Content = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Children = { slot, text } };
         button.HorizontalContentAlignment = HorizontalAlignment.Left;
@@ -1051,6 +1083,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void ApplyFooterLayout(bool stacked)
     {
+        if (Footer.Children is [PanelActionStack]) return;
         FooterStacked = stacked;
         Button[] buttons = [_undo, _stamp, _advanced];
         Footer.ColumnDefinitions.Clear();
@@ -1077,6 +1110,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         }
         for (int index = 0; index < buttons.Length; index++)
         {
+            buttons[index].Classes.Set("quick-tag-compact-action", !stacked && _compact);
             Grid.SetRow(buttons[index], stacked ? index : 0);
             Grid.SetColumn(buttons[index], stacked ? 0 : index);
             buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : index == buttons.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
@@ -1085,7 +1119,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private void ApplyFooterMode()
     {
-        ApplyFooterLayout(_compact);
+        ApplyFooterLayout(_sidebarSections != null || _compact && _decisionContent == null);
         SetFooterLabel(_undo, Texts.T("tags.quick.undo"));
         SetFooterLabel(_stamp, Texts.T("tags.quick.stamp.button"));
         SetFooterLabel(_advanced, Texts.T("tags.quick.advanced"));
@@ -1095,6 +1129,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         if (button.Content is not Grid { Children: [ContentControl slot, TextBlock text] }) return;
         text.Text = label;
+        text.Classes.Set("compact-action-label", _sidebarSections != null);
+        // At the popover minimum keep the full command names; the outbound editor retains its arrow.
+        slot.IsVisible = Footer.Children is [PanelActionStack] || !_compact || FooterStacked || ReferenceEquals(button, _advanced);
         // The icon follows the label's foreground (also its disabled look). Only a control in a window can load it.
         if (_attached && slot.Content == null && slot.Tag is string icon)
         {
@@ -1122,7 +1159,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 if (_session.Snapshot != null) _deferredAdd = (name, thenNext);
                 return false;
             }
-            await Guard(() => _session.AddAsync(name), "tags.quick.add");
+            await Guard(() => _session.AddAsync(name, WriteToken), "tags.quick.add");
             if (_disposed || _session.Status.IsError) return false;
             if (string.Equals(_input.Text, name, StringComparison.Ordinal)) _input.Text = string.Empty;
         }
@@ -1149,17 +1186,20 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     private async void OnSuggestionClick(object? sender, RoutedEventArgs e)
     {
-        if (_suggestionChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip) await OpenActions.RunAsync(() => ToggleSuggestionAsync(chip.Index), "tags.quick.suggestion.click");
+        if (_suggestionChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip) await OpenActions.RunAsync(() => AcceptSuggestionAsync(chip.Suggestion), "tags.quick.suggestion.click");
     }
 
     /// <summary>Toggles suggestion <paramref name="index"/> (0-based), as a click, Alt+n or n in the strip does.</summary>
     internal Task ToggleSuggestionAsync(int index) =>
-        index < 0 || index >= _shown.Count ? Task.CompletedTask : Guard(() => _session.AcceptAsync(_shown[index]), "tags.quick.suggestion");
+        index < 0 || index >= _shown.Count ? Task.CompletedTask : AcceptSuggestionAsync(_shown[index]);
+
+    private Task AcceptSuggestionAsync(QuickTagSuggestion suggestion) =>
+        Guard(() => _session.AcceptAsync(suggestion, WriteToken), "tags.quick.suggestion");
 
     private async void OnAssignedClick(object? sender, RoutedEventArgs e)
     {
         if (_assignedChips.FirstOrDefault(chip => ReferenceEquals(chip.Button, sender)) is { } chip)
-            await OpenActions.RunAsync(() => Guard(() => _session.ToggleAsync(chip.Tag), "tags.quick.toggle"), "tags.quick.toggle.click");
+            await OpenActions.RunAsync(() => Guard(() => _session.ToggleAsync(chip.Tag, WriteToken), "tags.quick.toggle"), "tags.quick.toggle.click");
     }
 
     private async void OnRemoveClick(object? sender, RoutedEventArgs e)
@@ -1171,7 +1211,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         int index = _assignedChips.IndexOf(chip);
         _pendingAssignedFocus = index;
-        await Guard(() => _session.RemoveAsync(chip.Tag), "tags.quick.remove");
+        await Guard(() => _session.RemoveAsync(chip.Tag, WriteToken), "tags.quick.remove");
     }
 
     private int? _pendingAssignedFocus;
@@ -1191,7 +1231,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (extra.CanUndo) Announce(await extra.UndoAsync());
             return;
         }
-        await _session.UndoAsync();
+        await _session.UndoAsync(WriteToken);
     }, "tags.quick.undo");
 
     private void OnMarkedClear(object? sender, RoutedEventArgs e) => MarksClearRequested?.Invoke();
@@ -1202,7 +1242,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal async Task<QuickTagStampResult> ApplyStampAsync()
     {
         QuickTagStampResult result = QuickTagStampResult.None;
-        await Guard(async () => result = await _session.ApplyStampWithOutcomeAsync(), "tags.quick.stamp");
+        await Guard(async () => result = await _session.ApplyStampWithOutcomeAsync(WriteToken), "tags.quick.stamp");
         if (!_disposed && result.Attempted) StampApplied?.Invoke(result);
         return result;
     }
@@ -1218,29 +1258,48 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     // Right click, Menu key or Shift+F10 on a chip of an own tag: put it into the stamp or take it out. The menu is filled when it
     // opens (on the UI thread, and always with the current stamp), so a chip needs no item collection while the strip is rebuilt.
+    internal Action<TagId>? FilterMediaByTag { get; set; }
+
     private void AttachStampMenu(Button chip, TagId tag)
     {
         ContextMenu menu = new();
-        menu.Opening += (_, _) => menu.ItemsSource = StampMenuItems(tag);
+        menu.Opening += (_, e) =>
+        {
+            ContextMenuBuilder builder = new();
+            IReadOnlyList<MenuItem> stamp = StampMenuItems(tag);
+            if (_session.Snapshot?.Find(tag) is { } definition)
+            {
+                builder = OwnTagChipMenu.IdentityActions(chip, definition.Name.Display, tag, FilterMediaByTag);
+                builder.Append(new Separator());
+            }
+            e.Cancel = !builder.Append(stamp.ToArray()).Populate(menu);
+        };
         chip.ContextMenu = menu;
+        chip.AddHandler(InputElement.PointerPressedEvent, (_, e) => ContextClick.RequestOnMacControlPress(e, chip), RoutingStrategies.Tunnel);
     }
 
     /// <summary>The context menu entries of the chip of <paramref name="tag"/>: "Add to stamp" or "Remove from stamp".</summary>
     internal IReadOnlyList<MenuItem> StampMenuItems(TagId tag)
     {
         bool inStamp = _session.InStamp(tag);
-        MenuItem item = new() { Header = Texts.T(inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd"), Name = _name + (inStamp ? "StampRemove" : "StampAdd") };
+        string key = inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd";
+        MenuItem item = new() { Header = Texts.T(key), Tag = key, Name = _name + (inStamp ? "StampRemove" : "StampAdd"),
+            Icon = CommandBindings.IconFromKey(inStamp ? "minus" : "plus") };
         item.Click += (_, _) => { if (inStamp) _session.RemoveFromStamp(tag); else _session.AddToStamp(tag); };
         return new[] { item };
     }
 
     private void OnAdvanced(object? sender, RoutedEventArgs e) => AdvancedRequested?.Invoke();
     private void OnClose(object? sender, RoutedEventArgs e) => CloseRequested?.Invoke();
-    private void OnMore(object? sender, RoutedEventArgs e) => _input.OpenExplicitList();
+    private void OnMore(object? sender, RoutedEventArgs e) => _input.ToggleExplicitList();
 
     private async Task Guard(Func<Task> action, string context)
     {
-        try { await action(); }
+        try
+        {
+            if (VerifyBeforeWriteAsync is { } verify && !await verify(WriteToken) || _disposed) return;
+            await action();
+        }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, context)) { /* Logged and shown. */ }
         await ReplayDeferredAddAsync();
     }
@@ -1255,10 +1314,17 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     internal bool FieldHasComposition => _input.IsKeyboardFocusWithin && _input.IsComposing;
 
+    // Any editor inside the surface, the host's extra content included (the gallery's thread tag field): its composition
+    // owns Esc and the command keys, exactly as the main field's does.
+    private bool FocusedEditorHasComposition() => FieldHasComposition
+        || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
+            && this.IsVisualAncestorOf(focused)
+            && focused.GetSelfAndVisualDescendants().OfType<TextPresenter>().Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
+
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing || FieldHasComposition) return;
-        QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.IsDropDownOpen,
+        if (e.Handled || ShortcutService.IsCapturing || FocusedEditorHasComposition()) return;
+        QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.HasSuggestionList,
             string.IsNullOrEmpty(_input.Text), NavigationEnabled, ShortcutService.Current);
         if (Execute(route)) e.Handled = true;
     }
@@ -1282,7 +1348,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 return Move(route);
             case QuickTagKeyAction.ToggleFocused:
                 if (FocusedSuggestion() is { } suggestion) { OpenActions.Start(() => ToggleSuggestionAsync(suggestion.Index), "tags.quick.suggestion.key"); return true; }
-                if (FocusedAssigned() is { } toggled) { OpenActions.Start(() => Guard(() => _session.ToggleAsync(toggled.Tag), "tags.quick.toggle"), "tags.quick.toggle.key"); return true; }
+                if (FocusedAssigned() is { } toggled) { OpenActions.Start(() => Guard(() => _session.ToggleAsync(toggled.Tag, WriteToken), "tags.quick.toggle"), "tags.quick.toggle.key"); return true; }
                 return false;
             case QuickTagKeyAction.RemoveFocused:
                 if (FocusedAssigned() is not { } removed) return false;
@@ -1290,7 +1356,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 return true;
             case QuickTagKeyAction.FocusField: _input.Focus(); return true;
             case QuickTagKeyAction.FocusSuggestions:
-                return FocusFirst(_suggestionChips.Select(chip => chip.Button)) || FocusFirst(new[] { _more });
+                return FocusFirst(_suggestionChips.Select(chip => chip.Button));
             case QuickTagKeyAction.FocusAssigned: return FocusFirst(_assignedChips.Select(chip => chip.Button));
             case QuickTagKeyAction.FocusLastAssigned: return FocusFirst(_assignedChips.Select(chip => chip.Button).Reverse());
             case QuickTagKeyAction.Undo:
@@ -1361,8 +1427,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private static bool FocusFirst(IEnumerable<Button> buttons)
     {
         Button? target = buttons.FirstOrDefault(button => button.IsVisible);
-        target?.Focus(NavigationMethod.Directional);
-        return target != null;
+        return target?.Focus(NavigationMethod.Directional) == true;
     }
 
     private SuggestionChip? FocusedSuggestion() => _suggestionChips.FirstOrDefault(chip => chip.Button.IsKeyboardFocusWithin);
@@ -1447,7 +1512,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         Localize();
         ApplyFooterMode();
         Refresh();
-        if (FocusOnAttach) Dispatcher.UIThread.Post(() => { if (_attached && !_disposed) _input.Focus(); }, DispatcherPriority.Input);
+        if (FocusOnAttach) Dispatcher.UIThread.Post(() => { if (FocusOnAttach && _attached && !_disposed) _input.Focus(); }, DispatcherPriority.Input);
     }
 
     private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
@@ -1558,6 +1623,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (suggestion.Reason == QuickTagReason.Stamp) { content.Children.Add(StampBadge()); keyed = true; }
             content.Children.Add(ChipLabel(display));
             Button button = new() { Name = name, Focusable = true };
+            AutomationProperties.SetAutomationId(button, name);
             if (suggestion.CreatesTag)
             {
                 // A provider tag or a new name: the dashed source chip (I8), never mistaken for an own tag.

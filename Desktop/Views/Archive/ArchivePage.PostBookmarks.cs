@@ -177,7 +177,7 @@ public partial class ArchivePage
         // Capture the previous archive state before publishing the exact target view.
         beforeShow();
         _history.Clear(); CancelReferences();
-        ShowCapturedView(target.View, target.PostIndex / PageSize * PageSize, key.Post);
+        ShowCapturedView(target.View, key.Post);
         await RevealPostAsync(key.Post); // An explicit jump: a post the reader view hides is shown.
         await RestoreReaderAnchorAsync(new ReaderAnchor(key.Thread, key.Post, 0, key.Post));
         return !_ended && _thread?.Summary.Id == key.Thread && _thread.FindPostIndex(key.Post) >= 0;

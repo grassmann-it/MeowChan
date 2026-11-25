@@ -47,7 +47,7 @@ internal sealed class GalleryToolbarPanel : GeometricCenterPanel
 internal sealed class GalleryToolbarActionContent : Panel
 {
     private const double LabelGap = 4;
-    private readonly TextBlock _label = new() { IsHitTestVisible = false, Opacity = 0 };
+    private readonly TextBlock _label = new() { Classes = { "panel-action-label" }, IsHitTestVisible = false, Opacity = 0 };
 
     internal GalleryToolbarActionContent(Control icon, string text)
     {

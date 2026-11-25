@@ -21,10 +21,15 @@ internal sealed partial class BooruSearchModel
             return this;
         }
 
-        internal async Task RetireAsync()
+        internal async Task CancelAsync()
         {
             try { await _source.CancelAsync().ConfigureAwait(false); }
             catch (AggregateException exception) { Serilog.Log.Warning(exception, "Booru request cancellation observer failed"); }
+        }
+
+        internal async Task RetireAsync()
+        {
+            try { await CancelAsync().ConfigureAwait(false); }
             finally { Dispose(); }
         }
 
@@ -44,6 +49,9 @@ internal sealed partial class BooruSearchModel
         RequestLifetime? previous = _request;
         _request = needsRequest ? new RequestLifetime() : null;
         _requestId++;
+        _view = _view with { ResultRevision = new(_activeSearchTabId, _requestId) };
+        _originalActions.Clear();
+        _originalActionVersions.Clear();
         if (previous != null) OpenActions.Start(previous.RetireAsync, "booru.request.retire");
         return _request;
     }

@@ -21,6 +21,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
+using MeowChan.FolderSources;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 using MeowChan.Tags;
@@ -205,7 +206,10 @@ public sealed partial class MediaPage : UserControl
         _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(_filterRetry); _headerBody.Children.Add(BuildQueryHint()); _headerBody.Children.Add(BuildStatusRow(_status));
         _headerBody.Children.Add(filterSurface);
         _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
-        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = _tileAppearance.CellHeight, ColumnWidth = _tileAppearance.CellWidth });
+        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel
+        {
+            ItemHeight = _tileAppearance.CellHeight, ColumnWidth = _tileAppearance.CellWidth, FillColumns = true
+        });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
             ThumbnailRelease = MediaTileThumbnails.Release, ThumbnailHandover = TakeHandedOverThumbnail, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, TagExclude = ExcludeTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
@@ -951,6 +955,7 @@ public sealed partial class MediaPage : UserControl
     internal async Task EditTagsByShortcutAsync()
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
+        if (_panel is { IsKeyboardFocusWithin: true } panel && _panelShown) { await panel.EditTagsAsync(); return; }
         if (_grid.Selection.Count > 1) { await TagSelectionAsync(initialFocus: QuickTagInitialFocus.TagInput); return; }
         if (SelectedRow is not { } row) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
@@ -971,13 +976,14 @@ public sealed partial class MediaPage : UserControl
     /// it; several selected tiles are rated and tagged together. A tile that cannot be tagged gets the stars and the reason as text. Without a popover
     /// host the tag dialog opens as before.
     /// </summary>
-    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, QuickTagInitialFocus initialFocus, bool useSelection = true)
+    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, QuickTagInitialFocus initialFocus,
+        CancellationToken sidebarToken = default)
     {
-        if (useSelection && _grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, initialFocus); return; }
+        if (!sidebarToken.CanBeCanceled && _grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, initialFocus); return; }
         string? blocked = TagsBlockedReason(entry, row.State);
         if (TagPopoverAsync is { } popover)
         {
-            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(initialFocus, blocked, FocusGridNow));
+            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(initialFocus, blocked, FocusGridNow, sidebarToken));
             return;
         }
         if (blocked != null)
@@ -1089,8 +1095,9 @@ public sealed partial class MediaPage : UserControl
     // Toolbar/sidebar focus uses the selection, not the panel's displayed medium.
     private void OnPageRateAndTagKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _lifetime.IsCancellationRequested || ShortcutService.IsCapturing || e.Source is not Visual source
-            || CommandRouter.IsNativeInput(e.Source, e.Key) || !IsPageMediaShortcut(e)) return;
+        if (e.Handled || _lifetime.IsCancellationRequested || ShortcutService.IsCapturing || e.Source is not Visual source) return;
+        if (_panelShown && _panel?.RouteInfoKey(e) == true) return;
+        if (CommandRouter.IsNativeInput(e.Source, e.Key) || !IsPageMediaShortcut(e)) return;
         Visual[] ancestors = source.GetSelfAndVisualAncestors().ToArray();
         if (!ancestors.Contains(this) || ancestors.Any(visual => ReferenceEquals(visual, _grid)
             || _panel != null && ReferenceEquals(visual, _panel))) return;
@@ -1171,7 +1178,7 @@ public sealed partial class MediaPage : UserControl
         _sharedPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _lifetime.IsCancellationRequested || !IsEffectivelyVisible
             || IsNativeContextSource(e.Source) || IsTileTagChip(e.Source)
-            || !e.GetCurrentPoint(_grid).Properties.IsRightButtonPressed) return;
+            || !ContextClick.IsPress(e, _grid)) return;
         MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source));
         Control origin = ResolveMenuOrigin(e.Source, row);
         if (row is not null)
@@ -1181,7 +1188,7 @@ public sealed partial class MediaPage : UserControl
         }
         // MP5: a right click on empty grid space (no tile under the pointer) opens the layout menu, also while a tile is selected.
         OpenSharedMediaMenu(row, origin);
-        _sharedPointerContext.MenuOpenedByPress();
+        _sharedPointerContext.MenuOpenedByPress(ContextClick.Button(e, _grid));
         e.Handled = true;
     }
 
@@ -1199,7 +1206,8 @@ public sealed partial class MediaPage : UserControl
             if (!_grid.Selection.SelectedItems.Contains(row)) _grid.SelectedItem = row;
             (_grid.ContainerFromItem(row) as Control ?? origin).Focus();
         }
-        OpenSharedMediaMenu(row, origin);
+        OpenSharedMediaMenu(row, origin, keyboard: true);
+        ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key, _grid);
         e.Handled = true;
     }
 
@@ -1211,14 +1219,16 @@ public sealed partial class MediaPage : UserControl
             e.Handled = true;
             return;
         }
-        MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source)) ?? SelectedRow;
+        MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source));
+        bool keyboard = !e.TryGetPosition(_grid, out _);
+        if (keyboard) row ??= SelectedRow;
         Control origin = ResolveMenuOrigin(e.Source, row);
         if (row is not null)
         {
             if (!_grid.Selection.SelectedItems.Contains(row)) _grid.SelectedItem = row;
             (_grid.ContainerFromItem(row) as Control ?? origin).Focus();
         }
-        OpenSharedMediaMenu(row, origin);
+        OpenSharedMediaMenu(row, origin, keyboard: keyboard);
         e.Handled = true;
     }
 
@@ -1233,7 +1243,7 @@ public sealed partial class MediaPage : UserControl
         return row;
     }
 
-    private void OpenSharedMediaMenu(MediaLibraryTileRow? row, Control origin, ReaderInlineVideoSlot? playback = null)
+    private void OpenSharedMediaMenu(MediaLibraryTileRow? row, Control origin, ReaderInlineVideoSlot? playback = null, bool keyboard = false)
     {
         if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible) return;
         long revision = _mediaMenuRevision;
@@ -1241,10 +1251,12 @@ public sealed partial class MediaPage : UserControl
         HashSet<int> selection = _grid.Selection.SelectedIndexes.ToHashSet();
         object? rows = _grid.ItemsSource;
         object? originData = origin.DataContext;
+        ReaderMediaSidebar? menuSidebar = ReferenceEquals(origin, _panel?.Frame) ? _panel : null;
+        bool panel = menuSidebar != null;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible
             && revision == _mediaMenuRevision && serial == _mediaMenuSerial
-            && selection.SetEquals(_grid.Selection.SelectedIndexes)
-            && ReferenceEquals(rows, _grid.ItemsSource)
+            && (panel ? _panelShown && SamePanelTagTarget(row?.Entry, _panelRow?.Entry)
+                : selection.SetEquals(_grid.Selection.SelectedIndexes) && ReferenceEquals(rows, _grid.ItemsSource))
             && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible
             && ReferenceEquals(originData, origin.DataContext);
 
@@ -1265,6 +1277,7 @@ public sealed partial class MediaPage : UserControl
             blankItems.AddRange(LayoutMenuItems());
             if (QueueGroupMenu(blank, _tiles.Select(tile => tile.Entry).ToArray(), RunBlank) is { } blankGroups) blankItems.Add(blankGroups);
             ContextMenu blankMenu = new() { ItemsSource = blankItems };
+            if (keyboard) blankMenu.Placement = PlacementMode.BottomEdgeAlignedLeft;
             blank.Invalidated += () => blankMenu.Close();
             _mediaMenuPresenter.Show(blankMenu, blank, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
             return;
@@ -1277,9 +1290,11 @@ public sealed partial class MediaPage : UserControl
         int selectedCount = _grid.Selection.Count;
         // Several: the clicked tile is one of several selected (a tile outside the selection was made the selection, TargetForMenu); every entry then
         // acts on the selection frozen now, and the one-file entries (details, folder, path, gallery, thread) say why they are off.
-        bool several = selectedCount > 1 && _grid.Selection.IsSelected(row.Index);
+        bool several = !panel && selectedCount > 1 && _grid.Selection.IsSelected(row.Index);
         bool hostActions = ExecuteMediaMenuActionAsync != null;
         IReadOnlyList<MediaLibraryTile>? queueTiles = several ? SelectedTiles : null;
+        string?[] fileNames = queueTiles == null ? [MediaFileActions.FileName(entry.Name)]
+            : queueTiles.Select(selected => MediaFileActions.FileName(selected.Entry.Name)).ToArray();
         MediaLibraryTileRow[] favoriteRows = several ? _grid.Selection.SelectedItems.OfType<MediaLibraryTileRow>().ToArray() : [row];
         bool?[] favoriteStates = favoriteRows.Select(selected => FavoriteKeyState(selected, PendingFavorite)).ToArray();
         MediaMenuFacts facts = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry))
@@ -1308,6 +1323,9 @@ public sealed partial class MediaPage : UserControl
             ExportWired = hostActions,
             FolderWired = hostActions,
             CopyPathWired = hostActions,
+            HasFileNames = fileNames.All(name => !string.IsNullOrWhiteSpace(name)),
+            OpenExternalWired = hostActions,
+            OpenExternalBlocked = entry.Directory == null ? MediaMenuReasons.NotSaved : null,
             DetailsWired = hostActions,
             Posts = entry.PostId != null ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
             ShowInThreadWired = ShowInThread != null,
@@ -1323,21 +1341,49 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.Favorite] = several
                 ? () => Current() ? FavoriteKeyTask = WriteFavoriteKeyAsync(FavoriteKeyAction.Toggle, favoriteRows) : Task.CompletedTask
                 : () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
-            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(entry, row, origin, Current, initialFocus: QuickTagInitialFocus.TagInput),
+            [MediaMenuAction.RateAndTag] = menuSidebar != null ? menuSidebar.EditTagsAsync
+                : () => OpenRateAndTagAsync(entry, row, origin, Current, initialFocus: QuickTagInitialFocus.TagInput),
             // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
             [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
             [MediaMenuAction.Export] = several ? () => Current() ? ExportSelectionAsync() : Task.CompletedTask
                 : () => ExecuteMediaActionAsync("media.export-original", entry, Current),
             [MediaMenuAction.ShowInFolder] = () => ExecuteMediaActionAsync("media.show-in-folder", entry, Current),
             [MediaMenuAction.CopyPath] = () => ExecuteMediaActionAsync("media.copy-path", entry, Current),
+            [MediaMenuAction.CopyFileName] = () => MenuClipboard.CopyAsync(origin, string.Join(Environment.NewLine, fileNames), ShowSelectionNote),
+            [MediaMenuAction.OpenExternal] = () => ExecuteMediaActionAsync("media.open-external", entry, Current),
             [MediaMenuAction.Details] = () => ExecuteMediaActionAsync("media.details", entry, Current),
             [MediaMenuAction.ShowInThread] = () => ShowInThread == null || entry.PostId == null ? Task.CompletedTask : ShowInThread(entry),
             [MediaMenuAction.OpenProviderPost] = () => OpenProviderPostAsync(entry),
             [MediaMenuAction.CopyProviderPost] = () => CopyProviderPostAsync(entry)
         };
-        // Everything below the common section belongs to this page: it works on the grid, not on one medium.
         List<Control> context = new();
+        if (menuSidebar?.ExpandedTagsMenuItem(session, Run) is { } tags) context.Add(tags);
         if (several) context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
+        foreach (PrivateTagDefinition tag in row.TagChips.Take(row.ShownTagChips))
+        {
+            Guid id = tag.Id.Value;
+            string name = tag.Name.Display;
+            Task FilterTag(bool include)
+            {
+                if (include) FilterToTag(id); else ExcludeTag(id);
+                FocusGrid();
+                return Task.CompletedTask;
+            }
+            MenuItem TagAction(string command, Func<Task> action)
+            {
+                MenuItem item = MediaMenuBuilder.ContextCommandItem(session, command, action, () => true, Run, null, CommandCatalog.Label(command));
+                AutomationProperties.SetAutomationId(item, command + ":" + id);
+                return item;
+            }
+            MenuItem submenu = MediaMenuBuilder.Submenu(session, "media.tile.tag:" + id, name,
+            [
+                TagAction(TagPickerMenu.Include, () => FilterTag(include: true)),
+                TagAction(TagPickerMenu.Exclude, () => FilterTag(include: false)),
+                TagAction(TagPickerMenu.CopyName, () => MenuClipboard.CopyAsync(origin, name))
+            ], icon: MenuIcon(TagPickerMenu.Include));
+            AutomationProperties.SetAutomationId(submenu, "MediaTileTagMenu:" + id);
+            context.Add(submenu);
+        }
         context.Add(MediaMenuBuilder.ContextItem(session, "media.filter.onlyThread", () => { FilterToThread(entry); return Task.CompletedTask; },
             () => !several, Run, MediaMenuReasons.SeveralSelected, MenuIcon("tags.filter-only")));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.occurrences", () => { ShowOccurrences(tile); return Task.CompletedTask; },
@@ -1345,20 +1391,23 @@ public sealed partial class MediaPage : UserControl
         context.Add(MediaMenuBuilder.ContextCommandItem(session, "rules.edit-scope", () => { EditThreadRules?.Invoke(entry); return Task.CompletedTask; },
             () => EditThreadRules != null && HasThreadRules(entry), Run, Texts.T("media.rulesThreadUnavailable"), Texts.T("rules.thisThread")));
         // "Tag the selection" is the common "Rate and tag…" entry when several tiles are selected (one entry, one surface).
-        foreach ((Button action, string key, string icon) in new[] {
-            (_selGallery, "media.selection.gallery", MenuIcon("gallery.open")), (_selExport, "media.selection.export", MenuIcon("media.export-original")) })
+        if (!panel)
         {
-            Button selectedAction = action;
-            context.Add(MediaMenuBuilder.ContextItem(session, key, () =>
+            foreach ((Button action, string key, string icon) in new[] {
+                (_selGallery, "media.selection.gallery", MenuIcon("gallery.open")), (_selExport, "media.selection.export", MenuIcon("media.export-original")) })
             {
-                selectedAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                return Task.CompletedTask;
-            }, () => selectedAction.IsEnabled, Run, ToolTip.GetTip(selectedAction) as string ?? MediaMenuReasons.Unavailable, icon));
+                Button selectedAction = action;
+                context.Add(MediaMenuBuilder.ContextItem(session, key, () =>
+                {
+                    selectedAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    return Task.CompletedTask;
+                }, () => selectedAction.IsEnabled, Run, ToolTip.GetTip(selectedAction) as string ?? MediaMenuReasons.Unavailable, icon));
+            }
+            context.Add(MediaMenuBuilder.ContextItem(session, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, Run,
+                icon: MenuIcon("export.open-all-results-html-dialog")));
+            context.Add(MediaMenuBuilder.ContextItem(session, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, Run,
+                MediaMenuReasons.Unavailable, MenuIcon("media.queue.all")));
         }
-        context.Add(MediaMenuBuilder.ContextItem(session, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, Run,
-            icon: MenuIcon("export.open-all-results-html-dialog")));
-        context.Add(MediaMenuBuilder.ContextItem(session, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, Run,
-            MediaMenuReasons.Unavailable, MenuIcon("media.queue.all")));
         IReadOnlyList<MediaLibraryEntry> queueEntries = queueTiles is { Count: > 1 }
             ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
         if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
@@ -1366,8 +1415,40 @@ public sealed partial class MediaPage : UserControl
         // While the index is being built every action of the menu refuses (the guard above), like the selection bar's: the menu says why, on top.
         List<Control>? leading = ReaderPlaybackMenu.MenuItems(playback, session, Run);
         if (_building != null) (leading ??= new()).Insert(0, MediaMenuBuilder.Note(Texts.T("media.selection.reason.building")));
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, leading);
+        bool checkExternal = hostActions && !several && entry.Presence == MediaLibraryPresence.Present && entry.Directory != null;
+        string? externalReason = MediaMenuReasons.Unavailable;
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, leading,
+            checkExternal ? () => externalReason : null);
+        if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
+        if (checkExternal) OpenActions.Start(CheckExternalAsync, "media.menu.open-external");
+
+        async Task CheckExternalAsync()
+        {
+            try
+            {
+                string? path = entry.FolderItemId != null && entry.Sha256 == null
+                    ? await Task.Run(() => UnhashedFolderFilePath(entry), _lifetime.Token)
+                    : (await ResolvePanelEntryAsync(entry, _lifetime.Token))?.Asset.Path;
+                externalReason = MediaFileActions.DefaultProgramBlockedReason(path);
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+            { externalReason = MediaMenuReasons.NotSaved; }
+            if (Current() && menu.IsOpen && menu.Items.OfType<MenuItem>().FirstOrDefault(candidate => Equals(candidate.Tag, "media.open-external")) is { } item)
+                CommandBindings.Refresh(item);
+        }
+    }
+
+    private string? UnhashedFolderFilePath(MediaLibraryEntry entry)
+    {
+        FolderSourceCatalogSnapshot? catalog = ReadFolderSources?.Invoke();
+        if (catalog == null || entry.Directory == null
+            || !FolderSourceIdentity.TryParseVirtualDirectory(catalog.VirtualRoot, entry.Directory, out Guid rootId, out Guid itemId)
+            || !FolderSourceIdentity.TryParseId(entry.FolderItemId, out Guid indexedId) || itemId != indexedId
+            || catalog.Item(itemId) is not { State: not FolderSourceItemState.Missing } item || item.RootId != rootId
+            || catalog.Root(rootId) is not { } root) return null;
+        return FolderSourceIdentity.AbsolutePath(root.Path, item.RelativePath);
     }
 
     private Control? QueueGroupMenu(MediaMenuSession session, IReadOnlyList<MediaLibraryEntry> entries, Func<Func<Task>, Task> run)

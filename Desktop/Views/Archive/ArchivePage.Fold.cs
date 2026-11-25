@@ -29,8 +29,6 @@ public partial class ArchivePage
     {
         if (_thread == null) return;
         SetPostExpanded(_thread.Summary.Id, postId, true);
-        if (ArchivePosts.ItemsSource is IEnumerable<ArchivePostRow> rows)
-            foreach (ArchivePostRow row in rows)
-                if (row.Id == postId) { row.Expanded = true; break; }
+        if (FindPostRow(postId) is { } row) row.Expanded = true;
     }
 }

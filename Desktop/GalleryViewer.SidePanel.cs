@@ -1,8 +1,8 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -16,9 +16,7 @@ namespace MeowChan.Desktop;
 internal sealed partial class GalleryViewer
 {
     private GallerySidePanel _sidePanel = null!;
-    private readonly TextBlock _postPanelPosition = new TextBlock { Name = "GalleryPostPanelPosition",
-        VerticalAlignment = VerticalAlignment.Center,
-        TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "tnum" } }.MetaText();
+    private GalleryTagPanelPosition? _sidebarPosition;
     private double _panelWidth = Config.GalleryPanelWidthDefault;
 
     internal GallerySidePanel SidePanel => _sidePanel;
@@ -45,7 +43,8 @@ internal sealed partial class GalleryViewer
     private void CreateSidePanel(Control postContent)
     {
         // The × keeps the name every smoke uses; it closes the whole host and the focus returns to the picture.
-        Button close = CloseLayerButton("GalleryReturnImage", () => { if (_contextOpen) SetContextOpen(false); });
+        PanelCloseButton close = new("GalleryReturnImage");
+        close.Click += (_, _) => { if (_contextOpen) SetContextOpen(false); };
         _sidePanel = new GallerySidePanel(close) { PostContent = postContent };
         _sidePanel.SegmentRequested += OnSidePanelSegmentRequested;
         _sidePanel.WidthDragged += width =>
@@ -61,7 +60,22 @@ internal sealed partial class GalleryViewer
         double inset = WorkspaceMetrics.SectionInset;
         _contextPanel.Padding = new Thickness(inset, MediaSidebarHeader.TopInset, inset, inset);
         _contextPanel.Child = _sidePanel;
+        _contextPanel.AddHandler(InputElement.PointerPressedEvent, OnPanelControlPress, RoutingStrategies.Tunnel);
+        _contextPanel.ContextRequested += OnPanelContextRequested;
         SyncSidePanel();
+    }
+
+    private void OnPanelControlPress(object? sender, PointerPressedEventArgs e)
+    {
+        if (!ItemActivation.IsOwnedByInteractivePart(e.Source, _contextPanel))
+            ContextClick.RequestOnMacControlPress(e, _contextPanel);
+    }
+
+    private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (e.Handled || !_contextOpen || _entry == null || ItemActivation.IsOwnedByInteractivePart(e.Source, _contextPanel)) return;
+        ShowMediaMenu(anchor: _contextPanel, keyboard: !e.TryGetPosition(_contextPanel, out _));
+        e.Handled = true;
     }
 
     // Segment, availability of Tags, labels and the close button's name from the viewer's state (also after a language change).
@@ -73,16 +87,16 @@ internal sealed partial class GalleryViewer
         _sidePanel.SetTagsAvailable(tagsAvailable, _tagsUnavailableReason);
         _sidePanel.Localize();
         RefreshPanelCounter(); // the host header's owner-supplied position text follows language changes too
-        RefreshCloseLayerButton(_sidePanel.CloseButton, Texts.T("gallery.panel.close"));
+        _sidePanel.CloseButton.Localize(Texts.T("gallery.panel.close"));
     }
 
-    private void RefreshPostPanelPosition()
+    private void RefreshPanelCounter()
     {
-        if (_sidePanel == null || _tagPanelOpen) return;
-        string? text = ThreadPositions != null && !IsTagMode ? _position.Text : null;
-        _postPanelPosition.Text = text;
-        ToolTip.SetTip(_postPanelPosition, text);
-        _sidePanel.HeaderCounter = string.IsNullOrEmpty(text) ? null : _postPanelPosition;
+        if (_sidePanel == null) return;
+        GalleryTagPanelPosition? position = _sidebarPosition;
+        bool marked = _marks is { Count: > 0 } marks && _entry is { } entry && _tagOwner is { } owner
+            && owner.SubjectOf(entry, out _) is { } subject && marks.IsMarked(subject);
+        _sidePanel.Position.Show(position, marked);
     }
 
     private void OnSidePanelSegmentRequested(GallerySidePanelSegment segment, bool focusContent)
@@ -92,7 +106,11 @@ internal sealed partial class GalleryViewer
         {
             if (_tagPanelOpen) return;
             RequestTags(); // the owner opens the tag panel into the Tags slot (ShowTagPanel)
-            if (focusContent && _tagPanelOpen) _tagSurface?.FocusField();
+            if (_tagSurface is { } surface)
+            {
+                surface.FocusOnAttach = focusContent;
+                if (focusContent) surface.FocusField();
+            }
             return;
         }
         if (!_tagPanelOpen) return;
@@ -101,6 +119,21 @@ internal sealed partial class GalleryViewer
     }
 
     // The post takes the host over from the tag panel (and is remembered as open): P, the Post segment.
+    private bool _postFactsVisible = true;
+
+    private void TogglePostFacts()
+    {
+        if (!PostContextVisible)
+        {
+            _postFactsVisible = true;
+            _contextDirty = true;
+            ToggleContext();
+            return;
+        }
+        _postFactsVisible = !_postFactsVisible;
+        UpdateContext();
+    }
+
     private void ShowPostSegment()
     {
         ReleaseTagPanel();

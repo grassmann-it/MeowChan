@@ -46,6 +46,8 @@
   "media.badge.tags": {"text": "{0} tags", "reason": "Established tagging term in a plural count template."},
   "media.badge.tags.one": {"text": "{0} tag", "reason": "Established tagging term in a singular count template."},
   "media.breakdown.summary": {"text": "{0}: {1}", "reason": "Formatting template consisting of placeholders and punctuation."},
+  "media.fact.byteSize": {"text": "{1} ({0:N0} bytes)", "reason": "The Brazilian Portuguese file-size label retains “bytes” and the shared number format."},
+  "media.fact.sizeHint": {"text": "{0} {1} ({2})", "reason": "Shared formatting for the provider size, unit and precision."},
   "media.filter.board": {"text": "Board", "reason": "Imageboard term retained in this locale."},
   "media.filter.boardOfSource": {"text": "/{0}/ ({1})", "reason": "Board identifier and count in shared imageboard notation."},
   "media.filter.kind.gif": {"text": "GIFs", "reason": "Conventional plural of the GIF format name."},

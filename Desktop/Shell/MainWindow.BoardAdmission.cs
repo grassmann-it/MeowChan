@@ -21,29 +21,43 @@ public partial class MainWindow
     {
         if (urls.Count == 0) return new(new Dictionary<string, BoardAdmissionPolicy>(), !_config.ShowBoardAdmissionWizard);
         if (!_config.ShowBoardAdmissionWizard && !forceWizard)
-            return DirectBoardAdmissions(urls, _session.GetBoardAdmissionPolicy);
-        var dialog = new BoardAdmissionWindow(urls, _session.GetBoardAdmissionPolicy, _session.PreviewBoardAdmissionAsync, _config.ShowBoardAdmissionWizard, ConfiguredWorkView);
+            return DirectBoardAdmissions(urls, _session.GetBoardAdmissionPolicy, _config.BoardWatcherIntervalMinutes);
+        using var dialog = new BoardAdmissionWindow(urls, _session.GetBoardAdmissionPolicy, _session.PreviewBoardAdmissionAsync,
+            _config.ShowBoardAdmissionWizard, ConfiguredWorkView, _session.ReadBoardTitleSuggestionsAsync, alreadyWatching: forceWizard,
+            defaultWatcherInterval: _config.BoardWatcherIntervalMinutes);
         return await dialog.ShowDialog<BoardAdmissionSelection?>(this);
     }
 
-    internal static BoardAdmissionSelection DirectBoardAdmissions(IEnumerable<string> urls, Func<string, BoardAdmissionPolicy> readPolicy)
-        => new(urls.Distinct(StringComparer.Ordinal).ToDictionary(url => url,
-            url => new BoardAdmissionPolicy(Array.Empty<ThreadTextRule>(), readPolicy(url).Exceptions), StringComparer.Ordinal), true);
+    internal static BoardAdmissionSelection DirectBoardAdmissions(IEnumerable<string> urls, Func<string, BoardAdmissionPolicy> readPolicy,
+        int? defaultWatcherInterval = null)
+        => new(urls.Distinct(StringComparer.Ordinal).ToDictionary(url => url, url =>
+        {
+            BoardAdmissionPolicy saved = readPolicy(url);
+            int? interval = ReferenceEquals(saved, BoardAdmissionPolicy.All) ? defaultWatcherInterval : saved.WatcherIntervalMinutes;
+            return new BoardAdmissionPolicy(Array.Empty<ThreadTextRule>(), saved.Exceptions, saved.WatcherName, interval);
+        }, StringComparer.Ordinal), true);
 
     private async Task<bool> SubmitAdmissionBatchAsync(string? input)
     {
         _admissionBatchCanceled = false;
         _admissionBooruOpened = false;
+        _admissionArchiveOpened = false;
         var entries = new List<string>();
         await AddInput.SubmitAsync(input, ReadClipboardAsync, url => { entries.Add(url); return Task.CompletedTask; });
         // Danbooru addresses are read as text first: they never reach the chan registry, its logs or the board dialog.
         IReadOnlyDictionary<int, DanbooruAddress> booru = RecognizeBooruAddresses(entries);
         IReadOnlyDictionary<int, string> skipped = await FilterExperimentalAdmissionsAsync(entries, booru.Keys);
         var boardUrls = new HashSet<string>(StringComparer.Ordinal);
+        var archives = new Dictionary<int, BoardArchiveLocation>();
         for (int index = 0; index < entries.Count; index++)
         {
             if (_isClosing) throw new OperationCanceledException();
             if (skipped.ContainsKey(index) || booru.ContainsKey(index)) continue;
+            if (_session.FindBoardArchive(entries[index]) is { } archive)
+            {
+                archives.Add(index, archive);
+                continue;
+            }
             // Sequential reads keep a large paste within the finite host admission budget.
             if (await _session.ClassifyAdmissionAsync(entries[index]) is { IsBoard: true, AlreadyWatching: false } target)
                 boardUrls.Add(target.Url);
@@ -83,6 +97,15 @@ public partial class MainWindow
                     continue;
                 }
                 allAccepted &= await AdmitBooruAddressAsync(url, address, index == booruPlan.SearchIndex ? booruPlan.Ignored.Count : 0);
+                continue;
+            }
+            if (archives.TryGetValue(index, out BoardArchiveLocation? archive))
+            {
+                if (!_admissionArchiveOpened)
+                {
+                    _admissionArchiveOpened = true;
+                    await ShowBoardArchiveAsync(archive, archives.Values);
+                }
                 continue;
             }
             DesktopAdmissionResult? result;

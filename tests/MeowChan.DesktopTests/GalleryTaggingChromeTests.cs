@@ -18,14 +18,6 @@ public sealed class GalleryTaggingChromeTests : IDisposable
     // ---- QW1: the position once ---------------------------------------------------------------------------------------------
 
     [Theory]
-    [InlineData("Medium 3 of 27", true, null)]
-    [InlineData("Medium 3 of 27", false, "Medium 3 of 27")]
-    [InlineData(null, true, null)]
-    [InlineData(null, false, null)]
-    public void TheTagPanelHeadShowsNoPositionInTheModeAndKeepsItOutsideIt(string? counter, bool mode, string? expected) =>
-        Assert.Equal(expected, GalleryChromePlan.PanelCounter(counter, mode));
-
-    [Theory]
     [InlineData("Queue 3 of 27", false, null)]            // the arrows are on the screen: they count, the strip does not repeat it
     [InlineData("Queue 3 of 27", true, "Queue 3 of 27")]  // the controls are hidden and the strip peeks in alone: it counts
     [InlineData(null, true, null)]
@@ -36,10 +28,7 @@ public sealed class GalleryTaggingChromeTests : IDisposable
     public void ThePositionHooksOfTheViewerUseTheRules()
     {
         string panel = Source("Desktop/GalleryViewer.TagPanel.cs");
-        Assert.Contains("GalleryChromePlan.PanelCounter(counter, IsTagMode)", panel); // Tag with or without a walk
-        // Every place that sets the counter goes through the rule (open, same medium, retarget, marks); none writes the raw text.
-        Assert.DoesNotContain("surface.CounterText = controller.CounterFor", panel.Replace("PanelCounter(controller.CounterFor", ""));
-        Assert.DoesNotContain("surface.CounterText = frame.Counter;", panel);
+        Assert.DoesNotContain("surface.CounterText =", panel);
         string filmstrip = Source("Desktop/GalleryViewer.Filmstrip.cs");
         Assert.Contains("GalleryChromePlan.FilmstripPosition(_compactPosition.Text, OverlayControlsEffective && _overlayHidden)", filmstrip);
         Assert.DoesNotContain("_filmstrip.SetPositionText(_compactPosition.Text)", filmstrip);

@@ -12,9 +12,12 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
+using MeowChan.Storage;
 
 namespace MeowChan.Desktop;
 
@@ -22,7 +25,7 @@ namespace MeowChan.Desktop;
 /// The rules of the reader's media sidebar (R8) that need no window: when it is shown, which medium of the focused post it presents,
 /// what it announces and how large it decodes. <see cref="ReaderMediaSidebar"/> is the view; <c>ArchivePage.MediaSidebar</c> drives it.
 /// </summary>
-internal static class ReaderMediaSidebarRules
+internal static partial class ReaderMediaSidebarRules
 {
     /// <summary>
     /// While ↑/↓ is held the sidebar follows at most once per this many milliseconds (the first change shows at once). A pacing
@@ -240,21 +243,28 @@ internal sealed class ReaderMediaFollowThrottle
 /// owns the decode, the lease and the timers. It holds at most one bitmap and gives it back through the release it was handed with it.
 /// Theme tokens only; the picture frame has the accent edge of <see cref="ReaderFocusedMedia.CreateFrameEdge"/>, as the enlarged card.
 /// </summary>
-internal sealed class ReaderMediaSidebar : Border
+internal sealed partial class ReaderMediaSidebar : Border
 {
-    private readonly Grid _headingHost;
-    private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", TextTrimming = TextTrimming.CharacterEllipsis,
-        VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis,
-        TextWrapping = TextWrapping.Wrap, MaxLines = 2, LineHeight = HeaderLineHeight / 2, VerticalAlignment = VerticalAlignment.Center };
-    private readonly StackPanel _headerActions = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _threadPosition = new TextBlock { Name = "ReaderMediaSidebarThreadPosition",
-        IsVisible = false, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
-        Classes = { "tnum" } }.MetaText();
-    private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty, _postLinkTip = string.Empty;
-    // The "No. 75" part of the header line as a link (the reader's sidebar: a click copies the post's reference, as the post's own "No." does). The hand shows while a click opens the medium.
-    private readonly Button _postLink = new() { Name = "ReaderMediaSidebarPostLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
-        VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", Classes = { "workspace-panel-title" }, MinWidth = 64,
+        VerticalAlignment = VerticalAlignment.Center, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly MediaPositionPill _positionPill = new("ReaderMediaSidebarThreadPosition", announce: false);
+    private readonly MediaInfoBar _infoBar;
+    private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 8 };
+    private readonly MediaSidebarFacts _facts = new();
+    private GalleryVideoPlayer? _factPlayer;
+    private int _videoFactRevision;
+    private GalleryVideoPlayer? _readingTrackDimensions;
+    private TimeSpan? _videoDuration;
+    private (int Width, int Height)? _videoSize;
+    private string? _location, _author, _posted, _provenance, _hash;
+    private long? _savedBytes, _sourceBytes;
+    private MediaProviderSizeHint? _sourceHint;
+    private bool _historical;
+    private readonly TextBlock _provenanceNote = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private GalleryTagPanelPosition? _threadPosition;
+    private Action? _cancelTagEditor;
+    private Control? _tagEditorAnchor;
+    private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
@@ -266,7 +276,7 @@ internal sealed class ReaderMediaSidebar : Border
     // Centred on the frame, which is centred on the picture; its size follows the picture that is shown (VideoPlayMark).
     private readonly VideoPlayMarkView _play = new() { Name = "ReaderMediaSidebarPlay", IsVisible = false };
     // The shared media badges over exactly the shown picture. The sidebar keeps its own play button (MediaPlayMarkMode.External) and draws no
-    // favourite badge: its header toggle (_favorite) is the one star of the medium on this surface (Tom, 16.11.2026; the sweep's F2).
+    // favorite badge because the decision block supplies the favorite state and control.
     private readonly MediaBadgeView _badges = new() { Name = "ReaderMediaSidebarBadges", Options = MediaBadgeOptions.Sidebar };
     private bool _badgesOn, _playable;
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
@@ -275,13 +285,30 @@ internal sealed class ReaderMediaSidebar : Border
     // The card (Tom, 15.11.2026): the medium with, inside the same edge, the strip of a post with several files and the video's controls.
     // The medium fills what the rows below it leave; nothing under the card keeps space, so a host can make it flush with a neighbour card.
     private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
-    private readonly Grid _header;
+    private readonly MediaCompactHeader _header;
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
-    private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
-    private readonly ArchiveFavoriteButton _favorite = new()
-    {
-        Height = HeaderLineHeight, Padding = new Thickness(8, 4), VerticalAlignment = VerticalAlignment.Center
-    };
+    private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Classes = { "workspace-meta" }, Opacity = 0, IsHitTestVisible = false, Height = 0 };
+    private readonly GalleryDecisionRow _decision = new("ReaderMediaSidebarDecision", compact: true, favorite: false, sidebar: true);
+    private readonly TextBlock _decisionError = new() { Margin = new Thickness(0, 4, 0, 0), Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly Button _editTags = new() { Name = "ReaderMediaSidebarEditTags" };
+    private Func<bool>? _favoriteAvailable;
+    private Func<bool>? _isFavorite;
+    private Func<string?>? _favoriteError;
+    private Func<FavoriteStarHold>? _favoriteHold;
+    private Func<bool>? _ratingAvailable;
+    private Func<int?>? _readRating;
+    private Func<int?, Task>? _writeRating;
+    private IReadOnlyList<string>? _tags;
+    private string? _tagsBlocked;
+    private string? _decisionFailure;
+    private readonly HashSet<(string Medium, string? Post)> _pendingWrites = new();
+    private (string Medium, string? Post) DecisionTarget => (_mediumKey ?? _fileName, _mediumKey == null ? _postLine : null);
+    private event Action? DecisionTargetChanged;
+    private string? _mediumKey;
+    private int _mediumRevision;
+    private bool? _imageVerified = true;
+    private GalleryEntry? _verifiedImage;
+    private readonly Dictionary<IPointer, int> _decisionPresses = new();
     // R11: the thumbnail strip of a post with several files: a single tab stop, ← → move, the counter beside it.
     private readonly ListBox _strip = new()
     {
@@ -298,7 +325,6 @@ internal sealed class ReaderMediaSidebar : Border
     private bool _stripSyncing;
     private Bitmap? _bitmap;
     private Action<Bitmap>? _release;
-    private bool _hover;
 
     // The texts and the toggle command of the host: the reader's sidebar says "post", the Media page's panel says "medium" (same view, other words).
     /// <summary>The key of the accessible region name and the Media page panel's empty header.</summary>
@@ -321,9 +347,11 @@ internal sealed class ReaderMediaSidebar : Border
         internal required Border Placeholder;
     }
 
+    internal sealed record StripTarget(ResourceId Thread, string PostId, int Index, string AttachmentKey);
+
     // In the header row, icon only: the words are its tooltip and name.
-    internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen", Classes = { "icon-square", "ghost" } };
-    internal Button Close { get; } = new() { Name = "ReaderMediaSidebarClose", Classes = { "icon-square", "ghost" } };
+    internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen" };
+    internal PanelCloseButton Close { get; } = new("ReaderMediaSidebarClose");
 
     /// <summary>The picture frame: its size is the decode target (smoke and page seam).</summary>
     internal Control Frame => _frame;
@@ -335,11 +363,64 @@ internal sealed class ReaderMediaSidebar : Border
     internal Control Card => _card;
     /// <summary>The header line above the card (post, file, size and its buttons).</summary>
     internal Control HeaderRow => _header;
+    internal MediaPositionPill PositionPill => _positionPill;
+    internal TextBlock Title => _heading;
+    internal Func<Control, CancellationToken, Task>? OpenTagsAsync { get; set; }
+    internal string DecisionKeyContext { set { _decision.KeyContext = _headerFavorite.KeyContext = value; } }
+    internal GalleryDecisionRow DecisionRow => _decision;
     /// <summary>Space above the header line, included in the vertical budget of the header and card.</summary>
-    internal const double HeaderTopInset = MediaSidebarHeader.TopInset;
+    internal const double HeaderTopInset = WorkspaceMetrics.MediaFirstInset;
     /// <summary>The height of the primary header row, shared with workspace controls.</summary>
-    internal const double HeaderLineHeight = WorkspaceMetrics.InputHeight;
+    internal const double HeaderLineHeight = 48;
     internal Image Picture => _image;
+
+    internal bool IsMediaSurfaceSource(object? source, ReaderInlineVideoSlot? video) => source is Visual visual
+        && (InBar(_image, visual) || InBar(_play, visual)
+            || video is not null && InBar(video.Activator, visual)
+            || _factPlayer is not null && InBar(_factPlayer, visual));
+
+    internal bool IsShowingStalePicture => _bitmap != null && _image.IsEffectivelyVisible && PictureIsStale;
+
+    internal bool IsCurrentMediaSurface(object? source, Point position, ReaderInlineVideoSlot? video)
+    {
+        if (source is not Visual visual) return false;
+        if (_factPlayer is { } player && InBar(player, visual)) return video?.IsPlayerFor(player, _mediumKey) == true;
+        return !PictureIsStale && PictureContains(position) && IsMediaSurfaceSource(source, video);
+    }
+
+    // The header and video offer can change before a decode replaces the picture.
+    private bool PictureIsStale => IsDimmed || !string.Equals(Load.ShownKey, _mediumKey, StringComparison.Ordinal);
+
+    private (IPointer Pointer, int ClickCount, int Revision, bool Presented, bool CanActivate)? _framePress;
+
+    private void OnFramePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(_frame).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+        if (e.Handled || IsOverlaySource(e.Source))
+        {
+            // A consumed left press (including a Mac context click) cannot turn its release into playback.
+            // It also starts no sequence of ordinary picture taps.
+            _framePress = (e.Pointer, 0, _mediumRevision, false, false);
+            return;
+        }
+        bool presented = !IsShowingStalePicture;
+        // Avalonia can count a second tap at the same position after the medium under it has changed.
+        bool crossesMedium = e.ClickCount % 2 == 0 && _framePress is { } previous
+            && previous.Pointer.Type == e.Pointer.Type && previous.ClickCount + 1 == e.ClickCount
+            && (!previous.Presented || previous.Revision != _mediumRevision);
+        _framePress = (e.Pointer, e.ClickCount, _mediumRevision, presented, presented && !crossesMedium);
+    }
+
+    private bool IsCurrentFramePress(IPointer pointer) => _framePress is not { } press
+        || press.Pointer == pointer && press.CanActivate && press.Revision == _mediumRevision;
+
+    internal bool CanPlayFromFrame(IPointer pointer, string? key) =>
+        key != null && key == _mediumKey && !IsShowingStalePicture && IsCurrentFramePress(pointer);
+
+    private bool PictureContains(Point position) => _bitmap != null && _image.IsEffectivelyVisible
+        && this.TranslatePoint(position, _image) is { } point && new Rect(_image.Bounds.Size).Contains(point);
+
+    internal Func<string, CancellationToken, Task>? BeforePreviewDecodeForTests { get; set; }
     internal Bitmap? Shown => _bitmap;
     /// <summary>
     /// The load state of the picture (which load is the latest, which medium is shown and how large): the host asks it before it decodes, the view
@@ -371,58 +452,106 @@ internal sealed class ReaderMediaSidebar : Border
     internal event EventHandler<int>? StripSelected;
     /// <summary>A thumbnail was opened by a double click (interaction audit 1.1.0): the page shows it and opens it in the gallery.</summary>
     internal event EventHandler<int>? StripActivated;
+    internal Func<StripTarget, bool>? StripTargetIsCurrent { get; set; }
 
     // The rows under the medium: the video row shows while one of its parts does; each shown row keeps 8 dip from the medium and the edge.
     private void UpdateCardRows()
     {
         _videoRow.IsVisible = _videoRow.Children.Any(child => child.IsVisible);
-        _stripRow.Margin = new Thickness(8, 8, 8, _videoRow.IsVisible ? 0 : 8);
-        _videoRow.Margin = new Thickness(8, 8, 8, 8);
+        _stripRow.Margin = new Thickness(8);
+        _videoRow.Margin = new Thickness(8, 0);
+        UpdateInfoLayout();
     }
 
     internal ReaderMediaSidebar()
     {
         Name = "ReaderMediaSidebar";
-        Padding = new Thickness(WorkspaceMetrics.SectionInset);
+        Padding = new Thickness(WorkspaceMetrics.MediaFirstInset);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         _placeholder[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
         _placeholder[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
-        _image.SizeChanged += (_, e) => { _play.Diameter = VideoPlayMark.Diameter(e.NewSize); UpdateBadges(); };
+        _play.VerticalAlignment = VerticalAlignment.Center;
+        _image.SizeChanged += (_, e) =>
+        {
+            _play.Diameter = VideoPlayMark.Diameter(e.NewSize);
+            UpdateBadges();
+        };
+        _frame.Margin = _edge.BorderThickness;
+        _badges.VerticalAlignment = VerticalAlignment.Center;
         _edge.IsVisible = false;
         _frame.Children.Add(_placeholder);
         _frame.Children.Add(_image);
         _frame.Children.Add(_play);
         _frame.Children.Add(_badges);
         _frame.Children.Add(_status);
+        _frame.AddHandler(PointerPressedEvent, OnFramePointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         _frame.PointerReleased += (_, e) =>
         {
-            if (e.InitialPressMouseButton != MouseButton.Left || _bitmap == null && !_status.IsVisible) return;
+            if (e.InitialPressMouseButton != MouseButton.Left || IsOverlaySource(e.Source)
+                || !IsCurrentFramePress(e.Pointer) || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
             e.Handled = true;
             PictureActivated?.Invoke(this, EventArgs.Empty);
         };
 
         _frame.DoubleTapped += (_, e) =>
         {
-            if (_bitmap == null && !_status.IsVisible) return;
+            if (IsOverlaySource(e.Source) || !IsCurrentFramePress(e.Pointer) || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
             e.Handled = true;
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
 
-        // Icon only: the command's label is the name and the tooltip (with its shortcut); the catalog follows language and bindings.
-        CommandBindings.Apply(Open, "gallery.open", iconOnly: true);
-        Close.Content = CommandBindings.NamedIcon("x");
-        Close.Opacity = 0; // shown on hover and keyboard focus, like the reader's navigation cross (edge rule: top right)
-        Close.IsHitTestVisible = false;
-        Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
-        _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
-        _headerActions.Children.Add(_favorite);
-        _headerActions.Children.Add(Open);
-        _headerActions.Children.Add(Close);
-        _headingHost = new Grid { Children = { _heading, _postLink } };
-        _header = new MediaSidebarHeader(_headingHost, _title, _threadPosition, _headerActions)
+        _frame.Children.CollectionChanged += (_, change) =>
         {
-            Name = "ReaderMediaSidebarHeaderRow", Margin = new Thickness(0, HeaderTopInset, 0, 0)
+            if (_factPlayer != null && change.OldItems?.Contains(_factPlayer) == true)
+            {
+                _factPlayer.ViewSurfaceChanged -= RefreshVideoSize;
+                _factPlayer.DurationChanged -= RefreshVideoDuration;
+                _factPlayer = null;
+                if (OperatingSystem.IsWindows()) ConfigureInfo(_infoPreferences);
+            }
+            if (change.NewItems?.OfType<GalleryVideoPlayer>().FirstOrDefault() is { } player)
+            {
+                _factPlayer = player;
+                _videoFactRevision = _mediumRevision;
+                player.ViewSurfaceChanged += RefreshVideoSize;
+                player.DurationChanged += RefreshVideoDuration;
+                if (OperatingSystem.IsWindows()) ConfigureInfo(_infoPreferences);
+            }
         };
+        _info.Children.Add(_facts);
+        _extraFacts.Children.Add(_provenanceNote);
+        _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor, ShowAllTags) { TagChipCreated = InstallTagMenu };
+        AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
+        _headerFavorite.TargetSaving = () => _pendingWrites.Contains(DecisionTarget);
+        _decision.RatingRequested += value =>
+        {
+            if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
+        };
+        _decision.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!e.Handled && _decision.RouteStarKey(e)) e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        foreach (Button button in _infoBar.GetVisualDescendants().OfType<Button>().Append(_headerFavorite).Append(Open))
+            TrackDecisionPress(button);
+        AddHandler(PointerReleasedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonReleased
+                || !_decisionPresses.Remove(e.Pointer, out int revision)
+                || revision == _mediumRevision) return;
+            // A recycled decision button would otherwise click with the new medium's callbacks.
+            e.Handled = true;
+            e.Pointer.Capture(null);
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        DetachedFromVisualTree += (_, _) => { _decisionPresses.Clear(); InvalidateDecisionTarget(); };
+        Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
+        _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, SettingsButton, Close) { Name = "ReaderMediaSidebarHeaderRow" };
+        _header.ReserveCloseSpace(Close);
+        foreach (Control control in new Control[] { _header, _heading, _header.Meta, _headerFavorite, InfoToggle, Open, SettingsButton,
+            Close, _details, _decision, _facts, _infoBar, _card, _videoRow, _play, _badges })
+            AutomationProperties.SetAutomationId(control, control.Name);
+        AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
+        AutomationProperties.SetAutomationId(_image, "ReaderMediaSidebarPicture");
+        AutomationProperties.SetAutomationId(_status, "ReaderMediaSidebarStatus");
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -434,8 +563,10 @@ internal sealed class ReaderMediaSidebar : Border
         _strip.DoubleTapped += (_, e) =>
         {
             if (!_stripRow.IsVisible || !MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, _strip)
-                || MeowChan.Desktop.Controls.ItemActivation.ContainerAt(e.Source, _strip) is not ListBoxItem { Tag: int index }) return;
+                || ItemActivation.ContainerAt(e.Source, _strip) is not ListBoxItem { Tag: StripTarget target }) return;
             e.Handled = true;
+            if (StripTargetIsCurrent?.Invoke(target) != true) return;
+            int index = target.Index;
             StripActivated?.Invoke(this, index);
         };
         _stripRow.Children.Add(_strip);
@@ -444,12 +575,9 @@ internal sealed class ReaderMediaSidebar : Border
         _stripCounter.IsVisible = false;
         _stripRow.Children.Add(_stripCounter);
 
-        // The header, then the card: the medium, the strip of a post with several files and under the medium the video's controls (empty for
-        // an image), all inside the card's edge. A hidden row takes no space; the last shown row keeps a gap to the card's bottom edge. The
-        // live region has no height and shares the header's cell.
         _card.Children.Add(_frame);
-        Grid.SetRow(_stripRow, 1); _card.Children.Add(_stripRow);
-        Grid.SetRow(_videoRow, 2); _card.Children.Add(_videoRow);
+        Grid.SetRow(_stripRow, 2); _card.Children.Add(_stripRow);
+        Grid.SetRow(_videoRow, 1); _card.Children.Add(_videoRow);
         Grid.SetRowSpan(_edge, 3); _edge.ZIndex = 1; _card.Children.Add(_edge);
         _stripRow.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) UpdateCardRows(); };
         _videoRow.Children.CollectionChanged += (_, e) =>
@@ -459,18 +587,21 @@ internal sealed class ReaderMediaSidebar : Border
             UpdateCardRows();
         };
         UpdateCardRows();
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_header);
-        layout.Children.Add(_live);
-        Grid.SetRow(_card, 1); layout.Children.Add(_card);
-        Child = layout;
+        Grid.SetRow(_card, 1);
+        Grid.SetRow(_live, 1);
+        _layout.Children.Add(_card);
+        _layout.Children.Add(_live);
+        Child = _layout;
+        InitializeInfo();
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
-        TransientHover.Attach(this, hovered => { _hover = hovered; UpdateClose(); });
-        GotFocus += (_, _) => UpdateClose();
-        LostFocus += (_, _) => UpdateClose();
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
-        DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
+        DetachedFromVisualTree += (_, _) =>
+        {
+            _hideOverlay.Stop();
+            Texts.Changed -= OnLanguageChanged;
+            InvalidateTagEditor();
+        };
         Localize();
         ShowEmpty();
     }
@@ -485,21 +616,17 @@ internal sealed class ReaderMediaSidebar : Border
     {
         string title = Texts.T(TitleKey);
         AutomationProperties.SetName(this, title);
-        RefreshHeader();
+        RefreshFacts();
+        LocalizeInfo();
+        _infoBar.Localize();
+        RefreshTags();
+        RefreshDecisions();
+        SetThreadPosition(_threadPosition);
         string stripName = Texts.T("reader.sidebar.strip");
         AutomationProperties.SetName(_strip, stripName);
         ToolTip.SetTip(_strip, stripName);
         string close = Texts.T(CloseKey);
-        ToolTip.SetTip(Close, ToggleCommandId == null ? close : CommandBindings.Tooltip(ToggleCommandId, null, close));
-        AutomationProperties.SetName(Close, close);
-    }
-
-    // Hidden at rest and then no click target either: an invisible cross must not close the sidebar under a click that meant the picture's corner.
-    private void UpdateClose()
-    {
-        bool shown = TransientHover.WindowUsable(this) && (_hover || IsKeyboardFocusWithin);
-        Close.Opacity = shown ? 1 : 0;
-        Close.IsHitTestVisible = shown;
+        Close.Localize(close, ToggleCommandId == null ? close : CommandBindings.Tooltip(ToggleCommandId, null, close));
     }
 
     // Reader hosts retain their single-click/video affordance. The Media preview may opt into a hand for its double-click gallery
@@ -536,98 +663,410 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null, string? threadPosition = null)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen,
+        GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null, string? mediumKey = null)
     {
-        _postLine = postLine; _fileName = fileLine; _detail = detailLine; _postLinkTip = postLinkTip ?? string.Empty;
+        bool newMedium = _mediumKey != mediumKey || mediumKey == null && (_fileName != fileLine || _postLine != postLine);
+        if (newMedium)
+        {
+            InvalidateDecisionTarget();
+            _mediumKey = mediumKey;
+            _videoSize = null;
+            _videoDuration = null;
+        }
+        if (newMedium || _postLine != postLine || _fileName != fileLine)
+        {
+            _decisionFailure = null;
+            _tags = null;
+            _tagsBlocked = null;
+        }
+        _postLine = postLine; _fileName = fileLine; _detail = detailLine;
+        _savedBytes = savedBytes;
+        _location = _author = _posted = _provenance = _hash = null;
+        _sourceBytes = null;
+        _sourceHint = null;
+        _historical = false;
         SetThreadPosition(threadPosition);
-        RefreshHeader();
+        RefreshFacts();
         Open.IsEnabled = canOpen;
-        Open.IsVisible = true;
+        if (fileLine.Length == 0) ConfigureRating(null, null, null);
+        RefreshTags();
+        UpdateInfoLayout();
         AutomationProperties.SetName(_image, fileLine);
         UpdateFrameCursor();
     }
 
-    internal void SetThreadPosition(string? text)
+    internal void SetThreadPosition(GalleryTagPanelPosition? position)
     {
-        _threadPosition.Text = text;
-        _threadPosition.IsVisible = !string.IsNullOrEmpty(text);
-        ToolTip.SetTip(_threadPosition, text);
+        _threadPosition = position;
+        _positionPill.Show(position);
+        _positionPill.IsVisible = false;
+        _header.InvalidateMeasure();
     }
 
-    /// <summary>The "No." of the header line was clicked (only while the host described the post with a tip, see <see cref="Describe"/>).</summary>
-    internal event EventHandler? PostLinkClicked;
+    private void TrackDecisionPress(Button button)
+    {
+        button.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.GetCurrentPoint(button).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+                _decisionPresses[e.Pointer] = _mediumRevision;
+        }, RoutingStrategies.Tunnel);
+        button.PointerCaptureLost += (_, e) => _decisionPresses.Remove(e.Pointer);
+    }
 
-    /// <summary>The post number link of the header line (smokes and tests).</summary>
-    internal Button PostLink => _postLink;
+    private void OpenTagEditor(Control anchor) => OpenActions.Start(() => EditTagsAsync(anchor), "media.tags.edit");
+
+    internal Task EditTagsAsync() => EditTagsAsync(_details.IsVisible ? _infoBar.EditorAnchor : InfoToggle);
+
+    internal Task EditTagsFromShortcutAsync() => EditTagsAsync(null);
+
+    private async Task EditTagsAsync(Control? origin)
+    {
+        if (!IsEffectivelyVisible || !CanUseMediaActions || _fileName.Length == 0 || OpenTagsAsync is not { } openTags || _cancelTagEditor != null) return;
+        using CancellationTokenSource request = new();
+        Action cancel = request.Cancel;
+        _cancelTagEditor = cancel;
+        Control anchor = origin ?? _infoBar.EditorAnchor;
+        Visual[] anchorPath = [];
+        void OnAnchorVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
+        {
+            if (change.Property == IsVisibleProperty && change.NewValue is false && ReferenceEquals(_cancelTagEditor, cancel))
+                InvalidateTagEditor();
+        }
+        void OnAnchorDetached(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            if (ReferenceEquals(_cancelTagEditor, cancel)) InvalidateTagEditor();
+        }
+        try
+        {
+            if (!await VerifyImageActionAsync(request.Token)) return;
+            if (origin == null && !_details.IsVisible)
+            {
+                RevealBars();
+                TopLevel.GetTopLevel(this)?.UpdateLayout();
+            }
+            if (origin == null)
+            {
+                anchor.BringIntoView();
+                TopLevel.GetTopLevel(this)?.UpdateLayout();
+            }
+            if (request.IsCancellationRequested || !anchor.IsEffectivelyVisible) return;
+            _tagEditorAnchor = anchor;
+            anchorPath = anchor.GetSelfAndVisualAncestors().ToArray();
+            foreach (Visual visual in anchorPath) visual.PropertyChanged += OnAnchorVisibilityChanged;
+            anchor.DetachedFromVisualTree += OnAnchorDetached;
+            await openTags(anchor, request.Token);
+            // Blocked editors can be opened synchronously by the host.
+            if (ReferenceEquals(_cancelTagEditor, cancel) && QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor))
+                await popover.Result;
+        }
+        finally
+        {
+            anchor.DetachedFromVisualTree -= OnAnchorDetached;
+            foreach (Visual visual in anchorPath) visual.PropertyChanged -= OnAnchorVisibilityChanged;
+            // A light-dismiss can close the popover before the same interaction opens the gallery.
+            // A write that is still waiting must also lose its permission when the editor closes.
+            request.Cancel();
+            if (ReferenceEquals(_cancelTagEditor, cancel))
+            {
+                _cancelTagEditor = null;
+                _tagEditorAnchor = null;
+                UpdateInfoLayout();
+            }
+        }
+    }
+
+    // A post or attachment revision can change even when its decoded picture is reusable.
+    internal void InvalidateDecisionTarget()
+    {
+        _mediumRevision++;
+        DecisionTargetChanged?.Invoke();
+        _decisionFailure = null;
+        InvalidateTagEditor();
+    }
+
+    internal bool InvalidateTagEditor()
+    {
+        if (_cancelTagEditor is not { } cancel) return false;
+        _cancelTagEditor = null;
+        var anchor = _tagEditorAnchor;
+        _tagEditorAnchor = null;
+        cancel();
+        if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, anchor))
+            popover.Close(QuickTagPopoverCloseReason.Stale);
+        if (_cancelTagEditor == null) UpdateInfoLayout();
+        return true;
+    }
 
     /// <summary>The text of the header line now (smokes and tests read it); the plain title while nothing is known.</summary>
     internal string HeaderLine
     {
         get
         {
-            string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _detail);
+            string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _savedBytes is long bytes ? MediaProvenanceText.FactSize(bytes) + " " + _detail : _detail);
             return text.Length > 0 ? text : Texts.T(TitleKey);
         }
     }
 
-    private void RefreshHeader()
+    private void RefreshFacts()
     {
-        string metadata = ReaderMediaSidebarRules.HeaderText(string.Empty, _fileName, _detail);
-        bool link = _postLine.Length > 0 && _postLinkTip.Length > 0;
-        _postLink.IsVisible = link;
-        if (link)
+        _heading.Text = _postLine.Length > 0 ? _postLine : _fileName.Length > 0 ? _fileName : ShowEmptyTitle ? Texts.T(TitleKey) : string.Empty;
+        ToolTip.SetTip(_heading, _heading.Text);
+        string size = (_savedBytes ?? _sourceBytes) is long length ? SizeText.Format(length) : "";
+        _header.Describe(_fileName, size, hasPostTitle: _postLine.Length > 0);
+        string? compactSize = size;
+        string? sizeDescription = null;
+        if (_savedBytes is long savedSize && _sourceBytes is long sourceSize && savedSize != sourceSize)
         {
-            _postLink.Content = _postLine;
-            ToolTip.SetTip(_postLink, _postLinkTip);
-            AutomationProperties.SetName(_postLink, _postLinkTip);
+            compactSize = size + " / " + SizeText.Format(sourceSize);
+            sizeDescription = Texts.T("media.fact.saved") + " · " + MediaProvenanceText.FactSize(savedSize) +
+                Environment.NewLine + Texts.T("media.fact.source") + " · " + MediaProvenanceText.FactSize(sourceSize);
         }
-        _heading.Text = _postLine.Length == 0 && metadata.Length == 0 && ShowEmptyTitle ? Texts.T(TitleKey) : _postLine;
-        _heading.IsVisible = !link && _heading.Text.Length > 0;
-        _headingHost.IsVisible = link || _heading.IsVisible;
-        _title.Text = metadata;
-        _title.IsVisible = metadata.Length > 0;
-        ToolTip.SetTip(_title, HeaderLine);
+        string dimensions = _videoSize is { } video ? $"{video.Width} × {video.Height}" : _detail;
+        if (_videoDuration is { } duration)
+            dimensions = ReaderMediaSidebarRules.HeaderText("", dimensions, GalleryVideoPlayer.FormatVideoTime((long)duration.TotalMilliseconds));
+        _facts.Show(_location ?? "", _author, _posted, _fileName, compactSize, dimensions, sizeDescription);
+        UpdateExpansion(refreshFacts: true);
     }
 
-    /// <summary>
-    /// The star for a reader attachment. It asks the row each time (not the callbacks the row had when the sidebar showed it): the page wires the
-    /// row's favourite once its saved files are known and again whenever they are reloaded, often after the sidebar already shows the medium, so
-    /// callbacks copied here could stay unset (a star that does nothing) or point at an earlier scan.
-    /// </summary>
+    private void RefreshAdditionalFacts()
+    {
+        _extraGrid.Children.Clear();
+        _facts.AddHiddenFields(_extraGrid, FactsVisible, SizesDiffer);
+        if (_savedBytes is long saved && _sourceBytes is long source && saved != source)
+        {
+            _extraGrid.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(saved));
+            _extraGrid.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(source));
+        }
+        if (_sourceHint is { } hint) _extraGrid.Add(Texts.T("media.fact.sourceHint"),
+            Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
+        _extraGrid.Add("SHA-256", _hash, "ReaderMediaSidebarHash");
+        _provenanceNote.Text = string.Join(Environment.NewLine, new[] { _provenance, _historical ? Texts.T("gallery.viewer8") : null }
+            .Where(text => !string.IsNullOrEmpty(text)));
+        _provenanceNote.IsVisible = _provenanceNote.Text.Length > 0;
+    }
+
+    private void RefreshVideoSize()
+    {
+        if (_videoFactRevision != _mediumRevision || _videoSize.HasValue || _factPlayer is not { } player ||
+            player.SourceSize == null || ReferenceEquals(_readingTrackDimensions, player)) return;
+        _readingTrackDimensions = player;
+        int revision = _mediumRevision;
+        OpenActions.Start(() => ReadVideoSizeAsync(player, revision), "media.sidebar.info");
+    }
+
+    private async Task ReadVideoSizeAsync(GalleryVideoPlayer player, int revision)
+    {
+        try
+        {
+            if (await player.ReadTrackDimensionsAsync() is not { } size ||
+                revision != _mediumRevision || !ReferenceEquals(_factPlayer, player)) return;
+            _videoSize = size;
+            RefreshFacts();
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            Serilog.Log.Debug(error, "Could not read the sidebar video's track dimensions");
+        }
+        finally
+        {
+            if (ReferenceEquals(_readingTrackDimensions, player)) _readingTrackDimensions = null;
+        }
+    }
+
+    private void RefreshVideoDuration(TimeSpan? duration)
+    {
+        if (_videoFactRevision != _mediumRevision || duration == null || _videoDuration == duration) return;
+        _videoDuration = duration;
+        RefreshVideoSize();
+        RefreshFacts();
+    }
+
+    internal void SetSourceFacts(string location, string? author, string? posted, long? savedBytes, long? sourceBytes,
+        MediaProviderSizeHint? sourceHint, string? provenance = null, bool historical = false, string? hash = null)
+    {
+        _location = location;
+        _author = author;
+        _posted = posted;
+        _savedBytes = savedBytes;
+        _sourceBytes = sourceBytes;
+        _sourceHint = sourceHint;
+        _provenance = provenance;
+        _historical = historical;
+        _hash = hash;
+        RefreshFacts();
+    }
+
     internal void ConfigureFavorite(ArchiveAttachmentRow? row)
     {
-        _favorite.IsVisible = row != null;
-        if (row != null) _favorite.Configure(row);
-        UpdateBadges();
+        if (row == null) { ConfigureFavorite(null, null, null); return; }
+        var (available, marked, toggle, error) = ArchiveFavoriteButton.Callbacks(row);
+        ConfigureFavorite(available, marked, toggle, error, () => row.FavoriteHold?.Invoke() ?? FavoriteStarHold.None);
     }
 
-    /// <summary>The header's favourite star (tests and smokes).</summary>
-    internal Avalonia.Controls.Primitives.ToggleButton FavoriteButton => _favorite;
+    internal Avalonia.Controls.Primitives.ToggleButton FavoriteButton => _headerFavorite;
 
-    /// <summary>The star for a medium that is no reader attachment (the Media page): the same button with the host's own state and toggle.</summary>
-    internal void ConfigureFavorite(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null)
+    internal void ConfigureFavorite(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle,
+        Func<string?>? error = null, Func<FavoriteStarHold>? hold = null)
     {
-        _favorite.IsVisible = available != null;
-        if (available != null) _favorite.Configure(available, marked, toggle, error);
-        UpdateBadges();
+        _favoriteAvailable = available == null ? null : () => CanUseMediaActions && available();
+        _isFavorite = marked;
+        _favoriteError = error;
+        _favoriteHold = hold;
+        var canWrite = _favoriteAvailable;
+        _headerFavorite.Configure(canWrite, marked, () => WriteDecisionAsync(toggle, canWrite), error, hold);
+        RefreshFavorite();
     }
 
-    internal void RefreshFavorite() { _favorite.Refresh(); UpdateBadges(); }
+    internal void ConfigureRating(Func<bool>? available, Func<int?>? read, Func<int?, Task>? write)
+    {
+        _ratingAvailable = available == null ? null : () => CanUseMediaActions && available();
+        _readRating = read;
+        _writeRating = write;
+        RefreshDecisions();
+    }
+
+    internal Func<Control, string, ContextMenuBuilder?>? BuildTagMenu { get; set; }
+
+    // A chip that returns to the tree (the line re-measures, the expansion reopens) gets its menu again.
+    private void InstallTagMenu(Button chip, string tag) => chip.AttachedToVisualTree += (_, _) => ContextMenuHost.Install(chip,
+        () => BuildTagMenu?.Invoke(chip, tag) ?? OwnTagChipMenu.IdentityActions(chip, tag, null, null));
+
+    internal void SetTags(IReadOnlyList<string>? names, string? blocked)
+    {
+        if (string.Equals(_tagsBlocked, blocked, StringComparison.Ordinal)
+            && (ReferenceEquals(_tags, names) || _tags != null && names != null && _tags.SequenceEqual(names))) return;
+        if (_tags != null && names != null && !_tags.SequenceEqual(names))
+            _live.Text = ReaderMediaSidebarRules.HeaderText(_postLine, Texts.T("tags.media.buttonCount", names.Count), string.Join(", ", names));
+        _tags = names;
+        _tagsBlocked = blocked;
+        RefreshTags();
+    }
+
+    private void RefreshTags()
+    {
+        string? blocked = _imageVerified switch
+        {
+            null => Texts.T("reader.sidebar.loading"),
+            false => Texts.T("reader.sidebar.unavailable"),
+            true => _tagsBlocked
+        };
+        _infoBar.SetTags(_tags, blocked, CanUseMediaActions && OpenTagsAsync != null);
+        if (_expandedRows.IsVisible) PopulateExpandedTags();
+        UpdateExpansion();
+    }
+
+    internal void RefreshFavorite() { RefreshDecisions(); UpdateBadges(); }
+
+    internal bool CanUseMediaActions => _imageVerified == true;
+
+    internal void SetImageVerification(bool? verified, GalleryEntry? image = null)
+    {
+        _verifiedImage = image;
+        if (_imageVerified == verified) return;
+        _imageVerified = verified;
+        if (!CanUseMediaActions) InvalidateTagEditor();
+        RefreshTags();
+        RefreshDecisions();
+    }
+
+    internal Task<bool> VerifyImageActionAsync(CancellationToken token = default) =>
+        VerifyTargetAsync(_verifiedImage, displayed: true, _mediumRevision, token);
+
+    internal Func<CancellationToken, Task<bool>> CaptureImageActionGuard(GalleryEntry? target = null, bool displayed = true)
+    {
+        int revision = _mediumRevision;
+        GalleryEntry? entry = target ?? _verifiedImage;
+        return token => VerifyTargetAsync(entry, displayed, revision, token);
+    }
+
+    private async Task<bool> VerifyTargetAsync(GalleryEntry? entry, bool displayed, int revision, CancellationToken token)
+    {
+        bool Current() => revision == _mediumRevision && !token.IsCancellationRequested && IsEffectivelyVisible
+            && (!displayed || CanUseMediaActions && (_verifiedImage == null || _verifiedImage.Asset == entry?.Asset));
+        if (!Current()) return false;
+        if (entry == null) return true;
+        using CancellationTokenSource checking = CancellationTokenSource.CreateLinkedTokenSource(token);
+        DecisionTargetChanged += checking.Cancel;
+        try
+        {
+            await Task.Run(async () =>
+            {
+                await using var original = await GallerySidebarOriginal.OpenAsync(entry, checking.Token).ConfigureAwait(false);
+            }, checking.Token);
+            return Current();
+        }
+        catch (OperationCanceledException) when (checking.IsCancellationRequested) { return false; }
+        catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException)
+        {
+            if (displayed && Current())
+            {
+                SetImageVerification(false);
+                ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
+            }
+            return false;
+        }
+        finally { DecisionTargetChanged -= checking.Cancel; }
+    }
+
+    private void RefreshDecisions()
+    {
+        var favorite = ArchiveFavoriteButton.ReadState(_favoriteAvailable, _isFavorite, _favoriteError);
+        bool canRate = !_pendingWrites.Contains(DecisionTarget) && _ratingAvailable?.Invoke() == true;
+        GalleryDecisionView updated = new(1, favorite.Marked ? GalleryDecisionCoverage.All : GalleryDecisionCoverage.None,
+            _readRating?.Invoke(), false, canRate);
+        if (_decision.View.Available && updated.Available && _decision.View != updated)
+            Announce(GalleryDecisionText.Summary(updated));
+        _decision.Show(updated, favorite.Available);
+        _headerFavorite.Refresh();
+        UpdateBadges();
+        if (!favorite.Available && _favoriteHold != null)
+        {
+            ToolTip.SetTip(FavoriteButton, ArchiveFavoriteButton.HoldText(_favoriteHold()));
+            ToolTip.SetShowOnDisabled(FavoriteButton, true);
+        }
+        string? error = _decisionFailure ?? favorite.Error;
+        _decisionError.Text = error;
+        _decisionError.IsVisible = !string.IsNullOrEmpty(error);
+        if (_decisionError.IsVisible) RevealBars();
+    }
+
+    private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available)
+    {
+        var target = DecisionTarget;
+        if (write == null || available?.Invoke() != true || !_pendingWrites.Add(target)) return;
+        int revision = _mediumRevision;
+        _decisionFailure = null;
+        try
+        {
+            RefreshDecisions();
+            if (await VerifyImageActionAsync() && revision == _mediumRevision && available()) await write();
+        }
+        catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            if (_mediumRevision == revision) _decisionFailure = error.Message;
+        }
+        finally
+        {
+            _pendingWrites.Remove(target);
+            RefreshDecisions();
+        }
+    }
 
     /// <summary>The badges of the shown picture (smokes read it).</summary>
     internal MediaBadgeView Badges => _badges;
 
     private void UpdateBadges()
     {
-        if (!_badgesOn || !_image.IsVisible) { _badges.Clear(); return; }
+        if (!_badgesOn || !_image.IsVisible || _headBar.IsVisible) { _badges.Clear(); return; }
         // No Favorite here: the header's star toggle shows and changes the favourite, a second filled star on the picture only duplicated it.
-        _badges.Apply(new MediaBadgeState(Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
+        _badges.Apply(new MediaBadgeState(Rating: _decision.View.Rating, Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
     }
 
     internal void SetDetail(string detailLine)
     {
         _detail = detailLine;
-        RefreshHeader();
+        RefreshFacts();
     }
 
     /// <summary>
@@ -654,6 +1093,7 @@ internal sealed class ReaderMediaSidebar : Border
         UpdateBadges();
         UpdateFrameCursor();
         Load.Showed(mediumKey, bitmap.PixelSize, source);
+        UpdateInfoLayout();
     }
 
     /// <summary>The largest logical size of the shown picture again (the gallery's fit limit changed while the picture itself still fits).</summary>
@@ -662,6 +1102,7 @@ internal sealed class ReaderMediaSidebar : Border
         if (_bitmap == null) return;
         _image.MaxWidth = maximumWidth;
         _image.MaxHeight = maximumHeight;
+        UpdateInfoLayout();
     }
 
     /// <summary>
@@ -688,7 +1129,7 @@ internal sealed class ReaderMediaSidebar : Border
         _status.Text = text;
         _status.IsVisible = text.Length > 0;
         _badgesOn = false;
-        UpdateBadges();
+        UpdateInfoLayout();
         UpdateFrameCursor();
     }
 
@@ -718,6 +1159,7 @@ internal sealed class ReaderMediaSidebar : Border
         _status.Text = text;
         _status.IsVisible = text.Length > 0;
         UpdateFrameCursor();
+        UpdateInfoLayout();
         Load.Dimmed();
     }
 
@@ -753,11 +1195,12 @@ internal sealed class ReaderMediaSidebar : Border
     /// were laid out anew (another post, another window): the caller then loads the pictures of <see cref="StripIndexes"/> that
     /// <see cref="HasStripPicture"/> does not have. Stepping within the window only moves the mark. One file or none hides the strip.
     /// </summary>
-    internal bool ShowStrip(int count, int current, int limit, Func<int, string> nameOf, bool samePost)
+    internal bool ShowStrip(int count, int current, int limit, Func<int, string> nameOf, bool samePost, Func<int, StripTarget>? targetOf = null)
     {
         if (!ReaderMediaMultiRules.ShowsStrip(count)) { ClearStrip(); return false; }
-        // Another post: the strip keeps pictures by file index, so none of the previous post's thumbnails may stand in for this post's files.
         if (!samePost) ReleaseStripPictures();
+        samePost = samePost && _thumbnails.All(thumbnail =>
+            thumbnail.Index < count && Equals(thumbnail.Item.Tag, targetOf?.Invoke(thumbnail.Index)));
         current = ReaderMediaSidebarRules.ClampIndex(current, count);
         (int start, int length) = ReaderMediaMultiRules.Window(current, count, limit, samePost && _stripCount == count ? _stripStart : -1);
         bool rebuilt = !_stripRow.IsVisible || !samePost || count != _stripCount || start != _stripStart || length != _thumbnails.Count;
@@ -765,7 +1208,7 @@ internal sealed class ReaderMediaSidebar : Border
         _stripSyncing = true;
         try
         {
-            if (rebuilt) RebuildStrip(start, length, count, nameOf);
+            if (rebuilt) RebuildStrip(start, length, count, nameOf, targetOf);
             _stripCount = count;
             _stripCurrent = current;
             _stripCounter.Text = ReaderMediaMultiRules.CounterText(current, count);
@@ -777,17 +1220,16 @@ internal sealed class ReaderMediaSidebar : Border
         return rebuilt;
     }
 
-    private void RebuildStrip(int start, int length, int count, Func<int, string> nameOf)
+    private void RebuildStrip(int start, int length, int count, Func<int, string> nameOf, Func<int, StripTarget>? targetOf)
     {
-        // Pictures of files that stay in the window stay; the others are given back.
-        HashSet<int> keep = new();
-        for (int index = start; index < start + length; index++) keep.Add(index);
-        foreach (int index in new List<int>(_stripBitmaps.Keys))
+        // A thumbnail lease carries over only while its attachment revision stays in the window.
+        foreach (StripThumbnail thumbnail in _thumbnails)
         {
-            if (keep.Contains(index)) continue;
-            (Bitmap bitmap, Action<Bitmap> release) = _stripBitmaps[index];
-            _stripBitmaps.Remove(index);
-            release(bitmap);
+            int index = thumbnail.Index;
+            if (index >= start && index < start + length && Equals(thumbnail.Item.Tag, targetOf?.Invoke(index))) continue;
+            if (!_stripBitmaps.Remove(index, out var lease)) continue;
+            thumbnail.Picture.Source = null;
+            lease.Release(lease.Bitmap);
         }
         _strip.Items.Clear();
         _thumbnails.Clear();
@@ -806,7 +1248,7 @@ internal sealed class ReaderMediaSidebar : Border
             };
             frame[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
             string name = ReaderMediaMultiRules.ItemName(index, count, nameOf(index));
-            ListBoxItem item = new() { Content = frame, Padding = new Thickness(2), MinWidth = 0, MinHeight = 0, Tag = index };
+            ListBoxItem item = new() { Content = frame, Padding = new Thickness(2), MinWidth = 0, MinHeight = 0, Tag = targetOf?.Invoke(index) };
             AutomationProperties.SetName(item, name);
             ToolTip.SetTip(item, name);
             if (_stripBitmaps.TryGetValue(index, out (Bitmap Bitmap, Action<Bitmap> Release) held))
@@ -872,8 +1314,9 @@ internal sealed class ReaderMediaSidebar : Border
 
     private void OnStripSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_stripSyncing || _strip.SelectedItem is not ListBoxItem { Tag: int index } || index == _stripCurrent) return;
-        StripSelected?.Invoke(this, index);
+        if (_stripSyncing || _strip.SelectedItem is not ListBoxItem { Tag: StripTarget target } || target.Index == _stripCurrent
+            || StripTargetIsCurrent?.Invoke(target) != true) return;
+        StripSelected?.Invoke(this, target.Index);
     }
 
     // ← → move to the neighbouring file of the whole post (also beyond the window), Home and End to its ends; Enter and Space choose
@@ -885,12 +1328,13 @@ internal sealed class ReaderMediaSidebar : Border
         {
             e.Handled = true;
             int target = ReaderMediaMultiRules.KeyTarget(_stripCurrent, _stripCount, e.Key);
-            if (target != _stripCurrent) StripSelected?.Invoke(this, target);
+            if (target != _stripCurrent && _strip.SelectedItem is ListBoxItem { Tag: StripTarget selected } && StripTargetIsCurrent?.Invoke(selected) == true)
+                StripSelected?.Invoke(this, target);
         }
-        else if (e.Key is Key.Enter or Key.Space && e.Source is ListBoxItem { Tag: int index })
+        else if (e.Key is Key.Enter or Key.Space && e.Source is ListBoxItem { Tag: StripTarget origin })
         {
             e.Handled = true;
-            if (index != _stripCurrent) StripSelected?.Invoke(this, index);
+            if (origin.Index != _stripCurrent && StripTargetIsCurrent?.Invoke(origin) == true) StripSelected?.Invoke(this, origin.Index);
         }
     }
 

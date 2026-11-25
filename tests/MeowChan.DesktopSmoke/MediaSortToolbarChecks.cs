@@ -144,6 +144,24 @@ internal static partial class MediaPageChecks
             // The page presents in the background here (BackgroundPresentEntries = 0); the view re-applies the tools after that.
             await Program.WaitUntilAsync(() => page.HeaderMoreIds.SequenceEqual(["media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 () => "While the order is random the narrow row must also hold Shuffle again under More: " + string.Join(",", page.HeaderMoreIds));
+            window.Width = 760;
+            await UntilAsync(() => Math.Abs(page.Bounds.Width - 760) < 0.5);
+            await page.PresentTask;
+            RequireToolbarFits("compact (760)");
+            Require(!C<Button>(page, "MediaShuffle").IsEffectivelyVisible, "At 760 DIP Shuffle must be offered through More.");
+            MenuFlyout menu = (MenuFlyout)more.Flyout!;
+            menu.ShowAt(more);
+            MenuItem shuffle = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, Texts.T("media.shuffle")));
+            await UntilAsync(() => menu.IsOpen && shuffle.IsEffectivelyVisible && shuffle.Bounds.Width > 0);
+            int presentations = page.PresentCount;
+            int requests = page.PresentRunCount;
+            SmokeActionClick.Execute(shuffle);
+            await page.PresentTask;
+            Require(page.PresentRunCount == requests + 1 && page.PresentCount == presentations + 1
+                && page.Sort == MediaLibrarySort.Random && page.Tiles.Count == 3,
+                "Shuffle from More must present the same three tiles once in random order.");
+            menu.Hide();
+            Console.WriteLine($"SMOKE media Shuffle at 760 DIP: invoked through More at measured row width {page.ToolbarRow.Bounds.Width:0.##}.");
             sort.SelectedIndex = 0;
             window.Width = MediaToolbarLayout.CompactWidth + 80; // inside the Reduced stage whatever the page padding is
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Reduced);

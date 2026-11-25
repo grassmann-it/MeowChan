@@ -12,7 +12,7 @@ namespace MeowChan.Archive;
 
 public sealed partial class ArchiveReader
 {
-    /// <summary>Counts local incoming quotes for one bounded reader page in a single read transaction.</summary>
+    /// <summary>Counts local incoming quotes for a bounded set of posts in a single read transaction.</summary>
     public Task<IReadOnlyDictionary<string, int>> GetBacklinkCountsAsync(ResourceId thread,
         IReadOnlyList<string> postIds, CancellationToken cancellationToken = default)
     {
@@ -26,17 +26,25 @@ public sealed partial class ArchiveReader
         return ReadAsync((connection, transaction) => ArchiveSql.ReadBacklinkCounts(connection, transaction, thread, ids,
             cancellationToken), cancellationToken);
     }
+
+    // One scan for the full reader, including legacy catalogs without the quote index.
+    internal Task<IReadOnlyDictionary<string, int>> GetThreadBacklinkCountsAsync(ResourceId thread, CancellationToken token)
+    {
+        ArchiveValidation.ValidateId(thread);
+        return ReadAsync((connection, transaction) => ArchiveSql.ReadBacklinkCounts(connection, transaction, thread, null, token), token);
+    }
 }
 
 internal static partial class ArchiveSql
 {
     internal static IReadOnlyDictionary<string, int> ReadBacklinkCounts(SqliteConnection connection,
-        SqliteTransaction transaction, ResourceId thread, IReadOnlyList<string> postIds, CancellationToken token)
+        SqliteTransaction transaction, ResourceId thread, IReadOnlyList<string>? postIds, CancellationToken token)
     {
-        Dictionary<string, int> result = postIds.ToDictionary(id => id, _ => 0, StringComparer.Ordinal);
+        Dictionary<string, int> result = postIds?.ToDictionary(id => id, _ => 0, StringComparer.Ordinal)
+            ?? new(StringComparer.Ordinal);
         if (GetPragma(connection, "user_version", transaction) == 1)
         {
-            // One legacy scan for the entire visible page, never one scan per post.
+            // Scan the legacy archive once for the requested posts.
             int total = ReadPage(connection, transaction, 0, 1).TotalCount;
             for (int start = 0; start < total; start += 500)
             {
@@ -48,21 +56,24 @@ internal static partial class ArchiveSql
                     {
                         token.ThrowIfCancellationRequested();
                         foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(summary.Id, summary.Url, post))
-                            if (quote.Target is { } target && target.Thread == thread && result.ContainsKey(target.PostId))
-                                result[target.PostId]++;
+                            if (quote.Target is { } target && target.Thread == thread
+                                && (postIds == null || result.ContainsKey(target.PostId)))
+                                result[target.PostId] = checked(result.GetValueOrDefault(target.PostId) + 1);
                     }
                 }
             }
             return new ReadOnlyDictionary<string, int>(result);
         }
+        string filter = postIds == null ? string.Empty
+            : $"AND target_post IN ({string.Join(",", Enumerable.Range(0, postIds.Count).Select(index => "$p" + index))})";
         using SqliteCommand command = Command(connection, transaction, $"""
             SELECT target_post, count(*) FROM archive_quotes
             WHERE target_source=$source AND target_board=$board AND target_thread=$thread
-              AND target_post IN ({string.Join(",", Enumerable.Range(0, postIds.Count).Select(index => "$p" + index))})
+              {filter}
             GROUP BY target_post
             """);
         AddId(command, thread);
-        for (int index = 0; index < postIds.Count; index++) command.Parameters.AddWithValue("$p" + index, postIds[index]);
+        for (int index = 0; index < (postIds?.Count ?? 0); index++) command.Parameters.AddWithValue("$p" + index, postIds![index]);
         using SqliteDataReader rows = command.ExecuteReader();
         while (rows.Read())
         {

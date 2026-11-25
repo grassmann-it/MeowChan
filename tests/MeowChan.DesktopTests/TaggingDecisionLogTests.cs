@@ -1,8 +1,16 @@
+using System.Reflection;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
+using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
 
@@ -119,6 +127,35 @@ public sealed class TaggingDecisionLogTests : IDisposable
         // After a restart the queue resumes at the next open entry.
         await using DesktopSessionHost again = await StartAsync(temp.Path);
         Assert.Equal(1, (await again.LoadTagQueueAsync()).ResumeIndex());
+    }
+
+    [Fact]
+    public async Task ClosingTheWalkStillDrainsBothAdmittedWrites()
+    {
+        using TempDirectory temp = new();
+        PausedHostWriter writer = null!;
+        (DesktopSessionHost host, TaggingWalk walk) = await WalkAsync(temp.Path, 2,
+            wrapWriter: real => writer = new PausedHostWriter(real));
+        await using (host)
+        using (walk)
+        {
+            Task<TaggingWriteResult> first = walk.Decide(0, TagQueueState.Done).Write;
+            Task<TaggingWriteResult> second = walk.Decide(1, TagQueueState.Skipped).Write;
+            try
+            {
+                Assert.True(walk.Busy);
+                walk.Dispose();
+                Assert.Null(await walk.UndoAsync());
+            }
+            finally
+            {
+                writer.Release();
+                await Task.WhenAll(first, second);
+            }
+            Assert.Equal(TaggingWriteKind.Saved, (await first).Kind);
+            Assert.Equal(TaggingWriteKind.Saved, (await second).Kind);
+            Assert.Equal(new[] { TagQueueState.Done, TagQueueState.Skipped }, host.GetTagQueue()!.Items.Select(item => item.State));
+        }
     }
 
     [Fact]
@@ -299,6 +336,129 @@ public sealed class TaggingDecisionLogTests : IDisposable
     // ---- one undo key over queue decisions and favorite/rating steps ----------------------------------------------
 
     [Fact]
+    public void BackButtonAndCardDescribeTheActionThatActuallyRuns() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory queueProfile = new();
+        using TempDirectory tagProfile = new();
+        using ProfileLease lease = ProfileLease.Acquire(tagProfile.Path);
+        CardProfileOwner owner = new(GalleryRatingKeyTests.LayoutOwner(new PrivateTagStore(tagProfile.Path, lease)));
+        GalleryEntry shown = owner.Entries[0];
+        TagQueueItem[] items = owner.Entries.Select((entry, index) => Item(index + 1) with
+        {
+            Thread = entry.Key.Thread, Directory = entry.Manifest.Directory, AssetId = entry.Asset.AssetId, PostId = entry.Post?.PostId
+        }).ToArray();
+        BooruComponentDispatcher.Wait(ExerciseAsync());
+
+        async Task ExerciseAsync()
+        {
+            await using DesktopSessionHost host = await StartAsync(queueProfile.Path);
+            await host.EnqueueTagQueueAsync(items);
+            TagQueueSnapshot queue = await host.LoadTagQueueAsync();
+            var (paired, unavailable) = TaggingWalk.Pair(queue.Items, owner.Entries);
+            Assert.Equal(owner.Entries.Count, paired.Count);
+            PausedHostWriter writer = new(new HostTaggingQueueWriter(host));
+            using TaggingWalk walk = new(paired, unavailable, queue, writer);
+            await using GalleryViewer viewer = new();
+            typeof(GalleryViewer).GetField("_entry", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(viewer, shown);
+            viewer.SetPosition("1 / 3", false, true);
+            Window window = new() { Width = 1100, Height = 720, Content = viewer };
+            window.Show();
+            try
+            {
+                viewer.StartTaggingMode(walk, owner);
+                Assert.Equal(new[] { "GalleryTaggingBack", "GalleryTaggingSkip", "GalleryTaggingFavorite", "GalleryTaggingStamp", "GalleryTaggingDone" },
+                    Assert.IsType<WrapPanel>(viewer.TaggingBackButton.Parent).Children.Select(child => child.Name));
+                Check("command.gallery.previous", enabled: false);
+                GalleryTagPanelController controller = viewer.TagPanelController!;
+                await controller.Session.AddAsync("tagging-flow-test");
+                Check("command.tags.quick.undo");
+                ClickBack();
+                await BooruTestSupport.WaitAsync(() => controller.Session.UndoSteps.Count == 0 && !controller.Session.Busy,
+                    "the real tag step is undone");
+
+                await controller.Decisions!.SetRatingAsync([shown], 5);
+                Check("tagging.back.undoRating");
+                ClickBack();
+                await BooruTestSupport.WaitAsync(() => controller.Decisions.UndoSteps.Count == 0 && !controller.Decisions.Busy,
+                    "the real rating step is undone");
+                Assert.Equal(3, owner.Read(shown)?.Rating);
+
+                await controller.Decisions.SetFavoriteAsync([shown], true);
+                Check("tagging.back.undoFavorite");
+                ClickBack();
+                await BooruTestSupport.WaitAsync(() => controller.Decisions.UndoSteps.Count == 0 && !controller.Decisions.Busy,
+                    "the favorite step is undone");
+                Assert.False(owner.Read(shown)?.Favorite);
+
+                Task<TaggingWriteResult> pending = walk.Decide(0, TagQueueState.Skipped).Write;
+                try
+                {
+                    await writer.Entered.Task;
+                    Check("gallery.saving", enabled: false);
+                    ClickBack();
+                    Assert.Equal(TagQueueState.Open, host.GetTagQueue()!.Items[0].State);
+                }
+                finally
+                {
+                    writer.Release();
+                    await pending;
+                }
+                Check("tagging.back.undoSkip");
+                viewer.SetCardMode(true, persist: false);
+                Assert.Equal(new[] { "done", "back", "rate-4", "skip" }, viewer.TaggingCards.Select(card => card.Id));
+                ShortcutService.Publish(new ShortcutBindingsSection()
+                    .Set(TaggingCardCommands.Card(1), [])
+                    .Set(TaggingCardCommands.Card(2), [ShortcutGesture.Parse("F9")]));
+                Dispatcher.UIThread.RunJobs();
+                Button backCard = viewer.TaggingCardButtons[1];
+                // Help.md, macOS shortcuts: F-keys are shown as “F5 (Fn)”.
+                string card = TaggingCardCommands.Card(2);
+                Assert.Equal("F9 (Fn)", CommandCatalog.ShortcutTooltipDisplay(card, true, "gallery-tagging"));
+                Assert.Equal("F9", CommandCatalog.ShortcutTooltipDisplay(card, false, "gallery-tagging"));
+                string expectedKey = OperatingSystem.IsMacOS() ? "F9 (Fn)" : "F9";
+                Assert.Equal(Texts.T("cards.name", Texts.T("tagging.back.undoSkip"), expectedKey), AutomationProperties.GetName(backCard));
+                Assert.Equal(expectedKey, AutomationProperties.GetAcceleratorKey(backCard));
+                StackPanel cardContent = Assert.IsType<StackPanel>(backCard.Content);
+                Assert.NotNull(Assert.IsType<Border>(Assert.IsType<Grid>(cardContent.Children[0]).Children[0]).OpacityMask);
+                Assert.Equal(expectedKey, Assert.IsType<TextBlock>(Assert.IsType<Border>(cardContent.Children[1]).Child).Text);
+                Assert.False(Assert.IsType<Border>(Assert.IsType<StackPanel>(viewer.TaggingCardButtons[0].Content).Children[1]).IsVisible);
+                window.Activate();
+                viewer.Focus();
+                KeyEventArgs backKey = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F9, Source = viewer };
+                viewer.RaiseEvent(backKey);
+                Assert.True(backKey.Handled);
+                await BooruTestSupport.WaitAsync(() => !walk.Busy && host.GetTagQueue()!.Items[0].State == TagQueueState.Open,
+                    "the remapped card key undoes the skip");
+
+                viewer.SetCardMode(false, persist: false);
+                Assert.Equal(TaggingWriteKind.Saved, (await walk.Decide(0, TagQueueState.Done).Write).Kind);
+                Check("tagging.back.undoDone");
+                ClickBack();
+                await BooruTestSupport.WaitAsync(() => !walk.Busy && host.GetTagQueue()!.Items[0].State == TagQueueState.Open,
+                    "the back button undoes the done decision");
+                viewer.SetPosition("2 / 3", true, true);
+                Check("command.gallery.previous");
+                List<int> moves = [];
+                viewer.MoveRequested += moves.Add;
+                ClickBack();
+                Assert.Equal(-1, Assert.Single(moves));
+                Assert.Equal(TagQueueState.Open, host.GetTagQueue()!.Items[0].State);
+            }
+            finally { window.Close(); }
+
+            void ClickBack() => viewer.TaggingBackButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            void Check(string key, bool enabled = true)
+            {
+                Assert.Equal(Texts.T(key), AutomationProperties.GetName(viewer.TaggingBackButton));
+                Assert.StartsWith(Texts.T(key), Assert.IsType<string>(ToolTip.GetTip(viewer.TaggingBackButton)));
+                Assert.Equal(enabled, viewer.TaggingBackButton.IsEnabled);
+            }
+        }
+    });
+
+    [Fact]
     public async Task TheNewestOfQueueDecisionAndFavoriteOrRatingStepIsUndoneFirstAndAQueueUndoReturnsToItsMedium()
     {
         using TempDirectory temp = new();
@@ -416,7 +576,7 @@ public sealed class TaggingDecisionLogTests : IDisposable
         public TagQueueSnapshot? Current => real.Current;
     }
 
-    private sealed class FakeWriter : ITaggingQueueWriter
+    internal sealed class FakeWriter : ITaggingQueueWriter
     {
         internal bool Fail, Missing;
         internal TagQueueSnapshot? Snapshot;
@@ -438,5 +598,27 @@ public sealed class TaggingDecisionLogTests : IDisposable
         { _states[entry.EntryKey] = _states.GetValueOrDefault(entry.EntryKey) with { Favorite = selected }; return Task.CompletedTask; }
         public Task SetRatingAsync(GalleryEntry entry, int? value, CancellationToken token)
         { _states[entry.EntryKey] = _states.GetValueOrDefault(entry.EntryKey) with { Rating = value }; return Task.CompletedTask; }
+    }
+
+    private sealed class CardProfileOwner(IGalleryTagPanelOwner inner) : IGalleryTagPanelOwner, IGalleryDecisionOwner, ITaggingCardsOwner
+    {
+        private readonly IGalleryDecisionOwner _decisions = (IGalleryDecisionOwner)inner;
+        public TaggingCardSettings Cards { get; } = TaggingCardSettings.From(false, ["done", "back", "rate-4", "skip"], 4);
+        public void SaveCardsActive(bool active) { }
+        public IQuickTagTarget? OpenTarget(GalleryEntry entry, out string? unavailableReason) => inner.OpenTarget(entry, out unavailableReason);
+        public MediaTagSubject? SubjectOf(GalleryEntry entry, out string? unavailableReason) => inner.SubjectOf(entry, out unavailableReason);
+        public IQuickTagTarget? OpenSelectionTarget(IReadOnlyList<MediaTagSubject> subjects, out string? unavailableReason) =>
+            inner.OpenSelectionTarget(subjects, out unavailableReason);
+        public IReadOnlyList<GalleryEntry> Entries => inner.Entries;
+        public GalleryTagPanelPosition? Position => inner.Position;
+        public TagRecentList Recent => inner.Recent;
+        public QuickTagOptions Options => inner.Options;
+        public TagContextOptions ContextOptions => inner.ContextOptions;
+        public BooruCatalogSnapshot? ReadSourceTags() => inner.ReadSourceTags();
+        public GalleryThreadTagModel OpenThreadTags(ResourceId thread) => inner.OpenThreadTags(thread);
+        public void OpenAdvanced(GalleryEntry entry) => inner.OpenAdvanced(entry);
+        public GalleryDecisionState? Read(GalleryEntry entry) => _decisions.Read(entry);
+        public Task SetFavoriteAsync(GalleryEntry entry, bool selected, CancellationToken token) => _decisions.SetFavoriteAsync(entry, selected, token);
+        public Task SetRatingAsync(GalleryEntry entry, int? value, CancellationToken token) => _decisions.SetRatingAsync(entry, value, token);
     }
 }

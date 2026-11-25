@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
@@ -10,6 +8,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
 
@@ -25,6 +24,7 @@ internal sealed partial class GalleryViewer
     private GalleryTagPanelController? _tagController;
     private QuickTagSurface? _tagSurface;
     private GalleryThreadTagSection? _threadSection;
+    private Button? _threadSectionButton;
     private StackPanel? _tagExtra;
     private TextBlock? _tagReason;
     // Favorite and rating of the panel's targets (PT6): the row above the field; null when the owner offers none.
@@ -33,6 +33,7 @@ internal sealed partial class GalleryViewer
     // The media marked in the gallery (Shift+Page Down, E4): gallery state, kept while the panel closes and opens again.
     private GalleryMarks? _marks;
     private bool _tagPanelOpen;
+    internal event Action<TagId>? MediaTagFilterRequested;
 
     /// <summary>True while the tag panel (not the post panel) holds the slot.</summary>
     internal bool IsTagPanelOpen => _tagPanelOpen;
@@ -69,21 +70,20 @@ internal sealed partial class GalleryViewer
         _marks ??= new GalleryMarks(owner.Options.MarkedMediaLimit);
         GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks);
         QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, FillSuggestions = true, ReadSourceTags = owner.ReadSourceTags };
-        surface.UseSectionInset();
+        surface.FilterMediaByTag = MediaTagFilterRequested;
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
-        SetPanelCounter(surface, controller, entry);
         surface.MarkedCount = _marks.Count;
-        AnnounceCounter(surface);
-        // The panel header owns the position. The title above the stars spans the tag surface.
-        _sidePanel.HeaderCounter = surface.DetachCounter();
-        Grid.SetColumn(surface.Title, 0);
-        Grid.SetColumnSpan(surface.Title, surface.Header.ColumnDefinitions.Count);
-        surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Left;
+        surface.UseSidebarHeader();
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
-        _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
+        _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-meta" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
         _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };
         _tagExtra.Children.Add(_tagReason);
+        _threadSectionButton = new Button { Name = "GalleryThreadTagsToggle", Classes = { "subtle" } };
+        CommandBindings.ApplyLabeled(_threadSectionButton, QuickTagCommands.ThreadSection, CommandCatalog.Label(QuickTagCommands.ThreadSection));
+        PopupToggle.Prepare(_threadSectionButton);
+        _threadSectionButton.Click += (_, _) => OnTagThreadSectionRequested();
+        _tagExtra.Children.Add(_threadSectionButton);
         _tagExtra.Children.Add(_threadSection);
         surface.ExtraContent = _tagExtra;
         surface.CloseRequested += CloseTagPanel;
@@ -105,10 +105,10 @@ internal sealed partial class GalleryViewer
         _tagController = controller;
         _tagSurface = surface;
         if (_tagging != null) CoupleTaggingPanel(surface, controller); // the tagging mode's undo and stamp (PT3)
-        surface.CloseButton.IsVisible = false; // the host's × at the right edge of the header closes the panel
         ShowUnavailableReason(controller.UnavailableReason);
         surface.LoadSourceTags();
         _tagPanelOpen = true;
+        RefreshTagPanelInfo(entry);
         _filmstrip.SetTaggingViewOpen(true); // the filmstrip's "no tags yet" mark follows the tagging view
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
         RefreshDecisionRow();
@@ -139,7 +139,7 @@ internal sealed partial class GalleryViewer
         _filmstrip.SetTaggingViewOpen(false);
         QuickTagSurface? surface = _tagSurface;
         GalleryTagPanelController? controller = _tagController;
-        _tagSurface = null; _tagController = null; _tagOwner = null;
+        _tagSurface = null; _tagController = null;
         if (surface != null)
         {
             UncoupleTaggingPanel(surface);
@@ -158,18 +158,18 @@ internal sealed partial class GalleryViewer
             if (surface != null) { surface.ExtraUndo = null; surface.DecisionContent = null; }
             _decisionRow = null;
         }
-        _sidePanel.HeaderCounter = null;
         if (ReferenceEquals(_sidePanel.TagContent, surface)) _sidePanel.TagContent = null;
         _sidePanel.Segment = GallerySidePanelSegment.Post;
         _threadSection?.Dispose();
         surface?.Dispose();
         controller?.Dispose();
-        _threadSection = null; _tagExtra = null; _tagReason = null;
+        _threadSection = null;
+        _threadSectionButton = null; _tagExtra = null; _tagReason = null;
         ApplyChrome(); // the row is gone: the info line shows the rating again (QW5)
         // The post context was not kept current meanwhile.
         _contextDirty = true;
         EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk is the panel; it ends with it
-        RefreshPostPanelPosition();
+        RefreshPanelCounter();
         return true;
     }
 
@@ -187,19 +187,20 @@ internal sealed partial class GalleryViewer
     /// </summary>
     internal void RetargetTagPanel(GalleryEntry entry)
     {
-        if (!_tagPanelOpen || _tagController is not { } controller || _tagSurface is not { } surface || _tagOwner is not { } owner) return;
+        if (!_tagPanelOpen || _tagController is not { } controller || _tagSurface is not { } surface) return;
         bool sameMedium = controller.Entry.EntryKey == entry.EntryKey;
         if (sameMedium)
         {
             // Only the position may have changed (more threads resolved).
-            SetPanelCounter(surface, controller, entry);
+            RefreshPanelCounter();
             RefreshDecisionRow();
             return;
         }
         bool hadFocus = surface.IsKeyboardFocusWithin;
+        _decisionRow?.SetError(null);
         GalleryTagPanelFrame frame = controller.Frame(entry);
         surface.Retarget(frame.Target, frame.Label);
-        SetPanelCounter(surface, controller, entry);
+        RefreshPanelCounter();
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         if (_threadSection is { IsVisible: true } section) section.Model = frame.UnavailableReason == null ? controller.OpenThreadTags() : null;
@@ -273,28 +274,21 @@ internal sealed partial class GalleryViewer
         GalleryTagPanelFrame frame = controller.Frame(controller.Entry);
         surface.Retarget(frame.Target, frame.Label);
         // The owner's position may already be on the next medium (a move was requested): the counter names that one.
-        SetPanelCounter(surface, controller, controller.ShownEntry());
+        RefreshPanelCounter();
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         RefreshDecisionRow();
     }
 
-    // QW1: in the tagging mode the position stands once, between the arrows ("Queue 3 of 27"); the panel head shows no second counter.
-    private string? PanelCounter(string? counter) => GalleryChromePlan.PanelCounter(counter, IsTagMode);
-
-    // The position badge uses the short text, with the full text as its tooltip and accessible name.
-    private void SetPanelCounter(QuickTagSurface surface, GalleryTagPanelController controller, GalleryEntry entry)
+    private void RefreshTagPanelInfo(GalleryEntry entry)
     {
-        surface.CounterShortText = PanelCounter(controller.ShortCounterFor(entry));
-        surface.CounterText = PanelCounter(controller.CounterFor(entry));
-    }
-
-    // The tagging mode started or ended under an open panel: its counter chip follows (shown outside the mode, away inside it).
-    private void RefreshPanelCounter()
-    {
-        if (_tagController is { } controller && _tagSurface is { } surface)
-            SetPanelCounter(surface, controller, controller.ShownEntry());
-        else RefreshPostPanelPosition();
+        if (!_tagPanelOpen || _tagSurface is not { } surface) return;
+        int generation = _contextGeneration;
+        GalleryPostParts parts = BuildPostParts(entry, (panel, name, label, invoke) => Command(panel, name, label, () =>
+        {
+            if (ReferenceEquals(_tagSurface, surface) && generation == _contextGeneration) invoke();
+        }));
+        surface.SetSidebarInfo(parts.Info, parts.Actions);
     }
 
     // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------
@@ -321,6 +315,7 @@ internal sealed partial class GalleryViewer
     {
         if (_entry == null) return;
         RevealForRatingFeedback();
+        FlashFavoriteBadge(); // 0 to 5 show the heart and its stars at once, also when the key changes nothing (like M and U)
         if (_tagPanelOpen && _tagController?.Decisions != null) { RequestDecisionRating(value); return; }
         RatingSetRequested?.Invoke(_entry, value);
     }
@@ -334,11 +329,14 @@ internal sealed partial class GalleryViewer
 
     private async Task RunDecisionAsync(QuickTagSurface surface, Task<GalleryDecisionStatus> request)
     {
+        IQuickTagTarget target = surface.Session.Target;
         try
         {
             GalleryDecisionStatus status = await request;
-            if (!ReferenceEquals(surface, _tagSurface)) return;
-            if (status.Kind != GalleryDecisionStatusKind.None) surface.Announce(status.Text());
+            if (!ReferenceEquals(surface, _tagSurface) || !ReferenceEquals(target, surface.Session.Target)) return;
+            bool failed = status.Kind == GalleryDecisionStatusKind.Failed;
+            _decisionRow?.SetError(failed ? status.Text() : null);
+            if (!failed && status.Kind != GalleryDecisionStatusKind.None) surface.Announce(status.Text());
             RefreshDecisionRow();
         }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.decision")) { /* Logged and shown. */ }
@@ -348,23 +346,34 @@ internal sealed partial class GalleryViewer
         _tagSurface is { Input.IsKeyboardFocusWithin: true } surface
         && (surface.Input.IsComposing || QuickTagKeys.FieldOwnsCharacter(e, ShortcutService.Current.Platform));
 
-    // Ctrl+T: opens the thread tags section and focuses its field; again, with the focus inside it, collapses it back to the field.
+    // The button and the effective shortcut toggle the section independently of which field has focus.
     private void OnTagThreadSectionRequested()
     {
         if (_threadSection is not { } section || _tagSurface is not { } surface || _tagController is not { } controller) return;
-        if (section.IsVisible && section.IsKeyboardFocusWithin)
-        {
-            section.IsVisible = false;
-            surface.FocusField();
-            return;
-        }
-        if (!section.IsVisible)
-        {
-            section.Model = controller.UnavailableReason == null ? controller.OpenThreadTags() : null;
-            section.IsVisible = true;
-        }
+        if (section.IsVisible) { CloseThreadTagSection(section, surface); return; }
+        section.Model = controller.UnavailableReason == null ? controller.OpenThreadTags() : null;
+        section.IsVisible = true;
+        if (_threadSectionButton is { } button) PopupToggle.Present(button, true);
         section.BringIntoView();
         section.FocusInput();
+    }
+
+    private void CloseThreadTagSection(GalleryThreadTagSection section, QuickTagSurface surface)
+    {
+        section.Input.Dismiss();
+        section.IsVisible = false;
+        if (_threadSectionButton is { } button) PopupToggle.Present(button, false);
+        surface.FocusField();
+    }
+
+    private bool TryDismissThreadTagSection()
+    {
+        if (_threadSection is not { IsVisible: true } section || _tagSurface is not { } surface
+            || surface.FieldHasComposition || section.Input.IsComposing) return false;
+        if (section.Input.HasSuggestionList) section.Input.Dismiss();
+        else if (surface.Input.HasSuggestionList) surface.Input.Dismiss();
+        else CloseThreadTagSection(section, surface);
+        return true;
     }
 
     // The strip is asked again once a warm-up or the neighbour mapping finished (worker thread).
@@ -375,16 +384,6 @@ internal sealed partial class GalleryViewer
         Dispatcher.UIThread.Post(() => { if (ReferenceEquals(surface, _tagSurface)) surface.Refresh(); });
     }
 
-    // "Medium 4 of 27" is announced politely when it changes.
-    private static void AnnounceCounter(QuickTagSurface surface)
-    {
-        foreach (Border counter in surface.Header.Children.OfType<Border>().Where(item => item.Name == TagPanelName + "Counter"))
-        {
-            AutomationProperties.SetLiveSetting(counter, AutomationLiveSetting.Polite);
-            if (counter.Child is TextBlock label) AutomationProperties.SetLiveSetting(label, AutomationLiveSetting.Polite);
-        }
-    }
-
     /// <summary>
     /// Routes the keys of the tag panel's commands (rebindable) while it is open, wherever the focus is. A key in a text field stays
     /// with the field (CommandBindings.Matches leaves it), so the surface's own routing handles those. Returns true when handled.
@@ -392,13 +391,10 @@ internal sealed partial class GalleryViewer
     private bool RouteTagPanelKey(KeyEventArgs e)
     {
         if (!_tagPanelOpen || _tagSurface is not { } surface || e.Handled) return false;
-        // Escape closes an open suggestion list of the thread field before it closes the panel.
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _threadSection is { Input: { IsDropDownOpen: true } input } && input.IsKeyboardFocusWithin)
-        {
-            input.Dismiss();
-            e.Handled = true;
-            return true;
-        }
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && TryDismissThreadTagSection())
+        { e.Handled = true; return true; }
+        if (_threadSection?.Input.IsComposing != true && CommandBindings.Matches(e, QuickTagCommands.ThreadSection))
+        { OnTagThreadSectionRequested(); e.Handled = true; return true; }
         // The command that opened the panel closes it again, also from inside the field.
         if (CommandBindings.Matches(e, "media.tags.edit")) { CloseTagPanel(); e.Handled = true; return true; }
         foreach (string id in GalleryTagPanelCommands.Handled)

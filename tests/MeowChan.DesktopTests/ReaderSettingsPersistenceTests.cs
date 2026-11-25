@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
@@ -7,6 +8,9 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class ReaderSettingsPersistenceTests
 {
+    internal static PropertyInfo ConfigNumber(string name) =>
+        typeof(Config).GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
+
     public static IEnumerable<object[]> Numbers()
     {
         yield return new object[] { nameof(Config.ReaderThumbnailWidth), 240, 120, 480 };
@@ -15,7 +19,6 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderPreviewDelayMs), 300, 0, 2000 };
         yield return new object[] { nameof(Config.ReaderReplyStep), 5, 1, 50 };
         yield return new object[] { nameof(Config.ReaderReplyLines), 4, 1, 20 };
-        yield return new object[] { nameof(Config.ReaderPageSize), 50, 20, 200 };
         yield return new object[] { nameof(Config.ReaderThreadingDepth), 6, 1, 16 };
         yield return new object[] { nameof(Config.GalleryFitMaxUpscalePercent), 200, 100, 1600 };
         yield return new object[] { nameof(Config.GalleryMaxZoomPercent), 1600, 200, 6400 };
@@ -25,12 +28,14 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReadingHistoryMenuEntries), 10, 3, 25 };
         yield return new object[] { nameof(Config.ReaderTextlessMediaWidth), 360, 120, 960 };
         yield return new object[] { nameof(Config.ReaderFocusedMediaScalePercent), 200, 100, 400 };
+        yield return new object[] { nameof(Config.ReaderFocusedPostTopPaddingPercent), 8, 0, 25 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeSize), 640, 240, 1600 };
         yield return new object[] { nameof(Config.ReaderHoverEnlargeDelayMs), 350, 100, 2000 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarWidth), 480, 240, 1200 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarMinimumWidth), 1280, 800, 3840 };
         yield return new object[] { nameof(Config.ReaderInlineVideoMaxPlayers), 2, 1, 4 };
         yield return new object[] { nameof(Config.ReaderInlineVideoMaxFileMiB), 256, 1, 4096 };
+        yield return new object[] { nameof(Config.SidebarPreviewMaximumPixels), 80_000_000, 1_000_000, 80_000_000 };
         yield return new object[] { nameof(Config.ReaderMediaStripLimit), 12, 2, 40 };
         yield return new object[] { nameof(Config.ReaderMediaGridTextLimit), 280, 0, 2000 };
         yield return new object[] { nameof(Config.ReaderPreviewPrefetchPosts), 8, 0, 50 };
@@ -41,7 +46,7 @@ public sealed class ReaderSettingsPersistenceTests
     [MemberData(nameof(Numbers))]
     public void DefaultsAndInclusiveBoundsMatchTheComponents(string name, int fallback, int min, int max)
     {
-        var property = typeof(Config).GetProperty(name)!;
+        var property = ConfigNumber(name);
         Assert.Equal(fallback, property.GetValue(new Config()));
         foreach (int value in new[] { min, max })
         {
@@ -50,11 +55,36 @@ public sealed class ReaderSettingsPersistenceTests
         foreach (int value in new[] { int.MinValue, min - 1, max + 1, int.MaxValue })
         {
             Config config = new(); property.SetValue(config, value);
-            Assert.Equal(name, Assert.Throws<ArgumentOutOfRangeException>(config.Validate).ParamName);
-            Assert.Throws<ArgumentOutOfRangeException>(() => new Config().CopySettingsFieldsFrom(config));
+            if (name is nameof(Config.SidebarPreviewMaximumPixels))
+                Assert.Equal(Math.Clamp(value, min, max), property.GetValue(config));
+            else
+            {
+                Assert.Equal(name, Assert.Throws<ArgumentOutOfRangeException>(config.Validate).ParamName);
+                Assert.Throws<ArgumentOutOfRangeException>(() => new Config().CopySettingsFieldsFrom(config));
+            }
             Config loaded = JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(config))!;
             Assert.Equal(Math.Clamp(value, min, max), property.GetValue(loaded));
         }
+    }
+
+    [Fact]
+    public void ObsoleteMinimumFreeHeightIsIgnoredWhenLoadingAndExportingAProfile()
+    {
+        // Fable #3: the old value is ignored, while the profile and its other settings still load.
+        using TempDirectory directory = new();
+        File.WriteAllText(Path.Combine(directory.Path, "settings.json"),
+            """{"MediaSidebarInfoMinimumFree":200,"ReaderMediaSidebarWidth":700,"MediaSidebarInfoMaximumShare":57}""");
+        Config config = Config.LoadConfig(directory.Path);
+        Assert.Null(config.LoadWarning);
+        Assert.Equal(700, config.ReaderMediaSidebarWidth);
+        Assert.Equal(57, config.MediaSidebarInfoMaximumShare);
+
+        var exported = SettingsTransfer.Export(config, "1.1.2");
+        Assert.False(exported.ContainsKey("MediaSidebarInfoMinimumFree"));
+        Assert.Equal(700, exported[nameof(Config.ReaderMediaSidebarWidth)]!.GetValue<int>());
+        config.SaveConfig(directory.Path);
+        using JsonDocument saved = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory.Path, "settings.json")));
+        Assert.False(saved.RootElement.TryGetProperty("MediaSidebarInfoMinimumFree", out _));
     }
 
     [Fact]
@@ -62,7 +92,7 @@ public sealed class ReaderSettingsPersistenceTests
     {
         using TempDirectory directory = new();
         Config config = new() { ReaderDateStyle = "SinceOp", ReaderSpoilers = "Hover", GalleryFitUpscaleLimited = true };
-        foreach (object[] row in Numbers()) typeof(Config).GetProperty((string)row[0])!.SetValue(config, row[3]);
+        foreach (object[] row in Numbers()) ConfigNumber((string)row[0]).SetValue(config, row[3]);
         Config clone = config.Clone(), copy = new(), settings = new();
         copy.CopyFrom(clone); settings.CopySettingsFieldsFrom(copy);
         settings.SaveConfig(directory.Path);
@@ -73,7 +103,7 @@ public sealed class ReaderSettingsPersistenceTests
         {
             Assert.Equal("SinceOp", current.ReaderDateStyle); Assert.Equal("Hover", current.ReaderSpoilers);
             Assert.True(current.GalleryFitUpscaleLimited);
-            foreach (object[] row in Numbers()) Assert.Equal(row[3], typeof(Config).GetProperty((string)row[0])!.GetValue(current));
+            foreach (object[] row in Numbers()) Assert.Equal(row[3], ConfigNumber((string)row[0]).GetValue(current));
         }
     }
 
@@ -82,14 +112,16 @@ public sealed class ReaderSettingsPersistenceTests
     [InlineData("Long", 241, 37)]
     [InlineData("SinceOp", 480, 200)]
     [InlineData("RelativeToNow", 365, 50)]
-    public void EveryP5BChoiceSurvivesTheEditorAndTwoRestartsWithoutRoundingWidthsOrPageSizes(string dateStyle, int width, int pageSize)
+    public void DisplaySettingsSurviveTwoRestartsWithAnObsoletePageSizeInTheInitialProfile(string dateStyle, int width, int legacyPageSize)
     {
         using TempDirectory directory = new();
-        Config config = new()
-        {
-            ReaderDateStyle = dateStyle, ReaderThumbnailWidth = width, ReaderPageSize = pageSize,
-            ReaderPostWidth = "Column", ReaderFoldLines = 31, ReaderPreviewDelayMs = 725
-        };
+        Config config = JsonSerializer.Deserialize("{\"ReaderPageSize\":" + legacyPageSize + "}", ConfigJsonContext.Default.Config)!;
+        config.MediaSidebarInfoMaximumShare = 57;
+        config.ReaderDateStyle = dateStyle;
+        config.ReaderThumbnailWidth = width;
+        config.ReaderPostWidth = "Column";
+        config.ReaderFoldLines = 31;
+        config.ReaderPreviewDelayMs = 725;
         config = ReaderSettingsEditorTests.CaptureDraft(config, config.Clone());
         config.SaveConfig(directory.Path);
         for (int restart = 0; restart < 2; restart++)
@@ -97,9 +129,10 @@ public sealed class ReaderSettingsPersistenceTests
             config = Config.LoadConfig(directory.Path);
             Assert.Null(config.LoadWarning);
             Assert.Equal(dateStyle, config.ReaderDateStyle);
+            Assert.Equal(57, config.MediaSidebarInfoMaximumShare);
             Assert.Equal(Enum.Parse<ReaderDateStyle>(dateStyle), ReaderSettingsPreferences.DateStyle(config));
             Assert.Equal(width, config.ReaderThumbnailWidth);
-            Assert.Equal(pageSize, config.ReaderPageSize);
+            Assert.DoesNotContain("ReaderPageSize", JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config), StringComparison.Ordinal);
             Assert.Equal("Column", config.ReaderPostWidth);
             Assert.Equal(31, config.ReaderFoldLines);
             Assert.Equal(725, config.ReaderPreviewDelayMs);
@@ -111,7 +144,7 @@ public sealed class ReaderSettingsPersistenceTests
     public void AbsentOrUnknownPresentationChoicesKeepTheOldBehavior()
     {
         Config old = JsonSerializer.Deserialize<Config>("{}")!;
-        foreach (object[] row in Numbers()) Assert.Equal(row[1], typeof(Config).GetProperty((string)row[0])!.GetValue(old));
+        foreach (object[] row in Numbers()) Assert.Equal(row[1], ConfigNumber((string)row[0]).GetValue(old));
         Assert.Equal(ReaderDateStyle.System, ReaderSettingsPreferences.DateStyle(old));
         Assert.Equal(ReaderSpoilerMode.Hide, ReaderSettingsPreferences.Spoilers(old));
         Assert.False(ReaderSettingsPreferences.Gallery(old).Limit);
@@ -129,7 +162,7 @@ public sealed class ReaderSettingsPersistenceTests
         await using DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>());
         await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
         Config draft = host.Config.Clone();
-        foreach (object[] row in Numbers()) typeof(Config).GetProperty((string)row[0])!.SetValue(draft, row[3]);
+        foreach (object[] row in Numbers()) ConfigNumber((string)row[0]).SetValue(draft, row[3]);
         draft.ReaderDateStyle = "Long";
         draft.ReaderSpoilers = "Always";
         draft.GalleryFitUpscaleLimited = true;
@@ -141,7 +174,7 @@ public sealed class ReaderSettingsPersistenceTests
         try
         {
             await Assert.ThrowsAnyAsync<Exception>(() => host.ApplySettingsAsync(draft).WaitAsync(TimeSpan.FromSeconds(15)));
-            foreach (object[] row in Numbers()) Assert.Equal(row[1], typeof(Config).GetProperty((string)row[0])!.GetValue(host.Config));
+            foreach (object[] row in Numbers()) Assert.Equal(row[1], ConfigNumber((string)row[0]).GetValue(host.Config));
             Assert.Equal("System", host.Config.ReaderDateStyle);
             Assert.Equal("Hide", host.Config.ReaderSpoilers);
             Assert.False(host.Config.GalleryFitUpscaleLimited);
@@ -157,8 +190,8 @@ public sealed class ReaderSettingsPersistenceTests
         Config reloaded = Config.LoadConfig(directory.Path);
         foreach (object[] row in Numbers())
         {
-            Assert.Equal(row[3], typeof(Config).GetProperty((string)row[0])!.GetValue(host.Config));
-            Assert.Equal(row[3], typeof(Config).GetProperty((string)row[0])!.GetValue(reloaded));
+            Assert.Equal(row[3], ConfigNumber((string)row[0]).GetValue(host.Config));
+            Assert.Equal(row[3], ConfigNumber((string)row[0]).GetValue(reloaded));
         }
         Assert.Equal(draft.PostFilterRuleLimit, host.StoreLimits.PostFilterRules);
         Assert.Equal(draft.HiddenPostLimit, host.StoreLimits.HiddenPosts);

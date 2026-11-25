@@ -3,6 +3,9 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests.DesignLint;
 
@@ -31,10 +34,11 @@ internal static class DesignRules
     public const string ControlHeightLiteral = "control-height-literal";
     /// <summary>The page root does not take its inset from Workspace.Inset.Page.</summary>
     public const string PageInset = "page-inset";
+    public const string PanelTextStyle = "panel-text-style";
 
     public static readonly string[] All =
     {
-        FontSizeLiteral, FontSizeOffScale, ColorHex, ColorCode, SpacingOffGrid, GlyphIcon, RowHeightLiteral, ControlHeightLiteral, PageInset
+        FontSizeLiteral, FontSizeOffScale, ColorHex, ColorCode, SpacingOffGrid, GlyphIcon, RowHeightLiteral, ControlHeightLiteral, PageInset, PanelTextStyle
     };
 }
 
@@ -207,6 +211,7 @@ internal static class DesignLintScanner
         ScanSpacing(relativePath, text, xaml, lines, found);
         ScanGlyphs(relativePath, text, xaml, lines, found);
         ScanHeights(relativePath, text, xaml, lines, found);
+        ScanPanelTextStyles(relativePath, text, xaml, lines, found);
         if (xaml) ScanPageInset(relativePath, text, found, mergedInsetOwner);
         else if (CodePageFiles.Contains(relativePath, StringComparer.Ordinal)) ScanCodePageInset(relativePath, text, found);
 
@@ -214,6 +219,55 @@ internal static class DesignLintScanner
 
         return found.Where(v => !IsException(v)).OrderBy(v => v.Line).ToList();
     }
+
+    private static void ScanPanelTextStyles(string file, string text, bool xaml, LineIndex lines, List<DesignViolation> found)
+    {
+        string name = Path.GetFileNameWithoutExtension(file);
+        bool gallery = name == "GalleryViewer";
+        // The Booru panel is maintained by the Booru workstream and has its own typography.
+        if (file.StartsWith("Desktop/Views/Booru/", StringComparison.Ordinal)) return;
+        if (!gallery && !name.Contains("Panel", StringComparison.Ordinal) && !name.Contains("Sidebar", StringComparison.Ordinal)
+            && name is not ("QuickTagSurface" or "QuickTagPopover" or "GalleryDecisionRow" or "MediaFactGrid" or "MediaPositionPill")) return;
+        if (xaml)
+        {
+            try
+            {
+                foreach (XElement block in XDocument.Parse(text, LoadOptions.SetLineInfo).Descendants()
+                    .Where(element => IsPanelTextType(element.Name.LocalName)))
+                {
+                    if (block.Attribute("Classes") is { Value.Length: > 0 }
+                        || block.Attributes().Any(attribute => attribute.Name.LocalName.StartsWith("Classes.", StringComparison.Ordinal))) continue;
+                    found.Add(new(DesignRules.PanelTextStyle, file, ((System.Xml.IXmlLineInfo)block).LineNumber, block.Name.LocalName));
+                }
+            }
+            catch (System.Xml.XmlException) { /* Invalid markup is diagnosed by the XAML compiler. */ }
+            return;
+        }
+
+        SyntaxNode root = CSharpSyntaxTree.ParseText(text).GetRoot();
+        foreach (BaseObjectCreationExpressionSyntax creation in root.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
+        {
+            if (gallery && creation.FirstAncestorOrSelf<MethodDeclarationSyntax>()?.Identifier.ValueText != "AddContext") continue;
+            TypeSyntax? type = creation is ObjectCreationExpressionSyntax explicitCreation ? explicitCreation.Type
+                : (creation.Parent?.Parent as VariableDeclaratorSyntax)?.Parent is VariableDeclarationSyntax declaration ? declaration.Type
+                : creation.Parent is ArrowExpressionClauseSyntax { Parent: MethodDeclarationSyntax method } ? method.ReturnType : null;
+            string? typeName = type?.GetLastToken().ValueText;
+            if (typeName == null || !IsPanelTextType(typeName)) continue;
+            bool styled = creation.Initializer?.Expressions.OfType<AssignmentExpressionSyntax>()
+                .Any(assignment => assignment.Left.ToString() == "Classes" && assignment.Right is InitializerExpressionSyntax { Expressions.Count: > 0 }) == true
+                || creation.Parent is MemberAccessExpressionSyntax access && access.Name.Identifier.ValueText == "MetaText";
+            if (!styled) found.Add(new(DesignRules.PanelTextStyle, file, lines.LineOf(creation.SpanStart), typeName));
+        }
+        foreach (InvocationExpressionSyntax call in root.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                     .Where(call => call.Expression is IdentifierNameSyntax { Identifier.ValueText: "AddContext" }))
+        {
+            // Gallery's helper takes (panel, text, style, name). A style is required even for a plain body line.
+            if (call.ArgumentList.Arguments.Count < 3 || call.ArgumentList.Arguments[2].Expression.IsKind(SyntaxKind.NullLiteralExpression))
+                found.Add(new(DesignRules.PanelTextStyle, file, lines.LineOf(call.SpanStart), "AddContext"));
+        }
+    }
+
+    private static bool IsPanelTextType(string name) => name is "TextBlock" or "SelectableTextBlock" or "TrimTipTextBlock";
 
     /// <summary>Removes the violations covered by a layout contract: inside the one method with the declared signature, on a line
     /// that is exactly the declared statement; at most one violation per contract.</summary>

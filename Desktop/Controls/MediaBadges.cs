@@ -113,7 +113,7 @@ internal readonly record struct MediaBadge(MediaBadgeId Id, MediaBadgeCorner Cor
 /// <summary>The icons the badges use: existing masks of the feather catalog, plus the one drawn mark of the "no tags" badge.</summary>
 internal static class MediaBadgeIcons
 {
-    internal const string Missing = "x-circle", Favorite = "star-filled", Play = "play", Queued = "clipboard", Done = "check",
+    internal const string Missing = "x-circle", Favorite = "heart-filled", Play = "play", Queued = "clipboard", Done = "check",
         Skipped = "skip-forward", Tag = "tag", Rating = "star-half", Booru = "globe";
     /// <summary>Not a mask: the existing drawn mark of the untagged state (<see cref="WorkspaceChips.MarkUntagged"/>).</summary>
     internal const string Untagged = "untagged";
@@ -549,10 +549,12 @@ internal static class MediaBadgeIconBitmaps
 /// </summary>
 internal sealed partial class MediaBadgeView : Control
 {
-    private static readonly Pen Ring = new(VideoPlayMark.RingBrush, 1);
-    private static Geometry? s_triangle, s_untagged;
-    // The strokes of the "no tags" mark: its width follows the unit (12 to 20, even), so there are at most five; kept instead of one pen per tile and frame.
-    private static readonly Dictionary<double, Pen> UntaggedPens = new();
+    private static readonly Avalonia.Media.Immutable.ImmutablePen Ring = new(VideoPlayMark.RingColor.ToUInt32(), 1);
+    // Avalonia pens and geometries belong to the dispatcher that creates them.
+    [ThreadStatic] private static Geometry? s_triangle;
+    [ThreadStatic] private static Geometry? s_untagged;
+    // The strokes of the "no tags" mark are shared by tiles on the same dispatcher.
+    [ThreadStatic] private static Dictionary<double, Pen>? s_untaggedPens;
     private const int UntaggedPenLimit = 8;
 
     private MediaBadgeState _state;
@@ -582,6 +584,9 @@ internal sealed partial class MediaBadgeView : Control
     /// clear of, may be another): the owner places what depends on <see cref="Plan"/> anew.
     /// </summary>
     internal event Action? PlanRefreshed;
+
+    /// <summary>Raised when the plan changes with the state, available space or badge limits.</summary>
+    internal event Action? PlanChanged;
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -651,6 +656,7 @@ internal sealed partial class MediaBadgeView : Control
         Height = usable ? area.Height : 0;
         IsVisible = _plan.Badges.Length > 0;
         InvalidateVisual();
+        PlanChanged?.Invoke();
     }
 
     /// <summary>Takes the badges off (a recycled tile with no medium).</summary>
@@ -723,10 +729,11 @@ internal sealed partial class MediaBadgeView : Control
         s_untagged ??= Geometry.Parse(WorkspaceChips.MarkUntagged);
         double scale = target.Width / 12;
         double width = Math.Max(1, 1.5 * scale);
-        if (!UntaggedPens.TryGetValue(width, out Pen? pen))
+        Dictionary<double, Pen> pens = s_untaggedPens ??= new();
+        if (!pens.TryGetValue(width, out Pen? pen))
         {
             pen = new Pen(VideoPlayMark.GlyphBrush, width, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
-            if (UntaggedPens.Count < UntaggedPenLimit) UntaggedPens.Add(width, pen); // an unexpected size is drawn with a pen of its own, not kept
+            if (pens.Count < UntaggedPenLimit) pens.Add(width, pen); // an unexpected size is drawn with a pen of its own, not kept
         }
         Matrix place = Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(target.X, target.Y);
         using (context.PushTransform(place)) context.DrawGeometry(null, pen, s_untagged);

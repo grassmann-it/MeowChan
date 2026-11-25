@@ -174,6 +174,25 @@ public sealed class DesignLintTests
         Assert.Equal(new[] { "spacing-off-grid|Padding=new Thickness(6, 2)", "spacing-off-grid|Margin=new Thickness(0, 14, 0, 0)", "spacing-off-grid|new Thickness(5)" }, hidden);
     }
 
+    [Fact]
+    public void PanelTextStylesAreRequiredInCodeAndMarkup()
+    {
+        const string path = "Desktop/Controls/ExampleSidePanel.cs";
+        string code = """
+            class Example {
+                TextBlock first = new();
+                TextBlock second = new TextBlock { Text = "Caption" };
+                SelectableTextBlock third = new() { Classes = { "workspace-meta" } };
+                TextBlock fourth = new TextBlock { Text = "Caption" }.MetaText();
+                void Build() { AddContext(panel, title, null); AddContext(panel, title, "workspace-meta"); }
+            }
+            """;
+        Assert.Equal(new[] { "panel-text-style|TextBlock", "panel-text-style|TextBlock", "panel-text-style|AddContext" }, Run(path, code));
+        Assert.Empty(Run("Desktop/Controls/ExampleDialog.cs", code));
+        Assert.Equal(new[] { "panel-text-style|TextBlock" }, Run("Desktop/Controls/ExampleSidebar.axaml",
+            "<TextBlock Text=\"Caption\" /><SelectableTextBlock Classes=\"workspace-meta\" />"));
+    }
+
     private const string TransferFile = "Desktop/Shell/MainWindow.Transfer.cs";
 
     // Preserve the exact-method exception mechanism's regression coverage with an old, synthetic layout;

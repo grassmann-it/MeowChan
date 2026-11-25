@@ -38,8 +38,8 @@ internal static class ReadingPositionAnchorChecks
         LocalReadingPosition expected = VisiblePosition(page);
         Require(expected.SelectedPostId == "1022" && expected.Top < -10,
             "The restart fixture must retain selection and start inside a partially scrolled post.");
-        await WaitForSavedAsync(window, expected);
-        RestartExpectation expectation = new(Environment.ProcessId, expected, window.RenderScaling,
+        LocalReadingPosition saved = await WaitForSavedAsync(window, expected);
+        RestartExpectation expectation = new(Environment.ProcessId, expected, saved, window.RenderScaling,
             window.ClientSize.Width, window.ClientSize.Height);
         await File.WriteAllTextAsync(Path.Combine(profile, ExpectationFile), JsonSerializer.Serialize(expectation));
         Program.CaptureWindow(window, "smoke-reading-position-before-restart.png");
@@ -54,8 +54,8 @@ internal static class ReadingPositionAnchorChecks
         Require(expected.ProcessId != Environment.ProcessId, "The restart check must run in a different process.");
         Require(expected.Position.Top < -10, "The first process did not leave a nonzero reading offset.");
         Require(window.SessionHost.Config.RememberReadingPosition, "The second process lost the explicit opt-in.");
-        LocalReadingPosition? saved = await window.SessionHost.ReadReadingPositionAsync();
-        Require(saved == expected.Position, "The second process did not load the exact persisted reading anchor.");
+        LocalReadingPosition? saved = await ReadingPositionChecks.ReadPositionAsync(window);
+        Require(saved == expected.SavedPosition, "The second process did not load the exact persisted reading anchor.");
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
         await FlushLayoutAsync(window);
         Require(!reader.IsVisible && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
@@ -79,7 +79,7 @@ internal static class ReadingPositionAnchorChecks
         Trace("after explicit resume", expected, actual);
         Require(Matches(expected.Position, actual),
             $"Explicit restart resume lost the visible post/selected post/offset: expected {expected.Position}, actual {actual}.");
-        Require(await window.SessionHost.ReadReadingPositionAsync() == expected.Position,
+        Require(await ReadingPositionChecks.ReadPositionAsync(window) == expected.SavedPosition,
             "Resume itself changed the persisted conscious reading position.");
         Program.CaptureWindow(window, "smoke-reading-position-restarted.png");
         Console.WriteLine("SMOKE reading position: two real processes preserved the exact nonzero visible anchor and selection; startup stayed closed until the explicit resume menu action.");
@@ -103,11 +103,11 @@ internal static class ReadingPositionAnchorChecks
         actual != null && expected.ThreadId == actual.ThreadId && expected.PostId == actual.PostId
         && expected.SelectedPostId == actual.SelectedPostId && Math.Abs(expected.Top - actual.Top) < OffsetTolerance;
 
-    private static async Task WaitForSavedAsync(MainWindow window, LocalReadingPosition expected)
+    private static async Task<LocalReadingPosition> WaitForSavedAsync(MainWindow window, LocalReadingPosition expected)
     {
         for (int attempt = 0; attempt < 100; ++attempt)
         {
-            if (Matches(expected, await window.SessionHost.ReadReadingPositionAsync())) return;
+            if (await ReadingPositionChecks.ReadPositionAsync(window) is { } saved && Matches(expected, saved)) return saved;
             await Task.Delay(30);
         }
         throw new TimeoutException("Conscious reader wheel input did not persist the exact visible nonzero anchor.");
@@ -128,5 +128,6 @@ internal static class ReadingPositionAnchorChecks
         }));
 
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
-    private sealed record RestartExpectation(int ProcessId, LocalReadingPosition Position, double Scale, double Width, double Height);
+    private sealed record RestartExpectation(int ProcessId, LocalReadingPosition Position, LocalReadingPosition SavedPosition,
+        double Scale, double Width, double Height);
 }

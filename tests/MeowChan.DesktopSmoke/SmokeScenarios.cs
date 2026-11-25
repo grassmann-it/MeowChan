@@ -42,6 +42,7 @@ internal static partial class SmokeScenarios
     internal const string NormalPass = "startup, rendered thread/board bindings, background update, normal close";
 
     private const string Video = "MEOWCHAN_VIDEO_FIXTURE={repo}/tests/Fixtures/gallery-playback-vp8.webm";
+    private const string VideoWithAudio = "MEOWCHAN_VIDEO_FIXTURE={repo}/tests/Fixtures/release102/playback-vp8-audio.webm";
     private const string Mp4 = "MEOWCHAN_MP4_FIXTURE={repo}/tests/Fixtures/release102/playback-h264-silent.mp4";
     // The registry run wraps such entries in scripts/with-private-null-audio.py, as CI does.
     internal const string FunctionalAudio = "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1";
@@ -78,6 +79,7 @@ internal static partial class SmokeScenarios
         Alternative("reader-groups", "MEOWCHAN_READER_GROUPS_ONLY", "--reader-ux"),
         Alternative("reader-returns", "MEOWCHAN_READER_RETURNS_ONLY", "--reader-ux"),
         Alternative("reader-ideas", "MEOWCHAN_READER_IDEAS_ONLY", "--reader-ux"),
+        Alternative("archive-filter-surface", "MEOWCHAN_ARCHIVE_FILTER_SURFACE_ONLY", "--reader-ux"),
         Alternative("reader-replies", "MEOWCHAN_READER_REPLIES_ONLY", "--reader-ux"),
         Alternative("reader-post-filter", "MEOWCHAN_READER_POST_FILTER_ONLY", "--reader-ux"),
         Alternative("reader-stability", "MEOWCHAN_READER_STABILITY_ONLY", "--reader-ux"),
@@ -89,13 +91,15 @@ internal static partial class SmokeScenarios
         Alternative("reader-list-gallery-return", "MEOWCHAN_READER_LIST_GALLERY_RETURN_ONLY", "--reader-ux"),
         Alternative("reader-navigation", "MEOWCHAN_READER_NAVIGATION_ONLY", "--reader-ux"),
         Alternative("reader-view", "MEOWCHAN_READER_VIEW_ONLY", "--reader-ux"),
+        Alternative("reader-continuous", "MEOWCHAN_READER_CONTINUOUS_ONLY", "--reader-ux"),
         Alternative("reader-quick-settings", "MEOWCHAN_READER_QUICK_SETTINGS_ONLY", "--reader-ux"),
         Alternative("reader-thread-menu", "MEOWCHAN_READER_THREAD_MENU_ONLY", "--reader-ux"),
         Alternative("reader-toolbar", "MEOWCHAN_READER_TOOLBAR_ONLY", "--reader-ux"),
         Alternative("reader-conversation", "MEOWCHAN_READER_CONVERSATION_ONLY", "--reader-ux"),
         Alternative("reader-display", "MEOWCHAN_READER_DISPLAY_ONLY", "--reader-ux"),
         Alternative("reader-media-sidebar", "MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY", "--reader-ux"),
-        Alternative("reader-inline-video", "MEOWCHAN_READER_INLINE_VIDEO_ONLY", "--reader-ux") with { NightlyEnvironment = [Video] },
+        Alternative("reader-sidebar-header", "MEOWCHAN_READER_SIDEBAR_HEADER_ONLY", "--reader-ux"),
+        Alternative("reader-inline-video", "MEOWCHAN_READER_INLINE_VIDEO_ONLY", "--reader-ux") with { NightlyEnvironment = [VideoWithAudio, FunctionalAudio] },
         // The registry run uses the first requirement; under --reader-ux it acts only with READER_GROUPS.
         Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "MEOWCHAN_URSA_NATIVE_SUITE=groups", "--reader-ux"),
         Mode("selection", "native watch/archive multi-selection, focus-safe commands, batch export return, watch-only Delete and board admission modal"),
@@ -107,9 +111,15 @@ internal static partial class SmokeScenarios
         Nested("accessibility-numeric", "MEOWCHAN_ACCESSIBILITY_NUMERIC_ONLY", "--accessibility-probe"),
         Mode("window-geometry", "isolated native interactive resize; each edge/corner after pointer release and settled correction"),
         Mode("video-contrast", "real decoded video time, ended and corrupt-media error contrast in Light/Dark") with { NightlyEnvironment = [Video] },
-        Mode("plugins", NormalPass),
+        Mode("plugins", NormalPass) with
+        {
+            Pass = env => env("MEOWCHAN_PLUGIN_DRAFT_FOOTER_ONLY") == "1"
+                ? "plugin draft footer: minimum window, 12 languages, scrolling, keyboard save and discard, invalid-field focus"
+                : NormalPass
+        },
         Nested("plugin-reselection", "MEOWCHAN_PLUGIN_RESELECTION_ONLY", "--plugins"),
         Nested("plugin-change-review", "MEOWCHAN_PLUGIN_CHANGE_REVIEW_ONLY", "--plugins"),
+        Nested("plugin-draft-footer", "MEOWCHAN_PLUGIN_DRAFT_FOOTER_ONLY", "--plugins"),
         Nested("plugin-page-captures", "MEOWCHAN_PLUGIN_PAGE_CAPTURES_ONLY", "--plugins"),
         Mode("archive-cleanup", "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"),
         Mode("shell-load", "shell load: bounded offline gallery/load fixture, separate process watchdog, correlated UI/commit/resource measurements"),
@@ -119,10 +129,10 @@ internal static partial class SmokeScenarios
         Root("interrupted-startup", "MEOWCHAN_INTERRUPTED_STARTUP_ONLY"),
         Root("tag-autocomplete-commit", "MEOWCHAN_TAG_AUTOCOMPLETE_COMMIT_ONLY", "UX-LEDGER-11: real quick-tag editor/popup and store, XTest click versus routed Enter/Tab, alias/source/create rows, middle/quoted tokens and commas; private Xvfb only, no Windows/macOS or IME certification"),
         Root("diagnostic-evidence", "MEOWCHAN_DIAGNOSTIC_EVIDENCE_ONLY", "diagnostic evidence: native controls with synthetic snapshots, passive facts/waiting/language refresh; managed input and copy delegate, no live network or OS clipboard/Windows/macOS acceptance"),
-        Root("reader-post-star", "MEOWCHAN_READER_POST_STAR_ONLY", "reader post star: real main window, seeded saved pictures; the post file-line star, an archive tile star and the sidebar header star clicked with XTest (embedded reader, large reader opened the Downloads way, scrolled, next page, sidebar), F on the selected post, an unsaved file's star off with its reason; private Xvfb only, no live provider, no Windows/macOS acceptance"),
+        Root("reader-post-star", "MEOWCHAN_READER_POST_STAR_ONLY", "reader post star: real main window, seeded saved pictures; the post file-line star, an archive tile star and the sidebar header star clicked with XTest (embedded reader, large reader opened the Downloads way, scrolled, deep post, sidebar), F on the selected post, an unsaved file's star off with its reason; private Xvfb only, no live provider, no Windows/macOS acceptance"),
         Root("reader-preview-return", "MEOWCHAN_READER_PREVIEW_RETURN_ONLY", "reader preview return: saved local attachments through Media and gallery-origin restoration, a delayed or cancelled manifest read, and Retry in the existing reader row"),
         Root("quick-tag-native-typing", "MEOWCHAN_QUICK_TAG_NATIVE_TYPING_ONLY", "quick tag native typing: real main window, seeded video and pictures; the Rate and tag popover opened by R, Ctrl+Shift+T and the media menu over a playing sidebar video and a picture, the field clicked and typed with XTest (keys typed right after R included); text must arrive, the popover stay, the video keep playing, no shortcut run; private Xvfb only, no Windows/macOS acceptance"),
-        Root("filename-search-large-reader", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY", "filename large reader: seven synthetic native host journeys, complete-reader/off-page results, selection and lifetime joins; managed input only"),
+        Root("filename-search-large-reader", "MEOWCHAN_FILENAME_SEARCH_LARGE_READER_ONLY", "filename large reader: seven synthetic native host journeys, complete-reader/offscreen results, selection and lifetime joins; managed input only"),
         Root("local-search-language", "MEOWCHAN_LOCAL_SEARCH_LANGUAGE_ONLY", "local search language: EN/DE/ES/FR/RU retained drafts/results, actual native controls and 360-DIP action glyph layout; no OS typing, current-byte or cross-platform acceptance"),
         Root("media-page", "MEOWCHAN_MEDIA_PAGE_ONLY", "media page: real host, catalog, bound manifests, verified thumbnails and navigation; managed input only"),
         Root("media-panel-selection", "MEOWCHAN_MEDIA_PANEL_SELECTION_ONLY", "media sidebar: follows the selected medium and announces each change after the timer; managed input only"),
@@ -208,7 +218,7 @@ internal static partial class SmokeScenarios
         Alternative("cross-root-migration", "MEOWCHAN_CROSS_ROOT_MIGRATION_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
         Alternative("native-overlay-visibility", "MEOWCHAN_NATIVE_OVERLAY_VISIBILITY_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
         Alternative("gallery-edge", "MEOWCHAN_GALLERY_EDGE_ONLY", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY"),
-        Root("gallery-mute", "MEOWCHAN_GALLERY_MUTE_ONLY", "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance") with { NightlyEnvironment = [Video, FunctionalAudio] },
+        Root("gallery-mute", "MEOWCHAN_GALLERY_MUTE_ONLY", "gallery mute persistence: real OS input and decoder with functional private audio; session intent across selection changes, not physical output acceptance") with { NightlyEnvironment = [VideoWithAudio, FunctionalAudio] },
         Root("media-interaction", "MEOWCHAN_MEDIA_INTERACTION_ONLY", "media interaction: XTest pointer/key input on private Linux X11; decoder/slider sync, custom navigation, loop and retired gesture checks; NOT Windows acceptance") with { NightlySkip = "XTest input and its report run through scripts/test-media-interaction-smoke.py" },
         Root("native-ime", "MEOWCHAN_NATIVE_IME_ONLY", "IME product checkpoints completed; real engine and UI acceptance require the independent native driver") with { NightlySkip = ExternalDriver },
         Root("gallery-integrity-gui", "MEOWCHAN_GALLERY_INTEGRITY_GUI_ONLY", "gallery integrity: four EN/DE Light/Dark cells at actual scale, exact binding, summary/context/details and geometry") with { NightlyEnvironment = ["MEOWCHAN_GALLERY_INTEGRITY_EXPECT_SCALE=1"] },

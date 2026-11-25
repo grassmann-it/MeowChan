@@ -1,4 +1,5 @@
 using MeowChan.Desktop;
+using MeowChan.DesktopSmoke;
 
 namespace MeowChan.DesktopTests;
 
@@ -133,6 +134,62 @@ public sealed class VideoTimelineInteractionTests
         await queue.Enqueue(new(1, 10001, 10001));
         Assert.Equal(10001, executed[^1]);
     }
+
+    [Theory]
+    [InlineData(true, "Playing", 1750, "Advanced")]
+    [InlineData(true, "Playing", 1500, "WaitingForProgress")]
+    [InlineData(true, "Playing", 1699, "WaitingForProgress")]
+    [InlineData(true, "Paused", 1750, "PlaybackChanged")]
+    [InlineData(false, "Playing", 1750, "Advanced")]
+    public async Task RelativeRewindMeasuresProgressOnlyOnTheNewNativeClock(bool windowsNativeOutput,
+        string stateAfterSeek, long timeAfterSeek, string expected)
+    {
+        const long generation = 2, durationMs = 10_000, nativeBeforeMs = 9500, rewindMs = 8000;
+        var before = new GalleryVideoPlayer.PlaybackEvidence("Playing", nativeBeforeMs, 3,
+            DisplayedFrames: windowsNativeOutput ? 3 : 0, HasPlayback: true, HasEngine: true, Disposed: false,
+            ReleasedStreams: 0, CleanupFailures: 0, SurfaceFrames: windowsNativeOutput ? 0 : 3,
+            SurfaceNonUniform: !windowsNativeOutput, Length: durationMs, Seekable: true);
+        Assert.True(GalleryRewindClockProbe.HasRealFrames(before, windowsNativeOutput));
+        Assert.False(GalleryRewindClockProbe.HasRealFrames(before, !windowsNativeOutput));
+
+        var timeline = Timeline(generation);
+        Assert.True(timeline.Observe(generation, timeline.Revision, before.Time));
+        long target = Math.Clamp(timeline.DisplayPosition - rewindMs, 0, durationMs);
+        var request = Assert.IsType<VideoSeekRequest>(timeline.Request(generation, target * 1000d / durationMs, durationMs, true));
+        Assert.Equal(1500, request.Position);
+        GalleryRewindClockProbe probe = new(generation, before.Time, request.Position);
+        TaskCompletionSource releaseSeek = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        long nativeTime = before.Time;
+        VideoLatestSeekQueue queue = new(async pending =>
+        {
+            await releaseSeek.Task;
+            Assert.True(timeline.IsLatest(pending));
+            nativeTime = pending.Position;
+            Assert.True(timeline.Complete(pending, nativeTime));
+        });
+
+        Task drain = queue.Enqueue(request);
+        try
+        {
+            Assert.Equal(1500, timeline.DisplayPosition);
+            Assert.Equal(GalleryRewindClockResult.WaitingForRewind, probe.Observe(generation, "Playing", nativeTime));
+            Assert.Equal(GalleryRewindClockResult.MediaChanged, probe.Observe(generation - 1, "Playing", 1500));
+            nativeTime = 9750;
+            Assert.Equal(GalleryRewindClockResult.WaitingForRewind, probe.Observe(generation, "Playing", nativeTime));
+        }
+        finally
+        {
+            releaseSeek.TrySetResult();
+            await drain.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
+        Assert.False(timeline.HasPendingSeek);
+        Assert.Equal(1500, nativeTime);
+        Assert.Equal(GalleryRewindClockResult.WaitingForProgress, probe.Observe(generation, "Playing", nativeTime));
+        Assert.Equal(GalleryRewindClockResult.MediaChanged, probe.Observe(generation - 1, "Playing", 9800));
+        Assert.Equal(Enum.Parse<GalleryRewindClockResult>(expected), probe.Observe(generation, stateAfterSeek, timeAfterSeek));
+    }
+
     [Fact]
     public async Task SeekWaitingForNativeLockRejectsOldRevisionAndReplacementGeneration()
     {

@@ -85,32 +85,21 @@ internal sealed partial class MediaLibraryTileView : UserControl
     internal static int PendingThumbnailLoads => Volatile.Read(ref _pendingLoads);
     // Four loads at a time: with the file check remembered per session a load is mostly decoding, which spreads over the cores.
     private static readonly SemaphoreSlim ThumbnailGate = new(4, 4);
-    private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 174, MaxHeight = 120 };
-    private readonly LetterboxPanel _preview = new();
+    private readonly MediaTileView _tile;
     private readonly TextBlock _placeholder = new TextBlock { TextWrapping = TextWrapping.Wrap,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center }.CaptionText();
-    private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _thread = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     // The thread acts like a meta tag: its label filters the page to that thread.
     private readonly Button _threadLink = new() { Name = "MediaTileThread", Padding = new Thickness(0), Classes = { "link" },
-        HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
+        Focusable = false, IsTabStop = false, HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _detail = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     // Equal bytes in several places: the hint opens the list of all occurrences.
     private readonly TextBlock _duplicates = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis }.CaptionText();
     private readonly Button _duplicatesLink = new() { Name = "MediaTileDuplicates", Padding = new Thickness(0), Classes = { "link" }, IsVisible = false,
-        HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
-    // Selected tiles carry a check mark besides the list's highlight, so the state does not depend on color alone.
-    private readonly Border _selectedMark = WorkspaceChips.CreateSelectionCheck("MediaTileSelected");
-    // MB1b: what the tile says about the medium (favourite, kind, file missing, queue, own tags or none yet, booru source) is drawn by the
-    // shared media badges in the tile's slot corners (the same place on every tile of a row, whatever the picture's shape; the play mark stays on
-    // the picture): one render-only view, no child control per badge. Only the favourite toggle stays a
-    // button (bottom right); the badge carries the state at rest, so the toggle is quiet unless the tile is hovered or focused. The queue
-    // badge is refreshed alone when the queue changes (RefreshQueueBadge).
-    private readonly MediaBadgeView _badges = new() { Name = "MediaTileBadges", Options = MediaBadgeOptions.MediaPage };
-    private readonly StackPanel _topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
-        VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0) };
+        Focusable = false, IsTabStop = false, HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
+    private readonly MediaBadgeView _badges = new() { Name = "MediaTileBadges", Options = MediaBadgeOptions.MediaPage, IsTabStop = false };
     private string _sentence = string.Empty;
-    private readonly ToggleButton _favoriteToggle = CreateQuietFavoriteToggle();
+    private readonly ToggleButton _favoriteToggle = WorkspaceChips.CreateFavoriteToggle("MediaTileFavoriteToggle");
     private readonly TextBlock _favorite = new TextBlock { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.CaptionText();
     // Own tags act like the thread label beside them: each chip filters the page to that tag. The row is the favorite row of grouped tiles,
     // so the cell keeps its height; what does not fit is summarized as "+N" with the names in its tooltip.
@@ -119,15 +108,13 @@ internal sealed partial class MediaLibraryTileView : UserControl
     private readonly TextBlock _moreTags = new TextBlock { Name = "MediaTileMoreTags", MaxLines = 1, IsVisible = false, VerticalAlignment = VerticalAlignment.Center }.CaptionText();
     // The "+N" is a link that opens the tag editor of the tile (the tooltip lists the names that did not fit).
     private readonly Button _moreTagsLink = new() { Name = "MediaTileMoreTagsLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
-        BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
-    private IDisposable? _selection;
+        Focusable = false, IsTabStop = false, BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
     private Bitmap? _bitmap;
-    private Grid? _rows;
     private MediaTileAppearance _appearance = MediaTileMetrics.Standard;
     /// <summary>True while the tile shows a verified thumbnail or video poster.</summary>
-    internal bool HasThumbnail => _image.Source != null;
-    /// <summary>Where the picture is drawn, in the preview's coordinates (the corner marks sit on it).</summary>
-    internal Rect PictureBounds => _preview.PictureBounds;
+    internal bool HasThumbnail => _bitmap != null;
+    /// <summary>Where the picture is drawn, in the preview's coordinates.</summary>
+    internal Rect PictureBounds => _tile.PictureBounds;
     private CancellationTokenSource? _loading;
     private int _request;
     private bool _visible;
@@ -153,7 +140,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
     internal Action<MediaLibraryEntry>? ThreadFilter { get; set; }
     /// <summary>Set by the page: shows only the media that carry this own tag.</summary>
     internal Action<Guid>? TagFilter { get; set; }
-    /// <summary>Set by the page: hides the media that carry this own tag (Shift+click or Shift+Enter on the chip, S7).</summary>
+    /// <summary>Set by the page: hides the media that carry this own tag (Shift+click or the tag's context menu).</summary>
     internal Action<Guid>? TagExclude { get; set; }
     /// <summary>Set by the page: lists every occurrence of the tile's bytes.</summary>
     internal Action<MediaLibraryTile>? ShowOccurrences { get; set; }
@@ -163,21 +150,12 @@ internal sealed partial class MediaLibraryTileView : UserControl
     internal Func<bool>? CanToggleFavorite { get; set; }
     /// <summary>Set by the page: whether the shown occurrence is in the tagging queue (MP1). Null: no queue mark.</summary>
     internal Func<MediaLibraryEntry, bool>? InTagQueue { get; set; }
-    /// <summary>The style class of the favourite toggle that is only shown while the tile is hovered or focused (the badge shows the state at rest).</summary>
-    internal const string QuietFavoriteClass = "tile-favorite-quiet";
     /// <summary>The shared badge view over the shown picture (tests and smokes read its state and plan).</summary>
     internal MediaBadgeView Badges => _badges;
     /// <summary>The badge sentence in the tile's name (every fact of the medium, also the ones the Layout menu hides; empty when there is none).</summary>
     internal string BadgeDescription => _sentence;
     /// <summary>The favourite toggle (tests and smokes).</summary>
     internal ToggleButton FavoriteToggleButton => _favoriteToggle;
-
-    private static ToggleButton CreateQuietFavoriteToggle()
-    {
-        ToggleButton toggle = WorkspaceChips.CreateFavoriteToggle("MediaTileFavoriteToggle");
-        toggle.Classes.Add(QuietFavoriteClass);
-        return toggle;
-    }
 
     /// <summary>
     /// MP5: the size and the caption parts the media page's Layout menu chose. Setting it changes sizes and visibility of this tile's own parts only
@@ -199,10 +177,8 @@ internal sealed partial class MediaLibraryTileView : UserControl
     {
         MediaTileAppearance a = _appearance;
         MaxWidth = a.CellWidth; Height = a.CellHeight;
-        _preview.Height = a.PreviewHeight; _preview.MaxWidth = a.PictureWidth;
-        _image.MaxWidth = a.PictureWidth; _image.MaxHeight = a.PreviewHeight;
-        if (_rows != null) _rows.RowDefinitions[0].Height = new GridLength(a.PreviewHeight);
-        _name.IsVisible = a.Shows(MediaTileCaption.Name);
+        _tile.SetPreviewSize(a.PictureWidth, a.PreviewHeight);
+        _tile.Title.IsVisible = a.Shows(MediaTileCaption.Name);
         _threadLink.IsVisible = a.Shows(MediaTileCaption.Source);
         Present(); // the badges and the tile's name follow; the preview and its bitmap stay
     }
@@ -212,18 +188,18 @@ internal sealed partial class MediaLibraryTileView : UserControl
 
     public MediaLibraryTileView()
     {
-        MaxWidth = 190; Height = TileHeight;
-        // The cell stays uniform (the grid's cell height is fixed); the picture is letterboxed in it. The badges, the selection check and the star are
-        // arranged on the slot's corners, not on the picture's, so a portrait and a landscape tile carry them at the same height.
-        LetterboxPanel preview = _preview; preview.Height = 120; preview.MaxWidth = 174; preview.MarksOnSlot = true;
-        _topRight.Children.Add(_selectedMark);
-        // The check keeps clear of a badge in the same corner; the badges' place follows the slot, so the inset follows its bounds.
-        _badges.PropertyChanged += (_, e) => { if (e.Property == BoundsProperty) UpdateTopRightInset(); };
-        _badges.PlanRefreshed += UpdateTopRightInset; // other badge limits can move the badges without moving the view
-        // Top left, where the favourite badge sits: the toggle shows only on hover or focus and then takes the badge's place, so it never covers the
-        // tag count or the untagged mark of the bottom right corner, nor the kind of the bottom left.
-        _favoriteToggle.HorizontalAlignment = HorizontalAlignment.Left; _favoriteToggle.VerticalAlignment = VerticalAlignment.Top;
-        _favoriteToggle.Margin = new Thickness(2, 2, 0, 0);
+        MaxWidth = _appearance.CellWidth; Height = _appearance.CellHeight;
+        AutomationProperties.SetAutomationId(_placeholder, "MediaTilePreviewStatus");
+        _favoriteToggle.Focusable = false;
+        AutomationProperties.SetAutomationId(_favoriteToggle, "MediaTileFavoriteToggle");
+        _favoriteToggle.IsTabStop = false;
+        // The toggle shares the favourite badge's top-left corner in Media.
+        MediaTileView grid = _tile = new(_placeholder, _favoriteToggle, _badges, "MediaTileSelected",
+            favoriteAtTopLeft: true)
+        {
+            Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto"), RowSpacing = 2
+        };
+        grid.SetPreviewSize(_appearance.PictureWidth, _appearance.PreviewHeight);
         _favoriteToggle.Click += async (_, e) =>
         {
             e.Handled = true; // The tile itself is not activated by its star.
@@ -236,11 +212,6 @@ internal sealed partial class MediaLibraryTileView : UserControl
             try { await toggle(row.Entry); }
             finally { if (ReferenceEquals(DataContext, row)) _favoriteToggle.IsEnabled = true; }
         };
-        preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_badges); preview.Children.Add(_topRight);
-        preview.Children.Add(_favoriteToggle);
-        Grid grid = _rows = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 2 };
-        grid.Children.Add(preview);
-        grid.Children.Add(_name); Grid.SetRow(_name, 1);
         _threadLink.Content = _thread;
         _threadLink.Click += (_, e) => { e.Handled = true; if (DataContext is MediaLibraryTileRow row) ThreadFilter?.Invoke(row.Entry); };
         grid.Children.Add(_threadLink); Grid.SetRow(_threadLink, 2);
@@ -264,10 +235,12 @@ internal sealed partial class MediaLibraryTileView : UserControl
             DockPanel content = new() { Children = { mark, label } };
             DockPanel.SetDock(mark, Dock.Left);
             Button chip = _tagChips[index] = WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(new Button { Name = "MediaTileTag", IsVisible = false, Content = content }, compact: true));
-            // Shift turns the click (or Enter/Space) into an exclusion; the modifier is read where the gesture starts.
+            AutomationProperties.SetAutomationId(chip, "MediaTileTag" + index);
+            chip.Focusable = false;
+            chip.IsTabStop = false;
+            // Shift turns the click into an exclusion.
             bool excludeIntent = false;
             chip.AddHandler(PointerPressedEvent, (_, e) => excludeIntent = e.KeyModifiers.HasFlag(KeyModifiers.Shift), RoutingStrategies.Tunnel);
-            chip.AddHandler(KeyDownEvent, (_, e) => { if (e.Key is Key.Enter or Key.Space) excludeIntent = e.KeyModifiers.HasFlag(KeyModifiers.Shift); }, RoutingStrategies.Tunnel);
             chip.Click += (_, e) =>
             {
                 e.Handled = true;
@@ -285,6 +258,13 @@ internal sealed partial class MediaLibraryTileView : UserControl
         foreach (TextBlock text in new[] { _thread, _detail, _duplicates, _favorite, _moreTags }) text.Classes.Add("workspace-meta");
         Content = grid;
         InitializeAffordances(); // the "+N" link, the badge zones, the chips' menus (MediaLibraryTileView.Affordances.cs)
+        AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.Source is Visual hit && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
+                && hit.GetSelfAndVisualAncestors().TakeWhile(node => !ReferenceEquals(node, this))
+                    .Any(node => node is Button || ReferenceEquals(node, _badges)))
+                this.FindAncestorOfType<ListBoxItem>()?.Focus(NavigationMethod.Pointer);
+        }, RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) => { Reset(); Present(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {
@@ -293,18 +273,13 @@ internal sealed partial class MediaLibraryTileView : UserControl
             _visible = visible;
             if (visible) _ = LoadAsync(); else Reset();
         };
-        AttachedToVisualTree += (_, _) =>
-        {
-            _selection?.Dispose();
-            _selection = WorkspaceChips.ObserveSelection(this, _selectedMark);
-        };
-        DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); _selection?.Dispose(); _selection = null; _selectedMark.IsVisible = false; };
+        DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); };
     }
 
     private void Present()
     {
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
-        _name.Text = row?.Name;
+        _tile.Title.Text = row?.Name;
         _thread.Text = row?.ThreadLabel;
         string threadHint = row == null ? string.Empty : Texts.T("media.filter.threadHint", row.ThreadLabel);
         ToolTip.SetTip(_threadLink, threadHint);
@@ -342,18 +317,10 @@ internal sealed partial class MediaLibraryTileView : UserControl
     // parts hide from the picture.
     private void UpdateBadges(MediaLibraryTileRow? row)
     {
-        if (row == null) { _badges.Clear(); _sentence = string.Empty; UpdateTopRightInset(); return; }
+        if (row == null) { Badges.Clear(); _sentence = string.Empty; return; }
         MediaBadgeState full = MediaLibraryBadges.ForRow(row, InTagQueue?.Invoke(row.Entry) == true);
-        _sentence = MediaBadgeSentences.Get(full, _badges.Options);
-        _badges.Apply(MediaLibraryBadges.Visible(full, _appearance), _preview.PictureBounds.Size, _preview.Bounds.Size);
-        UpdateTopRightInset();
-    }
-
-    // The selection check and the badges share the slot's corner: the check keeps clear of the badges of the top right corner.
-    private void UpdateTopRightInset()
-    {
-        double inset = MediaLibraryBadges.CornerInset + MediaLibraryBadges.TopRightExtent(_badges.Plan, _preview.MarksBounds.Width);
-        if (_topRight.Margin.Right != inset) _topRight.Margin = new Thickness(0, 2, inset, 0);
+        _sentence = MediaBadgeSentences.Get(full, Badges.Options);
+        _tile.ShowBadges(MediaLibraryBadges.Visible(full, _appearance));
     }
 
     /// <summary>
@@ -467,7 +434,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
         if ((ThumbnailHandover?.Invoke(row.Tile) ?? ThumbnailCached?.Invoke(row.Tile)) is { } cached)
         {
             _bitmap = cached;
-            _image.Source = cached; _preview.Aspect = MediaSlotGeometry.AspectOf(cached);
+            _tile.Thumbnail = cached;
             _placeholder.Text = string.Empty;
             ThumbnailWasCached = true;
             return;
@@ -485,11 +452,15 @@ internal sealed partial class MediaLibraryTileView : UserControl
             if (request != _request || !_visible || !ReferenceEquals(DataContext, row)) { Discard(bitmap); return; }
             _bitmap = bitmap;
             ThumbnailWasCached = false;
-            _image.Source = bitmap; _preview.Aspect = MediaSlotGeometry.AspectOf(bitmap);
+            _tile.Thumbnail = bitmap;
             _placeholder.Text = bitmap == null ? Texts.T("archive.previewUnavailable") : string.Empty;
         }
         catch (OperationCanceledException) { }
-        catch (Exception) { if (request == _request) _placeholder.Text = Texts.T("archive.previewUnavailable"); }
+        catch (Exception error)
+        {
+            if (request == _request)
+                _placeholder.Text = Texts.T(error is GalleryPreviewTooLargeException ? "archive.tooLarge" : "archive.previewUnavailable");
+        }
         finally
         {
             Interlocked.Decrement(ref _pendingLoads);
@@ -509,7 +480,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
     /// </summary>
     internal (MediaLibraryTile Tile, Bitmap Bitmap)? TakeShownThumbnail()
     {
-        if (_bitmap is not { } bitmap || DataContext is not MediaLibraryTileRow row || _image.Source == null) return null;
+        if (_bitmap is not { } bitmap || DataContext is not MediaLibraryTileRow row) return null;
         _bitmap = null; // not discarded: the lease moves to the caller
         Reset();
         return (row.Tile, bitmap);
@@ -519,7 +490,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
     {
         ++_request;
         _loading?.Cancel(); _loading = null;
-        _image.Source = null; _preview.Aspect = null; Discard(_bitmap); _bitmap = null; ThumbnailWasCached = false;
+        _tile.Thumbnail = null; Discard(_bitmap); _bitmap = null; ThumbnailWasCached = false;
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
     }

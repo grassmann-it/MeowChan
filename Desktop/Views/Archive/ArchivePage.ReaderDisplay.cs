@@ -15,7 +15,7 @@ public partial class ArchivePage
     private ReaderSettingsApply? _readerSettingsApply;
     private int _readerSettingsRequest;
     private sealed record ReaderSettingsApply(ReaderAnchor? Anchor, ResourceId Thread, int Content, int Interaction,
-        int Focus, int Tab, int Request, TaskCompletionSource Completion);
+        int Focus, int Tab, int Request, int FocusScaleBefore, TaskCompletionSource Completion);
 
     /// <summary>Deterministic gate after final projection realization, before passive selection/top correction.</summary>
     internal Func<Task>? BeforeReaderSettingsRestoreAsync { get; set; }
@@ -25,40 +25,39 @@ public partial class ArchivePage
     internal int ReaderThumbnailWidth
     {
         get => _readerDisplayPreferences.ReaderThumbnailWidth;
-        set => ApplyReaderDisplayPreferences(value, ReaderDateStyle, ReaderPageSize);
+        set => ApplyReaderDisplayPreferences(value, ReaderDateStyle);
     }
 
     internal ReaderDateStyle ReaderDateStyle
     {
         get => _readerDisplayPreferences.ReaderDateStyle;
-        set => ApplyReaderDisplayPreferences(ReaderThumbnailWidth, value, ReaderPageSize);
+        set => ApplyReaderDisplayPreferences(ReaderThumbnailWidth, value);
     }
 
     /// <summary>
-    /// Capture before changing even an inherited measure property. All four settings share one queued projection/render
+    /// Capture before changing even an inherited measure property. The display settings share one queued projection/render
     /// and one passive restore, including date-only applies and asynchronous conversation depth changes.
     /// </summary>
-    internal void ApplyReaderDisplayPreferences(int thumbnailWidth, ReaderDateStyle dateStyle, int pageSize,
+    internal void ApplyReaderDisplayPreferences(int thumbnailWidth, ReaderDateStyle dateStyle,
         int? conversationDepth = null, ReaderMediaPreferences? media = null)
     {
         int width = global::MeowChan.Desktop.ReaderDisplayPreferences.ClampThumbnailWidth(thumbnailWidth);
         ReaderDateStyle style = Enum.IsDefined(dateStyle) ? dateStyle : ReaderDateStyle.System;
-        int size = Math.Clamp(pageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
         int depth = ReaderConversationTree.ClampDepth(conversationDepth ?? ReaderThreadingDepth);
         ReaderMediaPreferences nextMedia = (media ?? _readerDisplayPreferences.Media).Clamped();
         // The focus and hover options act on the list at once; only a changed textless setting makes the posts build their images again.
         bool postImagesSame = nextMedia.SamePostImages(_readerDisplayPreferences.Media);
-        bool liveOnly = width == ReaderThumbnailWidth && style == ReaderDateStyle && size == ReaderPageSize
+        bool liveOnly = width == ReaderThumbnailWidth && style == ReaderDateStyle
             && depth == ReaderThreadingDepth && postImagesSame;
+        int previousScale = ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty);
         if (nextMedia != _readerDisplayPreferences.Media)
         {
-            // A live switch (enlargement, hover, sidebar on/off, its side and width) resizes the focused card or re-wraps every card
-            // without a rebuild: the selected card keeps its place in the viewport over the following layout passes. A rebuild has
-            // its own settings anchor below.
+            // Live settings preserve the selected card's place across layout passes. Changing the inline enlargement aligns it
+            // once at the new size. A rebuild has its own settings anchor below.
             Func<Task>? keepSelected = liveOnly ? CaptureReaderCountLayoutCorrection() : null;
             _readerDisplayPreferences.Media = nextMedia;
             ApplyReaderMediaLive();
-            if (keepSelected != null) _ = keepSelected();
+            if (liveOnly && !TryAlignChangedFocusScale(previousScale) && keepSelected != null) _ = keepSelected();
         }
         if (liveOnly) return;
 
@@ -67,7 +66,7 @@ public partial class ArchivePage
         {
             _readerSettingsApply = new(CaptureReaderAnchor(), _thread.Summary.Id, _contentRequest,
                 _readerInteractionRevision, _readerFocusRequest, ArchiveContentTabs.SelectedIndex,
-                ++_readerSettingsRequest, new(TaskCreationOptions.RunContinuationsAsynchronously));
+                ++_readerSettingsRequest, previousScale, new(TaskCreationOptions.RunContinuationsAsynchronously));
             ReaderViewTask = _readerSettingsApply.Completion.Task;
             // No competing view restore may capture the intermediate layout or activate the Posts tab.
             _projectionAnchor = null;
@@ -75,10 +74,19 @@ public partial class ArchivePage
         }
         _readerDisplayPreferences.ReaderThumbnailWidth = width;
         _readerDisplayPreferences.ReaderDateStyle = style;
-        _readerPageSize = size;
         if (_conversationOrdering != null) _conversationOrdering.Depth = depth;
         ArchivePosts.SetValue(ReaderPostLayout.ThumbnailWidthProperty, width);
         RequestProjectionRebuild();
+    }
+
+    private bool TryAlignChangedFocusScale(int previousScale)
+    {
+        if (!FocusedMediaEnlarged || previousScale == ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty)
+            || !MayRefreshReaderNow || !ArchivePosts.IsEffectivelyVisible || ReaderJumpOwnsScroll
+            || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } focused) return false;
+        if (ArchivePosts.ContainerFromItem(focused) == null) ArchivePosts.ScrollIntoView(ArchivePosts.SelectedIndex);
+        AnchorFocusedCard(centre: true);
+        return true;
     }
 
     private bool ReaderSettingsApplyCurrent(ReaderSettingsApply apply) => !_ended && !IsFilenameSearchOpen
@@ -93,13 +101,13 @@ public partial class ArchivePage
         apply.Completion.TrySetResult();
     }
 
-    // Called only once the final projection is available. Page choice is guarded BEFORE RenderThread consumes it.
+    // Called only once the final projection is available. Selection is guarded BEFORE RenderThread consumes it.
     private ReaderSettingsApply? TakeReaderSettingsApply(ReaderPostProjection projection)
     {
         ReaderSettingsApply? apply = _readerSettingsApply;
         _readerSettingsApply = null;
         if (apply != null && ReaderSettingsApplyCurrent(apply) && apply.Anchor is { } anchor && projection.Count > 0)
-            _projectionPagePost = anchor.PostId;
+            _projectionSelectionPost = anchor.PostId;
         return apply;
     }
 
@@ -108,8 +116,13 @@ public partial class ArchivePage
         try
         {
             if (!ReaderSettingsApplyCurrent(apply) || apply.Anchor is not { } anchor
-                || apply.Tab != 0 || Projection is not { Count: > 0 } shown) return;
+                || Projection is not { Count: > 0 } shown) return;
             bool Current() => ReaderSettingsApplyCurrent(apply) && !IsProjectionPending && ReferenceEquals(Projection, shown);
+            if (apply.Tab != 0)
+            {
+                await RestoreReaderAnchorAsync(anchor, restoreFocus: false, stillRequested: Current, preserveTab: true);
+                return;
+            }
             int nearest = shown.NearestPosition(anchor.PostId);
             if (nearest < 0) return;
             string postId = shown[nearest].Post.PostId;
@@ -117,13 +130,11 @@ public partial class ArchivePage
             // Settings are not a jump: never call ShowPost/FocusPostAsync (which activate Posts), Focus, or Reveal.
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
             if (!Current()) return;
-            ArchivePostRow? row = list.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(item => item.Id == postId);
+            ArchivePostRow? row = FindPostRow(postId);
             if (row == null) return;
             ++_readerLayoutRevision;
-            ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            if (scroll != null) scroll.Offset = new Vector(scroll.Offset.X, 0);
             list.UpdateLayout();
-            list.ScrollIntoView(row);
+            list.ScrollIntoView(nearest);
             list.UpdateLayout();
             if (BeforeReaderSettingsRestoreAsync is { } beforeRestore) await beforeRestore();
             // One layout completion and correction, not a render/restore retry loop.
@@ -131,11 +142,12 @@ public partial class ArchivePage
             {
                 if (!Current()) return;
                 ++_readerLayoutRevision;
-                ArchivePostRow? selected = list.ItemsSource?.Cast<ArchivePostRow>()
-                    .FirstOrDefault(item => item.Id == anchor.SelectedPostId);
-                list.SelectedItem = selected;
+                ArchivePostRow? selected = FindPostRow(anchor.SelectedPostId);
+                using (_readerScrollOwner.BeginJump(_readerInteractionRevision))
+                    list.SelectedItem = selected;
                 _readerPostId = selected?.Id ?? row.Id;
                 list.UpdateLayout();
+                if (TryAlignChangedFocusScale(apply.FocusScaleBefore)) return;
                 ScrollViewer? currentScroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
                 if (currentScroll != null && list.ContainerFromItem(row) is Control container
                     && container.TranslatePoint(default, list) is Point position)

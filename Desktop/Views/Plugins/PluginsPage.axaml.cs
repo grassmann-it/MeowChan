@@ -22,7 +22,7 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan;
 
-public partial class PluginsPage : UserControl
+public partial class PluginsPage : UserControl, IDisposable
 {
     private PluginManagementServices? _services;
     private PluginCatalogSnapshot? _catalog;
@@ -80,6 +80,7 @@ public partial class PluginsPage : UserControl
     private long _operationGeneration;
     private CancellationTokenSource? _operation;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly IDisposable _keyContext;
     internal Func<PluginEditorOptions>? GetEditorOptions { get; set; }
     internal Func<PluginEditorOptions, Task>? SaveEditorOptionsAsync { get; set; }
     internal Action<string>? OpenSourceWatches { get; set; }
@@ -92,10 +93,11 @@ public partial class PluginsPage : UserControl
     {
         // Every key of the plugin management runs in the "plugins" context (S3 P2-4): a default that a saved binding took away only elsewhere (a partial
         // yield) stays active here (EffectiveShortcutBindings.EnterKeyContext). Inside the Sources page this host is the nearer one and wins.
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "plugins");
+        _keyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "plugins");
         InitializeComponent();
         InitializePluginDetails();
         InitializePluginActions();
+        C<Grid>("PluginDetailLayout").LayoutUpdated += FitPluginDraftFooter;
         KeyDown += (_, args) =>
         {
             if (args.Handled || args.Key != Key.Escape) return;
@@ -576,20 +578,35 @@ public partial class PluginsPage : UserControl
         C<Expander>("PluginGrantExpander").IsVisible = entry.Description?.Filters.Count > 0;
     }
     private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+
+    // The draft footer stays pinned under the scrolling body (Save and Discard never scroll away). In a short card the reasons give up height first,
+    // so the body keeps room for the primary actions (More included); the full reasons stay in the tooltip.
+    private void FitPluginDraftFooter(object? sender, EventArgs e)
+    {
+        Grid layout = C<Grid>("PluginDetailLayout");
+        if (_ended || !layout.IsEffectivelyVisible || layout.Bounds.Height <= 0) return;
+        Border footer = C<Border>("PluginDraftFooter");
+        SelectableTextBlock reasons = C<SelectableTextBlock>("PluginDraftReasons");
+        double actionsHeight = C<WrapPanel>("PluginPrimaryActions").DesiredSize.Height;
+        double rest = footer.DesiredSize.Height - reasons.DesiredSize.Height;
+        double line = Math.Ceiling(reasons.FontSize * 1.5);
+        double maximum = Math.Max(line, Math.Floor(layout.Bounds.Height - layout.RowSpacing - actionsHeight - rest));
+        if (Math.Abs(maximum - reasons.MaxHeight) >= 0.5) reasons.MaxHeight = maximum;
+        bool trimmed = reasons.DesiredSize.Height >= reasons.MaxHeight - 0.5 && !string.IsNullOrEmpty(reasons.Text);
+        object? tip = trimmed ? reasons.Text : null;
+        if (!Equals(ToolTip.GetTip(reasons), tip)) ToolTip.SetTip(reasons, tip);
+    }
+
     private void ApplyPaneVisibility()
     {
         bool hasSelection = Selected != null && Included(Selected);
-        C<Grid>("PluginListPane").IsVisible = !_narrow || !_showDetails || !hasSelection;
-        C<ScrollViewer>("PluginDetailsPane").IsVisible = hasSelection && (!_narrow || _showDetails);
         bool sources = SourceContent != null && Filter == SourcesPluginsFilter.Sources;
+        C<Grid>("PluginListPane").IsVisible = !sources && (!_narrow || !_showDetails || !hasSelection);
         C<ContentControl>("SourceContentHost").IsVisible = sources && !ShowingSourcePluginDetails;
-        if (sources)
-        {
-            C<Grid>("PluginListPane").IsVisible = false;
-            C<ScrollViewer>("PluginDetailsPane").IsVisible = hasSelection && ShowingSourcePluginDetails;
-        }
-        Grid.SetColumn(C<ScrollViewer>("PluginDetailsPane"), sources ? 0 : 1);
-        Grid.SetColumnSpan(C<ScrollViewer>("PluginDetailsPane"), sources ? 2 : 1);
+        Border detail = C<Border>("PluginDetailCard");
+        detail.IsVisible = hasSelection && (sources ? ShowingSourcePluginDetails : !_narrow || _showDetails);
+        Grid.SetColumn(detail, sources ? 0 : 1);
+        Grid.SetColumnSpan(detail, sources ? 2 : 1);
         C<Button>("PluginBack").IsVisible = _narrow || ShowingSourcePluginDetails;
         if (ShowingSourcePluginDetails) CommandBindings.ApplyLabeled(C<Button>("PluginBack"), "sources.back", Texts.T("sources.backToSource"));
         else CommandBindings.ApplyLabeled(C<Button>("PluginBack"), "plugins.back", Texts.T("plugins.back"));
@@ -600,7 +617,7 @@ public partial class PluginsPage : UserControl
         bool ContainsFocus(Control pane) => focused != null &&
             (ReferenceEquals(focused, pane) || focused.GetVisualAncestors().Contains(pane));
         bool listHadFocus = ContainsFocus(C<Grid>("PluginListPane"));
-        bool detailsHadFocus = ContainsFocus(C<ScrollViewer>("PluginDetailsPane"));
+        bool detailsHadFocus = ContainsFocus(C<Border>("PluginDetailCard"));
         // The Sources page's switch point: the detail needs 520 DIP beside the 280 DIP list, gutters and panel padding.
         bool narrow = Bounds.Width - 40 - 280 - 14 - 32 < 520;
         if (narrow && !_narrow)
@@ -619,7 +636,7 @@ public partial class PluginsPage : UserControl
         // panes, and only if its current control became unavailable.
         if ((listHadFocus || detailsHadFocus) && focused?.IsEffectivelyVisible != true)
         {
-            if (C<ScrollViewer>("PluginDetailsPane").IsVisible)
+            if (C<Border>("PluginDetailCard").IsVisible)
             {
                 if (_narrow) C<Button>("PluginBack").Focus();
                 else
@@ -727,6 +744,28 @@ public partial class PluginsPage : UserControl
         try { await RefreshAsync(); } finally { _statusReadPending = false; }
     }
     internal void Deactivate() { CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _statusTimer.Stop(); ++_refreshGeneration; CancelOperation(); if (!_ended) RenderDetails(); }
-    internal void EndLifetime()
-    { if (_ended) return; CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _ended = true; IsEnabled = false; _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose(); }
+    internal void EndLifetime() => Dispose();
+
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || _ended) return;
+        CloseBundledRepairPreview();
+        ClosePluginActionMenu();
+        CancelDiscardConfirmation();
+        _ended = true;
+        IsEnabled = false;
+        _statusTimer.Stop();
+        _statusTimer.Tick -= OnStatusTick;
+        Texts.Changed -= OnLanguageChanged;
+        _keyContext.Dispose();
+        _lifetime.Cancel();
+        CancelOperation();
+        _lifetime.Dispose();
+    }
 }

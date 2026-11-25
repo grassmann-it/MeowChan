@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
@@ -19,12 +20,38 @@ public sealed class BooruComponentDispatcherTests
     });
 
     [Fact]
+    public void ADeadlineCancelsWorkAndJoinsTheOwnerBeforeAnotherFixtureStarts()
+    {
+        Thread? endedOwner = null;
+        Dispatcher? endedDispatcher = null;
+        bool dispatcherShutDown = false;
+        bool disposed = false;
+        TimeoutException failure = Assert.Throws<TimeoutException>(() => BooruComponentDispatcher.Run(() =>
+        {
+            endedOwner = Thread.CurrentThread;
+            endedDispatcher = Dispatcher.UIThread;
+            endedDispatcher.ShutdownFinished += (_, _) => dispatcherShutDown = true;
+            try { BooruComponentDispatcher.Wait(Task.Delay(Timeout.Infinite, BooruComponentDispatcher.Cancellation)); }
+            finally { disposed = true; }
+        }, () => "the deliberately blocked operation", TimeSpan.FromSeconds(1)));
+
+        Assert.Contains("the deliberately blocked operation", failure.Message);
+        Assert.True(disposed);
+        Assert.False(endedOwner!.IsAlive);
+        Assert.True(dispatcherShutDown);
+        BooruComponentDispatcher.Run(() => Assert.NotSame(endedDispatcher, Dispatcher.UIThread));
+    }
+
+    [Fact]
     public void WorkbenchModelNotificationsRenderOnTheViewsDispatcher() => BooruComponentDispatcher.Run(() =>
     {
+        // Setting a styled property forces the splitter's type initializer before the Booru docks are present.
+        _ = new GridSplitter { ResizeBehavior = GridResizeBehavior.PreviousAndNext };
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
         using BooruWorkbenchView view = new(model, ownsModel: false);
         Dispatcher owner = Dispatcher.UIThread;
+        owner.RunJobs();
         int renders = 0;
         view.ChromeChanged += () =>
         {

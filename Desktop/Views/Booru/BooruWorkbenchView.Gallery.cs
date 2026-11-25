@@ -24,7 +24,6 @@ internal sealed partial class BooruWorkbenchView
         Name = "BooruResultScroll", HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto, IsTabStop = false
     };
-    private readonly StackPanel _resultsArea = new() { Spacing = 8 };
     private readonly StackPanel _bottomBar = new() { Spacing = 8 };
     private string? _cursorPostId;
     private BooruResultView _galleryReturn = BooruResultView.List;
@@ -67,7 +66,6 @@ internal sealed partial class BooruWorkbenchView
             if (e.Property == ScrollViewer.ViewportProperty) UpdateGalleryStageHeight();
         };
         _gallery.SizeChanged += (_, _) => UpdateGalleryStageHeight();
-        _bottomBar.SizeChanged += (_, _) => UpdateGalleryStageHeight();
     }
 
     private BooruGallerySampleLimits ReadGallerySampleSettings() => BooruGallerySampleLimits.FromSettings(
@@ -87,17 +85,22 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_resultView != BooruResultView.Gallery || !ReferenceEquals(_gallery.Parent, _results)) return;
         double galleryChrome = _gallery.Bounds.Height - _gallery.Stage.Bounds.Height;
-        _gallery.StageHeight = _resultScroll.Viewport.Height - galleryChrome - _bottomBar.Bounds.Height - _resultsArea.Spacing;
+        _gallery.StageHeight = _resultScroll.Viewport.Height - galleryChrome;
     }
 
     // ---- cursor ---------------------------------------------------------------------------------------------
 
-    /// <summary>Moves the cursor to <paramref name="postId"/> and draws it; nothing is requested or changed otherwise.</summary>
-    internal void SetCursor(string? postId)
+    /// <summary>Moves the cursor. Only a person moving or clicking a hit can request its sidebar sample.</summary>
+    internal void SetCursor(string? postId, bool requestSidebarSample = false)
     {
-        if (_closed || _cursorPostId == postId) return;
-        _cursorPostId = postId;
-        ApplyCursor();
+        if (_closed) return;
+        if (_cursorPostId != postId)
+        {
+            _cursorPostId = postId;
+            ApplyCursor();
+        }
+        else if (!requestSidebarSample) return;
+        RenderMediaSidebar(_model.Search.View, requestSidebarSample);
     }
 
     private void ApplyCursor()
@@ -108,12 +111,18 @@ internal sealed partial class BooruWorkbenchView
     }
 
     /// <summary>A card or tile is a stop of the cursor: focus and a click put the cursor on it, Space marks the hit while the card itself holds the focus.</summary>
-    private void ConfigureHitCursor(Border card, string postId)
+    private void ConfigureHitCursor(Border card, ResultActions result)
     {
-        card.GotFocus += (_, _) => SetCursor(postId);
+        string postId = result.PostId;
+        card.GotFocus += (_, _) =>
+        {
+            if (result.IsCurrent() && _cursorPostId != postId)
+                SetCursor(postId, requestSidebarSample: true);
+        };
         card.AddHandler(InputElement.PointerPressedEvent, (object? _, PointerPressedEventArgs e) =>
         {
-            if (e.GetCurrentPoint(card).Properties.IsLeftButtonPressed) SetCursor(postId);
+            if (e.GetCurrentPoint(card).Properties.IsLeftButtonPressed && result.IsCurrent())
+                SetCursor(postId, requestSidebarSample: true);
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
         card.Classes.Set("booru-cursor", _cursorPostId == postId);
     }
@@ -181,17 +190,16 @@ internal sealed partial class BooruWorkbenchView
             && IsSearchItem(_tabs.SelectedItem) && _gallery.IsEffectivelyVisible) _gallery.FocusStage();
     }
 
-    private async Task ChangePageAsync(int delta)
+    private async Task ChangePageAsync(int delta, bool fromPagerButton = false)
     {
         BooruSearchModel search = _model.Search;
-        int tab = SearchTabs.ActiveId;
+        int? tab = SearchTabs.ActiveId;
         BooruSearchView before = search.View;
         int page = before.Page + delta;
-        Control pagerButton = delta < 0 ? _previous : _next;
         TopLevel? topLevel = TopLevel.GetTopLevel(this);
         IFocusManager? focus = topLevel?.FocusManager;
         IInputElement? origin = focus?.GetFocusedElement();
-        bool fromPager = ReferenceEquals(origin, pagerButton);
+        bool fromStage = ReferenceEquals(origin, _gallery.Stage);
         bool focusMoved = false;
         topLevel?.AddHandler(GotFocusEvent, TrackFocus, handledEventsToo: true);
         try { await search.GoToPageAsync(page); }
@@ -200,11 +208,11 @@ internal sealed partial class BooruWorkbenchView
         if (_closed || focusMoved || SearchTabs.ActiveId != tab || after.Page != page
             || after.ProviderId != before.ProviderId || after.InstanceId != before.InstanceId || after.ExecutedQuery != before.ExecutedQuery
             || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty) return;
-        // The pager can lose focus when the busy state hides it. Any other active focus takes priority.
+        // Clicking a non-focusable pager can leave focus on the window. Restore the stage
+        // after that click, or after paging from the stage itself, unless the user moved on.
+        if (!fromPagerButton && !fromStage || topLevel is Window { IsActive: false }) return;
         IInputElement? focused = focus?.GetFocusedElement();
-        bool pagerLostFocus = fromPager && (focused is null || ReferenceEquals(focused, topLevel));
-        bool stillAtOrigin = ReferenceEquals(focused, origin) && (fromPager || ReferenceEquals(origin, _gallery.Stage));
-        if (topLevel is Window { IsActive: false } || !(pagerLostFocus || stillAtOrigin)) return;
+        if (focused != null && !ReferenceEquals(focused, topLevel) && !ReferenceEquals(focused, origin)) return;
         Render(force: false);
         FocusGalleryStage();
 

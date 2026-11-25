@@ -112,17 +112,7 @@ public sealed class MenuAttachmentAndSpeedRefreshTests
         Assert.Null(button.ContextMenu);
     });
 
-    // ---- F3: the Downloads "Columns" button and the scope chip (source contract) --------------------------------------------
-
-    [Fact]
-    public void TheDownloadsColumnsMenuDetachesItselfOnCloseSoItIsNotReopenedForAnotherTab()
-    {
-        string body = Body(Source("Desktop/Shell/MainWindow.Columns.cs"), "private void OnDownloadsColumnsClick(", "// A right-click on a column header");
-        int attach = body.IndexOf("button.ContextMenu = menu;", StringComparison.Ordinal);
-        int detach = body.IndexOf("menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };", StringComparison.Ordinal);
-        int open = body.IndexOf("menu.Open(button);", StringComparison.Ordinal);
-        Assert.True(attach >= 0 && detach > attach && open > detach, "attach, then detach on Closed, then open");
-    }
+    // F3: DownloadHeaderToggleTests exercises detachment and rebuilding through the real columns menu.
 
     [Fact]
     public void TheScopeChipsMenuDetachesItselfOnCloseSoNoStaleScopeOrCarryStateIsKept()
@@ -161,17 +151,4 @@ public sealed class MenuAttachmentAndSpeedRefreshTests
         Assert.False(MainWindow.IsDownloadColumnHeaderSource(null));
     }
 
-    [Fact]
-    public void TheDownloadsPressOnAHeaderLeavesTheSelectionAloneAndStillSwallowsTheReleaseRequest()
-    {
-        string body = Body(Source("Desktop/Shell/MainWindow.Selection.cs"), "private void SelectDownloadContextRow(", "private readonly HashSet<Control> _downloadPointerContextHandled");
-        int flag = body.IndexOf("_downloadPointerContextHandled.Add(grid);", StringComparison.Ordinal);
-        int header = body.IndexOf("if (IsDownloadColumnHeaderSource(e.Source))", StringComparison.Ordinal);
-        int clear = body.IndexOf("grid.SelectedItems.Clear();", StringComparison.Ordinal);
-        Assert.True(flag >= 0 && header > flag, "the release ContextRequested of the header press stays swallowed");
-        Assert.True(clear > header, "the header branch returns before the empty-area branch clears the selection");
-        string branch = body[header..clear];
-        Assert.Contains("return;", branch);
-        Assert.DoesNotContain("e.Handled = true", branch); // the header's own handler (registered next) answers the press
-    }
 }

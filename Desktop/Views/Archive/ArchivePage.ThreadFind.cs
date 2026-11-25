@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Presenters;
 using Avalonia.Media;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -38,6 +39,8 @@ public partial class ArchivePage
     // F02: Find and Tags share one row; it shows while either group is open, its single x closes every open group.
     private void WireThreadToolsRow()
     {
+        PopupToggle.Prepare(ReaderFindOpen);
+        PopupToggle.Prepare(ReaderTagsOpen);
         void OnChange(object? sender, Avalonia.AvaloniaPropertyChangedEventArgs e)
         {
             if (e.Property == Avalonia.Visual.IsVisibleProperty) UpdateThreadToolsRow();
@@ -61,6 +64,8 @@ public partial class ArchivePage
         // named in the accessible name and the tip, and the toggle's own click closes the group again.
         ReaderFindOpen.IsChecked = find;
         ReaderTagsOpen.IsChecked = tags;
+        PopupToggle.Present(ReaderFindOpen, find);
+        PopupToggle.Present(ReaderTagsOpen, tags);
         string open = Texts.T("readerTool.stateOpen");
         Avalonia.Automation.AutomationProperties.SetName(ReaderFindOpen, CommandCatalog.Label("reader.find") + (find ? ", " + open : ""));
         SetReaderActionTip(ReaderFindOpen, ReaderFindTip());
@@ -74,7 +79,7 @@ public partial class ArchivePage
     {
         bool tags = ReaderTagBar.IsVisible;
         if (ReaderFindBar.IsVisible) CloseThreadFind();
-        if (tags) CloseTagBar(focusOpen: true);
+        if (tags) CloseTagBar(restoreFocus: true);
     }
 
     // Escape on the shared x closes the row like it does inside either group; Enter keeps the button's native activation.
@@ -87,19 +92,38 @@ public partial class ArchivePage
         CloseThreadTools();
     }
 
-    private bool IsThreadFindSource(object? source) => source is Avalonia.Visual visual
+    internal bool IsThreadFindSource(object? source) => source is Avalonia.Visual visual
         && visual.GetSelfAndVisualAncestors().Contains(ReaderFindBar);
+
+    internal static bool ReaderInputIsComposing(object? source) => source is Avalonia.Visual visual
+        && visual.GetSelfAndVisualAncestors().OfType<TextBox>().FirstOrDefault() is { } editor
+        && editor.GetVisualDescendants().OfType<TextPresenter>().Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
 
     // Test seam: lets a harness make the one index build fail without touching real data.
     internal Func<ArchivedThreadView, string, CancellationToken, ReaderThreadFindIndex>? ThreadFindIndexFactory { get; set; }
 
-    // F17: the toolbar button is a toggle; its own click closes an open bar (Escape and the x inside the button do the same).
-    // The shortcut and the other entries keep calling OnOpenThreadFind, which only opens or refocuses.
     private void OnThreadFindToggleClick(object? sender, RoutedEventArgs e)
     {
-        if (ReaderFindBar.IsVisible && !_ended) { CloseThreadFind(); ReaderFindOpen.Focus(); }
-        else OnOpenThreadFind(sender, e);
+        ToggleThreadFind(e);
         UpdateThreadToolsRow();
+    }
+
+    private bool ToggleThreadFind(RoutedEventArgs e)
+    {
+        if (_ended || IsReaderDialogOpen || _thread == null) return false;
+        if (ReaderFindBar.IsVisible) DismissThreadFind();
+        else
+        {
+            if (_busy) return false;
+            OnOpenThreadFind(null, e);
+        }
+        return true;
+    }
+
+    private void DismissThreadFind()
+    {
+        CloseThreadFind();
+        FocusSelectedPostOrList();
     }
 
     private void OnOpenThreadFind(object? sender, RoutedEventArgs e)
@@ -187,7 +211,7 @@ public partial class ArchivePage
             ReaderFindText hit = result.Texts[result.Hits[_threadFindCursor].TextIndex];
             if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId);
             ShowPost(hit.PostId);
-            if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId); // The page may have been rebuilt around the hit.
+            if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId);
         }
         LocalizeThreadFind();
     }
@@ -211,11 +235,11 @@ public partial class ArchivePage
     {
         if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
             || !ReaderFindBar.IsVisible || !IsThreadFindSource(e.Source)) return;
+        if (ReaderInputIsComposing(e.Source)) return;
+        if (TryOpenReaderFindByKey(e)) { e.Handled = true; return; }
         if (TryMoveThreadFindByShortcut(e)) return;
         int gesture = ThreadFindGesture(e.Key, e.KeyModifiers);
         if (gesture == 0) return; // Space, Tab, modified Enter/Escape retain native ownership.
-        // The first Escape empties a typed query (SearchBox); only Escape in an empty query or on a button closes the bar.
-        if (gesture == 2 && SearchBox.OwnsEscape(e.Source)) return;
         // The scope chip keeps its own Enter (opens the scope menu).
         if (gesture != 2 && e.Source is Avalonia.Visual chip && chip.GetSelfAndVisualAncestors().Contains(ReaderFindScope)) return;
         if (gesture != 2 && ReaderScope != SearchScope.Text)
@@ -228,7 +252,7 @@ public partial class ArchivePage
             return;
         }
         e.Handled = true;
-        if (gesture == 2) CloseThreadFind();
+        if (gesture == 2) DismissThreadFind();
         else if (gesture == 1 && FocusedFindButton(e.Source) is { } button)
         {
             // Enter on a focused find button runs that button's labeled action, not "next hit".
@@ -249,8 +273,8 @@ public partial class ArchivePage
     {
         ReaderFindOpen.Content = Texts.T("readerFind.open");
         ReaderFindQuery.PlaceholderText = Texts.T("readerFind.query");
-        ReaderFindPrevious.Content = Texts.T("readerFind.previous");
-        ReaderFindNext.Content = Texts.T("readerFind.next");
+        WorkspaceIcons.MakeSquare(ReaderFindPrevious, WorkspaceIcons.ChevronUp, Texts.T("readerFind.previous"));
+        WorkspaceIcons.MakeSquare(ReaderFindNext, WorkspaceIcons.ChevronDown, Texts.T("readerFind.next"));
         UpdateThreadToolsRow();
         ReaderFindRetry.Content = Texts.T("readerFind.retry");
         ReaderFindRetry.IsVisible = _threadFindStatus == "readerFind.failed";
@@ -258,9 +282,11 @@ public partial class ArchivePage
         bool hits = result?.Hits.Count > 0;
         ReaderFindPrevious.IsEnabled = hits;
         ReaderFindNext.IsEnabled = hits;
+        ReaderFindPosition.IsVisible = result != null;
+        ReaderFindPosition.Text = result == null ? null
+            : Texts.T("reader.sidebar.position", _threadFindCursor + 1, result.Hits.Count);
         ReaderFindStatus.Text = result == null ? Texts.T(_threadFindStatus)
-            : Texts.Count("readerFind.count", result.Hits.Count, _threadFindCursor + 1, result.Hits.Count)
-                + (result.Truncation == ReaderFindTruncation.None ? "" : " · " + Texts.T("readerFind.truncated"));
+            : result.Truncation == ReaderFindTruncation.None ? null : Texts.T("readerFind.truncated");
         TextBlock excerpt = ReaderFindExcerpt;
         excerpt.Inlines!.Clear();
         if (result != null && _threadFindCursor >= 0)

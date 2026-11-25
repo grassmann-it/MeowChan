@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Layout;
 using MeowChan.Archive;
@@ -12,8 +14,6 @@ using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -57,63 +57,66 @@ public sealed class QuickTagSurfaceTests : IDisposable
     }
 
     [Fact]
-    public void GalleryHeaderCounterKeepsLiveTextVisibilityAndAccessibleNameAfterMoving()
+    public void GalleryHeaderCounterKeepsLiveTextVisibilityAndAccessibleNameInTheSidebar()
     {
+        GallerySidePanel panel = new(new PanelCloseButton("Close"));
+        MediaPositionPill counter = panel.Position;
+        Assert.Same(panel, counter.Parent);
+        Assert.False(counter.Focusable);
+        TextBlock label = counter.Label;
+        Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping);
+        Assert.Equal(1, label.MaxLines);
+        Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, label.TextTrimming);
+        counter.Show(new(4, 27, false));
+        Assert.Equal("No. 4 / 27", label.Text);
+        Assert.Equal("Medium 4 of 27", AutomationProperties.GetName(counter));
+        Assert.Equal("Medium 4 of 27", ToolTip.GetTip(counter));
+        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(counter));
+        Assert.Equal(AutomationLiveSetting.Off, AutomationProperties.GetLiveSetting(label));
+        Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(label));
+        counter.Show(null);
+        Assert.False(counter.IsVisible);
+        counter.Show(new(5, 27, false));
+        Assert.True(counter.IsVisible);
+        Assert.Equal("No. 5 / 27", label.Text);
+        Assert.Same(panel, counter.Parent);
+    }
+
+    [Theory]
+    [InlineData(240)]
+    [InlineData(280)]
+    [InlineData(360)]
+    [InlineData(480)]
+    public void GalleryTagsUsesTheSharedOrderAndContentSizedActions(int width) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         PrivateTagStore store = new(temp.Path, lease);
         using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("a", 'a'))));
-        using QuickTagSurface surface = new(session);
-        surface.CounterText = "Medium 4 of 27";
-        Border counter = surface.DetachCounter();
-        GallerySidePanel panel = new(new Button()) { HeaderCounter = counter };
-        Assert.DoesNotContain(counter, surface.Header.Children);
-        Assert.Same(counter, panel.HeaderCounter);
-        ContentControl slot = Assert.IsType<ContentControl>(counter.Parent);
-        Assert.Same(panel, slot.Parent);
-        Assert.False(slot.Focusable);
-        TextBlock label = Assert.IsType<TextBlock>(counter.Child);
-        Assert.Equal("Medium 4 of 27", label.Text);
-        Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping);
-        Assert.Equal(1, label.MaxLines);
-        Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, label.TextTrimming);
-        surface.CounterShortText = "No. 4 / 27";
-        Assert.Equal("No. 4 / 27", label.Text); // the chip shows the short text, the long one stays name and tooltip
-        Assert.Equal("Medium 4 of 27", AutomationProperties.GetName(counter));
-        Assert.Equal("Medium 4 of 27", ToolTip.GetTip(counter));
-        surface.CounterShortText = null;
-        surface.CounterText = "Medium 5 von mindestens 12345 · markiert";
-        Assert.Equal(surface.CounterText, label.Text);
-        Assert.Equal(surface.CounterText, AutomationProperties.GetName(counter));
-        Assert.Equal(surface.CounterText, ToolTip.GetTip(counter));
-        surface.CounterText = null; // tagging mode suppresses this counter in either header
-        Assert.False(counter.IsVisible);
-        surface.CounterText = "Medium 5 of 27";
-        Assert.True(counter.IsVisible);
-        panel.HeaderCounter = null;
-        Assert.Null(counter.Parent);
-    }
-
-    [Fact]
-    public void GalleryMovesTheLiveBadgeToThePanelHeaderAndLeftAlignsTheTitleAboveTheRatingRow()
-    {
-        var source = CSharpSource.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
-            Path.GetDirectoryName(ThisFile())!, "../../Desktop/GalleryViewer.TagPanel.cs"))));
-        var show = source.Method("ShowTagPanel");
-        var announce = Assert.Single(show.Calls("AnnounceCounter"));
-        var move = Assert.Single(show.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
-            SyntaxFactory.AreEquivalent(assignment.Left, SyntaxFactory.ParseExpression("_sidePanel.HeaderCounter")));
-        Assert.Single(move.Right.Calls("DetachCounter", "surface"));
-        Assert.True(announce.SpanStart < move.SpanStart);
-        Assert.Contains(show.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
-            SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression(
-                "surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Left")));
-        Assert.Contains(show.Calls("SetColumnSpan", "Grid"), call =>
-            SyntaxFactory.AreEquivalent(call.ArgumentList, SyntaxFactory.ParseArgumentList(
-                "(surface.Title, surface.Header.ColumnDefinitions.Count)")));
-        Assert.Contains(source.Method("ReleaseTagPanel").DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
-            SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression("_sidePanel.HeaderCounter = null")));
-    }
+        using QuickTagSurface surface = new(session) { Width = width - 32, FocusOnAttach = false };
+        GalleryDecisionRow decision = new("Rating", compact: true);
+        MediaFactGrid facts = new("Facts");
+        facts.Add("File", "example.png", fileName: true);
+        surface.UseSidebarHeader();
+        surface.DecisionContent = decision;
+        surface.SetSidebarInfo(facts, new PanelActionStack("Extra actions"));
+        Window window = new() { Width = 520, Height = 950, Content = surface };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            Assert.Empty(surface.Header.Children);
+            Assert.False(surface.CloseButton.IsVisible);
+            Assert.False(surface.FooterStacked);
+            Assert.Equal(surface.AdvancedButton.DesiredSize.Width, surface.AdvancedButton.Bounds.Width, 0.5);
+            double Top(Control control) => control.TranslatePoint(default, surface)!.Value.Y;
+            Assert.True(Top(decision) < Top(surface.Title));
+            Assert.True(Top(surface.Title) < Top(facts));
+            Assert.True(Top(facts) < Top(surface.AdvancedButton));
+        }
+        finally { window.Close(); }
+    });
 
     // ---- session: add, create, remove, status -------------------------------------------------------------------
 
@@ -596,6 +599,31 @@ public sealed class QuickTagSurfaceTests : IDisposable
         return (surface, session);
     }
 
+    [Fact]
+    public void PendingSuggestionClickKeepsItsValueWhenEarlierChipsDisappear() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry entry = Entry("a", 'a');
+        using QuickTagSession session = new(QuickTagTarget.For(Single(store, entry)));
+        QuickTagSuggestion Suggest(string name) => new(Name(name), null, 1, QuickTagReason.SourceTag, 1);
+        QuickTagSuggestion[] suggestions = [Suggest("first"), Suggest("second"), Suggest("third")];
+        using QuickTagSurface surface = new(session) { Suggestions = new DelegateQuickTagSuggestions(_ => suggestions) };
+        TaskCompletionSource<bool> verification = new();
+        surface.VerifyBeforeWriteAsync = _ => verification.Task;
+        Button button = Assert.Single(surface.SuggestionButtons, b => AutomationProperties.GetAutomationId(b) == "QuickTagSuggestion2");
+        string intended = surface.Shown[1].Name.Display;
+        button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        BooruComponentDispatcher.Wait(session.AcceptAsync(surface.Shown[0]));
+        surface.Refresh();
+        Assert.DoesNotContain(intended, NamesOn(store, entry));
+        verification.SetResult(true);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Contains(intended, NamesOn(store, entry));
+    });
+
     [Theory]
     [InlineData(ShortcutPlatform.Linux, "Alt+1", "Alt+2")]
     [InlineData(ShortcutPlatform.MacOS, "⌥1", "⌥2")]
@@ -652,7 +680,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Equal("Undo the last tag change, steps left: 2", AutomationProperties.GetName(surface.UndoButton));
             Assert.True(surface.UndoButton.IsEnabled);
             Assert.Equal("Added “blue_eyes”.", surface.Status.Text);
-            Assert.Contains("workspace-help", surface.Status.Classes);
+            Assert.Contains("workspace-meta", surface.Status.Classes);
             Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(surface.Status));
             Assert.Equal("Tags for 1699999999123.jpg", AutomationProperties.GetName(surface));
             Assert.Equal("Suggestions: 1, assigned: 2. Escape closes.", AutomationProperties.GetHelpText(surface));
@@ -747,9 +775,9 @@ public sealed class QuickTagSurfaceTests : IDisposable
         {
             Grid header = surface.Header;
             Assert.Equal(header.ColumnDefinitions.Count - 1, Grid.GetColumn(surface.CloseButton));
-            Assert.Equal(1, Grid.GetColumn(surface.Title));
-            Assert.Equal(24, header.ColumnDefinitions[^2].Width.Value); // empty gap without any action
-            Assert.DoesNotContain(header.Children, child => Grid.GetColumn(child) == header.ColumnDefinitions.Count - 2);
+            Assert.Equal(0, Grid.GetColumn(surface.Title));
+            Assert.Equal(new Control[] { surface.Title, surface.CloseButton }, header.Children.ToArray());
+            Assert.Equal(8, header.ColumnSpacing);
             Assert.Equal(1, KeyboardNavigation.GetTabIndex(surface.Header)); // the close button is the last tab stop
             Assert.Contains(WorkspaceIcons.SquareClass, surface.CloseButton.Classes);
             Assert.Equal(WorkspaceIcons.Close, WorkspaceIcons.KeyOf(surface.CloseButton.Content));

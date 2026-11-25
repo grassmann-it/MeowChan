@@ -4,8 +4,10 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
+using Semi.Avalonia.DataGrid;
 
 namespace MeowChan.DesktopTests;
 
@@ -14,6 +16,31 @@ namespace MeowChan.DesktopTests;
 [Collection("Booru exact navigation")]
 public sealed class DiagnosticsKeyboardMenuTests
 {
+    [Fact]
+    public void AReboundContextKeyOpensTheDiagnosticsMenu() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Application.Current!.Styles.Add(new DataGridSemiTheme());
+        ShortcutBindingsSection previous = ShortcutService.CurrentSection;
+        DiagnosticsPage page = new(_ => true, _ => Task.CompletedTask);
+        Window window = new() { Width = 1100, Height = 800, Content = page };
+        try
+        {
+            ShortcutService.Publish(previous.Set("menu.context-open", [new("F9", [])]));
+            page.Refresh(new DesktopSessionView([], [], [], DesktopSessionState.Ready, null), available: true);
+            page.FindControl<Expander>("DiagnosticPlatformSection")!.IsExpanded = true;
+            window.Show();
+            DataGrid grid = page.FindControl<DataGrid>("PlatformGrid")!;
+            grid.SelectedItem = grid.ItemsSource!.Cast<DiagnosticEntry>().First();
+            ContextGestures.KeyStroke(grid, Key.F9, PhysicalKey.F9);
+
+            ContextMenu menu = Assert.IsType<ContextMenu>(grid.ContextMenu);
+            Assert.True(menu.IsOpen);
+            Assert.Contains(MenuProbe.Entries(menu), entry => entry.Id == "diagnostics.copy");
+        }
+        finally { page.EndLifetime(); window.Close(); ShortcutService.Publish(previous); }
+    });
+
     [Fact]
     public void TheContextOpenKeyOnASelectedRowComposesTheMenuBeforeOpeningIt() => Run(page =>
     {

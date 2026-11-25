@@ -87,21 +87,21 @@ public sealed class BooruSearchModelTests : IDisposable
     // ---- bounded paging ------------------------------------------------------------------------------
 
     [Fact]
-    public async Task PagingIsBoundedToTheHostLimitAndStopsAtTheProvidersEnd()
+    public async Task PagingIsBoundedToTheConfiguredLimitAndStopsAtTheProvidersEnd()
     {
         _h.Serve(pages: 10);
         await BooruTestSupport.SearchAsync(_model, "cat");
         Assert.False(_model.View.HasPreviousPage);
-        for (int page = 2; page <= BooruSearchModel.MaximumPage; page++)
+        for (int page = 2; page <= Config.BooruSearchPagesDefault; page++)
         {
             Assert.True(_model.View.HasNextPage);
             await _model.GoToPageAsync(page);
         }
-        Assert.Equal(BooruSearchModel.MaximumPage, _model.View.Page);
+        Assert.Equal(Config.BooruSearchPagesDefault, _model.View.Page);
         Assert.False(_model.View.HasNextPage);
         Assert.True(_model.View.PageLimitReached);
         int requests = _h.Search.Searches.Count;
-        await _model.GoToPageAsync(BooruSearchModel.MaximumPage + 1);
+        await _model.GoToPageAsync(Config.BooruSearchPagesDefault + 1);
         Assert.Equal(requests, _h.Search.Searches.Count);
 
         // The provider's own end also ends the paging, without hitting the bound.
@@ -576,9 +576,17 @@ public sealed class BooruSearchModelTests : IDisposable
         Assert.Equal(BooruSearchStatus.NotFound, _model.View.Status);
     }
 
-    [Fact]
-    public async Task ADisposedModelIgnoresLateAnswers()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ADisposedModelIgnoresLateAnswers(bool withPreviews)
     {
+        if (withPreviews)
+        {
+            await DisposeWithPendingPreviewsAsync();
+            return;
+        }
+
         TaskCompletionSource<BooruCallResult<BooruResultPage>> gate = new();
         _h.Search.OnSearch = (_, _, _) => gate.Task;
         Task running = BooruTestSupport.SearchAsync(_model, "cat");
@@ -587,5 +595,43 @@ public sealed class BooruSearchModelTests : IDisposable
         gate.SetResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page("cat", 1, true, BooruUiFixtures.Post("1"))));
         await running;
         Assert.Empty(_model.View.Rows);
+    }
+
+    private async Task DisposeWithPendingPreviewsAsync()
+    {
+        _h.Serve(perPage: 3);
+        TaskCompletionSource<CancellationToken> secondPreview = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<byte[]?> releasePreviews = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Previews.OnPreviewAsync = (_, token) =>
+        {
+            if (_h.Previews.Requests == 2) secondPreview.TrySetResult(token);
+            return releasePreviews.Task;
+        };
+
+        try
+        {
+            await BooruTestSupport.SearchAsync(_model, "cat");
+            CancellationToken token = await secondPreview.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(3, _model.View.Rows.Length);
+            Assert.All(_model.View.Rows, row => Assert.Equal(BooruPreviewState.Loading, row.Preview));
+            Assert.Equal(2, _h.Previews.Requests);
+            WaitHandle handle = token.WaitHandle;
+
+            _model.Dispose();
+            Assert.True(token.IsCancellationRequested);
+            Assert.Same(handle, token.WaitHandle);
+            BooruSearchView closedView = _model.View;
+            int searches = _h.Search.Requests;
+            await _model.SubmitAsync();
+            Assert.Equal(searches, _h.Search.Requests);
+
+            releasePreviews.SetResult(BooruUiFixtures.Png(1));
+            await BooruTestSupport.WaitAsync(
+                () => Record.Exception(() => { _ = token.WaitHandle; }) is ObjectDisposedException,
+                "retirement of the search with pending previews");
+            Assert.Equal(2, _h.Previews.Requests);
+            Assert.Equal(closedView, _model.View);
+        }
+        finally { releasePreviews.TrySetResult(null); }
     }
 }

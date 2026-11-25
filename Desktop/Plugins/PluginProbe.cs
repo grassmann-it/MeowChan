@@ -27,6 +27,7 @@ internal static class PluginProbe
         if (selected == null) throw new ArgumentException(Localization.Texts.T("plugins.invalidUrl"));
         return kind == SourceResourceKind.Thread
             ? await worker.ReadThreadAsync(new(new(selected.SourceId, board, thread!)), operation, cancellationToken)
-            : await worker.ReadCatalogAsync(new(new(selected.SourceId, board)), operation, cancellationToken);
+            : await worker.ReadCatalogAsync(new(new(selected.SourceId, board)) { IsArchive = kind == SourceResourceKind.BoardArchive },
+                operation, cancellationToken);
     }
 }

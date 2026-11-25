@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -195,7 +196,7 @@ public partial class MainWindow
         object? item = hit?.DataContext;
         if (item is ThreadRow thread) _threadLeadId = thread.WatchId;
         if (item is BoardRow board) _boardLeadId = board.WatchId;
-        if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
+        if (!ContextClick.IsPress(e, grid) || MediaMenuPresenter.IsNativeTextSource(e.Source)) return;
         _downloadPointerContextHandled.Add(grid);
         if (IsDownloadColumnHeaderSource(e.Source))
         {
@@ -206,9 +207,9 @@ public partial class MainWindow
         }
         if (item == null)
         {
-            grid.SelectedItems.Clear();
-            if (grid == DownloadList(false)) _threadLeadId = null; else _boardLeadId = null;
             grid.ContextMenu?.Close();
+            e.Handled = true;
+            return;
         }
         else
         {
@@ -250,7 +251,11 @@ public partial class MainWindow
         if (grid.ContextMenu is not ContextMenu menu || grid.SelectedItems.Count == 0) return;
         // ContextMenu.Open(control) bypasses Opening in Avalonia 12.
         BuildDownloadMenu(grid, menu);
-        if (menu.ItemCount > 0) menu.Open(grid);
+        if (menu.ItemCount > 0)
+        {
+            menu.Placement = PlacementMode.Pointer;
+            menu.Open(grid);
+        }
     }
 
     private readonly HashSet<Control> _downloadPointerContextHandled = new();
@@ -286,15 +291,30 @@ public partial class MainWindow
             || _largeReaderOpen || (_gallery != null && !_gallerySuspended) || !IsEnabled
             || _selectedPage != WorkspacePage.Downloads || RowCommandBusy || _selectionCommandRunning) return;
         bool boards = ReferenceEquals(grid, DownloadList(true));
-        if (DownloadsMatches(e, "menu.context-open"))
+        bool contextKey;
+        using (EffectiveShortcutBindings.EnterKeyContext("downloads")) contextKey = ContextClick.IsKey(e);
+        if (contextKey)
         {
             e.Handled = true;
+            object? target = ItemActivation.ContainerAt(e.Source, grid)?.DataContext;
+            if (target is ThreadRow or BoardRow)
+            {
+                if (!grid.SelectedItems.Contains(target)) grid.SelectedItem = target;
+                if (target is ThreadRow thread) _threadLeadId = thread.WatchId;
+                else if (target is BoardRow board) _boardLeadId = board.WatchId;
+            }
             if (grid.ContextMenu is ContextMenu menu && grid.SelectedItems.Count > 0)
-            { BuildDownloadMenu(grid, menu); if (menu.ItemCount > 0) menu.Open(grid); }
+            {
+                BuildDownloadMenu(grid, menu);
+                if (menu.ItemCount > 0)
+                {
+                    menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+                    menu.Open(grid);
+                }
+                ContextClick.ConsumeOpeningKeyRelease(menu, e.Key);
+            }
             return;
         }
-        // The dedicated Menu key remains native. An overridden free Shift+F10 does not.
-        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown)
         {
             // Native grid navigation handles range selection and moves CurrentItem.
@@ -320,7 +340,7 @@ public partial class MainWindow
         if (DownloadsMatches(e, "watch.remove"))
         { e.Handled = true; await RemoveDownloadSelectionAsync(boards); return; }
         if (DownloadsMatches(e, "thread.details"))
-        { e.Handled = true; OpenWorkspaceDetails(); return; }
+        { e.Handled = true; if (GetWorkspaceSelection() != null) ToggleWorkspaceDetails(); return; }
         // Revision 19: "Show in Media" (Alt+M), like the thread menu entry: every selected thread (as one thread set when there are several);
         // boards have no media of their own.
         if (!boards && DownloadsMatches(e, "thread.show-in-media"))
@@ -345,6 +365,9 @@ public partial class MainWindow
         { e.Handled = true; await CheckDownloadSelectionAsync(boards, DownloadsMatches(e, "watch.retry-media")); return; }
         if (boards && DownloadsMatches(e, "board.filters"))
         { e.Handled = true; if (LeadBoard is BoardRow row) await OpenBoardAdmissionAsync(row); return; }
+        if (boards && DownloadsMatches(e, "board.browse-archive") && LeadBoard is { Url: var boardUrl }
+            && _session.FindBoardArchive(boardUrl, fromBoard: true) is { } archive)
+        { e.Handled = true; await OpenActions.RunAsync(() => OpenBoardArchiveAsync(archive, grid), "board.browse-archive"); return; }
         if (DownloadsMatches(e, "rules.edit-scope"))
         { e.Handled = true; OnEditSelectionRules(sender, new RoutedEventArgs()); return; }
         if (DownloadsMatches(e, "location.open-folder"))
@@ -362,7 +385,11 @@ public partial class MainWindow
         {
             foreach (T id in frozen)
             {
-                await AwaitSessionRowsAsync();
+                // The next projection can start before the completed frame's waiter resumes.
+                do
+                {
+                    await AwaitSessionRowsAsync();
+                } while (_sessionRowsApplying && !_isClosing);
                 if (_isClosing) return;
                 try { await command(id); }
                 catch (Exception error) { failures.Add(error.Message); }

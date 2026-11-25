@@ -1,3 +1,4 @@
+using Avalonia.Input;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -73,12 +74,91 @@ public sealed class DefaultsRevision19Tests : IDisposable
     [Theory, MemberData(nameof(Cases))]
     public void ABindingSavedForTheCommandItselfIsKeptAsItIs(string id, ShortcutPlatform platform)
     {
-        EffectiveShortcutBindings own = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(id, [ShortcutGesture.Parse("F9")]), platform);
-        Assert.Equal(new[] { "F9" }, own.For(id).Select(g => g.Key));
+        // Decision #125: an already saved binding survives a defaults update. Use a free key; F9 belongs to Stamp.
+        EffectiveShortcutBindings own = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(id, [ShortcutGesture.Parse("F8")]), platform);
+        Assert.Equal(new[] { "F8" }, own.For(id).Select(g => g.Key));
         Assert.Empty(own.Issues);
         EffectiveShortcutBindings unbound = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(id, []), platform);
         Assert.Empty(unbound.For(id));
         Assert.Empty(unbound.Issues);
+    }
+
+    public static IEnumerable<object[]> UpgradedDefaults()
+    {
+        (string Id, string Owner, string Gesture, string Context, string? OtherContext)[] cases =
+        [
+            ("tagging.stamp", "tagging.mark-done", "F9", "tagging", null),
+            ("tagging.stamp", "tagging.mark-skipped", "F9", "tagging", null),
+            ("tagging.stamp", "tagging.show-in-media", "F9", "tagging", null),
+            ("plugins.watches", "plugins.folder", "Primary+J", "plugins", null),
+            ("gallery.layout.info", "gallery.layout-menu", "Shift+Z", "gallery", null),
+            ("media.sidebar.autohide", "gallery.layout-menu", "Shift+A", "gallery", "reader"),
+            ("media.sidebar.info", "gallery.layout.info", "Shift+I", "gallery", "media"),
+        ];
+        foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
+        {
+            foreach (var (id, owner, gesture, context, otherContext) in cases)
+                yield return [platform, id, owner, gesture, context, otherContext!];
+
+            // A Windows/Linux profile can have stored the literal Control modifier. On Mac the F10 default uses Command.
+            string settingsGesture = platform == ShortcutPlatform.MacOS ? "Primary+Shift+F10" : "Control+Shift+F10";
+            yield return [platform, "settings.more", "input.focus-settings-search", settingsGesture, "settings", null!];
+        }
+    }
+
+    [Theory, MemberData(nameof(UpgradedDefaults))]
+    [InlineData(ShortcutPlatform.MacOS, "tagging.stamp", "tagging.mark-done", "Primary+Alt+S", "tagging", null)]
+    [InlineData(ShortcutPlatform.MacOS, "settings.more", "input.focus-settings-search", "Control+Primary+M", "settings", null)]
+    public void UpgradingFrom111KeepsSavedGesturesAndUsableDefaults(ShortcutPlatform platform, string id, string owner,
+        string gesture, string context, string? otherContext)
+    {
+        // Astra's bundle C review, blocker 1: the saved command keeps its key and the new default yields with a non-blocking hint.
+        ShortcutGesture saved = ShortcutGesture.Parse(gesture);
+        ShortcutGesture extra = ShortcutGesture.Parse("Control+Shift+F8");
+        KeyEventArgs key = Press(saved, platform);
+        EffectiveShortcutBindings fresh = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.True(fresh.Matches(key, id, context));
+
+        ShortcutBindingsSection profile = new ShortcutBindingsSection().Set(owner, [saved, extra]);
+        string before = profile.Raw.GetRawText();
+        EffectiveShortcutBindings upgraded = EffectiveShortcutBindings.Build(profile, platform);
+
+        Assert.True(upgraded.Matches(key, owner, context));
+        Assert.True(upgraded.Matches(Press(extra, platform), owner, context));
+        Assert.False(upgraded.Matches(key, id, context));
+        if (otherContext is null)
+            Assert.DoesNotContain(upgraded.For(id), g => EffectiveShortcutBindings.Equivalent(g, saved, platform));
+        else
+            Assert.True(upgraded.Matches(key, id, otherContext));
+        foreach (ShortcutGesture alternative in fresh.For(id).Where(g => !EffectiveShortcutBindings.Equivalent(g, saved, platform)))
+            Assert.True(upgraded.Matches(Press(alternative, platform), id, context));
+
+        ShortcutIssue issue = Assert.Single(upgraded.Issues);
+        Assert.Equal((id, owner, "defaultYields", false), (issue.CommandId, issue.OtherCommandId, issue.Reason?.Code, issue.BlocksSave));
+        Assert.False(EffectiveShortcutBindings.NeedsStartupWarning(issue));
+        Assert.Equal(before, profile.Raw.GetRawText());
+    }
+
+    [Fact]
+    public void MacKeepsALiteralControlShiftF10BindingAndBothSettingsMenuKeys()
+    {
+        const ShortcutPlatform platform = ShortcutPlatform.MacOS;
+        const string owner = "input.focus-settings-search";
+        const string menu = "settings.more";
+        ShortcutGesture saved = ShortcutGesture.Parse("Control+Shift+F10");
+        var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(owner, [saved]), platform);
+
+        Assert.True(bindings.Matches(Press(saved, platform), owner, "settings"));
+        Assert.False(bindings.Matches(Press(saved, platform), menu, "settings"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.F10, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Shift }, menu, "settings"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M, KeyModifiers = KeyModifiers.Control | KeyModifiers.Meta }, menu, "settings"));
+        Assert.Empty(bindings.Issues);
+    }
+
+    private static KeyEventArgs Press(ShortcutGesture gesture, ShortcutPlatform platform)
+    {
+        KeyGesture key = gesture.Resolve(platform);
+        return new KeyEventArgs { Key = key.Key, KeyModifiers = key.KeyModifiers };
     }
 
     [Fact]

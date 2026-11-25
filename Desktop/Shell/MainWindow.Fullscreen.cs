@@ -694,16 +694,23 @@ public partial class MainWindow
     /// <summary>F1, the app menu and the macOS Help menu: toggles the one shortcuts window on the area the user works in (KS2); the gallery passes its own context.</summary>
     private void ShowShellHelp(MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext? context = null)
     {
-        if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true }) { DismissShellHelp(); return; }
+        if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true } visible)
+        {
+            DismissShellHelp();
+            ShortcutHelpMenuItem.IsChecked = visible.IsVisible;
+            return;
+        }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
         var window = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.Open(this, SettingsEditor, context
             ?? (_gallery != null && !_gallerySuspended ? _gallery.ShortcutHelp() : ShellHelpContext()));
+        ShortcutHelpMenuItem.IsChecked = window.IsVisible;
         window.Closed -= OnShortcutsWindowClosed;
         window.Closed += OnShortcutsWindowClosed;
     }
 
     private void OnShortcutsWindowClosed(object? sender, EventArgs e)
     {
+        ShortcutHelpMenuItem.IsChecked = false;
         if (_isClosing) return;
         Activate();
         RestoreHelpOrigin();
@@ -724,8 +731,9 @@ public partial class MainWindow
             // The three back commands are listed by their state (the same answer the Back gesture gets: CanRunBack), the page buttons by the
             // enabled state their page keeps: a button that layout hides (narrow chrome, a work view, the More menu) leaves its command in force.
             foreach (string id in BackCommands) if (CanRunBack(id)) ids.Insert(0, id);
-            foreach (var pair in new[] { ("PreviousPostsButton", "pagination.previous"), ("NextPostsButton", "pagination.next") })
-                if (_archivePage?.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
+            if (_archivePage?.FindControl<TabControl>("ArchiveContentTabs")?.SelectedItem is TabItem { Name: "ArchiveReferencesTab" })
+                foreach (var pair in new[] { ("PreviousReferences", "pagination.previous"), ("NextReferences", "pagination.next") })
+                    if (_archivePage.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
         }
         else if (_selectedPage == WorkspacePage.Downloads && _restoreCompleted && !WorkspaceCommandBusy)
         {
@@ -813,15 +821,30 @@ public partial class MainWindow
             && (e.KeyModifiers is KeyModifiers.None or KeyModifiers.Alt) ? e.Key : Key.None;
         if (ShortcutService.IsCapturing) return;
         if (e.Handled || _isClosing || !IsEnabled || HasVisibleShellDialog()) return;
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+        bool escape = e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None;
+        bool inDownloadSearch = IsDownloadSearchSource(e.Source);
+        if (inDownloadSearch && (escape || DownloadsMatches(e, "input.focus-download-search"))
+            && DownloadSearchIsComposing()) return;
+        if (escape)
         {
             // Popups/editors own their first Escape; never cascade a handled key.
             // A native ComboBox can report DropDownClosed before this shell handler
             // sees Escape on macOS. The gallery retains that ownership for one
             // bounded grace so closing the popup cannot close the gallery too.
             if (_gallery != null && !_gallerySuspended && _gallery.ConsumeRecentlyClosedPlaybackMenuEscape(e)) return;
+            if (inDownloadSearch)
+            {
+                e.Handled = true;
+                if (!DismissShellMenu()) CloseDownloadSearch();
+                return;
+            }
+            if (DiagnosticsSegmentShown && !_largeReaderOpen && (_gallery == null || _gallerySuspended)
+                && _diagnosticsPage?.RouteDiagnosticFilterKey(e) == true) return;
+            if (CanFocusDownloadSearch && IsAdmissionDismissSource(e.Source)) return;
             // A search field with text takes its first Escape to clear itself (SearchBox); nothing around it reacts to that key.
-            if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
+            bool readerFindSource = _archivePage?.IsThreadFindSource(e.Source) == true;
+            if ((readerFindSource || _archivePage?.IsTagBarSource(e.Source) == true) && MeowChan.ArchivePage.ReaderInputIsComposing(e.Source)) return;
+            if (!readerFindSource && MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
             if (_selectedPage == WorkspacePage.Tagging && _taggingPage is { StampOpen: true } tagging)
@@ -829,7 +852,8 @@ public partial class MainWindow
                 e.Handled = tagging.DismissStampByEscape();
                 return;
             }
-            if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
+            if (DismissShellMenu() || DismissReadingHistory() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
+                (_selectedPage == WorkspacePage.Media && _mediaPage?.TryDismissPanelTagEditor(e) == true) ||
                 (_archivePage?.TryDismissOverlay(e.Source) ?? false))
             { e.Handled = true; return; }
             if (_archivePage?.IsReaderDialogOpen == true) return;
@@ -839,15 +863,23 @@ public partial class MainWindow
             { _pluginsPage.CancelDiscardConfirmation(); e.Handled = true; return; }
             if (_selectedPage == WorkspacePage.Sources && _gallery == null && !_largeReaderOpen && _sourcesPage?.TryDismissMergedLayer() == true)
             { e.Handled = true; return; }
+            if (CanFocusDownloadSearch && (WorkspaceInspector.IsVisible || _downloadSearchOpen))
+            {
+                e.Handled = true;
+                if (WorkspaceInspector.IsVisible) ToggleWorkspaceDetails();
+                else CloseDownloadSearch();
+                return;
+            }
+            if (_selectedPage == WorkspacePage.Settings && _settingsEditor?.TryDismissFolderSourceRemoval() == true)
+            { e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Settings && _gallery == null && !_largeReaderOpen
+                && _settingsEditor?.TryDismissSectionNavigation() == true)
+            { e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Tagging && _taggingPage?.TryDismissClearQuestion() == true)
+            { e.Handled = true; return; }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }
             if (_largeReaderOpen) { e.Handled = true; CloseLargeReader(); return; }
-            if (_selectedPage == WorkspacePage.Downloads && WorkspaceInspector.IsVisible)
-            {
-                e.Handled = true;
-                OnDetailsToggleClick(sender, e);
-                DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
-            }
             return;
         }
         if (HasBlockingPageDecision()) return;
@@ -865,6 +897,9 @@ public partial class MainWindow
         if (CommandBindings.Matches(e, "window.minimize") && !CommandRouter.IsNativeInput(e.Source, e.Key))
         { e.Handled = true; MinimizeWindow(toTray: false); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
+        if ((_selectedPage == WorkspacePage.Archive || _largeReaderOpen) && (_gallery == null || _gallerySuspended)
+            && _archivePage?.TryToggleArchiveColumnsByKey(e) == true)
+        { e.Handled = true; return; }
         if (TryRouteMediaReturn(e)) return;
         // Native video -> image retirement can clear focus before the next key.
         // A Window-source arrow would otherwise reach Avalonia's directional focus
@@ -918,10 +953,16 @@ public partial class MainWindow
                 }
                 return;
             }
-            if (CommandBindings.Matches(e, "input.focus-download-search") && CanFocusDownloadSearch)
+            if (CanFocusDownloadSearch && DownloadsMatches(e, "input.focus-download-search"))
             {
                 e.Handled = true;
-                FocusDownloadSearch();
+                ToggleDownloadSearch();
+                return;
+            }
+            if (CanFocusDownloadSearch && DownloadsColumnsButton.IsVisible && DownloadsMatches(e, "table.choose-columns"))
+            {
+                e.Handled = true;
+                ToggleDownloadColumns();
                 return;
             }
             if (TryRunUnroutedShellCommand(e)) return;
@@ -944,12 +985,16 @@ public partial class MainWindow
         else if ((_selectedPage == WorkspacePage.Archive || _largeReaderOpen) && (_gallery == null || _gallerySuspended) && _archivePage?.TryOpenReaderFindByKey(e) == true)
         { e.Handled = true; }
         else if (CommandBindings.Matches(e, "input.focus-search") && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
-        { e.Handled = true; _archivePage?.FocusArchiveTextSearch(); }
+        {
+            if (_archivePage?.IsThreadFindSource(e.Source) == true && MeowChan.ArchivePage.ReaderInputIsComposing(e.Source)) return;
+            e.Handled = true;
+            _archivePage?.FocusArchiveTextSearch();
+        }
         else if (CommandBindings.Matches(e, "input.focus-media-search") && _selectedPage == WorkspacePage.Media && _mediaPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _mediaPage.FocusSearch(); }
         // AP2: the diagnostics message filter is the same search field and takes Primary+F like the other pages.
-        else if (CommandBindings.Matches(e, "input.focus-diagnostics-search") && DiagnosticsSegmentShown && _diagnosticsPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
-        { e.Handled = true; _diagnosticsPage.FocusSearch(); }
+        else if (DiagnosticsSegmentShown && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
+            _diagnosticsPage?.RouteDiagnosticFilterKey(e);
     }
 
     /// <summary>The shell's power commands for this key: a chord that types no text also runs while a text field has the focus (the commands that

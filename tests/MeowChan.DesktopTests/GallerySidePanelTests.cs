@@ -21,14 +21,15 @@ public sealed class GallerySidePanelTests : IDisposable
 
     private static GallerySidePanel Panel(out Button close)
     {
-        close = new Button { Name = "GalleryReturnImage" };
-        return new GallerySidePanel(close) { PostContent = new StackPanel { Children = { new Button { Name = "PostAction" } } },
+        PanelCloseButton cross = new("GalleryReturnImage");
+        close = cross;
+        return new GallerySidePanel(cross) { PostContent = new StackPanel { Children = { new Button { Name = "PostAction" } } },
             TagContent = new StackPanel { Children = { new TextBox { Name = "TagField" } } } };
     }
 
     [Theory]
     [InlineData(140)]
-    [InlineData(148)]
+    [InlineData(164)]
     public void NarrowHeaderLeavesTheTagContentBelowTheTabs(int width) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -37,7 +38,7 @@ public sealed class GallerySidePanelTests : IDisposable
         panel.Width = width;
         close.Width = close.Height = 32;
         panel.Segment = GallerySidePanelSegment.Tags;
-        panel.HeaderCounter = new TextBlock { Text = "1 / 2" };
+        panel.Position.Show(new(1, 2, false));
         Window window = new() { Width = 360, Height = 240, Content = panel };
         try
         {
@@ -47,11 +48,11 @@ public sealed class GallerySidePanelTests : IDisposable
             Control segment = (Control)panel.PostButton.Parent!;
             Assert.Equal(panel.PostButton.Bounds.Top, panel.TagsButton.Bounds.Top);
             Assert.True(segment.Bounds.Top + panel.TagsButton.Bounds.Bottom <= panel.TagSlot.Bounds.Top);
-            Assert.True(close.Bounds.Left - segment.Bounds.Right >= 23);
-            Control counter = Assert.IsType<TextBlock>(panel.HeaderCounter);
-            Point origin = counter.TranslatePoint(default, panel)!.Value;
-            Assert.InRange(origin.X, -0.5, 0.5);
-            Assert.Equal(close.Bounds.Center.Y, origin.Y + counter.Bounds.Height / 2, 0.5);
+            Assert.Equal(0, segment.Bounds.Left, 0.5);
+            Assert.Equal(32, close.Bounds.Width);
+            Assert.Equal(width, close.Bounds.Right, 0.5);
+            if (width == 140) Assert.False(panel.Position.IsVisible);
+            else GalleryMeasuredGeometryTests.AssertSidebarHeader(panel, segment, panel.Position, close);
         }
         finally
         {
@@ -155,9 +156,9 @@ public sealed class GallerySidePanelTests : IDisposable
     {
         GallerySidePanel panel = Panel(out Button close);
         Control segment = (Control)panel.PostButton.Parent!;
-        TextBlock counter = new() { Text = "1 of 18" };
-        panel.HeaderCounter = counter;
-        Control counterHost = Assert.IsType<ContentControl>(counter.Parent);
+        panel.Position.Show(new(1, 18, false));
+        Control counterHost = panel.Position;
+        Assert.Same(panel, counterHost.Parent);
         int Index(Control control) => panel.Children.IndexOf(control);
         Assert.True(Index(segment) < Index(counterHost));
         Assert.True(Index(counterHost) < Index(panel.PostSlot));
@@ -172,10 +173,10 @@ public sealed class GallerySidePanelTests : IDisposable
         Assert.False(panel.TagSlot.Focusable);
         // Within the segment: Post before Tags.
         Assert.True(((Panel)segment).Children.IndexOf(panel.PostButton) < ((Panel)segment).Children.IndexOf(panel.TagsButton));
-        // The close button stands alone at the right edge, 24 dip at least from the segment.
+        // The position fills the space between the segment and the close button.
         Assert.True(Grid.GetColumn(close) > Grid.GetColumn(segment));
         Assert.Equal(Grid.GetRow(segment), Grid.GetRow(close));
-        Assert.True(close.Margin.Left >= 24);
+        Assert.InRange(Grid.GetColumn(counterHost), Grid.GetColumn(segment) + 1, Grid.GetColumn(close) - 1);
     }
 
     // ---- width ----
@@ -265,7 +266,6 @@ public sealed class GallerySidePanelTests : IDisposable
     public void TheHostSitsInThePostPanelSlotAndKeepsTheCloseButtonsName()
     {
         string side = ReadSource("Desktop/GalleryViewer.SidePanel.cs");
-        Assert.Contains("CloseLayerButton(\"GalleryReturnImage\"", side);
         Assert.Contains("_contextPanel.Child = _sidePanel;", side);
         string viewer = ReadSource("Desktop/GalleryViewer.cs");
         // The card has no header of its own any more: no title and no second "Back to image" button in the post content.
@@ -275,7 +275,7 @@ public sealed class GallerySidePanelTests : IDisposable
         // The tag panel puts its surface into the Tags slot and hides its own ×: one close button in the header.
         string tags = ReadSource("Desktop/GalleryViewer.TagPanel.cs");
         Assert.Contains("_sidePanel.TagContent = surface;", tags);
-        Assert.Contains("surface.CloseButton.IsVisible = false;", tags);
+        Assert.Contains("surface.UseSidebarHeader();", tags);
         // Placement keeps the existing rule; only the widths come from the host.
         string overlay = ReadSource("Desktop/GalleryViewer.Overlay.cs");
         Assert.Contains("_contextPanel.Width = DockedContextWidth;", overlay);

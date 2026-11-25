@@ -26,6 +26,7 @@
   "key.insert": {"text": "Insert", "reason": "Keyboard key label used by shortcut hints."},
   "key.shift": {"text": "Shift", "reason": "Keyboard key label used by shortcut hints."},
   "media.breakdown.summary": {"text": "{0}: {1}", "reason": "Formatting template consisting of placeholders and punctuation."},
+  "media.fact.sizeHint": {"text": "{0} {1} ({2})", "reason": "Shared formatting for the provider size, unit and precision."},
   "media.rating.accessibleValue": {"text": "{0}: {1}", "reason": "Formatting template consisting of placeholders and punctuation."},
   "media.rating.identity": {"text": "{0} /{1}/ {2} · {3} · {4}\nSHA-256: {5}", "reason": "Media metadata template with the standard SHA-256 label."},
   "media.rating.row": {"text": "{0} · {1}", "reason": "Formatting template consisting of placeholders and punctuation."},

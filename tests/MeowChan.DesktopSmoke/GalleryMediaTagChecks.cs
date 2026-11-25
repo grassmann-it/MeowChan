@@ -1,10 +1,13 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -80,44 +83,49 @@ internal static class GalleryMediaTagChecks
             foreach (string counterLanguage in new[] { "en", "de" })
             {
                 Texts.SetLanguage(counterLanguage);
-                foreach (int width in new[] { 280, 320, 480 })
+                foreach (int width in new[] { 280, 360, 480 })
                 {
                     viewer.PanelWidth = width;
                     window.UpdateLayout(); // the existing gallery close button does not prove the new header slot has been templated
-                    Border counter = viewer.SidePanel.HeaderCounter as Border ?? throw new InvalidOperationException("Missing header counter.");
+                    MediaPositionPill counter = viewer.SidePanel.Position;
                     Require(counter.IsEffectivelyVisible && !viewer.TagSurface!.Header.Children.Contains(counter), "Counter was duplicated or hidden.");
-                    Require(Avalonia.Automation.AutomationProperties.GetName(counter) == Texts.T("tags.quick.gallery.position", 1, 2)
-                        && Avalonia.Automation.AutomationProperties.GetLiveSetting(counter) == Avalonia.Automation.AutomationLiveSetting.Polite
-                        && counter.Child is TextBlock liveLabel
-                        && Avalonia.Automation.AutomationProperties.GetLiveSetting(liveLabel) == Avalonia.Automation.AutomationLiveSetting.Polite
-                        && liveLabel.Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
-                        "The moved counter lost localization or polite announcements.");
+                    CheckPositionPill(counter, 1, 2, allowBare: width == 280);
                     GallerySidePanel panel = viewer.SidePanel;
                     Rect InPanel(Control control) => new(control.TranslatePoint(default, panel)!.Value, control.Bounds.Size);
                     Rect position = InPanel(counter), post = InPanel(panel.PostButton), tagsTab = InPanel(panel.TagsButton), close = InPanel(panel.CloseButton);
-                    Require(position.Width > 0 && Math.Abs(position.Left) <= 1
-                        && position.Right <= post.Left && post.Right <= tagsTab.Left && tagsTab.Right <= close.Left
+                    Require(position.Width > 0 && Math.Abs(post.Left) <= 1
+                        && post.Right <= tagsTab.Left
+                        && position.Left >= tagsTab.Right + 7.5
+                        && Math.Abs(position.Center.X - (tagsTab.Right + close.Left) / 2) <= 0.5
                         && Math.Abs(close.Right - panel.Bounds.Width) <= 1
                         && new[] { post, tagsTab, close }.All(control => control.Height == 32 && Math.Abs(control.Center.Y - position.Center.Y) <= 1),
                         $"The gallery header is misaligned (counter {position}, Post {post}, Tags {tagsTab}, Close {close}).");
-                    Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, counter={position}");
+                    Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, counter={position}, visible={counter.Label.Text}, announced={AutomationProperties.GetName(counter)}");
                     Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
                 }
             }
+            MediaPositionPill sharedPill = viewer.SidePanel.Position;
             viewer.PanelWidth = panelWidth;
             Texts.SetLanguage("en");
             viewer.SidePanel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Post);
             Require(viewer.CaptureState().ContextOpen && viewer.SidePanel.PostButton.IsChecked == true, "The Post segment did not take the side panel over.");
-            Require(viewer.SidePanel.HeaderCounter == null, "The released tag surface left a stale counter in the header.");
+            Require(ReferenceEquals(sharedPill, viewer.SidePanel.Position) && sharedPill.IsEffectivelyVisible
+                && sharedPill.Label.Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
+                "The Post tab did not keep the same position pill as Tags.");
             window.UpdateLayout();
             var where = viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<SelectableTextBlock>().Single(line => line.Name == "GalleryPostWhere");
             Require(where.TextAlignment == Avalonia.Media.TextAlignment.Left, "The Post metadata is not left-aligned.");
             CheckDecisionAlignment(viewer.PostDecisionRow!);
+            Require(viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<MediaFactGrid>().Any(), "The Post tab has no fact grid.");
             Program.CaptureWindow(window, "smoke-gallery-post-header.png");
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
+            window.UpdateLayout();
+            await UntilAsync(() => viewer.SidePanel.TagSlot.GetVisualDescendants().OfType<MediaFactGrid>().Any());
+            Program.CaptureWindow(window, "smoke-112-p2-gallery-tags.png");
+            await CaptureRateAndTagPopoverAsync(window, viewer, bound);
             // TP4: Shift+Page Down marks the shown medium and moves on, Shift+Page Up goes back and unmarks it. The counter chip shows
             // "1 marked" with its clear button, the panel's target is the selection while a mark exists, and the panel is on the first medium again.
             MeowChan.Desktop.Controls.QuickTagSurface marking = viewer.TagSurface!;
@@ -138,18 +146,15 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == unbound.EntryKey && marking.MarkBar.IsVisible);
             marking.MarkedClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
-            Border movedCounter = viewer.SidePanel.HeaderCounter as Border ?? throw new InvalidOperationException("Navigation lost the header counter.");
-            Require(movedCounter.Child is TextBlock movedLabel && movedLabel.Text == Texts.T("tags.quick.gallery.positionShort", 2, 2)
-                && Avalonia.Automation.AutomationProperties.GetName(movedCounter) == Texts.T("tags.quick.gallery.position", 2, 2)
-                && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedCounter) == Avalonia.Automation.AutomationLiveSetting.Polite
-                && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedLabel) == Avalonia.Automation.AutomationLiveSetting.Polite,
-                "Navigation did not update the reparented polite live region's text and accessible name.");
+            window.UpdateLayout();
+            CheckPositionPill(viewer.SidePanel.Position, 2, 2, allowBare: false);
+            Console.WriteLine($"SMOKE gallery counter navigation: visible={viewer.SidePanel.Position.Label.Text}, announced={AutomationProperties.GetName(viewer.SidePanel.Position)}");
             // Rate from the stars and keep the same keys available for text on the bound medium's tag field.
             viewer.TagSurface.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Previous));
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey && marking.Input.IsEffectivelyEnabled);
             MeowChan.Desktop.Controls.GalleryDecisionRow decisions = viewer.DecisionRow ?? throw new InvalidOperationException("The tag panel has no favorite and rating row.");
             Require(decisions.StarButtons.Count == 5 && decisions.FavoriteButton.IsEffectivelyVisible && decisions.View is { Available: true, Rating: null },
-                "The row does not show an unrated medium: " + decisions.Summary.Text);
+                "The row does not show an unrated medium: " + ToolTip.GetTip(decisions.RatingBar));
             CheckDecisionAlignment(decisions);
             marking.FocusField();
             await UntilAsync(() => marking.Input.IsKeyboardFocusWithin);
@@ -273,6 +278,26 @@ internal static class GalleryMediaTagChecks
         }
     }
 
+    private static void CheckPositionPill(MediaPositionPill pill, int number, int count, bool allowBare)
+    {
+        TextBlock label = pill.Label;
+        string announcement = Texts.T("tags.quick.gallery.position", number, count);
+        string shortText = Texts.T("tags.quick.gallery.positionShort", number, count);
+        // MediaPositionPill owns the polite live region. Its decorative label uses Raw accessibility.
+        Require(AutomationProperties.GetName(pill) == announcement
+            && AutomationProperties.GetAccessibilityView(pill) != AccessibilityView.Raw
+            && AutomationProperties.GetLiveSetting(pill) == AutomationLiveSetting.Polite
+            && AutomationProperties.GetAccessibilityView(label) == AccessibilityView.Raw
+            && AutomationProperties.GetLiveSetting(label) == AutomationLiveSetting.Off,
+            $"Incorrect position announcement for {Texts.Language}: {AutomationProperties.GetName(pill)}.");
+        // At narrow widths MediaPositionPill.MeasureOverride may use the bare count.
+        Require(label.IsEffectivelyVisible && label.Bounds.Width > 0 && label.Bounds.Height > 0
+            && label.TextLayout.WidthIncludingTrailingWhitespace <= label.Bounds.Width + 1
+            && label.TextLayout.TextLines.All(line => !line.HasCollapsed)
+            && (label.Text == shortText || allowBare && label.Text == $"{number} / {count}"),
+            $"Incorrect visible position for {Texts.Language}: {label.Text}, bounds {label.Bounds}.");
+    }
+
     private static async Task CheckTagPanelCompositionAsync(GalleryViewer viewer, QuickTagSurface surface, TextBox editor, KeyModifiers primary)
     {
         TagId stamp = surface.Session.Snapshot!.Tags.Single(tag => tag.Name.Display == "existing").Id;
@@ -314,13 +339,29 @@ internal static class GalleryMediaTagChecks
             editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
     }
 
+    private static async Task CaptureRateAndTagPopoverAsync(MainWindow window, GalleryViewer viewer, GalleryEntry entry)
+    {
+        MethodInfo open = typeof(MainWindow).GetMethod("OpenGalleryTileRateAndTagAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Task opening = (Task)open.Invoke(window, [entry, viewer.SidePanel.TagsButton])!;
+        try
+        {
+            await UntilAsync(() => QuickTagPopover.Current is { Surface: not null, DecisionRow: not null, Frame.Bounds.Height: > 0 });
+            QuickTagPopover popover = QuickTagPopover.Current!;
+            CheckDecisionAlignment(popover.DecisionRow!);
+            Control frame = popover.Frame.GetVisualAncestors().OfType<FlyoutPresenter>().FirstOrDefault() ?? (Control)popover.Frame;
+            using RenderTargetBitmap screenshot = new(new PixelSize((int)Math.Ceiling(frame.Bounds.Width), (int)Math.Ceiling(frame.Bounds.Height)));
+            screenshot.Render(frame);
+            screenshot.Save(Path.Combine(AppContext.BaseDirectory, "smoke-112-p2-popover.png"), PngBitmapEncoderOptions.Default);
+        }
+        finally { QuickTagPopover.Current?.Close(); }
+        await opening;
+    }
+
     private static void CheckDecisionAlignment(GalleryDecisionRow row)
     {
-        double center = row.Bounds.Width / 2;
-        foreach (Control control in new[] { row.RatingGroup, row.FavoriteButton, row.Summary })
-            Require(control.Bounds.Width > 0 && Math.Abs(control.Bounds.Center.X - center) <= 1,
-                $"{control.Name} is not centered in the rating section.");
-        Require(row.Summary.TextAlignment == Avalonia.Media.TextAlignment.Center, "The rating caption text is not centered.");
+        Require(Math.Abs(row.FavoriteButton.Bounds.Left - row.ClearButton.Bounds.Right - 8) <= 0.5
+            && Math.Abs(row.FavoriteButton.Bounds.Center.Y - row.ClearButton.Bounds.Center.Y) <= 0.5
+            && ToolTip.GetTip(row.RatingBar) is string, "The rating controls must share one row with an accessible value.");
     }
 
     // Same dialog through the real archive menu and MainWindow wiring, without

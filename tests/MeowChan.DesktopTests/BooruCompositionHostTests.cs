@@ -132,7 +132,7 @@ public sealed class BooruCompositionHostTests
         using TempDirectory profile = new();
         using DanbooruStub stub = new();
         using DanbooruTestBinding binding = new(stub, enabled: false);
-        DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding);
+        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => binding.Binding);
         binding.SetEnabled(true);
         await WaitAsync(() => host.BooruComposition != null, "composition after enable");
         BooruSessionComposition composition = host.BooruComposition!;
@@ -502,15 +502,17 @@ public sealed class BooruCompositionHostTests
         Assert.Equal(1, host.BooruProducers.Generation);
 
         bool checkEndedBeforeDelegate = false;
+        string? watcherStateWhileSuspended = null;
         ProfileExclusiveOutcome<int> outcome = await host.RunWithProfileProducerExclusiveAsync(_ =>
         {
             checkEndedBeforeDelegate = scheduler.GetSnapshot().CheckingWatcherId is null
                 && host.BooruProducers.Phase == BooruProducerPhase.Suspended;
+            watcherStateWhileSuspended = Assert.Single(ReadCatalog(host).Watchers).State;
             return Task.FromResult(safeToResume ? ProfileExclusiveOutcome<int>.SafeToResume(0)
                 : ProfileExclusiveOutcome<int>.RecoveryRequired(0));
         }).WaitAsync(Deadline);
         Assert.True(checkEndedBeforeDelegate);
-        Assert.Equal(nameof(DanbooruWatcherState.Active), Assert.Single(ReadCatalog(host).Watchers).State);
+        Assert.Equal(nameof(DanbooruWatcherState.Active), watcherStateWhileSuspended);
         stub.ReleaseMetadata();
         if (safeToResume)
         {

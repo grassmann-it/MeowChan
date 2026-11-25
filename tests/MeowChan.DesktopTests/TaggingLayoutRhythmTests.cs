@@ -3,10 +3,13 @@ using Ursa.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Automation;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using MeowChan.Desktop.Controls;
 using Avalonia.LogicalTree;
 using Avalonia.Platform;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
@@ -93,6 +96,40 @@ public sealed class TaggingLayoutRhythmTests
             "p1", null, null, null, false, null, "file.png", SavedMediaKind.Image, state, DateTimeOffset.UnixEpoch);
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ShowAllFromAnEmptyGroupReturnsFocusToTheAssignableQueue(bool skippedFilter) => WithPage(page =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        TagQueueGroup group = new("empty", "Empty", 0, []);
+        TagQueueItem open = Item();
+        TagQueueSnapshot queue = new(1, 0, [], [open], TagQueueLoadState.Ready, [group]);
+        Window window = new() { Width = 1100, Height = 700, Content = page };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            RenderSnapshot(page, queue, skippedFilter ? TaggingQueueFilter.Skipped : TaggingQueueFilter.All, group.Id);
+            window.UpdateLayout();
+            Assert.Equal(TaggingEmptyKind.GroupEmpty, page.EmptyKind);
+            Button showAll = Assert.Single(page.GetVisualDescendants().OfType<Button>(),
+                button => AutomationProperties.GetAutomationId(button) == "TaggingEmptyShowAll");
+            Assert.True(showAll.IsEffectivelyVisible);
+            BooruResultActionsTests.Click(showAll);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Null(page.SelectedGroupId);
+            Assert.Equal(TaggingQueueFilter.All, page.Filter);
+            Assert.Equal(open.Key, Assert.Single(page.Rows).Key);
+            ListBox results = Assert.Single(page.GetVisualDescendants().OfType<ListBox>(),
+                list => AutomationProperties.GetAutomationId(list) == "tagging.list");
+            Assert.True(results.IsKeyboardFocusWithin, $"Queue focus is on {window.FocusManager?.GetFocusedElement()}.");
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
     [InlineData("en")]
     [InlineData("de")]
     public void EveryEmptyStateOwnsAtMostOneEnabledPrimaryAndStartRegainsItOnReturn(string language) => WithPage(page =>
@@ -108,7 +145,7 @@ public sealed class TaggingLayoutRhythmTests
             page.ApplyWorkView(view);
             Check(TagQueueSnapshot.Empty, TaggingQueueFilter.All, null, false, TaggingEmptyKind.QueueEmpty, page.EmptyMediaButton);
             Check(done, TaggingQueueFilter.Open, null, false, TaggingEmptyKind.AllDone, page.EmptyMediaButton);
-            Check(skipped, TaggingQueueFilter.Open, null, false, TaggingEmptyKind.AllDone, page.EmptyMediaButton);
+            Check(skipped, TaggingQueueFilter.Open, null, false, TaggingEmptyKind.AllDone, page.EmptyReviewSkippedButton);
             Check(open, TaggingQueueFilter.Done, null, false, TaggingEmptyKind.FilterNoHits, page.EmptyShowAllButton);
             Check(open, TaggingQueueFilter.All, group.Id, false, TaggingEmptyKind.GroupEmpty, page.EmptyShowAllButton);
             // An all-grouped queue has an empty "Without group" scope, so it uses the group-empty recommendation.
@@ -130,7 +167,7 @@ public sealed class TaggingLayoutRhythmTests
         {
             RenderSnapshot(page, snapshot, filter, groupId, ungrouped);
             Assert.Equal(kind, page.EmptyKind);
-            Button[] recommendations = { page.StartButton, page.EmptyMediaButton, page.EmptyShowAllButton };
+            Button[] recommendations = { page.StartButton, page.EmptyMediaButton, page.EmptyShowAllButton, page.EmptyReviewSkippedButton };
             Assert.Same(primary, Assert.Single(recommendations.Where(b => b.Classes.Contains("primary"))));
             Assert.True(primary.IsEnabled);
             Assert.True(primary.IsVisible);
@@ -139,8 +176,10 @@ public sealed class TaggingLayoutRhythmTests
         }
     });
     [Fact]
-    public void HelpNeverChangesRoleAndGroupDeletionHasItsOwnDangerButton() => WithPage(page =>
+    public void HelpBelongsToTheEmptyQueueAndGroupDeletionRemainsInTheGroupMenu() => WithPage(page =>
     {
+        DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;
+        BooruComponentDispatcher.Wait(host.StartAsync());
         TagQueueGroup group = new("empty", "Empty", 0, Array.Empty<string>());
         TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), new[] { Item() }, TagQueueLoadState.Ready, new[] { group });
         foreach (string language in new[] { "en", "de" })
@@ -152,20 +191,56 @@ public sealed class TaggingLayoutRhythmTests
             Assert.False(page.EmptyHowButton.IsVisible);
             Assert.Equal(Texts.T("tagging.page.empty.how"), page.EmptyHowButton.Content);
             Assert.Contains("link", page.EmptyHowButton.Classes);
-            Assert.True(page.EmptyDeleteGroupButton.IsVisible);
-            Assert.NotSame(page.EmptyHowButton, page.EmptyDeleteGroupButton);
-            Assert.Contains("danger", page.EmptyDeleteGroupButton.Classes);
-            Assert.DoesNotContain("link", page.EmptyDeleteGroupButton.Classes);
-            Assert.Equal(Texts.T("tagging.page.empty.group.delete"), page.EmptyDeleteGroupButton.Content);
-            Assert.True(DeadAffordanceGuard.Handles(page.EmptyDeleteGroupButton, Button.ClickEvent));
-            // An ungrouped scope is not a deletable group.
+            Assert.False(page.EmptyMoreButton.IsVisible);
+            Assert.True(page.GroupManageMenuModel()!.Entries.Single(item => item.Id == "tagging.group.delete").Available);
             RenderSnapshot(page, new TagQueueSnapshot(1, 0, Array.Empty<string>(), new[] { Item() with { GroupId = group.Id } }, TagQueueLoadState.Ready, new[] { group }), ungrouped: true);
-            Assert.False(page.EmptyDeleteGroupButton.IsVisible);
+            Assert.False(page.GroupManageMenuModel()!.Entries.Single(item => item.Id == "tagging.group.delete").Available);
             RenderSnapshot(page, TagQueueSnapshot.Empty);
             Assert.True(page.EmptyHowButton.IsVisible);
             Assert.Equal(Texts.T("tagging.page.empty.how"), page.EmptyHowButton.Content);
-            Assert.False(page.EmptyDeleteGroupButton.IsVisible);
         }
+    });
+
+    [Fact]
+    public void ReviewingThreeSkippedEntriesKeepsTheGroupAndQueueStates() => WithPage(page =>
+    {
+        int adds = 0;
+        page.AddRequested = () => adds++;
+        TagQueueGroup review = new("review", "Review", 0, []);
+        TagQueueGroup finished = new("finished", "Finished", 1, []);
+        TagQueueItem[] items =
+        [
+            .. Enumerable.Range(1, 3).Select(index => Item(TagQueueState.Skipped) with { AssetId = $"skip-{index}", GroupId = review.Id }),
+            Item(TagQueueState.Done) with { AssetId = "reviewed", GroupId = review.Id },
+            Item(TagQueueState.Skipped) with { AssetId = "outside" },
+            Item(TagQueueState.Done) with { AssetId = "done", GroupId = finished.Id }
+        ];
+        TagQueueSnapshot queue = new(1, 0, [], items, TagQueueLoadState.Ready, [review, finished]);
+        RenderSnapshot(page, queue, TaggingQueueFilter.Open, group: review.Id);
+        Assert.Equal(Texts.T("tagging.page.empty.reviewSkipped", "3"), page.EmptyReviewSkippedButton.Content);
+        Assert.False(page.EmptyMediaButton.IsVisible);
+        Assert.True(page.EmptyMoreButton.IsVisible);
+        Assert.Equal(new[] { "tagging.empty.add", "tagging.empty.reopen", "tagging.clear-done" },
+            page.EmptyMoreMenuModel()!.Entries.Select(entry => entry.Id));
+        page.EmptyReviewSkippedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(review.Id, page.SelectedGroupId);
+        Assert.Equal(TaggingQueueFilter.Skipped, page.Filter);
+        Assert.Equal(items.Take(3).Select(item => item.Key), page.Rows.Select(row => row.Key));
+        Assert.Same(queue, page.Queue);
+        Assert.Equal(0, adds);
+
+        TagQueueSnapshot unfinished = new(1, 0, [],
+            [.. items, Item() with { AssetId = "unreviewed", GroupId = review.Id }], TagQueueLoadState.Ready, [review, finished]);
+        RenderSnapshot(page, unfinished, TaggingQueueFilter.Open, group: review.Id);
+        Assert.Equal(TaggingEmptyKind.None, page.EmptyKind);
+        Assert.Equal("unreviewed", Assert.Single(page.Rows).Key.AssetId);
+
+        RenderSnapshot(page, queue, TaggingQueueFilter.Open, group: finished.Id);
+        Assert.Equal(Texts.T("tagging.page.empty.add"), page.EmptyMediaButton.Content);
+        Assert.Contains("primary", page.EmptyMediaButton.Classes);
+        Assert.Equal("tagging.clear-done", Assert.Single(page.EmptyMoreMenuModel()!.Entries).Id);
+        page.EmptyMediaButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(1, adds);
     });
     [Fact]
     public void IconOnlyControlsUseTheSquareTokenButLabelledPresentationsDoNot() => WithPage(page =>

@@ -7,7 +7,9 @@ internal static class GalleryFilmstripCatalog
     {
         ("gallery.filmstrip.name", "Filmstrip, number of media: {0}", "Filmstreifen, Anzahl der Medien: {0}"),
         ("gallery.filmstrip.tile", "{0} of {1}, {2}, {3}", "{0} von {1}, {2}, {3}"),
-        ("gallery.filmstrip.more", "More media are being loaded", "Weitere Medien werden geladen"),
+        ("gallery.filmstrip.loadMore", "Load more media", "Weitere Medien laden"),
+        ("gallery.filmstrip.loadFailed", "Could not load more media. Try again.", "Weitere Medien konnten nicht geladen werden. Versuche es erneut."),
+        ("gallery.filmstrip.more", "Loading…", "Wird geladen…"),
         ("gallery.filmstrip.kind.image", "image", "Bild"),
         ("gallery.filmstrip.kind.video", "video", "Video"),
         ("gallery.filmstrip.kind.gif", "animated image", "Animiertes Bild"),
@@ -17,7 +19,7 @@ internal static class GalleryFilmstripCatalog
         ("gallery.filmstrip.dock.bottom", "Filmstrip position: below the picture, above the tools", "Position des Filmstreifens: unter dem Bild, über den Werkzeugen"),
         ("settings.unitDip", "Device-independent pixels (dip)", "Geräteunabhängige Pixel (dip)"),
         ("settings.galleryFilmstrip", "Show the filmstrip in the gallery", "Filmstreifen in der Galerie anzeigen"),
-        ("settings.galleryFilmstripHint", "A row of thumbnails of the gallery's media. By default it sits at the bottom, above the video bar and the tools, so the picture keeps its height; it can also sit at the top, below the back and star buttons. Click a thumbnail to jump to that medium. With hidden controls the row appears with them (at the top also when the pointer touches the top edge); with permanent controls it stays (at the top it moves the picture down).", "Eine Reihe von Vorschaubildern der Medien in der Galerie. Standardmäßig steht sie unten, über der Videoleiste und den Werkzeugen, damit das Bild seine Höhe behält; sie kann auch oben unter dem Zurück-Knopf und dem Stern stehen. Ein Klick auf ein Vorschaubild springt zu diesem Medium. Bei ausgeblendeter Steuerung erscheint sie mit der Steuerung (oben auch, wenn der Zeiger den oberen Rand berührt); bei dauerhafter Steuerung bleibt sie stehen (oben schiebt sie das Bild nach unten)."),
+        ("settings.galleryFilmstripHint", "A row of thumbnails of the gallery's media. By default it sits at the bottom, above the video bar and the tools, so the picture keeps its height; it can also sit at the top, below the Back button and the favorite heart or rating stars. Click a thumbnail to jump to that medium. With hidden controls the row appears with them (at the top also when the pointer touches the top edge); with permanent controls it stays (at the top it moves the picture down).", "Eine Reihe von Vorschaubildern der Medien in der Galerie. Standardmäßig steht sie unten, über der Videoleiste und den Werkzeugen, damit das Bild seine Höhe behält; sie kann auch oben unter dem Zurück-Knopf und dem Herz bzw. den Bewertungssternen stehen. Ein Klick auf ein Vorschaubild springt zu diesem Medium. Bei ausgeblendeter Steuerung erscheint sie mit der Steuerung (oben auch, wenn der Zeiger den oberen Rand berührt); bei dauerhafter Steuerung bleibt sie stehen (oben schiebt sie das Bild nach unten)."),
         ("settings.galleryFilmstripKeyHint", "{0} shows or hides the row.", "{0} zeigt oder verbirgt die Reihe."),
         ("settings.galleryFilmstripHeight", "Filmstrip thumbnail height", "Höhe der Vorschaubilder im Filmstreifen"),
         ("settings.galleryFilmstripHeightHint", "Height and width of one thumbnail in the gallery filmstrip. Default {0}, from {1} to {2}.", "Höhe und Breite eines Vorschaubilds im Filmstreifen der Galerie. Standard {0}, von {1} bis {2}."),
@@ -26,7 +28,7 @@ internal static class GalleryFilmstripCatalog
         ("settings.galleryFilmstripTileGapHint", "The space between two thumbnails of the gallery filmstrip. Default {0}, from {1} to {2}.", "Der Abstand zwischen zwei Vorschaubildern im Filmstreifen der Galerie. Standard {0}, von {1} bis {2}."),
         // Filmstrip flags (decision 123): what a tile shows besides the length.
         ("settings.galleryFilmstripFlagFavorite", "Filmstrip shows: favorite", "Filmstreifen zeigt: Favorit"),
-        ("settings.galleryFilmstripFlagFavoriteHint", "A small filled star on the thumbnails of favorite media.", "Ein kleiner gefüllter Stern auf den Vorschaubildern von Favoriten."),
+        ("settings.galleryFilmstripFlagFavoriteHint", "A small filled heart on the thumbnails of favorite media.", "Ein kleines gefülltes Herz auf den Vorschaubildern von Favoriten."),
         ("settings.galleryFilmstripFlagRating", "Filmstrip shows: rating", "Filmstreifen zeigt: Bewertung"),
         ("settings.galleryFilmstripFlagRatingHint", "The own rating, 1 to 5, as a small number with a half star on the thumbnails of rated media.", "Die eigene Bewertung, 1 bis 5, als kleine Zahl mit einem halben Stern auf den Vorschaubildern bewerteter Medien."),
         ("settings.galleryFilmstripFlagUntagged", "Filmstrip shows: no tags yet", "Filmstreifen zeigt: noch keine Tags"),

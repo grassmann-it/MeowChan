@@ -288,7 +288,7 @@ public sealed class BooruLinkLifetimeTests
             .Invoke(view, new object[] { "test-show", "Show post 42", PostId })!);
 
     private static Task InvokeLink(BooruWorkbenchView view, string method, string url) =>
-        (Task)(typeof(BooruWorkbenchView).GetMethod(method, Private)!.Invoke(view, new object[] { url })!);
+        (Task)(typeof(BooruWorkbenchView).GetMethod(method, Private)!.Invoke(view, [url, null])!);
 
     private static TextBlock LinkNote(BooruWorkbenchView view) =>
         Assert.Single(view.Footer.GetVisualDescendants().OfType<TextBlock>()

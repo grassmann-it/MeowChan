@@ -19,7 +19,7 @@ namespace MeowChan.DesktopSmoke;
 // Review 15.11.2026 (Tom): the star on a post's file line ("name.jpg (74 KiB) ☆") did nothing, notably in a thread opened from Downloads.
 // One real main window over a seeded thread whose posts have saved pictures (the last one an unsaved file); the stars are clicked with OS input
 // (XTest, private Xvfb): in the embedded archive reader, on an archive media tile, in the large reader opened the Downloads way, far down the
-// recycled list, on the next page, with the media sidebar on (and its header star). Each click must reach the star (not the card behind it),
+// recycled list, deep in the thread, with the media sidebar on (and its header star). Each click must reach the star (not the card behind it),
 // change the profile's favourite of exactly that file, and the star must show it; F on the selected post does the same; the unsaved file's
 // star is off, muted, and names the reason. A routed Click (the older smokes) never proved the pointer path: the star had no hit surface.
 internal static class ReaderPostStarChecks
@@ -81,16 +81,14 @@ internal static class ReaderPostStarChecks
         await ProbeAsync(window, page, input, "downloads-large-first", failures, index: 0);
         await ProbeAsync(window, page, input, "downloads-large-second-card", failures, index: 1);
         await ProbeKeyAsync(window, page, input, "downloads-large-key", failures);
-        // Far down the recycled list of the first page.
+        // Far down the recycled list of the thread.
         ScrollViewer scroll = PostList(window).GetVisualDescendants().OfType<ScrollViewer>().First();
         scroll.Offset = new Vector(0, scroll.Extent.Height);
         await Settle(window);
         await ProbeAsync(window, page, input, "downloads-large-scrolled", failures, index: -1);
-        // The next page (a new list, new cards).
-        Button next = Named<Button>(window, "NextPostsButton");
-        if (next.IsEffectivelyEnabled) { await input.ClickAsync(next); await Settle(window); }
-        else failures.Add("next page unavailable");
-        await ProbeAsync(window, page, input, "downloads-large-next-page", failures, index: 0);
+        await page.FocusPostAsync(PostList(window).Items.Cast<ArchivePostRow>().ElementAt(50).Id);
+        await Settle(window);
+        await ProbeAsync(window, page, input, "downloads-large-deep-card", failures, index: 0);
         await ProbeUnavailableAsync(window, failures);
         // The media sidebar.
         if (!ReaderMediaSidebarRules.IsOn(page.ReaderMedia, true)) page.ToggleMediaSidebar();
@@ -180,7 +178,7 @@ internal static class ReaderPostStarChecks
     {
         ListBox list = PostList(window);
         ArchivePostRow? post = list.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(row => row.Attachments.Any(item => item.Attachment.MediaId == "star-missing"));
-        if (post == null) { failures.Add("unavailable: fixture post not on this page"); return; }
+        if (post == null) { failures.Add("unavailable: fixture post missing"); return; }
         list.ScrollIntoView(post);
         await Settle(window);
         ArchiveAttachmentView? view = list.GetVisualDescendants().OfType<ArchiveAttachmentView>()
