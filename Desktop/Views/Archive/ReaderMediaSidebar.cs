@@ -301,7 +301,8 @@ internal sealed partial class ReaderMediaSidebar : Border
     private IReadOnlyList<string>? _tags;
     private string? _tagsBlocked;
     private string? _decisionFailure;
-    private bool _writingDecision;
+    private readonly HashSet<(string Medium, string? Post)> _pendingWrites = new();
+    private (string Medium, string? Post) DecisionTarget => (_mediumKey ?? _fileName, _mediumKey == null ? _postLine : null);
     private event Action? DecisionTargetChanged;
     private string? _mediumKey;
     private int _mediumRevision;
@@ -521,6 +522,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _extraFacts.Children.Add(_provenanceNote);
         _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor, ShowAllTags) { TagChipCreated = InstallTagMenu };
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
+        _headerFavorite.TargetSaving = () => _pendingWrites.Contains(DecisionTarget);
         _decision.RatingRequested += value =>
         {
             if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
@@ -1010,7 +1012,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private void RefreshDecisions()
     {
         var favorite = ArchiveFavoriteButton.ReadState(_favoriteAvailable, _isFavorite, _favoriteError);
-        bool canRate = _ratingAvailable?.Invoke() == true;
+        bool canRate = !_pendingWrites.Contains(DecisionTarget) && _ratingAvailable?.Invoke() == true;
         GalleryDecisionView updated = new(1, favorite.Marked ? GalleryDecisionCoverage.All : GalleryDecisionCoverage.None,
             _readRating?.Invoke(), false, canRate);
         if (_decision.View.Available && updated.Available && _decision.View != updated)
@@ -1031,22 +1033,22 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available)
     {
-        if (_writingDecision || write == null || available?.Invoke() != true) return;
+        var target = DecisionTarget;
+        if (write == null || available?.Invoke() != true || !_pendingWrites.Add(target)) return;
         int revision = _mediumRevision;
-        string name = _fileName;
-        _writingDecision = true;
         _decisionFailure = null;
         try
         {
-            if (await VerifyImageActionAsync() && available()) await write();
+            RefreshDecisions();
+            if (await VerifyImageActionAsync() && revision == _mediumRevision && available()) await write();
         }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            if (_mediumRevision == revision && _fileName == name) _decisionFailure = error.Message;
+            if (_mediumRevision == revision) _decisionFailure = error.Message;
         }
         finally
         {
-            _writingDecision = false;
+            _pendingWrites.Remove(target);
             RefreshDecisions();
         }
     }
