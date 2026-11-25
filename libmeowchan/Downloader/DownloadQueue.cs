@@ -176,11 +176,9 @@ public partial class DownloadQueue
             }
             await resumed.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
-        ProviderCheckAdmitted?.Invoke();
     }
 
-    /// <summary>Runs outside the queue lock each time a caller passes the shared gate, before its check starts.</summary>
-    internal Action? ProviderCheckAdmitted { get; set; }
+    internal Func<IBoard, TimeSpan?>? BoardWatcherInterval { get; set; }
 
     /// <summary>Acquires one of four session metadata slots, at most one per source. Release before cooldown waits.</summary>
     public async Task<IDisposable> AcquireMetadataAsync(string sourceId, DownloadPriority priority,

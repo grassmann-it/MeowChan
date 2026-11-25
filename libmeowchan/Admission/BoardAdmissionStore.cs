@@ -53,7 +53,6 @@ public sealed class BoardAdmissionStore
         return error;
     }
 
-    internal bool HasWatcherIntervals => Volatile.Read(ref _policies).Values.Any(policy => policy.WatcherIntervalMinutes != null);
     public BoardAdmissionPolicy Get(string url) => Volatile.Read(ref _policies).GetValueOrDefault(url) ?? BoardAdmissionPolicy.All;
     public void Save(string url, BoardAdmissionPolicy policy)
     {

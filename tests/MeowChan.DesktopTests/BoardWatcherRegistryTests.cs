@@ -3,6 +3,7 @@ using MeowChan.Admission;
 using MeowChan.Boards.Base;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Updates;
+using MeowChan.Downloader;
 using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopTests;
@@ -10,16 +11,13 @@ namespace MeowChan.DesktopTests;
 [Collection("Avalonia global state")]
 public sealed class BoardWatcherRegistryTests
 {
+    private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
+
     [Fact]
     public async Task RestartRestoresWatcherNameAndIntervalsAndGlobalChangesOnlyAffectInheritedBoards()
     {
         using var profile = new TempDirectory();
-        var config = new Config
-        {
-            DownloadPath = Path.Combine(profile.Path, "media"), AutomaticUpdateChecks = false,
-            RecheckTimer = 70, MinimumFreeSpaceGiB = 0, FirstRunSetupVersion = 1, SaveUrlsOnExit = true
-        };
-        config.SaveConfig(profile.Path);
+        SaveConfig(profile.Path);
         var source = new FixtureSource();
         string customUrl = source.Custom.BoardUri.AbsoluteUri;
         string inheritedUrl = source.Inherited.BoardUri.AbsoluteUri;
@@ -43,6 +41,8 @@ public sealed class BoardWatcherRegistryTests
             Assert.Equal(12, host.GetBoardAdmissionPolicy(customUrl).WatcherIntervalMinutes);
             Assert.Equal("Recent photos", host.GetBoardAdmissionPolicy(customUrl).WatcherName);
             Assert.Null(host.GetBoardAdmissionPolicy(inheritedUrl).WatcherIntervalMinutes);
+            Assert.Equal(TimeSpan.FromMinutes(12), await reopened.Custom.FirstDelay.WaitAsync(Deadline));
+            Assert.Equal(TimeSpan.FromSeconds(70), await reopened.Inherited.FirstDelay.WaitAsync(Deadline));
             Assert.Equal(TimeSpan.FromMinutes(12), await reopened.Custom.DelayAfterNextCheckAsync());
             Assert.Equal(TimeSpan.FromSeconds(70), await reopened.Inherited.DelayAfterNextCheckAsync());
             AssertBoardName(host, customUrl, "Recent photos");
@@ -62,6 +62,74 @@ public sealed class BoardWatcherRegistryTests
             AssertBoardName(host, customUrl, reopened.Custom.NiceName);
         }
     }
+
+    [Fact]
+    public async Task ClearingOwnIntervalDuringMetadataAdmissionKeepsTheNextDelayOnTheGlobalInterval()
+    {
+        using var profile = new TempDirectory();
+        SaveConfig(profile.Path);
+        var source = new FixtureSource();
+        string boardUrl = source.Custom.BoardUri.AbsoluteUri;
+        await using DesktopSessionHost host = CreateHost(profile.Path, source);
+        await host.StartAsync();
+        Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
+        await host.ApplyBoardAdmissionAsync(boardUrl, new BoardAdmissionPolicy([], null, null, 12));
+        Assert.Equal(TimeSpan.FromMinutes(12), await source.Custom.FirstDelay.WaitAsync(Deadline));
+
+        CatalogCheck catalog = await source.Custom.HoldNextCheckAsync();
+        var write = new IntervalWrite(TimeSpan.FromMinutes(12));
+        source.Custom.BeforeIntervalUpdate = write.Hold;
+        Task metadata = Task.Run(async () =>
+        {
+            DownloadQueue queue = Assert.IsType<DownloadQueue>(source.Custom.SessionQueue);
+            using IDisposable slot = await queue.AcquireMetadataAsync(source.Name, DownloadPriority.Manual);
+        });
+        try
+        {
+            // If metadata admission attempts the old write, let it finish only after the clear.
+            await Task.WhenAny(write.Started.Task, metadata).WaitAsync(Deadline);
+            await host.ApplyBoardAdmissionAsync(boardUrl, new BoardAdmissionPolicy([], null, null, null));
+            Assert.Null(host.GetBoardAdmissionPolicy(boardUrl).WatcherIntervalMinutes);
+            write.Resume.TrySetResult();
+            await metadata.WaitAsync(Deadline);
+        }
+        finally
+        {
+            write.Resume.TrySetResult();
+            catalog.Resume.TrySetResult();
+        }
+        Assert.Equal(TimeSpan.FromSeconds(70), await catalog.Delay.Task.WaitAsync(Deadline));
+    }
+
+    [Fact]
+    public async Task ChangingRecheckTimerDuringACatalogCheckPreservesTheNextOwnDelay()
+    {
+        using var profile = new TempDirectory();
+        SaveConfig(profile.Path);
+        var source = new FixtureSource();
+        await using DesktopSessionHost host = CreateHost(profile.Path, source);
+        await host.StartAsync();
+        Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
+        await host.ApplyBoardAdmissionAsync(source.Custom.BoardUri.AbsoluteUri, new BoardAdmissionPolicy([], null, null, 12));
+        Assert.Equal(TimeSpan.FromMinutes(12), await source.Custom.FirstDelay.WaitAsync(Deadline));
+
+        CatalogCheck catalog = await source.Custom.HoldNextCheckAsync();
+        Config next = host.Config.Clone();
+        next.RecheckTimer = 85;
+        source.Custom.AfterIntervalUpdate = interval => catalog.FinishWhenIntervalIsSet(interval, TimeSpan.FromSeconds(next.RecheckTimer));
+        try
+        {
+            Assert.True(await host.ApplySettingsAsync(next));
+            Assert.Equal(TimeSpan.FromMinutes(12), await catalog.Delay.Task.WaitAsync(Deadline));
+        }
+        finally { catalog.Resume.TrySetResult(); }
+    }
+
+    private static void SaveConfig(string path) => new Config
+    {
+        DownloadPath = Path.Combine(path, "media"), AutomaticUpdateChecks = false,
+        RecheckTimer = 70, MinimumFreeSpaceGiB = 0, FirstRunSetupVersion = 1, SaveUrlsOnExit = true
+    }.SaveConfig(path);
 
     private static DesktopSessionHost CreateHost(string path, FixtureSource source) => OwnedUiDispatcher.CreateHost(() =>
         new DesktopSessionHost(path, [source],
@@ -99,17 +167,43 @@ public sealed class BoardWatcherRegistryTests
         private readonly object _sync = new();
         private int _checks;
         private (int Check, TaskCompletionSource<TimeSpan> Delay)? _awaited;
-        internal TimeSpan CurrentInterval { get; private set; }
+        private CatalogCheck? _nextHeldCheck;
+        private readonly TaskCompletionSource<TimeSpan> _firstDelay = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal Task<TimeSpan> FirstDelay => _firstDelay.Task;
+        internal TimeSpan CurrentInterval => NextMonitoringInterval;
+        internal Action<TimeSpan>? BeforeIntervalUpdate { get; set; }
+        internal Action<TimeSpan>? AfterIntervalUpdate { get; set; }
         public override IImageBoard ImageBoard => source;
         public override string BoardCode => code;
         public override string Name { get; protected set; } = name;
         public override string NiceName => Name;
         public override Uri BoardUri => new(source.BaseUri, code + "/");
 
-        public override Task<IEnumerable<IThread>> GetThreadsAsync(CancellationToken cancellationToken = default)
+        public override async Task<IEnumerable<IThread>> GetThreadsAsync(CancellationToken cancellationToken = default)
         {
-            lock (_sync) _checks++;
-            return Task.FromResult<IEnumerable<IThread>>([]);
+            CatalogCheck? held;
+            lock (_sync)
+            {
+                _checks++;
+                held = _nextHeldCheck;
+                _nextHeldCheck = null;
+                if (held != null) _awaited = (_checks - 1, held.Delay);
+            }
+            if (held != null)
+            {
+                held.Started.TrySetResult();
+                await held.Resume.Task.WaitAsync(cancellationToken);
+            }
+            return [];
+        }
+
+        internal async Task<CatalogCheck> HoldNextCheckAsync()
+        {
+            var held = new CatalogCheck();
+            lock (_sync) _nextHeldCheck = held;
+            Assert.Contains(RequestCheck(), new[] { CheckRequestStatus.Scheduled, CheckRequestStatus.AlreadyScheduled });
+            await held.Started.Task.WaitAsync(Deadline);
+            return held;
         }
 
         // The delay the watcher really waits with after a check that began once the caller asked for one.
@@ -118,26 +212,48 @@ public sealed class BoardWatcherRegistryTests
             TaskCompletionSource<TimeSpan> delay = new(TaskCreationOptions.RunContinuationsAsynchronously);
             lock (_sync) _awaited = (_checks, delay);
             Assert.Contains(RequestCheck(), new[] { CheckRequestStatus.Scheduled, CheckRequestStatus.AlreadyScheduled });
-            return await delay.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            return await delay.Task.WaitAsync(Deadline);
         }
 
         protected override Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)
         {
+            _firstDelay.TrySetResult(interval);
             lock (_sync)
                 if (_awaited is { } awaited && _checks > awaited.Check) awaited.Delay.TrySetResult(interval);
             return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }
 
-        void IBoard.StartMonitoring(int intervalInSeconds)
-        {
-            CurrentInterval = TimeSpan.FromSeconds(intervalInSeconds);
-            StartMonitoring(intervalInSeconds);
-        }
-
         void IBoard.UpdateMonitoringInterval(TimeSpan interval)
         {
-            CurrentInterval = interval;
+            BeforeIntervalUpdate?.Invoke(interval);
             UpdateMonitoringInterval(interval);
+            AfterIntervalUpdate?.Invoke(interval);
+        }
+    }
+
+    private sealed class CatalogCheck
+    {
+        internal TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<TimeSpan> Delay { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal void FinishWhenIntervalIsSet(TimeSpan actual, TimeSpan expected)
+        {
+            if (actual != expected) return;
+            Resume.TrySetResult();
+            Delay.Task.WaitAsync(Deadline).GetAwaiter().GetResult();
+        }
+    }
+
+    private sealed class IntervalWrite(TimeSpan original)
+    {
+        internal TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal void Hold(TimeSpan interval)
+        {
+            if (interval == original && Started.TrySetResult())
+                Resume.Task.WaitAsync(Deadline).GetAwaiter().GetResult();
         }
     }
 }

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Admission;
+using MeowChan.Boards.Base;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 
@@ -23,9 +24,7 @@ public sealed partial class Registry
             if (lease != null && !ReferenceEquals(lease, store.ProfileLease))
                 throw new InvalidOperationException("Admission storage belongs to a different profile lease.");
             _boardAdmission = store;
-            // Registry.cs hands every board the session interval on start, admission and option
-            // changes. Reassert own intervals before each provider check reads its next delay.
-            _queue.ProviderCheckAdmitted = ApplyBoardWatcherIntervals;
+            _queue.BoardWatcherInterval = board => GetBoardWatcherInterval(store, board);
         }
         if (store.LoadWarning != null) Warn(store.LoadWarning);
     }
@@ -95,9 +94,8 @@ public sealed partial class Registry
             {
                 IBoard? watched;
                 lock (_state) watched = _watches.TryGetValue(resource.Key, out Watch? watch) && !watch.Stopping ? watch.Board : null;
-                // A cleared field returns the running watcher to the session interval immediately.
-                watched?.UpdateMonitoringInterval(policy.WatcherIntervalMinutes is int minutes
-                    ? TimeSpan.FromMinutes(minutes) : _boardInterval);
+                if (watched != null && watched is not BaseBoard)
+                    watched.UpdateMonitoringInterval(GetBoardWatcherInterval(_boardAdmission, watched) ?? _boardInterval);
             }
         }
         finally { _gate.Release(); }
@@ -107,7 +105,17 @@ public sealed partial class Registry
         SignalChanged();
         // Use normal admission so a previous stopping board lifetime is drained before replacement.
         AdmissionResult result = await AddAdmittedAsync(url, admission).ConfigureAwait(false);
-        ApplyBoardWatcherIntervals();
+        if (result is { Status: AdmissionStatus.Added, Board: { } board } && board is not BaseBoard)
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (_watches.TryGetValue(Key(board), out Watch? watch) && !watch.Stopping && ReferenceEquals(watch.Board, board)
+                    && GetBoardWatcherInterval(_boardAdmission, board) is { } interval)
+                    board.UpdateMonitoringInterval(interval);
+            }
+            finally { _gate.Release(); }
+        }
         return result;
     }
 
@@ -117,20 +125,19 @@ public sealed partial class Registry
         return policy.Evaluate(new(thread.ThreadId, thread.ThreadUri.AbsoluteUri, thread.Title, thread.CatalogOpeningText)).Included;
     }
 
-    /// <summary>Gives every watched board with its own interval that interval again. Boards with an
-    /// empty field keep the session interval that Registry.cs distributes.</summary>
-    internal void ApplyBoardWatcherIntervals()
+    internal void ApplyExternalBoardWatcherIntervals()
     {
-        BoardAdmissionStore? store = _boardAdmission;
-        if (store is not { HasWatcherIntervals: true }) return;
-        List<(IBoard Board, TimeSpan Interval)> own = new();
-        lock (_state)
+        if (!Boards.Any(board => board is not BaseBoard)) return;
+        _gate.Wait();
+        try
         {
-            foreach (Watch watch in _watches.Values)
-                if (watch is { Board: { } board, Stopping: false }
-                    && store.Get(board.BoardUri.AbsoluteUri).WatcherIntervalMinutes is int minutes)
-                    own.Add((board, TimeSpan.FromMinutes(minutes)));
+            foreach (IBoard board in Boards)
+                if (board is not BaseBoard && GetBoardWatcherInterval(_boardAdmission, board) is { } interval)
+                    board.UpdateMonitoringInterval(interval);
         }
-        foreach ((IBoard board, TimeSpan interval) in own) board.UpdateMonitoringInterval(interval);
+        finally { _gate.Release(); }
     }
+
+    private static TimeSpan? GetBoardWatcherInterval(BoardAdmissionStore? store, IBoard board) =>
+        store?.Get(board.BoardUri.AbsoluteUri).WatcherIntervalMinutes is int minutes ? TimeSpan.FromMinutes(minutes) : null;
 }
