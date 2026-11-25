@@ -63,7 +63,8 @@ public partial class ArchivePage
         set { _manageMediaRatings = value; ArchiveManageRatingsButton.IsEnabled = !_ended && value != null; }
     }
     private Func<Task>? _manageMediaRatings;
-    private async void OnManageMediaRatingsClick(object? sender, RoutedEventArgs e) => await ManageSelectedMediaRatingsAsync();
+    private async void OnManageMediaRatingsClick(object? sender, RoutedEventArgs e) =>
+        await OpenActions.RunAsync(ManageSelectedMediaRatingsAsync, "media.rating.manage");
 
     private async Task ManageSelectedMediaRatingsAsync()
     {
