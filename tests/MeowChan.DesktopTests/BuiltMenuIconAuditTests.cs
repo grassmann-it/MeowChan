@@ -182,15 +182,24 @@ public sealed class BuiltMenuIconAuditTests
                 [Item("_trayStatusItem")] = "navigation.status",
                 [Item("_traySettingsItem")] = "navigation.settings",
                 [Item("_trayExitItem")] = "app.quit",
-                [stats.RatesItem] = "rate",
-                [stats.DiskItem] = "disk",
-                [stats.DetailItem] = "detail"
+                [stats.RatesItem] = "rate"
             };
+            List<MenuIconAudit.Exception> exceptions =
+            [
+                new("tray", "rate", OperatingSystem.IsLinux()
+                    ? "The Linux tray uses one statistics shortcut."
+                    : "Live rate summary and a link to statistics.")
+            ];
+            if (!OperatingSystem.IsLinux())
+            {
+                ids.Add(stats.DiskItem, "disk");
+                ids.Add(stats.DetailItem, "detail");
+                exceptions.Add(new("tray", "disk", "Live disk summary and a link to statistics."));
+                exceptions.Add(new("tray", "detail", "Live activity summary and a link to statistics."));
+            }
             MenuIconAudit.VerifyNative("tray", tray.Menu!.Items.OfType<NativeMenuItem>()
                     .Select((item, index) => (ids.GetValueOrDefault(item, "row." + index), item)),
-                new("tray", "rate", "Live rate summary and a link to statistics."),
-                new("tray", "disk", "Live disk summary and a link to statistics."),
-                new("tray", "detail", "Live activity summary and a link to statistics."));
+                exceptions.ToArray());
         }
         finally
         {

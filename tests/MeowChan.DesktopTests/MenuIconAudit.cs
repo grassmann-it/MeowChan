@@ -43,7 +43,7 @@ internal static class MenuIconAudit
                     yield return new(parent + row.Id, row.Icon.Content as Control);
                     break;
                 case Button { Content: Grid grid, Tag: string layoutId }:
-                    ContentControl slot = Assert.Single(grid.Children.OfType<ContentControl>(), item => Grid.GetColumn(item) == 1);
+                    MenuStateChip slot = Assert.Single(grid.Children.OfType<MenuStateChip>());
                     yield return new(parent + layoutId, slot.Content as Control);
                     break;
             }

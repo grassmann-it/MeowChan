@@ -61,6 +61,7 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_shuffle, "media.toolbar.shuffle");
         WorkViewElement.SetId(_missing, "media.filter.missing"); // a filter since S3: a field of the section and a chip of the active filters
         WorkViewElement.SetId(_exportAll, "media.toolbar.export-all");
+        IconButtons.Record(_exportAll, CommandCatalog.Get("media.export-original").Icon);
         WorkViewElement.SetId(_manageRatings, "media.toolbar.manage-ratings");
         WorkViewElement.SetId(_booruOpen, "media.toolbar.booru");
         _booruOpen.Click += (_, _) => InvokeBooruOverflow();
