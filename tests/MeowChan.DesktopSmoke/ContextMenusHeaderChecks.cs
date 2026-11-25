@@ -1,9 +1,11 @@
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
 
 namespace MeowChan.DesktopSmoke;
@@ -34,7 +36,7 @@ internal static class ContextMenusHeaderChecks
         ContextMenuHost host = window.HeaderIoMenuHost ?? throw new InvalidOperationException("The header display has no context menu host.");
         Require(window.SessionHost.Config.StatsHeaderGraph == "Auto", "The smoke profile does not start with the Auto arrangement.");
 
-        // The Menu key opens it under the display: six choices (the stored one checked), a separator, statistics and settings.
+        // The Menu key opens it under the display: seven choices (the stored one checked), a separator, statistics and settings.
         speed.Focus();
         await Program.WaitUntilAsync(() => speed.IsFocused);
         speed.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Apps, Source = speed });
@@ -87,7 +89,7 @@ internal static class ContextMenusHeaderChecks
         Console.WriteLine("SMOKE context menus header: menu key and context request open it, seven arrangements (the last one, Off, hides the display and stops its measuring; Settings › Appearance brings it back) with the stored one checked, a choice applies at once and persists, settings and statistics entries work, Escape closes, focus returns.");
     }
 
-    /// <summary>"Off" hides the display and its sampling claim; the Settings › Appearance checkbox shows the display again.</summary>
+    /// <summary>"Off" hides the display and its sampling claim; the Settings › Appearance switch shows the display again.</summary>
     private static async Task CheckOffAsync(MainWindow window)
     {
         Button speed = window.FindControl<Button>("TransferSpeed")!;
@@ -105,12 +107,36 @@ internal static class ContextMenusHeaderChecks
         window.ShowStatistics();
         await Program.WaitUntilAsync(() => window.IoStatsClaim == IoStatsVisibility.Window, () => "the open statistics page does not claim samples: " + window.IoStatsClaim);
         Program.CaptureWindow(window, "smoke-context-menu-header-off.png");
-        CheckBox box = window.SettingsEditor.FindControl<CheckBox>("StatsHeaderMonitorInput")!;
-        Require(box.IsChecked == false, "The Settings › Appearance header checkbox is not cleared while the display is off.");
-        box.IsChecked = true;
-        box.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        await Program.WaitUntilAsync(() => Config.LoadConfig().StatsHeaderGraph == "Auto" && speed.IsVisible,
-            () => $"file {Config.LoadConfig().StatsHeaderGraph}, display visible {speed.IsVisible}");
+
+        await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Settings);
+        SettingsEditor settings = window.SettingsEditor;
+        const string monitorId = "StatsHeaderMonitorInput";
+        Require(settings.RevealSetting(SettingsFieldId.FromInputName(monitorId)!), "Settings could not reveal the header monitor field.");
+        Control? monitor = null;
+        await Program.WaitUntilAsync(() =>
+        {
+            monitor = settings.GetVisualDescendants().OfType<Control>().SingleOrDefault(control =>
+                control.IsEffectivelyVisible && control.Bounds.Width > 0
+                && ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId() == monitorId);
+            return monitor is { IsEffectivelyEnabled: true };
+        }, () => "the header monitor switch is not visible and enabled in Settings");
+        AutomationPeer peer = ControlAutomationPeer.CreatePeerForElement(monitor!)!;
+        IToggleProvider toggle = peer.GetProvider<IToggleProvider>()
+            ?? throw new InvalidOperationException("The header monitor field exposes no accessible toggle state.");
+        Require(peer.GetName() == Texts.T("stats.headerMonitor.show"), "The header monitor switch has the wrong accessible name.");
+        Require(toggle.ToggleState == ToggleState.Off && !settings.StatsHeaderMonitorShown,
+            "The Settings header switch is not cleared while the display is off.");
+
+        await GalleryPointerFocusChecks.ClickAsync(window, monitor!);
+        await Program.WaitUntilAsync(() => Config.LoadConfig().StatsHeaderGraph == "Auto"
+            && window.SessionHost.Config.StatsHeaderGraph == "Auto" && speed.IsEffectivelyVisible
+            && toggle.ToggleState == ToggleState.On && settings.StatsHeaderMonitorShown,
+            () => $"file {Config.LoadConfig().StatsHeaderGraph}, display visible {speed.IsEffectivelyVisible}, switch {toggle.ToggleState}");
+        await RequestContextAsync(speed);
+        await WaitOpenAsync(host);
+        RequireMenu(host, "Auto");
+        host.Close();
+        Console.WriteLine("SMOKE header monitor: visible Settings switch exposes its localized name, restores the header and persistence, and rechecks Auto in the menu.");
     }
 
     // A positionless ContextRequested right after a Menu-key opening is the pair Avalonia sends with the key and is consumed
