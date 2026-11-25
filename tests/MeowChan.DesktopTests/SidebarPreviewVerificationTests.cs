@@ -196,6 +196,9 @@ public sealed class SidebarPreviewVerificationTests
                     string placeholder = Texts.T(wrongSha ? "reader.sidebar.unavailable" : "archive.tooLarge");
                     await WaitAsync(window, () => Find<TextBlock>(window, "ReaderMediaSidebarStatus")?.Text == placeholder
                         && Find<Image>(window, "ReaderMediaSidebarPicture", visibleOnly: false)?.Source == null, $"the {host} preview to report {placeholder}");
+                    if (host == "Media" && !wrongSha)
+                        await WaitAsync(window, () => Find<TextBlock>(window, "MediaTilePreviewStatus")?.Text == placeholder,
+                            "the Media tile to report the same pixel-limit reason as the sidebar");
 
                     ToggleButton favorite = Visible<ToggleButton>(window, "ReaderMediaSidebarFavorite");
                     ToggleButton rating = Visible<ToggleButton>(window, "ReaderMediaSidebarDecisionRating3");
