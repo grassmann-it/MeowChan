@@ -1450,7 +1450,7 @@
     "wizard.watcher.name": "Nombre del seguimiento",
     "wizard.watcher.interval": "Comprobar cada",
     "wizard.watcher.minutes": "minutos",
-    "wizard.watcher.intervalHint": "Si se deja vacío, se usa el intervalo global de comprobación. Permitido: de {0} a {1} minutos.",
+    "wizard.watcher.intervalHint": "Si se deja vacío, se usa el intervalo global de comprobación. Intervalo permitido (en minutos): de {0} a {1}.",
     "wizard.watcher.intervalInvalid": "Introduce un número entero entre {0} y {1}.",
     "wizard.watcher.patterns": "{0} patrones",
     "wizard.suggest.scanned.one": "{0:N0} hilo guardado analizado",

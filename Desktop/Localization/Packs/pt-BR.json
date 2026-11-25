@@ -997,7 +997,7 @@
     "wizard.watcher.name": "Nome do acompanhamento",
     "wizard.watcher.interval": "Verificar a cada",
     "wizard.watcher.minutes": "minutos",
-    "wizard.watcher.intervalHint": "Se estiver vazio, usa o intervalo global de verificação. Permitido: de {0} a {1} minutos.",
+    "wizard.watcher.intervalHint": "Se estiver vazio, usa o intervalo global de verificação. Faixa permitida (em minutos): de {0} a {1}.",
     "wizard.watcher.intervalInvalid": "Digite um número inteiro de {0} a {1}.",
     "wizard.watcher.patterns": "{0} padrões",
     "wizard.suggest.scanned.one": "{0:N0} tópico salvo analisado",

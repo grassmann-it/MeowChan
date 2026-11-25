@@ -1005,7 +1005,7 @@
     "wizard.watcher.name": "Název sledování",
     "wizard.watcher.interval": "Kontrolovat každých",
     "wizard.watcher.minutes": "minut",
-    "wizard.watcher.intervalHint": "Prázdné pole použije globální interval kontrol. Povoleno: {0} až {1} minut.",
+    "wizard.watcher.intervalHint": "Prázdné pole použije globální interval kontrol. Povolený rozsah (v minutách): {0} až {1}.",
     "wizard.watcher.intervalInvalid": "Zadejte celé číslo od {0} do {1}.",
     "wizard.watcher.patterns": "{0} vzory",
     "wizard.suggest.scanned.one": "Vyhodnoceno {0:N0} uložené vlákno",

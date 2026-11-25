@@ -1450,7 +1450,7 @@
     "wizard.watcher.name": "Nom du suivi",
     "wizard.watcher.interval": "Vérifier toutes les",
     "wizard.watcher.minutes": "min",
-    "wizard.watcher.intervalHint": "Si le champ est vide, l’intervalle global de vérification s’applique. Plage autorisée : de {0} à {1} minutes.",
+    "wizard.watcher.intervalHint": "Si le champ est vide, l’intervalle global de vérification s’applique. Plage autorisée (en minutes) : de {0} à {1}.",
     "wizard.watcher.intervalInvalid": "Saisissez un nombre entier compris entre {0} et {1}.",
     "wizard.watcher.patterns": "{0} motifs",
     "wizard.suggest.scanned.one": "{0:N0} fil enregistré analysé",

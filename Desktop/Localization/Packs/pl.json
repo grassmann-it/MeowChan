@@ -1005,7 +1005,7 @@
     "wizard.watcher.name": "Nazwa obserwacji",
     "wizard.watcher.interval": "Sprawdzaj co",
     "wizard.watcher.minutes": "min",
-    "wizard.watcher.intervalHint": "Puste pole oznacza użycie globalnego interwału sprawdzania. Dozwolone: od {0} do {1} min.",
+    "wizard.watcher.intervalHint": "Puste pole oznacza użycie globalnego interwału sprawdzania. Dozwolony zakres (w minutach): od {0} do {1}.",
     "wizard.watcher.intervalInvalid": "Wpisz liczbę całkowitą od {0} do {1}.",
     "wizard.watcher.patterns": "{0} wzorce",
     "wizard.suggest.scanned.one": "Przeanalizowano {0:N0} zapisany wątek",
