@@ -133,6 +133,7 @@ public partial class SettingsEditor
     private void LoadLimitsDraft(Config config)
     {
         LoadLimitNumbersDraft(config);
+        LoadBoardSuggestionDraft(config);
         ShrinkWindowForBarebones = config.ShrinkWindowForBarebones;
     }
 
@@ -168,6 +169,7 @@ public partial class SettingsEditor
         candidate.BoardAdmissionSizeMiB = GetInteger(BoardAdmissionSizeMiB, BoardAdmissionSizeMiBLabel, Config.BoardAdmissionSizeMiBMinimum, Config.BoardAdmissionSizeMiBMaximum);
         candidate.SlashTagSuggestionCount = GetInteger(SlashTagSuggestionCount, SlashTagSuggestionCountLabel, Config.SlashTagSuggestionCountMinimum, Config.SlashTagSuggestionCountMaximum);
         candidate.VideoScrubCacheLimitMiB = GetInteger(VideoScrubCacheLimitMiB, VideoScrubCacheLimitMiBLabel, Config.VideoScrubCacheLimitMiBMinimum, Config.VideoScrubCacheLimitMiBMaximum);
+        ApplyBoardSuggestionDraft(candidate);
         candidate.ShrinkWindowForBarebones = ShrinkWindowForBarebones;
     }
 
@@ -198,11 +200,13 @@ public partial class SettingsEditor
     private void NotifyLimitsHelpChanged()
     {
         Raise(LimitsHelpProperties);
+        UpdateBoardSuggestionHelp();
         UpdateCatalogLimitHelp();
     }
 
     private void RaiseLimitsTextsChanged()
     {
+        UpdateBoardSuggestionTexts();
         UpdateCatalogLimitTexts();
         Raise(new[]
         {

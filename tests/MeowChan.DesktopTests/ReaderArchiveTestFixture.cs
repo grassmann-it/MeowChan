@@ -25,11 +25,12 @@ internal sealed class ReaderArchiveTestFixture : IDisposable
         return Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(id));
     }
 
-    internal void Run(Action<ArchivePage> test) => BooruComponentDispatcher.Run(() =>
+    internal void Run(Action<ArchivePage> test, bool hosted = false) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
+        using IDisposable? platform = hosted ? BooruReviewTestPlatform.Enter() : null;
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-        TokenApplication.Bind();
+        if (!hosted) TokenApplication.Bind();
         ArchivePage page = new(token => ArchiveReader.OpenAsync(_profile.Path, token), (_, _) => Task.CompletedTask, _ => { });
         try
         {

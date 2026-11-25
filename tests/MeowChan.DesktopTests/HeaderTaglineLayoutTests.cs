@@ -127,8 +127,9 @@ public sealed class HeaderTaglineLayoutTests
                 Assert.True(window.SettingsPageVisible);
                 SettingsEditor editor = window.SettingsEditor;
                 Assert.True(editor.RevealSetting(nameof(Config.HeaderTaglineFixedId)));
-                ComboBox picker = editor.FindControl<ComboBox>("HeaderTaglineFixedIdInput")!;
                 Settle();
+                ComboBox picker = Assert.Single(editor.GetVisualDescendants().OfType<ComboBox>(),
+                    input => AutomationProperties.GetAutomationId(input) == "HeaderTaglineFixedIdInput");
                 Assert.Equal(effectiveId, Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
                 Assert.True(picker.Focus());
                 window.KeyPress(Key.F4, RawInputModifiers.None, PhysicalKey.F4, null);
