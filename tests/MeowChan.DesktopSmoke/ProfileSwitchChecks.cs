@@ -1,8 +1,10 @@
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -36,8 +38,9 @@ internal static class ProfileSwitchChecks
             new Config { DownloadPath = Path.Combine(root, "downloads"), DownloadsPaused = true, SaveUrlsOnExit = false, CloseToTray = false,
                 MinimizeToTray = false, WorkspaceMode = "Simple" }.SaveConfig(profile);
             await RunShellAsync(owner, root, profile);
-            Console.WriteLine("SMOKE profile switch [en]: New profile refused the current folder, created a profile with its own download folder and id, "
-                + "listed both; Switch profile opened it and refused a profile held by another window; fake launcher, private list; managed input only.");
+            Console.WriteLine("SMOKE profile switch: Collection and App groups, Profile accessible name in English and German; "
+                + "New profile refused the current folder and created a profile with its own downloads and id; Switch profile listed both, "
+                + "launched the selected folder and refused a profile held by another window; fake launcher, private list; managed input only.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -55,14 +58,28 @@ internal static class ProfileSwitchChecks
         {
             await UntilAsync(() => host.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
             MenuItem menu = shell.FindControl<MenuItem>("WorkspaceMenuItem")!;
-            MenuItem profileMenu = menu.Items.OfType<MenuItem>().Single(item => item.Name == "ProfileMenuItem");
-            Require(Equals(profileMenu.Header, "Profile") && menu.Items.IndexOf(profileMenu) == menu.Items.IndexOf(shell.FindControl<MenuItem>("SettingsMenuItem")) - 1,
-                "The Profile submenu is not in front of Settings.");
-            Require(profileMenu.Items.OfType<MenuItem>().Select(item => item.Name).SequenceEqual(new[] { "ProfileNewMenuItem", "ProfileSwitchMenuItem", "ProfileFolderMenuItem" }),
+            MenuItem profileMenu = MenuItemById(menu, "ProfileMenuItem");
+            MenuItem settings = MenuItemById(menu, "SettingsMenuItem");
+            // HeaderMenuGroups (43a1a9c1a) places Profile in Collection and Settings in App.
+            RequireGroup(menu, profileMenu, "menu.group.collection");
+            RequireGroup(menu, settings, "menu.group.app");
+            Require(AccessibleName(profileMenu) == Texts.T("profile.menu"), "The Profile submenu has the wrong accessible name in English.");
+            Texts.SetLanguage("de");
+            await UntilAsync(() => AccessibleName(profileMenu) == Texts.T("profile.menu"));
+            Texts.SetLanguage("en");
+            await UntilAsync(() => AccessibleName(profileMenu) == Texts.T("profile.menu"));
+            MenuItem createItem = MenuItemById(profileMenu, "ProfileNewMenuItem");
+            MenuItem switchItem = MenuItemById(profileMenu, "ProfileSwitchMenuItem");
+            MenuItem folderItem = MenuItemById(profileMenu, "ProfileFolderMenuItem");
+            Require(profileMenu.Items.OfType<MenuItem>().SequenceEqual(new[] { createItem, switchItem, folderItem }),
                 "The Profile submenu does not hold New, Switch and Open folder.");
+            Require(AccessibleName(createItem) == CommandCatalog.Label("profile.new")
+                && AccessibleName(switchItem) == CommandCatalog.Label("profile.switch")
+                && AccessibleName(folderItem) == CommandCatalog.Label("profile.open-folder"),
+                "A profile action does not expose its catalog label.");
 
             // New profile: the current folder is refused, a fresh folder is created and handed to the launcher.
-            _ = shell.OpenNewProfileDialogAsync();
+            await InvokeProfileMenuAsync(menu, profileMenu, createItem);
             await UntilAsync(() => shell.ProfileDialogWindow is NewProfileDialog { IsVisible: true });
             NewProfileDialog create = (NewProfileDialog)shell.ProfileDialogWindow!;
             Require(create.Title == "New profile" && create.FolderBox.Text!.Contains(".MeowChan-profiles", StringComparison.Ordinal), "The dialog does not suggest a profile folder.");
@@ -84,7 +101,7 @@ internal static class ProfileSwitchChecks
             Require(registry.Read().Entries.Select(entry => entry.Path).SequenceEqual(new[] { host.ProfileDirectory, target }), "The list does not hold both profiles.");
 
             // Switch profile: both rows, the new one opens; a profile held by another window cannot be opened.
-            _ = shell.OpenSwitchProfileDialogAsync();
+            await InvokeProfileMenuAsync(menu, profileMenu, switchItem);
             await UntilAsync(() => shell.ProfileDialogWindow is SwitchProfileDialog { IsVisible: true });
             SwitchProfileDialog change = (SwitchProfileDialog)shell.ProfileDialogWindow!;
             await UntilAsync(() => change.LoadTask.IsCompleted); // the rows appear at once; the folders answer afterwards
@@ -95,9 +112,10 @@ internal static class ProfileSwitchChecks
             Require(open.IsEnabled, "The new profile cannot be opened.");
             open.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => shell.ProfileDialogWindow == null && launcher.Started.Count == 2);
+            Require(launcher.Started[1] == target, "Switch profile did not launch the selected profile folder.");
             using (ProfileLease held = ProfileLease.Acquire(target))
             {
-                _ = shell.OpenSwitchProfileDialogAsync();
+                await InvokeProfileMenuAsync(menu, profileMenu, switchItem);
                 await UntilAsync(() => shell.ProfileDialogWindow is SwitchProfileDialog { IsVisible: true });
                 change = (SwitchProfileDialog)shell.ProfileDialogWindow!;
                 await UntilAsync(() => change.LoadTask.IsCompleted);
@@ -114,6 +132,37 @@ internal static class ProfileSwitchChecks
         {
             await SmokeCleanup.RunAsync(failure, () => CloseAsync(host, shell),
                 exception => Console.Error.WriteLine("SMOKE cleanup failed in ProfileSwitchChecks: " + exception));
+        }
+    }
+
+    private static string? AccessibleName(MenuItem item) => ControlAutomationPeer.CreatePeerForElement(item)?.GetName();
+
+    private static MenuItem MenuItemById(MenuItem parent, string id) =>
+        parent.Items.OfType<MenuItem>().Single(item => ControlAutomationPeer.CreatePeerForElement(item)?.GetAutomationId() == id);
+
+    private static void RequireGroup(MenuItem menu, MenuItem item, string labelKey)
+    {
+        MenuItem? label = menu.Items.TakeWhile(entry => !ReferenceEquals(entry, item)).Reverse()
+            .TakeWhile(entry => entry is not Separator).OfType<MenuItem>()
+            .FirstOrDefault(entry => entry.Classes.Contains("menu-group-label"));
+        Require(label?.Tag is string key && key == labelKey && AccessibleName(label) == Texts.T(labelKey),
+            $"The {item.Name} menu item is not in the '{Texts.T(labelKey)}' group.");
+    }
+
+    private static async Task InvokeProfileMenuAsync(MenuItem menu, MenuItem profileMenu, MenuItem action)
+    {
+        menu.IsSubMenuOpen = true;
+        try
+        {
+            await UntilAsync(() => profileMenu.IsEffectivelyVisible && profileMenu.Bounds.Width > 0);
+            profileMenu.IsSubMenuOpen = true;
+            await UntilAsync(() => action.IsEffectivelyVisible && action.IsEffectivelyEnabled && action.Bounds.Width > 0);
+            SmokeActionClick.Execute(action);
+        }
+        finally
+        {
+            profileMenu.IsSubMenuOpen = false;
+            menu.IsSubMenuOpen = false;
         }
     }
 

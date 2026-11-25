@@ -94,6 +94,7 @@ internal static class ComparisonCaptures
             await CaptureStateFixtureAsync(window, "smoke-states-fixture-light.png");
             await CaptureContextMenuAsync(window, rows[0], "smoke-context-light.png");
             await CheckButtonContrastAsync(window);
+            await CheckContextMenuSubsetAsync(window, grid, rows[0], rows[1]);
             if (visualReview)
             {
                 await CaptureKeyboardFocusAsync(window, "smoke-comparison-focus-light.png");
@@ -121,7 +122,7 @@ internal static class ComparisonCaptures
     private static async Task CaptureHoveredProgressAsync(MainWindow window, ThreadRow[] rows, string fileName)
     {
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
-        MouseDevice mouse = new();
+        using MouseDevice mouse = new();
         DataGridRow row = grid.GetVisualDescendants().OfType<DataGridRow>()
             .First(candidate => candidate.IsEffectivelyVisible && ReferenceEquals(candidate.DataContext, rows[1]));
         Point center = row.TranslatePoint(new Point(row.Bounds.Width * 0.6, row.Bounds.Height / 2), window)!.Value;
@@ -440,24 +441,14 @@ internal static class ComparisonCaptures
         try
         {
             await GridChecks.OpenContextForAsync(window, grid, row);
+            if (grid.SelectedItems.Count != 1)
+                throw new InvalidOperationException("The comparison context menu must start with exactly one selected watch.");
             string[] requiredActions = { "thread.read", "gallery.open", "thread.details", "export.open-html-dialog",
                 "selection.copy-links", "location.open-folder", "location.open-source", "watch.check",
                 "watch.retry-media", "rules.edit-scope", "watch.remove" };
             MenuItem[] items = menu.Items.OfType<MenuItem>().ToArray();
             foreach (string action in requiredActions)
-            {
-                MenuItem[] matches = items.Where(item => item.Tag as string == action).ToArray();
-                if (matches.Length != 1)
-                    throw new InvalidOperationException("Context menu did not expose exactly one required action: " + action);
-                // Passive fixture rows have no registered check targets or retryable work.
-                bool unavailable = action is "watch.check" or "watch.retry-media";
-                string expectedLabel = CommandCatalog.Label(action) + (unavailable ? " (0)" : "");
-                MenuItem item = matches[0];
-                if (item.Header as string != expectedLabel || AutomationProperties.GetName(item) != expectedLabel)
-                    throw new InvalidOperationException("Context action did not expose its expected fixture label: " + action);
-                if (unavailable && item.IsEnabled)
-                    throw new InvalidOperationException("Context action without fixture targets was enabled: " + action);
-            }
+                CheckContextAction(items, action, selectionCount: 1);
             if (items.Any(item => item.Icon is not Border))
                 throw new InvalidOperationException("A context action or availability explanation is missing its shared icon.");
             Border[] icons = items.Select(item => (Border)item.Icon!).ToArray();
@@ -508,6 +499,61 @@ internal static class ComparisonCaptures
         {
             menu.Close();
         }
+    }
+
+    private static async Task CheckContextMenuSubsetAsync(MainWindow window, DataGrid grid, ThreadRow first, ThreadRow second)
+    {
+        ContextMenu menu = grid.ContextMenu!;
+        string language = Texts.Language;
+        try
+        {
+            Texts.SetLanguage("de");
+            grid.SelectedItem = first;
+            grid.SelectedItems.Add(second);
+            await GridChecks.OpenContextForAsync(window, grid, first);
+            if (grid.SelectedItems.Count != 2 || !grid.SelectedItems.Contains(second))
+                throw new InvalidOperationException("The comparison context menu did not retain both selected watches.");
+
+            MenuItem[] items = menu.Items.OfType<MenuItem>().ToArray();
+            CheckContextAction(items, "watch.check", selectionCount: 2);
+            CheckContextAction(items, "watch.retry-media", selectionCount: 2);
+            Console.WriteLine("SMOKE Downloads context menu: single-watch labels and reasons, and German subset labels for two selected passive watches.");
+        }
+        finally
+        {
+            menu.Close();
+            grid.SelectedItems.Remove(second);
+            grid.SelectedItem = first;
+            Texts.SetLanguage(language);
+        }
+    }
+
+    private static void CheckContextAction(MenuItem[] items, string action, int selectionCount)
+    {
+        MenuItem[] matches = items.Where(item => AutomationProperties.GetAutomationId(item) == action).ToArray();
+        if (matches.Length != 1)
+            throw new InvalidOperationException("Context menu did not expose exactly one required action: " + action);
+        string? reasonKey = action switch
+        {
+            "watch.check" => "menu.unavailable.nothingToCheck",
+            "watch.retry-media" => "menu.unavailable.nothingToRetry",
+            _ => null
+        };
+        // Passive rows have zero targets, but aa06f87be shows the subset only for multiple selected watches.
+        string label = CommandCatalog.Label(action);
+        if (reasonKey != null && selectionCount > 1)
+            label = Texts.T("selection.actionSubset", label, 0, selectionCount);
+        MenuItem item = matches[0];
+        if (item.Header as string != label || AutomationProperties.GetName(item) != label)
+            throw new InvalidOperationException($"Context action {action} for {selectionCount} selected watches: expected '{label}', got '{item.Header}'.");
+        if (reasonKey == null) return;
+
+        string reason = Texts.T(reasonKey);
+        if (item.IsEnabled || item.Command?.CanExecute(item.CommandParameter) == true)
+            throw new InvalidOperationException("Context action without fixture targets was enabled: " + action);
+        if (!ToolTip.GetShowOnDisabled(item) || ToolTip.GetTip(item) is not string tip || !tip.Contains(reason, StringComparison.Ordinal)
+            || AutomationProperties.GetHelpText(item)?.Contains(reason, StringComparison.Ordinal) != true)
+            throw new InvalidOperationException($"Disabled context action {action} did not expose its reason '{reason}'.");
     }
 
     private static async Task CaptureAsync(MainWindow window, ThreadRow[] rows, string fileName)
