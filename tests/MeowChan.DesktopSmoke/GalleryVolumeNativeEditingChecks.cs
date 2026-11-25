@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -150,26 +151,37 @@ internal static class GalleryVolumeNativeEditingChecks
                     Text = "alpha line\nbeta line\ngamma line", AcceptsReturn = true,
                     Height = 110, Width = 300, TextWrapping = Avalonia.Media.TextWrapping.NoWrap
                 };
+                TextPresenter? presenter = null;
+                editor.TemplateApplied += (_, e) => presenter = e.NameScope.Get<TextPresenter>("PART_TextPresenter");
                 var previousTemplate = transport.Template;
                 transport.Template = new FuncControlTemplate<Slider>((_, _) => editor);
                 try
                 {
                     window.UpdateLayout();
                     await Program.WaitUntilAsync(() => editor.GetVisualAncestors().Contains(transport)
-                        && editor.GetVisualDescendants().Any() && editor.Bounds.Height > 0);
+                        && presenter is { Bounds.Height: > 0 } && editor.Bounds.Height > 0);
                     foreach (var (key, _, _) in arrows)
                     foreach (var modifiers in new[] { KeyModifiers.None, KeyModifiers.Shift })
                     {
-                        editor.CaretIndex = 14; // Middle line, movement possible in both directions.
-                        editor.SelectionStart = editor.SelectionEnd = 14;
+                        // Shift+arrow moves the presenter to SelectionEnd while CaretIndex stays at the anchor.
+                        // Collapse at the active end first so resetting to the middle line also moves the presenter.
+                        const int middle = 14;
+                        editor.CaretIndex = editor.SelectionEnd;
+                        editor.CaretIndex = middle;
+                        Require(editor.CaretIndex == middle && presenter!.CaretIndex == middle
+                            && editor.SelectionStart == middle && editor.SelectionEnd == middle,
+                            $"Could not establish a collapsed caret on the middle line before {modifiers}+{key}.");
                         int caretBefore = editor.CaretIndex, before = accepted;
                         double seekBefore = seek.Value, volumeBefore = volume.Value;
                         await PressAsync(editor, key, modifiers);
                         Require(!lastAccepted && accepted == before, "Nearer TextBox lost its native boundary.");
                         bool selecting = modifiers == KeyModifiers.Shift;
                         int endpoint = selecting ? editor.SelectionEnd : editor.CaretIndex;
+                        string observation = $"{transport.GetType().Name} {modifiers}+{key} from {caretBefore}: "
+                            + $"caret={editor.CaretIndex}, selection={editor.SelectionStart}..{editor.SelectionEnd}, presenter={presenter!.CaretIndex}";
+                        Console.WriteLine("GALLERY_VOLUME_EDITOR " + observation);
                         Require(key == Key.Up ? endpoint < caretBefore : endpoint > caretBefore,
-                            "Native TextBox did not move its caret or selection in the dispatched arrow direction.");
+                            "Native TextBox did not move in the dispatched arrow direction: " + observation);
                         Require(selecting ? editor.SelectionStart == caretBefore : editor.SelectionStart == editor.SelectionEnd,
                             "Native TextBox selection disagreed with the arrow modifiers.");
                         Require(editor.Text == "alpha line\nbeta line\ngamma line"
