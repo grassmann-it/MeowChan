@@ -162,6 +162,7 @@ public sealed class ArchiveReaderPopupToggleTests
     {
         MainWindow window = fixture.Window;
         window.ArchivePage.ArchiveLayoutPreference = "Table";
+        window.ArchivePage.ArchiveSplitPreference = Config.ArchiveSplitWidthMaximum;
         fixture.Layout();
         var columns = Find<Button>(window, "ArchiveThreadColumnsButton");
         VerifyClickAndEscape(fixture, columns, () => columns.ContextMenu?.IsOpen == true);
@@ -193,6 +194,8 @@ public sealed class ArchiveReaderPopupToggleTests
             fixture.Layout();
             Press(fixture, new KeyGesture(Key.F8));
             Assert.True(fixture.Window.ArchivePage.IsEffectivelyVisible);
+            fixture.Window.ArchivePage.ArchiveColumnModePreference = WorkViewSetting.AdvancedName;
+            fixture.Layout();
             await test(fixture);
         }
         finally { ShortcutService.Publish(before); }
@@ -247,7 +250,8 @@ public sealed class ArchiveReaderPopupToggleTests
         TopLevel root = window.FocusManager?.GetFocusedElement() is Visual focused
             ? TopLevel.GetTopLevel(focused) ?? window : window;
         root.KeyPress(gesture.Key, (RawInputModifiers)gesture.KeyModifiers, PhysicalKey.None, null);
-        root.KeyRelease(gesture.Key, (RawInputModifiers)gesture.KeyModifiers, PhysicalKey.None, null);
+        TopLevel receiver = root.PlatformImpl != null ? root : window;
+        receiver.KeyRelease(gesture.Key, (RawInputModifiers)gesture.KeyModifiers, PhysicalKey.None, null);
         fixture.Layout();
     }
 }

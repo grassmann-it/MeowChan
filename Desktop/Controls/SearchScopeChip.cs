@@ -191,7 +191,7 @@ public sealed class SearchScopeChip : Button
         PopupToggle.Track(this, menu);
         menu.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (!IsMenuShortcut(e)) return;
+            if (!PopupToggle.CanToggleMenuFromKey(menu, e) || !IsMenuShortcut(e)) return;
             e.Handled = PopupToggle.Close(this);
             if (e.Handled) Owner?.Focus(NavigationMethod.Tab);
         }, RoutingStrategies.Tunnel);

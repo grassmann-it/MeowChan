@@ -32,6 +32,7 @@ public partial class ArchivePage
         if (_ended || sender is not Button origin) return;
         Button anchor = ReaderPopupAnchor(origin) as Button ?? origin;
         if (PopupToggle.Close(anchor)) return;
+        if (ReferenceEquals(anchor, ReaderToolbar.More)) ReaderToolbar.More!.IsChecked = false;
         ContextMenu menu = BuildReaderThreadMenu();
         menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         anchor.ContextMenu = menu;

@@ -35,6 +35,7 @@ public partial class ArchivePage
     {
         PopupToggle.Prepare(ArchiveThreadColumnsButton);
         PopupToggle.Prepare(ArchiveMediaColumnsButton);
+        ArchiveThreadColumnsButton.Click += OnArchiveColumnToggleClick;
         ArchiveMediaColumnsButton.Click += OnArchiveColumnToggleClick;
         // Tunnel: the table's own selection menu would otherwise take the request first. Column headers are not focusable, so the
         // keyboard reaches the same commands through the "Columns…" button.
@@ -51,7 +52,7 @@ public partial class ArchivePage
         if (button.ContextMenu is not { } menu) return;
         menu.AddHandler(KeyDownEvent, (_, key) =>
         {
-            if (ShortcutService.IsCapturing || !ShortcutService.Current.Matches(key, "table.choose-columns")) return;
+            if (!PopupToggle.CanToggleMenuFromKey(menu, key) || !ShortcutService.Current.Matches(key, "table.choose-columns")) return;
             key.Handled = PopupToggle.Close(button);
         }, RoutingStrategies.Tunnel);
     }

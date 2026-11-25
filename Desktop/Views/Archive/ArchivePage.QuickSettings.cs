@@ -46,7 +46,9 @@ public partial class ArchivePage
         if (_ended || IsReaderDialogOpen || QuickSettingsHost is not { } host) return;
         if (DismissReaderQuickSettings()) return;
         _readerQuickSettings ??= CreateReaderQuickSettings(host);
-        _readerQuickSettings.Show(QuickSettingsAnchor());
+        Control anchor = QuickSettingsAnchor();
+        if (ReferenceEquals(anchor, ReaderToolbar.More)) ReaderToolbar.More!.IsChecked = false;
+        _readerQuickSettings.Show(anchor);
     }
 
     private QuickSettingsPopover CreateReaderQuickSettings(QuickSettingsHost host)
