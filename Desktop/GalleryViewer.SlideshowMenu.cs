@@ -14,7 +14,7 @@ namespace MeowChan.Desktop;
 
 // G2 (PLAN-TAGGING-GALERIE-UX-1.1 §3.2, §6): the slideshow is one split control on the bar. The main part (the toggle) starts and pauses;
 // the menu button beside it (a Workspace.Size.Control square, joined to it) - or the context request of the toggle (right click, long press, the menu key) - opens a flyout with the
-// slideshow's settings: the playback mode, the seconds per image (with its caption), the rule for videos and the reduced-motion note.
+// slideshow's settings: playback mode, seconds per image, the rule for videos and the reduced-motion note.
 //
 // One panel, two ways: the settings are the rows of _slideshowHome, which sit under "⋯" as before. While the flyout is open it borrows the
 // panel (it becomes the flyout's content); when the flyout closes, the panel goes back to its place in the "⋯" menu. The controls exist

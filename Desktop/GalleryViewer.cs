@@ -447,6 +447,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         AddOverflowSeparator();
         _slideshowLoan.PlaceAtHome(); // FP1: the one owner of the settings panel is "⋯"; placing it twice is a no-op (the flyout borrows it later)
         AddOverflowSeparator();
+        _overflowPanel.Children.Add(_viewHeading);
         AddOverflowItem(_overlayToggle, "gallery.overlay-toggle", check: true);
         AddOverflowItem(_postOverlayToggle, "gallery.post-overlay-toggle", check: true);
         _fullscreenButton = Command(_overflowPanel, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke(), overflow: true);
