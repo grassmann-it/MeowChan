@@ -19,9 +19,9 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private ArchiveSearchSpec _query = new ArchiveSearchSpec();
-    private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
-        int Offset, IReadOnlyList<ArchiveQuote> Replies, string? Error, bool AutoExpanded = false);
-    private sealed record InlineRepliesSnapshot(InlineReplyState[] Pages, string[] CollapsedPosts);
+    private sealed record InlineReplyState(string PostId, bool Loaded, int? Count,
+        int Offset, IReadOnlyList<ArchiveQuote> Replies, string? Error);
+    private sealed record InlineRepliesSnapshot(InlineReplyState[] Pages, KeyValuePair<string, bool>[] ManualChoices);
     private sealed record ReaderHistoryEntry(ArchivedThreadView View, ReaderAnchor? Anchor, InlineRepliesSnapshot Replies);
 
     private sealed class PostInteraction
@@ -32,20 +32,21 @@ public partial class ArchivePage
     private PostInteraction _postInteraction = new();
     private ArchivedThreadView? _postInteractionThread;
 
-    private static InlineReplyState ReplyState(ArchivePostRow row) => new(row.Id, row.RepliesExpanded, row.RepliesLoaded,
-        row.BacklinkCount, row.RepliesOffset, row.Replies.Select(reply => reply.Quote).ToArray(), row.RepliesError, row.RepliesAutoExpanded);
+    private static InlineReplyState ReplyState(ArchivePostRow row) => new(row.Id, row.RepliesLoaded,
+        row.BacklinkCount, row.RepliesOffset, row.Replies.Select(reply => reply.Quote).ToArray(), row.RepliesError);
 
     private InlineRepliesSnapshot CaptureInlineReplyState()
     {
         IEnumerable<InlineReplyState> pages = _postInteraction.Replies.Values;
         if (ArchivePosts.ItemsSource is ReaderPostRows rows)
             pages = pages.Concat(rows.Materialized
-                .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError).Select(ReplyState));
-        return new(pages.ToArray(), _replyAutoExpand.CaptureCollapsedPosts());
+                .Where(row => row.RepliesLoaded || row.HasRepliesError).Select(ReplyState));
+        return new(pages.ToArray(), _replyAutoExpand.CaptureChoices());
     }
 
     private void BeginPostInteraction(ResourceId? threadId, InlineRepliesSnapshot? restored)
     {
+        _replyAutoExpand.Focus(null);
         _replyAutoExpand.SwitchThread(threadId);
         bool sameSnapshot = ReferenceEquals(_postInteractionThread, _thread);
         if (restored == null && sameSnapshot && ArchivePosts.ItemsSource is ReaderPostRows)
@@ -55,15 +56,17 @@ public partial class ArchivePage
             _postInteraction = new();
         _postInteractionThread = _thread;
         if (restored == null) return;
-        _replyAutoExpand.RestoreCollapsedPosts(restored.CollapsedPosts);
+        _replyAutoExpand.RestoreChoices(restored.ManualChoices);
         foreach (InlineReplyState state in restored.Pages) _postInteraction.Replies[state.PostId] = state;
     }
 
     private void RestorePostInteraction(ArchivePostRow row, PostInteraction interaction, ResourceId thread)
     {
-        if (row.IsStub || row.SuppressReplyToggle) return;
+        if (row.IsStub) return;
+        if (ReferenceEquals(interaction, _postInteraction) && !row.SuppressReplyToggle)
+            _replyAutoExpand.RestoreChoice(row);
         if (!interaction.Replies.Remove(row.Id, out InlineReplyState? state)) return;
-        // Rebuild the displayed reply cards against the current filter before expanding the saved pages.
+        // Rebuild the displayed reply cards against the current filter.
         if (state.Loaded)
         {
             ArchiveQuoteRow[] replies = state.Replies.Select(quote => ReplyCard(quote, thread)).ToArray();
@@ -71,8 +74,6 @@ public partial class ArchivePage
         }
         else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
         row.SetRepliesError(state.Error);
-        row.RepliesExpanded = state.Expanded && (!state.AutoExpanded || _replyAutoExpand.Enabled);
-        row.RepliesAutoExpanded = row.RepliesExpanded && state.AutoExpanded;
     }
     private readonly LinkedList<ReaderHistoryEntry> _history = new();
     private ReaderAnchor? _backlinkOriginAnchor;
