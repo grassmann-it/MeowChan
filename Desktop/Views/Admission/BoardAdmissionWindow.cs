@@ -189,7 +189,11 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
             var previewHeader = new StackPanel { Spacing = 8 };
             previewHeader.Children.Add(Localized(new TextBlock { Classes = { "section-title" } }, c => c.Text = Texts.T("wizard.previewTitle")));
             previewHeader.Children.Add(status); previewHeader.Children.Add(summary); previewHeader.Children.Add(matches); previewHeader.Children.Add(reinclude);
-            retry.Click += async (_, _) => await LoadAsync(draft);
+            retry.Click += async (_, _) =>
+            {
+                await LoadAsync(draft);
+                await LoadSuggestionCatalogCountsAsync(draft);
+            };
             previewHeader.Children.Add(retry);
             var previewPanel = new StackPanel { Spacing = 8 };
             previewPanel.Children.Add(previewHeader); previewPanel.Children.Add(list);
@@ -229,8 +233,8 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
             new Border { Child = body, Classes = { "workspace-dialog-body" } },
             MeowChan.Desktop.Controls.DialogFooter.Build(_apply, new Control[] { cancel }, footer, statusAbove: true),
             DialogFrame.ErrorStrip(new TextBlock())), modal: true);
+        Opened += async (_, _) => await LoadPreviewsAsync();
         if (suggest != null) Opened += async (_, _) => await LoadSuggestionsAsync(suggest);
-        Opened += async (_, _) => { foreach (var draft in _drafts) { if (_closing) break; await LoadAsync(draft); } };
         Texts.Changed += OnTextsChanged;
         ApplyTexts();
         Closed += (_, _) => Dispose();
@@ -516,11 +520,25 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
         }
         Refresh(draft);
     }
+
+    private async Task LoadPreviewsAsync()
+    {
+        var counts = new List<Task>();
+        foreach (Draft draft in _drafts)
+        {
+            if (_closing) break;
+            await LoadAsync(draft);
+            counts.Add(LoadSuggestionCatalogCountsAsync(draft));
+        }
+        await Task.WhenAll(counts);
+    }
+
     private async Task LoadAsync(Draft draft)
     {
         if (draft.Loading || _closing) return;
         draft.Loading = true;
         draft.Failure = null;
+        if (draft.Suggestions is { } suggestions) suggestions.CatalogCounts = null;
         draft.Loaded = false; draft.Status.Text = Texts.T("wizard.loading");
         draft.Status.Classes.Set("workspace-error", false);
         Refresh(draft);
@@ -539,7 +557,6 @@ internal sealed partial class BoardAdmissionWindow : Window, IDisposable
             }).ToList();
             draft.List.ItemsSource = draft.Rows;
             draft.Loaded = true;
-            CountSuggestionsInCatalog(draft);
             draft.Status.Text = draft.Rows.Count == 0 ? Texts.T("wizard.empty") : Texts.T("wizard.previewLoaded");
             draft.Retry.IsVisible = false; draft.List.IsEnabled = true;
             Refresh(draft);

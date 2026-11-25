@@ -1,7 +1,10 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -12,11 +15,15 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Admission;
 using MeowChan.Archive;
+using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.Interfaces;
 using MeowChan.Persistence;
+using Microsoft.Data.Sqlite;
+using SQLitePCL;
 using Xunit.Abstractions;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 
@@ -31,6 +38,7 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
     private static readonly ThreadTextRule Manual = new(ThreadTextField.Title, ThreadTextAction.Exclude, "spam");
     private static readonly ThreadTextRule Suggested = new(ThreadTextField.Title, ThreadTextAction.Include, Rpt);
     private static readonly string[] ExpectedLiteralRules = ["lens advice crew", "recent photo thread"];
+    private static readonly string[] ExpectedCatalogRequests = ["g", "p"];
 
     [Fact]
     public void ToggleAndEditUpdateTheExistingPreviewAndApplyReturnsOnlyTheDraft() => Run(() =>
@@ -57,6 +65,7 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
             Assert.False(check.IsChecked);
             Assert.False(warning.IsEffectivelyVisible);
             Assert.Contains("3 to watch", summary.Text);
+            BooruComponentDispatcher.WaitUntil(() => details.Text?.Contains("2 threads in the catalog now") == true, "catalog match count");
             Assert.Contains("2 threads in the catalog now", details.Text);
 
             Assert.True(check.Focus());
@@ -122,6 +131,7 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
             Click(Find<Button>(dialog, "BoardAdmissionRetry"));
             Layout(dialog);
             Assert.True(check.IsChecked);
+            BooruComponentDispatcher.WaitUntil(() => details.Text?.Contains("2 threads in the catalog now") == true, "catalog match count after retry");
             Assert.Contains("2 threads in the catalog now", details.Text);
             Assert.Equal(2, requests);
 
@@ -207,6 +217,194 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
         Assert.Equal(expected.Items.ToArray(), TitlePatternMiner.Mine(rows.Reverse().ToArray(), "g", Now, 3, 12).Items.ToArray());
     }
 
+    [Theory]
+    [InlineData(5, false)]
+    [InlineData(9, true)]
+    public void SingleWordMustMatchAtMostAQuarterOfAllTitles(int unrelatedCount, bool offered)
+    {
+        var rows = Enumerable.Range(1, 3).Select(i => Row(i, "Thread #" + i, i))
+            .Concat(UnrelatedTitles(unrelatedCount)).ToArray();
+
+        var result = TitlePatternMiner.Mine(rows, "g", Now, 3, 12);
+
+        Assert.Equal(3 + unrelatedCount, result.Scanned);
+        if (offered) Assert.Equal("thread", Assert.Single(result.Items).RuleText);
+        else Assert.Empty(result.Items);
+    }
+
+    [Theory]
+    [InlineData("news", "Camera news")]
+    [InlineData("test_1", "Camera test")]
+    [InlineData("analogphotographers", "Camera analogphotographers")]
+    public void OwnBoardCodeDoesNotBecomeAWordRule(string board, string unrelatedTitle)
+    {
+        var rows = Enumerable.Range(1, 3).Select(i => Row(i, $"/{board}/ #{i}", i))
+            .Concat(UnrelatedTitles(16)).Append(Row(99, unrelatedTitle, 1)).ToArray();
+
+        var result = TitlePatternMiner.Mine(rows, board, Now, 3, 12);
+
+        Assert.Equal(20, result.Scanned);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public void PrefixFallbackGroupsLeadingVolumeNumbersWithDistinctSeasonNames()
+    {
+        BoardTitleHistory[] rows = [Row(1, "Vol. 1 Lens Advice Crew – Autumn", 3),
+            Row(2, "Vol. 2 Lens Advice Crew – Winter", 2), Row(3, "Vol. 3 Lens Advice Crew – Spring", 1)];
+
+        var result = TitlePatternMiner.Mine(rows, "g", Now, 3, 12);
+
+        var suggestion = Assert.Single(result.Items);
+        Assert.Equal("lens advice crew", suggestion.RuleText);
+        Assert.Equal(3, suggestion.Count);
+        Assert.Equal(rows[2].Title, suggestion.ExampleTitle);
+    }
+
+    [Fact]
+    public async Task AllCatalogPreviewsGetTheEighthSlotWhileArchiveReadingCanBeCanceled()
+    {
+        using var profile = new TempDirectory();
+        BoardArchiveHostTests.Configure(profile.Path);
+        var requests = new ConcurrentQueue<string>();
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new CatalogFixtureProvider(async (board, token) =>
+        {
+            requests.Enqueue(board);
+            if (board == "g") await releaseFirst.Task.WaitAsync(token);
+        });
+        await using var host = OwnedUiDispatcher.CreateHost(() => new DesktopSessionHost(profile.Path, [provider]));
+        await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
+        Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
+
+        // Park seven real commands in the same host lane used by the required catalog previews.
+        var commandGate = (SemaphoreSlim)typeof(DesktopSessionHost)
+            .GetField("_commands", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;
+        await commandGate.WaitAsync();
+        var parked = Enumerable.Range(1, 7).Select(id => host.RemoveThreadAsync(id)).ToArray();
+        Task<BoardTitleSuggestions>? search = null;
+        try
+        {
+            Assert.Equal(7, host.AcceptedCommandCount);
+            using var connection = ArchiveSql.OpenConnection(Path.Combine(profile.Path, "archive.db"), SqliteOpenMode.ReadWrite);
+            using var writeLock = connection.CreateCommand();
+            writeLock.CommandText = "BEGIN EXCLUSIVE";
+            writeLock.ExecuteNonQuery();
+            try
+            {
+                Run(() =>
+                {
+                    const string secondBoard = "https://boards.4chan.org/p/";
+                    var starts = new List<(string Kind, string Url)>();
+                    CancellationToken searchToken = default;
+                    using var dialog = new BoardAdmissionWindow([Board, secondBoard], _ => BoardAdmissionPolicy.All,
+                        (url, token) =>
+                        {
+                            starts.Add(("preview", url));
+                            return host.PreviewBoardAdmissionAsync(url, token);
+                        }, true, suggest: (url, token) =>
+                        {
+                            starts.Add(("archive", url));
+                            searchToken = token;
+                            return search = host.ReadBoardTitleSuggestionsAsync(url, token);
+                        });
+                    dialog.Show();
+                    try
+                    {
+                        Layout(dialog);
+                        Assert.Equal(("preview", Board), starts[0]);
+                        Button apply = Find<Button>(dialog, "BoardAdmissionApply");
+                        Assert.Equal(8, host.AcceptedCommandCount);
+                        Assert.False(search!.IsCompleted);
+                        Assert.False(apply.IsEnabled);
+                        releaseFirst.SetResult();
+                        BooruComponentDispatcher.WaitUntil(() => apply.IsEnabled, "both required previews to load");
+                        Assert.Equal(new[] { Board, secondBoard }, starts.Where(entry => entry.Kind == "preview").Select(entry => entry.Url));
+                        Assert.Equal(Board, Assert.Single(starts, entry => entry.Kind == "archive").Url);
+                        Assert.Equal(7, host.AcceptedCommandCount);
+                        Assert.False(search!.IsCompleted);
+                        Click(Find<Button>(dialog, "BoardAdmissionCancel"));
+                        Assert.True(searchToken.IsCancellationRequested);
+                    }
+                    finally { if (dialog.IsVisible) dialog.Close(); }
+                });
+            }
+            finally
+            {
+                writeLock.CommandText = "ROLLBACK";
+                writeLock.ExecuteNonQuery();
+            }
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => search!);
+            Assert.Equal(ExpectedCatalogRequests, requests.ToArray());
+        }
+        finally
+        {
+            commandGate.Release();
+            await Task.WhenAll(parked).WaitAsync(TimeSpan.FromSeconds(45));
+        }
+    }
+
+    private sealed class CatalogFixtureProvider(Func<string, CancellationToken, Task> read) : FourChanImageBoard
+    {
+        public override IBoard GetBoard(Uri boardUri) => new CatalogFixtureBoard(this, boardUri, read);
+    }
+
+    private sealed class CatalogFixtureBoard(IImageBoard provider, Uri uri, Func<string, CancellationToken, Task> read)
+        : FourChanBoard(provider, uri)
+    {
+        public override async Task<IEnumerable<IThread>> GetThreadsAsync(CancellationToken cancellationToken = default)
+        {
+            await read(BoardCode, cancellationToken);
+            return [];
+        }
+    }
+
+    [Fact]
+    public void FiftySuggestionsPublishCountsAfterThePreviewCanBeUsed() => Run(() =>
+    {
+        const int suggestionCount = 50;
+        const int catalogCount = 5_000;
+        var patterns = Enumerable.Range(0, suggestionCount)
+            .Select(i => new BoardTitleSuggestion($"/tag{i:00}/", 3, Now, Now, TimeSpan.Zero, $"Example /tag{i:00}/"))
+            .ToArray();
+        var catalog = Enumerable.Range(0, catalogCount)
+            .Select(i => new BoardCatalogThread(i.ToString(CultureInfo.InvariantCulture), Board + "thread/" + i,
+                patterns[i % suggestionCount].RuleText.ToUpperInvariant(), "")).ToArray();
+        var history = new TaskCompletionSource<BoardTitleSuggestions>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var dialog = new BoardAdmissionWindow([Board], _ => BoardAdmissionPolicy.All,
+            (_, _) => Task.FromResult(new BoardAdmissionPreview(Board, "/g/", BoardAdmissionPolicy.All, catalog)), true,
+            suggest: (_, _) => history.Task);
+        dialog.Show();
+        try
+        {
+            Layout(dialog);
+            var apply = Find<Button>(dialog, "BoardAdmissionApply");
+            Assert.True(apply.IsEnabled);
+            var section = Find<StackPanel>(dialog, "BoardAdmissionSuggestions");
+            bool visibleWithoutCount = false;
+            section.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == StackPanel.IsVisibleProperty && section.IsVisible)
+                {
+                    var details = Assert.Single(section.GetLogicalDescendants().OfType<TextBlock>(),
+                        text => AutomationProperties.GetAutomationId(text) == "BoardAdmissionSuggestionDetails./tag00/");
+                    visibleWithoutCount = apply.IsEnabled && details.Text?.Contains("in the catalog now") == false;
+                }
+            };
+            history.SetResult(new(150, Now, patterns));
+            BooruComponentDispatcher.WaitUntil(() =>
+            {
+                Layout(dialog);
+                return Controls<TextBlock>(dialog, "BoardAdmissionSuggestionDetails./tag49/").SingleOrDefault()?.Text
+                    ?.Contains("100 threads in the catalog now") == true;
+            }, "all 50 catalog match counts");
+            Assert.True(visibleWithoutCount);
+            Assert.All(patterns, pattern => Assert.Contains("100 threads in the catalog now",
+                Find<TextBlock>(dialog, "BoardAdmissionSuggestionDetails." + pattern.RuleText).Text));
+        }
+        finally { dialog.Close(); }
+    });
+
     [Fact]
     public async Task HostReadsFiveThousandRecentTitlesLocallyAndUsesFirstSightForRhythm()
     {
@@ -242,7 +440,9 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
         });
 
         var read = await host.ReadBoardTitleSuggestionsAsync(Board);
-        var suggestion = Assert.Single(read.Items);
+        // Section 2.2c also requires the common prefix from the three long titles in this scan.
+        Assert.Equal(new[] { "lens advice crew", Rpt }, read.Items.Select(item => item.RuleText));
+        var suggestion = Assert.Single(read.Items, item => item.RuleText == Rpt);
         Assert.Equal(Rpt, suggestion.RuleText);
         Assert.Equal(5, suggestion.Count);
         Assert.Equal(Now.AddDays(-3), suggestion.LastSeenAt);
@@ -251,6 +451,41 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
         Assert.Empty(transport.Requests);
         Assert.Empty(host.GetView().Boards);
         Assert.False(File.Exists(Path.Combine(profile.Path, BoardAdmissionStore.FileName)));
+    }
+
+    [Fact]
+    public async Task BoardTitleHistoryReadWorkStaysBoundedAfterReopeningAnOlderArchive()
+    {
+        using var profile = new TempDirectory();
+        await SeedArchiveAsync(profile.Path, lastThread: 80_000);
+        using var lease = ProfileLease.Acquire(profile.Path);
+        using var connection = ArchiveSql.OpenConnection(Path.Combine(profile.Path, "archive.db"), SqliteOpenMode.ReadWrite);
+        CheckRead();
+        using (var drop = connection.CreateCommand())
+        {
+            // Reproduce a current-version archive saved before the optional index shipped.
+            drop.CommandText = "DROP INDEX IF EXISTS archive_board_title_history";
+            drop.ExecuteNonQuery();
+        }
+        await using var reopened = await ArchiveCatalog.OpenAsync(profile.Path, lease);
+        CheckRead();
+
+        void CheckRead()
+        {
+            using var transaction = connection.BeginTransaction(deferred: true);
+            int batches = 0;
+            raw.sqlite3_progress_handler(connection.Handle!, 1_000, _ => { batches++; return 0; }, null);
+            try
+            {
+                var history = ArchiveSql.ReadBoardTitleHistory(connection, transaction, "4chan", "g", 5_000, CancellationToken.None);
+                Assert.Equal(5_000, history.Count);
+                Assert.Equal("5000", history[0].Thread);
+                Assert.Equal("1", history[^1].Thread);
+                Assert.DoesNotContain(history, thread => thread.Title.StartsWith("/old/", StringComparison.Ordinal));
+                Assert.InRange(batches, 1, 100);
+            }
+            finally { raw.sqlite3_progress_handler(connection.Handle!, 0, null, null); }
+        }
     }
 
     [Fact]
@@ -282,37 +517,90 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
         finally { editor.EndLifetime(); }
     });
 
+    [Theory]
+    [InlineData("BoardSuggestionMinThreadsInput", 4, 5)]
+    [InlineData("BoardSuggestionLimitInput", 8, 9)]
+    [InlineData("BoardSuggestionScanThreadsInput", 2_000, 2_001)]
+    public void EditingABoardLimitAfterAnEmbeddedSaveRetiresTheSavedStatus(string id, int first, int second) => Run(() =>
+    {
+        using var profile = new TempDirectory();
+        BoardArchiveHostTests.Configure(profile.Path);
+        Config config = Config.LoadConfig(profile.Path);
+        var editor = new SettingsEditor(config, applySettings: candidate =>
+        {
+            candidate.SaveConfig(profile.Path);
+            return Task.CompletedTask;
+        });
+        try
+        {
+            NumericUpDown input = Setting(editor, id);
+            input.Value = first;
+            var save = Assert.Single(editor.GetLogicalDescendants().OfType<Button>(),
+                button => ControlAutomationPeer.CreatePeerForElement(button)?.GetAutomationId() == "SaveSettingsButton");
+            Click(save);
+            BooruComponentDispatcher.WaitUntil(() => !editor.IsBusy, "the embedded settings save");
+            Assert.False(editor.HasError, editor.ErrorDetails);
+            Assert.Equal(Texts.T("settings.saved"), editor.StatusMessage);
+            input.Value = second;
+            Assert.Equal(Texts.T("settings.unsaved"), editor.StatusMessage);
+            Config stored = Config.LoadConfig(profile.Path);
+            int value = id switch
+            {
+                "BoardSuggestionMinThreadsInput" => stored.BoardSuggestionMinThreads,
+                "BoardSuggestionLimitInput" => stored.BoardSuggestionLimit,
+                _ => stored.BoardSuggestionScanThreads,
+            };
+            Assert.Equal(first, value);
+        }
+        finally { editor.EndLifetime(); }
+    });
+
     [Fact]
-    public void MacCommandShiftGAlreadyResolvesToFindPrevious()
+    public void MacCommandShiftShortcutsKeepTheirExistingActions()
     {
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
         Assert.Empty(bindings.Issues);
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.G, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Shift },
             "reader.find-previous", "reader"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.F, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Shift },
+            "board.filters", "downloads"));
     }
 
-    private static async Task SeedArchiveAsync(string path)
+    private static async Task SeedArchiveAsync(string path, int lastThread = 5_004)
     {
         using var lease = ProfileLease.Acquire(path);
         await using var catalog = await ArchiveCatalog.OpenAsync(path, lease);
         await catalog.WriteAsync((connection, transaction) =>
         {
             using var command = ArchiveSql.Command(connection, transaction, """
-                WITH RECURSIVE seq(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM seq WHERE n < 5004)
+                WITH RECURSIVE seq(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM seq WHERE n < $last)
                 INSERT INTO archive_threads(source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,revision)
                 SELECT '4chan','g',n,'https://boards.4chan.org/g/thread/' || n,
                     CASE WHEN n = 5 THEN '/RPT/ #5' WHEN n < 5 THEN '/rpt/ #' || n
-                         WHEN n < 5001 THEN 'lens' || char(65+(n/676)%26,65+(n/26)%26,65+n%26) || ' field note'
+                         WHEN n < 4998 THEN 'lens' || char(65+(n/676)%26,65+(n/26)%26,65+n%26) || ' field note'
+                         WHEN n = 4998 THEN $autumn WHEN n = 4999 THEN $winter WHEN n = 5000 THEN $spring
                          WHEN n = 5001 THEN '' ELSE '/old/ #' || n END,
                     $media,0,0,CASE WHEN n < 6 THEN strftime('%Y-%m-%dT12:00:00.0000000+00:00', $base, printf('-%d days', 13-2*n))
+                                   WHEN n = 5000 THEN $newest
                                    WHEN n < 5002 THEN $base ELSE $old END,0 FROM seq
                 """);
+            command.Parameters.AddWithValue("$last", lastThread);
             command.Parameters.AddWithValue("$media", path);
             command.Parameters.AddWithValue("$base", ArchiveSql.Date(Now));
+            command.Parameters.AddWithValue("$newest", ArchiveSql.Date(Now.AddDays(1)));
             command.Parameters.AddWithValue("$old", ArchiveSql.Date(Now.AddDays(-100)));
+            command.Parameters.AddWithValue("$autumn", LongTitle("Autumn", "apricot"));
+            command.Parameters.AddWithValue("$winter", LongTitle("Winter", "evergreen"));
+            command.Parameters.AddWithValue("$spring", LongTitle("Spring", "walnut"));
             return command.ExecuteNonQuery();
         });
     }
+
+    private static string LongTitle(string season, string word) => "Lens Advice Crew – " + season + " "
+        + string.Join(' ', Enumerable.Repeat(word, 768));
+
+    private static IEnumerable<BoardTitleHistory> UnrelatedTitles(int count) => Enumerable.Range(0, count)
+        .Select(i => Row(100 + i, "Single" + (char)('a' + i) + " note", 1));
 
     private static BoardAdmissionWindow NewDialog(Func<string, BoardAdmissionPolicy> policy,
         Func<string, CancellationToken, Task<BoardAdmissionPreview>> preview, WorkView view = WorkView.Simple,

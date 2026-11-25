@@ -22,13 +22,14 @@ internal sealed partial class BoardAdmissionWindow
     {
         public List<SuggestionEditor> Editors { get; } = new();
         public BoardTitleSuggestions? History { get; set; }
+        public int[]? CatalogCounts { get; set; }
+        public List<PreviewRow>? CountingRows { get; set; }
         public bool Synchronizing { get; set; }
     }
 
     private sealed record SuggestionEditor(BoardTitleSuggestion Pattern, CheckBox Check, TextBlock Details)
     {
         public RuleEditor? Editor { get; set; }
-        public int InCatalog { get; set; }
     }
 
     private SuggestionPanel CreateSuggestionPanel()
@@ -62,6 +63,7 @@ internal sealed partial class BoardAdmissionWindow
     private async Task LoadSuggestionsAsync(Func<string, CancellationToken, Task<BoardTitleSuggestions>> suggest)
     {
         CancellationToken token = _cancel.Token;
+        var counts = new List<Task>();
         foreach (Draft draft in _drafts)
         {
             if (_closing) break;
@@ -71,13 +73,14 @@ internal sealed partial class BoardAdmissionWindow
                 if (_closing || history.Items.Count == 0 || draft.Suggestions is not { } panel) continue;
                 panel.History = history;
                 foreach (BoardTitleSuggestion pattern in history.Items) AddSuggestion(draft, panel, pattern);
-                CountSuggestionsInCatalog(draft);
                 RefreshSuggestions(draft);
                 panel.View.IsVisible = true;
+                counts.Add(LoadSuggestionCatalogCountsAsync(draft));
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
             catch (Exception error) { Log.Warning(error, "Could not read local title suggestions for {BoardUrl}", draft.Url); }
         }
+        await Task.WhenAll(counts);
     }
 
     private void AddSuggestion(Draft draft, SuggestionPanel panel, BoardTitleSuggestion pattern)
@@ -112,11 +115,37 @@ internal sealed partial class BoardAdmissionWindow
         rule is { Field: ThreadTextField.Title, Action: ThreadTextAction.Include }
         && string.Equals(rule.Contains, suggestion.RuleText, StringComparison.OrdinalIgnoreCase);
 
-    private static void CountSuggestionsInCatalog(Draft draft)
+    private async Task LoadSuggestionCatalogCountsAsync(Draft draft)
     {
-        if (!draft.Loaded || draft.Suggestions is not { } panel) return;
-        foreach (SuggestionEditor suggestion in panel.Editors)
-            suggestion.InCatalog = draft.Rows.Count(row => row.Thread.Title.Contains(suggestion.Pattern.RuleText, StringComparison.OrdinalIgnoreCase));
+        if (_closing || !draft.Loaded || draft.Suggestions is not { History: { } history, CatalogCounts: null } panel
+            || panel.CountingRows == draft.Rows) return;
+        var rows = draft.Rows;
+        panel.CountingRows = rows;
+        string[] titles = rows.Select(row => row.Thread.Title).ToArray();
+        string[] rules = panel.Editors.Select(editor => editor.Pattern.RuleText).ToArray();
+        CancellationToken token = _cancel.Token;
+        try
+        {
+            int[] counts = await Task.Run(() => CountCatalogMatches(titles, rules, token), token);
+            if (_closing || !draft.Loaded || draft.Rows != rows || panel.History != history) return;
+            panel.CatalogCounts = counts;
+            RefreshSuggestions(draft);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error) { Log.Warning(error, "Could not count catalog matches for {BoardUrl}", draft.Url); }
+        finally { if (panel.CountingRows == rows) panel.CountingRows = null; }
+    }
+
+    private static int[] CountCatalogMatches(string[] titles, string[] rules, CancellationToken token)
+    {
+        var counts = new int[rules.Length];
+        foreach (string title in titles)
+        {
+            token.ThrowIfCancellationRequested();
+            for (int index = 0; index < rules.Length; index++)
+                if (title.Contains(rules[index], StringComparison.OrdinalIgnoreCase)) counts[index]++;
+        }
+        return counts;
     }
 
     private static void RefreshSuggestions(Draft draft)
@@ -133,8 +162,9 @@ internal sealed partial class BoardAdmissionWindow
         panel.Synchronizing = true;
         try
         {
-            foreach (SuggestionEditor suggestion in panel.Editors)
+            for (int index = 0; index < panel.Editors.Count; index++)
             {
+                SuggestionEditor suggestion = panel.Editors[index];
                 var pattern = suggestion.Pattern;
                 if (suggestion.Editor == null && draft.Editors.FirstOrDefault(editor => available.Contains(editor)
                     && MatchesSuggestion(ReadRule(editor), pattern)) is { } matching)
@@ -150,7 +180,7 @@ internal sealed partial class BoardAdmissionWindow
                     var (value, key) = ReaderDateText.DurationParts(pattern.Rhythm);
                     details.Add(Texts.T("wizard.suggest.rhythm", Texts.T(key, value)));
                 }
-                if (draft.Loaded) details.Add(Texts.Count("wizard.suggest.inCatalog", suggestion.InCatalog));
+                if (panel.CatalogCounts is { } counts) details.Add(Texts.Count("wizard.suggest.inCatalog", counts[index]));
                 if (suggestion.Editor is { } editor && !MatchesSuggestion(ReadRule(editor), pattern))
                     details.Add(Texts.T("wizard.suggest.edited"));
                 suggestion.Details.Text = string.Join(" · ", details);

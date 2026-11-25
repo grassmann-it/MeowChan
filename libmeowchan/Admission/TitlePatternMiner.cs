@@ -15,7 +15,7 @@ internal sealed record BoardTitleSuggestions(int Scanned, DateTimeOffset AsOf, I
 internal static partial class TitlePatternMiner
 {
     private sealed record Title(BoardTitleHistory Row, string Clean);
-    private sealed record Candidate(string RuleText, List<Title> Members);
+    private sealed record Candidate(string RuleText, List<Title> Members, bool IsSingleWord = false);
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();
@@ -49,25 +49,28 @@ internal static partial class TitlePatternMiner
         foreach (Title title in titles.Values)
         {
             token.ThrowIfCancellationRequested();
-            Match code = SlashCode().Match(title.Clean);
-            while (code.Success && code.Value == ownCode) code = code.NextMatch();
+            string clean = title.Clean;
+            if (clean.Contains(ownCode, StringComparison.Ordinal))
+                clean = Whitespace().Replace(clean.Replace(ownCode, " ", StringComparison.Ordinal), " ").Trim();
+            Match code = SlashCode().Match(clean);
             if (code.Success) Group(slash, code.Value, title);
             else
             {
-                string key = Edges().Replace(Whitespace().Replace(Counters().Replace(title.Clean, "${thread} "), " "), string.Empty);
-                if (key.Length > 0) Group(stripped, key, title);
+                string key = Edges().Replace(Whitespace().Replace(Counters().Replace(clean, "${thread} "), " "), string.Empty);
+                if (key.Length > 0) Group(stripped, key, title with { Clean = clean });
             }
         }
-        foreach (var group in stripped.Values.Where(group => group.Count == 1))
+        foreach ((string key, List<Title> group) in stripped)
         {
-            Title title = group[0];
-            string[] words = Words().Matches(title.Clean).Take(3).Select(word => word.Value).ToArray();
-            if (words.Length == 3) Group(prefixes, string.Join(' ', words), title);
+            token.ThrowIfCancellationRequested();
+            if (group.Count != 1) continue;
+            string[] words = Words().Matches(key).Take(3).Select(word => word.Value).ToArray();
+            if (words.Length == 3) Group(prefixes, string.Join(' ', words), group[0]);
         }
 
         Candidate[] candidates = slash.Where(group => group.Value.Count >= minThreads).Select(group => new Candidate(group.Key, group.Value))
             .Concat(stripped.Values.Concat(prefixes.Values).Where(members => members.Count >= minThreads)
-                .Select(members => new Candidate(CommonPhrase(members, token), members)).Where(candidate => candidate.RuleText.Length > 0))
+                .Select(members => CommonPhrase(members, token)).OfType<Candidate>())
             .ToArray();
         if (candidates.Length == 0) return new(rows.Count, now, []);
 
@@ -77,7 +80,7 @@ internal static partial class TitlePatternMiner
         foreach (Title title in titles.Values)
         {
             token.ThrowIfCancellationRequested();
-            foreach (string rule in index.Find(title.Row.Title)) totals[rule] = totals.GetValueOrDefault(rule) + 1;
+            foreach (string rule in index.Find(title.Row.Title, token)) totals[rule] = totals.GetValueOrDefault(rule) + 1;
         }
 
         var suggestions = new List<BoardTitleSuggestion>();
@@ -85,8 +88,10 @@ internal static partial class TitlePatternMiner
         {
             token.ThrowIfCancellationRequested();
             int hits = candidate.Members.Count(title => Matches(title.Row.Title, candidate.RuleText));
-            int outside = totals.GetValueOrDefault(candidate.RuleText) - hits;
-            if (hits * 10 < candidate.Members.Count * 9 || outside * 4 > titles.Count - candidate.Members.Count) continue;
+            int total = totals.GetValueOrDefault(candidate.RuleText);
+            int outside = total - hits;
+            if (hits * 10 < candidate.Members.Count * 9 || outside * 4 > titles.Count - candidate.Members.Count
+                || candidate.IsSingleWord && total * 4 > titles.Count) continue;
             suggestions.Add(Summarize(candidate));
         }
         return new(rows.Count, now, suggestions.OrderByDescending(item => item.LastSeenAt).ThenByDescending(item => item.Count)
@@ -100,28 +105,141 @@ internal static partial class TitlePatternMiner
         members.Add(title);
     }
 
-    private static string CommonPhrase(List<Title> members, CancellationToken token)
+    private static Candidate? CommonPhrase(List<Title> members, CancellationToken token)
     {
-        // Every shared phrase occurs in this title. Try longer word runs first, with
-        // stable tie breaks even when the archive returns its rows in a different order.
         Title shortest = members.OrderBy(title => title.Clean.Length).ThenBy(title => title.Clean, StringComparer.Ordinal).First();
-        string text = shortest.Clean;
-        MatchCollection words = Words().Matches(text);
-        for (int count = words.Count; count > 0; count--)
+        ReadOnlySpan<char> text = shortest.Clean.AsSpan();
+        var words = new List<(int Start, int End)>();
+        foreach (var word in Words().EnumerateMatches(text))
         {
             token.ThrowIfCancellationRequested();
-            string best = string.Empty;
-            for (int first = 0; first <= words.Count - count; first++)
-            {
-                Match last = words[first + count - 1];
-                string phrase = text[words[first].Index..(last.Index + last.Length)];
-                if (phrase.Length < 4 || phrase.Length < best.Length || phrase.EnumerateRunes().Any(Rune.IsDigit)
-                    || !members.All(title => title.Clean.Contains(phrase, StringComparison.Ordinal))) continue;
-                if (phrase.Length > best.Length || string.CompareOrdinal(phrase, best) < 0) best = phrase;
-            }
-            if (best.Length > 0) return best;
+            words.Add((word.Index, word.Index + word.Length));
         }
-        return string.Empty;
+        if (words.Count == 0) return null;
+
+        // For each start position, find the longest literal prefix shared by every title.
+        int[] shared = new int[text.Length];
+        for (int index = 0; index < shared.Length; index++) shared[index] = shared.Length - index;
+        foreach (Title member in members)
+        {
+            token.ThrowIfCancellationRequested();
+            if (!member.Clean.AsSpan().Contains(text, StringComparison.Ordinal))
+                new ReversedSubstrings(member.Clean, token).Intersect(text, shared, token);
+        }
+
+        ReadOnlySpan<char> best = [];
+        int bestWordCount = 0;
+        int nextDigit = 0;
+        int endWord = -1;
+        for (int first = 0; first < words.Count; first++)
+        {
+            token.ThrowIfCancellationRequested();
+            int start = words[first].Start;
+            if (nextDigit <= start)
+            {
+                nextDigit = start;
+                while (nextDigit < text.Length && !char.IsDigit(shortest.Clean, nextDigit))
+                {
+                    token.ThrowIfCancellationRequested();
+                    nextDigit++;
+                }
+            }
+
+            // Both end bounds are nondecreasing as the start advances.
+            int endLimit = Math.Min(start + shared[start], nextDigit);
+            while (endWord + 1 < words.Count && words[endWord + 1].End <= endLimit) endWord++;
+            if (endWord < first) continue;
+            int wordCount = endWord - first + 1;
+            ReadOnlySpan<char> phrase = text[start..words[endWord].End];
+            if (phrase.Length < 4 || wordCount < bestWordCount) continue;
+            if (wordCount > bestWordCount || phrase.Length > best.Length
+                || phrase.Length == best.Length && phrase.SequenceCompareTo(best) < 0)
+            {
+                best = phrase;
+                bestWordCount = wordCount;
+            }
+        }
+        return best.IsEmpty ? null : new(best.ToString(), members, bestWordCount == 1);
+    }
+
+    // A suffix automaton over a reversed title turns longest-prefix comparisons into
+    // one right-to-left scan. Transitions compare the original UTF-16 code units.
+    private sealed class ReversedSubstrings
+    {
+        private sealed class State(int length, State? suffix)
+        {
+            public int Length { get; } = length;
+            public State? Suffix { get; set; } = suffix;
+            public Dictionary<char, State> Next { get; } = new();
+        }
+
+        private readonly State _root = new(0, null);
+
+        public ReversedSubstrings(string title, CancellationToken token)
+        {
+            State tail = _root;
+            for (int index = title.Length - 1; index >= 0; index--)
+            {
+                token.ThrowIfCancellationRequested();
+                char key = title[index];
+                State next = new(tail.Length + 1, _root);
+                State? prefix = tail;
+                while (prefix != null && prefix.Next.TryAdd(key, next))
+                {
+                    token.ThrowIfCancellationRequested();
+                    prefix = prefix.Suffix;
+                }
+                if (prefix != null)
+                {
+                    State existing = prefix.Next[key];
+                    next.Suffix = prefix.Length + 1 == existing.Length
+                        ? existing : Split(prefix, key, existing, token);
+                }
+                tail = next;
+            }
+        }
+
+        private static State Split(State prefix, char key, State existing, CancellationToken token)
+        {
+            State clone = new(prefix.Length + 1, existing.Suffix);
+            foreach ((char value, State target) in existing.Next)
+            {
+                token.ThrowIfCancellationRequested();
+                clone.Next.Add(value, target);
+            }
+            for (State? state = prefix; state != null && state.Next.GetValueOrDefault(key) == existing; state = state.Suffix)
+            {
+                token.ThrowIfCancellationRequested();
+                state.Next[key] = clone;
+            }
+            existing.Suffix = clone;
+            return clone;
+        }
+
+        public void Intersect(ReadOnlySpan<char> text, int[] shared, CancellationToken token)
+        {
+            State state = _root;
+            int length = 0;
+            for (int index = text.Length - 1; index >= 0; index--)
+            {
+                token.ThrowIfCancellationRequested();
+                char key = text[index];
+                State? next;
+                while (!state.Next.TryGetValue(key, out next) && state.Suffix is { } suffix)
+                {
+                    token.ThrowIfCancellationRequested();
+                    state = suffix;
+                    length = state.Length;
+                }
+                if (next != null)
+                {
+                    state = next;
+                    length++;
+                }
+                else length = 0;
+                shared[index] = Math.Min(shared[index], length);
+            }
+        }
     }
 
     private static bool Matches(string title, string rule) => title.Contains(rule, StringComparison.OrdinalIgnoreCase);
@@ -190,12 +308,13 @@ internal static partial class TitlePatternMiner
             }
         }
 
-        public HashSet<string> Find(string title)
+        public HashSet<string> Find(string title, CancellationToken token)
         {
             var matches = new HashSet<string>(StringComparer.Ordinal);
             Node node = _root;
             foreach (Rune rune in title.EnumerateRunes())
             {
+                token.ThrowIfCancellationRequested();
                 node = Advance(node, Rune.ToUpperInvariant(rune));
                 for (Node? suffix = node.Rules == null ? node.Output : node; suffix != null; suffix = suffix.Output)
                     foreach (string rule in suffix.Rules!)

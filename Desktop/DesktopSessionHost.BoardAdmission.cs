@@ -23,6 +23,7 @@ internal sealed partial class DesktopSessionHost
         // Applying settings hands every board the new RecheckTimer; own watcher intervals win again here.
         // The first call runs in the constructor, before the registry exists.
         _registry?.ApplyBoardWatcherIntervals();
+        TrimBoardArchiveCaches();
     }
 
     private BoardAdmissionStore OpenBoardAdmissionStore()
@@ -58,8 +59,12 @@ internal sealed partial class DesktopSessionHost
         return _registry.PreviewBoardAdmissionAsync(url, token);
     }
 
-    internal Task<BoardTitleSuggestions> ReadBoardTitleSuggestionsAsync(string url, CancellationToken token = default)
-        => RunInteractiveAsync(nameof(ReadBoardTitleSuggestionsAsync), url, async () =>
+    internal async Task<BoardTitleSuggestions> ReadBoardTitleSuggestionsAsync(string url, CancellationToken token = default)
+    {
+        // The passive archive reader needs neither a profile writer nor a catalog preview slot.
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(token, _startupCancellation.Token);
+        token = lifetime.Token;
+        return await Task.Run(async () =>
         {
             token.ThrowIfCancellationRequested();
             EnsureReady();
@@ -71,12 +76,14 @@ internal sealed partial class DesktopSessionHost
             int limit = Config.BoardSuggestionLimit;
             try
             {
-                await using ArchiveReader reader = await OpenArchiveReaderAsync(token).ConfigureAwait(false);
-                var rows = await reader.ReadBoardTitleHistoryAsync(board.Source, board.Board, scan, token).ConfigureAwait(false);
+                IReadOnlyList<BoardTitleHistory> rows;
+                await using (ArchiveReader reader = await OpenArchiveReaderAsync(token).ConfigureAwait(false))
+                    rows = await reader.ReadBoardTitleHistoryAsync(board.Source, board.Board, scan, token).ConfigureAwait(false);
                 return TitlePatternMiner.Mine(rows, board.Board, now, minimum, limit, token);
             }
             catch (FileNotFoundException) { return new BoardTitleSuggestions(0, now, []); }
-        }, captureAfter: false);
+        }, token).ConfigureAwait(false);
+    }
 
     internal Task<DesktopAdmissionResult> ApplyBoardAdmissionAsync(string url, BoardAdmissionPolicy policy, IReadOnlyCollection<string>? reactivateThreadUrls = null)
     {

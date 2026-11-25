@@ -46,6 +46,11 @@ public partial class SettingsEditor
         foreach (var setting in BoardSuggestionSettings)
         {
             var input = new SettingsNumberInput { Name = setting.Name + "Input", Minimum = setting.Min, Maximum = setting.Max };
+            input.ValueChanged += (_, _) =>
+            {
+                _draftRevision++;
+                RetireSavedStatus();
+            };
             var label = new TextBlock { Classes = { "workspace-field-label" }, TextWrapping = TextWrapping.Wrap };
             var hint = new TextBlock { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
             var error = new TextBlock { Name = input.Name + "Error", Classes = { "workspace-error" },
