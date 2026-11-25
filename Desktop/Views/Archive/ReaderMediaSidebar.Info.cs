@@ -222,10 +222,16 @@ internal sealed partial class ReaderMediaSidebar
         _infoBar.Expand.Click += (_, _) =>
         {
             bool pinned = !Pinned;
+            bool focusTags = pinned && _infoBar.Expand.IsFocused;
             _hovered = false;
             _expansionTimer.Stop();
             ConfigureInfo(_infoPreferences with { MediaSidebarPinned = pinned });
             SaveSidebarSetting?.Invoke(config => config.MediaSidebarPinned = pinned);
+            if (focusTags && _allTags.Children.FirstOrDefault() is Button chip)
+            {
+                TopLevel.GetTopLevel(this)?.UpdateLayout();
+                if (chip.Focus(NavigationMethod.Tab)) chip.BringIntoView();
+            }
         };
         foreach (Control surface in new[] { _details, _hoverSurface })
         {
@@ -271,6 +277,10 @@ internal sealed partial class ReaderMediaSidebar
         AddHandler(PointerCaptureLostEvent, (_, e) => _pressedPointers.Remove(e.Pointer),
             RoutingStrategies.Direct, handledEventsToo: true);
         GotFocus += (_, _) => RevealBars();
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (_barsHidden && e.Key == Key.Tab) RevealBars();
+        }, RoutingStrategies.Tunnel);
         AttachedToVisualTree += (_, _) => RevealBars();
         DetachedFromVisualTree += (_, _) => _pressedPointers.Clear();
         PropertyChanged += (_, change) =>
@@ -299,7 +309,11 @@ internal sealed partial class ReaderMediaSidebar
     {
         _allTags.Children.Clear();
         foreach (string tag in _tags ?? Array.Empty<string>())
-            _allTags.Children.Add(WorkspaceChips.CreateBadge("ReaderMediaSidebarExpandedTag", tag, compact: true));
+        {
+            Button chip = MediaInfoBar.CreateTagChip("ReaderMediaSidebarExpandedTag", tag);
+            InstallTagMenu(chip, tag);
+            _allTags.Children.Add(chip);
+        }
         _allTags.IsVisible = _allTags.Children.Count > 0;
     }
 
@@ -313,7 +327,7 @@ internal sealed partial class ReaderMediaSidebar
     private void UpdateExpansion(bool refreshFacts = false)
     {
         bool content = _fileName.Length > 0 && (_tags?.Count > 0 || !FactsVisible || !_facts.ShowsFileAndSize ||
-            SizesDiffer || _sourceHint != null || !string.IsNullOrEmpty(_provenance) || _historical);
+            SizesDiffer || _sourceHint != null || !string.IsNullOrEmpty(_provenance) || _historical || !string.IsNullOrEmpty(_hash));
         bool open = content && _details.IsVisible && (Pinned || _hovered);
         bool hover = open && !Pinned;
         if (open && !_expandedRows.IsVisible) PopulateExpandedTags();

@@ -57,7 +57,8 @@ internal sealed record DesktopSessionProjection(long Epoch, long Version, Deskto
         for (int index = 0; index < current.View.Boards.Count; index++)
         {
             DesktopBoardEntry before = previous.View.Boards[index], after = current.View.Boards[index];
-            if (before.WatchId != after.WatchId || before.Snapshot.LastCheckFailure != after.Snapshot.LastCheckFailure)
+            if (before.WatchId != after.WatchId || before.BoardName != after.BoardName
+                || before.Snapshot.LastCheckFailure != after.Snapshot.LastCheckFailure)
                 return true;
         }
         return false;
@@ -164,7 +165,7 @@ internal sealed partial class DesktopSessionHost
             DesktopSessionProjection previous = Projection;
             try
             {
-                DesktopSessionView view = GetViewCore();
+                DesktopSessionView view = WithBoardWatcherNames(GetViewCore());
                 DiagnosticTarget[] checkable;
                 lock (_projection)
                     checkable = _threadHandles.Where(pair => pair.Value is MeowChan.Interfaces.ICheckRequestSource)
@@ -221,6 +222,19 @@ internal sealed partial class DesktopSessionHost
         }
         NotifyProjectionObservers();
         return result;
+    }
+
+    private DesktopSessionView WithBoardWatcherNames(DesktopSessionView view)
+    {
+        DesktopBoardEntry[]? updated = null;
+        for (int index = 0; index < view.Boards.Count; index++)
+        {
+            DesktopBoardEntry entry = view.Boards[index];
+            if (_boardAdmission.Get(entry.Snapshot.Url).WatcherName is not { } name || name == entry.BoardName) continue;
+            updated ??= view.Boards.ToArray();
+            updated[index] = entry with { BoardName = name };
+        }
+        return updated == null ? view : view with { Boards = Array.AsReadOnly(updated) };
     }
 
     // Parser/core access stays on the existing single capture worker. Reuse examples until the

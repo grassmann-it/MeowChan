@@ -678,11 +678,6 @@ public partial class MainWindow
         RefreshWorkspace();
     }
 
-    private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_refreshingDownloadSearch) return;
-        RefreshWorkspace();
-    }
     private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
     private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e) => GoToDownloads();
 

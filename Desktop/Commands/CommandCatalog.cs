@@ -119,7 +119,7 @@ public static class CommandCatalog
         // The Statistics segment of Status: no default gesture; the header graph and the tray open it.
         new("navigation.statistics", "command.navigation.statistics", "Statistics", "Statistik", "monitor", null, CommandScope.Application, new[] { "status-segment", "header-graph", "tray" }),
         new("booru.search.submit", "booru.tabs.command.submit", "Submit Booru search", "Booru-Suche starten", "search", "Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
-        new("booru.search.alternate", "booru.tabs.command.alternate", "Submit Booru search in the other tab mode", "Booru-Suche mit dem anderen Tab-Ziel starten", "search", "Shift+Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
+        new("booru.search.alternate", "booru.tabs.command.alternate", "Submit Booru search in a new tab", "Booru-Suche in einem neuen Tab starten", "search", "Shift+Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
         new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
@@ -318,15 +318,15 @@ public static class CommandCatalog
         // The reader's settings popover (R7, the toolbar's gear since RL1); a user shortcut opens it too.
         new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "settings", null, CommandScope.Reader, new[] { "reader-settings" }),
         // R8: the media sidebar of the large reader (a settings-popover switch) and its steps through the focused post's media.
-        new("media.sidebar.autohide", "command.media.sidebar.autohide", "Auto-hide sidebar controls", "Leisten automatisch ausblenden", "eye-off", "Shift+A", CommandScope.Reader | CommandScope.Media | CommandScope.Gallery, new[] { "reader", "media", "gallery-keyboard" }),
-        new("media.sidebar.info", "command.media.sidebar.info", "Show sidebar facts", "Fakten anzeigen", "info", "Shift+I", CommandScope.Reader | CommandScope.Media | CommandScope.Gallery, new[] { "reader", "media", "gallery-keyboard" }),
+        new("media.sidebar.autohide", "command.media.sidebar.autohide", "Auto-hide sidebar controls", "Leisten automatisch ausblenden", "eye-off", "Shift+A", CommandScope.Reader | CommandScope.Media | CommandScope.Gallery, new[] { "reader", "media", "gallery-keyboard", "tagging" }, new[] { "reader", "media", "gallery", "tagging" }),
+        new("media.sidebar.info", "command.media.sidebar.info", "Show sidebar facts", "Fakten anzeigen", "info", "Shift+I", CommandScope.Reader | CommandScope.Media | CommandScope.Gallery, new[] { "reader", "media", "gallery-keyboard", "booru", "tagging" }, new[] { "reader", "media", "gallery", "booru", "tagging" }),
         new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "panel-left", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-settings", "reader-media-sidebar" }),
         // The archive's thread list on or off (reader toolbar switch; Config.ArchiveThreadListHidden). No default gesture (21.11. review): each user can give it one.
         new("archive.thread-list.toggle", "command.archive.thread-list.toggle", "Thread list", "Threadliste", "panel-left", null, CommandScope.Archive | CommandScope.Reader, new[] { "reader-toolbar" }),
         new("reader.sidebar.previous-media", "command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts", "chevron-left", "Alt+Shift+Left", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         new("reader.sidebar.next-media", "command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts", "chevron-right", "Alt+Shift+Right", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         // The Media page's media panel (a large medium beside the grid).
-        new("media.panel.toggle", "command.media.panel.toggle", "Media sidebar", "Medienleiste", "panel-right", "Primary+Shift+M", CommandScope.Media, new[] { "media-layout-menu", "media-panel" }),
+        new("media.panel.toggle", "command.media.panel.toggle", "Media sidebar", "Medienleiste", "panel-right", "Primary+Shift+M", CommandScope.Media, new[] { "media-layout-menu", "media-panel", "tagging-page" }, new[] { "media", "tagging" }),
         // Revision 19: H hides the selected post (ArchivePage.OnPostFilterKeyDown; a text field keeps its letters).
         new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", "H", CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),
@@ -380,6 +380,7 @@ public static class CommandCatalog
         new("media.show-in-folder", "command.media.show-in-folder", "Show in folder", "Im Ordner anzeigen", "folder", "Primary+O", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
         new("media.details", "command.media.details", "Show media details", "Mediendetails anzeigen", "info", "I", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
         new("media.copy-path", "command.media.copy-path", "Copy file path", "Dateipfad kopieren", "copy", "Primary+Shift+C", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
+        new("media.copy-file-name", "command.media.copy-file-name", "Copy file names", "Dateinamen kopieren", "copy", null, CommandScope.Archive | CommandScope.Reader | CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu", "tagging" }),
         new("media.open-external", "command.media.open-external", "Open with default program", "Mit Standardprogramm öffnen", "external-link", "Primary+Shift+O", CommandScope.Gallery, new[] { "gallery-file-only" }),
         // Revision 19: Primary+Shift+C copies the selected post's link, like the file path of a medium (Ctrl/Cmd+C stays text copy).
         new("post.copy-link", "command.post.copy-link", "Copy post link", "Post-Link kopieren", "link", "Primary+Shift+C", CommandScope.Reader, new[] { "reader-post-menu" }),

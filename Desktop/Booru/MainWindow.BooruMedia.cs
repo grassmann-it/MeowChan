@@ -29,7 +29,6 @@ public partial class MainWindow
         view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);
         view.IsPostSavedInMedia = IsSavedBooruPost;
         view.ResultTagsShown = () => _session.Config.BooruResultTagsShown;
-        view.NewSearchTarget = () => _session.Config.BooruNewSearchTarget;
         view.SearchTabsLimit = () => _session.Config.BooruSearchTabs;
         view.Model.Search.ReadPagerLimits = () => new(_session.Config.BooruSearchPages, _session.Config.BooruSearchPostsPerPage);
         view.GallerySampleMiB = () => _session.Config.BooruGallerySampleMiB;
@@ -45,6 +44,7 @@ public partial class MainWindow
     {
         BooruWorkbenchView view = page.View;
         view.SaveResultView = mode => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruPageView = mode.ToString()), "booru.saveResultView");
+        view.SaveMediaSidebar = open => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruMediaSidebar = open), "booru.saveMediaSidebar");
         view.SaveTileSize = size => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruTileSize = size.ToString()), "booru.saveTileSize");
         view.RestoreViewerBounds = () => _session.Config.ReadBooruViewerBounds();
         view.SaveViewerBounds = bounds =>
@@ -54,6 +54,7 @@ public partial class MainWindow
                     "booru.saveViewerBounds");
         };
         view.RestoreResultView(BooruResultViews.Parse(_session.Config.BooruPageView), MediaTileSizes.Parse(_session.Config.BooruTileSize));
+        view.RestoreMediaSidebar(_session.Config.BooruMediaSidebar);
     }
 
     /// <summary>Exact local catalog admission for a saved Danbooru original; pending/other-source records do not qualify.</summary>

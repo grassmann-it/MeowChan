@@ -255,7 +255,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private GalleryVideoPlayer? _readingTrackDimensions;
     private TimeSpan? _videoDuration;
     private (int Width, int Height)? _videoSize;
-    private string? _location, _author, _posted, _provenance;
+    private string? _location, _author, _posted, _provenance, _hash;
     private long? _savedBytes, _sourceBytes;
     private MediaProviderSizeHint? _sourceHint;
     private bool _historical;
@@ -366,6 +366,26 @@ internal sealed partial class ReaderMediaSidebar : Border
     /// <summary>The height of the primary header row, shared with workspace controls.</summary>
     internal const double HeaderLineHeight = 48;
     internal Image Picture => _image;
+
+    internal bool IsMediaSurfaceSource(object? source, ReaderInlineVideoSlot? video) => source is Visual visual
+        && (InBar(_image, visual) || InBar(_play, visual)
+            || video is not null && InBar(video.Activator, visual)
+            || _factPlayer is not null && InBar(_factPlayer, visual));
+
+    internal bool IsStalePictureHit(object? source, Point position) =>
+        PictureIsStale && source is Visual visual && InBar(_frame, visual) && PictureContains(position);
+
+    internal bool IsCurrentMediaSurface(object? source, Point position, ReaderInlineVideoSlot? video) => source is Visual visual
+        && (video?.Player is { } player && InBar(player, visual)
+            || !PictureIsStale && PictureContains(position) && IsMediaSurfaceSource(source, video));
+
+    // The header and video offer can change before a decode replaces the picture.
+    private bool PictureIsStale => IsDimmed || !string.Equals(Load.ShownKey, _mediumKey, StringComparison.Ordinal);
+
+    private bool PictureContains(Point position) => _bitmap != null && _image.IsEffectivelyVisible
+        && this.TranslatePoint(position, _image) is { } point && new Rect(_image.Bounds.Size).Contains(point);
+
+    internal Func<string, CancellationToken, Task>? BeforePreviewDecodeForTests { get; set; }
     internal Bitmap? Shown => _bitmap;
     /// <summary>
     /// The load state of the picture (which load is the latest, which medium is shown and how large): the host asks it before it decodes, the view
@@ -430,14 +450,15 @@ internal sealed partial class ReaderMediaSidebar : Border
         _frame.Children.Add(_status);
         _frame.PointerReleased += (_, e) =>
         {
-            if (e.InitialPressMouseButton != MouseButton.Left || IsOverlaySource(e.Source) || _bitmap == null && !_status.IsVisible) return;
+            if (e.InitialPressMouseButton != MouseButton.Left || IsOverlaySource(e.Source)
+                || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
             e.Handled = true;
             PictureActivated?.Invoke(this, EventArgs.Empty);
         };
 
         _frame.DoubleTapped += (_, e) =>
         {
-            if (IsOverlaySource(e.Source) || _bitmap == null && !_status.IsVisible) return;
+            if (IsOverlaySource(e.Source) || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
             e.Handled = true;
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
@@ -462,7 +483,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         };
         _info.Children.Add(_facts);
         _extraFacts.Children.Add(_provenanceNote);
-        _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor);
+        _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor) { TagChipCreated = InstallTagMenu };
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
         _decision.RatingRequested += value =>
         {
@@ -488,9 +509,10 @@ internal sealed partial class ReaderMediaSidebar : Border
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, SettingsButton, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _header.ReserveCloseSpace(Close);
         foreach (Control control in new Control[] { _header, _heading, _header.Meta, _headerFavorite, InfoToggle, Open, SettingsButton,
-            Close, _details, _decision, _facts, _infoBar, _card, _videoRow })
+            Close, _details, _decision, _facts, _infoBar, _card, _videoRow, _play, _badges })
             AutomationProperties.SetAutomationId(control, control.Name);
         AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
+        AutomationProperties.SetAutomationId(_image, "ReaderMediaSidebarPicture");
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -619,7 +641,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         }
         _postLine = postLine; _fileName = fileLine; _detail = detailLine;
         _savedBytes = savedBytes;
-        _location = _author = _posted = _provenance = null;
+        _location = _author = _posted = _provenance = _hash = null;
         _sourceBytes = null;
         _sourceHint = null;
         _historical = false;
@@ -775,6 +797,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         }
         if (_sourceHint is { } hint) _extraGrid.Add(Texts.T("media.fact.sourceHint"),
             Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
+        _extraGrid.Add("SHA-256", _hash, "ReaderMediaSidebarHash");
         _provenanceNote.Text = string.Join(Environment.NewLine, new[] { _provenance, _historical ? Texts.T("gallery.viewer8") : null }
             .Where(text => !string.IsNullOrEmpty(text)));
         _provenanceNote.IsVisible = _provenanceNote.Text.Length > 0;
@@ -817,7 +840,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     }
 
     internal void SetSourceFacts(string location, string? author, string? posted, long? savedBytes, long? sourceBytes,
-        MediaProviderSizeHint? sourceHint, string? provenance = null, bool historical = false)
+        MediaProviderSizeHint? sourceHint, string? provenance = null, bool historical = false, string? hash = null)
     {
         _location = location;
         _author = author;
@@ -827,6 +850,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _sourceHint = sourceHint;
         _provenance = provenance;
         _historical = historical;
+        _hash = hash;
         RefreshFacts();
     }
 
@@ -857,6 +881,12 @@ internal sealed partial class ReaderMediaSidebar : Border
         _writeRating = write;
         RefreshDecisions();
     }
+
+    internal Func<Control, string, ContextMenuBuilder?>? BuildTagMenu { get; set; }
+
+    // A chip that returns to the tree (the line re-measures, the expansion reopens) gets its menu again.
+    private void InstallTagMenu(Button chip, string tag) => chip.AttachedToVisualTree += (_, _) => ContextMenuHost.Install(chip,
+        () => BuildTagMenu?.Invoke(chip, tag) ?? OwnTagChipMenu.IdentityActions(chip, tag, null, null));
 
     internal void SetTags(IReadOnlyList<string>? names, string? blocked)
     {

@@ -628,7 +628,7 @@ public partial class ArchivePage
             // enlarged the card is centred in the viewport instead (ReaderMediaFit.JumpOffset), and it stays centred when its size
             // changes late (HoldFocusedCard).
             double offset = ReaderMediaFit.JumpOffset(scroll!.Offset.Y, position.Y, container.Bounds.Height, scroll.Viewport.Height,
-                scroll.Extent.Height, row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0, FocusedMediaEnlarged);
+                scroll.Extent.Height, row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0, FocusedMediaEnlarged, ReaderMedia.FocusedPostTopPaddingPercent);
             if (Math.Abs(offset - scroll.Offset.Y) > 1)
             {
                 scroll.Offset = new Vector(scroll.Offset.X, offset);

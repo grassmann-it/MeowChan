@@ -3,6 +3,9 @@ using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
@@ -73,39 +76,86 @@ public sealed class ReaderWorkViewTests
             view => Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(Id(segment)!, view))));
     }
 
-    [Fact]
-    public void ArchiveSidebarKeepsItsFactsAndActionsBelowAStableHeaderAtNarrowWidths() => BooruComponentDispatcher.Run(() =>
+    [Theory]
+    [InlineData(820, true)]
+    [InlineData(280, false)]
+    public void ArchiveSidebarKeepsItsFactsAndActionsBelowAResponsiveHeader(int width, bool singleRow) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.Initialize();
+        const string dimensions = "2001×3000";
+        string fileName = "wide-example-" + new string('W', 100) + ".jpg";
         ReaderMediaSidebar sidebar = new();
-        sidebar.Describe("No. 22486939", "wide-example-" + new string('W', 100) + ".jpg", "500 KiB · 2001×3000",
-            canOpen: true, threadPosition: new(3, 37, false));
+        sidebar.Describe("No. 22486939", fileName, dimensions, canOpen: true, threadPosition: new(3, 37, false), savedBytes: 500 * 1024);
         sidebar.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
-        Window window = new() { Content = sidebar, Width = 820, Height = 480, Classes = { MotionPolicy.OffClass } };
+        Window window = new() { Content = sidebar, Width = width, Height = 480, Classes = { MotionPolicy.OffClass } };
         try
         {
             window.Show();
-            Dispatcher.UIThread.RunJobs();
-            Control header = sidebar.HeaderRow;
-            TextBlock file = ((MediaCompactHeader)header).Meta;
-            Point At(Control item) => item.TranslatePoint(default, header)!.Value;
+            window.PlatformImpl!.Activated?.Invoke();
+            Settle();
+            Control header = Find<Control>("ReaderMediaSidebarHeaderRow");
+            TextBlock title = Find<TextBlock>("ReaderMediaSidebarHeading");
+            TextBlock file = Find<TextBlock>("ReaderMediaSidebarMeta");
+            TextBlock position = Find<TextBlock>("ReaderMediaSidebarPosition");
+            Button open = Find<Button>("ReaderMediaSidebarOpen");
+            ToggleButton info = Find<ToggleButton>("ReaderMediaSidebarInfoToggle");
+            Control facts = Find<Control>("ReaderMediaSidebarFacts");
+            Control actions = Find<Control>("ReaderMediaSidebarInfoBar");
+            Control card = Find<Control>("ReaderMediaSidebarCard");
 
             Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
-            Assert.Contains(sidebar.Open, header.GetVisualDescendants());
-            Assert.Contains(sidebar.Title, header.GetVisualDescendants());
+            Assert.Contains(open, header.GetVisualDescendants());
+            Assert.Contains(title, header.GetVisualDescendants());
             SidePanelDesignTests.AssertCompactHeader(sidebar);
-            Assert.Equal(32, At(file).Y);
-            Assert.True(At(sidebar.Open).Y < At(file).Y);
-
-            BooruReviewTestPlatform.Resize(window, 272);
-            Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, header.Bounds.Height);
-            SidePanelDesignTests.AssertCompactHeader(sidebar);
-            Assert.True(At(sidebar.Open).X + sidebar.Open.Bounds.Width <= header.Bounds.Width);
+            // W112-72, Fable variant A §§2.1–2.2: “Einzeilig, sobald es mit Icon-Knöpfen passt”; dimensions belong to the facts.
+            Rect filename = BoundsIn(file, header), index = BoundsIn(position, header), gallery = BoundsIn(open, header);
+            Assert.Equal(singleRow ? 32 : ReaderMediaSidebar.HeaderLineHeight, header.Bounds.Height);
+            Assert.Equal(singleRow ? 8 : 32, filename.Top);
+            if (singleRow)
+            {
+                Assert.Equal(gallery.Center.Y, filename.Center.Y, 0.5);
+                Assert.True(BoundsIn(title, header).Right <= index.Left);
+            }
+            else Assert.True(gallery.Bottom <= filename.Top);
+            Assert.Equal(filename.Top, index.Top, 0.5);
+            Assert.True(index.Right <= filename.Left);
+            Assert.True(gallery.Right <= header.Bounds.Width);
             Assert.Contains("…", file.Text);
-            Assert.EndsWith(".jpg · 500 KiB · 2001×3000", file.Text);
+            Assert.EndsWith(".jpg · 500 KiB", file.Text);
+            Assert.Contains(fileName, ToolTip.GetTip(file)?.ToString());
+
+            // Variant A §3 docks the actions and facts below the card and lets Info collapse just the facts.
+            Assert.True(BoundsIn(card, sidebar).Bottom <= BoundsIn(actions, sidebar).Top);
+            Assert.True(BoundsIn(actions, sidebar).Bottom <= BoundsIn(facts, sidebar).Top);
+            Assert.Contains(facts.GetVisualDescendants().OfType<SelectableTextBlock>(), value => value.IsEffectivelyVisible && value.Text == dimensions);
+            int galleryClicks = 0;
+            open.Click += (_, _) => galleryClicks++;
+            Click(open);
+            Assert.Equal(1, galleryClicks);
+            Click(info);
+            Assert.False(facts.IsEffectivelyVisible);
+            Assert.True(actions.IsEffectivelyVisible);
+            Click(info);
+            Assert.True(facts.IsEffectivelyVisible);
         }
         finally { window.Close(); }
+
+        T Find<T>(string id) where T : Control => SidePanelDesignTests.ById<T>(sidebar, id);
+        static Rect BoundsIn(Control control, Visual root) => new(control.TranslatePoint(default, root)!.Value, control.Bounds.Size);
+        void Settle()
+        {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
+        void Click(Button button)
+        {
+            Point point = BoundsIn(button, window).Center;
+            window.MouseMove(point);
+            window.MouseDown(point, MouseButton.Left);
+            window.MouseUp(point, MouseButton.Left);
+            Settle();
+        }
     });
 
     // Every reader row backed by a control is registered exactly once in the page (orphan check of the work-views smoke, statically).

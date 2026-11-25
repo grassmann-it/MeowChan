@@ -1,22 +1,47 @@
-using System;
-using System.IO;
-using System.Runtime.CompilerServices;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
+using MeowChan.Desktop;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class MediaTagSidebarMenuLifetimeTests
 {
     [Fact]
-    public void SidebarOwnsItsWorkspaceMenuHostForTheVisualTreeLifetime()
+    public void DetachingTheTagListClosesItsMenuAndReattachingInstallsOneHandler() => BooruComponentDispatcher.Run(() =>
     {
-        string source = Source("Desktop/Views/Media/MediaTagSidebar.cs");
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        List<string> copied = [];
+        MediaTagSidebar sidebar = new() { CopyName = copied.Add };
+        sidebar.SetCounts(new MediaTagCountResult([], [new(MediaTagGroup.Source, "cat", "cat", 1)], 1, 1, true, true), false);
+        Window window = new() { Width = 400, Height = 560, Content = sidebar };
+        try
+        {
+            window.Show();
+            ContextGestures.Settle(window);
+            ListBoxItem Tag() => Assert.Single(sidebar.List.GetVisualDescendants().OfType<ListBoxItem>(),
+                item => item.DataContext is MediaTagListItem { Kind: MediaTagListKind.Tag });
+            ContextGestures.MenuKey(Tag());
+            ContextMenu retired = Assert.IsType<ContextMenu>(sidebar.List.ContextMenu);
 
-        Assert.Contains("private ContextMenuHost? _menuHost;", source, StringComparison.Ordinal);
-        Assert.Contains("AttachedToVisualTree += (_, _) => _menuHost ??= WorkspaceChips.AttachMenu(_list, ComposeMenu", source, StringComparison.Ordinal);
-        Assert.Contains("DetachedFromVisualTree += (_, _) => { _menuHost?.Dispose(); _menuHost = null; };", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("\n        WorkspaceChips.AttachMenu(_list, ComposeMenu, () => _list.Focus(NavigationMethod.Tab));", source, StringComparison.Ordinal);
-    }
+            window.Content = null;
+            ContextGestures.Settle(window);
+            Assert.False(retired.IsOpen);
+            Assert.Null(sidebar.List.ContextMenu);
 
-    private static string Source(string relative, [CallerFilePath] string file = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file)!, "../..", relative)));
+            window.Content = sidebar;
+            ContextGestures.Settle(window);
+            int openings = 0;
+            sidebar.List.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == Control.ContextMenuProperty && sidebar.List.ContextMenu != null) openings++;
+            };
+            ContextGestures.MenuKey(Tag());
+            Assert.Equal(1, openings);
+            Assert.Single(MenuProbe.Entries(Assert.IsType<ContextMenu>(sidebar.List.ContextMenu)),
+                entry => entry.Id == "tags.copy-name").Activate();
+            Assert.Equal("cat", Assert.Single(copied));
+        }
+        finally { window.Close(); }
+    });
 }

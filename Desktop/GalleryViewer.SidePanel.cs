@@ -1,6 +1,8 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -58,7 +60,22 @@ internal sealed partial class GalleryViewer
         double inset = WorkspaceMetrics.SectionInset;
         _contextPanel.Padding = new Thickness(inset, MediaSidebarHeader.TopInset, inset, inset);
         _contextPanel.Child = _sidePanel;
+        _contextPanel.AddHandler(InputElement.PointerPressedEvent, OnPanelControlPress, RoutingStrategies.Tunnel);
+        _contextPanel.ContextRequested += OnPanelContextRequested;
         SyncSidePanel();
+    }
+
+    private void OnPanelControlPress(object? sender, PointerPressedEventArgs e)
+    {
+        if (!ItemActivation.IsOwnedByInteractivePart(e.Source, _contextPanel))
+            ContextClick.RequestOnMacControlPress(e, _contextPanel);
+    }
+
+    private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (e.Handled || !_contextOpen || _entry == null || ItemActivation.IsOwnedByInteractivePart(e.Source, _contextPanel)) return;
+        ShowMediaMenu(anchor: _contextPanel, keyboard: !e.TryGetPosition(_contextPanel, out _));
+        e.Handled = true;
     }
 
     // Segment, availability of Tags, labels and the close button's name from the viewer's state (also after a language change).

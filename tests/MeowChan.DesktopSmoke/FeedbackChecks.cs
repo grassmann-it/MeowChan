@@ -302,7 +302,7 @@ internal static class FeedbackChecks
             (_, _) => throw new InvalidOperationException("A failed compilation must not start description."),
             (_, _, _) => throw new InvalidOperationException("A failed compilation must not start a worker."),
             (_, _, _, _, _) => throw new InvalidOperationException("No probe is part of this fixture."));
-        PluginsPage page = new(); page.Attach(services);
+        using PluginsPage page = new(); page.Attach(services);
         try
         {
             await page.ActivateAsync();

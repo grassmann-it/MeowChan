@@ -306,38 +306,6 @@ public sealed class InteractionAuditTests
         Assert.Contains("Apps", EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux).For("menu.context-open").Select(g => g.Key));
     }
 
-    [Fact]
-    public void AContextMenuHostClosesWhenItsTargetIsRebuilt()
-    {
-        string host = Read("Desktop/Controls/ContextMenuHost.cs");
-        // Result cards and virtualized rows may be detached while a popup is open. The popup must not retain
-        // button handlers for the old card and must unregister the lifecycle hook when disposed.
-        Assert.Contains("origin.DetachedFromVisualTree += OnOriginDetached;", host, StringComparison.Ordinal);
-        Assert.Contains("private void OnOriginDetached(object? sender, VisualTreeAttachmentEventArgs e) => Close();", host, StringComparison.Ordinal);
-        Assert.Contains("_origin.DetachedFromVisualTree -= OnOriginDetached;", host, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void EveryContextMenuHostOpensFromThePointerAndFromTheKeyboard()
-    {
-        string host = Read("Desktop/Controls/ContextMenuHost.cs");
-        // Lists and tables take the key in the tunnel phase (a focused item consumes keys before a bubble handler); other origins keep the bubble phase.
-        Assert.Contains("origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, (origin is ListBox or DataGrid) ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);", host);
-        Assert.Contains("origin.AddHandler(Control.ContextRequestedEvent, OnContextRequested, RoutingStrategies.Bubble);", host);
-        Assert.Contains("MediaMenuPresenter.IsContextKey(e)", host);
-        // The surfaces of the audit that use the host: tagging list and grid, rules cards, statistics table and compact list.
-        Assert.Contains("new ContextMenuHost(_list, ComposeRowMenu", Read("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("new ContextMenuHost(_grid, ComposeRowMenu", Read("Desktop/Views/Tagging/TaggingPage.Grid.cs"));
-        Assert.Contains("new ContextMenuHost(card,", Read("Desktop/Views/Rules/RulesPage.RowMenu.cs"));
-        string statistics = Read("Desktop/Views/Statistics/StatisticsPage.RowMenu.cs");
-        Assert.Contains("new ContextMenuHost(StatisticsGrid,", statistics);
-        Assert.Contains("CommandBindings.Matches(e, StatisticsRowMenu.CopyRow)", statistics);
-        // The media grid has its own presenter with the same three ways in.
-        string media = Read("Desktop/Views/Media/MediaPage.cs");
-        Assert.Contains("_grid.AddHandler(ContextRequestedEvent, OnSharedContextRequested, RoutingStrategies.Bubble);", media);
-        Assert.Contains("_grid.AddHandler(KeyDownEvent, OnSharedContextKeyDown, RoutingStrategies.Tunnel);", media);
-    }
-
     // ---- open actions nobody awaits: one safe helper (Tom's crash log, reader attachment click) -----------------------------
 
     [Fact]

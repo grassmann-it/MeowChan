@@ -22,7 +22,7 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan;
 
-public partial class PluginsPage : UserControl
+public partial class PluginsPage : UserControl, IDisposable
 {
     private PluginManagementServices? _services;
     private PluginCatalogSnapshot? _catalog;
@@ -719,13 +719,28 @@ public partial class PluginsPage : UserControl
         try { await RefreshAsync(); } finally { _statusReadPending = false; }
     }
     internal void Deactivate() { CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _statusTimer.Stop(); ++_refreshGeneration; CancelOperation(); if (!_ended) RenderDetails(); }
-    internal void EndLifetime()
+    internal void EndLifetime() => Dispose();
+
+    public void Dispose()
     {
-        if (_ended) return;
-        CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation();
-        _ended = true; IsEnabled = false;
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || _ended) return;
+        CloseBundledRepairPreview();
+        ClosePluginActionMenu();
+        CancelDiscardConfirmation();
+        _ended = true;
+        IsEnabled = false;
+        _statusTimer.Stop();
+        _statusTimer.Tick -= OnStatusTick;
+        Texts.Changed -= OnLanguageChanged;
         _keyContext.Dispose();
-        _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged;
-        _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose();
+        _lifetime.Cancel();
+        CancelOperation();
+        _lifetime.Dispose();
     }
 }
