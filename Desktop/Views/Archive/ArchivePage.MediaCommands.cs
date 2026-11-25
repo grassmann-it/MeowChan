@@ -388,8 +388,7 @@ public partial class ArchivePage
         if ((tab != ArchivePostsTab && tab != ArchiveReferencesTab) || _displayedSidebarMedium is not { } shown)
             return Task.CompletedTask;
         bool Current() => SidebarCurrent() && ReferenceEquals(ArchiveContentTabs.SelectedItem, tab)
-            && ReferenceEquals(_thread, shown.Thread) && _selectedThread == shown.Thread.Summary.Id
-            && _displayedSidebarMedium == shown;
+            && _selectedThread == shown.Thread.Summary.Id && IsSelectedSidebarMedium(shown);
         if (!Current()) return Task.CompletedTask;
         string postId = shown.Post.Id;
         ArchiveAssetRow? asset = FindMatchingAsset(shown.Thread.Summary.Id, postId, shown.Attachment.Attachment, _assets);
