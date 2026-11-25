@@ -216,7 +216,8 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             ToggleButton more = Assert.IsAssignableFrom<ToggleButton>(page.Actions.More);
             Click(window, more);
             Button groupOpener = page.GroupManageButton;
-            VerifyPopup(window, groupOpener, () => groupOpener.ContextMenu?.IsOpen == true, output.WriteLine);
+            VerifyPopup(window, groupOpener, () => groupOpener.ContextMenu?.IsOpen == true,
+                logRoute: output.WriteLine, reopenParent: () => Click(window, more));
             more.IsChecked = false;
             Layout(window);
 
@@ -409,7 +410,8 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         return window;
     }
 
-    private static void VerifyPopup(Window window, Button opener, Func<bool> isOpen, Action<string>? logRoute = null)
+    private static void VerifyPopup(Window window, Button opener, Func<bool> isOpen,
+        Action<string>? logRoute = null, Action? reopenParent = null)
     {
         Assert.False(opener.Focusable);
         Assert.False(isOpen());
@@ -419,6 +421,7 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         string route = TracePopupClick(window, opener);
         logRoute?.Invoke(route);
         Assert.False(isOpen(), route);
+        if (!opener.IsAttachedToVisualTree()) reopenParent?.Invoke();
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
         PressAtFocus(window, Key.Escape);
