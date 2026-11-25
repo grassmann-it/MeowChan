@@ -105,6 +105,7 @@ internal sealed partial class GalleryViewer
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
         PopupToggle.BindFlyout(_overflowButton, _overflowFlyout);
+        _overflowButton.Focusable = true;
         KeyboardNavigation.SetTabNavigation(_overflowPanel, KeyboardNavigationMode.Cycle);
         _overflowPanel.AddHandler(KeyDownEvent, OnOverflowKeyDown, RoutingStrategies.Tunnel);
         _overflowPanel.AddHandler(Button.ClickEvent, OnOverflowItemClick);
@@ -129,7 +130,8 @@ internal sealed partial class GalleryViewer
             RevealOverlayControls();
             if (!_overflowHadFocus || _terminalRetirement || !_overflowButton.IsEffectivelyVisible) return;
             _overflowHadFocus = false;
-            ReclaimGallerySurface();
+            if (_keyboardInteraction) _overflowButton.Focus(NavigationMethod.Tab);
+            else ReclaimGallerySurface();
         };
         _overflowPanel.GotFocus += (_, _) => _overflowHadFocus = true;
         ApplyOverflowButtonText();

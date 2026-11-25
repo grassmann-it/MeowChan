@@ -255,8 +255,9 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             Layout(window);
             Button layout = Find<Button>(window, "GalleryLayoutButton");
             Button more = Find<Button>(window, "GalleryMore");
-            VerifyPopup(window, layout, () => viewer.IsLayoutMenuOpen);
-            VerifyPopup(window, more, () => viewer.IsOverflowOpen);
+            // The TOGGLE audit keeps Gallery Layout and More as native menus with keyboard access.
+            VerifyPopup(window, layout, () => viewer.IsLayoutMenuOpen, focusable: true);
+            VerifyPopup(window, more, () => viewer.IsOverflowOpen, focusable: true);
             viewer.Focus();
             PressCommand(window, GalleryLayoutMenu.OpenCommandId);
             Assert.True(viewer.IsLayoutMenuOpen);
@@ -411,9 +412,9 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
     }
 
     private static void VerifyPopup(Window window, Button opener, Func<bool> isOpen,
-        Action<string>? logRoute = null, Action? reopenParent = null)
+        Action<string>? logRoute = null, Action? reopenParent = null, bool focusable = false)
     {
-        Assert.False(opener.Focusable);
+        Assert.Equal(focusable, opener.Focusable);
         Assert.False(isOpen());
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());

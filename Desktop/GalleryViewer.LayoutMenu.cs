@@ -108,6 +108,7 @@ internal sealed partial class GalleryViewer
         _overflowPanel.Children.Add(_layoutSection);
         _overflowFlyout.Opening += (_, _) => { if (_layoutSection.IsVisible) _layoutSectionPanel.Refresh(); };
         PopupToggle.BindFlyout(_layoutButton, _layoutFlyout);
+        _layoutButton.Focusable = true;
         _layoutPanel.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (!e.Handled && TryToggleLayoutFromMenu(e, _layoutFlyout)) return;
@@ -135,7 +136,8 @@ internal sealed partial class GalleryViewer
             RevealOverlayControls();
             if (!_layoutMenuHadFocus || _terminalRetirement || !_layoutButton.IsEffectivelyVisible) return;
             _layoutMenuHadFocus = false;
-            ReclaimGallerySurface();
+            if (_keyboardInteraction) _layoutButton.Focus(NavigationMethod.Tab);
+            else ReclaimGallerySurface();
         };
         // The same rows on a right click of free dock area; the host also opens them for the Menu key and Shift+F10 on the button.
         _layoutContextHost = new ContextMenuHost(_layoutButton,

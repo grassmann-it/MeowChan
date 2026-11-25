@@ -8,7 +8,7 @@ using MeowChan.Desktop.Controls;
 namespace MeowChan.DesktopSmoke;
 
 // GL3 (smoke id "gallery-toolbar", step "layout menu"): the "Layout" button beside "More", its flyout and the same rows on a right click of free
-// dock area. Each row changes exactly one block, the flyout stays open for a switch, Escape returns focus to the picture, "Reset layout"
+// dock area. Each row changes exactly one block, the flyout stays open for a switch, Escape closes it and the focus returns to the button, "Reset layout"
 // closes it and raises the undo (LayoutResetPerformed), a button never counts as free dock area. Captures of the open flyout and of the context
 // menu are taken in the theme and language of the scenario (Light/Dark at 760x500 and 1440x920).
 internal static partial class GalleryToolbarLayoutChecks
@@ -30,8 +30,9 @@ internal static partial class GalleryToolbarLayoutChecks
         Require(!string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(layout)) && ToolTip.GetTip(layout) is string { Length: > 0 },
             tag + ": the Layout button has no name or tooltip.");
 
-        Require(!layout.Focusable, tag + ": the Layout button is a tab stop.");
-        Require(viewer.SetLayoutMenuOpen(true), tag + ": the layout flyout did not open.");
+        // The keyboard opens it (Enter on the focused button); the first usable row takes the focus.
+        layout.Focus(NavigationMethod.Tab);
+        PressKey(layout, Key.Enter);
         await UntilAsync(() => viewer.IsLayoutMenuOpen && viewer.LayoutMenuRows.IsEffectivelyVisible && viewer.LayoutMenuRows.Bounds.Height > 0);
         await LayoutAsync(window);
         LayoutMenuPanel rows = viewer.LayoutMenuRows;
@@ -56,10 +57,10 @@ internal static partial class GalleryToolbarLayoutChecks
         await LayoutAsync(window);
         Require(info.IsVisible && viewer.LayoutChoice(GalleryChromeMode.View) == before, tag + ": the info row did not bring the info line back (as no choice).");
 
-        // Escape closes the menu and the picture takes focus.
+        // Escape closes the menu and the focus returns to the Layout button.
         PressKey((Control)TopLevel.GetTopLevel(viewer.LayoutMenuRows)!.FocusManager!.GetFocusedElement()!, Key.Escape);
         await UntilAsync(() => !viewer.IsLayoutMenuOpen);
-        await UntilAsync(() => window.FocusManager?.GetFocusedElement() == viewer);
+        await UntilAsync(() => window.FocusManager?.GetFocusedElement() == layout);
 
         // The same rows on a right click of free area; a button is never free area.
         StackPanel dock = Find<StackPanel>(viewer, "GalleryDock");

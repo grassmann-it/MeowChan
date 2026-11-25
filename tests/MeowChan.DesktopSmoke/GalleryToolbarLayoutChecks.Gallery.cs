@@ -38,7 +38,7 @@ internal static partial class GalleryToolbarLayoutChecks
             Click(Find<Button>(viewer, "GalleryToggleContext"));
             await LayoutAsync(window);
 
-            await OpenOverflowAsync(window, viewer);
+            await OpenOverflowByKeyAsync(window, viewer);
             if (TopLevel.GetTopLevel(viewer.OverflowMenuContent) is Control popup && popup.Bounds.Width > 0)
                 DialogGallery.RecordSurface(popup, "gallery-overflow-menu", "popup", "the more (...) menu with the rare commands");
             else DialogGallery.Skip("gallery-overflow-menu", "popup surface had no size");

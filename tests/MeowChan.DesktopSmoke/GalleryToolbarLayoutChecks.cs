@@ -88,10 +88,10 @@ internal static partial class GalleryToolbarLayoutChecks
 
                 // The "⋯" menu: all rare commands, same controls, labelled, and the menu keeps within the window.
                 RequireOverflow(viewer);
-                await OpenOverflowAsync(window, viewer);
+                await OpenOverflowByKeyAsync(window, viewer);
                 CapturePopup(viewer, Path.Combine(output, $"smoke-gallery-toolbar-{tag}-menu.png"));
                 Program.CaptureWindow(window, $"smoke-gallery-toolbar-{tag}-menu-window.png", output);
-                // Down moves through the rows (even over the playback choice). Escape returns focus to the picture.
+                // Down moves through the rows (even over the playback choice), Escape closes and returns to "⋯".
                 IInputElement? firstRow = TopLevel.GetTopLevel(viewer.OverflowMenuContent)!.FocusManager!.GetFocusedElement();
                 PressKey((Control)firstRow!, Key.Down);
                 Require(!ReferenceEquals(firstRow, TopLevel.GetTopLevel(viewer.OverflowMenuContent)!.FocusManager!.GetFocusedElement()),
@@ -104,11 +104,11 @@ internal static partial class GalleryToolbarLayoutChecks
                 Require(Find<ComboBox>(viewer, "GalleryPlaybackModeSelector").SelectedIndex == 0, "Down changed the playback mode instead of moving on.");
                 PressKey((Control)TopLevel.GetTopLevel(viewer.OverflowMenuContent)!.FocusManager!.GetFocusedElement()!, Key.Escape);
                 await UntilAsync(() => !viewer.IsOverflowOpen);
-                await UntilAsync(() => window.FocusManager?.GetFocusedElement() == viewer);
-                await OpenOverflowAsync(window, viewer);
+                await UntilAsync(() => window.FocusManager?.GetFocusedElement() == viewer.OverflowButton);
+                await OpenOverflowByKeyAsync(window, viewer);
                 if (tag.StartsWith("760x500-dark-en"))
                 {
-                    // A zoom step keeps the menu open.
+                    // A zoom step keeps the menu open, then Escape closes it and returns the focus to "⋯".
                     Click(Find<Button>(viewer, "GalleryActual"));
                     double actualZoom = viewer.CaptureState().PhysicalZoom;
                     Click(Find<Button>(viewer, "GalleryPlus"));
@@ -118,7 +118,7 @@ internal static partial class GalleryToolbarLayoutChecks
                     Click(Find<Button>(viewer, "GalleryFit"));
                     viewer.SetOverflowOpen(false);
                     // Opening a command row (full screen is not safe here; the overlay choice is) closes the menu.
-                    await OpenOverflowAsync(window, viewer);
+                    await OpenOverflowByKeyAsync(window, viewer);
                     ToggleButton overlayChoice = Find<ToggleButton>(viewer, "GalleryOverlayToggle");
                     bool before = overlayChoice.IsChecked == true;
                     Click(overlayChoice);
@@ -242,11 +242,11 @@ internal static partial class GalleryToolbarLayoutChecks
         Require(shortcuts.All(name => ToolTip.GetTip(Find<Button>(viewer, name)) is string { Length: > 0 }), "A menu row lost its tooltip.");
     }
 
-    private static async Task OpenOverflowAsync(MainWindow window, GalleryViewer viewer)
+    private static async Task OpenOverflowByKeyAsync(MainWindow window, GalleryViewer viewer)
     {
         Button more = viewer.OverflowButton;
-        Require(!more.Focusable, "The gallery More button is a tab stop.");
-        viewer.SetOverflowOpen(true);
+        more.Focus(Avalonia.Input.NavigationMethod.Tab);
+        PressKey(more, Key.Enter);
         await UntilAsync(() => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsEffectivelyVisible && viewer.OverflowMenuContent.Bounds.Height > 0);
         await LayoutAsync(window);
         Control content = viewer.OverflowMenuContent;
