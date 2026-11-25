@@ -97,7 +97,7 @@ internal sealed class MediaTagSidebar : UserControl
         layout.Children.Add(_search); Grid.SetRow(_search, 1);
         layout.Children.Add(_status); Grid.SetRow(_status, 2);
         layout.Children.Add(_list); Grid.SetRow(_list, 3);
-        Content = new Border { Child = layout, Padding = new Thickness(8), Classes = { "workspace-section-flush" } };
+        Content = new Border { Child = layout, Padding = new Thickness(8, 12, 8, 8), Classes = { "workspace-section-flush" } };
         _sort.SelectionChanged += (_, _) =>
         {
             if (_localizing) return;
