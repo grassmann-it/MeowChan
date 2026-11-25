@@ -40,20 +40,26 @@ internal sealed class BooruSearchTabs
             return new BooruTabSnapshot(current.ProviderId, -1, [], current);
 
         // Keep the active tab and the earliest remaining tabs in strip order.
-        int[] indices = activeIndex < limit
-            ? Enumerable.Range(0, Math.Min(_slots.Count, limit)).ToArray()
-            : Enumerable.Range(0, limit - 1).Append(activeIndex).ToArray();
+        int[] indices = RetainedIndices(_slots.Count, activeIndex, limit);
         return new BooruTabSnapshot(current.ProviderId, Array.IndexOf(indices, activeIndex),
             indices.Select(index => index == activeIndex ? current : _slots[index].Snapshot).ToArray());
     }
+
+    private static int[] RetainedIndices(int count, int activeIndex, int limit) => activeIndex < limit
+        ? Enumerable.Range(0, Math.Min(count, limit)).ToArray()
+        : Enumerable.Range(0, limit - 1).Append(activeIndex).ToArray();
 
     internal void Restore(BooruTabSnapshot snapshot)
     {
         foreach (Slot slot in _slots) _search.CancelBulk(slot.Id);
         _slots.Clear();
-        foreach (BooruSearchView? tab in snapshot.Tabs)
-            _slots.Add(new Slot(_nextId++, tab));
-        Slot? active = _slots.Count == 0 ? null : _slots[snapshot.ActiveIndex];
+        Slot? active = null;
+        foreach (int index in RetainedIndices(snapshot.Tabs.Length, snapshot.ActiveIndex, Limit))
+        {
+            Slot slot = new(_nextId++, snapshot.Tabs[index]);
+            _slots.Add(slot);
+            if (index == snapshot.ActiveIndex) active = slot;
+        }
         _activeId = active?.Id;
         _search.Restore(active?.Snapshot ?? snapshot.Draft, _activeId);
         Changed?.Invoke();
@@ -68,7 +74,10 @@ internal sealed class BooruSearchTabs
     {
         if (!CanAdd) return -1;
         BooruSearchView? snapshot = copyFrom is { } id ? ViewOf(id) : null;
-        Store();
+        BooruSearchView current = _search.View;
+        if (_activeId is null && (current.Input.Length > 0 || current.Mode != BooruInputMode.Tags))
+            _slots.Add(new Slot(_nextId++, current));
+        else Store();
         Slot slot = new(_nextId++, snapshot);
         _slots.Add(slot);
         Activate(slot);

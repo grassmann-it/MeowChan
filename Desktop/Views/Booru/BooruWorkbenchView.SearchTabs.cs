@@ -54,10 +54,11 @@ internal sealed partial class BooruWorkbenchView
     private readonly Button _downloadAll = new() { Name = DownloadAllName, Classes = { "subtle" } };
     private readonly Border _bulkHost = new() { Name = BulkStatusName, Classes = { "workspace-status" }, IsVisible = false };
     private readonly TextBlock _bulkText = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button _newTabButton = new() { Name = NewSearchTabName, Classes = { "booru-add-tab-button" } };
+    private readonly Button _newTabButton = new() { Name = NewSearchTabName, Focusable = false, IsTabStop = false, Classes = { "booru-add-tab-button" } };
     private readonly TabItem _addTab = new() { Focusable = false, IsTabStop = false, Classes = { "booru-add-tab" } };
     private readonly Dictionary<int, SearchTabControl> _searchItems = new();
     private readonly MiddleClickTracker _tabMiddleClick = new();
+    private IInputElement? _backgroundTabFocus;
     private readonly Dictionary<int, TabResults> _tabResults = new();
     private BooruSearchTabs? _searchTabs;
     private int? _renderedSearchTab;
@@ -93,8 +94,14 @@ internal sealed partial class BooruWorkbenchView
         AutomationProperties.SetAutomationId(_bulkHost, BulkStatusName);
         _searchContent = content;
         _addTab.Header = _newTabButton;
+        _tabs.Items.Add(_addTab);
         CommandBindings.EnsureIconBeforeText(_newTabButton, "plus");
-        _newTabButton.Click += (_, _) => OpenSearchTab();
+        _newTabButton.Click += (_, _) =>
+        {
+            if (OpenSearchTab()) return;
+            if (IsSearchItem(_tabs.SelectedItem)) FocusSearchInput();
+            else _watchersTab.Focus();
+        };
         _tabs.SizeChanged += (_, e) => { if (e.WidthChanged) QueueActiveTabReveal(); };
         _watcherHeader = MakeClosableHeader(_watchersTab, CloseWatchers, CloseWatchersName);
         _searchTabs.Changed += SyncSearchTabs;
@@ -106,12 +113,17 @@ internal sealed partial class BooruWorkbenchView
 
     private void OnTabPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        _tabMiddleClick.Pressed(MiddleClickTracker.IsPress(e, _tabs) ? ClosableTabAt(e.Source) : null);
+        TabItem? target = MiddleClickTracker.IsPress(e, _tabs) ? ClosableTabAt(e.Source) : null;
+        _tabMiddleClick.Pressed(target);
+        _backgroundTabFocus = target is { IsSelected: false } ? TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() : null;
+        if (target is not null) e.Handled = true;
     }
 
     private void OnTabPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (_closed || !MiddleClickTracker.IsRelease(e)) return;
+        IInputElement? focus = _backgroundTabFocus;
+        _backgroundTabFocus = null;
         TabItem? tab = ClosableTabAt(e.Source);
         // The release can still be routed to the pressed header through pointer capture.
         if (tab is null || !new Rect(tab.Bounds.Size).Contains(e.GetPosition(tab))) tab = null;
@@ -119,6 +131,7 @@ internal sealed partial class BooruWorkbenchView
         e.Handled = true;
         if (tab?.Tag is int id) CloseSearchTab(id);
         else CloseWatchers();
+        focus?.Focus();
     }
 
     private TabItem? ClosableTabAt(object? source)
@@ -308,9 +321,10 @@ internal sealed partial class BooruWorkbenchView
     internal void CloseWatchers()
     {
         if (_closed || !_watchersOpen) return;
+        bool wasActive = ReferenceEquals(_tabs.SelectedItem, _watchersTab);
         _watchersOpen = false;
         SyncSearchTabs();
-        if (IsSearchItem(_tabs.SelectedItem)) QueueSearchInputFocus(SearchTabs.ActiveId);
+        if (wasActive) QueueSearchInputFocus(SearchTabs.ActiveId);
     }
 
     private bool IsSearchItem(object? item) => item is TabItem { Tag: int } || ReferenceEquals(item, _addTab);
@@ -361,10 +375,12 @@ internal sealed partial class BooruWorkbenchView
         {
             IReadOnlyList<int> ids = tabs.Ids;
             HashSet<int> wanted = ids.ToHashSet();
+            bool keepWatchers = _watchersOpen && !_selectNewTab && ReferenceEquals(_tabs.SelectedItem, _watchersTab);
             foreach (int id in _tabResults.Keys.Where(id => !wanted.Contains(id)).ToArray())
                 _tabResults.Remove(id);
             foreach (int id in _searchItems.Keys.Where(id => !wanted.Contains(id)).ToArray())
             {
+                _tabs.Items.Remove(_searchItems[id].Item);
                 _searchItems[id].Dispose();
                 _searchItems.Remove(id);
             }
@@ -374,15 +390,13 @@ internal sealed partial class BooruWorkbenchView
                 TabItem item = new() { Tag = id };
                 TabHeader header = MakeClosableHeader(item, () => CloseSearchTab(id));
                 _searchItems[id] = new(item, header, () => BuildSearchTabMenu(id), FocusSearchInput);
+                _tabs.Items.Insert(_tabs.Items.IndexOf(_addTab), item);
             }
 
-            List<TabItem> items = ids.Select(id => _searchItems[id].Item).ToList();
-            items.Add(_addTab);
-            if (_watchersOpen) items.Add(_watchersTab);
-            bool keepWatchers = _watchersOpen && !_selectNewTab && ReferenceEquals(_tabs.SelectedItem, _watchersTab);
+            if (_watchersOpen && !_tabs.Items.Contains(_watchersTab)) _tabs.Items.Add(_watchersTab);
+            if (!_watchersOpen) _tabs.Items.Remove(_watchersTab);
             TabItem activeItem = ActiveSearchItem;
             AttachSearchContent(activeItem);
-            if (!items.SequenceEqual(_tabs.Items.OfType<TabItem>())) _tabs.ItemsSource = items.ToArray();
             _tabs.SelectedItem = keepWatchers ? _watchersTab : activeItem;
         }
         finally { _syncingTabs = false; }
@@ -405,7 +419,7 @@ internal sealed partial class BooruWorkbenchView
         item.Classes.Add("booru-tab");
         TextBlock title = new() { MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         closeName ??= CloseSearchTabName;
-        Button close = new() { Name = closeName, Classes = { "ghost", "booru-tab-close" } };
+        Button close = new() { Name = closeName, Focusable = false, IsTabStop = false, Classes = { "ghost", "booru-tab-close" } };
         AutomationProperties.SetAutomationId(close, closeName);
         close.AttachedToVisualTree += (_, _) => { if (close.Content is not Control) close.Content = CommandBindings.NamedIcon("x", 12); };
         close.Click += (_, e) => { e.Handled = true; closeTab(); };
@@ -493,6 +507,7 @@ internal sealed partial class BooruWorkbenchView
         if (IconButtons.KeyOf(_downloadAll) != downloadIcon)
             CommandBindings.ShowIconBeforeText(_downloadAll, downloadIcon);
         string downloadName = Texts.T(running ? "booru.bulk.stop" : "booru.bulk.button");
+        if (running && bulk.ResultId != view.ResultId) downloadName += " · " + bulk.Query;
         _downloadAll.Content = running ? downloadName : Texts.T("booru.tabs.downloadShort");
         _downloadAll.IsEnabled = running || model.CanDownloadAll;
         string bulkHint = running ? string.Empty

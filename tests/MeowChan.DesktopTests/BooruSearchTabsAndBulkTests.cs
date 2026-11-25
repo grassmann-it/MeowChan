@@ -22,6 +22,47 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
     public void Dispose() => _model.Dispose();
 
     [Fact]
+    public void StopNamesTheRunningQueryAfterAnotherSearchInTheSameTab() => BooruComponentDispatcher.Run(() =>
+    {
+        BooruUiHarness harness = new();
+        harness.Serve(pages: 1, perPage: 1);
+        using BooruWorkbenchView view = new(harness.Services);
+        BooruSearchModel search = view.Model.Search;
+        BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(search, "cat"));
+        TaskCompletionSource<BooruCallResult<BooruResultPage>> response = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken ownerToken = default;
+        harness.Search.OnSearch = (query, page, token) =>
+        {
+            if (query == "dog") return Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true)));
+            ownerToken = token;
+            return response.Task;
+        };
+        Task bulk = search.DownloadAllAsync();
+        try
+        {
+            BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(search, "dog"));
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("dog", search.View.ExecutedQuery);
+            Assert.True(search.Bulk.IsRunning);
+            TabItem tab = Assert.IsType<TabItem>(Assert.IsType<TabControl>(view.Body).SelectedItem);
+            Button stop = Assert.Single(Assert.IsAssignableFrom<Control>(tab.Content).GetLogicalDescendants().OfType<Button>(),
+                control => AutomationProperties.GetAutomationId(control) == BooruWorkbenchView.DownloadAllName);
+            Assert.True(stop.IsEnabled);
+            Assert.Contains("cat", Assert.IsType<string>(stop.Content));
+            Assert.Contains("cat", Assert.IsType<string>(ToolTip.GetTip(stop)));
+            Assert.Contains("cat", AutomationProperties.GetName(stop));
+            stop.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.True(ownerToken.IsCancellationRequested);
+        }
+        finally
+        {
+            response.SetResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page("cat", 1, true)));
+            BooruComponentDispatcher.Wait(bulk);
+        }
+        Assert.Equal(BooruBulkEnd.Canceled, search.Bulk.End);
+    });
+
+    [Fact]
     public void BulkStatusFollowsTheTabAndResultsThatStartedIt() => BooruComponentDispatcher.Run(() =>
     {
         BooruUiHarness harness = new();

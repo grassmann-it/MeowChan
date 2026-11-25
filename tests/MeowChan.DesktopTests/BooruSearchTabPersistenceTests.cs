@@ -20,6 +20,129 @@ public sealed class BooruSearchTabPersistenceTests(ITestOutputHelper output)
 {
     private static SourceDescription Source => DanbooruTestPlugin.Plugin.Describe().Sources.Single();
 
+    [Theory]
+    [InlineData(false, false, "42")]
+    [InlineData(false, true, "42")]
+    [InlineData(true, false, "42")]
+    [InlineData(true, true, "42")]
+    [InlineData(true, false, "")]
+    public void FirstPlusOrHandoffKeepsTheStartDraftAcrossRestart(bool restoreDraft, bool handoff, string input) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory profile = new();
+            using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+            lease.Admission.CompleteStartup();
+            BooruUiHarness offline = new();
+            BooruSearchTabStore store = new(lease);
+            if (restoreDraft)
+            {
+                using (BooruPage initial = new(WithSource(offline)))
+                {
+                    initial.RestoreSearchTabs(store, new Config());
+                    initial.Model.Search.SetMode(BooruInputMode.Post);
+                    initial.Model.Search.SetInput(input);
+                }
+                BooruComponentDispatcher.Wait(store.PendingSave);
+            }
+            using (BooruPage page = new(WithSource(offline)))
+            {
+                page.RestoreSearchTabs(store, new Config());
+                using TestWindow window = new(page);
+                if (!restoreDraft)
+                {
+                    page.Model.Search.SetMode(BooruInputMode.Post);
+                    page.Model.Search.SetInput(input);
+                }
+                Assert.Empty(page.View.SearchTabs.Ids);
+                if (handoff) Assert.True(page.View.TryShowQueryInNewTab("second_draft"));
+                else
+                {
+                    Button plus = Assert.Single(page.GetVisualDescendants().OfType<Button>(),
+                        button => AutomationProperties.GetAutomationId(button) == BooruWorkbenchView.NewSearchTabName);
+                    BooruResultActionsTests.Click(plus);
+                }
+            }
+            BooruComponentDispatcher.Wait(store.PendingSave);
+
+            using BooruPage reopened = new(WithSource(offline));
+            reopened.RestoreSearchTabs(new BooruSearchTabStore(lease), new Config());
+            BooruSearchTabs tabs = reopened.View.SearchTabs;
+            Assert.Equal(2, tabs.Ids.Count);
+            Assert.Equal(tabs.Ids[1], tabs.ActiveId);
+            Assert.Equal(BooruInputMode.Tags, reopened.Model.Search.View.Mode);
+            Assert.Equal(handoff ? "second_draft" : "", reopened.Model.Search.View.Input);
+            Assert.True(tabs.Select(tabs.Ids[0]));
+            Assert.Equal(BooruInputMode.Post, reopened.Model.Search.View.Mode);
+            Assert.Equal(input, reopened.Model.Search.View.Input);
+            Assert.Equal(0, offline.ProviderRequests);
+        });
+
+    [Fact]
+    public void ReenablingRestoreSavesTheLiveSessionOverThePreviousV1File() => BooruComponentDispatcher.Run(() =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        BooruUiHarness offline = new();
+        BooruSearchTabStore initialStore = new(lease);
+        using (BooruPage initial = new(WithSource(offline)))
+        {
+            initial.RestoreSearchTabs(initialStore, new Config());
+            Assert.True(initial.View.TryShowQueryInNewTab("old_session"));
+        }
+        BooruComponentDispatcher.Wait(initialStore.PendingSave);
+
+        Config config = new() { RestoreBooruSearchTabs = false };
+        BooruSearchTabStore store = new(lease);
+        using (BooruPage page = new(WithSource(offline)))
+        {
+            page.RestoreSearchTabs(store, config);
+            Assert.Empty(page.View.SearchTabs.Ids);
+            config.RestoreBooruSearchTabs = true;
+            Assert.True(page.View.TryShowQueryInNewTab("new_session"));
+            page.Model.Search.SetInput("edited_session");
+        }
+        BooruComponentDispatcher.Wait(store.PendingSave);
+        using BooruPage reopened = new(WithSource(offline));
+        reopened.RestoreSearchTabs(new BooruSearchTabStore(lease), config);
+        Assert.Equal(Assert.Single(reopened.View.SearchTabs.Ids), reopened.View.SearchTabs.ActiveId);
+        Assert.Equal("edited_session", reopened.Model.Search.View.Input);
+        Assert.Equal(0, offline.ProviderRequests);
+    });
+
+    [Fact]
+    public void SessionLimitKeepsTheActiveTabAndLeavesTheLargerSavedSessionIntact() => BooruComponentDispatcher.Run(() =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        BooruUiHarness offline = new();
+        Config config = new() { BooruSearchTabs = 9, BooruSavedTabs = 9 };
+        BooruSearchTabStore store = new(lease);
+        using (BooruPage initial = new(WithSource(offline)))
+        {
+            initial.RestoreSearchTabs(store, config);
+            for (int i = 0; i < 9; i++) Assert.True(initial.View.TryShowQueryInNewTab($"draft_{i}"));
+            Assert.True(initial.View.SearchTabs.Select(initial.View.SearchTabs.Ids[6]));
+        }
+        BooruComponentDispatcher.Wait(store.PendingSave);
+        string path = Path.Combine(profile.Path, BooruSearchTabStore.FileName);
+        byte[] original = File.ReadAllBytes(path);
+        config.BooruSearchTabs = 2;
+        using (BooruPage page = new(WithSource(offline)))
+        {
+            page.RestoreSearchTabs(store, config);
+            BooruSearchTabs tabs = page.View.SearchTabs;
+            Assert.Equal(new[] { "draft_0", "draft_6" }, tabs.Ids.Select(id => tabs.ViewOf(id)!.Input));
+            Assert.Equal(tabs.Ids[1], tabs.ActiveId);
+            Assert.False(tabs.CanAdd);
+        }
+        BooruComponentDispatcher.Wait(store.PendingSave);
+        Assert.Equal(original, File.ReadAllBytes(path));
+        Assert.Equal(0, offline.ProviderRequests);
+    });
+
     [Fact]
     public void RestartRestoresTheTabStripAndSnapshotWithoutCallingAnyProviderPort() => BooruComponentDispatcher.Run(() =>
     {
