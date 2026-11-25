@@ -602,7 +602,7 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
         {
             NumericUpDown input = Setting(editor, id);
             var save = Assert.Single(editor.GetLogicalDescendants().OfType<Button>(),
-                button => AutomationProperties.GetAutomationId(button) == "SaveSettingsButton");
+                button => ControlAutomationPeer.CreatePeerForElement(button)?.GetAutomationId() == "SaveSettingsButton");
             string defaultText = Assert.IsType<string>(input.Text);
             Save();
             Assert.False(ResetEntry().Available);
