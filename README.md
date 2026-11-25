@@ -7,15 +7,15 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>1.1.1 · Latest release</strong></p>
+<p align="center"><strong>1.1.2 · Latest release</strong></p>
 
 <p align="center">Original media. Better viewing. Your archive, offline.</p>
 
 Save the threads you care about—and make them worth coming back to. **MeowChan** watches imageboard threads and boards, saves original media and captured posts, and turns your collection into a searchable offline reading workspace. Browse images and video, pick up where you left off, or take saved posts and verified originals with you as portable HTML.
 
-[**Get MeowChan 1.1.1 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.1) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.1.md) · [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
+[**Get MeowChan 1.1.2 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.2) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.2.md) · [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
 
-## What's new in 1.1.1
+## Features introduced in 1.1.1
 
 - **Danbooru searches you can return to.** Booru is in the default navigation. Searches open in tabs and can be restored at startup. The **Watchers** button opens the watcher overview from beside the search tabs.
 - **A gallery for search results.** Switch between List, Grid and Gallery on the same page of results. The inline gallery and separate viewer share controls, shortcuts and tag tools.
@@ -24,8 +24,6 @@ Save the threads you care about—and make them worth coming back to. **MeowChan
 - **A clearer Downloads table.** Search and URL copying sit with the Threads and Boards tabs. Keyboard navigation highlights the whole focused row.
 
 **Upgrading from 1.1.0.** Back up your profile first. Eligible profiles reconnect the bundled Danbooru plugin to the verified 1.1.1 build when you install into a new directory. If the build needs review, the startup notice opens the repair dialog. To change Booru visibility, use **Show Booru actions** in Settings → Interface → Footer. [Upgrade details and limits](docs/releases/v1.1.1.md#upgrading-from-110)
-
-**Validation status.** These screenshots come from a Linux source build using offline demo data. The release notes track the final candidate, validation workflow and Tom’s Windows and macOS package acceptance. [Validation status](docs/releases/v1.1.1.md#validation-status)
 
 ## Features introduced in 1.1.0
 
@@ -89,13 +87,15 @@ Earlier captures and their provenance are available for [1.1.0](docs/screenshots
 
 Desktop packages cover **Windows x64, Linux x64/ARM64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs. It requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
 
-| Platform | Download 1.1.1 |
+| Platform | Download 1.1.2 |
 | --- | --- |
-| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/01-MeowChan-1.1.1-win-x64.zip) |
-| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/02-MeowChan-1.1.1-osx-arm64.dmg) |
-| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/03-MeowChan-1.1.1-osx-x64.dmg) |
-| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/04-MeowChan-1.1.1-linux-x64.AppImage) |
-| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/05-MeowChan-1.1.1-linux-arm64.AppImage) |
+| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/01-MeowChan-1.1.2-win-x64.zip) |
+| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/02-MeowChan-1.1.2-osx-arm64.dmg) |
+| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/03-MeowChan-1.1.2-osx-x64.dmg) |
+| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/04-MeowChan-1.1.2-linux-x64.AppImage) |
+| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/05-MeowChan-1.1.2-linux-arm64.AppImage) |
+
+[1.1.2 validation status](docs/releases/v1.1.2.md#validation-status)
 
 1. Download the package for your platform. Extract the **whole archive** and start `MeowChan.exe` or `./MeowChan`, make the AppImage executable and run it, or open the DMG and drag `MeowChan.app` to Applications before launching it. [macOS first-launch guidance](docs/macos-signing.md)
 2. Set your download folder and media rules in Settings, then Save.
@@ -104,13 +104,13 @@ Desktop packages cover **Windows x64, Linux x64/ARM64 and macOS Intel/Apple Sili
 
 ### Choosing a Linux package
 
-Both `linux-x64` and `linux-arm64` have an AppImage and two archive variants. [All 1.1.1 packages](docs/releases/v1.1.1.md#downloads) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/SHA256SUMS)
+Both `linux-x64` and `linux-arm64` have an AppImage and two archive variants. [All 1.1.2 packages](docs/releases/v1.1.2.md#downloads) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/SHA256SUMS)
 
 | Filename suffix | VLC requirement |
 | --- | --- |
-| `MeowChan-1.1.1-<RID>.AppImage` | Includes VLC. Make it executable and run it. |
-| `MeowChan-1.1.1-<RID>-bundled-vlc.tar.gz` | Includes VLC. Extract the whole archive and run `./MeowChan`. |
-| `MeowChan-1.1.1-<RID>-system-vlc.tar.gz` | Install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
+| `MeowChan-1.1.2-<RID>.AppImage` | Includes VLC. Make it executable and run it. |
+| `MeowChan-1.1.2-<RID>-bundled-vlc.tar.gz` | Includes VLC. Extract the whole archive and run `./MeowChan`. |
+| `MeowChan-1.1.2-<RID>-system-vlc.tar.gz` | Install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
 
 Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
 
