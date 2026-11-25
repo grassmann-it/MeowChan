@@ -36,7 +36,7 @@ public sealed class ReaderReplyRestoreTests
                 ReaderArchiveTestFixture.Load(page, origin);
                 ListBox list = Posts(window);
                 ArchivePostRow parent = LoadTwoPages(page, window, list);
-                string? originalExcerpt = parent.Replies[0].ReplyExcerpt;
+                string originalExcerpt = parent.Replies[0].ReplyExcerpt;
                 Assert.Contains(FilteredText, parent.Replies[1].ReplyExcerpt);
 
                 Action? returnFromGallery = fromGallery ? page.CaptureGalleryOrigin() : null;
@@ -101,8 +101,18 @@ public sealed class ReaderReplyRestoreTests
 
     private static string Reply(string text) => $"<p><a href=\"#p100\" class=\"quotelink\">&gt;&gt;100</a> {text}</p>";
 
-    private static ListBox Posts(Window window) => window.GetVisualDescendants().OfType<ListBox>()
-        .Single(control => AutomationProperties.GetAutomationId(control) == "ArchivePosts");
+    private static ListBox Posts(Window window)
+    {
+        ListBox? list = null;
+        BooruComponentDispatcher.WaitUntil(() =>
+        {
+            window.UpdateLayout();
+            list = window.GetVisualDescendants().OfType<ListBox>()
+                .SingleOrDefault(control => AutomationProperties.GetAutomationId(control) == "ArchivePosts");
+            return list?.ItemsSource is ReaderPostRows;
+        }, "the reader list after layout");
+        return list!;
+    }
 
     private static ArchivePostRow Parent(ListBox list) =>
         list.Items.OfType<ArchivePostRow>().Single(row => row.Id == "100");
