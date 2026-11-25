@@ -589,6 +589,57 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         }
     });
 
+    [Fact]
+    public void RetargetingTheDetailButtonDuringDismissalOpensTheNewPluginsMenu() => OnUi(async () =>
+    {
+        using TempDirectory temp = new();
+        PluginManagementServices services = await TwoSourcePluginAsync(temp.Path, includeOneSource: true);
+        SourcesPage page = new();
+        PluginsPage plugins = page.PluginManagement;
+        plugins.Attach(services);
+        plugins.ApplyWorkView(WorkView.Advanced, true);
+        Window window = Show(page, 1280);
+        try
+        {
+            await page.ActivateAsync();
+            plugins.SetFilter(SourcesPluginsFilter.AllPlugins);
+            plugins.Select(TwoSourcePluginKey);
+            Layout(window);
+            Button more = Find<Button>(window, "PluginMoreActions");
+            Click(window, more);
+            ContextMenu original = Assert.IsType<ContextMenu>(plugins.PluginActionMenu);
+            Assert.True(original.IsOpen);
+            Point point = more.TranslatePoint(new Rect(more.Bounds.Size).Center, window)!.Value;
+            window.MouseDown(point, MouseButton.Left);
+            plugins.Select(OneSourcePluginKey);
+            Layout(window);
+            window.MouseUp(point, MouseButton.Left);
+            Layout(window);
+
+            ContextMenu replacement = Assert.IsType<ContextMenu>(plugins.PluginActionMenu);
+            Assert.True(replacement.IsOpen);
+            Assert.NotSame(original, replacement);
+            Assert.Same(more, replacement.PlacementTarget);
+            MenuItem entry = Assert.Single(replacement.Items.OfType<MenuItem>(),
+                item => AutomationProperties.GetAutomationId(item) == "plugins.watches");
+            Assert.Empty(entry.Items);
+            PressAtFocus(window, Key.Escape);
+            Assert.False(replacement.IsOpen);
+
+            Button watches = Find<Button>(window, "PluginWatches");
+            Assert.False(watches.Focusable);
+            List<string> opened = [];
+            plugins.OpenSourceWatches = opened.Add;
+            await plugins.ExecuteSelectedPluginActionAsync("plugins.watches");
+            Assert.Equal(TwoSourcePluginSource + "-c", Assert.Single(opened));
+        }
+        finally
+        {
+            window.Close();
+            page.EndLifetime();
+        }
+    });
+
     [Theory]
     [InlineData(ShortcutPlatform.MacOS, KeyModifiers.Meta)]
     [InlineData(ShortcutPlatform.Windows, KeyModifiers.Control)]
@@ -713,10 +764,11 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
     });
 
     private const string TwoSourcePluginKey = "toggle-two-sources";
+    private const string OneSourcePluginKey = "toggle-one-source";
     private const string TwoSourcePluginSource = "toggle-source";
 
     // Passive catalog data over the real profile store: nothing is compiled, described or started.
-    private static async Task<PluginManagementServices> TwoSourcePluginAsync(string root)
+    private static async Task<PluginManagementServices> TwoSourcePluginAsync(string root, bool includeOneSource = false)
     {
         Directory.CreateDirectory(root);
         PluginProfileStore store = new(root);
@@ -732,14 +784,26 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         PluginDescription description = new("toggle.two-sources", "Two fixture sources", "1.0.0", SdkContract.Version,
             "Reads two fixture sites.", new[] { Source("a"), Source("b") }, Array.Empty<FilterDescription>(), empty,
             Array.Empty<InformationEntry>());
-        string hash = new('a', 64), path = Path.Combine(root, "two-sources.cs");
-        PluginArtifact artifact = new(hash, hash, Path.Combine(root, hash + ".dll"), hash, hash, hash, Array.Empty<PluginArtifactResource>());
-        await store.ApplyStartupAsync(new[] { new PluginCandidateObservation(TwoSourcePluginKey, description.PluginId, artifact, description, CandidatePath: path) }, 0);
-        return new(store, new UnusedCompiler(),
-            new FixedInventory(new PluginInstallationCandidate(TwoSourcePluginKey, path, PluginCandidateKind.Source, 100, Array.Empty<PluginBuildDiagnostic>())),
+        List<PluginCandidateObservation> observations = [];
+        List<PluginInstallationCandidate> installations = [];
+        Add(TwoSourcePluginKey, description, 'a');
+        if (includeOneSource)
+            Add(OneSourcePluginKey, description with {
+                PluginId = "toggle.one-source", Name = "One fixture source", Sources = [Source("c")]
+            }, 'b');
+        await store.ApplyStartupAsync(observations, 0);
+        return new(store, new UnusedCompiler(), new FixedInventory(installations.ToArray()),
             root, (_, _) => throw new InvalidOperationException("The menu test described a worker."),
             (_, _, _) => throw new InvalidOperationException("The menu test started a worker."),
             (_, _, _, _, _) => throw new InvalidOperationException("The menu test probed a site."));
+
+        void Add(string key, PluginDescription plugin, char digit)
+        {
+            string hash = new(digit, 64), path = Path.Combine(root, key + ".cs");
+            PluginArtifact artifact = new(hash, hash, Path.Combine(root, hash + ".dll"), hash, hash, hash, Array.Empty<PluginArtifactResource>());
+            observations.Add(new(key, plugin.PluginId, artifact, plugin, CandidatePath: path));
+            installations.Add(new(key, path, PluginCandidateKind.Source, 100, Array.Empty<PluginBuildDiagnostic>()));
+        }
     }
 
     private sealed class FixedInventory(params PluginInstallationCandidate[] candidates) : IPluginInstallationInventory

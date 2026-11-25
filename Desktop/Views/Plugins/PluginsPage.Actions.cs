@@ -291,7 +291,7 @@ public partial class PluginsPage
     {
         if (_ended || IsDiscardConfirmationOpen || !IsEffectivelyVisible || _catalog == null
             || _catalog.Entries.FirstOrDefault(entry => entry.Key == key) is not { } entry || !Included(entry)) return;
-        if (anchor == null && (TryClosePluginMenu(origin, key, openerCommand) || DismissedByOwnOpener(origin))) return;
+        if (anchor == null && TryClosePluginMenu(origin, key, openerCommand)) return;
         ClosePluginActionMenu();
         // Inspecting another row while busy must not call SelectCore, which cancels the operation.
         if (!_busy && _selectedKey != key) SelectCore(key, openDetails: false);
@@ -370,7 +370,7 @@ public partial class PluginsPage
 
     private void OpenPluginSourcesMenu(PluginActionTarget target, Control origin)
     {
-        if (TryClosePluginMenu(origin, target.Key, "plugins.watches") || DismissedByOwnOpener(origin)) return;
+        if (TryClosePluginMenu(origin, target.Key, "plugins.watches")) return;
         ClosePluginActionMenu();
         ContextMenuBuilder builder = new ContextMenuBuilder();
         int index = 0;
@@ -414,14 +414,14 @@ public partial class PluginsPage
     private bool TryClosePluginMenu(Control origin, string key, string command)
     {
         if (PluginActionMenu is not { IsOpen: true } menu || !ReferenceEquals(menu.PlacementTarget, origin)
-            || _pluginMenuTarget?.Key != key || (_pluginMenuCommand == "plugins.watches") != (command == "plugins.watches")) return false;
+            || _pluginMenuTarget?.Key != key || (_pluginMenuCommand == "plugins.watches") != (command == "plugins.watches"))
+        {
+            // A click can follow the light-dismiss press after the shared button has another target.
+            return origin is Button button && PopupToggle.ConsumeAnchorPress(button, (key, command));
+        }
         ClosePluginActionMenu(restoreFocus: true);
         return true;
     }
-
-    // The press on the opener already light-dismissed its menu (Closed forgot it): the click of the same press only closes.
-    // Only that button's own menu records the press, so another plugin, row or command still opens its menu.
-    private static bool DismissedByOwnOpener(Control origin) => origin is Button opener && PopupToggle.ConsumeAnchorPress(opener);
 
     private void OpenPreparedPluginMenu(ContextMenu menu, PluginActionTarget target, Control origin, string command, Point? anchor = null)
     {
@@ -479,7 +479,7 @@ public partial class PluginsPage
             if (restore) RestorePluginMenuFocus(returnKey, returnOrigin);
         };
         // Explicit Open bypasses Opening in Avalonia 12: all items and targets are ready now.
-        if (origin is Button button) PopupToggle.Track(button, menu);
+        if (origin is Button button) PopupToggle.Track(button, menu, (target.Key, command));
         menu.Open(origin);
     }
 
