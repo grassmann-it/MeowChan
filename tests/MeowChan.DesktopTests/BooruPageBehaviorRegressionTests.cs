@@ -2,7 +2,6 @@ using Avalonia.Controls;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
-using MeowChan.Desktop.Localization;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
@@ -11,14 +10,8 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class BooruPageBehaviorRegressionTests
 {
-    public BooruPageBehaviorRegressionTests()
-    {
-        Texts.Initialize();
-        Texts.SetLanguage("en");
-    }
-
     [Fact]
-    public async Task ShowQueryBeforeAndAfterActivationOnlyChangesTheRealDraft()
+    public void ShowQueryBeforeAndAfterActivationOnlyChangesTheRealDraft() => BooruComponentDispatcher.Run(async () =>
     {
         BooruUiHarness harness = new();
         using BooruPage page = new(harness.Services);
@@ -48,5 +41,5 @@ public sealed class BooruPageBehaviorRegressionTests
         Assert.Equal(0, harness.ProviderRequests);
         // Activation may read the local watcher list once; it must not search or check a provider.
         Assert.Equal(1, harness.Watchers.Calls.Count(call => call == "list"));
-    }
+    });
 }
