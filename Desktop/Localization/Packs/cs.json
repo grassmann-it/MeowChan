@@ -5561,6 +5561,7 @@
     "booru.tabs.searchCurrentShort": "Na aktuální kartě",
     "booru.tabs.watchShort": "Sledovat",
     "booru.tabs.downloadShort": "Stáhnout vše",
+    "booru.tabs.moreActions": "Další akce",
     "booru.tabs.command.submit": "Spustit hledání v Booru",
     "booru.tabs.command.alternate": "Spustit hledání v Booru na nové kartě",
     "settings.booru.newSearchTarget": "Nové hledání se otevře v",

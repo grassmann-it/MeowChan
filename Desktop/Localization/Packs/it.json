@@ -5511,6 +5511,7 @@
     "booru.tabs.searchCurrentShort": "In questa scheda",
     "booru.tabs.watchShort": "Segui",
     "booru.tabs.downloadShort": "Scarica tutto",
+    "booru.tabs.moreActions": "Altre azioni",
     "booru.tabs.command.submit": "Avvia la ricerca su Booru",
     "booru.tabs.command.alternate": "Avvia la ricerca Booru in una nuova scheda",
     "settings.booru.newSearchTarget": "Apri le nuove ricerche in",

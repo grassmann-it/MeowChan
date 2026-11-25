@@ -5539,6 +5539,7 @@
     "booru.tabs.searchCurrentShort": "В текущей вкладке",
     "booru.tabs.watchShort": "Отслеживать",
     "booru.tabs.downloadShort": "Скачать всё",
+    "booru.tabs.moreActions": "Другие действия",
     "booru.tabs.command.submit": "Запустить поиск в Booru",
     "booru.tabs.command.alternate": "Запустить поиск в Booru в новой вкладке",
     "settings.booru.newSearchTarget": "Открывать новый поиск в",

@@ -367,9 +367,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _next.Click += async (_, _) => await ChangePageAsync(1, fromPagerButton: true);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
-        SearchToolbar searchToolbar = new(_mode, _input, _submit, BuildSearchTabActions());
-
-        AutomationProperties.SetAutomationId(searchToolbar, "BooruSearchToolbar");
+        SearchToolbar searchToolbar = BuildSearchToolbar();
         StackPanel status = new() { Spacing = 8 };
         status.Children.Add(_statusText);
         status.Children.Add(_retry);
@@ -564,6 +562,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _inputIssue.IsVisible = invalid;
 
         RenderSearchActions(view);
+        RenderSearchOverflow();
         _cancel.Content = Texts.T("booru.ui.cancel");
         _cancel.IsVisible = view.IsBusy;
 

@@ -5395,6 +5395,7 @@
     "booru.tabs.searchCurrentShort": "このタブで検索",
     "booru.tabs.watchShort": "監視",
     "booru.tabs.downloadShort": "すべてダウンロード",
+    "booru.tabs.moreActions": "その他の操作",
     "booru.tabs.command.submit": "Booru 検索を実行",
     "booru.tabs.command.alternate": "Booru 検索を新しいタブで実行",
     "settings.booru.newSearchTarget": "新しい検索を開く場所",

@@ -5562,6 +5562,7 @@
     "booru.tabs.searchCurrentShort": "W tej karcie",
     "booru.tabs.watchShort": "Obserwuj",
     "booru.tabs.downloadShort": "Pobierz wszystko",
+    "booru.tabs.moreActions": "Więcej akcji",
     "booru.tabs.command.submit": "Uruchom wyszukiwanie w Booru",
     "booru.tabs.command.alternate": "Uruchom wyszukiwanie Booru w nowej karcie",
     "settings.booru.newSearchTarget": "Otwieraj nowe wyniki wyszukiwania w",

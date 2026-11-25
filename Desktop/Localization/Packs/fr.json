@@ -5505,6 +5505,7 @@
     "booru.tabs.searchCurrentShort": "Dans cet onglet",
     "booru.tabs.watchShort": "Surveiller",
     "booru.tabs.downloadShort": "Tout télécharger",
+    "booru.tabs.moreActions": "Autres actions",
     "booru.tabs.command.submit": "Lancer la recherche Booru",
     "booru.tabs.command.alternate": "Lancer la recherche Booru dans un nouvel onglet",
     "settings.booru.newSearchTarget": "Ouvrir les nouvelles recherches dans",

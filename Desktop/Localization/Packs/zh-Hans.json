@@ -5395,6 +5395,7 @@
     "booru.tabs.searchCurrentShort": "在当前标签页搜索",
     "booru.tabs.watchShort": "关注",
     "booru.tabs.downloadShort": "全部下载",
+    "booru.tabs.moreActions": "更多操作",
     "booru.tabs.command.submit": "开始 Booru 搜索",
     "booru.tabs.command.alternate": "在新标签页中发起 Booru 搜索",
     "settings.booru.newSearchTarget": "新搜索打开位置",

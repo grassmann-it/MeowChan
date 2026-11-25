@@ -5511,6 +5511,7 @@
     "booru.tabs.searchCurrentShort": "Nesta aba",
     "booru.tabs.watchShort": "Monitorar",
     "booru.tabs.downloadShort": "Baixar tudo",
+    "booru.tabs.moreActions": "Mais ações",
     "booru.tabs.command.submit": "Iniciar pesquisa no Booru",
     "booru.tabs.command.alternate": "Iniciar busca no Booru em uma nova aba",
     "settings.booru.newSearchTarget": "Abrir novas pesquisas em",

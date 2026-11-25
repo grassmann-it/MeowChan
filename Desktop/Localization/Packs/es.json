@@ -5505,6 +5505,7 @@
     "booru.tabs.searchCurrentShort": "En esta pestaña",
     "booru.tabs.watchShort": "Seguir",
     "booru.tabs.downloadShort": "Descargar todo",
+    "booru.tabs.moreActions": "Más acciones",
     "booru.tabs.command.submit": "Iniciar la búsqueda en Booru",
     "booru.tabs.command.alternate": "Buscar en Booru en una pestaña nueva",
     "settings.booru.newSearchTarget": "Abrir las búsquedas nuevas en",

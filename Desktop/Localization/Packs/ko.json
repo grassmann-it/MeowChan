@@ -5395,6 +5395,7 @@
     "booru.tabs.searchCurrentShort": "이 탭에서 검색",
     "booru.tabs.watchShort": "감시",
     "booru.tabs.downloadShort": "모두 다운로드",
+    "booru.tabs.moreActions": "추가 작업",
     "booru.tabs.command.submit": "Booru 검색 실행",
     "booru.tabs.command.alternate": "새 탭에서 Booru 검색 실행",
     "settings.booru.newSearchTarget": "새 검색을 열 위치",

@@ -148,24 +148,6 @@ internal sealed partial class BooruWorkbenchView
         return null;
     }
 
-    private WrapPanel BuildSearchTabActions()
-    {
-        AutomationProperties.SetAutomationId(_alternateSubmit, AlternateSubmitName);
-        CommandBindings.EnsureIconBeforeText(_alternateSubmit, "plus");
-        _alternateSubmit.Click += async (_, _) => await SubmitSearchAsync(alternate: true);
-        _downloadAll.Click += async (_, _) =>
-        {
-            if (_model.Search.Bulk.IsRunning) _model.Search.CancelBulk();
-            else await _model.Search.DownloadAllAsync();
-        };
-        _bulkHost.Child = _bulkText;
-        AutomationProperties.SetLiveSetting(_bulkText, AutomationLiveSetting.Polite);
-        WrapPanel actions = new() { Name = "BooruSearchActions", Classes = { "workspace-toolbar" },
-            Children = { _alternateSubmit, _createWatcher, _downloadAll, _cancel } };
-        AutomationProperties.SetAutomationId(actions, actions.Name);
-        return actions;
-    }
-
     private Control BuildBulkStatus() => _bulkHost;
 
     // ---- result line and pager under the results, view switch with labels --------------------------------
