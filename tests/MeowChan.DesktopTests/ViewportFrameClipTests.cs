@@ -146,7 +146,10 @@ public sealed class ViewportFrameClipTests
             {
                 Control first = Find<Border>(view, "BooruResult:1");
                 Control second = Find<Border>(view, "BooruResult:2");
-                int lowerRow = 2 * view.TilePanel!.Columns + 1;
+                // The first tile of the row below the second tile: the footer is no longer inside the scroll content,
+                // so the last row cannot be scrolled past the viewport top.
+                int columns = view.TilePanel!.Columns;
+                int lowerRow = (1 / columns + 1) * columns + 1;
                 Control clipped = Find<Border>(view, "BooruResult:" + lowerRow);
                 CheckBooruTileFocus(window, scroll, viewport, first, second, clipped, decoration == BooruDecoration.FocusBottom);
                 return;
