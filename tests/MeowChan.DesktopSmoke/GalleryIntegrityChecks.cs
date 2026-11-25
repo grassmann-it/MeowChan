@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -79,21 +80,31 @@ internal static class GalleryIntegrityChecks
                     AssertVisibleText(line, viewer);
                 }
                 AssertNoRawValues(viewer, binding);
-                Rect caption = Bounds(Find<Border>(viewer, "GalleryOverlayInfo"), viewer);
-                Rect contextBounds = Bounds(context, viewer), chrome = Bounds(Find<Border>(viewer, "GalleryOverlayControls"), viewer);
-                Require(!Overlaps(caption, contextBounds) && !Overlaps(chrome, contextBounds),
-                    "Gallery provenance caption or toolbar overlaps the context panel.");
                 string cell = language + "-" + theme.ToString().ToLowerInvariant();
+                string scaleKey = expectedScale.ToString("0.0##", CultureInfo.InvariantCulture).Replace('.', '_');
+                Program.CaptureWindow(window, "smoke-gallery-integrity-" + scaleKey + "-" + cell + ".png");
+                Border caption = Find<Border>(viewer, "GalleryOverlayInfo");
+                Border chrome = Find<Border>(viewer, "GalleryOverlayControls");
+                Rect contextBounds = VisibleBounds(context, viewer, Bounds(context, viewer));
+                var captionText = caption.GetVisualDescendants().OfType<TextBlock>()
+                    .Where(line => line.IsEffectivelyVisible && !string.IsNullOrEmpty(line.Text))
+                    .SelectMany(line => TextBounds(line, viewer).Select(bounds => Probe(window, viewer, contextBounds, line, bounds)))
+                    .ToArray();
+                var toolbar = chrome.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible)
+                    .Select(button => Probe(window, viewer, contextBounds, button, VisibleBounds(button, viewer, Bounds(button, viewer))))
+                    .ToArray();
                 Console.WriteLine("GALLERY_INTEGRITY_GUI " + JsonSerializer.Serialize(new
                 {
                     cell, sourceDigest = Environment.GetEnvironmentVariable("MEOWCHAN_SOURCE_DIGEST"), actualScale = window.RenderScaling,
-                    client = window.ClientSize.ToString(), gallery = viewer.Bounds.ToString(), caption = caption.ToString(),
-                    chrome = chrome.ToString(), context = contextBounds.ToString(), summary = State(summary, viewer),
-                    local = State(local, viewer), provider = State(provider, viewer), rawValuesHidden = true,
+                    client = window.ClientSize.ToString(), gallery = viewer.Bounds.ToString(), caption = Bounds(caption, viewer).ToString(),
+                    chrome = Bounds(chrome, viewer).ToString(), context = contextBounds.ToString(), summary = State(summary, viewer),
+                    local = State(local, viewer), provider = State(provider, viewer), captionText, toolbar, rawValuesHidden = true,
                     assetId = selected.Asset.AssetId, revision = binding.Reference.RevisionKey
                 }));
-                string scaleKey = expectedScale.ToString("0.0##", CultureInfo.InvariantCulture).Replace('.', '_');
-                Program.CaptureWindow(window, "smoke-gallery-integrity-" + scaleKey + "-" + cell + ".png");
+                ElementProbe? obscured = captionText.Concat(toolbar).FirstOrDefault(probe => probe.Overlap != null
+                    || probe is { NeedsPointer: true, ReachesElement: false });
+                Require(captionText.Length > 0 && toolbar.Length > 0 && obscured == null,
+                    $"Gallery caption text or toolbar action is obscured with the context open in {cell}: {obscured}.");
                 // Open the genuine media menu and its genuine DetailsRequested action.
                 SetContext(viewer, false); await Settle(window);
                 Grid viewport = Find<Grid>(viewer, "GalleryViewport");
@@ -225,12 +236,7 @@ internal static class GalleryIntegrityChecks
     }
     private static void AssertVisibleText(TextBlock text, GalleryViewer viewer)
     {
-        Rect bounds = Bounds(text, viewer), visible = bounds;
-        foreach (Control ancestor in text.GetVisualAncestors().OfType<Control>())
-        {
-            if (ancestor.ClipToBounds) visible = visible.Intersect(Bounds(ancestor, viewer));
-            if (ReferenceEquals(ancestor, viewer)) break;
-        }
+        Rect bounds = Bounds(text, viewer), visible = VisibleBounds(text, viewer, bounds);
         Require(text.IsEffectivelyVisible && bounds.Width > 0 && bounds.Height > 0
             && text.TextLayout.WidthIncludingTrailingWhitespace <= bounds.Width + 1 && text.TextLayout.Height <= bounds.Height + 1
             && visible.Width >= bounds.Width - 1 && visible.Height >= bounds.Height - 1
@@ -241,13 +247,58 @@ internal static class GalleryIntegrityChecks
         layoutWidth = text.TextLayout.WidthIncludingTrailingWhitespace, layoutHeight = text.TextLayout.Height, text.IsEffectivelyVisible };
     private static Rect Bounds(Control control, Control root) => control.TranslatePoint(default, root) is { } point
         ? new Rect(point, control.Bounds.Size) : throw new InvalidOperationException("Gallery control has no root coordinates.");
-    private static bool Overlaps(Rect first, Rect second) { Rect area = first.Intersect(second); return area.Width > 1 && area.Height > 1; }
+    private static Rect VisibleBounds(Control control, GalleryViewer viewer, Rect bounds)
+    {
+        if (!control.IsEffectivelyVisible) return default;
+        Rect visible = bounds.Intersect(new Rect(viewer.Bounds.Size));
+        foreach (Visual ancestor in control.GetVisualAncestors())
+        {
+            if (ReferenceEquals(ancestor, viewer)) break;
+            if (ancestor is Control clip && clip.ClipToBounds) visible = visible.Intersect(Bounds(clip, viewer));
+        }
+        return visible;
+    }
+
+    private static IEnumerable<Rect> TextBounds(TextBlock text, GalleryViewer viewer)
+    {
+        Rect control = Bounds(text, viewer);
+        Point origin = control.Position + new Vector(text.Padding.Left, text.Padding.Top);
+        double top = origin.Y;
+        foreach (var line in text.TextLayout.TextLines)
+        {
+            Rect bounds = new(origin.X + line.Start, top, line.Width, line.Height);
+            Rect visible = VisibleBounds(text, viewer, bounds.Intersect(control));
+            if (visible.Width > 0 && visible.Height > 0) yield return visible;
+            top += line.Height;
+        }
+    }
+
+    private sealed record ElementProbe(string Element, string Bounds, bool NeedsPointer, bool ReachesElement,
+        string? CenterHit, string? Overlap, string? OverlapHit);
+
+    private static ElementProbe Probe(Window window, GalleryViewer viewer, Rect context, Control element, Rect visible)
+    {
+        Visual? Hit(Point point) => viewer.TranslatePoint(point, window) is Point translated
+            ? window.InputHitTest(translated, enabledElementsOnly: false) as Visual : null;
+        static string? HitName(Visual? hit) => hit?.GetSelfAndVisualAncestors().OfType<Control>()
+            .Select(control => AutomationProperties.GetAutomationId(control) ?? control.Name)
+            .FirstOrDefault(name => !string.IsNullOrEmpty(name));
+
+        Rect area = visible.Intersect(context);
+        bool overlaps = area.Width > 1 && area.Height > 1;
+        Visual? center = visible.Width > 0 && visible.Height > 0 ? Hit(visible.Center) : null;
+        return new(AutomationProperties.GetAutomationId(element) ?? element.Name ?? (element as TextBlock)?.Text ?? element.GetType().Name,
+            visible.ToString(), element is Button { IsEffectivelyEnabled: true },
+            center?.GetSelfAndVisualAncestors().Contains(element) == true, HitName(center),
+            overlaps ? area.ToString() : null, overlaps ? HitName(Hit(area.Center)) : null);
+    }
+
     private static void SetContext(GalleryViewer viewer, bool open)
     {
         if (viewer.CaptureState().ContextOpen != open) Find<Button>(viewer, "GalleryToggleContext").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
     private static T Find<T>(GalleryViewer viewer, string name) where T : Control =>
-        viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => control.Name == name);
+        viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => (AutomationProperties.GetAutomationId(control) ?? control.Name) == name);
     private static async Task Settle(Window window) => await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }
