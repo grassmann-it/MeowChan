@@ -132,6 +132,8 @@ public sealed class SidebarPreviewVerificationTests
         using var run = MeowChan.Diagnostics.PerformanceDiagnostics.BeginRun("oversized-sidebar", "fixture", "png");
         await Assert.ThrowsAsync<GalleryPreviewTooLargeException>(Decode);
         await Assert.ThrowsAsync<GalleryPreviewTooLargeException>(Decode);
+        await Assert.ThrowsAsync<GalleryPreviewTooLargeException>(() => GalleryImageDecoder.DecodePreviewAsync(entry,
+            new GalleryDecodeRequest.Fit(40, 40), Config.SidebarPreviewMaximumPixelsDefault, null, CancellationToken.None, background: true));
         Assert.Single(run.Snapshot().Events, e => e.Phase == "media.original.verify" && e.Outcome == "verified" && e.Asset == entry.Asset.AssetId);
         bytes[^1] ^= 1;
         await File.WriteAllBytesAsync(media.Asset.Path, bytes);

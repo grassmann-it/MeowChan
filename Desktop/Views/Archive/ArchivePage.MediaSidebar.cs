@@ -1054,8 +1054,9 @@ public partial class ArchivePage
         await ReaderMediaSidebarRules.PreloadNeighboursAsync(neighbours.Select(neighbour => neighbour.ResolveEntry), async (entry, ct) =>
         {
             if (entry.Kind != SavedMediaKind.Image) return;
-            (Bitmap bitmap, _) = await GalleryImageCache.DecodeThrough(GalleryImageCache.Shared, GalleryImageDecoder.DecodeBackgroundAsync,
-                entry, fit, ct);
+            (Bitmap bitmap, _) = await GalleryImageCache.DecodeThrough(GalleryImageCache.Shared,
+                (saved, request, cancel) => GalleryImageDecoder.DecodePreviewAsync(saved, request, _sidebarFit.PreviewMaximumPixels,
+                    null, cancel, background: true), entry, fit, ct);
             GalleryImageCache.Shared.Release(bitmap);
         }, token);
     }
