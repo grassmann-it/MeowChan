@@ -24,7 +24,7 @@ namespace MeowChan.Desktop.Booru;
 internal sealed class BooruMediaSidebar : Grid, IDisposable
 {
     private const double Inset = 8;
-    private const double TagHeight = 128;
+    private const double TagRoom = 96;
     private const double FactsHeight = 112;
     private const int PreviewEdge = 512;
 
@@ -48,7 +48,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     private readonly ScrollViewer _facts = new()
     {
         Name = "BooruMediaFacts", MaxHeight = FactsHeight, Margin = new Thickness(Inset, 0),
-        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto
     };
     private readonly BooruGallerySampleLoader _sample = new();
     private readonly List<Visual> _visibilityAncestors = new();
@@ -76,8 +76,8 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     internal PanelActionStack Actions { get; } = new("BooruMediaActions") { Margin = new Thickness(Inset, 0) };
     internal ScrollViewer Tags { get; } = new()
     {
-        Name = "BooruMediaTags", MaxHeight = TagHeight, Margin = new Thickness(Inset, 0), Focusable = true, IsTabStop = true,
-        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        Name = "BooruMediaTags", Margin = new Thickness(Inset, 0), Focusable = true, IsTabStop = true,
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto
     };
 
     internal BooruMediaSidebar()
@@ -85,7 +85,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         Name = "BooruMediaSidebar";
         IsVisible = false;
         Margin = new Thickness(Inset, 0, 0, 0);
-        RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto,Auto");
+        RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*,Auto");
         RowSpacing = Inset;
         ClipToBounds = true;
         _header = new MediaCompactHeader(_title, _position, _favorite, Info, open: null, settings: null, close: Close)
@@ -298,7 +298,6 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         double width = Math.Min(Width, availableSize.Width);
         if (!double.IsFinite(width)) width = Config.MediaPanelWidthDefault;
         double room = Math.Max(0, width - 2 * Inset);
-        OpenGallery.MaxHeight = width / _aspect;
         double extra = room - _actionLabels.Count * WorkspaceMetrics.InputHeight - Math.Max(0, _actionLabels.Count - 1) * Actions.ItemSpacing;
         foreach (var (button, label) in _actionLabels)
         {
@@ -312,6 +311,15 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
             button.Padding = showLabel ? new Thickness(Inset, 0) : default;
             if (showLabel) extra -= added;
         }
+
+        Size row = new(width, double.PositiveInfinity);
+        _header.Measure(row);
+        Actions.Measure(row);
+        _localActions.Measure(row);
+        _facts.Measure(row);
+        double bars = _header.DesiredSize.Height + Actions.DesiredSize.Height
+            + _localActions.DesiredSize.Height + _facts.DesiredSize.Height + 5 * RowSpacing;
+        OpenGallery.Height = Math.Min(width / _aspect, Math.Max(0, availableSize.Height - bars - TagRoom));
         return base.MeasureOverride(availableSize);
     }
 

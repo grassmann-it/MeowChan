@@ -497,8 +497,10 @@ public sealed class BooruMediaSidebarTests
     {
         Point point = control.TranslatePoint(new Rect(control.Bounds.Size).Center, window)!.Value;
         Visual? hit = window.InputHitTest(point) as Visual;
+        Control? target = hit?.GetSelfAndVisualAncestors().OfType<Control>()
+            .FirstOrDefault(ancestor => AutomationProperties.GetAutomationId(ancestor) != null);
         Assert.True(hit is not null && hit.GetSelfAndVisualAncestors().Contains(control),
-            $"Pointer at {point} hit {hit} instead of {control.Name}.");
+            $"Pointer at {point} hit {hit} in {target?.Name} instead of {control.Name} at {In(control, window)}.");
         window.MouseDown(point, MouseButton.Left, modifiers);
         window.MouseUp(point, MouseButton.Left, modifiers);
         Settle(window);
