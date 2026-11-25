@@ -34,6 +34,12 @@ public partial class ArchivePage
         if (PopupToggle.ConsumeActivation(anchor)) return;
         if (ReferenceEquals(anchor, ReaderToolbar.More)) ReaderToolbar.More!.IsChecked = false;
         ContextMenu menu = BuildReaderThreadMenu();
+        menu.AddHandler(KeyDownEvent, (_, key) =>
+        {
+            if (!PopupToggle.CanToggleMenuFromKey(menu, key) || !ShortcutService.Current.Matches(key, "reader.thread-menu", "reader")) return;
+            key.Handled = true;
+            menu.Close();
+        }, RoutingStrategies.Tunnel);
         menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         anchor.ContextMenu = menu;
         PopupToggle.Track(anchor, menu);
@@ -127,6 +133,7 @@ public partial class ArchivePage
     private void InitializeReaderThreadKeys()
     {
         PopupToggle.Prepare(ReaderThreadOpen);
+        CommandBindings.ObservePresentation(ReaderThreadOpen, UpdateReaderThreadActions);
         InitializeToolbarPopupAnchor(ReaderToolbar);
         ArchiveReaderPane.AddHandler(KeyDownEvent, (_, e) => TryRouteReaderThreadKey(e), RoutingStrategies.Bubble);
     }
@@ -138,6 +145,13 @@ public partial class ArchivePage
     internal bool TryRouteReaderThreadKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key) || IsReaderDialogOpen || _ended || _thread == null) return false;
+        if (CommandBindings.Matches(e, "reader.thread-menu") && ReaderThreadOpen.IsEffectivelyEnabled
+            && CommandRouter.IsRoutingContextActive(ArchiveReaderPane, e.Source))
+        {
+            e.Handled = true;
+            OnReaderThreadMenuClick(ReaderThreadOpen, e);
+            return true;
+        }
         if (CommandBindings.Matches(e, "thread.show-in-media"))
         {
             e.Handled = true;
