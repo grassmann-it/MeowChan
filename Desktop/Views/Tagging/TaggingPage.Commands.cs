@@ -81,9 +81,12 @@ public sealed partial class TaggingPage
         for (int i = 0; i < stops.Length; i++) stops[i].TabIndex = 2 * i;
         _actions.TemplateApplied += (_, _) =>
         {
-            if (_actions.More is { } more) more.TabIndex = _filter.TabIndex + 1;
+            if (_actions.More is not { } more) return;
+            more.TabIndex = _filter.TabIndex + 1;
+            AutomationProperties.SetAutomationId(more, "tagging.actions.more");
         };
         // The error banner's "Retry" reads the queue file again (RetryLoadAsync is a no-op unless the page may reload now).
+        AutomationProperties.SetAutomationId(_retryLoad, "tagging.retry");
         _retryLoad.Click += (_, _) => OpenActions.Start(RetryLoadAsync, "tagging.retry");
         _clearYes.Click += async (_, _) => await ClearAllAsync();
         _clearNo.Click += (_, _) => CloseClearQuestion(focusClear: true);

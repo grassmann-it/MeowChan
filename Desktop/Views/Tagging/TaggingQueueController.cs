@@ -172,9 +172,10 @@ internal sealed class TaggingQueueController
         return RunAsync(() => _host.ClearTagQueueAsync(finishedOnly: true), _ => Texts.T("tagging.page.clearedDone", done));
     }
 
-    /// <summary>Empties the queue, with recovery of an unreadable file only after reset confirmation.</summary>
+    /// <summary>Empties the queue or, after reset confirmation, resets it if it is still unreadable.</summary>
     internal Task<bool> ClearAllAsync(bool resetDamaged) =>
-        RunAsync(() => _host.ClearTagQueueAsync(resetDamaged: resetDamaged), _ => Texts.T("tagging.page.cleared"), allowDamaged: resetDamaged);
+        RunAsync(() => _host.ClearTagQueueAsync(resetDamaged: resetDamaged),
+            queue => queue.CanWrite && queue.Count == 0 ? Texts.T("tagging.page.cleared") : null, allowDamaged: resetDamaged);
 
     /// <summary>Puts the walk's cursor on an entry ("continue here"); no sentence, the gallery opens next.</summary>
     internal Task<bool> SetCursorAsync(int index) => index == Queue.Cursor ? Task.FromResult(true)
