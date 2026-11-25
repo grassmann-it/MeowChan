@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
@@ -31,13 +33,26 @@ public partial class MainWindow
             button.IsChecked = false;
             return;
         }
-        ContextMenu menu = BuildDownloadColumnsMenu(DownloadsTabs.SelectedIndex == 1 ? "BoardsDataGrid" : "ThreadsDataGrid");
+        bool boards = DownloadsTabs.SelectedIndex == 1;
+        ContextMenu menu = BuildDownloadColumnsMenu(boards ? "BoardsDataGrid" : "ThreadsDataGrid");
+        // Barebones and Simple keep "Columns" under "More": with that list closed the button is not on screen, and the shortcut
+        // opens the menu at the visible "More" of the same bar (or at the table when the bar shows no "More").
+        Control anchor = DownloadColumnsAnchor(button, boards);
+        if (!ReferenceEquals(anchor, button))
+        {
+            menu.PlacementTarget = anchor;
+            menu.Placement = PlacementMode.AnchorAndGravity;
+            bool table = anchor is DataGrid;
+            menu.PlacementAnchor = table ? PopupAnchor.TopRight : PopupAnchor.BottomRight;
+            menu.PlacementGravity = PopupGravity.BottomLeft;
+        }
         button.ContextMenu = menu;
         menu.Closed += (_, _) =>
         {
             if (!ReferenceEquals(button.ContextMenu, menu)) return;
             button.ContextMenu = null;
             button.IsChecked = false;
+            ReturnFocusFromDownloadColumns(anchor);
         };
         menu.AddHandler(InputElement.KeyDownEvent, (_, key) =>
         {
@@ -51,6 +66,26 @@ public partial class MainWindow
         menu.Open(button);
         button.IsChecked = menu.IsOpen;
     }
+
+    private Control DownloadColumnsAnchor(Button button, bool boards)
+    {
+        static bool OnScreen(Control control) => control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
+        if (OnScreen(button)) return button;
+        return WorkspaceListActions.More is { } more && OnScreen(more) ? more : DownloadList(boards);
+    }
+
+    // The buttons of the bar take no focus: a closed column menu leaves the keyboard in the table it arranges, unless the
+    // focus already went to another control on purpose (a click into a field, a chosen entry's own target).
+    private void ReturnFocusFromDownloadColumns(Control anchor) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+    {
+        if (_isClosing || DownloadsColumnsButton.ContextMenu != null || _selectedPage != WorkspacePage.Downloads) return;
+        DataGrid list = DownloadList(DownloadsTabs.SelectedIndex == 1);
+        if (list.IsKeyboardFocusWithin || !list.IsEffectivelyVisible) return;
+        if (FocusManager?.GetFocusedElement() is Avalonia.Visual focused && focused.IsAttachedToVisualTree()
+            && !ReferenceEquals(focused, anchor) && !focused.IsVisualAncestorOf(anchor)
+            && !WorkspaceListActions.IsVisualAncestorOf(focused)) return;
+        list.Focus();
+    }, Avalonia.Threading.DispatcherPriority.Input);
 
     // A right-click on a column header of either downloads table opens the same column menu as the "Columns" button; the keyboard
     // can run the column command separately. Rows keep their own menu (MainWindow.Selection.cs).
