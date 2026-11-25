@@ -30,9 +30,13 @@ Die folgenden Tasten sind die Standardbelegungen der Galerie; eigene gespeichert
 | **M** | Aktuelles Medium ausdrücklich als Favorit aufnehmen |
 | **U** | Favoritenmarkierung des aktuellen Mediums ausdrücklich entfernen |
 | **F** | Favoritenmarkierung umschalten; bei einem gespeicherten Favoriten fragt die Galerie vor dem Entfernen nach |
-| **↑ / ↓** | Videolautstärke erhöhen oder verringern, nur bei verfügbarer Tonwiedergabe |
+| **Strg/⌘+0** / **Z** | Medium einpassen oder in Originalgröße (1:1) anzeigen |
+| **1–5** / **0** | Sternebewertung setzen oder entfernen |
+| **⇧I** / **⇧Z** | Fakten oder Infozeile ein- und ausblenden |
+| **⇧A** | Post-Panel andocken oder über dem Bild anzeigen |
+| **⇧↑ / ⇧↓** | Videolautstärke erhöhen oder verringern, nur bei verfügbarer Tonwiedergabe |
 
-Das Favoritenzeichen oben links neben **Zurück zu …** zeigt **★** einen gespeicherten Favoriten und **☆** ein nicht favorisiertes Medium. Während des Speicherns erscheint **…**. Die Anzeige bleibt auch bei ausgeblendeten Galerie-Bedienelementen sichtbar. Ein Klick auf das Zeichen schaltet die Markierung um. Wenn der gespeicherte Zustand eines neu gewählten Mediums noch nicht gelesen ist, wird keine unbegründete „kein Favorit“-Aussage angezeigt.
+Ein Klick auf das Herz oben links neben **Zurück zu …** schaltet die Favoritenmarkierung um. Ein gefülltes Herz zeigt einen Favoriten. Während des Speicherns erscheint **…**. Wenn genug Platz ist, lässt sich das Medium über die Sterne neben dem Herz bewerten. Bewegen Sie bei automatisch ausgeblendeten Bedienelementen den Zeiger, um die Schalter wieder einzublenden.
 
 Die Favoritenübersicht löst die gewählte Menge gegen gespeicherte lokale Manifeste auf. Fehlende oder nicht verifizierbare Dateien bleiben Favoriten, werden aber als nicht verfügbar gemeldet und nicht exportiert. Der Originalexport friert die angezeigte Auswahl ein, meldet fehlende Dateien vor dem Kopieren und kopiert nur lokal verifizierte Dateien. Dabei wird kein Netzwerkabruf gestartet. Favoritenmarkierungen selbst werden dadurch nicht in ein anderes Profil übertragen.
 

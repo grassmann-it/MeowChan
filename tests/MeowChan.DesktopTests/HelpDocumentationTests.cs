@@ -614,7 +614,8 @@ public sealed class HelpDocumentationTests
     public void GalleryHelpMatchesHeaderAndSidePanelPlacementAndUnreducedSafetyState()
     {
         string text = Plain(Section(Read(Help), "Images, search and navigation"));
-        Assert.Contains("far left of the header, before the title, with the favorite star directly to its right", text);
+        // Fable #1: document the heart and rating stars beside Back to ….
+        Assert.Contains("far left of the header, before the title. The favorite heart and rating stars sit beside it when space permits.", text);
         Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
         Assert.Contains("Back to {target}", text);
         Assert.Contains("Post | Tags are on the left of the header, followed by the position pill and the close button", text);
