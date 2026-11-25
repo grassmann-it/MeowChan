@@ -19,7 +19,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
-                                <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Workspace.Accent}" Opacity="0.8" />
+                                <Rectangle Width="4" RadiusX="2" RadiusY="2" Fill="{DynamicResource Workspace.Accent}" Opacity="0.8" />
                                 <Button Grid.Column="1" Classes="reader-reply-card" AutomationProperties.AutomationId="ReaderReplyCard" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
                                         commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited"
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">

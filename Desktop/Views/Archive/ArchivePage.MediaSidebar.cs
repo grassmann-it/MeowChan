@@ -938,6 +938,7 @@ public partial class ArchivePage
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
         AutomationProperties.SetAutomationId(detail, "ReaderSidebarPostDetail");
+        detail.AttachedToVisualTree += (_, _) => LoadSidebarPostReplies(detail, content);
         return detail;
     }
 
@@ -953,7 +954,14 @@ public partial class ArchivePage
         string label = Texts.T("reader.sidebar.postDetail", post.Id);
         AutomationProperties.SetName(detail, label);
         ScheduleSidebarAnnouncement(label);
-        if (post is { BacklinkCount: not 0, RepliesLoaded: false, RepliesLoading: false, HasRepliesError: false })
+        LoadSidebarPostReplies(detail, content);
+    }
+
+    private void LoadSidebarPostReplies(ScrollViewer detail, ContentControl content)
+    {
+        // The detached reader can prepare its sidebar before it has a visual root.
+        if (_mediaSidebarShown && !_obscuredByGallery && detail.IsAttachedToVisualTree() && detail.IsEffectivelyVisible
+            && content.Content is ArchivePostRow { BacklinkCount: not 0, RepliesLoaded: false, RepliesLoading: false, HasRepliesError: false } post)
             OpenActions.Start(() => LoadInlineRepliesAsync(post), "archive.sidebar.replies");
     }
 
