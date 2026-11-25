@@ -135,8 +135,10 @@ internal static class TransientPopupPolicy
         private void Detached(object? s, VisualTreeAttachmentEventArgs e) => _popup.Close();
         private void Scrolled(object? s, ScrollChangedEventArgs e)
         {
-            // Layout can change the extent or viewport while the anchor stays at the same scroll position.
-            if (e.OffsetDelta != default && e.Source is Visual source
+            // Reflow can adjust the offset along the resized axis in the same layout pass.
+            bool scrolledHorizontally = e.OffsetDelta.X != 0 && e.ExtentDelta.X == 0 && e.ViewportDelta.X == 0;
+            bool scrolledVertically = e.OffsetDelta.Y != 0 && e.ExtentDelta.Y == 0 && e.ViewportDelta.Y == 0;
+            if ((scrolledHorizontally || scrolledVertically) && e.Source is Visual source
                 && (ReferenceEquals(source, _anchor) || source.IsVisualAncestorOf(_anchor))) _popup.Close();
         }
         private void AnchorChanged(object? s, AvaloniaPropertyChangedEventArgs e)

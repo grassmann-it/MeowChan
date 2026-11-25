@@ -214,7 +214,11 @@ public sealed class HeaderTaglineLayoutTests
                     Texts.SetLanguage("en");
                     Settle();
 
+                    Assert.True(picker.IsDropDownOpen, "Switching back to English closed the picker.");
+                    Assert.Equal(effectiveId, Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
+                    Assert.EndsWith(Texts.T(BuiltInTaglineProvider.KeyFor(effectiveId)), subtitle.Text);
                     ComboBoxItem fetch = RevealChoice(editor.HeaderTaglineFixedChoices.Single(choice => choice.Value == "fetchthem"));
+                    Assert.True(picker.IsDropDownOpen, "Revealing the new quip closed the picker.");
                     Assert.Contains(fetch.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Gonna fetch them all");
                     BooruResultActionsTests.Click(fetch);
                     Assert.False(picker.IsDropDownOpen);
