@@ -134,7 +134,7 @@ internal static partial class SectionComparisonChecks
             scenario.Result("pass", "retain-provisionally", "B remains default unless C has a measured advantage on both long tasks; no human preference inferred.");
         }
         catch (Exception error) { scenario.Detail("exception", new { detail = error.ToString() }); await scenario.Capture("failure"); scenario.Result("fail", "undecided", error.Message); if (presentation != null) throw; }
-        finally { editor.EndLifetime(); }
+        finally { editor.Dispose(); }
     }
 
     private static async Task Plugins(Window owner, string root, string variant, bool shortPage, PresentationCell? presentation = null)

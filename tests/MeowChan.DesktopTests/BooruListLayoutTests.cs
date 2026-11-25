@@ -329,7 +329,7 @@ public sealed class BooruListLayoutTests
             Assert.False(editor.HasError, editor.ErrorMessage);
             Assert.Equal(300, saved!.BooruListPreviewWidth);
         }
-        finally { editor.EndLifetime(); }
+        finally { editor.Dispose(); }
     });
 
     private static void AssertBands(Fixture fixture, double width, double height, double budget, bool tagsBelow, bool twoColumns)
