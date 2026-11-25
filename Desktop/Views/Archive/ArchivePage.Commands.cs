@@ -214,7 +214,7 @@ public partial class ArchivePage
         if (tags != null)
         {
             tags.ToggleType = MenuItemToggleType.CheckBox;
-            tags.IsChecked = _thread?.Summary.Id == lead.Summary.Id && ReaderTagBar.IsVisible;
+            tags.IsChecked = ShowsThreadTags(lead.Summary.Id);
         }
         // The place of the thread is the continue entry's tooltip and help text (the builder gives enabled entries none).
         if (continueTip != null && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "navigation.continue-reading")) is { } continueItem)
@@ -226,7 +226,7 @@ public partial class ArchivePage
         refresh.Tick += (_, _) =>
         {
             foreach (MenuItem item in menu.Items.OfType<MenuItem>()) CommandBindings.Refresh(item);
-            if (tags != null) tags.IsChecked = _thread?.Summary.Id == lead.Summary.Id && ReaderTagBar.IsVisible;
+            if (tags != null) tags.IsChecked = ShowsThreadTags(lead.Summary.Id);
             UpdateExplanation();
         };
         _archiveMenuRefreshTimers.Add(menu, refresh);

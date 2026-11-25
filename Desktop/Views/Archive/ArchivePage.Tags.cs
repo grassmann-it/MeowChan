@@ -181,11 +181,13 @@ public partial class ArchivePage
         if (CanEditThreadTags) ReaderTagInput.Focus();
     }
 
+    private bool ShowsThreadTags(ResourceId id) => _thread?.Summary.Id == id && ReaderTagBar.IsEffectivelyVisible;
+
     // A different target always opens its tags, even if the previous thread's tag bar was visible.
     internal async Task OpenThreadTagsAsync(ResourceId id)
     {
         if (_ended || IsReaderDialogOpen) return;
-        if (_thread?.Summary.Id == id && ReaderTagBar.IsVisible)
+        if (ShowsThreadTags(id))
         {
             CloseTagBar(restoreFocus: true);
             return;
@@ -195,11 +197,16 @@ public partial class ArchivePage
             await LoadThreadAsync(id);
             if (_ended || _thread?.Summary.Id != id) return;
         }
+        if (!_showReader)
+        {
+            _showReader = true;
+            UpdateLayoutMode();
+        }
         if (!_tagBarWanted) ShowThreadTags();
         // The closing menu hands focus back to the list afterwards; ask again once it has settled.
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_ended && _tagBarWanted && _thread?.Summary.Id == id && CanEditThreadTags) ReaderTagInput.Focus();
+            if (!_ended && ShowsThreadTags(id) && CanEditThreadTags) ReaderTagInput.Focus();
         }, DispatcherPriority.Input);
     }
 

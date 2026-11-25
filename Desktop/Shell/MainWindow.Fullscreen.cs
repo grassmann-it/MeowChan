@@ -985,7 +985,11 @@ public partial class MainWindow
         else if ((_selectedPage == WorkspacePage.Archive || _largeReaderOpen) && (_gallery == null || _gallerySuspended) && _archivePage?.TryOpenReaderFindByKey(e) == true)
         { e.Handled = true; }
         else if (CommandBindings.Matches(e, "input.focus-search") && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
-        { e.Handled = true; _archivePage?.FocusArchiveTextSearch(); }
+        {
+            if (_archivePage?.IsThreadFindSource(e.Source) == true && MeowChan.ArchivePage.ReaderInputIsComposing(e.Source)) return;
+            e.Handled = true;
+            _archivePage?.FocusArchiveTextSearch();
+        }
         else if (CommandBindings.Matches(e, "input.focus-media-search") && _selectedPage == WorkspacePage.Media && _mediaPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _mediaPage.FocusSearch(); }
         // AP2: the diagnostics message filter is the same search field and takes Primary+F like the other pages.
