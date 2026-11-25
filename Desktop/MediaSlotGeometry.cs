@@ -108,7 +108,8 @@ internal sealed class MediaFramePanel : Panel
     internal double MaximumWidthOverride { get; set; } = double.NaN;
     /// <summary>Optional override of the height cap, for previews drawn wider than the reader default (textless or enlarged ones keep the cap's proportion).</summary>
     internal double MaximumHeightOverride { get; set; } = double.NaN;
-    /// <summary>When set, this height scales with the column width and <see cref="MaximumHeightOverride"/> is a separate, absolute cap.</summary>
+    /// <summary>When set, this height scales with the column width and <see cref="MaximumHeightOverride"/> is a separate, absolute cap.
+    /// Positive infinity leaves only the absolute cap in effect.</summary>
     internal double HeightLimitAtMaximumWidth { get; set; } = double.NaN;
     internal static double MaximumWidth(bool large) => large ? 360 : 240;
     internal static double MaximumHeight(bool large) => large ? 280 : 180;
@@ -122,7 +123,7 @@ internal sealed class MediaFramePanel : Panel
             ? MaximumWidthOverride
             : MaximumWidth(Large);
         double maximumHeight = double.IsFinite(MaximumHeightOverride) && MaximumHeightOverride > 0 ? MaximumHeightOverride : MaximumHeight(Large);
-        Size frame = double.IsFinite(HeightLimitAtMaximumWidth)
+        Size frame = !double.IsNaN(HeightLimitAtMaximumWidth)
             ? MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, HeightLimitAtMaximumWidth, maximumHeight)
             : MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, maximumHeight);
         Size picture = MediaSlotGeometry.Letterbox(frame, Aspect).Size;

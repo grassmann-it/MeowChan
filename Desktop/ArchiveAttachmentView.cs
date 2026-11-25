@@ -202,6 +202,7 @@ public sealed class ArchiveAttachmentView : UserControl
             // reader shows at once, so a tall picture is narrower rather than longer than the window.
             _slot.MaximumWidthOverride = ExpandedMaximumWidth;
             _slot.MaximumHeightOverride = ExpandedMaximumHeight;
+            _slot.HeightLimitAtMaximumWidth = double.PositiveInfinity;
             _edge.IsVisible = false;
             return;
         }
