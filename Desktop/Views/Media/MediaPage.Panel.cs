@@ -423,7 +423,6 @@ public sealed partial class MediaPage
     }
 
     private bool PanelFavoriteAvailable() => !_lifetime.IsCancellationRequested && ExecuteMediaMenuActionAsync != null
-        && _panel?.CanUseMediaActions == true
         && _panelRow is { Entry.Presence: MediaLibraryPresence.Present, State.Favorite: not MediaLibraryFlag.Unknown };
 
     // The frame's size in physical pixels; before the first layout an estimate from the configured width and the window height.

@@ -45,12 +45,6 @@ public sealed class SidebarPreviewVerificationTests
                 GalleryEntry entry = Assert.Single(GallerySelection.Build(thread, [media.Snapshot]).Entries);
                 FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
                 MediaTagSubject subject = Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry));
-                await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
-                if (wrongSha)
-                {
-                    image[^1] ^= 1;
-                    await File.WriteAllBytesAsync(media.Asset.Path, image);
-                }
                 new Config
                 {
                     DownloadPath = Path.Combine(profile.Path, "downloads"), FirstRunSetupVersion = 1, DownloadsPaused = true,
@@ -61,6 +55,12 @@ public sealed class SidebarPreviewVerificationTests
                     MediaLayout = (new MediaPageLayout { Panel = true }).Format(),
                     TaggingPagePanel = true, TaggingPageView = "List"
                 }.SaveConfig(profile.Path);
+                await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
+                if (wrongSha)
+                {
+                    image[^1] ^= 1;
+                    await File.WriteAllBytesAsync(media.Asset.Path, image);
+                }
 
                 await using DesktopSessionHost session = new(profile.Path, [],
                     updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
