@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
@@ -449,7 +451,11 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             viewer.ShowTagPanel(new StoreGalleryTags(entry, store));
             Layout(window);
             Button opener = Find<Button>(window, "GalleryThreadTagsToggle");
+            var disclosure = Assert.IsAssignableFrom<IExpandCollapseProvider>(ControlAutomationPeer.CreatePeerForElement(opener));
+            Assert.False(opener.Focusable);
+            Assert.Equal(ExpandCollapseState.Collapsed, disclosure.ExpandCollapseState);
             Click(window, opener);
+            Assert.Equal(ExpandCollapseState.Expanded, disclosure.ExpandCollapseState);
             Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
             IdentitySuggestionBox field = Assert.Single(viewer.GetVisualDescendants().OfType<IdentitySuggestionBox>(),
                 box => box.Name == "GalleryTagPanelThreadInput");
@@ -476,6 +482,7 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             for (int press = 0; press < 3 && AutomationProperties.GetItemStatus(opener) == Texts.T("shortcuts.group.expanded"); press++)
                 PressAtFocus(window, Key.Escape); // a suggestion list, if one opened, closes first
             Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(opener));
+            Assert.Equal(ExpandCollapseState.Collapsed, disclosure.ExpandCollapseState);
             Assert.True(viewer.IsTagPanelOpen, "Without a composition Escape folds only the thread section.");
         }
         finally { window.Close(); }

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
@@ -27,15 +28,23 @@ public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
         MainWindow window = fixture.Window;
         fixture.ShowThreads([Thread(1), Thread(2)]);
         fixture.Select(1);
-        var button = fixture.Find<ToggleButton>("DownloadSearchButton");
-        var field = fixture.Find<TextBox>("DownloadSearchInput");
-        var details = fixture.Find<ToggleButton>("DetailsToggleButton");
+        var button = ById<ToggleButton>(window, "DownloadSearchButton");
+        var field = ById<TextBox>(window, "DownloadSearchInput");
+        var details = ById<ToggleButton>(window, "DetailsToggleButton");
+        var disclosure = Assert.IsAssignableFrom<IExpandCollapseProvider>(ControlAutomationPeer.CreatePeerForElement(button));
         Assert.False(button.Focusable);
 
         Click(fixture, button);
         Assert.True(field.IsVisible && field.IsKeyboardFocusWithin && button.IsChecked == true);
+        Assert.Equal(ExpandCollapseState.Expanded, disclosure.ExpandCollapseState);
         Click(fixture, button);
         Assert.True(!field.IsVisible && button.IsChecked == false && fixture.Threads.IsKeyboardFocusWithin);
+        Assert.Equal(ExpandCollapseState.Collapsed, disclosure.ExpandCollapseState);
+        disclosure.Expand();
+        disclosure.Expand();
+        Assert.True(field.IsVisible && field.IsKeyboardFocusWithin);
+        disclosure.Collapse();
+        Assert.True(!field.IsVisible && fixture.Threads.IsKeyboardFocusWithin);
 
         ShortcutBindingsSection original = ShortcutService.CurrentSection;
         try
@@ -153,8 +162,9 @@ public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
     {
         fixture.ShowThreads([Thread(1)]);
         fixture.Select(1);
-        var button = fixture.Find<ToggleButton>("DetailsToggleButton");
+        var button = ById<ToggleButton>(fixture.Window, "DetailsToggleButton");
         var panel = fixture.Find<Border>("WorkspaceInspector");
+        var disclosure = Assert.IsAssignableFrom<IExpandCollapseProvider>(ControlAutomationPeer.CreatePeerForElement(button));
         Assert.False(button.Focusable);
         foreach (double width in new[] { 1240d, 840d })
         {
@@ -163,6 +173,7 @@ public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
             if (panel.IsVisible) Click(fixture, button);
             Click(fixture, button);
             Assert.True(panel.IsVisible && button.IsChecked == true);
+            Assert.Equal(ExpandCollapseState.Expanded, disclosure.ExpandCollapseState);
 
             Point point = button.TranslatePoint(new Rect(button.Bounds.Size).Center, fixture.Window)!.Value;
             IInputElement? hit = fixture.Window.InputHitTest(point);
