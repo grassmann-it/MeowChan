@@ -110,6 +110,7 @@ public static class SettingsTransfer
             ExportHistorySizeMiB = source.ExportHistorySizeMiB,
             ExportHistoryEntryLimit = source.ExportHistoryEntryLimit,
             BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB,
+            BoardWatcherIntervalMinutes = source.BoardWatcherIntervalMinutes,
             BoardSuggestionMinThreads = source.BoardSuggestionMinThreads,
             BoardSuggestionLimit = source.BoardSuggestionLimit,
             BoardSuggestionScanThreads = source.BoardSuggestionScanThreads,
