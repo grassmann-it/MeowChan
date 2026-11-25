@@ -36,7 +36,7 @@ public sealed class InlineConfirmationFullscreenTests
         Assert.True(page.ClearQuestionOpen);
         Assert.True(FindButton(page, "tagging.clear-cancel")!.IsFocused);
 
-        Button stamp = FindButton(page, "tagging.stamp")!;
+        Button stamp = Assert.IsAssignableFrom<Button>(FindButton(page, "tagging.stamp"));
         Flyout flyout = Assert.IsType<Flyout>(stamp.Flyout);
         flyout.ShowAt(stamp);
         TextBox editor = Assert.IsAssignableFrom<Control>(flyout.Content).GetVisualDescendants().OfType<TextBox>()
@@ -46,7 +46,8 @@ public sealed class InlineConfirmationFullscreenTests
         PressEscape(window);
 
         Assert.False(flyout.IsOpen);
-        Assert.True(stamp.IsFocused);
+        // The TOGGLE audit returns focus to the working queue row after dismissal.
+        Assert.True(page.ShownList.IsKeyboardFocusWithin);
         Assert.True(page.ClearQuestionOpen);
         Assert.Equal(WindowState.FullScreen, window.WindowState);
         Assert.Equal(before, await File.ReadAllBytesAsync(path));

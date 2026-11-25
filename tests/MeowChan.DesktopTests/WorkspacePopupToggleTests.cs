@@ -221,7 +221,7 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             more.IsChecked = false;
             Layout(window);
 
-            ComboBox groups = Find<ComboBox>(window, "TaggingGroup");
+            ComboBox groups = Find<ComboBox>(window, "tagging.group");
             Assert.True(groups.Focus());
             PressCommand(window, "menu.context-open");
             ContextMenu menu = Assert.Single(window.OpenedPopups.Select(popup => popup.Child).OfType<ContextMenu>());
@@ -229,7 +229,7 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             Assert.True(create.Focus());
             PressCommand(window, "menu.context-open");
             Assert.False(menu.IsOpen);
-            foreach (string id in new[] { "TaggingStamp", "TaggingEmptyHow", "TaggingHelp" })
+            foreach (string id in new[] { "tagging.stamp", "TaggingEmptyHow", "TaggingHelp" })
             {
                 Button opener = Find<Button>(window, id);
                 VerifyPopup(window, opener, () => opener.Flyout is { IsOpen: true } flyout && ReferenceEquals(flyout.Target, opener));
