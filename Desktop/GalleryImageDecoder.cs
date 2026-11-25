@@ -16,6 +16,8 @@ internal sealed record GalleryImageInfo(int Width, int Height, string Format, bo
     internal long Pixels => (long)Width * Height;
 }
 
+internal sealed class GalleryPreviewTooLargeException() : IOException(Localization.Texts.T("archive.tooLarge"));
+
 internal abstract record GalleryDecodeRequest
 {
     internal sealed record Fit(double PhysicalWidth, double PhysicalHeight) : GalleryDecodeRequest;
@@ -67,17 +69,21 @@ internal static class GalleryImageDecoder
     private static readonly SemaphoreSlim Gate = new(1, 1);
     internal static Action<GalleryDecodeRequest>? DecodeStarted { get; set; }
 
-    internal static GalleryImageInfo Inspect(Stream stream, long maximumPixels = 80_000_000)
+    internal static GalleryImageInfo Inspect(Stream stream, long maximumPixels = ImageOrientation.MaximumPixels, bool preview = false)
     {
         using SKManagedStream managed = new(stream, disposeManagedStream: false);
         using SKCodec? codec = SKCodec.Create(managed);
         if (codec == null) throw new InvalidDataException(Localization.Texts.T("gallery.image.error.unsupported"));
         PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: width and height exchanged for a rotated photo
-        GalleryImageInfo info = new(shown.Width, shown.Height, codec.EncodedFormat.ToString(),
-            codec.EncodedFormat == SKEncodedImageFormat.Gif || codec.FrameCount > 1);
-        if (info.Width <= 0 || info.Height <= 0 || info.Pixels > maximumPixels)
+        if (shown.Width <= 0 || shown.Height <= 0)
             throw new InvalidDataException(Localization.Texts.T("gallery.image.error.pixelLimit"));
-        return info;
+        if ((long)shown.Width * shown.Height > maximumPixels)
+        {
+            if (preview) throw new GalleryPreviewTooLargeException();
+            throw new InvalidDataException(Localization.Texts.T("gallery.image.error.pixelLimit"));
+        }
+        return new(shown.Width, shown.Height, codec.EncodedFormat.ToString(),
+            codec.EncodedFormat == SKEncodedImageFormat.Gif || codec.FrameCount > 1);
     }
 
     // Foreground decodes (the shown image) waiting for the single decoder; background decodes (preloading) let them go first.
@@ -85,6 +91,10 @@ internal static class GalleryImageDecoder
 
     internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeAsync(GalleryEntry entry,
         GalleryDecodeRequest request, CancellationToken cancellationToken) => DecodeCoreAsync(entry, request, background: false, cancellationToken);
+
+    internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodePreviewAsync(GalleryEntry entry,
+        GalleryDecodeRequest request, int maximumPixels, Action verified, CancellationToken cancellationToken) =>
+        DecodeCoreAsync(entry, request, background: false, cancellationToken, maximumPixels, verified);
 
     /// <summary>
     /// A decode for the preloader: it starts only while no decode of the shown image is waiting, does not report to
@@ -94,7 +104,8 @@ internal static class GalleryImageDecoder
         GalleryDecodeRequest request, CancellationToken cancellationToken) => DecodeCoreAsync(entry, request, background: true, cancellationToken);
 
     private static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeCoreAsync(GalleryEntry entry,
-        GalleryDecodeRequest request, bool background, CancellationToken cancellationToken) => Task.Run(async () =>
+        GalleryDecodeRequest request, bool background, CancellationToken cancellationToken,
+        int? previewMaximumPixels = null, Action? verified = null) => Task.Run(async () =>
     {
         if (background)
         {
@@ -110,11 +121,14 @@ internal static class GalleryImageDecoder
         try
         {
             if (!background) DecodeStarted?.Invoke(request);
-            if (entry.Asset.Length > MaximumBytes) throw new InvalidDataException(Localization.Texts.T("gallery.image.error.fileLimit"));
+            if (previewMaximumPixels == null && entry.Asset.Length > MaximumBytes)
+                throw new InvalidDataException(Localization.Texts.T("gallery.image.error.fileLimit"));
             await using Stream stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken).ConfigureAwait(false);
+            verified?.Invoke();
+            if (entry.Asset.Length > MaximumBytes) throw new GalleryPreviewTooLargeException();
             GalleryImageInfo info;
             using (PerformanceDiagnostics.Measure("gallery.decoder.inspect", asset: entry.Asset.AssetId))
-                info = Inspect(stream);
+                info = Inspect(stream, previewMaximumPixels ?? ImageOrientation.MaximumPixels, preview: previewMaximumPixels.HasValue);
             cancellationToken.ThrowIfCancellationRequested();
             stream.Position = 0;
             PixelSize target = request is GalleryDecodeRequest.Fit fit

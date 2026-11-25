@@ -22,6 +22,16 @@ public sealed class SettingsTransferTests
     ];
 
     [Fact]
+    public void SidebarPreviewPixelLimitSurvivesCloneCopyAndPortableJson()
+    {
+        Config source = new() { SidebarPreviewMaximumPixels = 2_000_123 };
+        Config copy = new();
+        copy.CopyFrom(source.Clone());
+        Config restored = JsonSerializer.Deserialize(SettingsTransfer.Export(copy, "1.1.2").ToJsonString(), ConfigJsonContext.Default.Config)!;
+        Assert.Equal(2_000_123, restored.SidebarPreviewMaximumPixels);
+    }
+
+    [Fact]
     public void ExportAddsSchemaAndProducerAndExcludesProfileLocalState()
     {
         Config source = new()

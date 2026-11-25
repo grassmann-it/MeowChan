@@ -61,7 +61,10 @@ public partial class ArchivePage
         set
         {
             if (_sidebarFit == value) return;
+            bool limitChanged = _sidebarFit.PreviewMaximumPixels != value.PreviewMaximumPixels;
             _sidebarFit = value;
+            if (limitChanged && _mediaSidebar?.Load.ShownSource is { } source && (long)source.Width * source.Height > value.PreviewMaximumPixels)
+                _mediaSidebar.ShowPlaceholder(Texts.T("archive.tooLarge"));
             if (_mediaSidebarShown) RefreshMediaSidebar();
         }
     }
@@ -840,9 +843,13 @@ public partial class ArchivePage
         string postLine = post.NumberLabel;
         // Tom (16.11.2026): the medium already shown (a rebuilt page, a refreshed thread, a larger frame, the sidebar back from the other host) keeps
         // its picture: no load at all while it covers the frame, otherwise a larger decode that swaps in place (ReaderMediaSidebarLoadState).
-        string mediumKey = SidebarMediumKey(post, row);
+        ArchiveAssetRow? selected = _thread is { } thread ? FindMatchingAsset(thread.Summary.Id, post.Id, row.Attachment, _assets) : null;
+        string mediumKey = selected == null ? SidebarMediumKey(post, row)
+            : string.Join("\n", SidebarMediumKey(post, row), selected.Manifest.Directory, selected.Asset.AssetId, selected.Asset.Sha256);
         (double Width, double Height) target = MediaSidebarTarget(sidebar);
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(mediumKey, target);
+        if (!ticket.UpToDate && !ticket.SameMedium)
+            sidebar.SetImageVerification(SavedMediaTypes.Classify(file.Name) == SavedMediaKind.Image ? null : true);
         ThreadMediaPositions? media = _thread?.MediaPositions;
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
         GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
@@ -996,14 +1003,17 @@ public partial class ArchivePage
         {
             GalleryEntry? entry = row.ResolveEntry == null ? null : await row.ResolveEntry(ct);
             ct.ThrowIfCancellationRequested();
-            if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+            if (entry == null)
+            {
+                if (IsCurrentSidebarRequest(ticket.Request)) sidebar.SetImageVerification(false);
+                return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+            }
             if (entry.Kind == SavedMediaKind.Image)
             {
                 if (sidebar.BeforePreviewDecodeForTests is { } beforeDecode) await beforeDecode(entry.Asset.Path, ct);
-                (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry,
-                    new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
-                return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
+                return await load.ReadImageAsync(entry, new(target.Width, target.Height), ct);
             }
+            if (IsCurrentSidebarRequest(ticket.Request)) sidebar.SetImageVerification(true);
             if (entry.Kind == SavedMediaKind.Video && row.LoadSized is { } poster)
             {
                 Bitmap? bitmap = await poster((int)target.Width, (int)target.Height, ct);

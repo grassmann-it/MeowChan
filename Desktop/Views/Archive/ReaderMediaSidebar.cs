@@ -16,6 +16,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
 using MeowChan.Storage;
 
 namespace MeowChan.Desktop;
@@ -303,6 +304,8 @@ internal sealed partial class ReaderMediaSidebar : Border
     private bool _writingDecision;
     private string? _mediumKey;
     private int _mediumRevision;
+    private bool? _imageVerified = true;
+    private GalleryEntry? _verifiedImage;
     private readonly Dictionary<IPointer, int> _decisionPresses = new();
     // R11: the thumbnail strip of a post with several files: a single tab stop, ← → move, the counter beside it.
     private readonly ListBox _strip = new()
@@ -513,6 +516,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             AutomationProperties.SetAutomationId(control, control.Name);
         AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
         AutomationProperties.SetAutomationId(_image, "ReaderMediaSidebarPicture");
+        AutomationProperties.SetAutomationId(_status, "ReaderMediaSidebarStatus");
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -681,7 +685,7 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private async Task EditTagsAsync(Control? origin)
     {
-        if (!IsEffectivelyVisible || _fileName.Length == 0 || OpenTagsAsync is not { } openTags || _cancelTagEditor != null) return;
+        if (!IsEffectivelyVisible || !CanUseMediaActions || _fileName.Length == 0 || OpenTagsAsync is not { } openTags || _cancelTagEditor != null) return;
         using CancellationTokenSource request = new();
         Action cancel = request.Cancel;
         _cancelTagEditor = cancel;
@@ -698,6 +702,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         }
         try
         {
+            if (!await VerifyImageActionAsync(request.Token)) return;
             if (origin == null && !_details.IsVisible)
             {
                 RevealBars();
@@ -866,17 +871,18 @@ internal sealed partial class ReaderMediaSidebar : Border
     internal void ConfigureFavorite(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle,
         Func<string?>? error = null, Func<FavoriteStarHold>? hold = null)
     {
-        _favoriteAvailable = available;
+        _favoriteAvailable = available == null ? null : () => CanUseMediaActions && available();
         _isFavorite = marked;
         _favoriteError = error;
         _favoriteHold = hold;
-        _headerFavorite.Configure(available, marked, () => WriteDecisionAsync(toggle, available), error, hold);
+        var canWrite = _favoriteAvailable;
+        _headerFavorite.Configure(canWrite, marked, () => WriteDecisionAsync(toggle, canWrite), error, hold);
         RefreshFavorite();
     }
 
     internal void ConfigureRating(Func<bool>? available, Func<int?>? read, Func<int?, Task>? write)
     {
-        _ratingAvailable = available;
+        _ratingAvailable = available == null ? null : () => CanUseMediaActions && available();
         _readRating = read;
         _writeRating = write;
         RefreshDecisions();
@@ -901,12 +907,64 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void RefreshTags()
     {
-        _infoBar.SetTags(_tags, _tagsBlocked, OpenTagsAsync != null);
+        string? blocked = _imageVerified switch
+        {
+            null => Texts.T("reader.sidebar.loading"),
+            false => Texts.T("reader.sidebar.unavailable"),
+            true => _tagsBlocked
+        };
+        _infoBar.SetTags(_tags, blocked, CanUseMediaActions && OpenTagsAsync != null);
         if (_expandedRows.IsVisible) PopulateExpandedTags();
         UpdateExpansion();
     }
 
     internal void RefreshFavorite() { RefreshDecisions(); UpdateBadges(); }
+
+    internal bool CanUseMediaActions => _imageVerified == true;
+
+    internal void SetImageVerification(bool? verified, GalleryEntry? image = null)
+    {
+        _verifiedImage = image;
+        if (_imageVerified == verified) return;
+        _imageVerified = verified;
+        if (!CanUseMediaActions) InvalidateTagEditor();
+        RefreshTags();
+        RefreshDecisions();
+    }
+
+    internal async Task<bool> VerifyImageActionAsync(CancellationToken token = default)
+    {
+        if (!CanUseMediaActions || token.IsCancellationRequested) return false;
+        if (_verifiedImage is not { } entry) return true;
+        int revision = _mediumRevision;
+        bool Current() => revision == _mediumRevision && ReferenceEquals(_verifiedImage, entry)
+            && CanUseMediaActions && !token.IsCancellationRequested && IsEffectivelyVisible;
+        try
+        {
+            await Task.Run(async () =>
+            {
+                await using var original = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false);
+            }, token);
+            return Current();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return false; }
+        catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException)
+        {
+            if (Current())
+            {
+                SetImageVerification(false);
+                ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
+            }
+            return false;
+        }
+    }
+
+    internal Func<CancellationToken, Task<bool>>? CaptureImageActionGuard()
+    {
+        if (_verifiedImage == null) return null;
+        int revision = _mediumRevision;
+        return token => revision == _mediumRevision ? VerifyImageActionAsync(token) : Task.FromResult(false);
+    }
 
     private void RefreshDecisions()
     {
@@ -937,7 +995,10 @@ internal sealed partial class ReaderMediaSidebar : Border
         string name = _fileName;
         _writingDecision = true;
         _decisionFailure = null;
-        try { await write(); }
+        try
+        {
+            if (await VerifyImageActionAsync() && available()) await write();
+        }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             if (_mediumRevision == revision && _fileName == name) _decisionFailure = error.Message;

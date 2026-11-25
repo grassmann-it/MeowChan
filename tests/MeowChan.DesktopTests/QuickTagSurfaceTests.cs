@@ -599,6 +599,31 @@ public sealed class QuickTagSurfaceTests : IDisposable
         return (surface, session);
     }
 
+    [Fact]
+    public void PendingSuggestionClickKeepsItsValueWhenEarlierChipsDisappear() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry entry = Entry("a", 'a');
+        using QuickTagSession session = new(QuickTagTarget.For(Single(store, entry)));
+        using QuickTagSurface surface = new(session) { Suggestions = new DelegateQuickTagSuggestions(_ =>
+            new[] { "first", "second", "third" }.Select(name =>
+                new QuickTagSuggestion(Name(name), null, 1, QuickTagReason.SourceTag, 1)).ToArray()) };
+        TaskCompletionSource<bool> verification = new();
+        surface.VerifyBeforeWriteAsync = _ => verification.Task;
+        Button button = Assert.Single(surface.SuggestionButtons, b => AutomationProperties.GetAutomationId(b) == "QuickTagSuggestion2");
+        string intended = surface.Shown[1].Name.Display;
+        button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        BooruComponentDispatcher.Wait(session.AcceptAsync(surface.Shown[0]));
+        surface.Refresh();
+        Assert.Empty(NamesOn(store, entry).Where(name => name == intended));
+        verification.SetResult(true);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Contains(intended, NamesOn(store, entry));
+    });
+
     [Theory]
     [InlineData(ShortcutPlatform.Linux, "Alt+1", "Alt+2")]
     [InlineData(ShortcutPlatform.MacOS, "⌥1", "⌥2")]

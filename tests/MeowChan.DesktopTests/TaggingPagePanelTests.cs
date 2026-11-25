@@ -749,7 +749,7 @@ public sealed class TaggingPagePanelTests
                 using TaggingPage page = new(session)
                 {
                     PanelClock = clock ?? TimeProvider.System,
-                    DecodePanelImageAsync = decode ?? GalleryImageCache.DecodeAsync,
+                    DecodePanelImageForTests = decode,
                     OpenPanelManifestAsync = openManifest ?? MediaAssetReader.OpenAsync,
                     OpenPanelVideoManifestAsync = openVideoManifest,
                     ReadUserData = () => new(session.GetPublishedPrivateTagSnapshot().Snapshot, session.GetFavorites(), session.GetMediaRatings()),

@@ -707,7 +707,8 @@ public partial class ArchivePage
         bool CanOpenInSequence() => galleryTarget != null && OpenMediaGallery != null;
         bool CanOpenInThread() => galleryTarget == null && readerKey != null && OpenGallery != null;
         bool CanOpen() => CanOpenInSequence() || CanOpenInThread();
-        bool CanFavorite() => target != null && ToggleArchiveFavoriteAsync != null;
+        ReaderMediaSidebar? menuSidebar = ReferenceEquals(origin, _mediaSidebar?.FrameArea) ? _mediaSidebar : null;
+        bool CanFavorite() => target != null && ToggleArchiveFavoriteAsync != null && menuSidebar?.CanUseMediaActions != false;
         bool CanQueue() => target != null && AddToTagQueue != null;
         bool CanShowInFolder() => target != null && _openFolder != null && Path.GetDirectoryName(target.Asset.Path) != null;
         bool CanCopyPath() => target != null && CopyFilePathAsync != null;
@@ -739,7 +740,6 @@ public partial class ArchivePage
         MediaMenuModel model = MediaMenuComposition.Compose(facts);
         // The guard is the page state the menu was opened on. A different thread, a reloaded thread, a closed page or an
         // open filename search retires it; a mere filter change keeps the frozen visible sequence it was built from.
-        ReaderMediaSidebar? menuSidebar = ReferenceEquals(origin, _mediaSidebar?.FrameArea) ? _mediaSidebar : null;
         var shownSidebar = _displayedSidebarMedium;
         ArchiveAssetRow? shownSaved = SavedMediaSidebarRow;
         MediaMenuSession session = new(surface, model.Target, () => !_ended && _available && !IsFilenameSearchOpen
@@ -755,7 +755,11 @@ public partial class ArchivePage
                 // The click's own call (ArchiveAttachmentRow.OpenPreview), not OpenThreadGalleryAsync: its activation guard ends with any focus change,
                 // and closing this menu gives the focus back, so in the large reader it would cancel the opening it had just started.
                 : OpenGallery!(threadId, readerKey, origin)),
-            [MediaMenuAction.Favorite] = When(MediaMenuAction.Favorite, CanFavorite, () => ToggleArchiveMediaFavoriteAsync(target!)),
+            [MediaMenuAction.Favorite] = When(MediaMenuAction.Favorite, CanFavorite, async () =>
+            {
+                if ((menuSidebar == null || await menuSidebar.VerifyImageActionAsync()) && session.IsCurrent)
+                    await ToggleArchiveMediaFavoriteAsync(target!);
+            }),
             // "Rate and tag…": the popover on the tile or attachment the menu opened on (frozen with the menu), the tag field focused. A file that cannot be
             // rated or tagged gets the popover with the reason as text, so the entry has no precondition of its own.
             [MediaMenuAction.RateAndTag] = menuSidebar != null ? menuSidebar.EditTagsAsync

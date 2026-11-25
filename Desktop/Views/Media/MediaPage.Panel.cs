@@ -92,9 +92,12 @@ public sealed partial class MediaPage
     internal void ConfigurePanel(ReaderInlineVideoOptions video, GalleryFitPreferences fit)
     {
         bool fitChanged = _panelFit != fit;
+        bool limitChanged = _panelFit.PreviewMaximumPixels != fit.PreviewMaximumPixels;
         _panelFit = fit;
         _ = _panelVideoController.ConfigureAsync((video with { Enabled = true }).Clamped());
         if (!_panelShown) return;
+        if (limitChanged && _panel?.Load.ShownSource is { } source && (long)source.Width * source.Height > fit.PreviewMaximumPixels)
+            _panel.ShowPlaceholder(Texts.T("archive.tooLarge"));
         OfferPanelVideo(_panelRow);
         if (fitChanged) RefreshPanel();
     }
@@ -363,6 +366,8 @@ public sealed partial class MediaPage
         string mediumKey = PanelVideoKey(entry);
         (double Width, double Height) target = PanelTarget(panel);
         ReaderMediaLoadTicket ticket = panel.Load.Begin(mediumKey, target);
+        if (!ticket.UpToDate && !ticket.SameMedium)
+            panel.SetImageVerification(entry is { Kind: SavedMediaKind.Image, Presence: MediaLibraryPresence.Present } ? null : true);
         DescribePanel(panel, row);
         OfferPanelVideo(row);
         // A refresh of the same medium (a larger frame, a changed setting) is no news for a screen reader: only another medium is announced.
@@ -451,12 +456,16 @@ public sealed partial class MediaPage
         {
             GalleryEntry? entry = await ResolvePanelEntryAsync(row.Entry, ct);
             ct.ThrowIfCancellationRequested();
-            if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+            if (entry == null)
+            {
+                if (IsCurrentPanelRequest(ticket.Request) && row.Entry.Presence == MediaLibraryPresence.Present)
+                    panel.SetImageVerification(false);
+                return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+            }
             if (entry.Kind == SavedMediaKind.Image)
             {
                 if (panel.BeforePreviewDecodeForTests is { } beforeDecode) await beforeDecode(entry.Asset.Path, ct);
-                (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
-                return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
+                return await load.ReadImageAsync(entry, new(target.Width, target.Height), ct);
             }
             if (entry.Kind == SavedMediaKind.Video)
             {

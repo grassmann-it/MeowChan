@@ -10,7 +10,8 @@ internal static class ReaderSettingsPreferences
         ? mode : ReaderSpoilerMode.Hide;
 
     internal static GalleryFitPreferences Gallery(Config config) => new(config.GalleryFitUpscaleLimited,
-        GalleryFitPreferences.ClampPercent(config.GalleryFitMaxUpscalePercent));
+        GalleryFitPreferences.ClampPercent(config.GalleryFitMaxUpscalePercent))
+        { PreviewMaximumPixels = config.SidebarPreviewMaximumPixels };
 
     internal static void Apply(ArchivePage reader, Config config)
     {

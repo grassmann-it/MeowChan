@@ -804,6 +804,16 @@ namespace MeowChan
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
         internal const int GalleryFitMaxUpscalePercentMaximum = GalleryFitPreferences.MaxUpscalePercentMaximum;
+        internal const int SidebarPreviewMaximumPixelsDefault = SidebarPreviewMaximumPixelsMaximum;
+        internal const int SidebarPreviewMaximumPixelsMinimum = 1_000_000;
+        internal const int SidebarPreviewMaximumPixelsMaximum = (int)ImageOrientation.MaximumPixels;
+        private int _sidebarPreviewMaximumPixels = SidebarPreviewMaximumPixelsDefault;
+        [JsonInclude]
+        internal int SidebarPreviewMaximumPixels
+        {
+            get => _sidebarPreviewMaximumPixels;
+            set => _sidebarPreviewMaximumPixels = Math.Clamp(value, SidebarPreviewMaximumPixelsMinimum, SidebarPreviewMaximumPixelsMaximum);
+        }
         public int GalleryMaxZoomPercent { get; set; } = GalleryMaxZoomPercentDefault;
         internal const int GalleryMaxZoomPercentDefault = GalleryZoomLimits.MaxPercentDefault;
         internal const int GalleryMaxZoomPercentMinimum = GalleryZoomLimits.MaxPercentMinimum;
@@ -2283,6 +2293,7 @@ namespace MeowChan
                 ReaderPreviewPrefetchPosts = ReaderPreviewPrefetchPosts,
                 ReaderPreviewSizeMemory = ReaderPreviewSizeMemory,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
+                SidebarPreviewMaximumPixels = SidebarPreviewMaximumPixels,
                 GalleryMaxZoomPercent = GalleryMaxZoomPercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
                 HiddenPostLimit = HiddenPostLimit,
@@ -2591,6 +2602,7 @@ namespace MeowChan
             ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts;
             ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            SidebarPreviewMaximumPixels = source.SidebarPreviewMaximumPixels;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
@@ -2873,6 +2885,7 @@ namespace MeowChan
             ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts;
             ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            SidebarPreviewMaximumPixels = source.SidebarPreviewMaximumPixels;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;

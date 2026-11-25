@@ -24,6 +24,99 @@ public sealed class SidebarContextGestureTests
 {
     private static readonly ResourceId Thread = new("fixture", "g", "42");
 
+    [Theory]
+    [InlineData("favorite")]
+    [InlineData("rating")]
+    [InlineData("menu")]
+    public void FocusedStripItemUsesItsOwnOriginal(string command) => Run(async (window, media) =>
+    {
+        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
+        ListBox strip = Assert.Single(sidebar.GetVisualDescendants().OfType<ListBox>(), list =>
+            Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(list)?.GetAutomationId() == "ReaderMediaSidebarStrip");
+        ListBoxItem second = Assert.Single(strip.Items.OfType<ListBoxItem>(), item =>
+            AutomationProperties.GetName(item)?.Contains("b.png", StringComparison.Ordinal) == true);
+        Assert.True(second.Focus());
+        Assert.Equal(0, page.MediaSidebarIndex);
+        if (command == "favorite")
+        {
+            await ChangeBytesAsync(media[1].Path);
+            ContextGestures.KeyStroke(second, Key.M, PhysicalKey.M);
+            await page.FavoriteKeyTask;
+            Assert.Empty(window.SessionHost.GetFavorites());
+            return;
+        }
+
+        await ChangeBytesAsync(media[0].Path);
+        if (command == "rating")
+        {
+            ContextGestures.KeyStroke(second, Key.D3, PhysicalKey.Digit3, RawInputModifiers.Shift);
+            await BooruTestSupport.WaitAsync(() => window.SessionHost.GetMediaRatings().Count > 0, "the focused original's rating");
+            Assert.Equal("778", Assert.Single(window.SessionHost.GetMediaRatings()).Key.MediaIdentifier);
+        }
+        else
+        {
+            ContextGestures.MenuKey(second);
+            ContextMenu menu = Assert.IsType<ContextMenu>(page.ArchiveMediaMenu);
+            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == "favorites.toggle").Activate();
+            await BooruTestSupport.WaitAsync(() => window.SessionHost.GetFavorites().Count > 0, "the focused original's favorite");
+            Assert.Equal("778", Assert.Single(window.SessionHost.GetFavorites()).Key.MediaIdentifier);
+        }
+    });
+
+    [Fact]
+    public void UnnamedAttachmentRemainsBlockedUntilItsOriginalIsVerified() => Run(async (window, media) =>
+    {
+        (ArchivePage page, ReaderMediaSidebar sidebar) = await OpenReaderAsync(window);
+        TaskCompletionSource started = new(), resume = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        sidebar.BeforePreviewDecodeForTests = (path, token) =>
+        {
+            if (path != media[1].Path) return Task.CompletedTask;
+            started.TrySetResult();
+            return resume.Task.WaitAsync(token);
+        };
+        try
+        {
+            await ChangeBytesAsync(media[1].Path);
+            page.SelectMediaSidebarIndex(1);
+            await BooruTestSupport.WaitAsync(() => started.Task.IsCompleted, "verification of 778 to start");
+            Assert.Contains("778", sidebar.HeaderLine);
+            Assert.False(await sidebar.VerifyImageActionAsync());
+            Assert.False(sidebar.FavoriteButton.IsEffectivelyEnabled);
+            Assert.Empty(window.SessionHost.GetFavorites());
+        }
+        finally { resume.TrySetResult(); await page.MediaSidebarTask; }
+        Assert.False(sidebar.CanUseMediaActions);
+    }, unnamedSecond: true);
+
+    [Fact]
+    public void FilteringADuplicateTileVerifiesTheVisibleOccurrence() => Run(async (window, media) =>
+    {
+        Navigate(window, Key.E, PhysicalKey.E, MainWindow.WorkspacePage.Media);
+        MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+        await page.BuildTask;
+        await BooruTestSupport.WaitAsync(() => page.Grid.ItemCount == 1, "the grouped tile");
+        page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
+        page.Grid.SelectedIndex = 0;
+        await BooruTestSupport.WaitAsync(() => page.Panel?.Shown != null, "the first occurrence's picture");
+        string first = page.PanelRow!.Entry.Name!;
+        SavedFile other = Assert.Single(media, file => Path.GetFileName(file.Path) != first);
+        page.NameFilter.Text = Path.GetFileName(other.Path);
+        page.NameFilter.FlushQuery();
+        await MediaSidebarAsync(window, page, Path.GetFileName(other.Path));
+        await page.PanelTask;
+        File.Delete(Assert.Single(media, file => Path.GetFileName(file.Path) == first).Path);
+        Assert.True(await page.Panel!.VerifyImageActionAsync());
+        await ChangeBytesAsync(other.Path);
+        Assert.False(await page.Panel.VerifyImageActionAsync());
+    }, copies: true);
+
+    private static async Task ChangeBytesAsync(string path)
+    {
+        byte[] bytes = await File.ReadAllBytesAsync(path);
+        bytes[^1] ^= 1;
+        await File.WriteAllBytesAsync(path, bytes);
+    }
+
     [Fact]
     public void MediaPanelMenuWritesOnlyToTheShownMediumOfAMultipleSelection() => Run(async (window, _) =>
     {
@@ -453,7 +546,7 @@ public sealed class SidebarContextGestureTests
 
     private sealed record SavedFile(string Path, MediaTagSubject Subject);
 
-    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false) => BooruComponentDispatcher.Run(() =>
+    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false, bool copies = false, bool unnamedSecond = false) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruComponentDispatcher.Wait(ExerciseAsync());
@@ -468,7 +561,7 @@ public sealed class SidebarContextGestureTests
                 WorkspaceMode = "Advanced", Language = "en", ReaderMediaSidebarScope = "Always", ReaderMediaSidebarMinimumWidth = 1000,
                 MediaSidebarAutoHide = true, MediaSidebarInfo = "Always", MediaSidebarPinned = false
             }.SaveConfig(profile.Path);
-            SavedFile[] media = await SeedAsync(profile.Path, directory.Path, loose);
+            SavedFile[] media = await SeedAsync(profile.Path, directory.Path, loose, copies, unnamedSecond);
             await using DesktopSessionHost host = new(profile.Path, [],
                 updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
             await using MainWindow window = new(host) { Width = 1700, Height = 900, Classes = { MotionPolicy.OffClass } };
@@ -480,7 +573,7 @@ public sealed class SidebarContextGestureTests
         }
     });
 
-    private static async Task<SavedFile[]> SeedAsync(string profile, string directory, bool loose)
+    private static async Task<SavedFile[]> SeedAsync(string profile, string directory, bool loose, bool copies, bool unnamedSecond)
     {
         string[] pictures =
         [
@@ -494,14 +587,15 @@ public sealed class SidebarContextGestureTests
             string name = i == 0 ? "a.png" : "b.png";
             string id = i == 0 ? "777" : "778";
             string url = "https://fixture.invalid/" + name;
-            byte[] bytes = Convert.FromBase64String(pictures[i]);
+            byte[] bytes = Convert.FromBase64String(pictures[copies ? 0 : i]);
             string sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             string md5 = Convert.ToBase64String(MD5.HashData(bytes));
             await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             entries.Add(name, new { MediaIdentifier = id, Variant = "original", SourceUrl = url, FileName = name,
                 Length = bytes.Length, Sha256 = sha256, Md5 = md5, OriginalFileName = name });
-            MediaProviderMetadata provider = new(id, "original", url, name, bytes.Length, md5, null);
-            attachments.Add(new(i, id, Url: url, OriginalFileName: name, ExpectedSize: bytes.Length, ExpectedMd5: md5)
+            string? capturedName = unnamedSecond && i == 1 ? null : name;
+            MediaProviderMetadata provider = new(id, "original", url, capturedName, bytes.Length, md5, null);
+            attachments.Add(new(i, id, Url: url, OriginalFileName: capturedName, ExpectedSize: bytes.Length, ExpectedMd5: md5)
             { AttachmentRevisionKey = MediaRevisionKeys.CreateAttachmentKey(Thread, "43", i, provider) });
         }
         string manifestPath = Path.Combine(directory, ".meowchan-manifest.json");

@@ -44,8 +44,15 @@ public partial class ArchivePage
         _favoriteKeyLatch.Observe(this);
         // A held key repeats KeyDown: only its first press acts. The latch is taken even while the last write runs, so the key does not act when it ends.
         if (_favoriteKeyLatch.IsRepeat(e.Key) || !FavoriteKeyTask.IsCompleted) return true;
-        FavoriteKeyTask = WriteFavoriteKeyAsync(action, targets);
+        FavoriteKeyTask = IsMediaSidebarSource(source) && _mediaSidebar is { } sidebar
+            && SidebarStripContext(source.GetSelfAndVisualAncestors().OfType<Control>().ToArray()) is not { Shown: false }
+            ? WriteSidebarFavoriteKeyAsync(sidebar, action, targets) : WriteFavoriteKeyAsync(action, targets);
         return true;
+    }
+
+    private async Task WriteSidebarFavoriteKeyAsync(ReaderMediaSidebar sidebar, FavoriteKeyAction action, IReadOnlyList<GalleryEntry> targets)
+    {
+        if (await sidebar.VerifyImageActionAsync()) await WriteFavoriteKeyAsync(action, targets);
     }
 
     /// <summary>The media a favourite key pressed with the focus on <paramref name="source"/> acts on (empty: nothing to act on).</summary>
