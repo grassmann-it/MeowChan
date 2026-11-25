@@ -285,25 +285,33 @@ public sealed class BooruMediaSidebarTests
         Assert.DoesNotContain(facts.GetVisualDescendants(), control => control is Control item
             && AutomationProperties.GetAutomationId(item) == "BooruMediaScore");
 
+        BooruMediaSidebar sidebar = Sidebar(view);
         Focus(Hit(view, "101"));
-        Button blueEyes = ById<Button>(Sidebar(view), "BooruPanelTag:blue_eyes");
-        blueEyes.BringIntoView();
-        Settle(window);
+        Button blueEyes = ById<Button>(sidebar, "BooruPanelTag:blue_eyes");
         PressPointer(window, blueEyes);
         Assert.Contains("blue_eyes", model.Search.View.Input.Split(' '));
-        blueEyes = ById<Button>(Sidebar(view), "BooruPanelTag:blue_eyes");
-        blueEyes.BringIntoView();
-        Settle(window);
+        Assert.True(Hit(view, "101").IsFocused);
+        blueEyes = ById<Button>(sidebar, "BooruPanelTag:blue_eyes");
         PressPointer(window, blueEyes, RawInputModifiers.Alt);
         Assert.Equal("cat -blue_eyes", model.Search.View.Input);
+        Assert.True(Hit(view, "101").IsFocused);
 
-        Button artist = ById<Button>(Sidebar(view), "BooruPanelTag:sky");
-        artist.BringIntoView();
-        Settle(window);
+        Button artist = ById<Button>(sidebar, "BooruPanelTag:sky");
         PressPointer(window, artist, RawInputModifiers.Alt);
         // DanbooruTagQuery.MaximumTagTerms limits the draft to two tag terms.
         Assert.Equal("cat -blue_eyes", model.Search.View.Input);
         Assert.True(Hit(view, "101").IsFocused);
+
+        // Tom's 1.1.2 focus rule keeps action buttons out of the tab order while source chips remain tab stops.
+        Assert.True(ById<Button>(sidebar, "BooruPanelTag:cat").Focus(NavigationMethod.Tab));
+        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, "\t");
+        blueEyes = ById<Button>(sidebar, "BooruPanelTag:blue_eyes");
+        Assert.True(blueEyes.IsFocused);
+        window.KeyPress(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");
+        window.KeyRelease(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");
+        Settle(window);
+        Assert.Equal("cat blue_eyes", model.Search.View.Input);
+        Assert.True(blueEyes.IsFocused);
         Assert.Equal(1, harness.Search.Requests);
         Assert.Empty(harness.Previews.SampleRequests);
     });
@@ -428,9 +436,9 @@ public sealed class BooruMediaSidebarTests
         Config config = new();
         view.SaveMediaSidebar = open => config.BooruMediaSidebar = open;
         Focus(Hit(view, "102"));
-        ScrollViewer tags = ById<ScrollViewer>(Sidebar(view), "BooruMediaTags");
-        Focus(tags);
-        tags.RaiseEvent(KeyPress(Key.Escape, tags));
+        Button tag = ById<Button>(Sidebar(view), "BooruPanelTag:blue_eyes");
+        Focus(tag);
+        tag.RaiseEvent(KeyPress(Key.Escape, tag));
         Assert.False(Sidebar(view).IsVisible);
         Assert.False(config.BooruMediaSidebar);
         Assert.True(Hit(view, "102").IsFocused);
@@ -445,7 +453,7 @@ public sealed class BooruMediaSidebarTests
         Assert.False(Sidebar(view).IsVisible);
         Click(ById<Button>(view, "BooruMediaToggle"));
         Settle(window);
-        Focus(tags);
+        Focus(ById<Button>(Sidebar(view), "BooruPanelTag:blue_eyes"));
         Button close = ById<Button>(Sidebar(view), "BooruMediaClose");
         Assert.False(close.Focusable);
         PressPointer(window, close);
@@ -502,8 +510,19 @@ public sealed class BooruMediaSidebarTests
 
     private static void PressPointer(Window window, Control control, RawInputModifiers modifiers = RawInputModifiers.None)
     {
-        Point point = control.TranslatePoint(new Rect(control.Bounds.Size).Center, window)!.Value;
-        Visual? hit = window.InputHitTest(point) as Visual;
+        AvaloniaSynchronizationContext.InstallIfNeeded();
+        Settle(window);
+        Point point = default;
+        Visual? hit = null;
+        BooruComponentDispatcher.WaitUntil(() =>
+        {
+            window.UpdateLayout();
+            control.BringIntoView();
+            window.UpdateLayout();
+            point = control.TranslatePoint(new Rect(control.Bounds.Size).Center, window)!.Value;
+            hit = window.InputHitTest(point) as Visual;
+            return hit?.GetSelfAndVisualAncestors().Contains(control) == true;
+        }, $"a pointer hit on {AutomationProperties.GetAutomationId(control)}");
         Control? target = hit?.GetSelfAndVisualAncestors().OfType<Control>()
             .FirstOrDefault(ancestor => AutomationProperties.GetAutomationId(ancestor) != null);
         Assert.True(hit is not null && hit.GetSelfAndVisualAncestors().Contains(control),

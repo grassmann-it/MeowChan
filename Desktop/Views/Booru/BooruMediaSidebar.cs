@@ -76,7 +76,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     internal PanelActionStack Actions { get; } = new("BooruMediaActions") { Margin = new Thickness(Inset, 0) };
     internal ScrollViewer Tags { get; } = new()
     {
-        Name = "BooruMediaTags", Margin = new Thickness(Inset, 0), Focusable = true, IsTabStop = true,
+        Name = "BooruMediaTags", Margin = new Thickness(Inset, 0), Focusable = false, IsTabStop = false,
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto
     };
 

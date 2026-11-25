@@ -211,15 +211,16 @@ internal sealed partial class BooruWorkbenchView
                 ChipOutline outline = WorkspaceChips.CreateSourceTag(tag.Name, category, compact: true);
                 DraftTagButton chip = new()
                 {
-                    Name = "BooruPanelTag:" + tag.Name, Content = outline, Focusable = false, IsTabStop = false,
+                    Name = "BooruPanelTag:" + tag.Name, Content = outline, Focusable = true, IsTabStop = true,
                     Classes = { WorkspaceChips.SourceButton }, MaxWidth = 200
                 };
                 AutomationProperties.SetAutomationId(chip, chip.Name);
                 chip.Click += (_, _) =>
                 {
-                    if (SidebarResultIsCurrent(result))
-                        EditTagDraft(tag.Name, chip.ExcludeOnClick ? BooruTagDraftAction.Exclude : BooruTagDraftAction.Include,
-                            CaptureResultLink(result.Target));
+                    if (!SidebarResultIsCurrent(result)) return;
+                    EditTagDraft(tag.Name, chip.ExcludeOnClick ? BooruTagDraftAction.Exclude : BooruTagDraftAction.Include,
+                        CaptureResultLink(result.Target));
+                    if (chip.IsPointerClick) FocusHit(result.PostId);
                 };
                 _sidebarTagMenus.Add(new ContextMenuHost(chip,
                     () => SidebarResultIsCurrent(result) ? ComposeTagMenu(tag.Name, result.Target) : null,
