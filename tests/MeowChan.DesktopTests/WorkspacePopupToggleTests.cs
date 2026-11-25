@@ -238,8 +238,10 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         finally { window.Close(); }
     });
 
-    [Fact]
-    public void GalleryLayoutAndOverflowCloseAtTheirOpenerAndLayoutAcceptsItsRebinding() => OnUi(async () =>
+    [Theory]
+    [InlineData(1280)]
+    [InlineData(760)]
+    public void GalleryLayoutAndMoreReturnToThePictureAndAcceptKeyboardInput(int width) => OnUi(async () =>
     {
         ShortcutBindingsSection before = ShortcutService.CurrentSection;
         ShortcutService.Publish(before.Set(GalleryLayoutMenu.OpenCommandId, [ShortcutGesture.Parse("Primary+Shift+J")]));
@@ -248,21 +250,50 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayControls: false, AutoHideControls: false));
         using TempDirectory temp = new();
         GalleryEntry entry = ImageEntry(temp.Path);
-        Window window = Show(viewer, 1280);
+        Window window = Show(viewer, width);
         try
         {
             await viewer.ShowAsync(entry, [entry], 1, CancellationToken.None);
             Layout(window);
             Button layout = Find<Button>(window, "GalleryLayoutButton");
             Button more = Find<Button>(window, "GalleryMore");
-            // The TOGGLE audit keeps Gallery Layout and More as native menus with keyboard access.
-            VerifyPopup(window, layout, () => viewer.IsLayoutMenuOpen, focusable: true);
-            VerifyPopup(window, more, () => viewer.IsOverflowOpen, focusable: true);
-            viewer.Focus();
+            bool layoutOnBar = width == 1280;
+            Assert.Equal(layoutOnBar, layout.IsEffectivelyVisible);
+            Assert.False(layout.Focusable);
+            if (layoutOnBar)
+            {
+                VerifyPopup(window, layout, () => viewer.IsLayoutMenuOpen, returnFocus: viewer);
+            }
+            VerifyPopup(window, more, () => viewer.IsOverflowOpen, returnFocus: viewer);
+
+            Button layoutOpener = layoutOnBar ? layout : more;
             PressCommand(window, GalleryLayoutMenu.OpenCommandId);
-            Assert.True(viewer.IsLayoutMenuOpen);
+            Assert.Equal(layoutOnBar, viewer.IsLayoutMenuOpen);
+            Assert.Equal(!layoutOnBar, viewer.IsOverflowOpen);
+            Assert.Equal(!layoutOnBar, viewer.LayoutSection.IsEffectivelyVisible);
+            Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(layoutOpener));
             PressCommand(window, GalleryLayoutMenu.OpenCommandId);
             Assert.False(viewer.IsLayoutMenuOpen);
+            Assert.False(viewer.IsOverflowOpen);
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(layoutOpener));
+            Assert.Same(viewer, window.FocusManager?.GetFocusedElement());
+
+            PressAtFocus(window, Key.F10, RawInputModifiers.Shift);
+            ContextMenu media = Assert.IsType<ContextMenu>(viewer.MediaMenu);
+            Assert.True(media.IsOpen);
+            MenuItem openMore = Find<MenuItem>(media, "gallery.overflow.label");
+            Assert.Equal(Texts.T("gallery.overflow.label"), AutomationProperties.GetName(openMore));
+            for (int step = 0; !openMore.IsFocused && step < media.ItemCount; step++)
+                PressAtFocus(window, Key.Down);
+            Assert.True(openMore.IsFocused);
+            PressAtFocus(window, Key.Enter);
+            Assert.False(media.IsOpen);
+            Assert.True(viewer.IsOverflowOpen);
+            Assert.Same(Find<Button>(viewer.OverflowMenuContent, "gallery.zoom-in"), window.FocusManager?.GetFocusedElement());
+            Assert.True(viewer.OverflowMenuContent.IsKeyboardFocusWithin);
+            PressAtFocus(window, Key.Escape);
+            Assert.False(viewer.IsOverflowOpen);
+            Assert.Same(viewer, window.FocusManager?.GetFocusedElement());
         }
         finally
         {
@@ -412,9 +443,9 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
     }
 
     private static void VerifyPopup(Window window, Button opener, Func<bool> isOpen,
-        Action<string>? logRoute = null, Action? reopenParent = null, bool focusable = false)
+        Action<string>? logRoute = null, Action? reopenParent = null, Control? returnFocus = null)
     {
-        Assert.Equal(focusable, opener.Focusable);
+        Assert.False(opener.Focusable);
         Assert.False(isOpen());
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
@@ -422,12 +453,14 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         string route = TracePopupClick(window, opener);
         logRoute?.Invoke(route);
         Assert.False(isOpen(), route);
+        if (returnFocus != null) Assert.Same(returnFocus, window.FocusManager?.GetFocusedElement());
         if (!opener.IsAttachedToVisualTree()) reopenParent?.Invoke();
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
         PressAtFocus(window, Key.Escape);
         Assert.False(isOpen());
         Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(opener));
+        if (returnFocus != null) Assert.Same(returnFocus, window.FocusManager?.GetFocusedElement());
     }
 
     private static string TracePopupClick(Window window, Button opener)
@@ -532,7 +565,7 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         Layout(window);
     }
 
-    private static void PressCommand(Window window, string commandId)
+    internal static void PressCommand(Window window, string commandId)
     {
         KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture(commandId));
         PressAtFocus(window, gesture.Key, (RawInputModifiers)gesture.KeyModifiers);
