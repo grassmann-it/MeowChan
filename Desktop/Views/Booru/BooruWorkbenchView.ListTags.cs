@@ -67,6 +67,7 @@ internal sealed partial class BooruWorkbenchView
             Name = MoreTagsPrefix + post.PostId, Classes = { "link", "tnum" }, MinWidth = 0, MinHeight = 0,
             Padding = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Left
         };
+        AutomationProperties.SetAutomationId(toggle, toggle.Name);
         CommandBindings.EnsureIconBeforeText(toggle, expanded ? "chevron-up" : "chevron-down", 12);
         toggle.Click += (_, _) =>
         {
@@ -75,7 +76,8 @@ internal sealed partial class BooruWorkbenchView
             else _expandedTagPosts.Add(post.PostId);
             Render(force: true);
         };
-        return new BooruListTagFlow(post.PostId, ordered, items, buttons, toggle, expanded);
+        return new BooruListTagFlow(post.PostId, ordered, items, buttons, toggle, expanded,
+            _listProfile?.BooruHiddenTagTooltipLimit ?? Config.BooruHiddenTagTooltipLimitDefault);
     }
 }
 
@@ -84,7 +86,7 @@ internal sealed class BooruListTagFlow : Panel
 {
     private const double Gap = 4;
     private const double ColumnGap = 16;
-    private const int MaximumHiddenTagsNamed = 60;
+    private readonly int _hiddenTagTooltipLimit;
 
     private readonly BooruTag[] _tags;
     private readonly Control[] _items;
@@ -98,7 +100,8 @@ internal sealed class BooruListTagFlow : Panel
     private int _columns = 1;
     private double _heightBudget = double.PositiveInfinity;
 
-    internal BooruListTagFlow(string postId, BooruTag[] tags, Control[] items, Button[] buttons, Button toggle, bool expanded)
+    internal BooruListTagFlow(string postId, BooruTag[] tags, Control[] items, Button[] buttons, Button toggle, bool expanded,
+        int hiddenTagTooltipLimit)
     {
         Name = "BooruListTags:" + postId;
         _tags = tags;
@@ -106,6 +109,7 @@ internal sealed class BooruListTagFlow : Panel
         _buttons = buttons;
         _toggle = toggle;
         _expanded = expanded;
+        _hiddenTagTooltipLimit = hiddenTagTooltipLimit;
         _heading = new TextBlock
         {
             Text = Texts.T("booru.ui.tags.label"), Classes = { "workspace-meta" },
@@ -281,8 +285,8 @@ internal sealed class BooruListTagFlow : Panel
             ToolTip.SetTip(_toggle, label);
             return;
         }
-        string names = string.Join(", ", _tags.Skip(shown).Take(MaximumHiddenTagsNamed).Select(tag => tag.Name))
-            + (hidden > MaximumHiddenTagsNamed ? "…" : string.Empty);
+        string names = string.Join(", ", _tags.Skip(shown).Take(_hiddenTagTooltipLimit).Select(tag => tag.Name))
+            + (hidden > _hiddenTagTooltipLimit ? "…" : string.Empty);
         string tip = Texts.T("booru.ui.tags.showAll", names);
         ToolTip.SetTip(_toggle, tip);
         AutomationProperties.SetHelpText(_toggle, tip);

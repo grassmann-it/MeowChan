@@ -19,6 +19,7 @@ internal sealed partial class DesktopSessionHost
     {
         _profileLease.StoreLimits.ExportHistory = new(Config.ExportHistorySizeMiB, Config.ExportHistoryEntryLimit);
         _profileLease.StoreLimits.BoardAdmissionSizeMiB = Config.BoardAdmissionSizeMiB;
+        TrimBoardArchiveCaches();
     }
 
     private BoardAdmissionStore OpenBoardAdmissionStore()
