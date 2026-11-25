@@ -691,7 +691,10 @@ public sealed partial class ShortcutBindingsEditor : UserControl, IDisposable
         }
         void Refresh()
         {
-            label.Text = ShortcutHelp.ActionLabel(row.CommandId, _context.Area);
+            if (ShortcutHelp.ContextualActionLabel(row.CommandId, _context.Area) is { } contextualLabel)
+                label.Text = contextualLabel;
+            else
+                label.Text = CommandCatalog.Label(row.CommandId);
             meta.Text = Meta();
             meta.IsVisible = meta.Text.Length > 0;
             foreach (KeyCapText cap in caps) cap.Refresh();

@@ -14,15 +14,16 @@ internal static class ShortcutHelp
             .Where(item => item.Keys != null)
             .Select(item => ActionLabel(item.Id, context) + " · " + item.Keys));
 
-    internal static string ActionLabel(string id, string? area)
+    internal static string ActionLabel(string id, string? area) =>
+        ContextualActionLabel(id, area) ?? CommandCatalog.Label(id);
+
+    internal static string? ContextualActionLabel(string id, string? area)
     {
-        string label = CommandCatalog.Label(id);
-        if (id != "media.sidebar.autohide") return label;
+        if (id != "media.sidebar.autohide" || (area != null && area != ShortcutGroups.Gallery)) return null;
         string gallery = CommandCatalog.Label("gallery.post-overlay-toggle");
         if (area == ShortcutGroups.Gallery) return gallery;
-        return area == null
-            ? $"{label} ({ShortcutGroups.Label(ShortcutGroups.Reader)} / {ShortcutGroups.Label("media")}) · {gallery} ({ShortcutGroups.Label(ShortcutGroups.Gallery)})"
-            : label;
+        string label = CommandCatalog.Label(id);
+        return $"{label} ({ShortcutGroups.Label(ShortcutGroups.Reader)} / {ShortcutGroups.Label("media")}) · {gallery} ({ShortcutGroups.Label(ShortcutGroups.Gallery)})";
     }
 
     internal static string? GalleryPostPanelKeys()
