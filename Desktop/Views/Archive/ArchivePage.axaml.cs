@@ -78,7 +78,7 @@ public partial class ArchivePage : UserControl
     private bool _threadTable;
     private string _archiveLayout = "List";
     private double? _archiveSplitWidth;
-    internal Func<string, double, Task>? SaveViewPreferencesAsync { get; set; }
+    internal Func<string, double?, Task>? SaveViewPreferencesAsync { get; set; }
     internal string ArchiveLayoutPreference
     {
         get => _archiveLayout;
@@ -99,14 +99,12 @@ public partial class ArchivePage : UserControl
             finally { _updatingList = updating; }
         }
     }
-    internal double ArchiveSplitPreference
+    internal double? ArchiveSplitPreference
     {
-        get => _archiveSplitWidth ?? Config.ArchiveSplitWidthDefault;
+        get => _archiveSplitWidth;
         set
         {
-            double width = Config.NormalizeArchiveSplitWidth(value);
-            // The saved default also represents a profile whose splitter has never been moved.
-            _archiveSplitWidth = width == Config.ArchiveSplitWidthDefault ? null : width;
+            _archiveSplitWidth = value is double width ? Config.NormalizeArchiveSplitWidth(width) : null;
             UpdateLayoutMode();
         }
     }
