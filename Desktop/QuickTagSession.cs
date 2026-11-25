@@ -308,7 +308,7 @@ internal sealed class QuickTagSession : IDisposable
     internal IReadOnlyList<TagDialogChange> UndoSteps => _undo;
     internal PrivateTagStoreSnapshot? Snapshot => _target.Snapshot;
     internal bool Busy => _running || _target.Busy;
-    internal bool Ready => Snapshot != null && !Busy;
+    internal bool Ready => !_disposed && Snapshot != null && !Busy;
     internal bool CanUndo => _undo.Count > 0 && Ready;
     internal bool IsSelection => _target.IsSelection;
     internal QuickTagStatus Status => Snapshot == null ? new QuickTagStatus(QuickTagStatusKind.Unavailable) : _status;
@@ -607,8 +607,13 @@ internal sealed class QuickTagSession : IDisposable
         string? label = Label;
         TagDialogChange? before = target.LastChange;
         _running = true;
-        Updated?.Invoke();
-        try { await write(target); }
+        try
+        {
+            // The popover checks its selection on Updated and disposes this session if the post changed.
+            Updated?.Invoke();
+            if (_disposed) return;
+            await write(target);
+        }
         finally { _running = false; }
         TagDialogChange? applied = null;
         if (target.MessageKey is { } key) _status = new QuickTagStatus(QuickTagStatusKind.Error, MessageKey: key);
