@@ -144,7 +144,7 @@ public sealed class BooruSearchDestinationTests
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void FirstEnterCreatesTheTabAndTheAlternateActionOpensAnother(bool alternate, bool fromMore) => BooruComponentDispatcher.Run(() =>
+    public void FirstEnterCreatesTheTabAndTheAlternateActionOpensAnother(bool alternate, bool fromButton) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = new();
@@ -177,14 +177,12 @@ public sealed class BooruSearchDestinationTests
             input.Text = "dog";
             Settle(window);
             Assert.Equal("cat", AutomationProperties.GetName(originalItem));
-            if (fromMore)
+            if (fromButton)
             {
-                Button more = FindVisual<Button>(view.Header, "BooruMore");
-                Click(more);
-                MenuItem searchInNewTab = Assert.Single(more.ContextMenu!.Items.OfType<MenuItem>(),
-                    item => Equals(item.Tag, BooruWorkbenchView.AlternateSubmitCommand));
+                Button searchInNewTab = FindVisual<Button>(view, BooruWorkbenchView.AlternateSubmitName);
+                Assert.True(searchInNewTab.IsEffectivelyVisible && searchInNewTab.IsEffectivelyEnabled);
                 Assert.Equal(Texts.T("booru.tabs.searchNewShort"), AutomationProperties.GetName(searchInNewTab));
-                searchInNewTab.Command!.Execute(searchInNewTab.CommandParameter);
+                Click(searchInNewTab);
             }
             else
             {

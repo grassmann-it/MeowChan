@@ -86,8 +86,7 @@ internal static partial class BooruWorkbenchChecks
         Click(Find<Button>(page, "BooruView:101"));
         BooruGalleryPanel gallery = page.View.Gallery;
         Border resultLine = Find<Border>(page, "BooruResultsLine");
-        var pager = (Grid)Find<Button>(page, BooruWorkbenchView.PreviousName).Parent!;
-        TextBlock pageInfo = pager.Children.OfType<TextBlock>().Single();
+        TextBlock pageInfo = FindById<TextBlock>(page, "BooruPageInfo");
         string result = BooruText.SearchStatus(page.Model.Search.View, false);
         Require(!resultLine.IsVisible && pageInfo.IsEffectivelyVisible
             && AutomationProperties.GetLiveSetting(pageInfo) == AutomationLiveSetting.Polite
@@ -256,7 +255,8 @@ internal static partial class BooruWorkbenchChecks
             Rect shortMode = SearchLayoutBounds(toggle, window);
             Rect pager = SearchLayoutBounds(nextPage, window);
             Rect viewport = SearchLayoutBounds(results, window);
-            Require(results.Offset.Y > 0 && mode == shortMode && shortMode.Bottom <= viewport.Top && pager.Bottom <= viewport.Bottom + 1,
+            Require(results.Offset.Y == 0 && mode == shortMode && shortMode.Bottom <= viewport.Top
+                && pager.Top >= viewport.Bottom - 1 && pager.Bottom <= window.ClientSize.Height,
                 $"The short window cannot show the view switch and pager together: mode={shortMode}, viewport={viewport}, pager={pager}.");
 
             while (page.View.SearchTabs.CanAdd)

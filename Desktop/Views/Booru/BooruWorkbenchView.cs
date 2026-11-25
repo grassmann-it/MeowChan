@@ -89,20 +89,20 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 136 };
     // Escape empties the typed query first (SearchBox); in an empty field it closes the window as before. No debounce: a search goes out only on "Search".
     private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false };
-    private readonly Button _submit = new() { Name = SubmitName };
-    private readonly Button _cancel = new() { Name = CancelName };
+    private readonly Button _submit = new() { Name = SubmitName, Focusable = false, IsTabStop = false };
+    private readonly Button _cancel = new() { Name = CancelName, Focusable = false, IsTabStop = false };
     // Why the field is not accepted, shown under it: the red border alone is colour only.
     private readonly TextBlock _inputIssue = new() { Name = InputIssueName, Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Border _statusHost = new() { Name = StatusName };
     private readonly TextBlock _statusText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _retry = new() { Name = RetryName, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Grid _pager = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly Button _previous = new() { Name = PreviousName, Classes = { "booru-pager-button" } };
-    private readonly Button _next = new() { Name = NextName, Classes = { "booru-pager-button" } };
+    private readonly Button _previous = new() { Name = PreviousName, Focusable = false, IsTabStop = false, Classes = { "booru-pager-button" } };
+    private readonly Button _next = new() { Name = NextName, Focusable = false, IsTabStop = false, Classes = { "booru-pager-button" } };
     private readonly TextBlock _pageInfo = new() { Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center,
         TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center };
-    private readonly TextBlock _pageLimit = new() { Classes = { "workspace-help" }, TextAlignment = TextAlignment.Center };
-    private readonly Button _createWatcher = new() { Name = CreateWatcherName, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _pageLimit = new() { TextWrapping = TextWrapping.Wrap, Classes = { "workspace-help" }, TextAlignment = TextAlignment.Center };
+    private readonly Button _createWatcher = new() { Name = CreateWatcherName, Focusable = false, IsTabStop = false, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Border _noticeHost = new();
     private readonly TextBlock _noticeText = new() { Name = NoticeName, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _results = new() { Name = ResultsName, Spacing = 8 };
@@ -331,6 +331,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         AutomationProperties.SetAutomationId(_input, InputName);
         AutomationProperties.SetAutomationId(_submit, SubmitName);
+        AutomationProperties.SetAutomationId(_mode, ModeName);
+        AutomationProperties.SetAutomationId(_createWatcher, CreateWatcherName);
         _mode.SelectionChanged += (_, _) =>
         {
             if (_applying || _mode.SelectedItem is not ComboBoxItem { Tag: BooruInputMode mode }) return;
@@ -361,12 +363,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _submit.Click += async (_, _) => await SubmitSearchAsync();
         _cancel.Click += (_, _) => _model.Search.Cancel();
         _retry.Click += async (_, _) => await _model.Search.RetryAsync();
-        _previous.Click += async (_, _) => await ChangePageAsync(-1);
-        _next.Click += async (_, _) => await ChangePageAsync(1);
+        _previous.Click += async (_, _) => await ChangePageAsync(-1, fromPagerButton: true);
+        _next.Click += async (_, _) => await ChangePageAsync(1, fromPagerButton: true);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
-        SearchToolbar searchToolbar = new(_mode, _input, _submit, BuildSearchTabActions());
-
+        SearchToolbar searchToolbar = BuildSearchToolbar();
         StackPanel status = new() { Spacing = 8 };
         status.Children.Add(_statusText);
         status.Children.Add(_retry);
@@ -375,6 +376,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _statusHost.Child = status;
         AutomationProperties.SetLiveSetting(_statusText, AutomationLiveSetting.Polite);
 
+        InitializePager();
         _pager.Children.Add(_previous);
         Grid.SetColumn(_pageInfo, 1);
         _pager.Children.Add(_pageInfo);
@@ -393,17 +395,19 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(_statusHost);
         tab.Children.Add(BuildResultViewBar()); // the list/tile switch and the tile size (BooruWorkbenchView.Grid.cs)
         Grid.SetIsSharedSizeScope(_results, true);
-        _resultsArea.Children.Add(_results);
-        _resultsArea.Children.Add(BuildBottomBar());
         AutomationProperties.SetAutomationId(_resultScroll, _resultScroll.Name);
-        _resultScroll.Content = _resultsArea;
+        _resultScroll.Content = _results;
+        Grid hits = new() { RowDefinitions = new RowDefinitions("*,Auto"), Children = { _resultScroll } };
+        Control footer = BuildBottomBar();
+        Grid.SetRow(footer, 1);
+        hits.Children.Add(footer);
         Grid layout = new()
         {
             ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,*"),
-            RowSpacing = 8, Children = { tab, _resultScroll }
+            RowSpacing = 8, Children = { tab, hits }
         };
         Grid.SetColumnSpan(tab, 2);
-        Grid.SetRow(_resultScroll, 1);
+        Grid.SetRow(hits, 1);
         InstallMediaSidebar(layout);
         return layout;
     }
@@ -558,6 +562,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _inputIssue.IsVisible = invalid;
 
         RenderSearchActions(view);
+        RenderSearchOverflow();
         _cancel.Content = Texts.T("booru.ui.cancel");
         _cancel.IsVisible = view.IsBusy;
 
@@ -620,15 +625,13 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         bool paging = view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && view.ExecutedQuery is not null && !view.IsPostResult;
         // Keep recovery navigation reachable even when the failed/cancelled page has no results.
-        _pager.IsVisible = paging || view.HasPreviousPage;
+        _pagerRow.IsVisible = _pager.IsVisible = paging || view.HasPreviousPage;
         // The pager is icon-only like the Archive's: the chevron, with the text as tooltip and accessible name.
         IconButtons.Apply(_previous, "chevron-left", Texts.T("booru.ui.page.previous"));
         _previous.IsEnabled = view.HasPreviousPage && !paused;
         IconButtons.Apply(_next, "chevron-right", Texts.T("booru.ui.page.next"));
         _next.IsEnabled = view.HasNextPage && !paused;
-        _pageInfo.Text = Texts.T("booru.ui.page.info", view.Page, view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
-        _pageLimit.IsVisible = view.PageLimitReached;
-        _pageLimit.Text = Texts.T("booru.ui.page.limit", view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
+        RenderPager(view);
         RenderResultViewBar(view);
 
         int decodeEdge = _resultView == BooruResultView.List ? ListDecodeEdge : 0;

@@ -51,7 +51,9 @@ internal sealed partial class BooruWorkbenchView
     private TabHeader? _watcherHeader;
     private int? _refusedTabLimit;
 
-    private readonly Button _downloadAll = new() { Name = DownloadAllName, Classes = { "subtle" } };
+    internal const string AlternateSubmitName = "BooruSubmitNewTab";
+    private readonly Button _alternateSubmit = new() { Name = AlternateSubmitName, Focusable = false, IsTabStop = false, Classes = { "subtle" } };
+    private readonly Button _downloadAll = new() { Name = DownloadAllName, Focusable = false, IsTabStop = false, Classes = { "subtle" } };
     private readonly Border _bulkHost = new() { Name = BulkStatusName, Classes = { "workspace-status" }, IsVisible = false };
     private readonly TextBlock _bulkText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _newTabButton = new() { Name = NewSearchTabName, Focusable = false, IsTabStop = false, Classes = { "booru-add-tab-button" } };
@@ -146,19 +148,6 @@ internal sealed partial class BooruWorkbenchView
         return null;
     }
 
-    private WrapPanel BuildSearchTabActions()
-    {
-        _downloadAll.Click += async (_, _) =>
-        {
-            if (_model.Search.Bulk.IsRunning) _model.Search.CancelBulk();
-            else await _model.Search.DownloadAllAsync();
-        };
-        _bulkHost.Child = _bulkText;
-        AutomationProperties.SetLiveSetting(_bulkText, AutomationLiveSetting.Polite);
-        return new WrapPanel { Name = "BooruSearchActions", Classes = { "workspace-toolbar" },
-            Children = { _createWatcher, _downloadAll, _cancel } };
-    }
-
     private Control BuildBulkStatus() => _bulkHost;
 
     // ---- result line and pager under the results, view switch with labels --------------------------------
@@ -181,7 +170,7 @@ internal sealed partial class BooruWorkbenchView
             bool wide = _tabs.Bounds.Width >= ViewToggleLabelsMinimumWidth;
             if (wide != _wideViewToggle) { _wideViewToggle = wide; RenderViewToggleLabels(); }
         };
-        _bottomBar.Children.AddRange([_bottomStatusHost, _pager, _pageLimit]);
+        _bottomBar.Children.AddRange([_bottomStatusHost, _pagerRow, _pageLimit]);
         return _bottomBar;
     }
 
@@ -252,6 +241,12 @@ internal sealed partial class BooruWorkbenchView
             : model.IsPaused ? BooruText.SearchStatus(view, paused: true) : null;
         if (_submit.IsEnabled && CommandCatalog.ShortcutTooltipDisplay(SubmitCommand, "booru") is { } shortcut)
             tip = label + " · " + shortcut;
+        string alternateLabel = Texts.T("booru.tabs.searchNewShort");
+        _alternateSubmit.Content = alternateLabel;
+        _alternateSubmit.IsEnabled = model.CanSubmit;
+        AutomationProperties.SetName(_alternateSubmit, alternateLabel);
+        string? alternateKey = CommandCatalog.ShortcutTooltipDisplay(AlternateSubmitCommand, "booru");
+        ToolTip.SetTip(_alternateSubmit, alternateKey == null ? alternateLabel : alternateLabel + " · " + alternateKey);
         ToolTip.SetTip(_submit, tip);
         ToolTip.SetShowOnDisabled(_submit, true);
         AutomationProperties.SetHelpText(_submit, tip ?? string.Empty);

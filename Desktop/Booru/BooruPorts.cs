@@ -48,7 +48,7 @@ internal interface IBooruSearchPort
     string ProviderId { get; }
     string ProviderName { get; }
 
-    /// <summary>One bounded search page for an already canonical query. Page is 1-based, at most 5.</summary>
+    /// <summary>One bounded search page for an already canonical query. Page is 1-based and bounded by the configured search limit.</summary>
     Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, int limit, CancellationToken cancellationToken);
 
     /// <summary>One post read for the one-shot flow.</summary>
