@@ -5507,6 +5507,8 @@
     "booru.tabs.moreActions": "Autres actions",
     "booru.tabs.command.submit": "Lancer la recherche Booru",
     "booru.tabs.command.alternate": "Lancer la recherche Booru dans un nouvel onglet",
+    "booru.tabs.command.watch": "Surveiller une recherche Booru",
+    "booru.tabs.command.downloadAll": "Démarrer ou arrêter le téléchargement groupé Booru",
     "settings.booru.newSearchTarget": "Ouvrir les nouvelles recherches dans",
     "settings.booru.newSearchTarget.hint": "Définit où s’ouvre une recherche lancée depuis le champ de recherche Booru.",
     "settings.booru.newSearchTarget.new": "Nouvel onglet",

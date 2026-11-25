@@ -117,9 +117,15 @@ public sealed class BooruSearchOverflowTests
             MenuItem item = Assert.Single(menu.Items.OfType<MenuItem>(), entry => AutomationProperties.GetAutomationId(entry) == id + "Overflow");
             Assert.True(item.IsEffectivelyVisible && item.IsEffectivelyEnabled);
             Assert.Equal(button.Content, item.Header);
-            if (id == BooruWorkbenchView.AlternateSubmitName)
-                Assert.Equal(new KeyGesture(Key.Enter, KeyModifiers.Shift), item.InputGesture);
-            else Assert.Null(item.InputGesture);
+            // Blocker 3 requires the Watch and Download/Stop shortcuts in the overflow entries.
+            KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+            KeyGesture expected = id switch
+            {
+                BooruWorkbenchView.CreateWatcherName => new(Key.F7, primary | KeyModifiers.Shift),
+                BooruWorkbenchView.DownloadAllName => new(Key.F8, primary | KeyModifiers.Shift),
+                _ => new(Key.Enter, KeyModifiers.Shift)
+            };
+            Assert.Equal(expected, item.InputGesture);
             PointerClick(item, window);
             Assert.False(menu.IsOpen);
             Assert.Same(input, window.FocusManager?.GetFocusedElement());
@@ -175,6 +181,7 @@ public sealed class BooruSearchOverflowTests
         PressSearchAction(window, PhysicalKey.F7);
 
         Assert.Single(harness.Watchers.Calls, call => call == "create:cat");
+        AssertShortcutTip(watch, "booru.search.watch");
         Assert.Same(input, window.FocusManager?.GetFocusedElement());
     });
 
@@ -203,6 +210,7 @@ public sealed class BooruSearchOverflowTests
             PressSearchAction(window, PhysicalKey.F8);
             Assert.True(page.Model.Search.Bulk.IsRunning);
             Assert.Equal(new[] { ("cat", 1), ("cat", 1) }, harness.Search.Searches);
+            AssertShortcutTip(bulk, "booru.search.download-all");
             Assert.Same(input, window.FocusManager?.GetFocusedElement());
 
             PressSearchAction(window, PhysicalKey.F8);
@@ -225,6 +233,13 @@ public sealed class BooruSearchOverflowTests
         AssertAction("booru.search.watch", Key.F7);
         AssertAction("booru.search.download-all", Key.F8);
 
+        ShortcutBindingsSection saved = new ShortcutBindingsSection().Set("input.focus-url", [ShortcutGesture.Parse("Primary+Shift+F7")]);
+        EffectiveShortcutBindings upgraded = EffectiveShortcutBindings.Build(saved, platform);
+        var press = new KeyEventArgs { Key = Key.F7, KeyModifiers = primary | KeyModifiers.Shift };
+        Assert.True(upgraded.Matches(press, "input.focus-url", "shell"));
+        Assert.False(upgraded.Matches(press, "booru.search.watch", "booru"));
+        Assert.False(Assert.Single(upgraded.Issues).BlocksSave);
+
         void AssertAction(string id, Key key)
         {
             KeyModifiers modifiers = primary | KeyModifiers.Shift;
@@ -233,6 +248,12 @@ public sealed class BooruSearchOverflowTests
             string display = mac ? $"⇧⌘{key} (Fn)" : $"{Texts.T("key.ctrl")}+{Texts.T("key.shift")}+{key}";
             Assert.Equal(display, CommandCatalog.ShortcutTooltipDisplay(id, mac, "booru", bindings));
         }
+    }
+
+    private static void AssertShortcutTip(Button button, string command)
+    {
+        string shortcut = Assert.IsType<string>(CommandCatalog.ShortcutTooltipDisplay(command, "booru"));
+        Assert.Contains(shortcut, Assert.IsType<string>(ToolTip.GetTip(button)));
     }
 
     private static void PressSearchAction(Window window, PhysicalKey key)

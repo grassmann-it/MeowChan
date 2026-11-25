@@ -5507,6 +5507,8 @@
     "booru.tabs.moreActions": "Más acciones",
     "booru.tabs.command.submit": "Iniciar la búsqueda en Booru",
     "booru.tabs.command.alternate": "Buscar en Booru en una pestaña nueva",
+    "booru.tabs.command.watch": "Seguir una búsqueda de Booru",
+    "booru.tabs.command.downloadAll": "Iniciar o detener la descarga masiva de Booru",
     "settings.booru.newSearchTarget": "Abrir las búsquedas nuevas en",
     "settings.booru.newSearchTarget.hint": "Elige dónde se abre una búsqueda nueva desde el campo de búsqueda de Booru.",
     "settings.booru.newSearchTarget.new": "Pestaña nueva",

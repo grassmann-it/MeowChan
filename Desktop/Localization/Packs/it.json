@@ -5513,6 +5513,8 @@
     "booru.tabs.moreActions": "Altre azioni",
     "booru.tabs.command.submit": "Avvia la ricerca su Booru",
     "booru.tabs.command.alternate": "Avvia la ricerca Booru in una nuova scheda",
+    "booru.tabs.command.watch": "Monitora una ricerca su Booru",
+    "booru.tabs.command.downloadAll": "Avvia o interrompi il download in blocco da Booru",
     "settings.booru.newSearchTarget": "Apri le nuove ricerche in",
     "settings.booru.newSearchTarget.hint": "Scegli dove aprire le nuove ricerche avviate dal campo di ricerca di Booru.",
     "settings.booru.newSearchTarget.new": "Nuova scheda",

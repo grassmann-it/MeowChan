@@ -5397,6 +5397,8 @@
     "booru.tabs.moreActions": "その他の操作",
     "booru.tabs.command.submit": "Booru 検索を実行",
     "booru.tabs.command.alternate": "Booru 検索を新しいタブで実行",
+    "booru.tabs.command.watch": "Booru の検索を監視",
+    "booru.tabs.command.downloadAll": "Booru の一括ダウンロードを開始または停止",
     "settings.booru.newSearchTarget": "新しい検索を開く場所",
     "settings.booru.newSearchTarget.hint": "Booru の検索欄から新しい検索を開く場所を指定します。",
     "settings.booru.newSearchTarget.new": "新しいタブ",

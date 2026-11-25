@@ -16,6 +16,8 @@ namespace MeowChan.Desktop.Booru;
 internal sealed partial class BooruWorkbenchView
 {
     internal const string SearchOverflowName = "BooruSearchOverflow";
+    private const string WatchSearchCommand = "booru.search.watch";
+    private const string DownloadAllCommand = "booru.search.download-all";
     private readonly Button _searchOverflow = new()
     {
         Name = SearchOverflowName, Classes = { "subtle", "icon-square" }, Focusable = false, IsTabStop = false
@@ -38,21 +40,18 @@ internal sealed partial class BooruWorkbenchView
         _searchOverflow.Content = CommandBindings.ButtonIcon("more-horizontal", 16, byKey: true);
         MenuFlyout menu = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
         _searchOverflow.Flyout = menu;
-        SearchAction alternate = new(_alternateSubmit);
+        SearchAction[] actions = [new(_alternateSubmit, AlternateSubmitCommand), new(_createWatcher, WatchSearchCommand), new(_downloadAll, DownloadAllCommand)];
         menu.Opening += (_, _) =>
         {
             EffectiveShortcutBindings bindings = ShortcutService.Current;
-            alternate.Item.InputGesture = bindings.For(AlternateSubmitCommand)
-                .FirstOrDefault(gesture => ShortcutHelp.ActsHere(AlternateSubmitCommand, gesture, "booru", bindings))
-                ?.Resolve(bindings.Platform);
+            foreach (SearchAction action in actions) action.RefreshGesture(bindings);
         };
         menu.Closed += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             if (!menu.IsOpen && _input.IsEffectivelyVisible) FocusSearchInput();
         }, DispatcherPriority.Input);
 
-        SearchToolbar toolbar = new(_mode, _input, _submit, _cancel, _searchOverflow, menu,
-            [alternate, new(_createWatcher), new(_downloadAll)]);
+        SearchToolbar toolbar = new(_mode, _input, _submit, _cancel, _searchOverflow, menu, actions);
         AutomationProperties.SetAutomationId(toolbar, "BooruSearchToolbar");
         return toolbar;
     }
@@ -63,6 +62,9 @@ internal sealed partial class BooruWorkbenchView
         ToolTip.SetTip(_searchOverflow, label);
         AutomationProperties.SetName(_searchOverflow, label);
     }
+
+    private static string AddSearchShortcut(string label, string command) =>
+        CommandCatalog.ShortcutTooltipDisplay(command, "booru") is { } gesture ? label + " · " + gesture : label;
 
     private static HelpContent BuildSearchHelp(BooruSearchView view)
     {
@@ -95,8 +97,11 @@ internal sealed partial class BooruWorkbenchView
 
     private sealed class SearchAction
     {
-        internal SearchAction(Button button)
+        private readonly string _command;
+
+        internal SearchAction(Button button, string command)
         {
+            _command = command;
             Button = button;
             Slot = new Border { Child = button };
             Item = new MenuItem();
@@ -116,6 +121,11 @@ internal sealed partial class BooruWorkbenchView
         internal Border Slot { get; }
         internal MenuItem Item { get; }
         internal double Width => Button.DesiredSize.Width + SearchToolbar.Gap;
+
+        internal void RefreshGesture(EffectiveShortcutBindings bindings) =>
+            Item.InputGesture = bindings.For(_command)
+                .FirstOrDefault(gesture => ShortcutHelp.ActsHere(_command, gesture, "booru", bindings))
+                ?.Resolve(bindings.Platform);
 
         internal void SetInline(bool inline)
         {
