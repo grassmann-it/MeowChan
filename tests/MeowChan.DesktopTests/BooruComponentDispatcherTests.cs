@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
@@ -44,10 +45,13 @@ public sealed class BooruComponentDispatcherTests
     [Fact]
     public void WorkbenchModelNotificationsRenderOnTheViewsDispatcher() => BooruComponentDispatcher.Run(() =>
     {
+        // Setting a styled property forces the splitter's type initializer before the Booru docks are present.
+        _ = new GridSplitter { ResizeBehavior = GridResizeBehavior.PreviousAndNext };
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
         using BooruWorkbenchView view = new(model, ownsModel: false);
         Dispatcher owner = Dispatcher.UIThread;
+        owner.RunJobs();
         int renders = 0;
         view.ChromeChanged += () =>
         {
