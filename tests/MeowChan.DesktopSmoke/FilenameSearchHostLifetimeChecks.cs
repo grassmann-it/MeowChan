@@ -596,7 +596,7 @@ internal static class FilenameSearchHostLifetimeChecks
                 await f.Page.ActivateAsync().WaitAsync(Deadline);
                 await f.Page.ArchiveMediaCountTask.WaitAsync(Deadline);
                 var counts = Signal<bool>();
-                f.Page.BeforeInlineReplyCountsPublicationAsync = _ => { counts.TrySetResult(true); return Task.CompletedTask; };
+                f.Page.BeforeInlineReplyCountsPublicationAsync = (_, _, _) => { counts.TrySetResult(true); return Task.CompletedTask; };
                 await f.Page.LoadThreadAsync(Baseline).WaitAsync(Deadline);
                 await f.Page.MediaLoadTask.WaitAsync(Deadline);
                 await counts.Task.WaitAsync(Deadline);

@@ -292,7 +292,7 @@ public sealed class ThreadFavoriteHydrationTests
                 Assert.NotNull(readerHost.Content);
                 Assert.Equal(ThreadId, page.CurrentThread!.Summary.Id);
                 Assert.Single(page.CurrentThread.Posts);
-                Assert.Equal(2, readerOpens); // thread read plus inline backlink counts, not a list load
+                Assert.Equal(1, readerOpens); // The unattached pane reads the thread. Reply counts wait for a viewport.
                 Assert.False((bool)Get(page, "_listLoaded")!);
                 Assert.Null(Get(page, "_appliedSearch"));
                 Assert.Null(page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource);
@@ -310,7 +310,7 @@ public sealed class ThreadFavoriteHydrationTests
                 Assert.True(detail.CanToggleThreadFavorite);
                 Assert.Equal(!marked, host.GetThreadFavorites().Contains(ThreadId));
                 Assert.Equal(otherBefore, File.ReadAllBytes(Path.Combine(otherProfile.Path, "thread-favorites.json")));
-                Assert.Equal(2, readerOpens); // changing the mark does not reload the catalog/list
+                Assert.Equal(1, readerOpens); // changing the mark does not reload the catalog/list
                 Assert.False((bool)Get(page, "_listLoaded")!);
                 Assert.Null(Get(page, "_appliedSearch"));
             }

@@ -1426,9 +1426,10 @@ public partial class ArchivePage
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
         // A post step behind another tab takes precedence over the old realization until Posts is shown again.
         if (_postsAnchorOnShow is { } pending && pending.Thread == _thread.Summary.Id) return pending;
+        ReaderPostRows? source = list.ItemsSource as ReaderPostRows;
         var visible = list.GetRealizedContainers()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(item => item.Item.DataContext is ArchivePostRow candidate && ReferenceEquals(FindPostRow(candidate.Id), candidate)
+            .Where(item => item.Item.DataContext is ArchivePostRow candidate && source?.IndexOf(candidate) is >= 0
                 && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)
