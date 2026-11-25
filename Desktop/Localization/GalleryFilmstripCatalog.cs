@@ -28,7 +28,7 @@ internal static class GalleryFilmstripCatalog
         ("settings.galleryFilmstripTileGapHint", "The space between two thumbnails of the gallery filmstrip. Default {0}, from {1} to {2}.", "Der Abstand zwischen zwei Vorschaubildern im Filmstreifen der Galerie. Standard {0}, von {1} bis {2}."),
         // Filmstrip flags (decision 123): what a tile shows besides the length.
         ("settings.galleryFilmstripFlagFavorite", "Filmstrip shows: favorite", "Filmstreifen zeigt: Favorit"),
-        ("settings.galleryFilmstripFlagFavoriteHint", "A small filled star on the thumbnails of favorite media.", "Ein kleiner gefüllter Stern auf den Vorschaubildern von Favoriten."),
+        ("settings.galleryFilmstripFlagFavoriteHint", "A small filled heart on the thumbnails of favorite media.", "Ein kleines gefülltes Herz auf den Vorschaubildern von Favoriten."),
         ("settings.galleryFilmstripFlagRating", "Filmstrip shows: rating", "Filmstreifen zeigt: Bewertung"),
         ("settings.galleryFilmstripFlagRatingHint", "The own rating, 1 to 5, as a small number with a half star on the thumbnails of rated media.", "Die eigene Bewertung, 1 bis 5, als kleine Zahl mit einem halben Stern auf den Vorschaubildern bewerteter Medien."),
         ("settings.galleryFilmstripFlagUntagged", "Filmstrip shows: no tags yet", "Filmstreifen zeigt: noch keine Tags"),

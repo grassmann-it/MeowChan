@@ -5341,7 +5341,7 @@
     "stats.footer.tip": "{0}: {1}",
     "theme.colors.resetAll.hint": "Riporta tutti i colori a quelli integrati.",
     "settings.galleryFilmstripFlagFavorite": "La striscia mostra: preferito",
-    "settings.galleryFilmstripFlagFavoriteHint": "Una piccola stella piena sulle miniature dei media preferiti.",
+    "settings.galleryFilmstripFlagFavoriteHint": "Un piccolo cuore pieno sulle miniature dei media preferiti.",
     "settings.galleryFilmstripFlagRating": "La striscia mostra: valutazione",
     "settings.galleryFilmstripFlagRatingHint": "La propria valutazione, da 1 a 5, come piccolo numero con mezza stella sulle miniature dei media valutati.",
     "settings.galleryFilmstripFlagUntagged": "La striscia mostra: senza tag",

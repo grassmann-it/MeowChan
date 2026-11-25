@@ -272,7 +272,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         for (int index = 0; index < _stars.Length; index++)
         {
             ToggleButton star = _stars[index];
-            Border glyph = FavoriteStar.Create(index < shown, _starGlyphSize, tinted: !previewing);
+            Border glyph = RatingStar.Create(index < shown, _starGlyphSize, tinted: !previewing);
             glyph.RenderTransform = _starOffset;
             star.Content = glyph;
             star.Classes.Set("rating-preview", previewing && index < shown);

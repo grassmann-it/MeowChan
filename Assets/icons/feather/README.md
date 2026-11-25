@@ -11,7 +11,10 @@ Avalonia `ImageBrush`/`OpacityMask` approach and a theme foreground color. They
 cover 16–24 logical pixels through 200% display scaling. Larger sizes need larger
 derivatives or vector rendering. The original SVGs remain unchanged.
 `masks/star-filled.png` is the one filled derivative: `star.svg` rendered the same way
-with `fill="currentColor"` instead of `fill="none"`, for the marked favorite state.
+with `fill="currentColor"` instead of `fill="none"`; it now marks a rated star only.
+`masks/heart-filled.png` is the filled derivative of `heart.svg` made the same way (`fill="currentColor"`, `rsvg-convert -w 48 -h 48`,
+rsvg-convert 2.62.4 / Cairo 1.18.6, the same call reproduces `heart.png` byte for byte): the marked favorite (Tom, 25.11.2026: the favorite
+is a heart everywhere, the star belongs to the rating).
 `skip-forward` (next frame) and `repeat` (A–B loop) of the video transport were added from the
 same release with the same renderer and size; `rotate-cw` (rotate 90°) likewise.
 `tag` (the tagging page in the footer) likewise.

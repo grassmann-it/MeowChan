@@ -5387,7 +5387,7 @@
     "stats.footer.tip": "{0}: {1}",
     "theme.colors.resetAll.hint": "Vrátí všechny barvy na vestavěné.",
     "settings.galleryFilmstripFlagFavorite": "Pás náhledů zobrazuje: oblíbené",
-    "settings.galleryFilmstripFlagFavoriteHint": "Malou plnou hvězdičku na náhledech oblíbených médií.",
+    "settings.galleryFilmstripFlagFavoriteHint": "Malé plné srdce na náhledech oblíbených médií.",
     "settings.galleryFilmstripFlagRating": "Pás náhledů zobrazuje: hodnocení",
     "settings.galleryFilmstripFlagRatingHint": "Vlastní hodnocení 1 až 5 jako malé číslo s půlhvězdou na náhledech ohodnocených médií.",
     "settings.galleryFilmstripFlagUntagged": "Pás náhledů zobrazuje: bez štítků",

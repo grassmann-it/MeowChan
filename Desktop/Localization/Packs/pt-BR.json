@@ -5341,7 +5341,7 @@
     "stats.footer.tip": "{0}: {1}",
     "theme.colors.resetAll.hint": "Volta todas as cores às cores integradas.",
     "settings.galleryFilmstripFlagFavorite": "A faixa mostra: favorito",
-    "settings.galleryFilmstripFlagFavoriteHint": "Uma pequena estrela preenchida nas miniaturas das mídias favoritas.",
+    "settings.galleryFilmstripFlagFavoriteHint": "Um pequeno coração preenchido nas miniaturas das mídias favoritas.",
     "settings.galleryFilmstripFlagRating": "A faixa mostra: avaliação",
     "settings.galleryFilmstripFlagRatingHint": "A própria avaliação, de 1 a 5, como um pequeno número com meia estrela nas miniaturas das mídias avaliadas.",
     "settings.galleryFilmstripFlagUntagged": "A faixa mostra: sem etiquetas",

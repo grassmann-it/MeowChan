@@ -58,7 +58,7 @@ public partial class ArchivePage
 
     /// <summary>
     /// Header of a thread column. Numbers (posts, saved versions) get a right-aligned header over their right-aligned values; the
-    /// favourite column has the star as its header, named and explained by tooltip and accessible name. The control of a header is
+    /// favourite column has the heart as its header, named and explained by tooltip and accessible name. The control of a header is
     /// kept across language changes and only renamed.
     /// </summary>
     private void SetThreadColumnHeader(DataGridColumn column, string key)
@@ -69,7 +69,7 @@ public partial class ArchivePage
             case PinnedColumnKey:
                 if (column.Header is not Border border)
                 {
-                    Avalonia.Controls.Shapes.Path star = WorkspaceIcons.Create(WorkspaceIcons.Star);
+                    Avalonia.Controls.Shapes.Path star = WorkspaceIcons.Create(WorkspaceIcons.Heart);
                     star.Stretch = Stretch.Uniform; star.Width = 14; star.Height = 14;
                     border = new Border
                     {

@@ -5335,7 +5335,7 @@
     "stats.footer.tip": "{0}: {1}",
     "theme.colors.resetAll.hint": "Devuelve todos los colores a los colores integrados.",
     "settings.galleryFilmstripFlagFavorite": "La tira de miniaturas muestra: favorito",
-    "settings.galleryFilmstripFlagFavoriteHint": "Una pequeña estrella rellena en las miniaturas de los medios favoritos.",
+    "settings.galleryFilmstripFlagFavoriteHint": "Un pequeño corazón relleno en las miniaturas de los medios favoritos.",
     "settings.galleryFilmstripFlagRating": "La tira de miniaturas muestra: valoración",
     "settings.galleryFilmstripFlagRatingHint": "La valoración propia, de 1 a 5, como un número pequeño con media estrella en las miniaturas de los medios valorados.",
     "settings.galleryFilmstripFlagUntagged": "La tira de miniaturas muestra: sin etiquetas",

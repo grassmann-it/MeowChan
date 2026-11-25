@@ -153,7 +153,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
         if (!state.Available || _errorSource != null) _error = state.Error;
         IsEnabled = !_running && state.Available;
         IsChecked = marked;
-        // ★ filled when marked, ☆ outline otherwise: the same pair as the thread list and the gallery badge.
+        // A filled heart when marked, an outline otherwise: the same pair as the thread list and the gallery badge.
         Border star = MeowChan.Desktop.Controls.FavoriteStar.Create(marked, tinted: _error == null);
         // Dimmed while the saved copy is still being looked up, as the thread star is while its state loads.
         if (hold == FavoriteStarHold.Loading) star.Opacity = 0.5;

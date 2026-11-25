@@ -5365,7 +5365,7 @@
     "stats.footer.tip": "{0}: {1}",
     "theme.colors.resetAll.hint": "Возвращает все цвета к встроенным.",
     "settings.galleryFilmstripFlagFavorite": "Лента показывает: избранное",
-    "settings.galleryFilmstripFlagFavoriteHint": "Маленькая закрашенная звезда на миниатюрах избранных медиа.",
+    "settings.galleryFilmstripFlagFavoriteHint": "Маленькое закрашенное сердце на миниатюрах избранных медиа.",
     "settings.galleryFilmstripFlagRating": "Лента показывает: оценку",
     "settings.galleryFilmstripFlagRatingHint": "Собственная оценка от 1 до 5 в виде маленького числа с половиной звезды на миниатюрах оценённых медиа.",
     "settings.galleryFilmstripFlagUntagged": "Лента показывает: без тегов",

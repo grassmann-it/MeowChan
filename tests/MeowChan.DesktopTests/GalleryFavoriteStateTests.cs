@@ -308,9 +308,9 @@ public sealed class GalleryFavoriteStateTests
         StackPanel glyph = Assert.IsType<StackPanel>(badge.Content);
         Assert.False(glyph.IsHitTestVisible);
         Assert.False(glyph.Focusable);
-        // A drawn star (not a font glyph) and a pending "…" that starts hidden.
+        // A drawn heart (not a font glyph; Tom, 25.11.2026: the favourite is a heart everywhere) and a pending "…" that starts hidden.
         Avalonia.Controls.Shapes.Path star = Assert.IsType<Avalonia.Controls.Shapes.Path>(glyph.Children[0]);
-        Assert.Equal(MeowChan.Desktop.Controls.WorkspaceIcons.Star, MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star));
+        Assert.Equal(MeowChan.Desktop.Controls.WorkspaceIcons.Heart, MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star));
         Assert.False(star.IsHitTestVisible);
         TextBlock pending = Assert.IsType<TextBlock>(glyph.Children[1]);
         // The size is the Subtitle design token (16), bound dynamically, so it resolves only once the badge is in the tree.

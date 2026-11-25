@@ -5388,7 +5388,7 @@
     "stats.footer.tip": "{0}: {1}",
     "theme.colors.resetAll.hint": "Przywraca wszystkie kolory do wbudowanych.",
     "settings.galleryFilmstripFlagFavorite": "Pasek miniatur pokazuje: ulubione",
-    "settings.galleryFilmstripFlagFavoriteHint": "Małą wypełnioną gwiazdkę na miniaturach ulubionych mediów.",
+    "settings.galleryFilmstripFlagFavoriteHint": "Małe wypełnione serce na miniaturach ulubionych mediów.",
     "settings.galleryFilmstripFlagRating": "Pasek miniatur pokazuje: ocenę",
     "settings.galleryFilmstripFlagRatingHint": "Własną ocenę od 1 do 5 jako małą liczbę z pół gwiazdki na miniaturach ocenionych mediów.",
     "settings.galleryFilmstripFlagUntagged": "Pasek miniatur pokazuje: brak tagów",

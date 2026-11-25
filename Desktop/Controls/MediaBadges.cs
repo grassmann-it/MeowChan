@@ -113,7 +113,7 @@ internal readonly record struct MediaBadge(MediaBadgeId Id, MediaBadgeCorner Cor
 /// <summary>The icons the badges use: existing masks of the feather catalog, plus the one drawn mark of the "no tags" badge.</summary>
 internal static class MediaBadgeIcons
 {
-    internal const string Missing = "x-circle", Favorite = "star-filled", Play = "play", Queued = "clipboard", Done = "check",
+    internal const string Missing = "x-circle", Favorite = "heart-filled", Play = "play", Queued = "clipboard", Done = "check",
         Skipped = "skip-forward", Tag = "tag", Rating = "star-half", Booru = "globe";
     /// <summary>Not a mask: the existing drawn mark of the untagged state (<see cref="WorkspaceChips.MarkUntagged"/>).</summary>
     internal const string Untagged = "untagged";

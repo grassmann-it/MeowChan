@@ -5335,7 +5335,7 @@
     "stats.footer.tip": "{0} : {1}",
     "theme.colors.resetAll.hint": "Remet toutes les couleurs sur les couleurs intégrées.",
     "settings.galleryFilmstripFlagFavorite": "La bande affiche : favori",
-    "settings.galleryFilmstripFlagFavoriteHint": "Une petite étoile pleine sur les miniatures des médias favoris.",
+    "settings.galleryFilmstripFlagFavoriteHint": "Un petit cœur plein sur les miniatures des médias favoris.",
     "settings.galleryFilmstripFlagRating": "La bande affiche : note",
     "settings.galleryFilmstripFlagRatingHint": "La note personnelle, de 1 à 5, sous forme de petit nombre avec une demi-étoile sur les miniatures des médias notés.",
     "settings.galleryFilmstripFlagUntagged": "La bande affiche : sans étiquette",
