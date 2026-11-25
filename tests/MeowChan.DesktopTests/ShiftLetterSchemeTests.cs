@@ -43,10 +43,12 @@ public sealed class ShiftLetterSchemeTests
             GalleryShortcutScheme.ShiftLetterActionIds.Order(StringComparer.Ordinal).ToArray());
         Assert.Equal("M", found["video.mute"]);
         Assert.Equal("R", found["gallery.rotate"]);
-        // The Shift-letter panel switches outside the gallery use the same form on every platform.
-        Assert.Equal(new[] { "media.focus-mode", "media.sidebar.info" }, GalleryShortcutScheme.ShiftLetterOtherPanelIds.ToArray());
+        Assert.Equal(new[] { "media.focus-mode" }, GalleryShortcutScheme.ShiftLetterOtherPanelIds.ToArray());
         Assert.Equal("F", found["media.focus-mode"]);
+        // Tom: Shift+I = Fakten, Shift+A = Autohide, Galerie-Infozeile = Shift+Z.
         Assert.Equal("I", found["media.sidebar.info"]);
+        Assert.Equal("A", found["media.sidebar.autohide"]);
+        Assert.Equal("Z", found["gallery.layout.info"]);
         // No stale entry: every listed exception really has the form on this platform, and a panel switch has it or none at all.
         foreach (string id in GalleryShortcutScheme.ShiftLetterActionIds.Concat(GalleryShortcutScheme.ShiftLetterOtherPanelIds))
             Assert.True(found.ContainsKey(id), id);
