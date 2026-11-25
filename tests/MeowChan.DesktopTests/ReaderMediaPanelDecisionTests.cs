@@ -141,5 +141,64 @@ public sealed class ReaderMediaPanelDecisionTests
         finally { window.Close(); page.EndLifetime(); }
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PendingDecisionsBelongToTheirMediaEvenAfterReturningToTheFirst(bool favorite) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ReaderMediaSidebar sidebar = new();
+        Window window = new() { Content = sidebar, Width = 500, Height = 800 };
+        TaskCompletionSource first = new(), second = new();
+        List<(string Target, int? Rating)> writes = [];
+        List<string> editors = [];
+        void Show(string target, Task saving)
+        {
+            sidebar.Describe("post", "same.png", "", true, mediumKey: target);
+            Task Write(int? value)
+            {
+                writes.Add((target, value));
+                return saving;
+            }
+            sidebar.ConfigureRating(() => true, () => null, Write);
+            sidebar.ConfigureFavorite(() => true, () => false, () => Write(null));
+            sidebar.OpenTagsAsync = (_, _) => { editors.Add(target); return Task.CompletedTask; };
+            sidebar.SetTags(["tag"], null);
+            window.UpdateLayout();
+        }
+        int? Expected(int value) => favorite ? null : value;
+        void Rate(int value) => Click(SidePanelDesignTests.ById<Button>(sidebar,
+            favorite ? "ReaderMediaSidebarFavorite" : "ReaderMediaSidebarDecisionRating" + value));
+        try
+        {
+            window.Show();
+            Show("A", first.Task);
+            Rate(1);
+            Assert.Equal([("A", Expected(1))], writes);
+            Show("B", second.Task);
+            Click(SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarEditTags"));
+            Rate(4);
+            Assert.Equal(["B"], editors);
+            Assert.Equal([("A", Expected(1)), ("B", Expected(4))], writes);
+            Show("A", first.Task);
+            Rate(2);
+            second.SetResult();
+            Dispatcher.UIThread.RunJobs();
+            Rate(3);
+            Assert.Equal([("A", Expected(1)), ("B", Expected(4))], writes);
+            first.SetResult();
+            Dispatcher.UIThread.RunJobs();
+            Rate(5);
+            Assert.Equal([("A", Expected(1)), ("B", Expected(4)), ("A", Expected(5))], writes);
+        }
+        finally
+        {
+            first.TrySetResult();
+            second.TrySetResult();
+            Dispatcher.UIThread.RunJobs();
+            window.Close();
+        }
+    });
+
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 }
