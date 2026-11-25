@@ -160,6 +160,8 @@ public sealed class TaggingPagePanelTests
     [InlineData(true)]
     public void RatingAndTaggingWriteOnlyTheCursorWhileTheSelectionStaysInTheQueue(bool grid) => WithPage(grid, async fixture =>
     {
+        // The stamp gives existing tags only.
+        await fixture.Session.DefinePrivateTagAsync("cursor tag");
         fixture.ClickEntry(1);
         await fixture.WaitForEditorAsync();
         fixture.ClickEntry(2, RawInputModifiers.Control);
@@ -311,7 +313,8 @@ public sealed class TaggingPagePanelTests
         await fixture.ShowsAsync(3);
         if (width == 1000) BooruReviewTestPlatform.Resize(fixture.Window, 1400);
         await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap, "the starting decode before dragging");
-        Bitmap before = (Bitmap)fixture.Picture.Source!;
+        // The first decode goes back to the cache once the larger one is shown; keep its size, not the bitmap.
+        int before = ((Bitmap)fixture.Picture.Source!).PixelSize.Width;
         GridSplitter handle = fixture.Find<GridSplitter>(fixture.Window, HandleId);
         Assert.True(handle.Focus());
         Point center = BoundsIn(handle, fixture.Window).Center;
@@ -323,7 +326,7 @@ public sealed class TaggingPagePanelTests
         await fixture.WaitAsync(() => fixture.Layout.PanelWidth == panelWidth + drag, "saved width after dragging");
         await fixture.ShowsAsync(3);
         await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap bigger
-            && bigger.PixelSize.Width > before.PixelSize.Width, "larger decode of the same cursor");
+            && bigger.PixelSize.Width > before, "larger decode of the same cursor");
     }, video: 2, wideImage: 3);
 
     [Fact]
@@ -423,8 +426,11 @@ public sealed class TaggingPagePanelTests
         {
             editor.ResetDraft(SettingsEditor.SettingsResetScope.All);
             settings.UpdateLayout();
-            fixture.Click(fixture.Find<Button>(settings, "SaveSettingsButton"));
-            await saved.Task.WaitAsync(Deadline);
+            Button save = fixture.Find<Button>(settings, "SaveSettingsButton");
+            fixture.Click(save);
+            await fixture.WaitAsync(() => saved.Task.IsCompleted || !editor.IsBusy, "the settings save to finish");
+            Assert.True(saved.Task.IsCompleted, $"The save did not run: error '{editor.ErrorMessage}', available {editor.IsAvailable}, "
+                + $"button enabled {save.IsEffectivelyEnabled}");
             Assert.False(fixture.Session.Config.TaggingPagePanel);
             Assert.False(fixture.Find<ToggleButton>(fixture.Window, ToggleId).IsChecked);
         }
