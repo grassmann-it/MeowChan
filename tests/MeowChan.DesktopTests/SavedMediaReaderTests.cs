@@ -749,7 +749,19 @@ public sealed class SavedMediaReaderTests
             return Task.FromResult(string.Empty);
         };
 
-        Click(window, first, local: new Point(16, grid ? 32 : first.Bounds.Height / 2));
+        Point firstPoint = new(16, grid ? 32 : first.Bounds.Height / 2);
+        if (grid)
+        {
+            first.BringIntoView();
+            WaitUntil(() =>
+            {
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                return first.TranslatePoint(firstPoint, window) is { } point && window.InputHitTest(point) is Visual hit
+                    && (ReferenceEquals(first, hit) || first.IsVisualAncestorOf(hit));
+            });
+        }
+        Click(window, first, local: firstPoint);
         ToggleSelection(window, second, new Point(16, grid ? 32 : second.Bounds.Height / 2), macOS);
         Assert.Equal(rows, page.SelectedMediaRows());
         ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);

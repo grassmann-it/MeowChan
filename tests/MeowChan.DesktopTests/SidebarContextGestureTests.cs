@@ -634,6 +634,8 @@ public sealed class SidebarContextGestureTests
         page.TickMediaSidebarFollow();
         await BooruTestSupport.WaitAsync(() => sidebar.HeaderLine.Contains("c.png", StringComparison.Ordinal)
             && Picture(sidebar).IsEffectivelyVisible && !sidebar.IsDimmed, "the Reader to present the next post");
+        await page.MediaSidebarStripTask;
+        ContextGestures.Settle(window);
         ListBoxItem thumbnail = SidebarSecondThumbnail(sidebar);
         Assert.Contains("d.png", AutomationProperties.GetName(thumbnail));
         Invoke(thumbnail);
@@ -765,6 +767,7 @@ public sealed class SidebarContextGestureTests
         ListBoxItem thumbnail = SidebarSecondThumbnail(sidebar);
         Assert.True(sidebar.HasStripPicture(1));
         await InvokeIfOpenAsync(thumbnail);
+        await BooruTestSupport.WaitAsync(() => targets.Count > 0, "the original thumbnail file command");
         Assert.Equal(media[1].Path, Assert.Single(targets));
         targets.Clear();
 
@@ -789,6 +792,7 @@ public sealed class SidebarContextGestureTests
         Assert.True(sidebar.HasStripPicture(1));
         targets.Clear();
         await InvokeIfOpenAsync(SidebarSecondThumbnail(sidebar));
+        await BooruTestSupport.WaitAsync(() => targets.Count > 0, "the replacement thumbnail file command");
         Assert.Equal(media[0].Path, Assert.Single(targets));
 
         async Task InvokeIfOpenAsync(ListBoxItem item)
@@ -808,6 +812,8 @@ public sealed class SidebarContextGestureTests
     {
         (ArchivePage page, _) = await OpenReaderAsync(window);
         Control frame = page.DetachReader();
+        // Drain the previous root's queued layout before the same controls join the new root.
+        ContextGestures.Settle(window);
         Window detached = new() { Width = 1700, Height = 900, Content = frame };
         try
         {
@@ -831,6 +837,7 @@ public sealed class SidebarContextGestureTests
         {
             ContextClick.MacOSForTests = null;
             detached.Content = null;
+            ContextGestures.Settle(detached);
             page.AttachReader(frame);
             detached.Close();
         }
@@ -983,6 +990,8 @@ public sealed class SidebarContextGestureTests
     {
         var (sidebar, _, _) = await OpenPreviewAsync(window, reader);
         MediaPage? media = window.MediaPageForTests;
+        await (reader ? window.ArchivePage.MediaSidebarTask : media!.PanelTask);
+        ContextGestures.Settle(window);
         ReaderInlineVideoSlot slot = Assert.IsType<ReaderInlineVideoSlot>(reader ? window.ArchivePage.SidebarInlineVideo : media!.PanelVideo);
         ReaderInlineVideoController controller = reader ? window.ArchivePage.InlineVideo : media!.PanelVideoController;
         await controller.ConfigureAsync(controller.Options with { Enabled = true, SidebarAutoplay = false });
@@ -994,6 +1003,10 @@ public sealed class SidebarContextGestureTests
         int starts = 0;
         slot.Offer(controller, "pending-video", _ => { starts++; return Task.FromResult<GalleryEntry?>(null); }, "b.mp4");
         Assert.True(sidebar.IsShowingStalePicture);
+        ContextGestures.Settle(window);
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Point center = slot.Activator.TranslatePoint(new Rect(slot.Activator.Bounds.Size).Center, window)!.Value;
+        Assert.Contains(slot.Activator, Assert.IsAssignableFrom<Visual>(window.InputHitTest(center)).GetSelfAndVisualAncestors());
         ContextGestures.Click(slot.Activator);
         await slot.ActivationTask;
         Assert.Equal(0, starts);
