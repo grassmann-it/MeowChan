@@ -133,6 +133,60 @@ public sealed class SavedMediaReaderTests
     }, withNavigation: true);
 
     [Fact]
+    public void MacPagingShortcutsChangeReferencePagesFromTheFocusedNavigationBar() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
+        using TempDirectory profile = new();
+        CapturedPost[] posts = Enumerable.Range(42, 52).Select(id => new CapturedPost(
+            id.ToString(System.Globalization.CultureInfo.InvariantCulture), id, PostFieldPresence.All,
+            Html: id == 42 ? "Opening post" : "<a href='#42'>&gt;&gt;42</a>")).ToArray();
+        using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+        await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile.Path, lease))
+            await catalog.CaptureAsync(new(ThreadId, "https://offline.invalid/g/thread/42", "References",
+                ThreadSourceState.Active, DateTimeOffset.UnixEpoch, profile.Path, posts));
+
+        ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token), (_, _) => Task.CompletedTask, _ => { })
+            { IsAvailable = true, ReaderNavigationMode = Config.ReaderNavigationModeAlways };
+        Window window = new() { Width = 1440, Height = 840 };
+        FieldInfo bindings = typeof(ShortcutService).GetField("_current", BindingFlags.Static | BindingFlags.NonPublic)!;
+        EffectiveShortcutBindings previous = ShortcutService.Current;
+        try
+        {
+            bindings.SetValue(null, EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS));
+            await page.LoadThreadAsync(ThreadId);
+            window.Content = page.DetachReader();
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await page.LoadBacklinksAsync(new(ThreadId, "42"));
+            Layout(window);
+            Assert.True(ById<TabItem>(window, "ArchiveReferencesTab").IsSelected);
+            var references = Assert.Single(window.GetVisualDescendants().OfType<ListBox>(), list =>
+                ControlAutomationPeer.CreatePeerForElement(list).GetAutomationId() == "ArchiveReferences");
+            string[] ReplyIds() => references.Items.Cast<ArchiveQuoteRow>().Select(row => row.Quote.Origin.PostId).ToArray();
+            string[] firstPage = ReplyIds();
+            Assert.Equal(50, firstPage.Length);
+            Border bar = VisibleById<Border>(window, "ReaderNavigationBar");
+            Assert.True(bar.Focus(NavigationMethod.Tab) && bar.IsFocused);
+            const RawInputModifiers commandOption = RawInputModifiers.Meta | RawInputModifiers.Alt;
+            PressKey(window, PhysicalKey.ArrowRight, commandOption);
+            await BooruTestSupport.WaitAsync(() => references.ItemCount == 1, "the second page of replies");
+            Assert.DoesNotContain(Assert.Single(ReplyIds()), firstPage);
+            Assert.True(bar.IsFocused);
+            PressKey(window, PhysicalKey.ArrowLeft, commandOption);
+            await BooruTestSupport.WaitAsync(() => references.ItemCount == 50, "the first page of replies");
+            Assert.Equal(firstPage, ReplyIds());
+            Assert.True(bar.IsFocused);
+        }
+        finally
+        {
+            bindings.SetValue(null, previous);
+            page.EndLifetime();
+            window.Close();
+        }
+    });
+
+    [Fact]
     public void ReferenceListKeepsItsNativeArrowNavigationFromTheLink() => Run((page, window) =>
     {
         ListBox references = page.FindControl<ListBox>("ArchiveReferences")!;
