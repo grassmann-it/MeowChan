@@ -347,7 +347,7 @@ internal sealed partial class GalleryViewer
             SetToggleLabel(_overlayToggle, GalleryPlaybackCatalog.Get("viewer.playback.controlsOverlay"));
             SetToggleLabel(_autoHideToggle, GalleryPlaybackCatalog.Get("viewer.playback.autoHide"));
             ToolTip.SetTip(_autoHideToggle, GalleryPlaybackCatalog.Get("viewer.playback.autoHideHelp"));
-            SetToggleLabel(_postOverlayToggle, GalleryPlaybackCatalog.Get("viewer.playback.postOverlay"));
+            SetToggleLabel(_postOverlayToggle, CommandCatalog.Label("gallery.post-overlay-toggle"));
             _overlayToggle.IsChecked = _playbackPreferences.OverlayControls;
             _autoHideToggle.IsChecked = _playbackPreferences.AutoHideControls;
             _autoHideToggle.IsEnabled = _playbackPreferences.OverlayControls && !_nativeOverlayFallback;
@@ -361,7 +361,7 @@ internal sealed partial class GalleryViewer
                         ? GalleryPlaybackCatalog.Get("viewer.playback.enableOverlay") : null;
                 // A menu row's content is its Grid (the row layout), never a text: the visible label is the row's label block.
                 string label = LabelOf(button) ?? CommandCatalog.Label(id);
-                string tip = CommandBindings.Tooltip(id, reason, label);
+                string tip = id == "gallery.post-overlay-toggle" ? PostPanelPlacementHelp() : CommandBindings.Tooltip(id, reason, label);
                 ToolTip.SetTip(button, tip); AutomationProperties.SetHelpText(button, tip);
             }
             PresentSlideshowMenu();
@@ -374,6 +374,12 @@ internal sealed partial class GalleryViewer
         }
         finally { _updatingPlaybackControls = false; }
         UpdateViewerInteractionTimer();
+    }
+
+    private static string PostPanelPlacementHelp()
+    {
+        string label = CommandCatalog.Label("gallery.post-overlay-toggle");
+        return Commands.ShortcutHelp.GalleryPostPanelKeys() is { } keys ? label + " · " + keys : label;
     }
 
     // Compare resolved text rather than a language code: Texts.Changed also fires

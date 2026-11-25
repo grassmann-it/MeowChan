@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Platform;
 using Avalonia.LogicalTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
@@ -439,13 +440,23 @@ public sealed class GalleryWheelModeTests : IDisposable
         }
     }
 
-    [Fact]
-    public void TheSettingsHintNamesBothModesAndTheMenuRowTheCtrlInversion()
+    [Theory]
+    [InlineData("en", ShortcutPlatform.Windows, "Ctrl+wheel", "filmstrip")]
+    [InlineData("en", ShortcutPlatform.Linux, "Ctrl+wheel", "filmstrip")]
+    [InlineData("en", ShortcutPlatform.MacOS, "⌘+wheel", "filmstrip")]
+    [InlineData("de", ShortcutPlatform.Windows, "Strg+Rad", "Filmstreifen")]
+    [InlineData("de", ShortcutPlatform.Linux, "Strg+Rad", "Filmstreifen")]
+    [InlineData("de", ShortcutPlatform.MacOS, "⌘+Rad", "Filmstreifen")]
+    public void TheSettingsAndMenuDescribeThePlatformWheelGestureInBothModes(string language, ShortcutPlatform platform, string gesture, string filmstrip)
     {
-        string hint = BuiltInCatalog.English["settings.galleryWheel.hint"];
-        Assert.Contains("Ctrl+wheel", hint);
-        Assert.Contains("filmstrip", hint, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Ctrl+wheel", BuiltInCatalog.English["gallery.wheelBrowse.help"]);
-        Assert.Contains("Strg+Rad", BuiltInCatalog.German["settings.galleryWheel.hint"]);
+        Texts.SetLanguage(language);
+        string hint = GalleryWheelCatalog.Text("settings.galleryWheel.hint", platform);
+        Assert.Contains(filmstrip, hint);
+        foreach (string key in new[] { "settings.galleryWheel.hint", "settings.galleryWheel.zoom", "settings.galleryWheel.browse", "gallery.wheelBrowse.help" })
+        {
+            string help = GalleryWheelCatalog.Text(key, platform);
+            Assert.Contains(gesture, help);
+            Assert.DoesNotContain("{0}", help);
+        }
     }
 }

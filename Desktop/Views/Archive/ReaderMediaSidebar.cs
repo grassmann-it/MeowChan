@@ -483,7 +483,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         };
         _info.Children.Add(_facts);
         _extraFacts.Children.Add(_provenanceNote);
-        _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor) { TagChipCreated = InstallTagMenu };
+        _infoBar = new MediaInfoBar(_decision, _editTags, OpenTagEditor, ShowAllTags) { TagChipCreated = InstallTagMenu };
         AutomationProperties.SetLiveSetting(_decisionError, AutomationLiveSetting.Assertive);
         _decision.RatingRequested += value =>
         {

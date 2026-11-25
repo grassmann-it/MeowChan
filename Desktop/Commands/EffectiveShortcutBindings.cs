@@ -10,6 +10,8 @@ namespace MeowChan.Desktop.Commands;
 public enum ShortcutPlatform { Windows, Linux, MacOS }
 public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers, string? Symbol = null)
 {
+    internal const string MacCommand = "⌘";
+
     public static ShortcutGesture Parse(string text)
     {
         var parts = text.Split('+');
@@ -59,7 +61,7 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         if (mods.HasFlag(KeyModifiers.Control)) parts.Add("⌃");
         if (mods.HasFlag(KeyModifiers.Alt)) parts.Add("⌥");
         if (mods.HasFlag(KeyModifiers.Shift) && Symbol == null) parts.Add("⇧");
-        if (mods.HasFlag(KeyModifiers.Meta)) parts.Add("⌘");
+        if (mods.HasFlag(KeyModifiers.Meta)) parts.Add(MacCommand);
         string key = Symbol ?? Key switch
         {
             "Back" => "⌫", "Delete" => "⌦", "Enter" or "Return" => "↩", "Escape" => "⎋", "Space" => "␣", "Tab" => "⇥",

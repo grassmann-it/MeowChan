@@ -8,6 +8,8 @@ using Avalonia.Layout;
 using MeowChan.Desktop.Controls;
 using Avalonia.LogicalTree;
 using Avalonia.Platform;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
@@ -92,6 +94,40 @@ public sealed class TaggingLayoutRhythmTests
     internal static TagQueueItem Item(TagQueueState state = TagQueueState.Open) =>
         new(new ResourceId("4chan", "g", "123"), "/media/123", "asset-1", new string('a', 64), 101, "media-1", "original",
             "p1", null, null, null, false, null, "file.png", SavedMediaKind.Image, state, DateTimeOffset.UnixEpoch);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ShowAllFromAnEmptyGroupReturnsFocusToTheAssignableQueue(bool skippedFilter) => WithPage(page =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        TagQueueGroup group = new("empty", "Empty", 0, []);
+        TagQueueItem open = Item();
+        TagQueueSnapshot queue = new(1, 0, [], [open], TagQueueLoadState.Ready, [group]);
+        Window window = new() { Width = 1100, Height = 700, Content = page };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            RenderSnapshot(page, queue, skippedFilter ? TaggingQueueFilter.Skipped : TaggingQueueFilter.All, group.Id);
+            window.UpdateLayout();
+            Assert.Equal(TaggingEmptyKind.GroupEmpty, page.EmptyKind);
+            Button showAll = Assert.Single(page.GetVisualDescendants().OfType<Button>(),
+                button => AutomationProperties.GetAutomationId(button) == "TaggingEmptyShowAll");
+            Assert.True(showAll.IsEffectivelyVisible);
+            BooruResultActionsTests.Click(showAll);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Null(page.SelectedGroupId);
+            Assert.Equal(TaggingQueueFilter.All, page.Filter);
+            Assert.Equal(open.Key, Assert.Single(page.Rows).Key);
+            ListBox results = Assert.Single(page.GetVisualDescendants().OfType<ListBox>(),
+                list => AutomationProperties.GetAutomationId(list) == "tagging.list");
+            Assert.True(results.IsKeyboardFocusWithin, $"Queue focus is on {window.FocusManager?.GetFocusedElement()}.");
+        }
+        finally { window.Close(); }
+    });
 
     [Theory]
     [InlineData("en")]

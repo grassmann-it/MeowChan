@@ -56,7 +56,7 @@ internal sealed partial class GalleryViewer
 
     private void RefreshWheelBrowseHelp()
     {
-        string help = Texts.T("gallery.wheelBrowse.help");
+        string help = GalleryWheelCatalog.Text("gallery.wheelBrowse.help");
         ToolTip.SetTip(_wheelBrowseToggle, help);
         AutomationProperties.SetHelpText(_wheelBrowseToggle, help);
     }

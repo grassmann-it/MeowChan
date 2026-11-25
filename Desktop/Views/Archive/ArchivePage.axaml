@@ -792,15 +792,15 @@
                                         </Style>
                                     </StackPanel.Styles>
                                     <StackPanel x:Name="ReaderThreadGroup" Orientation="Horizontal">
-                                        <Button x:Name="ReaderPreviousThread" Tag="reader.previousThread" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <Button x:Name="ReaderPreviousThread" AutomationProperties.AutomationId="ReaderPreviousThread" Tag="reader.previousThread" Classes="localized ghost" Focusable="False" IsTabStop="False" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                         <TextBlock x:Name="ReaderThreadPosition" AutomationProperties.AutomationId="ReaderThreadPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
-                                        <Button x:Name="ReaderNextThread" AutomationProperties.AutomationId="ReaderNextThread" Tag="reader.nextThread" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <Button x:Name="ReaderNextThread" AutomationProperties.AutomationId="ReaderNextThread" Tag="reader.nextThread" Classes="localized ghost" Focusable="False" IsTabStop="False" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                     </StackPanel>
                                     <Border x:Name="ReaderNavigationSeparator" Width="1" Height="24" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource Workspace.ControlBorder}" />
                                     <StackPanel x:Name="ReaderPostGroup" Orientation="Horizontal">
-                                        <Button x:Name="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <Button x:Name="ReaderPreviousPost" AutomationProperties.AutomationId="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized ghost" Focusable="False" IsTabStop="False" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                         <TextBlock x:Name="ReaderPostPosition" AutomationProperties.AutomationId="ReaderPostPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
-                                        <Button x:Name="ReaderNextPost" AutomationProperties.AutomationId="ReaderNextPost" Tag="reader.nextPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <Button x:Name="ReaderNextPost" AutomationProperties.AutomationId="ReaderNextPost" Tag="reader.nextPost" Classes="localized ghost" Focusable="False" IsTabStop="False" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                     </StackPanel>
                                     </StackPanel>
                                 </Border>

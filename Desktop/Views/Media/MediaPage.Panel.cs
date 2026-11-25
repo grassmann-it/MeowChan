@@ -585,14 +585,15 @@ public sealed partial class MediaPage
     private void OnPanelKeyDown(object? sender, KeyEventArgs e)
     {
         _panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came
-        if (_panel is { } panel && _panelRow is { } row && ContextClick.IsKey(e) && OwnsPanelMenu(e.Source, panel))
+        if (TryDismissPanelTagEditor(e)) return;
+        if (_panelShown && _panel is { } panel && _panelRow is { } row && ContextClick.IsKey(e) && OwnsPanelMenu(e.Source, panel))
         {
             OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard: true);
             ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
             e.Handled = true;
             return;
         }
-        if (!TryDismissPanelTagEditor(e) && !TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
+        if (!TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
     }
 
     private bool OwnsPanelMenu(object? source, ReaderMediaSidebar panel) =>

@@ -335,8 +335,7 @@ internal sealed partial class BooruWorkbenchView
         WorkspaceChips.ShowSelection(check, selected);
         frame.Children.Add(check);
 
-        // The actions are quiet: shown while the pointer is over the tile, the keyboard focus is inside it, or the hit is selected. They are only
-        // transparent otherwise (not hidden), so Tab and the screen reader still reach them.
+        // The actions are shown on hover, focus or selection. The tile owns keyboard navigation, selection and its context menu.
         Control actions = CreateResultViewerActions(result);
         actions.Classes.Add("booru-tile-actions");
 
@@ -360,7 +359,8 @@ internal sealed partial class BooruWorkbenchView
         tile.Classes.Add("booru-tile");
         tile.Classes.Set("booru-tile-selected", selected);
         ToolTip.SetTip(tile, BooruText.ProviderRatingAndScore(post));
-        ConfigureHitCard(tile, row, result);
+        ConfigureHitCard(tile, row, result,
+            menu => menu.Section().Command("gallery.open", () => { if (result.IsCurrent()) OpenGallery(postId); }, showShortcut: false));
         return tile;
     }
 }

@@ -1352,8 +1352,8 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.OpenProviderPost] = () => OpenProviderPostAsync(entry),
             [MediaMenuAction.CopyProviderPost] = () => CopyProviderPostAsync(entry)
         };
-        // Everything below the common section belongs to this page: it works on the grid, not on one medium.
         List<Control> context = new();
+        if (menuSidebar?.ShowAllTagsMenuItem(session, Run) is { } showTags) context.Add(showTags);
         if (several) context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
         foreach (PrivateTagDefinition tag in row.TagChips.Take(row.ShownTagChips))
         {
