@@ -173,7 +173,7 @@ public partial class ArchivePage
         ArchiveAssetRow[] mediaSelection = SelectedMediaRows().ToArray();
         MediaPosition? mediaPosition = CaptureMediaPosition();
         string? postSelection = (ArchivePosts.SelectedItem as ArchivePostRow)?.Id;
-        InlineReplyState[] inlineReplies = CaptureInlineReplyState();
+        InlineRepliesSnapshot inlineReplies = CaptureInlineReplyState();
         var history = _history.ToArray();
         ReaderAnchor? backlinkOrigin = _backlinkOriginAnchor;
         ArchivePostId? backlinkPost = _backlinkPost;
@@ -248,9 +248,8 @@ public partial class ArchivePage
                 RestoreArchiveSelection(listRows);
             }
             finally { _updatingList = false; }
-            RenderThread(); UpdateLayoutMode();
+            RenderThreadWithReplies(inlineReplies); UpdateLayoutMode();
             if (restartMedia) MediaLoadTask = LoadMediaAsync(thread!);
-            RestoreInlineReplyState(inlineReplies);
             ArchiveContentTabs.SelectedIndex = tab;
             SetMediaSelection(mediaSelection);
             if (Projection != null) ArchivePosts.SelectedItem = FindPostRow(postSelection);

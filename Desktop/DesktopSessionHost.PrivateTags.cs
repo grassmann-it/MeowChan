@@ -362,6 +362,7 @@ internal sealed partial class DesktopSessionHost
             PrivateTagCommit commit;
             lock (_privateTagsSync)
             {
+                token.ThrowIfCancellationRequested();
                 _privateTagStore ??= new(_profileLease.ProfileDirectory, _profileLease, _privateTagLimits);
                 // A rejected or failed change throws here and leaves the published view untouched.
                 commit = change(_privateTagStore);

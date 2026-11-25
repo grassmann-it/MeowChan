@@ -132,20 +132,33 @@ public partial class ArchivePage
     private void OnSidebarMiddlePressed(object? sender, PointerPressedEventArgs e)
     {
         if (_mediaSidebar is not { } sidebar || !MiddleClickTracker.IsPress(e, sidebar)) { _sidebarMiddleClick.Cancel(); return; }
-        _sidebarMiddleClick.Pressed(InSidebarFrame(e.Source, sidebar) ? sidebar.FrameArea : null);
+        _sidebarMiddleClick.Pressed(SidebarMiddleClickTarget(e.Source, sidebar));
     }
 
     private void OnSidebarMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.Handled || !MiddleClickTracker.IsRelease(e) || _mediaSidebar is not { } sidebar) return;
-        if (!_sidebarMiddleClick.Released(InSidebarFrame(e.Source, sidebar) ? sidebar.FrameArea : null)) return;
+        // The pointer can still be captured by the picture when it is released over a bar.
+        TopLevel? root = TopLevel.GetTopLevel(sidebar);
+        object? target = root == null ? null : SidebarMiddleClickTarget(root.InputHitTest(e.GetPosition(root)), sidebar);
+        if (!_sidebarMiddleClick.Released(target)) return;
+        if (target is ArchiveAssetRow saved)
+        {
+            e.Handled = OpenMediaFolderByMiddleClick(saved);
+            return;
+        }
         e.Handled = true;
         if (!_mediaSidebarShown || ArchivePosts.SelectedItem is not ArchivePostRow post || CurrentSidebarAttachment() is not { } attachment) return;
         OpenMediaFolderByMiddleClick(null, attachment, post.Id);
     }
 
-    private static bool InSidebarFrame(object? source, ReaderMediaSidebar sidebar) =>
-        source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar.FrameArea));
+    private object? SidebarMiddleClickTarget(object? source, ReaderMediaSidebar sidebar)
+    {
+        if (sidebar.IsOverlaySource(source) || source is not Visual visual
+            || !visual.GetSelfAndVisualAncestors().Contains(sidebar.FrameArea)) return null;
+        if (ArchiveMediaTab.IsSelected) return ActionableSavedMediaSidebarRow;
+        return sidebar.FrameArea;
+    }
 
     /// <summary>
     /// The folder of a medium's file, with the availability of the media menu's "Show in folder" entry (the host can open folders, the file is saved), exactly as

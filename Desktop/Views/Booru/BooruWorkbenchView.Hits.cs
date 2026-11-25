@@ -96,7 +96,7 @@ internal sealed partial class BooruWorkbenchView
     /// one menu of BooruWorkbenchView.CardMenus.cs (AttachCardMenu): the card's ContextMenuHost opens it on a right click, the Menu key,
     /// Shift+F10 and the context-open command, here from the focused card as well.
     /// </summary>
-    private void ConfigureHitCard(Border card, BooruResultRowView row, ResultActions result)
+    private void ConfigureHitCard(Border card, BooruResultRowView row, ResultActions result, Action<ContextMenuBuilder>? extendMenu = null)
     {
         string postId = row.Post.PostId;
         card.Classes.Add("workspace-card-focusable");
@@ -111,7 +111,12 @@ internal sealed partial class BooruWorkbenchView
         {
             if (e.TryGetPosition(card, out _) && result.IsCurrent()) card.Focus(NavigationMethod.Pointer);
         });
-        AttachCardMenu(card, () => ComposeResultMenu(result), () =>
+        AttachCardMenu(card, () =>
+        {
+            ContextMenuBuilder? menu = ComposeResultMenu(result);
+            if (menu != null) extendMenu?.Invoke(menu);
+            return menu;
+        }, () =>
         {
             if (result.IsCurrent()) FocusHit(postId);
         });

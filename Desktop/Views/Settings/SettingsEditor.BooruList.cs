@@ -29,7 +29,8 @@ public partial class SettingsEditor
             AutomationProperties.SetLabeledBy(input, label);
             AutomationProperties.SetLiveSetting(error, AutomationLiveSetting.Assertive);
             StackPanel editor = new() { Spacing = 4, Children = { input, error } };
-            Panel host = field.Name == nameof(BooruListLayoutSettings.PreviewWidth) ? BooruListBasicFields : BooruListAdvancedFields;
+            Panel host = field.Name is nameof(BooruListLayoutSettings.PreviewWidth) or nameof(BooruListLayoutSettings.TagLines)
+                ? BooruListBasicFields : BooruListAdvancedFields;
             host.Children.Add(SettingsRowFactory.Create([label, hint], editor));
             _booruListFields.Add(new(field, input, label, hint, error));
         }
@@ -78,7 +79,8 @@ public partial class SettingsEditor
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> BooruListNumericFields()
     {
         foreach (BooruListField field in _booruListFields)
-            yield return (field.Input, field.Input.Value, field.Label.Text!, "DIP", field.Spec.Min, field.Spec.Max, true);
+            yield return (field.Input, field.Input.Value, field.Label.Text!,
+                field.Spec.Name == nameof(BooruListLayoutSettings.TagLines) ? string.Empty : "DIP", field.Spec.Min, field.Spec.Max, true);
     }
 
     private IEnumerable<DefaultSetting> BooruListDefaults() => _booruListFields.Select(field =>
@@ -101,7 +103,10 @@ public partial class SettingsEditor
                 && configuredMin is { } min && configuredMax is { } max && min <= max)
                 (minimum, maximum) = (min, max);
             string range = Texts.T("settings.reader.range", minimum, maximum);
-            field.Hint.Text = Texts.T(BooruListKey + "default", field.Spec.Read(BooruListLayoutSettings.Default)) + " " + range;
+            string defaultHint = field.Spec.Name == nameof(BooruListLayoutSettings.TagLines)
+                ? Texts.T(BooruListKey + "TagLines.hint")
+                : Texts.T(BooruListKey + "default", field.Spec.Read(BooruListLayoutSettings.Default));
+            field.Hint.Text = defaultHint + " " + range;
             AutomationProperties.SetName(field.Input, field.Label.Text);
         }
         UpdateBooruListHelp();
