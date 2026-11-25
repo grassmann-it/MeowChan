@@ -72,7 +72,7 @@ internal static partial class ReaderPostFilterChecks
             await DialogFrameChecks.Settle();
 
             ArchivePostRow quoting = Rows().First(row => row.Id == "705");
-            page.RequestQuotePreview(quoting.Quotes.Single(), list, default, immediate: true);
+            page.RequestQuotePreview(quoting.Quotes.Single(), list, default, immediate: true, pointer: false);
             await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "quote preview not open");
             await DialogFrameChecks.Settle();
             Popup preview = page.FindControl<Popup>("QuotePreviewPopup")!;

@@ -197,7 +197,7 @@ internal sealed partial class ReaderMediaSidebar
     internal bool IsInfoMenuSource(object? source) =>
         source is Visual visual && (InBar(InfoToggle, visual) || InBar(SettingsButton, visual));
 
-    private bool IsOverlaySource(object? source) => source is Visual visual &&
+    internal bool IsOverlaySource(object? source) => source is Visual visual &&
         (InBar(_headBar, visual) || InBar(_details, visual) || InBar(_closeFace, visual));
 
     private static bool InBar(Visual bar, Visual source) => bar == source || bar.IsVisualAncestorOf(source);

@@ -79,6 +79,8 @@ public sealed partial class TaggingPage
     private Button BuildStamp()
     {
         WorkViewElement.SetId(_stampButton, "tagging.stamp");
+        AutomationProperties.SetAutomationId(_stampButton, "tagging.stamp");
+        AutomationProperties.SetAutomationId(_stampInput, "tagging.stamp-input");
         StackPanel trigger = new() { Orientation = Orientation.Horizontal, Spacing = 8,
             Children = { CommandBindings.NamedIcon("tag"), _stampSummary, _stampPreview, CommandBindings.NamedIcon("chevron-down", 12) } };
         AutomationProperties.SetAccessibilityView(trigger, AccessibilityView.Raw);

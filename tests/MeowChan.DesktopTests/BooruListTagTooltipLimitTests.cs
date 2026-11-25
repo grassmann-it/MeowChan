@@ -21,6 +21,7 @@ public sealed class BooruListTagTooltipLimitTests
     [Theory]
     [InlineData(null, 60, 220)]
     [InlineData(1, 1, 220)]
+    [InlineData(3, 3, 220)]
     [InlineData(200, 200, 220)]
     [InlineData(200, 200, 12)]
     public void TooltipNamesAtMostTheConfiguredNumberOfHiddenTags(int? setting, int expected, int tagCount) =>
@@ -37,12 +38,13 @@ public sealed class BooruListTagTooltipLimitTests
                 window.Show();
                 BooruReviewTestPlatform.Resize(window, 800);
                 BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(window.Model.Search, "1boy"));
-                BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => Toggle(window) is { IsTabStop: true },
+                BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(
+                    () => Toggle(window) is { IsHitTestVisible: true, Content: string },
                     "the hidden-tag toggle is laid out"));
                 Dispatcher.UIThread.RunJobs();
                 window.UpdateLayout();
 
-                AssertTooltip(Assert.IsType<Button>(Toggle(window)), names, expected);
+                AssertTooltip(window, names, expected);
             }
             finally { window.Close(); }
         });
@@ -71,9 +73,10 @@ public sealed class BooruListTagTooltipLimitTests
         Click(booru);
         BooruPage page = Assert.IsType<BooruPage>(window.BooruPageForTests);
         await BooruTestSupport.SearchAsync(page.Model.Search, "1boy");
-        await BooruTestSupport.WaitAsync(() => Toggle(page) is { } toggle && ToolTip.GetTip(toggle) is string,
+        await BooruTestSupport.WaitAsync(
+            () => Toggle(page) is { IsHitTestVisible: true, Content: string } toggle && ToolTip.GetTip(toggle) is string,
             "the results' hidden-tag tooltip");
-        AssertTooltip(Assert.IsType<Button>(Toggle(page)), names, 60);
+        AssertTooltip(page, names, 60);
 
         Click(ButtonById(window, "SettingsNavigationButton"));
         Assert.True(window.SettingsPageVisible);
@@ -90,7 +93,7 @@ public sealed class BooruListTagTooltipLimitTests
         Assert.Equal(MainWindow.WorkspacePage.Booru, window.SelectedPage);
         Assert.Same(page, window.BooruPageForTests);
         window.UpdateLayout();
-        AssertTooltip(Assert.IsType<Button>(Toggle(page)), names, 1);
+        AssertTooltip(page, names, 1);
         Assert.Equal(1, harness.Search.Requests);
     });
 
@@ -116,11 +119,18 @@ public sealed class BooruListTagTooltipLimitTests
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-    private static void AssertTooltip(Button toggle, string[] names, int limit)
+    private static void AssertTooltip(Control root, string[] names, int limit)
     {
-        int hidden = Assert.Single(Enumerable.Range(1, names.Length),
+        Button toggle = Assert.IsType<Button>(Toggle(root));
+        int shown = root.GetVisualDescendants().OfType<Button>().Count(chip =>
+            AutomationProperties.GetAutomationId(chip)?.StartsWith(BooruWorkbenchView.ResultTagPrefix + "101:", StringComparison.Ordinal) == true
+            && chip.IsEffectivelyVisible && chip.IsHitTestVisible && chip.Opacity > 0 && chip.Bounds.Width > 0
+            && chip.GetVisualAncestors().TakeWhile(ancestor => !ReferenceEquals(ancestor, root)).All(ancestor => ancestor.Opacity > 0));
+        int hidden = names.Length - shown;
+        Assert.Equal(Texts.T("booru.ui.tags.more", hidden), toggle.Content);
+        Assert.Single(Enumerable.Range(1, names.Length),
             count => Equals(toggle.Content, Texts.T("booru.ui.tags.more", count)));
-        string named = string.Join(", ", names.Skip(names.Length - hidden).Take(limit));
+        string named = string.Join(", ", names.Skip(shown).Take(limit));
         if (hidden > limit) named += "…";
         string tooltip = Texts.T("booru.ui.tags.showAll", named);
         Assert.Equal(tooltip, ToolTip.GetTip(toggle));
