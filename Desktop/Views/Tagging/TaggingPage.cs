@@ -161,7 +161,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         Grid walk = new() { Name = "TaggingWalk", ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"),
             [!Grid.ColumnSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
             Children = { _title, _start, _progress } };
-        _title.VerticalAlignment = VerticalAlignment.Center;
+        _title.VerticalAlignment = VerticalAlignment.Top;
         Grid.SetColumn(_start, 1);
         Grid.SetColumn(_progress, 2);
 
