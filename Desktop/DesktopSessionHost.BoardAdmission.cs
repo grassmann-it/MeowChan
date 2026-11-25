@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Admission;
+using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
 
@@ -54,6 +55,33 @@ internal sealed partial class DesktopSessionHost
         EnsureReady();
         return _registry.PreviewBoardAdmissionAsync(url, token);
     }
+
+    internal async Task<BoardTitleSuggestions> ReadBoardTitleSuggestionsAsync(string url, CancellationToken token = default)
+    {
+        // The passive archive reader needs neither a profile writer nor a catalog preview slot.
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(token, _startupCancellation.Token);
+        token = lifetime.Token;
+        return await Task.Run(async () =>
+        {
+            token.ThrowIfCancellationRequested();
+            EnsureReady();
+            if (_registry.ResolveBoardAdmissionIdentity(url) is not { } board)
+                throw new ArgumentException("A supported board URL is required.", nameof(url));
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            int scan = Config.BoardSuggestionScanThreads;
+            int minimum = Config.BoardSuggestionMinThreads;
+            int limit = Config.BoardSuggestionLimit;
+            try
+            {
+                IReadOnlyList<BoardTitleHistory> rows;
+                await using (ArchiveReader reader = await OpenArchiveReaderAsync(token).ConfigureAwait(false))
+                    rows = await reader.ReadBoardTitleHistoryAsync(board.Source, board.Board, scan, token).ConfigureAwait(false);
+                return TitlePatternMiner.Mine(rows, board.Board, now, minimum, limit, token);
+            }
+            catch (FileNotFoundException) { return new BoardTitleSuggestions(0, now, []); }
+        }, token).ConfigureAwait(false);
+    }
+
     internal Task<DesktopAdmissionResult> ApplyBoardAdmissionAsync(string url, BoardAdmissionPolicy policy, IReadOnlyCollection<string>? reactivateThreadUrls = null)
     {
         string[]? frozen = reactivateThreadUrls?.ToArray();
