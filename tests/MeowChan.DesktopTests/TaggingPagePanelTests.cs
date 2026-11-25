@@ -327,9 +327,11 @@ public sealed class TaggingPagePanelTests
     }, missing: 2);
 
     [Theory]
-    [InlineData(1000, 360, false)]
-    [InlineData(1400, 600, true)]
-    public void FullTableFitsBesideEitherDockAndDraggingKeepsTheCursor(int width, int panelWidth, bool left) => WithPage(false, async fixture =>
+    [InlineData(1000, 360, false, false)]
+    [InlineData(1400, 600, true, false)]
+    [InlineData(1000, 360, false, true)]
+    [InlineData(1400, 600, true, true)]
+    public void FullTableFitsBesideEitherDockAndDraggingKeepsTheCursor(int width, int panelWidth, bool left, bool windowsFileSharing) => WithPage(false, async fixture =>
     {
         MediaPageLayout layout = fixture.Layout with { PanelWidth = panelWidth, PanelSide = left ? MediaPanelSide.Left : MediaPanelSide.Right };
         fixture.Layout = layout;
@@ -370,7 +372,7 @@ public sealed class TaggingPagePanelTests
         await fixture.ShowsAsync(3);
         await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap bigger
             && bigger.PixelSize.Width > before, "larger decode of the same cursor");
-    }, video: 2, wideImage: 3);
+    }, video: 2, wideImage: 3, windowsFileSharing: windowsFileSharing);
 
     [Fact]
     public void WideningDuringTheFirstDecodeUpgradesThePreview()
@@ -571,12 +573,18 @@ public sealed class TaggingPagePanelTests
 
     private static void WithPage(bool grid, Func<Fixture, Task> test, ManualClock? clock = null, int missing = 0, int video = 0, int wideImage = 0, bool skipFirst = false,
         Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap, GalleryImageInfo)>>? decode = null,
-        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null, int replaced = 0) =>
+        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null, int replaced = 0, bool windowsFileSharing = false) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
             using TempDirectory profile = new();
+            string? videoPath = null;
             BooruComponentDispatcher.Wait(RunAsync());
+            if (windowsFileSharing)
+            {
+                // POSIX permits unlinking an open file. Exercise the Windows teardown contract on either runner.
+                using FileStream exclusive = new(videoPath!, FileMode.Open, FileAccess.Read, FileShare.None);
+            }
 
             async Task RunAsync()
             {
@@ -591,6 +599,8 @@ public sealed class TaggingPagePanelTests
                 await ArchiveCleanupFixtures.RegisterAsync(profile.Path, downloads, ThreadId);
                 MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
                 IReadOnlyList<MediaAssetReference> savedAssets = manifest.GetPage();
+                if (video > 0)
+                    videoPath = savedAssets.Single(asset => asset.RequestedFileName == names[video - 1]).Path;
                 TagQueueItem[] items = names.Select((name, index) =>
                 {
                     int number = index + 1;

@@ -146,12 +146,14 @@ public sealed class HeaderTaglineLayoutTests
         });
 
     [Theory]
-    [InlineData("booru", "booru")]
-    [InlineData("removed-quip", "cats")]
-    public void HostedFixedPickerKeepsTheProfileChoiceAndSavesTheNewQuip(string storedId, string effectiveId) =>
+    [InlineData("booru", "booru", true)]
+    [InlineData("removed-quip", "cats", true)]
+    [InlineData("booru", "booru", false)]
+    [InlineData("removed-quip", "cats", false)]
+    public void HostedFixedPickerKeepsTheProfileChoiceAndSavesTheNewQuip(string storedId, string effectiveId, bool overlayPopups) =>
         BooruComponentDispatcher.Run(() =>
         {
-            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using IDisposable platform = BooruReviewTestPlatform.Enter(overlayPopups);
             using TempDirectory profile = new();
             new Config
             {
@@ -181,16 +183,17 @@ public sealed class HeaderTaglineLayoutTests
                     input => AutomationProperties.GetAutomationId(input) == "HeaderTaglineFixedIdInput");
                 Assert.Equal(effectiveId, Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
                 Assert.True(picker.Focus());
+                Assert.Same(picker, window.FocusManager?.GetFocusedElement());
                 window.KeyPress(Key.F4, RawInputModifiers.None, PhysicalKey.F4, null);
                 Settle();
-                Assert.True(picker.IsDropDownOpen);
+                Assert.True(picker.IsDropDownOpen, $"F4: focus={window.FocusManager?.GetFocusedElement()}, visible={picker.IsEffectivelyVisible}, active={window.IsActive}");
                 AssertGroups("en");
 
                 try
                 {
                     Texts.SetLanguage("de");
                     Settle();
-                    Assert.True(picker.IsDropDownOpen);
+                    Assert.True(picker.IsDropDownOpen, $"Language refresh: focus={window.FocusManager?.GetFocusedElement()}, visible={picker.IsEffectivelyVisible}, active={window.IsActive}");
                     AssertGroups("de");
                     Assert.Equal(effectiveId, Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
                     Assert.EndsWith(Texts.T(BuiltInTaglineProvider.KeyFor(effectiveId)), subtitle.Text);
