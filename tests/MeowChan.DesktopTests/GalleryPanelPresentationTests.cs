@@ -98,6 +98,19 @@ public sealed class GalleryPanelPresentationTests
             Assert.Equal(Token("Workspace.Text"), Assert.IsAssignableFrom<ISolidColorBrush>(((TextBlock)facts.Children[1]).Foreground).Color);
         });
 
+    [Fact]
+    public void SelectingAndCopyingTheGalleryFileNameIncludesItsHiddenMiddle() =>
+        WithViewer("en", 800, 280, (window, viewer, owner) =>
+        {
+            const string name = "gallery-file-name-with-a-long-middle-that-does-not-fit-in-the-panel.png";
+            GalleryEntry entry = owner.Entries[0];
+            BooruComponentDispatcher.Wait(viewer.ShowAsync(entry with { Asset = entry.Asset with { OriginalFileName = name } },
+                CancellationToken.None));
+            Settle(window);
+            var value = SidePanelDesignTests.ById<SelectableTextBlock>(viewer, "GalleryPostFile");
+            MediaFactGridTests.AssertFullSelectionAndCopy(window, value, name);
+        });
+
     private static void WithViewer(string language, int viewerWidth, int panelWidth, Action<Window, GalleryViewer, IGalleryTagPanelOwner> inspect) =>
         BooruComponentDispatcher.Run(() =>
         {
