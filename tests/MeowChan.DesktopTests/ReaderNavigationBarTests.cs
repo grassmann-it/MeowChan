@@ -278,6 +278,14 @@ public sealed class ReaderNavigationBarTests : IDisposable
                 Settle();
                 Assert.True(bar.IsEffectivelyVisible && navigation.IsHitTestVisible);
 
+                // NAVBAR-06: Always stays visible and interactive after the idle delay with the pointer away.
+                page.ReaderNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsMinimum;
+                page.NotifyReaderPointerMoved(new Point(60, 60));
+                BooruComponentDispatcher.Wait(Task.Delay(2 * page.ReaderNavigationIdleDelayMs, BooruComponentDispatcher.Cancellation));
+                Settle();
+                Assert.True(bar.IsEffectivelyVisible && navigation.IsHitTestVisible);
+                Assert.Equal(1, navigation.Opacity);
+
                 page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
                 Settle();
                 Assert.False(bar.IsEffectivelyVisible || navigation.IsHitTestVisible);
@@ -286,7 +294,6 @@ public sealed class ReaderNavigationBarTests : IDisposable
                 Assert.Equal("2", page.CurrentReaderPostId);
                 Assert.False(bar.IsEffectivelyVisible || navigation.IsHitTestVisible);
 
-                page.ReaderNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsMinimum;
                 page.ReaderNavigationMode = Config.ReaderNavigationModeAuto;
                 Assert.True(navigation.IsHitTestVisible);
                 BooruComponentDispatcher.WaitUntil(() => !navigation.IsHitTestVisible, "idle reader navigation to stop taking pointer input");
