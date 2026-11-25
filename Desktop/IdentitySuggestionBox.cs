@@ -135,7 +135,9 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
             // only after that event, and never revive a request superseded by typing.
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                if (!_ended && !_suppressed && revision == _revision && IsKeyboardFocusWithin)
+                // "More…" focused the editor for its explicit list: that request is queued right behind this one and
+                // would be superseded by this populate (an empty field lists nothing unless asked explicitly).
+                if (!_ended && !_suppressed && !_explicitListPending && revision == _revision && IsKeyboardFocusWithin)
                     StartPopulate();
             }, Avalonia.Threading.DispatcherPriority.Input);
         };
