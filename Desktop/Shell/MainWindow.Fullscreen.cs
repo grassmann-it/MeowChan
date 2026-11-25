@@ -841,6 +841,10 @@ public partial class MainWindow
             { _pluginsPage.CancelDiscardConfirmation(); e.Handled = true; return; }
             if (_selectedPage == WorkspacePage.Sources && _gallery == null && !_largeReaderOpen && _sourcesPage?.TryDismissMergedLayer() == true)
             { e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Settings && _settingsEditor?.TryDismissFolderSourceRemoval() == true)
+            { e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Tagging && _taggingPage?.TryDismissClearQuestion() == true)
+            { e.Handled = true; return; }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }
             if (_largeReaderOpen) { e.Handled = true; CloseLargeReader(); return; }
