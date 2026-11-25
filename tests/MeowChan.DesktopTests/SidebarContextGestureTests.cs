@@ -46,6 +46,65 @@ public sealed class SidebarContextGestureTests
         Assert.Equal("panel-tag", Assert.Single(saved.TagsOf(Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(b.Entry)))).Name.Display);
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MediaPanelGesturesFollowTheNewOccurrenceOfTheSameTile(bool useFilter) => Run(async (window, media) =>
+    {
+        MediaPage page = await OpenMediaAsync(window, tileCount: 1);
+        MediaLibraryTileRow first = Assert.Single(page.Grid.Items.OfType<MediaLibraryTileRow>());
+        Assert.Equal(2, first.Tile.Occurrences.Count);
+        Assert.NotEqual(media[0].Subject, media[1].Subject);
+        page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
+        page.Grid.SelectedItem = first;
+        ReaderMediaSidebar sidebar = await MediaSidebarAsync(window, page, "a.png");
+        await page.PanelTask;
+        Control frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+        Image picture = Picture(sidebar);
+        List<string> galleryPaths = [];
+        page.OpenGallery = async (entries, start) =>
+        {
+            IReadOnlyList<GalleryEntry> resolved = await MediaLibraryGallery.ResolveAsync([entries[start]],
+                window.SessionHost.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync);
+            galleryPaths.Add(Assert.Single(resolved).Asset.Path);
+        };
+        List<string> externalPaths = [];
+        window.OpenFileForTests = path => { externalPaths.Add(path); return Task.CompletedTask; };
+
+        if (useFilter)
+        {
+            page.FocusSearch();
+            window.KeyTextInput("b.png");
+        }
+        else ContextGestures.Click(page.SortDirectionButton);
+        await MediaSidebarAsync(window, page, "b.png");
+        await page.PanelTask;
+        Assert.Equal(1, page.Grid.ItemCount);
+        Assert.Equal(first.Entry.Sha256, page.PanelRow!.Entry.Sha256);
+        Assert.Equal(Path.GetDirectoryName(media[1].Path), page.PanelRow.Entry.Directory);
+
+        Assert.True(page.NameFilter.Focus());
+        ContextGestures.Click(picture);
+        Assert.True(frame.IsFocused, "A single click must focus the panel after the occurrence changes.");
+        Assert.Empty(galleryPaths);
+        Point imageCenter = new Rect(picture.Bounds.Size).Center;
+        ContextGestures.DoubleClick(picture, new Point(imageCenter.X + picture.Bounds.Width / 3, imageCenter.Y));
+        await BooruTestSupport.WaitAsync(() => galleryPaths.Count != 0, "the new occurrence to open in the gallery");
+        Assert.Equal(media[1].Path, Assert.Single(galleryPaths));
+
+        ContextGestures.MiddleClick(picture);
+        await BooruTestSupport.WaitAsync(() => externalPaths.Count != 0, "the new occurrence to open externally");
+        Assert.Equal(media[1].Path, Assert.Single(externalPaths));
+
+        ContextGestures.RightClick(picture);
+        QuickTagSurface editor = await OpenTagsAsync(page.MediaMenu);
+        editor.Input.Text = "new-occurrence";
+        Assert.True(await editor.CommitTypedAsync());
+        PrivateTagStoreSnapshot saved = ReadSavedTags(window);
+        Assert.Empty(saved.TagsOf(media[0].Subject));
+        Assert.Equal("new-occurrence", Assert.Single(saved.TagsOf(media[1].Subject)).Name.Display);
+    }, identicalOccurrences: true);
+
     [Fact]
     public void ReaderPanelMenuRetiresTheTagEditorWhenTheAttachmentChangesInTheSamePost() => Run(async (window, media) =>
     {
@@ -407,12 +466,12 @@ public sealed class SidebarContextGestureTests
         Assert.Equal(page, window.SelectedPage);
     }
 
-    private static async Task<MediaPage> OpenMediaAsync(MainWindow window)
+    private static async Task<MediaPage> OpenMediaAsync(MainWindow window, int tileCount = 2)
     {
         Navigate(window, Key.E, PhysicalKey.E, MainWindow.WorkspacePage.Media);
         MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
         await page.BuildTask;
-        await BooruTestSupport.WaitAsync(() => page.Grid.ItemCount == 2, "both saved tiles");
+        await BooruTestSupport.WaitAsync(() => page.Grid.ItemCount == tileCount, $"{tileCount} saved tiles");
         return page;
     }
 
@@ -450,7 +509,7 @@ public sealed class SidebarContextGestureTests
 
     private sealed record SavedFile(string Path, MediaTagSubject Subject);
 
-    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false) => BooruComponentDispatcher.Run(() =>
+    private static void Run(Func<MainWindow, SavedFile[], Task> test, bool loose = false, bool identicalOccurrences = false) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruComponentDispatcher.Wait(ExerciseAsync());
@@ -465,7 +524,7 @@ public sealed class SidebarContextGestureTests
                 WorkspaceMode = "Advanced", Language = "en", ReaderMediaSidebarScope = "Always", ReaderMediaSidebarMinimumWidth = 1000,
                 MediaSidebarAutoHide = true, MediaSidebarInfo = "Always", MediaSidebarPinned = false
             }.SaveConfig(profile.Path);
-            SavedFile[] media = await SeedAsync(profile.Path, directory.Path, loose);
+            SavedFile[] media = await SeedAsync(profile.Path, directory.Path, loose, identicalOccurrences);
             await using DesktopSessionHost host = new(profile.Path, [],
                 updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
             await using MainWindow window = new(host) { Width = 1700, Height = 900, Classes = { MotionPolicy.OffClass } };
@@ -477,21 +536,31 @@ public sealed class SidebarContextGestureTests
         }
     });
 
-    private static async Task<SavedFile[]> SeedAsync(string profile, string directory, bool loose)
+    private static async Task<SavedFile[]> SeedAsync(string profile, string directory, bool loose, bool identicalOccurrences)
     {
-        string[] pictures =
-        [
-            "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAE0lEQVR4nGNgmMlAMhrVM6oHiADlWm/EglqV/gAAAABJRU5ErkJggg==",
-            "iVBORw0KGgoAAAANSUhEUgAAABMAAAANCAIAAADE7sJwAAAAFklEQVR4nGMwdgklDzGM6hzVOQR1AgDPR8TVSHrz+wAAAABJRU5ErkJggg=="
-        ];
+        const string first = "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAE0lEQVR4nGNgmMlAMhrVM6oHiADlWm/EglqV/gAAAABJRU5ErkJggg==";
+        const string second = "iVBORw0KGgoAAAANSUhEUgAAABMAAAANCAIAAADE7sJwAAAAFklEQVR4nGMwdgklDzGM6hzVOQR1AgDPR8TVSHrz+wAAAABJRU5ErkJggg==";
+        if (!identicalOccurrences)
+            return await SeedThreadAsync(profile, directory, Thread, "43", [("a.png", first), ("b.png", second)], loose);
+
+        SavedFile[] original = await SeedThreadAsync(profile, Path.Combine(directory, "first"), Thread, "43", [("a.png", first)], loose: false);
+        SavedFile[] duplicate = await SeedThreadAsync(profile, Path.Combine(directory, "second"), new("fixture", "g", "44"), "45",
+            [("b.png", first)], loose: false);
+        return [.. original, .. duplicate];
+    }
+
+    private static async Task<SavedFile[]> SeedThreadAsync(string profile, string directory, ResourceId threadId, string postId,
+        (string Name, string Encoded)[] pictures, bool loose)
+    {
+        Directory.CreateDirectory(directory);
         Dictionary<string, object> entries = new();
         List<CapturedAttachment> attachments = [];
         for (int i = 0; i < pictures.Length; i++)
         {
-            string name = i == 0 ? "a.png" : "b.png";
+            (string name, string encoded) = pictures[i];
             string id = i == 0 ? "777" : "778";
             string url = "https://fixture.invalid/" + name;
-            byte[] bytes = Convert.FromBase64String(pictures[i]);
+            byte[] bytes = Convert.FromBase64String(encoded);
             string sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             string md5 = Convert.ToBase64String(MD5.HashData(bytes));
             await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
@@ -499,7 +568,7 @@ public sealed class SidebarContextGestureTests
                 Length = bytes.Length, Sha256 = sha256, Md5 = md5, OriginalFileName = name });
             MediaProviderMetadata provider = new(id, "original", url, name, bytes.Length, md5, null);
             attachments.Add(new(i, id, Url: url, OriginalFileName: name, ExpectedSize: bytes.Length, ExpectedMd5: md5)
-            { AttachmentRevisionKey = MediaRevisionKeys.CreateAttachmentKey(Thread, "43", i, provider) });
+            { AttachmentRevisionKey = MediaRevisionKeys.CreateAttachmentKey(threadId, postId, i, provider) });
         }
         string manifestPath = Path.Combine(directory, ".meowchan-manifest.json");
         await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(new { Version = 1, Entries = entries }));
@@ -514,14 +583,14 @@ public sealed class SidebarContextGestureTests
                 attachment.ExpectedSize, attachment.ExpectedMd5, null);
             string key = attachment.AttachmentRevisionKey!;
             if (!loose)
-                bindings.Add(key, new(new(Thread, "43", attachment.Position, key), MediaRevisionKeys.CreateAcquisitionKey(Thread, provider), saved.AssetId,
+                bindings.Add(key, new(new(threadId, postId, attachment.Position, key), MediaRevisionKeys.CreateAcquisitionKey(threadId, provider), saved.AssetId,
                     provider, new(saved.Length, saved.Md5, saved.Sha256), new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UnixEpoch)));
         }
         await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(new { Version = 3, Entries = entries, Assets = assets, AttachmentBindings = bindings }));
         MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
-        ArchivedThreadView thread = new(new(Thread, "https://fixture.invalid/g/thread/42", "Sidebar gesture fixture", directory,
+        ArchivedThreadView thread = new(new(threadId, "https://fixture.invalid/g/thread/" + threadId.Thread, "Sidebar gesture fixture", directory,
             ThreadSourceState.Archived, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, 1, 1),
-            [new CapturedPost("43", 0, PostFieldPresence.All, Html: "Two pictures", Attachments: loose ? null : attachments)], [directory], decimalPostOrder: true);
+            [new CapturedPost(postId, 0, PostFieldPresence.All, Html: "Two pictures", Attachments: loose ? null : attachments)], [directory], decimalPostOrder: true);
         await RateAndTagWindowFixture.SeedAsync(profile, thread);
         return GallerySelection.Build(thread, [manifest], allSavedVersions: true, includeOtherMedia: loose).Entries.OrderBy(entry => entry.Asset.RequestedFileName)
             .Select(entry => new SavedFile(entry.Asset.Path, Assert.IsAssignableFrom<MediaTagSubject>(MediaTagSubjects.Of(entry)))).ToArray();
