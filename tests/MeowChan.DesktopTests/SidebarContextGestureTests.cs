@@ -742,10 +742,15 @@ public sealed class SidebarContextGestureTests
         ArchiveAttachmentRow old = Assert.Single(post.Attachments, row => row.Attachment.Position == 1);
         ArchiveAttachmentRow other = Assert.Single(post.Attachments, row => row.Attachment.Position == 0);
         Assert.Null(old.Attachment.AttachmentRevisionKey);
+        TaskCompletionSource loadReplacement = new(TaskCreationOptions.RunContinuationsAsynchronously);
         ArchiveAttachmentRow replacement = old with
         {
             Attachment = old.Attachment with { ExpectedMd5 = other.Attachment.ExpectedMd5 },
-            LoadStripThumbnail = other.LoadStripThumbnail
+            LoadStripThumbnail = async (width, height, token) =>
+            {
+                await loadReplacement.Task.WaitAsync(token);
+                return await other.LoadStripThumbnail!(width, height, token);
+            }
         };
         MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(Path.GetDirectoryName(media[0].Path)!);
         Assert.Equal(media[1].Path, MediaAttachmentResolver.Resolve(manifest, Thread, post.Id, old.Attachment)?.Asset.Path);
@@ -772,7 +777,13 @@ public sealed class SidebarContextGestureTests
         Assert.DoesNotContain(media[0].Path, targets);
 
         now += ReaderMediaSidebarRules.FollowIntervalMs;
-        page.TickMediaSidebarFollow();
+        try
+        {
+            page.TickMediaSidebarFollow();
+            ContextGestures.Settle(window);
+            Assert.False(sidebar.HasStripPicture(1), "The new binding must release the old file's thumbnail.");
+        }
+        finally { loadReplacement.TrySetResult(); }
         await page.MediaSidebarStripTask;
         ContextGestures.Settle(window);
         Assert.True(sidebar.HasStripPicture(1));
