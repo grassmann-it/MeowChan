@@ -25,9 +25,13 @@ internal static class GalleryVolumeNativeEditingChecks
             throw new PlatformNotSupportedException("Requires Root's disposable authorized desktop.");
         Require(!ShortcutService.IsCapturing, "An unrelated shortcut capture is already active.");
 
+        const string volumeUp = "video.volume-up";
+        const string volumeDown = "video.volume-down";
+        (Key Key, string Command, int Direction)[] arrows = [(Key.Up, volumeUp, 1), (Key.Down, volumeDown, -1)];
         var seek = new GalleryTransportSlider { Minimum = 0, Maximum = 100, Value = 40, Width = 320 };
-        var volume = new GalleryVolumeSlider { Minimum = 0, Maximum = 100, Value = 60, Width = 320 };
-        var content = new StackPanel { Children = { seek, volume } };
+        var volume = new GalleryVolumeSlider { Minimum = 0, Maximum = 100, Value = 60, SmallChange = 5, Width = 320 };
+        var nativeSlider = new Slider { Minimum = 0, Maximum = 100, Value = 50, SmallChange = 2, Width = 320 };
+        var content = new StackPanel { Children = { seek, volume, nativeSlider } };
         var window = new Window
         {
             Title = "Synthetic gallery transport/editor routed boundary (no media)",
@@ -36,17 +40,21 @@ internal static class GalleryVolumeNativeEditingChecks
         int accepted = 0, genericExecutions = 0, tunnelVisits = 0, bubbleVisits = 0;
         bool lastAccepted = false, lastBubbleHandled = false;
         using var router = new CommandRouter(window);
-        using var registration = router.Register(new CommandRegistration("video.volume-up", window,
+        using var upRegistration = router.Register(new CommandRegistration(volumeUp, window,
+            () => true, () => true, () => genericExecutions++));
+        using var downRegistration = router.Register(new CommandRegistration(volumeDown, window,
             () => true, () => true, () => genericExecutions++));
 
-        // Explicit synthetic owner adapter. This is deliberately NOT presented as
-        // GalleryViewer.OnKeyDown: that handler requires an actual selected video/player.
+        // The synthetic owner applies the admitted step to the fixture's volume slider.
         window.AddHandler(InputElement.KeyDownEvent, (_, e) =>
         {
             tunnelVisits++;
-            lastAccepted = CommandBindings.MatchesGalleryTransport(e,
-                e.Key == Key.Up ? "video.volume-up" : "video.volume-down", seek, volume);
-            if (lastAccepted) { accepted++; e.Handled = true; }
+            lastAccepted = (e.Key is Key.Up or Key.Down)
+                && CommandBindings.MatchesGalleryTransport(e, e.Key == Key.Up ? volumeUp : volumeDown, seek, volume);
+            if (!lastAccepted) return;
+            accepted++;
+            volume.Value += (e.Key == Key.Up ? 1 : -1) * volume.SmallChange;
+            e.Handled = true;
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
         window.AddHandler(InputElement.KeyDownEvent, (_, e) =>
         {
@@ -55,7 +63,7 @@ internal static class GalleryVolumeNativeEditingChecks
             lastBubbleHandled = e.Handled;
         }, RoutingStrategies.Bubble, handledEventsToo: true);
 
-        async Task PressAsync(Control source, Key key, bool prehandled = false)
+        async Task PressAsync(Control source, Key key, KeyModifiers modifiers = KeyModifiers.None, bool prehandled = false)
         {
             Require(source.Focus(), "Real focus acquisition failed.");
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -66,7 +74,7 @@ internal static class GalleryVolumeNativeEditingChecks
             var press = new KeyEventArgs
             {
                 RoutedEvent = InputElement.KeyDownEvent, Source = source,
-                Key = key, KeyModifiers = KeyModifiers.None, Handled = prehandled
+                Key = key, KeyModifiers = modifiers, Handled = prehandled
             };
             source.RaiseEvent(press); // Actual Avalonia tunnel/class-handler/bubble dispatch.
             Require(tunnelVisits == tunnelBefore + 1 && bubbleVisits == bubbleBefore + 1,
@@ -79,28 +87,57 @@ internal static class GalleryVolumeNativeEditingChecks
             window.Show(owner);
             window.Activate();
             await Program.WaitUntilAsync(() => window.IsActive && seek.Bounds.Width > 0);
-            foreach (Control transport in new Control[] { seek, volume })
-            foreach (Key key in new[] { Key.Up, Key.Down })
+            var macBindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
+            foreach (var (key, command, direction) in arrows)
             {
-                Require(ShortcutService.Current.Matches(new KeyEventArgs { Key = key },
-                    key == Key.Up ? "video.volume-up" : "video.volume-down"),
-                    "Root must supply default Up/Down bindings; helper does not rewrite configuration.");
-                double seekBefore = seek.Value, volumeBefore = volume.Value;
+                var bare = new KeyEventArgs { Key = key };
+                var shifted = new KeyEventArgs { Key = key, KeyModifiers = KeyModifiers.Shift };
+                Require(ShortcutService.Current.Matches(shifted, command) && !ShortcutService.Current.Matches(bare, command),
+                    $"The isolated profile must bind Shift+{key} to {command} and leave the bare arrow free of that command.");
+                Require(macBindings.Matches(shifted, command) && !macBindings.Matches(bare, command),
+                    $"The macOS defaults must bind Shift+{key} to {command} and leave the bare arrow free of that command.");
+
+                var transportBefore = (Seek: seek.Value, Volume: volume.Value);
+                double nativeBefore = nativeSlider.Value;
                 int before = accepted;
-                await PressAsync(transport, key);
-                Require(lastAccepted && accepted == before + 1 && lastBubbleHandled,
-                    "Owned transport was not admitted/consumed by the synthetic owner adapter.");
-                Require(seek.Value == seekBefore && volume.Value == volumeBefore,
-                    "Native slider class handler changed a command-owned arrow value.");
-                await PressAsync(transport, key, prehandled: true);
-                Require(!lastAccepted && accepted == before + 1, "Prehandled event escaped admission guard.");
-                using (ShortcutService.BeginCapture())
+                await PressAsync(nativeSlider, key);
+                Require(!lastAccepted && accepted == before && lastBubbleHandled,
+                    $"The native slider must handle bare {key} independently of gallery volume.");
+                double nativeAfter = nativeSlider.Value;
+                Require(nativeAfter == nativeBefore + direction * nativeSlider.SmallChange
+                    && (seek.Value, volume.Value) == transportBefore,
+                    $"Bare {key} must change only the native slider by one step.");
+                await PressAsync(nativeSlider, key, KeyModifiers.Shift);
+                Require(!lastAccepted && accepted == before && nativeSlider.Value == nativeAfter
+                    && (seek.Value, volume.Value) == transportBefore,
+                    $"Shift+{key} escaped the native slider boundary.");
+
+                foreach (Control transport in new Control[] { seek, volume })
                 {
+                    transportBefore = (seek.Value, volume.Value);
+                    before = accepted;
                     await PressAsync(transport, key);
-                    Require(!lastAccepted && accepted == before + 1, "Capture escaped admission guard.");
+                    Require(!lastAccepted && accepted == before && (seek.Value, volume.Value) == transportBefore,
+                        $"Bare {key} changed the gallery transport.");
+
+                    await PressAsync(transport, key, KeyModifiers.Shift);
+                    Require(lastAccepted && accepted == before + 1 && lastBubbleHandled,
+                        $"The synthetic owner must admit and consume Shift+{key} from the gallery transport.");
+                    Require(volume.Value == transportBefore.Volume + direction * volume.SmallChange
+                        && seek.Value == transportBefore.Seek && nativeSlider.Value == nativeAfter,
+                        $"Shift+{key} must change only gallery volume by one step.");
+
+                    var transportAfter = (seek.Value, volume.Value);
+                    await PressAsync(transport, key, KeyModifiers.Shift, prehandled: true);
+                    Require(!lastAccepted && accepted == before + 1, "Prehandled event escaped admission guard.");
+                    using (ShortcutService.BeginCapture())
+                    {
+                        await PressAsync(transport, key, KeyModifiers.Shift);
+                        Require(!lastAccepted && accepted == before + 1, "Capture escaped admission guard.");
+                    }
+                    Require((seek.Value, volume.Value) == transportAfter,
+                        "A prehandled or captured volume gesture changed a transport value.");
                 }
-                Require(seek.Value == seekBefore && volume.Value == volumeBefore,
-                    "Suppressed arrow fell back to native slider value editing.");
             }
 
             // Synthetic template only: production's shipped sliders do not contain
@@ -120,16 +157,21 @@ internal static class GalleryVolumeNativeEditingChecks
                     window.UpdateLayout();
                     await Program.WaitUntilAsync(() => editor.GetVisualAncestors().Contains(transport)
                         && editor.GetVisualDescendants().Any() && editor.Bounds.Height > 0);
-                    foreach (Key key in new[] { Key.Up, Key.Down })
+                    foreach (var (key, _, _) in arrows)
+                    foreach (var modifiers in new[] { KeyModifiers.None, KeyModifiers.Shift })
                     {
                         editor.CaretIndex = 14; // Middle line, movement possible in both directions.
                         editor.SelectionStart = editor.SelectionEnd = 14;
                         int caretBefore = editor.CaretIndex, before = accepted;
                         double seekBefore = seek.Value, volumeBefore = volume.Value;
-                        await PressAsync(editor, key);
+                        await PressAsync(editor, key, modifiers);
                         Require(!lastAccepted && accepted == before, "Nearer TextBox lost its native boundary.");
-                        Require(key == Key.Up ? editor.CaretIndex < caretBefore : editor.CaretIndex > caretBefore,
-                            "Native TextBox did not move its caret in the dispatched arrow direction.");
+                        bool selecting = modifiers == KeyModifiers.Shift;
+                        int endpoint = selecting ? editor.SelectionEnd : editor.CaretIndex;
+                        Require(key == Key.Up ? endpoint < caretBefore : endpoint > caretBefore,
+                            "Native TextBox did not move its caret or selection in the dispatched arrow direction.");
+                        Require(selecting ? editor.SelectionStart == caretBefore : editor.SelectionStart == editor.SelectionEnd,
+                            "Native TextBox selection disagreed with the arrow modifiers.");
                         Require(editor.Text == "alpha line\nbeta line\ngamma line"
                             && seek.Value == seekBefore && volume.Value == volumeBefore,
                             "Editing arrow changed text or transport value.");
