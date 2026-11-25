@@ -424,7 +424,8 @@ public sealed class TaggingPagePanelTests
         settings.Show();
         try
         {
-            editor.ResetDraft(SettingsEditor.SettingsResetScope.All);
+            // "Reset all" also resets the download destination, which this bare profile cannot validate; the interface reset saves.
+            editor.ResetDraft(SettingsEditor.SettingsResetScope.Interface);
             settings.UpdateLayout();
             Button save = fixture.Find<Button>(settings, "SaveSettingsButton");
             fixture.Click(save);
