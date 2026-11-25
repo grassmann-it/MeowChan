@@ -8,7 +8,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
-using Avalonia.Media.Shapes;
+using Ellipse = Avalonia.Controls.Shapes.Ellipse;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
