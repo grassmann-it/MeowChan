@@ -63,13 +63,13 @@ internal static class ReaderMediaSidebarChecks
         TextBlock position = Find<TextBlock>("ReaderMediaSidebarPosition");
         Require(gallery.IsEffectivelyVisible && closeButton.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
         Rect InHeader(Control control) => new(control.TranslatePoint(default, header)!.Value, control.Bounds.Size);
-        Rect title = InHeader(Find<TextBlock>("ReaderMediaSidebarHeading")), index = InHeader(position), close = InHeader(closeButton);
+        Rect title = InHeader(Find<TextBlock>("ReaderMediaSidebarHeading")), positionBounds = InHeader(position), close = InHeader(closeButton);
         Rect file = InHeader(Find<TextBlock>("ReaderMediaSidebarMeta"));
-        bool belowTitle = index.Top >= title.Bottom - 1;
-        Require(position.IsEffectivelyVisible && !string.IsNullOrWhiteSpace(position.Text) && index.Width > 0
+        bool belowTitle = positionBounds.Top >= title.Bottom - 1;
+        Require(position.IsEffectivelyVisible && !string.IsNullOrWhiteSpace(position.Text) && positionBounds.Width > 0
             && Math.Abs(title.Left) <= 1 && Math.Abs(close.Right - header.Bounds.Width) <= 1
-            && Math.Abs(index.Top - file.Top) <= 1 && index.Right <= file.Left + 1
-            && (belowTitle ? Math.Abs(index.Left) <= 1 : title.Right <= index.Left + 1 && file.Right <= InHeader(gallery).Left + 1),
+            && Math.Abs(positionBounds.Top - file.Top) <= 1 && positionBounds.Right <= file.Left + 1
+            && (belowTitle ? Math.Abs(positionBounds.Left) <= 1 : title.Right <= positionBounds.Left + 1 && file.Right <= InHeader(gallery).Left + 1),
             "The reader header title, position, filename and close button are misaligned.");
         using (MediaNativeInput native = new(window))
         {
