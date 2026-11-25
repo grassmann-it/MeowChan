@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
@@ -12,12 +13,13 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Views.Shortcuts;
 using Semi.Avalonia.DataGrid;
+using Xunit.Abstractions;
 using static MeowChan.DesktopTests.DownloadWindowFixture;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Localization")]
-public sealed class DownloadHeaderToggleTests
+public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
 {
     [Fact]
     public void SearchClickShortcutAndEscapeFoldOnlyTheEditor() => RunWithGrid(async fixture =>
@@ -161,7 +163,27 @@ public sealed class DownloadHeaderToggleTests
             if (panel.IsVisible) Click(fixture, button);
             Click(fixture, button);
             Assert.True(panel.IsVisible && button.IsChecked == true);
-            Click(fixture, button);
+
+            Point point = button.TranslatePoint(new Rect(button.Bounds.Size).Center, fixture.Window)!.Value;
+            IInputElement? hit = fixture.Window.InputHitTest(point);
+            bool hitsToggle = hit is Visual visual && (ReferenceEquals(button, visual) || button.IsVisualAncestorOf(visual));
+            StyledElement? hitElement = hit as StyledElement;
+            string hitMessage = $"width={width}, hit={hit?.GetType().Name ?? "<none>"}, " +
+                $"AutomationId={(hitElement == null ? null : AutomationProperties.GetAutomationId(hitElement)) ?? "<none>"}, " +
+                $"Name={hitElement?.Name ?? "<none>"}, toggle.Bounds={BoundsInWindow(button)}, inspector.Bounds={BoundsInWindow(panel)}";
+            output.WriteLine(hitMessage);
+            if (width == 1240)
+            {
+                Assert.True(hitsToggle, hitMessage);
+                Click(fixture, button);
+            }
+            else
+            {
+                Assert.False(hitsToggle, hitMessage);
+                Button close = Assert.Single(fixture.Window.GetVisualDescendants().OfType<Button>(), candidate =>
+                    ControlAutomationPeer.CreatePeerForElement(candidate)?.GetAutomationId() == "InspectorCloseButton");
+                Click(fixture, close);
+            }
             Assert.True(!panel.IsVisible && button.IsChecked == false,
                 $"width={width}, panel.IsVisible={panel.IsVisible}, button.IsChecked={button.IsChecked}");
 
@@ -177,6 +199,9 @@ public sealed class DownloadHeaderToggleTests
             Assert.True(!panel.IsVisible && fixture.Threads.IsKeyboardFocusWithin);
         }
         return Task.CompletedTask;
+
+        Rect BoundsInWindow(Control control) =>
+            new(control.TranslatePoint(default, fixture.Window)!.Value, control.Bounds.Size);
     });
 
     [Fact]
