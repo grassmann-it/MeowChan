@@ -22,7 +22,8 @@ public partial class MainWindow
         if (urls.Count == 0) return new(new Dictionary<string, BoardAdmissionPolicy>(), !_config.ShowBoardAdmissionWizard);
         if (!_config.ShowBoardAdmissionWizard && !forceWizard)
             return DirectBoardAdmissions(urls, _session.GetBoardAdmissionPolicy);
-        using var dialog = new BoardAdmissionWindow(urls, _session.GetBoardAdmissionPolicy, _session.PreviewBoardAdmissionAsync, _config.ShowBoardAdmissionWizard, ConfiguredWorkView);
+        using var dialog = new BoardAdmissionWindow(urls, _session.GetBoardAdmissionPolicy, _session.PreviewBoardAdmissionAsync,
+            _config.ShowBoardAdmissionWizard, ConfiguredWorkView, _session.ReadBoardTitleSuggestionsAsync, alreadyWatching: forceWizard);
         return await dialog.ShowDialog<BoardAdmissionSelection?>(this);
     }
 
