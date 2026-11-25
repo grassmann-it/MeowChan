@@ -1,3 +1,4 @@
+using System.Collections;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -92,23 +93,56 @@ public sealed class MediaPageTermFilterTests : IDisposable
     }
 
     [Fact]
-    public void TheSourceTagIndexReadsTheProvidersTagsOfOneSnapshotOnce()
+    public async Task TheSourceTagIndexReadsTheProvidersTagsOfOneSnapshotOnce()
     {
         static BooruPostRecord Post(string source, string id, params string[] names) => new(source, id,
             new BooruPostClaim(source, id, BooruPostClaimPresence.None, Tags: names.Select(name => new BooruPostClaimTag(name, BooruPostClaimTagCategory.General)).ToArray()),
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
-        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.CurrentSchemaVersion,
-            [Post(BooruMediaIdentity.Source, "10", "Cat_Ears", "solo", "cat_ears", "with space"), Post("other", "11", "dog")], []);
+        using ManualResetEventSlim secondRead = new();
+        CountingPosts posts = new(
+            [Post(BooruMediaIdentity.Source, "10", "Cat_Ears", "solo", "cat_ears", "with space"), Post("other", "11", "dog")], secondRead);
+        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.CurrentSchemaVersion, posts, []);
         MediaSourceTagIndexCache cache = new();
-        MediaSourceTagIndex index = cache.For(catalog);
+        using Barrier start = new(2);
+        Task<MediaSourceTagIndex> RequestIndex() => Task.Factory.StartNew(() =>
+        {
+            start.SignalAndWait();
+            return cache.For(catalog);
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        MediaSourceTagIndex[] indexes = await Task.WhenAll(RequestIndex(), RequestIndex());
+        MediaSourceTagIndex index = indexes[0];
+        Assert.Same(index, indexes[1]);
         Assert.Same(index, cache.For(catalog));
+        Assert.Equal(1, posts.Reads);
         cache.Clear();
         Assert.NotSame(index, cache.For(catalog));
+        Assert.Equal(2, posts.Reads);
         Assert.Same(MediaSourceTagIndex.Empty, cache.For(null));
         Assert.Equal(["cat_ears", "solo"], index.TagsOf(Entry(1, "10")));
         Assert.Empty(index.TagsOf(Entry(2, "11"))); // another provider's post is not a Danbooru medium of this index
         Assert.Empty(index.TagsOf(Entry(3)));
         Assert.Equal(1, index.PostCount);
+    }
+
+    private sealed class CountingPosts(BooruPostRecord[] posts, ManualResetEventSlim secondRead) : IReadOnlyList<BooruPostRecord>
+    {
+        private int _reads;
+        internal int Reads => Volatile.Read(ref _reads);
+        public int Count => posts.Length;
+        public BooruPostRecord this[int index] => posts[index];
+
+        public IEnumerator<BooruPostRecord> GetEnumerator()
+        {
+            // Give the other caller time to enter a duplicate build if the first build is unguarded.
+            if (Interlocked.Increment(ref _reads) == 1)
+                secondRead.Wait(TimeSpan.FromSeconds(1));
+            else
+                secondRead.Set();
+            return ((IEnumerable<BooruPostRecord>)posts).GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     [Fact]
