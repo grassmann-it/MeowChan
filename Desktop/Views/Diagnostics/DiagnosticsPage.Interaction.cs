@@ -15,7 +15,7 @@ public partial class DiagnosticsPage
 {
     private void InitializeRowInteraction()
     {
-        AddHandler(KeyDownEvent, OnDiagnosticFilterKeys, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, (_, e) => RouteDiagnosticFilterKey(e), RoutingStrategies.Tunnel);
         foreach (string name in new[] { "DiagnosticsGrid", "PlatformGrid" })
         {
             DataGrid grid = this.FindControl<DataGrid>(name)!;
@@ -25,18 +25,24 @@ public partial class DiagnosticsPage
         }
     }
 
-    private void OnDiagnosticFilterKeys(object? sender, KeyEventArgs e)
+    // Both the page and the shell defer to the native dropdown or IME for these keys.
+    internal bool RouteDiagnosticFilterKey(KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing) return;
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+        if (e.Handled || ShortcutService.IsCapturing) return false;
+        bool escape = e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None;
+        using var context = EffectiveShortcutBindings.EnterKeyContext("diagnostics");
+        if (!escape && !CommandBindings.Matches(e, "input.focus-diagnostics-search")) return false;
+        if (this.FindControl<ComboBox>("DiagnosticSourceFilter")!.IsDropDownOpen) return true;
+        SearchBox text = this.FindControl<SearchBox>("DiagnosticTextFilter")!;
+        if (text.IsKeyboardFocusWithin && text.IsComposing) return true;
+        if (escape)
         {
             e.Handled = TryDismissDiagnosticFilters();
-            return;
+            return e.Handled;
         }
-        if (!CommandBindings.Matches(e, "input.focus-diagnostics-search")) return;
-        if (this.FindControl<ComboBox>("DiagnosticSourceFilter")!.IsDropDownOpen) return;
         FocusSearch();
         e.Handled = true;
+        return true;
     }
 
     /// <summary>Whether the row has a primary action (a target that can be shown in Downloads).</summary>

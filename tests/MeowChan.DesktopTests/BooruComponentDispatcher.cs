@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Skia;
 using Avalonia.Threading;
@@ -24,6 +25,12 @@ internal static class BooruComponentDispatcher
         using Owner owner = new(test, waitingFor, timeout ?? Deadline);
         owner.Run();
     }
+
+    internal static void Run(Func<Task> test, TimeSpan? timeout = null) => Run(() =>
+    {
+        AvaloniaSynchronizationContext.InstallIfNeeded();
+        Wait(test());
+    }, timeout: timeout);
 
     internal static CancellationToken Cancellation => Current.Cancellation;
 
@@ -127,6 +134,12 @@ internal static class BooruComponentDispatcher
         object? previousHandlers = languageHandlers.GetValue(null);
         string language = Texts.Language;
         Dispatcher owner = Dispatcher.CurrentDispatcher;
+        // Avalonia shares preedit and hyperlink decorations across dispatchers.
+        FieldInfo decorationDispatcher = typeof(AvaloniaObject).GetField("<Dispatcher>k__BackingField",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var decorations = TextDecorations.Underline.Concat(TextDecorations.Strikethrough)
+            .Concat(TextDecorations.Overline).Concat(TextDecorations.Baseline)
+            .Select(decoration => (Decoration: decoration, Previous: decoration.Dispatcher)).ToArray();
         using IDisposable scope = AvaloniaLocator.EnterScope();
         using ShortcutTestState shortcuts = new();
         try
@@ -136,10 +149,12 @@ internal static class BooruComponentDispatcher
             // would mutate controls owned by its original thread during fixture cleanup.
             languageHandlers.SetValue(null, null);
             primary.SetValue(null, owner);
+            foreach (var entry in decorations) decorationDispatcher.SetValue(entry.Decoration, owner);
             // EnterScope alone inherits the parent's MediaContext and its animation clock.
             // Rendering and transitions must resolve services owned by this dispatcher.
             AvaloniaLocator.Current = AvaloniaLocator.CurrentMutable = new AvaloniaLocator();
             AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
             SkiaPlatform.Initialize(); // Compiled bitmap icons, without native windows.
             BooruReviewTestPlatform.BindTextShaper();
             owner.Invoke(() =>
@@ -174,6 +189,7 @@ internal static class BooruComponentDispatcher
                 {
                     languageHandlers.SetValue(null, previousHandlers);
                     primary.SetValue(null, previousDispatcher);
+                    foreach (var entry in decorations) decorationDispatcher.SetValue(entry.Decoration, entry.Previous);
                 }
             }
         }

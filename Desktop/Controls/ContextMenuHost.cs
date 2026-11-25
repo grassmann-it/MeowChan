@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.MediaActions;
 
 namespace MeowChan.Desktop.Controls;
@@ -26,6 +27,7 @@ internal sealed class ContextMenuHost : IDisposable
     private readonly Func<Control>? _resolveOrigin;
     private readonly Func<object?, bool>? _acceptSource;
     private readonly bool _toggle;
+    private readonly bool _allowNativeContextKey;
     private Control? _openOn;
     private readonly Action? _fallbackFocus;
     private ContextMenu? _menu;
@@ -39,10 +41,12 @@ internal sealed class ContextMenuHost : IDisposable
     /// for example a button that moved under "More"); the handlers stay on <paramref name="origin"/>.</param>
     /// <param name="acceptSource">Optional: whether this source belongs to the surface rather than to a child with its own actions.</param>
     /// <param name="toggle">Whether explicit activations toggle a button menu on the same anchor.</param>
+    /// <param name="allowNativeContextKey">Whether the origin owns the menu gesture even when it is normally a native input.</param>
     internal ContextMenuHost(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null, Func<Control>? resolveOrigin = null,
-        Func<object?, bool>? acceptSource = null, bool toggle = false)
+        Func<object?, bool>? acceptSource = null, bool toggle = false, bool allowNativeContextKey = false)
     {
         _toggle = toggle;
+        _allowNativeContextKey = allowNativeContextKey;
         _resolveOrigin = resolveOrigin;
         _acceptSource = acceptSource;
         _origin = origin ?? throw new ArgumentNullException(nameof(origin));
@@ -51,7 +55,8 @@ internal sealed class ContextMenuHost : IDisposable
         // A list or table takes the key in the tunnel phase: its focused item or row consumes Enter, Space, Home, End and the arrows before a bubble
         // handler of the list sees them, so a rebinding of "Open context menu" to one of them would never arrive. Other origins keep the bubble phase,
         // where a child that handles the key itself (a nested chip with a menu of its own) still wins.
-        origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, (origin is ListBox or DataGrid) ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);
+        origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown,
+            origin is ListBox or DataGrid || allowNativeContextKey ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);
         origin.AddHandler(Control.ContextRequestedEvent, OnContextRequested, RoutingStrategies.Bubble);
         // A card/row can be rebuilt while its popup is open (Booru paging, archive refresh, virtualized lists).
         // Close before the detached control can leave a menu whose buttons still point at the old row.
@@ -63,7 +68,8 @@ internal sealed class ContextMenuHost : IDisposable
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_disposed || !MediaMenuPresenter.IsContextKey(e) || _acceptSource?.Invoke(e.Source) == false) return;
+        if (_disposed || e.Handled || ShortcutService.IsCapturing || _acceptSource?.Invoke(e.Source) == false) return;
+        if (!(_allowNativeContextKey ? IsMenuGesture(e) : MediaMenuPresenter.IsContextKey(e))) return;
         // In the tunnel phase an interactive part of a row (a nested button or text field) keeps the key.
         if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         _lastKeyOpen = DateTime.UtcNow;
@@ -126,7 +132,8 @@ internal sealed class ContextMenuHost : IDisposable
             if (origin is Button button) PopupToggle.Track(button, menu);
             menu.AddHandler(InputElement.KeyDownEvent, (_, e) =>
             {
-                if (e.Handled || !MediaMenuPresenter.IsContextKey(e)) return;
+                if (!PopupToggle.CanToggleMenuFromKey(menu, e)) return;
+                if (!IsMenuGesture(e)) return;
                 _lastKeyOpen = DateTime.UtcNow;
                 e.Handled = true;
                 Close();
@@ -134,6 +141,9 @@ internal sealed class ContextMenuHost : IDisposable
         }
         menu.Open(origin);
     }
+
+    private static bool IsMenuGesture(KeyEventArgs e) => e.Key == Key.Apps && e.KeyModifiers == KeyModifiers.None
+        || e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift || ShortcutService.Current.Matches(e, "menu.context-open");
 
     private void OnOriginDetached(object? sender, VisualTreeAttachmentEventArgs e) => Close();
 

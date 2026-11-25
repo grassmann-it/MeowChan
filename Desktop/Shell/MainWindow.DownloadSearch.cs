@@ -4,10 +4,10 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Presenters;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -77,8 +77,7 @@ public partial class MainWindow
     private bool IsDownloadSearchSource(object? source) => CanFocusDownloadSearch && _downloadSearchOpen
         && source is Avalonia.Visual visual && visual.GetSelfAndVisualAncestors().Contains(DownloadSearchBar);
 
-    private bool DownloadSearchIsComposing() => DownloadSearchInput.GetVisualDescendants().OfType<TextPresenter>()
-        .Any(presenter => !string.IsNullOrEmpty(presenter.PreeditText));
+    private bool DownloadSearchIsComposing() => DownloadSearchInput is SearchBox { IsComposing: true };
 
     private void CloseDownloadSearch()
     {

@@ -1319,7 +1319,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 return true;
             case QuickTagKeyAction.FocusField: _input.Focus(); return true;
             case QuickTagKeyAction.FocusSuggestions:
-                return FocusFirst(_suggestionChips.Select(chip => chip.Button)) || FocusFirst(new[] { _more });
+                return FocusFirst(_suggestionChips.Select(chip => chip.Button));
             case QuickTagKeyAction.FocusAssigned: return FocusFirst(_assignedChips.Select(chip => chip.Button));
             case QuickTagKeyAction.FocusLastAssigned: return FocusFirst(_assignedChips.Select(chip => chip.Button).Reverse());
             case QuickTagKeyAction.Undo:
@@ -1390,8 +1390,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private static bool FocusFirst(IEnumerable<Button> buttons)
     {
         Button? target = buttons.FirstOrDefault(button => button.IsVisible);
-        target?.Focus(NavigationMethod.Directional);
-        return target != null;
+        return target?.Focus(NavigationMethod.Directional) == true;
     }
 
     private SuggestionChip? FocusedSuggestion() => _suggestionChips.FirstOrDefault(chip => chip.Button.IsKeyboardFocusWithin);

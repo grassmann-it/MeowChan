@@ -2,9 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
-using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
@@ -213,19 +211,7 @@ public sealed class BooruMediaHandoffInteractionTests
     private static string Source(string path, [CallerFilePath] string caller = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(caller)!, "../..", path)));
 
-    private static void OnDispatcher(Action test)
-    {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
-        object? previous = primary.GetValue(null);
-        string language = Texts.Language;
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
-        try
-        {
-            primary.SetValue(null, owner);
-            owner.Invoke(() => { Texts.Initialize(); Texts.SetLanguage("en"); test(); }, DispatcherPriority.Send);
-        }
-        finally { Texts.SetLanguage(language); primary.SetValue(null, previous); }
-    }
+    private static void OnDispatcher(Action test) => BooruComponentDispatcher.Run(test);
 
     private static async Task<bool> ContinueAfterAsync(Task activation, Func<bool> guard)
     {

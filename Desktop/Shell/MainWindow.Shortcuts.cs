@@ -25,24 +25,26 @@ public partial class MainWindow
         void Register(Control owner, Func<bool> active, Func<bool> canOpen, Action open,
             Func<string?> selected, Func<string, bool> canGo, Action<string> go)
         {
-            _shortcutRouter.Register(new CommandRegistration("sections.open-navigation", owner, active,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("sections.open-navigation", owner, active,
                 canOpen, open, Priority: 100));
-            _shortcutRouter.Register(new CommandRegistration("sections.go-to", owner, active,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("sections.go-to", owner, active,
                 () => selected() is string id && canGo(id),
                 () => { if (selected() is string id) go(id); }, Priority: 100));
         }
-        if (_settingsEditor != null)
-            Register(_settingsEditor, () => _selectedPage == WorkspacePage.Settings && !_largeReaderOpen && _gallery == null,
-                () => _settingsEditor.CanOpenSectionNavigation, _settingsEditor.OpenSectionNavigation,
-                () => _settingsEditor.SelectedSectionId, _settingsEditor.CanGoToSection, _settingsEditor.GoToSection);
-        if (_settingsEditor != null)
-            _shortcutRouter.Register(new CommandRegistration("input.focus-settings-search", _settingsEditor,
-                () => _selectedPage == WorkspacePage.Settings && !_largeReaderOpen && _gallery == null,
-                () => true, _settingsEditor.FocusSearch, Priority: 100, AllowInTextInput: true));
+        if (_settingsEditor is { } settings)
+        {
+            bool SettingsActive() => _selectedPage == WorkspacePage.Settings && !_largeReaderOpen && _gallery == null;
+            Register(settings, SettingsActive, () => settings.CanOpenSectionNavigation, settings.ToggleSectionNavigation,
+                () => settings.SelectedSectionId, settings.CanGoToSection, settings.GoToSection);
+            _shortcutRouter.RegisterOwned(new CommandRegistration("input.focus-settings-search", settings,
+                SettingsActive, () => true, settings.FocusSearch, Priority: 100, AllowInTextInput: true));
+            _shortcutRouter.RegisterOwned(new CommandRegistration(SettingsEditor.MoreActionsCommandId, settings,
+                SettingsActive, () => settings.IsEditable, settings.ToggleSettingsMore, Priority: 100));
+        }
         if (_pluginsPage != null)
         {
             foreach (string id in PluginsPage.PluginActionCommandIds)
-                _shortcutRouter.Register(new CommandRegistration(id, _pluginsPage,
+                _shortcutRouter.RegisterOwned(new CommandRegistration(id, _pluginsPage,
                     () => _selectedPage == WorkspacePage.Sources && !_largeReaderOpen && _gallery == null,
                     () => _pluginsPage.CanExecutePluginAction(id),
                     () => _ = _pluginsPage.ExecuteSelectedPluginActionAsync(id),
@@ -58,9 +60,9 @@ public partial class MainWindow
         if (_archivePage is { } archive)
         {
             bool ArchiveActive() => _selectedPage == WorkspacePage.Archive && _gallery == null;
-            _shortcutRouter.Register(new CommandRegistration("thread.tags", archive, ArchiveActive,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("thread.tags", archive, ArchiveActive,
                 () => archive.ThreadTagsShortcutTarget != null, archive.OpenThreadTagsByShortcut, Priority: 100));
-            _shortcutRouter.Register(new CommandRegistration("archive.filters-toggle", archive,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("archive.filters-toggle", archive,
                 () => ArchiveActive() && !_largeReaderOpen, () => !archive.IsReaderDialogOpen,
                 archive.ToggleFilterSurfaceByShortcut, Priority: 100, AllowInTextInput: true));
             // The reader toolbar's thread list switch has no default gesture; a gesture the user gives it runs here.
@@ -75,36 +77,36 @@ public partial class MainWindow
                 && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive);
             // The thread's tags (Primary+T) in the large reader: it can be open over any page (Downloads, Media, the gallery's thread), where the archive's
             // own registration above has an invisible owner and an inactive page; the pane is the owner that is always on the screen with it.
-            _shortcutRouter.Register(new CommandRegistration("thread.tags", readerPane, () => ReaderShown() && _largeReaderOpen,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("thread.tags", readerPane, () => ReaderShown() && _largeReaderOpen,
                 () => live.ThreadTagsShortcutTarget != null, live.OpenThreadTagsByShortcut, Priority: 100));
-            _shortcutRouter.Register(new CommandRegistration("watch.follow-live", readerPane, ReaderShown,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("watch.follow-live", readerPane, ReaderShown,
                 () => live.CanToggleFollowLiveByShortcut, live.ToggleFollowLiveByShortcut, Priority: 100));
-            _shortcutRouter.Register(new CommandRegistration("reader.show-new-posts", readerPane, ReaderShown,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("reader.show-new-posts", readerPane, ReaderShown,
                 () => live.CanShowNewPostsByShortcut, () => _ = live.ShowReaderUpdatesAsync(), Priority: 100));
             // R8: the media sidebar switch works in both readers and switches the sidebar of the view it is used in (the archive view shows it
             // with "Always"); its steps act wherever it is shown (CanStepMediaSidebar).
-            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.toggle", readerPane, ReaderShown,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("reader.sidebar.toggle", readerPane, ReaderShown,
                 () => live.CanToggleMediaSidebar, live.ToggleMediaSidebar, Priority: 100));
-            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.previous-media", readerPane, ReaderShown,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("reader.sidebar.previous-media", readerPane, ReaderShown,
                 () => live.CanStepMediaSidebar(-1), () => live.StepMediaSidebar(-1), Priority: 100));
-            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.next-media", readerPane, ReaderShown,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("reader.sidebar.next-media", readerPane, ReaderShown,
                 () => live.CanStepMediaSidebar(1), () => live.StepMediaSidebar(1), Priority: 100));
         }
         // The saved-ratings manager is a dialog of the shell; it opens from the media page, the archive and the gallery (which routes it itself).
-        _shortcutRouter.Register(new CommandRegistration("media.rating.manage", this,
+        _shortcutRouter.RegisterOwned(new CommandRegistration("media.rating.manage", this,
             () => _gallery == null && _selectedPage is WorkspacePage.Media or WorkspacePage.Archive,
             () => !_isClosing && !_ratingManagerOpen, () => _ = ManageMediaRatingsAsync(), Priority: 100));
         if (_mediaPage is { } media)
         {
-            _shortcutRouter.Register(new CommandRegistration("media.tags.edit", media,
+            _shortcutRouter.RegisterOwned(new CommandRegistration("media.tags.edit", media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
                 () => media.SelectedTiles.Count > 0, () => _ = media.EditTagsByShortcutAsync(), Priority: 100));
             // The focus mode (M4): Shift+F is a typed capital in a text field, so the router leaves it to the field (no AllowInTextInput).
-            _shortcutRouter.Register(new CommandRegistration(MediaFocusMode.CommandId, media,
+            _shortcutRouter.RegisterOwned(new CommandRegistration(MediaFocusMode.CommandId, media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
                 () => media.CanToggleFocusMode, media.ToggleFocusModeByShortcut, Priority: 100));
             // The media panel's switch (S-4): Primary+Shift+M, as the reader's media sidebar; the choice is the Layout menu row's (saved).
-            _shortcutRouter.Register(new CommandRegistration(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, media,
+            _shortcutRouter.RegisterOwned(new CommandRegistration(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
                 () => media.CanTogglePanel, media.TogglePanelByShortcut, Priority: 100));
         }
@@ -116,7 +118,7 @@ public partial class MainWindow
         foreach (string suffix in new[] { "create", "edit", "delete", "preview", "apply", "undo-apply" })
         {
             string id = "rules.template-" + suffix;
-            _shortcutRouter.Register(new CommandRegistration(id, _rulesPage,
+            _shortcutRouter.RegisterOwned(new CommandRegistration(id, _rulesPage,
                 () => _selectedPage == WorkspacePage.Rules && !_largeReaderOpen && _gallery == null,
                 () => _rulesPage.CanExecuteTemplateCommand(id),
                 () => _ = _rulesPage.ExecuteTemplateCommandAsync(id), Priority: 100));

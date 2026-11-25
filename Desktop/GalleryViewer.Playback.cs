@@ -227,14 +227,13 @@ internal sealed partial class GalleryViewer
             case "gallery.overlay-autohide-toggle": // Compatibility alias, not a second visible setting.
                 // Switching overlay placement moves the toolbar that anchors More. Close while the anchor is still
                 // attached, then return keyboard focus after the new placement has been laid out.
-                bool returnToMore = _overflowFlyout.IsOpen && _overflowHadFocus && _keyboardInteraction;
-                if (returnToMore) _overflowFlyout.Hide();
+                bool returnToPicture = _overflowFlyout.IsOpen && _overflowHadFocus && _keyboardInteraction;
+                if (returnToPicture) _overflowFlyout.Hide();
                 ChangePlaybackPreferences(_playbackPreferences.WithControlsOverlay(!_playbackPreferences.OverlayControls));
-                if (returnToMore)
+                if (returnToPicture)
                     Dispatcher.UIThread.Post(() =>
                     {
-                        if (!_terminalRetirement && _keyboardInteraction && !_overflowFlyout.IsOpen && _overflowButton.IsEffectivelyVisible)
-                            _overflowButton.Focus(NavigationMethod.Tab);
+                        if (!_terminalRetirement && _keyboardInteraction && !_overflowFlyout.IsOpen) FocusGallerySurface();
                     }, DispatcherPriority.Loaded);
                 break;
             case "gallery.post-overlay-toggle": ChangePlaybackPreferences(_playbackPreferences with { OverlayPostContext = !_playbackPreferences.OverlayPostContext }); break;

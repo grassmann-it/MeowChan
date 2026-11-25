@@ -157,9 +157,17 @@ public partial class SettingsEditor
         FocusSettingsContent();
     }
 
+    internal void ToggleSectionNavigation()
+    {
+        if (!CanOpenSectionNavigation) return;
+        if (!SettingsCategories.IsVisible && SettingsSections.IsExpanded) CloseSectionNavigation();
+        else OpenSectionNavigation();
+    }
+
     private void InitializeSectionNavigation()
     {
         Desktop.Controls.PopupToggle.Prepare(SettingsMoreButton);
+        CommandBindings.BindExisting(SettingsMoreButton, MoreActionsCommandId);
         AutomationProperties.SetAutomationId(SettingsSections, SettingsSections.Name);
         SettingsSections.AddHandler(KeyDownEvent, (_, e) =>
         {
@@ -169,11 +177,12 @@ public partial class SettingsEditor
         }, RoutingStrategies.Bubble);
         AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (e.Handled || ShortcutService.IsCapturing || SettingsCategories.IsVisible || !CanOpenSectionNavigation
-                || CommandRouter.IsNativeInput(e.Source, e.Key) && !CommandBindings.IsTextSafeChord(e)
-                || !ShortcutService.Current.Matches(e, "sections.open-navigation")) return;
-            if (SettingsSections.IsExpanded) CloseSectionNavigation();
-            else OpenSectionNavigation();
+            if (e.Handled || ShortcutService.IsCapturing
+                || CommandRouter.IsNativeInput(e.Source, e.Key) && !CommandBindings.IsTextSafeChord(e)) return;
+            if (IsEditable && ShortcutService.Current.Matches(e, MoreActionsCommandId)) ToggleSettingsMore();
+            else if (!SettingsCategories.IsVisible && CanOpenSectionNavigation
+                && ShortcutService.Current.Matches(e, "sections.open-navigation")) ToggleSectionNavigation();
+            else return;
             e.Handled = true;
         }, RoutingStrategies.Tunnel);
         _sectionNavigation = new SectionNavigationController(SettingsScrollViewer, () => !_isClosed && IsEditable);

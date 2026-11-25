@@ -302,9 +302,10 @@ internal static class FeedbackChecks
             (_, _) => throw new InvalidOperationException("A failed compilation must not start description."),
             (_, _, _) => throw new InvalidOperationException("A failed compilation must not start a worker."),
             (_, _, _, _, _) => throw new InvalidOperationException("No probe is part of this fixture."));
-        PluginsPage page = new(); page.Attach(services);
         try
         {
+            using PluginsPage page = new();
+            page.Attach(services);
             await page.ActivateAsync();
             string[] keys = (await services.ReadCatalogAsync(CancellationToken.None)).Entries.Select(entry => entry.Key).ToArray();
             Require(keys.Length == 2, "Plugin feedback fixture needs two candidates.");
@@ -328,7 +329,7 @@ internal static class FeedbackChecks
             compiler.Fail(); await ended;
             Require(page.FindControl<TextBlock>("PluginPageError")!.Text == ending, "An ended page accepted a late build failure.");
         }
-        finally { page.EndLifetime(); Directory.Delete(root, true); }
+        finally { Directory.Delete(root, true); }
     }
 
     // Deliberately ignores cancellation to exercise a backend that completes after the UI has moved on.

@@ -100,6 +100,7 @@ public static class WorkViewMoreSurface
         Entry[] current = entries.ToArray();
         if (current.Length == 0) return;
         ContextMenu menu = CreateMenu(current, more);
+        menu.Placement = PlacementMode.BottomEdgeAlignedRight;
         PopupToggle.Track(more, menu);
         menu.Open(more);
     }

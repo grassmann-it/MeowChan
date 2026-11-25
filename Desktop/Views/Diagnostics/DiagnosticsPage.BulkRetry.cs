@@ -161,8 +161,7 @@ public partial class DiagnosticsPage
 
     internal bool TryDismissDiagnosticFilters()
     {
-        if (!IsEffectivelyVisible || !FiltersSection.IsExpanded || !FiltersSection.IsKeyboardFocusWithin
-            || this.FindControl<ComboBox>("DiagnosticSourceFilter")!.IsDropDownOpen) return false;
+        if (!IsEffectivelyVisible || !FiltersSection.IsExpanded || !FiltersSection.IsKeyboardFocusWithin) return false;
         CloseDiagnosticFilters();
         return true;
     }
