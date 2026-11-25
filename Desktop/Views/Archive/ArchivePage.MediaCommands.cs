@@ -56,37 +56,50 @@ public partial class ArchivePage
     private void ConfigureArchiveMediaFavorites()
     {
         if (_thread == null) return;
-        ResourceId threadId = _thread.Summary.Id;
-        string url = _thread.Summary.Url;
-        GalleryEntry Entry(ArchiveAssetRow row) => new(new GalleryAssetKey(threadId, row.Manifest.Directory, row.Asset.AssetId),
-            row.Manifest, row.Asset, null, null, !row.Asset.IsCurrent, true) { ThreadUrl = url };
         foreach (ArchiveAssetRow row in _assets)
         {
-            GalleryEntry entry = Entry(row);
+            GalleryEntry entry = ArchiveFavoriteEntry(_thread.Summary, row);
             row.FavoriteAvailable = () => _available && !_ended && ToggleArchiveFavoriteAsync != null && ArchiveFavoritesUnreadable?.Invoke() != true;
             row.FavoriteHold = () => ArchiveFavoritesUnreadable?.Invoke() == true ? FavoriteStarHold.Unreadable : FavoriteStarHold.None;
             row.IsFavorite = () => IsArchiveFavorite?.Invoke(entry) == true;
             row.ToggleFavoriteAsync = () => ToggleArchiveMediaFavoriteAsync(entry);
             row.FavoriteError = () => _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
         }
-        if (ArchivePosts.ItemsSource is System.Collections.IEnumerable posts)
-            foreach (ArchivePostRow post in posts.OfType<ArchivePostRow>())
-                foreach (ArchiveAttachmentRow row in post.Attachments)
-                {
-                    // The whole thread has rows, but only visible stars need to resolve a saved asset.
-                    Lazy<GalleryEntry?> entry = new(() => FindMatchingAsset(threadId, post.Id, row.Attachment, _assets) is { } match
-                        ? Entry(match) : null);
-                    row.FavoriteAvailable = () => _available && !_ended && ToggleArchiveFavoriteAsync != null
-                        && ArchiveFavoritesUnreadable?.Invoke() != true && entry.Value != null;
-                    row.FavoriteHold = () => ArchiveFavoritesUnreadable?.Invoke() == true ? FavoriteStarHold.Unreadable
-                        : _mediaLoading && entry.Value == null ? FavoriteStarHold.Loading : FavoriteStarHold.None;
-                    row.IsFavorite = () => entry.Value is { } saved && IsArchiveFavorite?.Invoke(saved) == true;
-                    row.ToggleFavoriteAsync = () => entry.Value is { } saved ? ToggleArchiveMediaFavoriteAsync(saved) : Task.CompletedTask;
-                    row.FavoriteError = () => entry.Value is { } saved
-                        ? _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(saved.Key.Thread, saved.Asset)) : null;
-                }
         RefreshArchiveFavoriteControls();
         RefreshMediaSidebarDecisions();
+    }
+
+    private static GalleryEntry ArchiveFavoriteEntry(ArchiveThreadSummary summary, ArchiveAssetRow row) =>
+        new(new GalleryAssetKey(summary.Id, row.Manifest.Directory, row.Asset.AssetId),
+            row.Manifest, row.Asset, null, null, !row.Asset.IsCurrent, true) { ThreadUrl = summary.Url };
+
+    private void ConfigureReaderAttachmentFavorite(ArchiveThreadSummary summary, MediaRead read, string postId, ArchiveAttachmentRow row)
+    {
+        MediaReadAttempt? resolvedAttempt = null;
+        GalleryEntry? entry = null;
+        GalleryEntry? SavedEntry()
+        {
+            if (_ended || !ReferenceEquals(read, _mediaRead)) return null;
+            MediaReadAttempt attempt = read.Attempt;
+            Task<IReadOnlyList<ArchiveAssetRow>> ready = attempt.Ready.Task;
+            if (!ready.IsCompletedSuccessfully) return null;
+            if (!ReferenceEquals(attempt, resolvedAttempt))
+            {
+                entry = FindMatchingAsset(summary.Id, postId, row.Attachment, ready.Result) is { } match
+                    ? ArchiveFavoriteEntry(summary, match) : null;
+                resolvedAttempt = attempt;
+            }
+            return entry;
+        }
+
+        row.FavoriteAvailable = () => _available && ToggleArchiveFavoriteAsync != null
+            && ArchiveFavoritesUnreadable?.Invoke() != true && SavedEntry() != null;
+        row.FavoriteHold = () => ArchiveFavoritesUnreadable?.Invoke() == true ? FavoriteStarHold.Unreadable
+            : _mediaLoading && ReferenceEquals(read, _mediaRead) && SavedEntry() == null ? FavoriteStarHold.Loading : FavoriteStarHold.None;
+        row.IsFavorite = () => SavedEntry() is { } saved && IsArchiveFavorite?.Invoke(saved) == true;
+        row.ToggleFavoriteAsync = () => SavedEntry() is { } saved ? ToggleArchiveMediaFavoriteAsync(saved) : Task.CompletedTask;
+        row.FavoriteError = () => SavedEntry() is { } saved
+            ? _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(saved.Key.Thread, saved.Asset)) : null;
     }
 
     // <paramref name="selected"/> null: the toggle of the stars and menus; a value (the favourite keys): that explicit target (the toggle only when the host wired no setter).

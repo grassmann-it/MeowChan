@@ -161,11 +161,18 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
             "The visible search tab lost or replaced its exact result cards.");
         foreach (string id in PostIds)
         {
-            Require(Find<Grid>(page, BooruWorkbenchView.DetailsPrefix + id).IsEffectivelyVisible, "Result facts are not on the search surface.");
-            Require(Find<Button>(page, BooruWorkbenchView.LoadPrefix + id).IsEffectivelyVisible, "Load original is not on the search surface.");
+            // Astra W112-69 B, high finding 2: compact text on the surface and full provider facts for accessibility.
+            TextBlock facts = BooruWorkbenchChecks.FindById<TextBlock>(page, BooruWorkbenchView.DetailsPrefix + id);
+            string name = AutomationProperties.GetName(facts) ?? string.Empty;
+            Require(facts.IsEffectivelyVisible && facts.Text?.Contains("1920×1080 png", StringComparison.Ordinal) == true
+                && name.Contains(Texts.T("booru.ui.post.field.rating"), StringComparison.Ordinal)
+                && name.Contains(Texts.T("booru.ui.post.field.score"), StringComparison.Ordinal)
+                && Equals(name, ToolTip.GetTip(facts)), "The search surface lacks visible or accessible result facts.");
+            Button load = BooruWorkbenchChecks.FindById<Button>(page, BooruWorkbenchView.LoadPrefix + id);
+            Require(load.IsEffectivelyVisible && load.IsEffectivelyEnabled && load.IsHitTestVisible, "Load original is not on the search surface.");
             foreach ((string prefix, string policyId) in new[] { (BooruWorkbenchView.OpenPostPrefix, "booru.result.open"),
                 (BooruWorkbenchView.CopyLinkPrefix, "booru.result.copy-link") })
-                Require(WorkViewElement.GetId(Find<Button>(page, prefix + id)) == policyId, "A result lost its registered link action.");
+                Require(WorkViewElement.GetId(BooruWorkbenchChecks.FindById<Button>(page, prefix + id)) == policyId, "A result lost its registered link action.");
         }
         Require(Find<TextBox>(page, BooruWorkbenchView.InputName).Text == Query && page.Model.Search.View.ExecutedQuery == Query,
             "Changing presentation altered the displayed/executed query.");
