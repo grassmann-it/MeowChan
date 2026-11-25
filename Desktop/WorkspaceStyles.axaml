@@ -2118,6 +2118,10 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
+    <Style Selector="ToggleButton.header-icon.surface-toggle:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="Opacity" Value="0.75" />
+    </Style>
     <Style Selector="ToggleButton.toolbar-toggle.segment:checked:pressed:not(:disabled):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
