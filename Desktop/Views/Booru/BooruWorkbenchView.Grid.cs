@@ -358,7 +358,7 @@ internal sealed partial class BooruWorkbenchView
         Border tile = new() { Name = "BooruResult:" + postId, Child = content, Padding = new Thickness(BooruTileMetrics.Padding) };
         tile.Classes.Add("booru-tile");
         tile.Classes.Set("booru-tile-selected", selected);
-        ToolTip.SetTip(tile, BooruText.Rating(post.Rating));
+        ToolTip.SetTip(tile, BooruText.ProviderRatingAndScore(post));
         ConfigureHitCard(tile, row, result);
         return tile;
     }

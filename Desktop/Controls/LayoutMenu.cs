@@ -50,13 +50,13 @@ internal sealed record LayoutMenuRow(LayoutMenuRowKind Kind, string Id, string L
     public string? Hint { get; init; }
     /// <summary>What the row does, as the accessible help text of a usable row.</summary>
     public string? Description { get; init; }
-    /// <summary>Indent level (0 or 1) in the flyout; the context menu is flat.</summary>
+    /// <summary>Indent level in the flyout. Radio choices already show their role through the chip.</summary>
     public int Indent { get; init; }
 
     public bool Enabled => DisabledReason == null;
     public bool IsInteractive => Kind is LayoutMenuRowKind.Toggle or LayoutMenuRowKind.Choice or LayoutMenuRowKind.Action;
 
-    // Choice rows are values of a group (e.g. filmstrip position), so they only show a selection mark by default.
+    // Choice rows are values of a group (e.g. filmstrip position) and use the radio chip by default.
     internal string? ActionIcon => IconKey ?? (Kind is LayoutMenuRowKind.Toggle or LayoutMenuRowKind.Action
         ? CatalogIcon(Id) ?? CatalogIcon(CommandId)
         : null);
@@ -118,7 +118,7 @@ internal static class LayoutMenuBuilder
 /// </summary>
 internal sealed class LayoutMenuPanel : StackPanel
 {
-    private sealed record RowView(LayoutMenuRow Row, Button? Button, Control? Check, ContentControl? Icon, TextBlock? Label, TextBlock? Reason,
+    private sealed record RowView(LayoutMenuRow Row, Button? Button, MenuStateChip? Icon, TextBlock? Label, TextBlock? Reason,
         TextBlock? Gesture, Control Root);
 
     private readonly Func<LayoutMenuModel> _source;
@@ -210,6 +210,7 @@ internal sealed class LayoutMenuPanel : StackPanel
         string signature = string.Join('|', model.Rows.Select(row => row.Kind + ":" + row.Id + ":" + row.Indent));
         if (signature != _signature) Rebuild(model, signature);
         else for (int i = 0; i < _views.Count; i++) Update(i, model.Rows[i]);
+        MenuLayout.SetFlyoutLead(_views.Select(view => view.Button?.Content).OfType<Grid>());
     }
 
     private void Rebuild(LayoutMenuModel model, string signature)
@@ -232,7 +233,7 @@ internal sealed class LayoutMenuPanel : StackPanel
         switch (row.Kind)
         {
             case LayoutMenuRowKind.Separator:
-                return new RowView(row, null, null, null, null, null, null, new Border
+                return new RowView(row, null, null, null, null, null, new Border
                 {
                     Height = 1, Margin = new Thickness(8, 4), IsHitTestVisible = false,
                     [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border")
@@ -240,25 +241,32 @@ internal sealed class LayoutMenuPanel : StackPanel
             case LayoutMenuRowKind.Note:
                 TextBlock note = new() { Text = row.Label, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(16, 4) };
                 note.Classes.Add("workspace-meta");
-                return new RowView(row, null, null, null, note, null, null, note);
+                return new RowView(row, null, null, note, null, null, note);
         }
-        bool check = row.Kind != LayoutMenuRowKind.Action;
-        Control? mark = check ? WorkspaceIcons.Create(WorkspaceIcons.Check) : null;
-        ContentControl icon = new();
+        MenuItemToggleType kind = row.Kind switch
+        {
+            LayoutMenuRowKind.Toggle => MenuItemToggleType.CheckBox,
+            LayoutMenuRowKind.Choice => MenuItemToggleType.Radio,
+            _ => MenuItemToggleType.None
+        };
+        Button button = kind == MenuItemToggleType.None ? new Button { Name = "LayoutMenuRow" } : new ToggleButton { Name = "LayoutMenuRow" };
+        AutomationProperties.SetAutomationId(button, row.Id);
+        MenuStateChip icon = MenuLayout.CreateFlyoutChip(button, kind);
         TextBlock label = new() { TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         TextBlock reason = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false, IsHitTestVisible = false };
         reason.Classes.Add("workspace-meta");
         StackPanel text = new() { Spacing = 0, VerticalAlignment = VerticalAlignment.Center, Children = { label, reason } };
         TextBlock gesture = new();
-        Grid root = MenuLayout.CreateFlyoutRow(mark, icon, text, gesture);
-        Button button = check ? new ToggleButton { Name = "LayoutMenuRow" } : new Button { Name = "LayoutMenuRow" };
+        AutomationProperties.SetAutomationId(label, row.Id + ".label");
+        AutomationProperties.SetAutomationId(gesture, row.Id + ".shortcut");
+        Grid root = MenuLayout.CreateFlyoutRow(icon, text, gesture);
         button.Classes.Add(_rowClass);
         button.HorizontalAlignment = HorizontalAlignment.Stretch;
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.Content = root;
         button.Tag = row.Id;
-        button.Margin = new Thickness(row.Indent * 24, 0, 0, 0);
-        RowView view = new(row, button, mark, icon, label, reason, gesture, button);
+        if (row.Kind != LayoutMenuRowKind.Choice) button.Margin = new Thickness(row.Indent * MenuLayout.ChipColumn, 0, 0, 0);
+        RowView view = new(row, button, icon, label, reason, gesture, button);
         button.Click += (_, _) =>
         {
             LayoutMenuRow chosen = _views.First(item => ReferenceEquals(item.Button, button)).Row;
@@ -281,7 +289,6 @@ internal sealed class LayoutMenuPanel : StackPanel
         }
         view.Label!.Text = row.Label;
         MenuLayout.SetFlyoutIcon(view.Icon!, row.ActionIcon);
-        if (view.Check != null) view.Check.Opacity = row.Checked ? 1 : 0;
         if (view.Button is ToggleButton toggle && toggle.IsChecked != row.Checked) toggle.IsChecked = row.Checked;
         view.Button.IsEnabled = row.Enabled;
         view.Reason!.Text = row.DisabledReason ?? string.Empty;
