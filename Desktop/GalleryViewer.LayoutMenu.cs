@@ -19,7 +19,7 @@ namespace MeowChan.Desktop;
 // GL3 (PLAN-GALERIE-LAYOUT-BLOECKE §3, Tom's E2): the "Layout" button beside "More" and the same rows on a right click of free dock area.
 //   * The button opens a flyout (LayoutMenuPanel) with the rows of GalleryLayoutMenu.Rows: filmstrip, its position, tools, info line, hints
 //     and "Reset layout". A switch or a choice keeps the flyout open and shows its new state at once; "Reset layout" closes it and offers the
-//     undo (LayoutResetPerformed; the window shows the toast). Escape closes the menu and the focus returns to the button.
+//     undo (LayoutResetPerformed; the window shows the toast). Escape closes the menu and the focus returns to the picture.
 //   * A right click on free area of the dock (the tools surface, the info line, the filmstrip band; not on a button, slider or thumbnail, and
 //     not on the picture, which keeps the media menu) opens the same rows as a ContextMenuBuilder menu; so do the Menu key and Shift+F10 with
 //     the focus in the dock.
@@ -108,7 +108,6 @@ internal sealed partial class GalleryViewer
         _overflowPanel.Children.Add(_layoutSection);
         _overflowFlyout.Opening += (_, _) => { if (_layoutSection.IsVisible) _layoutSectionPanel.Refresh(); };
         PopupToggle.BindFlyout(_layoutButton, _layoutFlyout);
-        _layoutButton.Focusable = true;
         _layoutPanel.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (!e.Handled && TryToggleLayoutFromMenu(e, _layoutFlyout)) return;
@@ -134,12 +133,12 @@ internal sealed partial class GalleryViewer
         {
             RefreshPlaybackControls();
             RevealOverlayControls();
-            if (!_layoutMenuHadFocus || _terminalRetirement || !_layoutButton.IsEffectivelyVisible) return;
+            if (!_layoutMenuHadFocus || _terminalRetirement || _viewerInteractionStopped || !IsGalleryWindowActive || _layoutFlyout.IsOpen) return;
             _layoutMenuHadFocus = false;
-            if (_keyboardInteraction) _layoutButton.Focus(NavigationMethod.Tab);
+            if (_keyboardInteraction) FocusGallerySurface();
             else ReclaimGallerySurface();
         };
-        // The same rows on a right click of free dock area; the host also opens them for the Menu key and Shift+F10 on the button.
+        // The dock shares these rows between its free-area right click and the Menu key or Shift+F10.
         _layoutContextHost = new ContextMenuHost(_layoutButton,
             () => LayoutMenuBuilder.ToContextMenu(LayoutMenuNow(), ApplyLayoutRow, Texts.T("gallery.layout.button")), FocusGallerySurface,
             () => _layoutButton.IsEffectivelyVisible ? _layoutButton : _overflowButton); // under "More" the menu opens on that button
