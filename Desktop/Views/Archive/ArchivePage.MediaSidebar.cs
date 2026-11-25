@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,7 +44,6 @@ public partial class ArchivePage
     private IDisposable? _frameTabScope;
     private bool _tabScopeOnFrame;
     private readonly ReaderMediaFollowThrottle _sidebarThrottle = new();
-    private readonly Stopwatch _sidebarClock = Stopwatch.StartNew();
     private DispatcherTimer? _sidebarFollowTimer, _sidebarAnnounceTimer;
     private CancellationTokenSource? _sidebarLoading;
     private CancellationTokenSource? _sidebarStripLoading;
@@ -462,6 +460,7 @@ public partial class ArchivePage
     // without its strip, until the new host shows the sidebar (the same medium then needs no placeholder) or ReleaseKeptMediaSidebarPicture.
     private void HideMediaSidebarContent(bool keepPicture = false)
     {
+        _mediaSidebar?.InvalidateTagEditor();
         CancelMediaSidebarLoad();
         _sidebarFollowTimer?.Stop();
         _sidebarAnnounceTimer?.Stop();
@@ -673,27 +672,31 @@ public partial class ArchivePage
         if (!_mediaSidebarShown || _ended) return;
         if (selectionChanged)
         {
-            _mediaSidebar?.InvalidateDecisionTarget();
+            if (ArchiveMediaTab.IsSelected && _displayedSidebarMedium != null) SetDisplayedSidebarMedium(null);
+            else _mediaSidebar?.InvalidateDecisionTarget();
             // Throttle starting the next decode, not retiring the previous selection. Otherwise an old completion can still publish
             // a picture/error (or a strip thumbnail) in the interval before the follow timer runs.
             CancelMediaSidebarLoad();
             CancelSidebarStripLoad();
         }
-        long now = _sidebarClock.ElapsedMilliseconds;
+        long now = ReaderMonotonicMilliseconds();
         // A selection that is only cleared (a page or thread being rebuilt) waits for the tick: the picture does not flash away.
         bool hasSelection = ArchiveMediaTab.IsSelected ? SelectedMediaRow() != null : ArchivePosts.SelectedItem != null;
         if (!hasSelection) _sidebarThrottle.MarkPending();
         else if (_sidebarThrottle.Request(now)) { RefreshMediaSidebar(); return; }
-        DispatcherTimer timer = _sidebarFollowTimer ??= CreateSidebarTimer(() =>
-        {
-            if (_sidebarThrottle.Tick(_sidebarClock.ElapsedMilliseconds)) RefreshMediaSidebar();
-        });
+        if (_manualReaderClock != null) return;
+        DispatcherTimer timer = _sidebarFollowTimer ??= CreateSidebarTimer(TickMediaSidebarFollow);
         if (!timer.IsEnabled)
         {
             timer.Interval = TimeSpan.FromMilliseconds(!hasSelection
                 ? ReaderMediaSidebarRules.FollowIntervalMs : _sidebarThrottle.Remaining(now));
             timer.Start();
         }
+    }
+
+    internal void TickMediaSidebarFollow()
+    {
+        if (_sidebarThrottle.Tick(ReaderMonotonicMilliseconds())) RefreshMediaSidebar();
     }
 
     private static DispatcherTimer CreateSidebarTimer(Action tick)

@@ -233,18 +233,36 @@ public sealed class BoardAdmissionSuggestionTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData("news", "Camera news")]
-    [InlineData("test_1", "Camera test")]
-    [InlineData("analogphotographers", "Camera analogphotographers")]
-    public void OwnBoardCodeDoesNotBecomeAWordRule(string board, string unrelatedTitle)
+    [InlineData("news", "/news/", "Camera news")]
+    [InlineData("test_1", "/test_1/", "Camera test")]
+    [InlineData("analogphotographers", "/analogphotographers/", "Camera analogphotographers")]
+    [InlineData("test_1", "/test_1/test_1/", "Camera test")]
+    public void OwnBoardCodeDoesNotBecomeAWordRule(string board, string titlePrefix, string unrelatedTitle)
     {
-        var rows = Enumerable.Range(1, 3).Select(i => Row(i, $"/{board}/ #{i}", i))
+        var rows = Enumerable.Range(1, 3).Select(i => Row(i, $"{titlePrefix} #{i}", i))
             .Concat(UnrelatedTitles(16)).Append(Row(99, unrelatedTitle, 1)).ToArray();
 
         var result = TitlePatternMiner.Mine(rows, board, Now, 3, 12);
 
         Assert.Equal(20, result.Scanned);
         Assert.Empty(result.Items);
+    }
+
+    [Theory]
+    [InlineData("/film/test_1/")]
+    [InlineData("/test_1/film/")]
+    [InlineData("/test_1/test_1/film/test_1/")]
+    public void ForeignBoardCodeKeepsItsSlashesWhenItSharesABoundaryWithTheOwnCode(string titlePrefix)
+    {
+        var rows = Enumerable.Range(1, 3).Select(i => Row(i, $"{titlePrefix} #{i}", i))
+            .Concat(UnrelatedTitles(16)).Append(Row(99, "Camera film", 1)).ToArray();
+
+        var result = TitlePatternMiner.Mine(rows, "test_1", Now, 3, 12);
+
+        Assert.Equal(20, result.Scanned);
+        var suggestion = Assert.Single(result.Items);
+        Assert.Equal("/film/", suggestion.RuleText);
+        Assert.Equal(3, suggestion.Count);
     }
 
     [Fact]
