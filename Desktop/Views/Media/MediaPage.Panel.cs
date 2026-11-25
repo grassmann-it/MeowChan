@@ -591,7 +591,7 @@ public sealed partial class MediaPage
         if (_panelShown && _panel is { } panel && _panelRow is { } row && ContextClick.IsKey(e) && OwnsPanelMenu(e.Source, panel))
         {
             e.Handled = true;
-            if (panel.HasPreviousPicture) return;
+            if (panel.IsShowingStalePicture) return;
             OpenSharedMediaMenu(row, panel.Frame, _panelVideo, keyboard: true);
             ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
             return;
@@ -634,7 +634,7 @@ public sealed partial class MediaPage
         if (MiddleClickTracker.IsPress(e, panel) && panel.IsCurrentMediaSurface(e.Source, position, _panelVideo))
             _panelMiddleClick.Pressed(row);
         if (!ContextClick.IsPress(e, panel) || !OwnsPanelMenu(e.Source, panel)) return;
-        if (!panel.HasPreviousPicture)
+        if (!panel.IsShowingStalePicture)
         {
             panel.Frame.Focusable = true;
             panel.Frame.Focus();
@@ -659,7 +659,7 @@ public sealed partial class MediaPage
     private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (e.Handled || _panel is not { } panel || !OwnsPanelMenu(e.Source, panel)) return;
-        if (_panelPointerContext.TryConsume() || panel.HasPreviousPicture) { e.Handled = true; return; }
+        if (_panelPointerContext.TryConsume() || panel.IsShowingStalePicture) { e.Handled = true; return; }
         if (_panelRow is not { } row) return;
         bool keyboard = !e.TryGetPosition(panel, out _);
         if (!keyboard)

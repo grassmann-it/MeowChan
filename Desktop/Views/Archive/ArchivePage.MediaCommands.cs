@@ -173,7 +173,7 @@ public partial class ArchivePage
         if (_mediaSidebar is { } sidebar && IsMediaSidebarSource(source))
         {
             if (SidebarChildOwnsContext(source, sidebar)) return;
-            if (sidebar.HasPreviousPicture && !path.Contains(sidebar.Strip)) { e.Handled = true; return; }
+            if (sidebar.IsShowingStalePicture && !path.Contains(sidebar.Strip)) { e.Handled = true; return; }
         }
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
             && SidebarMediaContext(path) == null && !IsSidebarStripSource(path)
@@ -198,7 +198,7 @@ public partial class ArchivePage
             || !ContextClick.IsPress(e, sidebar) || SidebarChildOwnsContext(source, sidebar)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;
-        if (!sidebar.HasPreviousPicture)
+        if (!sidebar.IsShowingStalePicture)
         {
             ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
             source.RaiseEvent(request);
@@ -231,7 +231,7 @@ public partial class ArchivePage
         if (_mediaSidebar is { } sidebar && IsMediaSidebarSource(source))
         {
             if (SidebarChildOwnsContext(source, sidebar)) return;
-            if (_sidebarPointerContext.TryConsume() || sidebar.HasPreviousPicture && !ancestors.Contains(sidebar.Strip))
+            if (_sidebarPointerContext.TryConsume() || sidebar.IsShowingStalePicture && !ancestors.Contains(sidebar.Strip))
             {
                 e.Handled = true;
                 return;

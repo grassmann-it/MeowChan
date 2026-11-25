@@ -374,7 +374,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             || video is not null && InBar(video.Activator, visual)
             || _factPlayer is not null && InBar(_factPlayer, visual));
 
-    internal bool HasPreviousPicture => _bitmap != null && _image.IsEffectivelyVisible && PictureIsStale;
+    internal bool IsShowingStalePicture => _bitmap != null && _image.IsEffectivelyVisible && PictureIsStale;
 
     internal bool IsCurrentMediaSurface(object? source, Point position, ReaderInlineVideoSlot? video)
     {
@@ -395,7 +395,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             _framePress = null;
             return;
         }
-        bool presented = !HasPreviousPicture;
+        bool presented = !IsShowingStalePicture;
         // Avalonia can count a second tap at the same position after the medium under it has changed.
         bool crossesMedium = e.ClickCount % 2 == 0 && _framePress is { } previous
             && previous.Pointer.Type == e.Pointer.Type && previous.ClickCount + 1 == e.ClickCount
@@ -407,7 +407,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         || press.Pointer == pointer && press.CanActivate && press.Revision == _mediumRevision;
 
     internal bool CanPlayFromFrame(IPointer pointer, string? key) =>
-        key != null && key == _mediumKey && !HasPreviousPicture && IsCurrentFramePress(pointer);
+        key != null && key == _mediumKey && !IsShowingStalePicture && IsCurrentFramePress(pointer);
 
     private bool PictureContains(Point position) => _bitmap != null && _image.IsEffectivelyVisible
         && this.TranslatePoint(position, _image) is { } point && new Rect(_image.Bounds.Size).Contains(point);
