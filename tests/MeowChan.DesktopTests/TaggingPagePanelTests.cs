@@ -250,6 +250,13 @@ public sealed class TaggingPagePanelTests
                 await fixture.ShowsAsync(1);
                 Button? editor = fixture.FindOrDefault<Button>(fixture.Panel, EditId);
                 Assert.False(editor is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true });
+                Assert.False(fixture.Find<ToggleButton>(fixture.Panel, FavoriteId).IsEffectivelyEnabled);
+                Assert.False(fixture.Find<ToggleButton>(fixture.Panel, ThirdStarId).IsEffectivelyEnabled);
+                fixture.ClickEntry(1);
+                fixture.Key(PhysicalKey.F);
+                fixture.Key(PhysicalKey.Digit3);
+                Assert.Empty(fixture.Session.GetFavorites());
+                Assert.Null(fixture.Session.GetMediaRating(AssetKey(fixture.Items[0])));
                 available.TrySetResult();
                 await fixture.WaitForEditorAsync();
                 fixture.Click(fixture.Find<Button>(fixture.Panel, EditId));
@@ -262,6 +269,23 @@ public sealed class TaggingPagePanelTests
             return await MediaAssetReader.OpenAsync(directory, token);
         });
     }
+
+    [Fact]
+    public void AFileReplacedAtTheSamePathCannotBeRatedFavoritedOrTagged() => WithPage(false, async fixture =>
+    {
+        await fixture.ShowsAsync(1);
+        ReaderMediaSidebar panel = fixture.Find<ReaderMediaSidebar>(fixture.Window, PanelId);
+        await fixture.WaitAsync(() => !panel.Load.Awaiting, "failed verification for the first image");
+        Assert.Null(fixture.Picture.Source);
+        Assert.False(fixture.FindOrDefault<Button>(panel, EditId) is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true });
+        Assert.False(fixture.Find<ToggleButton>(panel, FavoriteId).IsEffectivelyEnabled);
+        Assert.False(fixture.Find<ToggleButton>(panel, ThirdStarId).IsEffectivelyEnabled);
+        fixture.ClickEntry(1);
+        fixture.Key(PhysicalKey.F);
+        fixture.Key(PhysicalKey.Digit3);
+        Assert.Empty(fixture.Session.GetFavorites());
+        Assert.Null(fixture.Session.GetMediaRating(AssetKey(fixture.Items[0])));
+    }, replaced: 1);
 
     [Fact]
     public void AnUnavailableFileLosesTheEditorAndTheNextValidFileCanBeEdited() => WithPage(false, async fixture =>
@@ -328,6 +352,44 @@ public sealed class TaggingPagePanelTests
         await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap bigger
             && bigger.PixelSize.Width > before, "larger decode of the same cursor");
     }, video: 2, wideImage: 3);
+
+    [Fact]
+    public void WideningDuringTheFirstDecodeUpgradesThePreview()
+    {
+        TaskCompletionSource decoding = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int firstWidth = 0, decodes = 0;
+        WithPage(false, async fixture =>
+        {
+            try
+            {
+                await decoding.Task.WaitAsync(Deadline);
+                Assert.Null(fixture.Picture.Source);
+                GridSplitter handle = fixture.Find<GridSplitter>(fixture.Window, HandleId);
+                Point center = BoundsIn(handle, fixture.Window).Center;
+                int width = fixture.Layout.PanelWidth;
+                const int drag = 120;
+                fixture.Window.MouseDown(center, MouseButton.Left);
+                fixture.Window.MouseMove(new Point(center.X - drag, center.Y), RawInputModifiers.LeftMouseButton);
+                fixture.Window.MouseUp(new Point(center.X - drag, center.Y), MouseButton.Left);
+                await fixture.WaitAsync(() => fixture.Layout.PanelWidth == width + drag, "saved width while the first decode is pending");
+
+                release.TrySetResult();
+                await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap shown && shown.PixelSize.Width > firstWidth,
+                    "larger preview after the first decode finishes");
+                Assert.Equal(2, decodes);
+            }
+            finally { release.TrySetResult(); }
+        }, wideImage: 1, decode: async (entry, request, token) =>
+        {
+            if (++decodes != 1) return await GalleryImageCache.DecodeAsync(entry, request, token);
+            decoding.TrySetResult();
+            await release.Task.WaitAsync(token);
+            var image = await GalleryImageCache.DecodeAsync(entry, request, token);
+            firstWidth = image.Bitmap.PixelSize.Width;
+            return image;
+        });
+    }
 
     [Fact]
     public void ToggleAndCloseUsePointerInputAndNarrowingKeepsTheChoice() => WithPage(false, async fixture =>
@@ -490,7 +552,7 @@ public sealed class TaggingPagePanelTests
 
     private static void WithPage(bool grid, Func<Fixture, Task> test, ManualClock? clock = null, int missing = 0, int video = 0, int wideImage = 0, bool skipFirst = false,
         Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap, GalleryImageInfo)>>? decode = null,
-        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null) =>
+        Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null, int replaced = 0) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -520,6 +582,7 @@ public sealed class TaggingPagePanelTests
                         TagQueueState.Open, DateTimeOffset.UnixEpoch.AddSeconds(number));
                 }).ToArray();
                 if (missing > 0) File.Delete(Path.Combine(directory, names[missing - 1]));
+                if (replaced > 0) await File.WriteAllBytesAsync(Path.Combine(directory, names[replaced - 1]), ImageBytes(replaced + 1));
                 await using DesktopSessionHost session = NewSession(profile.Path);
                 await session.StartAsync();
                 await session.EnqueueTagQueueAsync(items);

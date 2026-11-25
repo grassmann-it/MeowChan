@@ -429,7 +429,7 @@ public sealed partial class TaggingPage
         MediaLibraryUserData? data = _userData;
         if (MediaLibraryFilterEngine.AssetKey(entry) == null || data == null
             || !(id == "favorites.toggle" ? data.FavoritesAvailable : data.RatingsAvailable)) return;
-        if (_panelRow?.Key == row.Key && _panelFileAvailable == false) return;
+        if (_panelRow?.Key == row.Key && _panelFileAvailable != true) return;
         _panelWriting = true;
         try
         {
@@ -447,7 +447,7 @@ public sealed partial class TaggingPage
         if (_taggingPanel is not { } panel || _panelRow is not { } row) return;
         MediaLibraryEntry entry = EntryOf(row.Item);
         MediaLibraryEntryState state = MediaLibraryEntryState.Of(entry, _userData ?? MediaLibraryUserData.Unavailable);
-        bool Current() => !_queueWork.Ended && !_tagBusy && _panelFileAvailable != false && !_panelWriting && IsPanelShown;
+        bool Current() => !_queueWork.Ended && !_tagBusy && _panelFileAvailable == true && !_panelWriting && IsPanelShown;
         bool Writable() => Current() && ExecutePanelDecisionAsync != null;
         panel.Open.IsEnabled = OpenGallery != null && Current();
         panel.ConfigureFavorite(() => Writable() && state.Favorite != MediaLibraryFlag.Unknown,
@@ -473,7 +473,7 @@ public sealed partial class TaggingPage
 
     private async Task OpenPanelGalleryAsync()
     {
-        if (_tagBusy || _panelOpening || _panelFileAvailable == false || _panelRow is not { } row || OpenGallery is not { } open) return;
+        if (_tagBusy || _panelOpening || _panelFileAvailable != true || _panelRow is not { } row || OpenGallery is not { } open) return;
         int index = PanelIndex(row.Key);
         if (index < 0) return;
         _panelOpening = true;

@@ -1182,10 +1182,8 @@ internal static class TaggingPageChecks
             MenuItem? autohideChoice = null;
             await Program.WaitUntilAsync(() =>
             {
-                autohideChoice = window.OpenedPopups.SelectMany(popup =>
-                    popup.Child?.GetSelfAndVisualDescendants().OfType<MenuItem>() ?? [])
-                    .FirstOrDefault(item => item.IsEffectivelyVisible && Equals(item.Tag, "autoHide"));
-                return autohideChoice != null;
+                autohideChoice = PanelControlOrDefault<MenuItem>(window, "ReaderMediaSidebarSettingsAutoHide");
+                return autohideChoice is { IsEffectivelyVisible: true };
             });
             await input.ClickAsync(autohideChoice!);
             await Program.WaitUntilAsync(() => session.Config.MediaSidebarAutoHide == autohide,

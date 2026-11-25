@@ -114,7 +114,7 @@ public partial class MainWindow
             Active, () => true, page.TogglePanel, Priority: 100));
         foreach (string id in new[] { "media.sidebar.info", "media.sidebar.autohide" })
             _shortcutRouter?.RegisterOwned(new CommandRegistration(id, page,
-                Active, () => page.IsPanelShown, () => page.RunPanelBarCommand(id), Priority: 100));
+                Active, () => true, () => page.RunPanelBarCommand(id), Priority: 100));
     }
 
     private Task ExecuteTaggingPanelDecisionAsync(string id, MediaLibraryEntry entry, Func<bool> presentationCurrent)
@@ -182,7 +182,8 @@ public partial class MainWindow
     private async Task<GalleryEntry?> ResolveTaggingEntryAsync(TagQueueItem item)
     {
         GalleryEntry? entry = await MediaMenuIdentity.ResolveAsync(item.ToLibraryEntry(), _session.OpenArchiveReaderAsync,
-            Storage.MediaAssetReader.OpenAsync, TaggingEntryCurrent, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog);
+            Storage.MediaAssetReader.OpenAsync, TaggingEntryCurrent, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog,
+            fromTagQueue: true);
         if (entry == null && TaggingEntryCurrent())
             ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "tagging.menu");
         return entry;

@@ -83,13 +83,20 @@ public sealed partial class TaggingPage
 
     internal void RunPanelBarCommand(string id)
     {
-        if (IsPanelShown && !_tagBusy) _taggingPanel?.RunBarCommand(id, wasShown: true);
+        if (_queueWork.Ended || _tagBusy) return;
+        bool wasShown = IsPanelShown;
+        if (!wasShown && id == "media.sidebar.info" && !_panelEnabled) TogglePanel();
+        string? hint = EnsureTaggingPanel().RunBarCommand(id, wasShown);
+        if (_panelTooNarrow) hint = Texts.T("tagging.page.panel.narrow");
+        if (hint != null) ShowStatus(hint);
     }
 
     private void InitializePanel()
     {
         AutomationProperties.SetAutomationId(_panelToggle, "TaggingPanelToggle");
         AutomationProperties.SetAutomationId(_panelHandle, "TaggingPanelHandle");
+        AutomationProperties.SetAutomationId(_actions, "TaggingActions");
+        AutomationProperties.SetAutomationId(_listPresentation, "TaggingListPresentation");
         AutomationProperties.SetAutomationId(_status, "TaggingStatus");
         foreach (ListBox list in new[] { _list, _grid })
         {
@@ -170,7 +177,7 @@ public sealed partial class TaggingPage
         columns[pane].Width = new GridLength(visible ? Math.Min(layout.PanelWidth, room) : 0);
         columns[1].Width = new GridLength(visible ? MediaPage.HandleWidth : 0);
 
-        if (visible && _taggingPanel == null) _panelBody.Children.Add(EnsureTaggingPanel());
+        if (visible) EnsureTaggingPanel();
         if (_taggingPanel is { } panel)
         {
             Grid.SetColumn(panel, pane);
@@ -197,9 +204,10 @@ public sealed partial class TaggingPage
 
     private ReaderMediaSidebar EnsureTaggingPanel()
     {
+        if (_taggingPanel is { } existing) return existing;
         ReaderMediaSidebar panel = _taggingPanel = new()
         {
-            Name = "TaggingPanel", TitleKey = "command.media.panel.toggle", EmptyKey = "tagging.page.panel.empty",
+            Name = "TaggingPanel", IsVisible = false, TitleKey = "command.media.panel.toggle", EmptyKey = "tagging.page.panel.empty",
             CloseKey = "media.panel.close", ToggleCommandId = PanelCommand, DecisionKeyContext = "tagging",
             ShowEmptyTitle = true, SingleClickActs = true
         };
@@ -233,6 +241,7 @@ public sealed partial class TaggingPage
         };
         panel.Localize();
         panel.ShowEmpty();
+        _panelBody.Children.Add(panel);
         return panel;
     }
 
@@ -433,42 +442,60 @@ public sealed partial class TaggingPage
         ReaderMediaSidebarImageLoad request = new(panel, key, ticket, ReaderSettingsPreferences.Gallery(_host.Config), Current, stopped);
         try
         {
-            await request.RunAsync(async token =>
-            {
-                MediaAssetSnapshot manifest = await OpenPanelManifestAsync(entry.Directory!, token);
-                MediaAssetReference? asset = MediaTileThumbnails.Matching(manifest, entry);
-                bool available = asset != null && File.Exists(asset.Path);
-                if (Current() && _panelFileAvailable != available && _panelRow is { } row)
-                {
-                    _panelFileAvailable = available;
-                    DescribePanel(panel, row, entry, key);
-                }
-                if (!available || asset == null)
-                    return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
-                if (entry.Kind == SavedMediaKind.Image)
-                {
-                    GalleryEntry saved = new(new GalleryAssetKey(entry.Thread, manifest.Directory, asset.AssetId),
-                        manifest, asset, null, null, !asset.IsCurrent, entry.Unassigned);
-                    (Bitmap image, GalleryImageInfo info) = await DecodePanelImageAsync(saved, new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
-                    return new ReaderMediaSidebarContent.Picture(image, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
-                }
-                if (entry.Kind == SavedMediaKind.Video)
-                {
-                    int width = (int)target.Width, height = (int)target.Height;
-                    Bitmap? poster = await MediaTileThumbnails.LoadPosterAsync(manifest, asset, _thumbnails.PosterCacheDirectory, width, height,
-                        MediaTileThumbnails.PosterKey(asset, width, height), token);
-                    if (poster != null) return new ReaderMediaSidebarContent.Picture(poster, MediaTileThumbnails.Release, Playable: true);
-                }
-                return new ReaderMediaSidebarContent.Unavailable("reader.sidebar.unavailable");
-            }, picture =>
+            await request.RunAsync(ReadContentAsync, picture =>
             {
                 if (picture.Source is { } size) panel.SetDetail($"{size.Width}×{size.Height}");
+                // The first decode may have started before a drag enlarged the frame. Retry only for a larger target.
+                var needed = PanelTarget(panel);
+                if ((needed.Width > target.Width || needed.Height > target.Height)
+                    && ReaderMediaSidebarRules.NeedsLargerDecode(picture.Bitmap.PixelSize, needed, picture.Source))
+                    QueuePanelFollow(resize: true);
             });
         }
         finally
         {
             if (ReferenceEquals(_panelLoading, loading)) _panelLoading = null;
             loading.Dispose();
+        }
+
+        async Task<ReaderMediaSidebarContent> ReadContentAsync(CancellationToken token)
+        {
+            bool verified = false;
+            try
+            {
+                MediaAssetSnapshot manifest = await OpenPanelManifestAsync(entry.Directory!, token);
+                if (MediaTileThumbnails.Matching(manifest, entry) is not { } asset || !File.Exists(asset.Path))
+                    return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+                if (entry.Kind == SavedMediaKind.Image)
+                {
+                    GalleryEntry saved = new(new GalleryAssetKey(entry.Thread, manifest.Directory, asset.AssetId),
+                        manifest, asset, null, null, !asset.IsCurrent, entry.Unassigned);
+                    (Bitmap image, GalleryImageInfo info) = await DecodePanelImageAsync(saved, new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
+                    verified = true;
+                    return new ReaderMediaSidebarContent.Picture(image, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
+                }
+                // A saved video can be rated even if it has no previewable poster.
+                await using (Stream original = await manifest.OpenVerifiedReadAsync(asset.AssetId, token)) { }
+                Bitmap? poster = null;
+                if (entry.Kind == SavedMediaKind.Video)
+                {
+                    int width = (int)target.Width, height = (int)target.Height;
+                    poster = await MediaTileThumbnails.LoadPosterAsync(manifest, asset, _thumbnails.PosterCacheDirectory, width, height,
+                        MediaTileThumbnails.PosterKey(asset, width, height), token);
+                }
+                verified = true;
+                return poster == null ? new ReaderMediaSidebarContent.Unavailable("reader.sidebar.unavailable")
+                    : new ReaderMediaSidebarContent.Picture(poster, MediaTileThumbnails.Release, Playable: true);
+            }
+            finally
+            {
+                if (Current() && !token.IsCancellationRequested && _panelFileAvailable != verified && _panelRow is { } row)
+                {
+                    _panelFileAvailable = verified;
+                    if (!verified) panel.InvalidateTagEditor();
+                    DescribePanel(panel, row, entry, key);
+                }
+            }
         }
     }
 
