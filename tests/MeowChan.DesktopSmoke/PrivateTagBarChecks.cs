@@ -82,6 +82,8 @@ internal static partial class PrivateTagBarChecks
                 Title = "Synthetic offline private tags", ShowInTaskbar = false };
         }
         internal ArchivePage Page => _page;
+        internal ListBox Posts => Page.GetVisualDescendants().OfType<ListBox>()
+            .Single(list => AutomationProperties.GetAutomationId(list) == "ArchivePosts");
         internal DesktopSessionHost Host => _host;
         internal Window Window => _window;
         internal T C<T>(string name) where T : Control => _page.FindControl<T>(name)
@@ -286,7 +288,8 @@ internal static partial class PrivateTagBarChecks
         }
         var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
         input.RaiseEvent(escape);
-        Require(escape.Handled && !bar.IsVisible && open.IsFocused, "Escape did not close the bar and return focus: list open before " + listBefore + ", text '" + input.Text + "', dialog " + f.Page.IsReaderDialogOpen + ", capturing " + MeowChan.Desktop.Commands.ShortcutService.IsCapturing + ", handled " + escape.Handled
+        // Toggle audit, Reader Tags: after suggestions and bar close, the post regains focus.
+        Require(escape.Handled && !bar.IsVisible && !open.Focusable && f.Posts.IsKeyboardFocusWithin, "Escape did not close the bar and return focus: list open before " + listBefore + ", text '" + input.Text + "', dialog " + f.Page.IsReaderDialogOpen + ", capturing " + MeowChan.Desktop.Commands.ShortcutService.IsCapturing + ", handled " + escape.Handled
             + ", bar visible " + bar.IsVisible + ", list open " + input.IsDropDownOpen + ", open visible " + open.IsEffectivelyVisible
             + ", focused " + ((owner.FocusManager?.GetFocusedElement() as Control)?.Name ?? "none"));
         Console.WriteLine("SMOKE private-tags journey [en]: suggestions, click-to-tag, typed Enter, case variant, invalid name, remove, list rows, thread switch, Escape checked.");
@@ -315,8 +318,11 @@ internal static partial class PrivateTagBarChecks
                 f.Click("ArchiveBackButton");
                 await UntilAsync(() => table.IsEffectivelyVisible);
             }
-            table.SelectedItems.Clear();
-            foreach (ArchiveThreadRow row in selection) table.SelectedItems.Add(row);
+            if (!table.SelectedItems.Cast<ArchiveThreadRow>().SequenceEqual(selection))
+            {
+                table.SelectedItems.Clear();
+                foreach (ArchiveThreadRow row in selection) table.SelectedItems.Add(row);
+            }
             await UntilAsync(() => table.SelectedItems.Count == selection.Length && !f.Page.IsBusy);
             ContextMenu menu = table.ContextMenu!;
             table.Focus();
@@ -325,7 +331,7 @@ internal static partial class PrivateTagBarChecks
             return menu;
         }
         static MenuItem? TagsItem(ContextMenu menu) => menu.Items.OfType<MenuItem>().SingleOrDefault(item => Equals(item.Tag, "thread.tags"));
-        async Task ChooseTagsAsync(ContextMenu menu, ResourceId thread)
+        async Task ChooseTagsAsync(ContextMenu menu, ResourceId thread, bool expectOpen = true)
         {
             MenuItem item = TagsItem(menu) ?? throw new InvalidOperationException("The thread menu offers no Tags… entry.");
             object?[] expectedBeforeTags = { "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details" };
@@ -340,9 +346,11 @@ internal static partial class PrivateTagBarChecks
                     .SequenceEqual(expectedBeforeTags);
             string actualMenu = string.Join(", ", menu.Items.OfType<MenuItem>().Select(entry => $"{entry.Tag}:{entry.Header}:enabled={entry.Command?.CanExecute(null)}"));
             Require(menuContract, "The Tags… entry is disabled, mislabeled or misplaced: " + item.Header + "; menu=" + actualMenu);
+            Require(item.IsChecked == !expectOpen, "Tags checkmark disagrees with the visible target before activation.");
             item.Command!.Execute(null);
             menu.Close();
-            await UntilAsync(() => f.Page.CurrentThread?.Summary.Id == thread && bar.IsVisible && input.IsKeyboardFocusWithin);
+            await UntilAsync(() => f.Page.CurrentThread?.Summary.Id == thread && bar.IsEffectivelyVisible == expectOpen
+                && (expectOpen ? input.IsKeyboardFocusWithin : f.Posts.IsKeyboardFocusWithin));
         }
 
         // Tagged thread, not shown yet: it is loaded, its bar opens on its own tags and takes focus.
@@ -355,16 +363,21 @@ internal static partial class PrivateTagBarChecks
         await ChooseTagsAsync(await OpenMenuAsync(plainRow), Plain);
         Require(f.Chips().Length == 0, "The bar did not open for the untagged thread.");
 
-        // A second use with the bar already open keeps it open (it never toggles shut).
+        // Toggle audit, Reader Tags: back to the narrow list hides the target. Choosing it reveals the editor again.
         await ChooseTagsAsync(await OpenMenuAsync(plainRow), Plain);
-        Require(bar.IsVisible, "A second Tags… closed the open bar.");
+        Require(bar.IsEffectivelyVisible, "Choosing the hidden tags of the same thread did not reveal its bar.");
+        // Side by side the same target is still visible when the menu opens, so the same command closes it.
+        f.Window.Width = 1600;
+        await UntilAsync(() => table.IsEffectivelyVisible && bar.IsEffectivelyVisible);
+        await ChooseTagsAsync(await OpenMenuAsync(plainRow), Plain, expectOpen: false);
+        Require(!bar.IsVisible, "Choosing the same visible tag bar did not close it.");
 
         // A batch gets no Tags… entry: tags edit exactly one thread.
         ContextMenu batch = await OpenMenuAsync(plainRow, taggedRow);
         Require(TagsItem(batch) == null, "A batch selection offered Tags….");
         batch.Close();
         Require(f.Stored().Revision == revision, "Opening the bar through the menu changed the tag store.");
-        Console.WriteLine("SMOKE private-tags thread menu [en]: Tags… loads and opens the bar for a tagged and an untagged thread, kept open, absent for a batch, store untouched.");
+        Console.WriteLine("SMOKE private-tags thread menu [en]: Tags… loads and opens the bar for a tagged and an untagged thread, reopens a hidden target, closes the same visible target, absent for a batch, store untouched.");
     }
 
     private static string[] Shown(IdentitySuggestionBox input) =>

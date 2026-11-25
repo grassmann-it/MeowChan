@@ -53,16 +53,13 @@ public partial class ArchivePage
             CloseQuotePreview();
             return true;
         }
+        if (DismissReaderQuickSettings() || DismissReaderThreadMenu()) return true;
         if (!_ended && ReaderFindBar.IsVisible && IsThreadFindSource(source))
         {
-            CloseThreadFind();
+            DismissThreadFind();
             return true;
         }
-        if (!_ended && ReaderTagBar.IsVisible && IsTagBarSource(source))
-        {
-            CloseTagBar(focusOpen: true);
-            return true;
-        }
+        if (!_ended && TryDismissThreadTags(source)) return true;
         if (!_ended && (ReaderFindBar.IsVisible || ReaderTagBar.IsVisible) && IsThreadToolsCloseSource(source))
         {
             CloseThreadTools();
@@ -995,10 +992,9 @@ public partial class ArchivePage
             return;
         }
         // Thread find is a Reader-only command (never a global find): it needs an open thread.
-        if (_thread != null && CommandBindings.Matches(e, "reader.find"))
+        if (_thread != null && CommandBindings.Matches(e, "reader.find") && TryOpenReaderFindByKey(e))
         {
             e.Handled = true;
-            OnOpenThreadFind(null, e);
             return;
         }
         if (_thread != null && ReaderFindBar.IsVisible && TryMoveThreadFindByShortcut(e)) return;

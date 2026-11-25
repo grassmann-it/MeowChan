@@ -29,17 +29,38 @@ public partial class ArchivePage
 
     private void OnReaderThreadMenuClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended || sender is not Control origin) return;
+        if (_ended || sender is not Button origin) return;
+        Button anchor = ToolbarPopupAnchor(origin, ReaderToolbar, origin) as Button ?? origin;
+        if (PopupToggle.ConsumeActivation(anchor)) return;
+        if (ReferenceEquals(anchor, ReaderToolbar.More)) ReaderToolbar.More!.IsChecked = false;
         ContextMenu menu = BuildReaderThreadMenu();
-        origin.ContextMenu = menu;
-        // The menu captured this thread (summary, row, id): once it is closed the button must not keep it for a later right-click or Menu key,
-        // which would open it unrebuilt for whatever thread is open by then. It stays attached while open (the toolbar overflow watches it).
-        menu.Closed += (_, _) => { if (ReferenceEquals(origin.ContextMenu, menu)) origin.ContextMenu = null; };
-        ShowThreadMenu(menu, origin);
+        menu.AddHandler(KeyDownEvent, (_, key) =>
+        {
+            if (!PopupToggle.CanToggleMenuFromKey(menu, key) || !ShortcutService.Current.Matches(key, "reader.thread-menu", "reader")) return;
+            key.Handled = true;
+            menu.Close();
+        }, RoutingStrategies.Tunnel);
+        menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+        anchor.ContextMenu = menu;
+        PopupToggle.Track(anchor, menu);
+        if (!ReferenceEquals(anchor, origin))
+        {
+            menu.Opened += (_, _) => PopupToggle.Present(origin, true);
+            menu.Closed += (_, _) => PopupToggle.Present(origin, false);
+        }
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(anchor.ContextMenu, menu)) anchor.ContextMenu = null;
+            ReturnFocusFromToolbarPopup(anchor, ReaderToolbar, ArchiveReaderPane, FocusSelectedPostOrList);
+        };
+        ShowThreadMenu(menu, anchor);
     }
 
     /// <summary>How the "Thread" menu is shown at its button (a test records it instead of opening a popup).</summary>
     internal Action<ContextMenu, Control> ShowThreadMenu { get; set; } = static (menu, origin) => menu.Open(origin);
+
+    private bool DismissReaderThreadMenu() => PopupToggle.Close(ReaderThreadOpen)
+        || ReaderToolbar.More is { } more && PopupToggle.Close(more);
 
     /// <summary>Nothing runs and no dialog is open: the open thread is shown and the page is idle.</summary>
     private bool ThreadMenuReady => !_ended && !IsFilenameSearchOpen && _available && !_busy && !IsReaderDialogOpen && _thread != null;
@@ -109,7 +130,13 @@ public partial class ArchivePage
 
     // Installed once on the pane (it moves between the archive view and the large reader). The large reader's tunnel (OnReaderKeyDown) has already taken
     // "Rules for this thread" there; the archive view's reader had no handler for either key (audit 16.11.2026: Alt+M claimed the reader and did nothing).
-    private void InitializeReaderThreadKeys() => ArchiveReaderPane.AddHandler(KeyDownEvent, (_, e) => TryRouteReaderThreadKey(e), RoutingStrategies.Bubble);
+    private void InitializeReaderThreadKeys()
+    {
+        PopupToggle.Prepare(ReaderThreadOpen);
+        CommandBindings.ObservePresentation(ReaderThreadOpen, UpdateReaderThreadActions);
+        InitializeToolbarPopupAnchor(ReaderToolbar);
+        ArchiveReaderPane.AddHandler(KeyDownEvent, (_, e) => TryRouteReaderThreadKey(e), RoutingStrategies.Bubble);
+    }
 
     /// <summary>
     /// "Show in Media" (Alt+M) and "Rules for this thread" for the thread the reader shows, the Thread menu's own entries, from any focus in the reader
@@ -118,6 +145,13 @@ public partial class ArchivePage
     internal bool TryRouteReaderThreadKey(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || CommandRouter.IsNativeInput(e.Source, e.Key) || IsReaderDialogOpen || _ended || _thread == null) return false;
+        if (CommandBindings.Matches(e, "reader.thread-menu") && ReaderThreadOpen.IsEffectivelyEnabled
+            && CommandRouter.IsRoutingContextActive(ArchiveReaderPane, e.Source))
+        {
+            e.Handled = true;
+            OnReaderThreadMenuClick(ReaderThreadOpen, e);
+            return true;
+        }
         if (CommandBindings.Matches(e, "thread.show-in-media"))
         {
             e.Handled = true;

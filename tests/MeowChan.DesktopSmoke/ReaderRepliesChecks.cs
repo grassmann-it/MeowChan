@@ -176,8 +176,10 @@ internal static class ReaderRepliesChecks
             "The inactive-card fixture did not finish moving selection away from the sampled posts.");
         // Keep keyboard focus out of the virtualized containers too: an inactive but focused post
         // correctly has an accent edge, which is a different state from the plain-card contract.
-        Require(page.FindControl<Button>("ReaderTagsOpen")!.Focus(),
-            "The inactive-card fixture could not move focus to the reader toolbar.");
+        // The reader tag opener is no longer focusable under the toggle audit.
+        Require(page.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetAutomationId(button) == "ArchiveOpenGallery").Focus(),
+            "The inactive-card fixture could not move focus out of the post list.");
         await Program.WaitUntilAsync(() =>
         {
             list.ScrollIntoView(0); list.UpdateLayout();

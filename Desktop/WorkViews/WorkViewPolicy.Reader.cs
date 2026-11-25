@@ -54,7 +54,7 @@ public static partial class WorkViewPolicy
         ReaderTool("reader.toolbar.export", Overflow, Direct, Direct, "export.open-html-dialog"),
         // R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link, watch);
         // a menu button, so Barebones moves it under More, where it opens the same menu. F16 (21.11.): Thread stands before the gear.
-        ReaderTool("reader.toolbar.thread", Overflow, Direct, Direct, null),
+        ReaderTool("reader.toolbar.thread", Overflow, Direct, Direct, "reader.thread-menu"),
         // RL1: the gear "Settings" is the former View menu and the quick settings popover in one (a popover, not a menu); under More
         // it opens the same popover, anchored at More.
         ReaderTool("reader.toolbar.settings", Overflow, Direct, Direct, null),

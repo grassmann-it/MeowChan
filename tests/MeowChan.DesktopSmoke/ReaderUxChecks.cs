@@ -80,6 +80,11 @@ internal static class ReaderUxChecks
 
     internal static async Task RunAsync(MainWindow window)
     {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_FILTER_SURFACE_ONLY") == "1")
+        {
+            await ArchiveFilterSurfaceChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_CONTINUOUS_ONLY") == "1")
         {
             await ReaderViewChecks.CheckLongThreadAsync(window);

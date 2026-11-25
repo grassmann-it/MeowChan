@@ -11,6 +11,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -31,12 +32,31 @@ public partial class ArchivePage
 
     private void InitializeArchiveColumnMenus()
     {
+        PopupToggle.Prepare(ArchiveThreadColumnsButton);
+        PopupToggle.Prepare(ArchiveMediaColumnsButton);
+        InitializeToolbarPopupAnchor(ArchiveResultActions);
+        InitializeToolbarPopupAnchor(ReaderMediaTools);
         // Tunnel: the table's own selection menu would otherwise take the request first. Column headers are not focusable, so the
         // keyboard reaches the same commands through the "Columns…" button.
         foreach (DataGrid grid in new[] { ArchiveThreadTable, ArchiveMediaGrid })
             grid.AddHandler(ContextRequestedEvent, OnArchiveHeaderContextRequested, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // The fonts the fit is measured with are the inherited ones, which are only known once the table is in the window.
         ArchiveThreadTable.AttachedToVisualTree += (_, _) => ApplyArchiveColumns();
+    }
+
+    internal bool TryToggleArchiveColumnsByKey(KeyEventArgs e)
+    {
+        if (_ended || IsReaderDialogOpen || e.Source is not Visual source) return false;
+        using var context = EffectiveShortcutBindings.EnterKeyContext("archive");
+        if (!CommandBindings.Matches(e, "table.choose-columns")) return false;
+        bool media = ArchiveMediaTab.Content is Visual mediaView && (source == mediaView || mediaView.IsVisualAncestorOf(source));
+        if (!media && source != ArchiveListPane && !ArchiveListPane.IsVisualAncestorOf(source)) return false;
+        Button button = media ? ArchiveMediaColumnsButton : ArchiveThreadColumnsButton;
+        DataGrid table = media ? ArchiveMediaGrid : ArchiveThreadTable;
+        if (button.ContextMenu is { IsOpen: true } open) { open.Close(); return true; }
+        if (!button.IsVisible || !button.IsEffectivelyEnabled || !table.IsEffectivelyVisible || CommandRouter.HasOpenPopup(this)) return false;
+        OnArchiveColumnsClick(button, e);
+        return true;
     }
 
     private void OnArchiveHeaderContextRequested(object? sender, ContextRequestedEventArgs e)
