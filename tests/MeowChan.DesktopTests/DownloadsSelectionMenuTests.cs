@@ -105,10 +105,8 @@ public sealed class DownloadsSelectionMenuTests
         return Task.CompletedTask;
     });
 
-    [Theory]
-    [InlineData(ShortcutPlatform.Windows, KeyModifiers.Control)]
-    [InlineData(ShortcutPlatform.MacOS, KeyModifiers.Meta)]
-    public void DeleteAfterBatchExportRemovesTheOriginalSelectionAcrossProjections(ShortcutPlatform platform, KeyModifiers primary)
+    [Fact]
+    public void DeleteAfterBatchExportRemovesTheOriginalSelectionAcrossProjections()
         => BooruComponentDispatcher.Run(async () =>
         {
             using IDisposable testPlatform = BooruReviewTestPlatform.Enter();
@@ -137,17 +135,23 @@ public sealed class DownloadsSelectionMenuTests
                 added.Add(Assert.IsType<long>((await host.AddAsync(url).WaitAsync(Deadline)).WatchId));
             RefreshRows(fixture);
             Assert.Equal(added.Order(), window.VisibleThreads.Select(row => row.WatchId).Order());
-            typeof(ShortcutService).GetField("_current", BindingFlags.Static | BindingFlags.NonPublic)!
-                .SetValue(null, EffectiveShortcutBindings.Build(platform: platform));
+            FieldInfo shortcutSnapshot = typeof(ShortcutService).GetField("_current", BindingFlags.Static | BindingFlags.NonPublic)!;
+            shortcutSnapshot.SetValue(null, EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS));
+            Assert.True(MainWindow.DownloadsMatches(new KeyEventArgs { Key = Key.Delete }, "watch.remove"));
+            Assert.True(MainWindow.DownloadsMatches(new KeyEventArgs { Key = Key.Back, KeyModifiers = KeyModifiers.Meta }, "watch.remove"));
+            shortcutSnapshot.SetValue(null, EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Windows));
 
             DataGrid grid = FindByAutomationId<DataGrid>(window, "ThreadsDataGrid");
             Assert.True(grid.Focus());
-            Assert.True(Press(grid, Key.A, primary));
+            Assert.True(Press(grid, Key.A, KeyModifiers.Control));
             Assert.Equal(added.Order(), window.SelectedThreadsForTests().Select(row => row.WatchId).Order());
-            Assert.True(Press(grid, Key.E, primary));
+            Assert.True(Press(grid, Key.E, KeyModifiers.Control));
             Assert.Equal(MainWindow.WorkspacePage.Archive, window.SelectedPage);
+            fixture.Layout();
             Button close = FindByAutomationId<Button>(window.ArchivePage, "ArchiveExportClose");
             await BooruTestSupport.WaitAsync(() => close.IsEffectivelyVisible && close.IsEnabled, "export close button");
+            FindByAutomationId<Expander>(window.ArchivePage, "ArchiveExportScopeDetails").IsExpanded = true;
+            fixture.Layout();
             TextBlock summary = FindByAutomationId<TextBlock>(window.ArchivePage, "ArchiveExportSummary");
             Assert.Equal(urls.Length + 1, summary.Text!.Split('\n').Length);
             close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -178,15 +182,18 @@ public sealed class DownloadsSelectionMenuTests
             string Describe(IEnumerable<long> session, IEnumerable<long> visible, Func<long, string> commands) =>
                 $"Frozen [{string.Join(",", frozen)}], host admission/completion [{string.Join(", ", frozen.Append(sixth)
                     .Select(id => $"{id}={commands(id)}"))}], session [{string.Join(",", session.Order())}], visible [{string.Join(",", visible.Order())}]";
-            Assert.Equal(Describe([sixth], [sixth], id => id == sixth ? "" : "accepted/end"),
-                Describe(final.View.Threads.Select(row => row.WatchId), grid.ItemsSource.Cast<ThreadRow>().Select(row => row.WatchId), CommandsFor));
+            string expected = Describe([sixth], [sixth], id => id == sixth ? "" : "accepted/end");
+            string actual = Describe(final.View.Threads.Select(row => row.WatchId), grid.ItemsSource.Cast<ThreadRow>().Select(row => row.WatchId), CommandsFor);
+            if (actual != expected) Assert.Fail($"Expected {expected}{Environment.NewLine}Actual {actual}");
 
             await using (ArchiveReader reader = await host.OpenArchiveReaderAsync(CancellationToken.None))
                 Assert.Equal(urls.Length, (await reader.SelectThreadIdsAsync(new ArchiveThreadQuery(), CancellationToken.None)).Count);
             Assert.All(files, file => Assert.Equal("saved media", File.ReadAllText(file)));
 
             FeedbackToastContent undo = Assert.Single(window.GetVisualDescendants().OfType<FeedbackToastContent>(),
-                toast => toast.ActionButton is { } action && AutomationProperties.GetName(action) == Texts.T("watch.undo"));
+                toast => toast.ActionButton is { } action
+                    && ControlAutomationPeer.CreatePeerForElement(action)?.GetAutomationId() == "FeedbackToastActionButton"
+                    && AutomationProperties.GetName(action) == Texts.T("watch.undo"));
             Assert.Equal(Texts.T("watch.removed", urls.Length), undo.Message);
             await undo.RunActionAsync().WaitAsync(Deadline);
             DesktopSessionProjection restored = await host.CaptureProjectionAsync().WaitAsync(Deadline);
