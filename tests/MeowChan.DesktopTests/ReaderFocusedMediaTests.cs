@@ -25,7 +25,8 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
     private static readonly ResourceId ThreadId = new("4chan", "g", "100");
     private const int ReplyCount = 5;
     private const string FileName = "picture.png";
-    private const string PictureUrl = "https://example.invalid/picture.png";
+    private const string PosterVideoFileName = "reader-portrait-poster.mp4";
+    private const string FixtureUrl = "https://example.invalid/";
 
     [Theory]
     [InlineData(true, false)]
@@ -137,14 +138,18 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
         });
     }
 
-    [Fact]
-    public async Task TextlessPortraitAt360PixelsNeverShrinksBetween150And200Percent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TextlessPortraitAt360PixelsNeverShrinksBetween150And200Percent(bool video)
     {
         const int post = 108;
         const string postId = "108";
+        const int width = 288, height = 512;
         using TempDirectory profile = new();
-        MediaAssetSnapshot media = WritePicture(profile.Path, 540, 960);
-        await CaptureThreadAsync(profile.Path, post, embedded: true, width: 540, height: 960);
+        string fileName = video ? PosterVideoFileName : FileName;
+        MediaAssetSnapshot media = video ? WriteMedia(profile.Path, fileName, ReadVideoFixture()) : WritePicture(profile.Path, width, height);
+        await CaptureThreadAsync(profile.Path, post, embedded: true, width, height, fileName: fileName);
 
         BooruComponentDispatcher.Run(() =>
         {
@@ -155,6 +160,8 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 IsReadable = true
             };
             Window window = new() { Width = 900, Height = 700, Content = page };
+            string? previousProfile = Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE");
+            Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", profile.Path);
             try
             {
                 Config config = new()
@@ -172,6 +179,7 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 BooruComponentDispatcher.Wait(page.LoadThreadAsync(ThreadId));
                 BooruComponentDispatcher.Wait(page.MediaLoadTask);
                 BooruComponentDispatcher.Wait(page.FocusPostAsync(postId));
+                Assert.False(page.IsMediaSidebarShown);
 
                 ListBox posts = Posts(window);
                 ArchivePostRow row = Assert.IsType<ArchivePostRow>(posts.SelectedItem);
@@ -184,48 +192,73 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 }, "the textless post's portrait preview to be laid out");
 
                 ScrollViewer scroll = Assert.IsType<ScrollViewer>(posts.Scroll);
+                Image CurrentPicture()
+                {
+                    ListBoxItem card = Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromItem(row));
+                    Assert.True(card.IsSelected);
+                    return Assert.IsType<Image>(Picture(card));
+                }
+
                 Size previous = default;
                 List<string> measurements = [];
+                void Measure(int percent, string stage)
+                {
+                    Image picture = CurrentPicture();
+                    Size size = picture.Bounds.Size;
+                    Point origin = Assert.IsType<Point>(picture.TranslatePoint(default, scroll));
+                    Size visible = new Rect(origin, size).Intersect(new Rect(scroll.Viewport)).Size;
+                    measurements.Add($"{percent}% {stage}: {visible}");
+                    output.WriteLine($"At {percent}% ({stage}): visible {visible}, preview {size}, viewport {scroll.Viewport} DIP.");
+                    Assert.InRange(size.Width, 1, scroll.Viewport.Width + 0.5);
+                    Assert.InRange(size.Height, 1, scroll.Viewport.Height + 0.5);
+                    Assert.InRange(visible.Width, 1, size.Width + 0.5);
+                    Assert.InRange(visible.Height, 1, size.Height + 0.5);
+                    string series = string.Join(" → ", measurements);
+                    if (percent == 150 && stage == "layout")
+                        Assert.True(visible.Width > previous.Width && visible.Height > previous.Height, series);
+                    Assert.True(visible.Width >= previous.Width - 0.5 && visible.Height >= previous.Height - 0.5, series);
+                    previous = visible;
+                }
+
                 foreach (int percent in new[] { 100, 150, 175, 200 })
                 {
+                    var priorSource = CurrentPicture().Source;
                     config.ReaderFocusedMediaScalePercent = percent;
                     ReaderSettingsPreferences.Apply(page, config);
                     Dispatcher.UIThread.RunJobs();
                     window.UpdateLayout();
                     Dispatcher.UIThread.RunJobs();
-
-                    ListBoxItem card = Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromItem(row));
-                    Assert.True(card.IsSelected);
-                    Image picture = Assert.IsType<Image>(Picture(card));
-                    Size size = picture.Bounds.Size;
-                    measurements.Add($"{percent}%: {size}");
-                    output.WriteLine($"At {percent}%: portrait {size}, viewport {scroll.Viewport}, card {card.Bounds.Size} DIP.");
-                    Assert.InRange(size.Width, 1, scroll.Viewport.Width + 0.5);
-                    Assert.InRange(size.Height, 1, scroll.Viewport.Height + 0.5);
-                    string series = string.Join(" → ", measurements);
-                    if (percent == 150)
-                        Assert.True(size.Width > previous.Width && size.Height > previous.Height, series);
-                    Assert.True(size.Width >= previous.Width - 0.5 && size.Height >= previous.Height - 0.5, series);
-                    previous = size;
+                    Measure(percent, "layout");
+                    if (!video || percent == 100) continue;
+                    BooruComponentDispatcher.WaitUntil(() =>
+                    {
+                        window.UpdateLayout();
+                        return !ReferenceEquals(priorSource, CurrentPicture().Source);
+                    }, $"the sized MP4 poster at {percent}% to replace its previous preview");
+                    Measure(percent, "sized poster");
                 }
             }
             finally
             {
                 page.EndLifetime();
                 window.Close();
+                Environment.SetEnvironmentVariable("MEOWCHAN_PROFILE", previousProfile);
             }
         });
     }
 
     [Theory]
-    [InlineData(960, 540, false)]
-    [InlineData(540, 960, true)]
+    [InlineData(960, 540, false, 620)]
+    [InlineData(540, 960, true, 620)]
+    [InlineData(540, 960, true, 550)]
+    [InlineData(540, 960, true, 500)]
     public async Task ClickingAPictureInThePostFillsItsColumnWithinTheViewportAndCollapsesAgain(
-        int width, int height, bool viewportLimited)
+        int width, int height, bool viewportLimited, int windowHeight)
     {
         const string postId = "100";
         const int thumbnailWidth = 240;
         const int embeddedMediaColumnWidth = 268;
+        bool lowReader = windowHeight < 620;
         using TempDirectory profile = new();
         MediaAssetSnapshot media = WritePicture(profile.Path, width, height);
         await CaptureThreadAsync(profile.Path, 100, embedded: true, width, height);
@@ -238,13 +271,14 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
             {
                 IsReadable = true
             };
-            Window window = new() { Width = 1920, Height = 620, Content = page };
+            Window window = new() { Width = 1920, Height = windowHeight, Content = page };
             try
             {
                 Config config = new()
                 {
                     ReaderThumbnailWidth = thumbnailWidth,
-                    ReaderTextlessLargeImages = false,
+                    ReaderTextlessLargeImages = lowReader,
+                    ReaderTextlessMediaWidth = 360,
                     ReaderExpandReplies = false,
                     ReaderMediaSidebar = true,
                     ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways
@@ -275,15 +309,30 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 double viewportWidthLimit = view.VisibleFrameHeight() * width / height;
                 Assert.Equal(viewportLimited, viewportWidthLimit < embeddedMediaColumnWidth);
                 double expectedWidth = Math.Min(embeddedMediaColumnWidth, viewportWidthLimit);
+                if (lowReader)
+                {
+                    Assert.InRange(thumbnail.Height, 269.5, 270.5);
+                    Assert.True(viewportWidthLimit < thumbnail.Width,
+                        $"The low reader has room for a {viewportWidthLimit:0.##} DIP wide picture, with {thumbnail.Width:0.##} DIP already visible.");
+                    expectedWidth = thumbnail.Width;
+                }
 
                 ClickPicture(window, picture);
                 Size expanded = CurrentPicture().Bounds.Size;
                 output.WriteLine($"Thumbnail {thumbnail} → expanded {expanded} DIP, expected width {expectedWidth:0.##} DIP.");
-                Assert.True(expanded.Width > thumbnail.Width, $"The first click changed the picture from {thumbnail} to {expanded} DIP.");
+                Assert.True(view.IsExpanded);
+                if (lowReader)
+                {
+                    Assert.InRange(expanded.Width, thumbnail.Width - 0.5, thumbnail.Width + 0.5);
+                    Assert.InRange(expanded.Height, thumbnail.Height - 0.5, thumbnail.Height + 0.5);
+                }
+                else
+                    Assert.True(expanded.Width > thumbnail.Width, $"The first click changed the picture from {thumbnail} to {expanded} DIP.");
                 Assert.InRange(expanded.Width, expectedWidth - 1, expectedWidth + 1);
 
                 ClickPicture(window, CurrentPicture());
                 Size collapsed = CurrentPicture().Bounds.Size;
+                Assert.False(view.IsExpanded);
                 Assert.InRange(collapsed.Width, thumbnail.Width - 0.5, thumbnail.Width + 0.5);
                 Assert.InRange(collapsed.Height, thumbnail.Height - 0.5, thumbnail.Height + 0.5);
             }
@@ -406,9 +455,9 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
         .Count(button => button.IsEffectivelyVisible && button.Classes.Contains("reader-reply-card"));
 
     private static async Task CaptureThreadAsync(string directory, int picturePost, bool embedded, int width = 960, int height = 540,
-        string? pictureBody = null)
+        string? pictureBody = null, string fileName = FileName)
     {
-        CapturedAttachment picture = new(0, "picture", Url: PictureUrl, OriginalFileName: FileName) { Width = width, Height = height };
+        CapturedAttachment picture = new(0, "picture", Url: FixtureUrl + fileName, OriginalFileName: fileName) { Width = width, Height = height };
         List<CapturedPost> posts = [];
         int lastPost = picturePost + ReplyCount + (embedded ? 16 : 0);
         for (int number = 100; number <= lastPost; number++)
@@ -437,11 +486,25 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
         bitmap.Erase(SKColors.CornflowerBlue);
         using SKImage image = SKImage.FromBitmap(bitmap);
         using SKData encoded = image.Encode(SKEncodedImageFormat.Png, 100);
-        byte[] bytes = encoded.ToArray();
-        string path = Path.Combine(directory, FileName);
+        return WriteMedia(directory, FileName, encoded.ToArray());
+    }
+
+    private static MediaAssetSnapshot WriteMedia(string directory, string fileName, byte[] bytes)
+    {
+        string path = Path.Combine(directory, fileName);
         File.WriteAllBytes(path, bytes);
-        MediaAssetReference asset = new("fixture-asset", "picture", "original", FileName, path, bytes.Length,
-            Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), PictureUrl, FileName, true);
+        MediaAssetReference asset = new("fixture-asset", "picture", "original", fileName, path, bytes.Length,
+            Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), FixtureUrl + fileName, fileName, true);
         return new(directory, MediaManifestStatus.Available, 1, "fixture", [asset]);
+    }
+
+    private static byte[] ReadVideoFixture()
+    {
+        for (DirectoryInfo? parent = new(AppContext.BaseDirectory); parent != null; parent = parent.Parent)
+        {
+            string candidate = Path.Combine(parent.FullName, "tests", "Fixtures", PosterVideoFileName);
+            if (File.Exists(candidate)) return File.ReadAllBytes(candidate);
+        }
+        throw new FileNotFoundException("The portrait MP4 fixture is missing.", PosterVideoFileName);
     }
 }
