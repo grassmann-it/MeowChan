@@ -76,7 +76,13 @@ public partial class ArchivePage
     // The original action remains the semantic origin, but a closed overflow
     // has no focusable window presentation. Resolve at return time after layout
     // or mode changes, without reopening the popup or executing any action.
-    internal Control? GalleryOriginFocusTarget(Control? origin) => ActionOriginFocusTarget(origin);
+    internal Control? GalleryOriginFocusTarget(Control? origin)
+    {
+        if (origin != null && ArchiveMediaTab.IsSelected && (ReferenceEquals(origin, _mediaSidebar?.FrameArea)
+            || ReferenceEquals(origin, VisibleMediaList) || origin.DataContext is ArchiveAssetRow))
+            return SelectedMediaFocusTarget() ?? VisibleMediaList;
+        return ActionOriginFocusTarget(origin);
+    }
 
     internal Control? ActionOriginFocusTarget(Control? origin)
     {

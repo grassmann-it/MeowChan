@@ -155,9 +155,10 @@ public partial class ArchivePage
                 }
                 if (entry.Kind == SavedMediaKind.Video)
                 {
+                    int width = (int)target.Width, height = (int)target.Height;
                     Bitmap? poster = await MediaTileThumbnails.LoadPosterAsync(row.Manifest, row.Asset,
                         System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
-                        (int)target.Width, (int)target.Height, null, ct, _thumbnailGate, useFailureBackoff: false);
+                        width, height, MediaTileThumbnails.PosterKey(row.Asset, width, height), ct, useFailureBackoff: false);
                     if (IsCurrentSidebarRequest(ticket.Request) && !ct.IsCancellationRequested) ScheduleSidebarVideoAutoplay();
                     if (poster != null) return new ReaderMediaSidebarContent.Picture(poster, MediaTileThumbnails.Release, Playable: true);
                 }

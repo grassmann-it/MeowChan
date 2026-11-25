@@ -35,6 +35,7 @@ public sealed class SavedMediaGalleryFocusTests
             Assert.Same(Current(true), tiles.SelectedItem);
             BooruComponentDispatcher.WaitUntil(() => sidebar.Load.ShownSource == new PixelSize(17, 11), "the restored revision's picture");
             Assert.True(Tile(Current(true)).IsKeyboardFocusWithin);
+            Assert.Same(Tile(Current(true)), page.GalleryOriginFocusTarget(sidebar.FrameArea));
         });
 
     [Fact]

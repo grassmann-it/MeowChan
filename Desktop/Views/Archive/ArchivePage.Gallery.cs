@@ -172,6 +172,8 @@ public partial class ArchivePage
         ResourceId? listLead = _archiveLeadId;
         ArchiveAssetRow[] mediaSelection = SelectedMediaRows().ToArray();
         MediaPosition? mediaPosition = CaptureMediaPosition();
+        if (mediaPosition != null && restoreReaderFocus && ArchiveMediaTab.IsSelected)
+            mediaPosition = mediaPosition with { FocusSelection = true };
         string? postSelection = (ArchivePosts.SelectedItem as ArchivePostRow)?.Id;
         InlineRepliesSnapshot inlineReplies = CaptureInlineReplyState();
         var history = _history.ToArray();
@@ -255,7 +257,11 @@ public partial class ArchivePage
             if (Projection != null) ArchivePosts.SelectedItem = FindPostRow(postSelection);
             foreach (var item in scroll) item.View.Offset = item.Offset;
             if (_mediaLoading && _assets.Count == 0) _retainedMediaPosition = mediaPosition;
-            else RestoreMediaPosition(mediaPosition);
+            else
+            {
+                RestoreMediaPosition(mediaPosition);
+                FollowSavedMediaSelection();
+            }
             if (readerAnchor != null) _ = RestoreReaderAnchorAsync(readerAnchor, restoreReaderFocus, preserveTab: true);
         };
     }
