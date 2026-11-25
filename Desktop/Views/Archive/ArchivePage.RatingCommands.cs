@@ -29,11 +29,10 @@ public partial class ArchivePage
     }
 
     // The file the rating keys (Shift+1 to 5, Shift+0) set: the same focused medium as R (FocusedMediaForRateAndTag, ReaderMediumAt), the post card's included.
-    private GalleryEntry? FocusedRatingEntry()
+    private (GalleryEntry Entry, Control Origin)? FocusedRatingTarget()
     {
-        if (_thread == null || _selectedThread != _thread.Summary.Id || FocusedMediaForRateAndTag() is not { Asset: { } row }) return null;
-        return new GalleryEntry(new(_selectedThread, row.Manifest.Directory, row.Asset.AssetId), row.Manifest, row.Asset,
-            null, null, !row.Asset.IsCurrent, true) { ThreadUrl = _thread.Summary.Url };
+        if (_thread == null || _selectedThread != _thread.Summary.Id || FocusedMediaForRateAndTag() is not { Asset: { } row } medium) return null;
+        return (AssetEntry(_selectedThread, row), medium.Origin);
     }
     private void InitializeRatingCommands()
     {
@@ -68,7 +67,7 @@ public partial class ArchivePage
     private void RegisterRatingCommands(Control owner)
     {
         if (_ratingCommands == null) return;
-        bool Ready() => !_ended && _available && _mediaRatingError == null && FocusedRatingEntry() is { } entry
+        bool Ready() => !_ended && _available && _mediaRatingError == null && FocusedRatingTarget() is { Entry: var entry }
             && CanChangeMediaRating?.Invoke(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset)) == true;
         // R "Rate and tag" opens the popover (stars focused) on the focused file; the keys below rate it directly (Shift+1 to 5, Shift+0).
         // Executable whenever the reader is: RateAndTagByKeyAsync (which opens through OpenRateAndTagForFocusAsync, as the toolbar button does) finds
@@ -97,13 +96,12 @@ public partial class ArchivePage
     private bool RouteSidebarRatingKey(KeyEventArgs e) => _ratingCommands?.Route(e) == true;
     private async Task ExecuteRatingCommandAsync(int? value)
     {
-        GalleryEntry? entry = FocusedRatingEntry();
-        if (entry == null) return;
+        if (FocusedRatingTarget() is not { } target) return;
+        GalleryEntry entry = target.Entry;
         Action<string> reportError = CaptureActionErrorReporter();
         try
         {
-            Control? origin = TopLevel.GetTopLevel(ArchiveReaderPane)?.FocusManager?.GetFocusedElement() as Control;
-            var verify = origin == null ? null : CaptureSidebarTargetGuard(origin, entry);
+            var verify = CaptureSidebarTargetGuard(target.Origin, entry);
             if (verify != null && !await verify(default)) return;
             if (SetMediaRatingAsync != null) await SetMediaRatingAsync(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset), value);
         }

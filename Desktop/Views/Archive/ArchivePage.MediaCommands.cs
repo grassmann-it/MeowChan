@@ -467,7 +467,8 @@ public partial class ArchivePage
     /// A file that cannot be tagged gets the stars and the reason as text, with focus on its stars.
     /// </summary>
     private async Task OpenRateAndTagAsync(ArchiveMediaSubject subject, Control origin, ArchiveAssetRow[]? selection, QuickTagInitialFocus initialFocus,
-        string? label = null, Func<bool>? current = null, CancellationToken sidebarToken = default)
+        string? label = null, Func<bool>? current = null, CancellationToken sidebarToken = default,
+        Func<CancellationToken, Task<bool>>? verifyTarget = null)
     {
         var thread = subject.Thread;
         ResourceId threadId = subject.ThreadId;
@@ -487,8 +488,9 @@ public partial class ArchivePage
             return;
         }
         GalleryEntry editTarget = subject.TagEntry ?? target;
-        var verify = CaptureSidebarTargetGuard(origin, editTarget);
-        if (verify != null && (!await verify(sidebarToken) || !PopoverCurrent())) return;
+        var verify = verifyTarget ?? CaptureSidebarTargetGuard(origin, editTarget);
+        // A sidebar editor has verified its displayed entry before calling the host.
+        if (!sidebarToken.CanBeCanceled && verify != null && (!await verify(sidebarToken) || !PopoverCurrent())) return;
         if (TagPopoverAsync is { } openPopover)
         {
             using CancellationTokenSource? popoverWrites = sidebarToken.CanBeCanceled ? new() : null;
@@ -781,7 +783,7 @@ public partial class ArchivePage
             // "Rate and tag…": the popover on the tile or attachment the menu opened on (frozen with the menu), the tag field focused. A file that cannot be
             // rated or tagged gets the popover with the reason as text, so the entry has no precondition of its own.
             [MediaMenuAction.RateAndTag] = frameMenu ? menuSidebar!.EditTagsAsync
-                : () => OpenRateAndTagAsync(subject, origin, selection, initialFocus: QuickTagInitialFocus.TagInput, attachment?.Label),
+                : () => OpenRateAndTagAsync(subject, origin, selection, initialFocus: QuickTagInitialFocus.TagInput, attachment?.Label, verifyTarget: verify),
             [MediaMenuAction.Queue] = When(MediaMenuAction.Queue, CanQueue, async () =>
             {
                 if (verify != null && (!await verify(default) || !session.IsCurrent)) return;

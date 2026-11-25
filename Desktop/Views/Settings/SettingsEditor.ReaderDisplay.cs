@@ -40,8 +40,8 @@ public partial class SettingsEditor
     public int ReaderInlineVideoMaxFileMiBMinimum => Config.ReaderInlineVideoMaxFileMiBMinimum;
     public int ReaderInlineVideoMaxFileMiBMaximum => Config.ReaderInlineVideoMaxFileMiBMaximum;
     public int SidebarPreviewMaximumPixelsMinimum => Config.SidebarPreviewMaximumPixelsMinimum;
-    public int ReaderMediaStripLimitMinimum => Config.ReaderMediaStripLimitMinimum;
     public int SidebarPreviewMaximumPixelsMaximum => Config.SidebarPreviewMaximumPixelsMaximum;
+    public int ReaderMediaStripLimitMinimum => Config.ReaderMediaStripLimitMinimum;
     public int ReaderMediaStripLimitMaximum => Config.ReaderMediaStripLimitMaximum;
     public int ReaderMediaGridTextLimitMinimum => Config.ReaderMediaGridTextLimitMinimum;
     public int ReaderMediaGridTextLimitMaximum => Config.ReaderMediaGridTextLimitMaximum;
@@ -290,14 +290,14 @@ public partial class SettingsEditor
     public string ReaderInlineVideoMaxFileMiBHelp => FieldHelp(nameof(ReaderInlineVideoMaxFileMiBInput), ReaderInlineVideoMaxFileMiBHint);
     // Posts with several files (R11): the sidebar strip's size and the two-column grid of the inline layout.
     private decimal? _sidebarPreviewMaximumPixels;
-    private decimal? _readerMediaStripLimit;
     public decimal? SidebarPreviewMaximumPixels { get => _sidebarPreviewMaximumPixels; set => SetField(ref _sidebarPreviewMaximumPixels, value, nameof(SidebarPreviewMaximumPixels)); }
-    public decimal? ReaderMediaStripLimit { get => _readerMediaStripLimit; set => SetField(ref _readerMediaStripLimit, value, nameof(ReaderMediaStripLimit)); }
     public string SidebarPreviewMaximumPixelsLabel => Texts.T("settings.reader.sidebarPreviewPixels");
-    public string ReaderMediaStripLimitLabel => Texts.T("settings.reader.mediaStripLimit");
     public string SidebarPreviewMaximumPixelsHint => Texts.T("settings.reader.sidebarPreviewPixels.hint") + " " + Texts.T("settings.reader.range", Config.SidebarPreviewMaximumPixelsMinimum, Config.SidebarPreviewMaximumPixelsMaximum);
-    public string ReaderMediaStripLimitHint => Texts.T("settings.reader.mediaStripLimit.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
     public string SidebarPreviewMaximumPixelsHelp => FieldHelp(nameof(SidebarPreviewMaximumPixelsInput), SidebarPreviewMaximumPixelsHint);
+    private decimal? _readerMediaStripLimit;
+    public decimal? ReaderMediaStripLimit { get => _readerMediaStripLimit; set => SetField(ref _readerMediaStripLimit, value, nameof(ReaderMediaStripLimit)); }
+    public string ReaderMediaStripLimitLabel => Texts.T("settings.reader.mediaStripLimit");
+    public string ReaderMediaStripLimitHint => Texts.T("settings.reader.mediaStripLimit.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
     public string ReaderMediaStripLimitHelp => FieldHelp(nameof(ReaderMediaStripLimitInput), ReaderMediaStripLimitHint);
     private bool _readerMediaGrid;
     public bool ReaderMediaGrid { get => _readerMediaGrid; set => SetField(ref _readerMediaGrid, value, nameof(ReaderMediaGrid)); }
