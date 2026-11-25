@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -21,6 +22,70 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class ReaderMediaSidebarHostClickTests
 {
+    [Theory]
+    [InlineData("ReaderMediaSidebarDecisionRating3")]
+    [InlineData("ReaderMediaSidebarEditTags")]
+    public void FreshSidebarClickWaitsForTheSelectedPost(string actionId) =>
+        SavedMediaReaderTests.RunWithShell(async (page, window, _, _) =>
+        {
+            page.UseManualReaderTicks(static () => 0);
+            ListBox posts = SidePanelDesignTests.ById<ListBox>(window, "ArchivePosts");
+            var a = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "42");
+            var b = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "43");
+            List<string> targets = [];
+            page.SetMediaRatingAsync = (key, _) => { targets.Add(key.Sha256); return Task.CompletedTask; };
+            page.TagPopoverAsync = (entry, _, _, _, _) => { targets.Add(entry.Asset.Sha256); return Task.CompletedTask; };
+            posts.SelectedItem = a;
+            page.TickMediaSidebarFollow();
+            await page.MediaSidebarTask;
+            var sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+            Assert.Contains("post.png", sidebar.HeaderLine);
+            Button action = SidePanelDesignTests.ById<Button>(sidebar, actionId);
+            Assert.True(action.IsEffectivelyEnabled);
+
+            posts.SelectedItem = b;
+            action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Empty(targets);
+
+            page.TickMediaSidebarFollow();
+            await page.MediaSidebarTask;
+            Assert.Contains("same.png", sidebar.HeaderLine);
+            action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var attachment = Assert.Single(b.Attachments);
+            GalleryEntry expected = Assert.IsType<GalleryEntry>(await attachment.ResolveEntry!(CancellationToken.None));
+            Assert.Equal(expected.Asset.Sha256, Assert.Single(targets));
+        }, replyHasMedia: true);
+
+    [Fact]
+    public void PostPopoverChipAfterSelectionChangePreservesBothTagAssignments() =>
+        SavedMediaReaderTests.RunWithShell(async (page, window, host, subjects) =>
+        {
+            TagId offered = (await host.DefinePrivateTagAsync("post-chip")).Tag;
+            await host.SetThreadTagAsync(offered, page.CurrentThread!.Summary.Id, true);
+            ListBox posts = SidePanelDesignTests.ById<ListBox>(window, "ArchivePosts");
+            var a = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "42");
+            var b = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "43");
+            posts.SelectedItem = a;
+            posts.ScrollIntoView(a);
+            window.UpdateLayout();
+            Assert.True(Assert.IsType<ReaderPostItem>(posts.ContainerFromItem(a)).Focus());
+            QuickTagPopover editor = await RateAndTagWindowFixture.OpenEditorAsync(window);
+            Assert.Same(posts, editor.Anchor);
+            QuickTagSurface surface = Assert.IsType<QuickTagSurface>(editor.Surface);
+            await BooruTestSupport.WaitAsync(() => surface.Shown.Any(tag => tag.Id == offered), "the thread tag on the open post");
+            int number = surface.Shown.ToList().FindIndex(tag => tag.Id == offered) + 1;
+            Button chip = SidePanelDesignTests.ById<Button>(editor.Frame, "ArchiveTagPopoverSuggestion" + number);
+            Assert.True(chip.IsEffectivelyEnabled);
+
+            posts.SelectedItem = b;
+            chip.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await BooruTestSupport.WaitAsync(() => !surface.Session.Busy, "the tag click to finish");
+            var saved = Assert.IsType<PrivateTagStoreSnapshot>(host.GetPrivateTagSnapshot().Snapshot);
+            Assert.False(saved.Carries(offered, subjects['c']));
+            Assert.False(saved.Carries(offered, subjects['a']));
+            Assert.Equal(QuickTagPopoverCloseReason.Stale, editor.Reason);
+        }, replyHasMedia: true);
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

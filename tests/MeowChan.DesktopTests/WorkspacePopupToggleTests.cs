@@ -661,6 +661,30 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
                     && opener.GetVisualAncestors().OfType<ScrollViewer>().All(scroll => FullyInside(scroll, scroll.Viewport));
             }, "the full plugin More actions button inside the detail viewport");
 
+            var scroll = Find<ScrollViewer>(window, "PluginDetailsPane");
+            var footer = Find<Border>(window, "PluginDraftFooter");
+            var reasons = Find<SelectableTextBlock>(window, "PluginDraftReasons");
+            var save = Find<Button>(window, "PluginSave");
+            var discard = Find<Button>(window, "PluginDiscard");
+            Assert.False(string.IsNullOrWhiteSpace(reasons.Text));
+            double pinnedY = footer.TranslatePoint(default, window)!.Value.Y;
+            foreach (double offset in new[] { 0d, scroll.ScrollBarMaximum.Y })
+            {
+                scroll.Offset = new Vector(0, offset);
+                Layout(window);
+                Assert.Equal(offset, scroll.Offset.Y, 1);
+                Assert.Equal(pinnedY, footer.TranslatePoint(default, window)!.Value.Y, 1);
+                foreach (Control control in new Control[] { save, discard, reasons })
+                {
+                    Assert.True(control.IsEffectivelyVisible && control.Bounds.Height > 0);
+                    Point top = control.TranslatePoint(default, window)!.Value;
+                    Point bodyEnd = scroll.TranslatePoint(new Point(0, scroll.Bounds.Height), window)!.Value;
+                    Assert.True(top.Y >= bodyEnd.Y - 1 && top.Y + control.Bounds.Height <= window.ClientSize.Height + 1,
+                        $"{control.Name} at {top} with height {control.Bounds.Height}, body ends at {bodyEnd}");
+                }
+            }
+            opener.BringIntoView();
+            Layout(window);
             Click(window, opener);
             ContextMenu menu = Assert.IsType<ContextMenu>(plugins.PluginActionMenu);
             Assert.True(menu.IsOpen);

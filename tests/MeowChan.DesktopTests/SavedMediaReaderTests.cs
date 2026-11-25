@@ -1198,7 +1198,8 @@ public sealed class SavedMediaReaderTests
         }
     });
 
-    private static void RunWithShell(Func<ArchivePage, MainWindow, DesktopSessionHost, IReadOnlyDictionary<char, MediaTagSubject>, Task> test) =>
+    internal static void RunWithShell(Func<ArchivePage, MainWindow, DesktopSessionHost, IReadOnlyDictionary<char, MediaTagSubject>, Task> test,
+        bool replyHasMedia = false) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -1215,7 +1216,7 @@ public sealed class SavedMediaReaderTests
                     DownloadPath = downloads, FirstRunSetupVersion = 1, DownloadsPaused = true,
                     WorkspaceMode = "Advanced", Language = "en", MediaSidebarInfo = "Always"
                 }.SaveConfig(profile.Path);
-                (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(mediaDirectory, includePostAndReply: true);
+                (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(mediaDirectory, includePostAndReply: true, replyHasMedia: replyHasMedia);
                 await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
                 using IDisposable manifests = VirtualMediaManifests.Register(Path.GetDirectoryName(mediaDirectory)!,
                     (directory, _, _) => Task.FromResult(directory == manifest.Directory ? manifest
@@ -1250,7 +1251,7 @@ public sealed class SavedMediaReaderTests
         });
 
     private static (ArchivedThreadView Thread, MediaAssetSnapshot Manifest) CreateFixture(string directory,
-        bool includePostAndReply = false, bool additionalRevisions = false)
+        bool includePostAndReply = false, bool additionalRevisions = false, bool replyHasMedia = false)
     {
         string filename = "same.png";
         const string currentImage = "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAE0lEQVR4nGNgmMlAMhrVM6oHiADlWm/EglqV/gAAAABJRU5ErkJggg==";
@@ -1271,7 +1272,9 @@ public sealed class SavedMediaReaderTests
         }
         string postName = includePostAndReply ? "post.png" : filename;
         List<MediaAssetReference> assets = [current, earlier];
-        if (includePostAndReply) assets.Add(WriteRevision('c', true, currentImage, postName));
+        if (includePostAndReply) assets.Add(WriteRevision('c', true, replyHasMedia
+            ? "iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII="
+            : currentImage, postName));
         if (additionalRevisions)
         {
             assets.Add(WriteRevision('d', true, currentImage, "z-a.png"));
@@ -1286,7 +1289,8 @@ public sealed class SavedMediaReaderTests
                 new CapturedAttachment(0, "image", Url: includePostAndReply ? "https://offline.invalid/c" : null, OriginalFileName: postName)
             ])
         ];
-        posts.Add(new("43", 43, PostFieldPresence.All, Html: includePostAndReply ? "<a href='#42'>&gt;&gt;42</a>" : null));
+        posts.Add(new("43", 43, PostFieldPresence.All, Html: includePostAndReply ? "<a href='#42'>&gt;&gt;42</a>" : null,
+            Attachments: replyHasMedia ? [new CapturedAttachment(0, "image", Url: current.SourceUrl, OriginalFileName: filename)] : null));
         ArchiveThreadSummary summary = new(ThreadId, "https://offline.invalid/g/thread/42", "Fixture", directory,
             ThreadSourceState.Active, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, posts.Count, 1);
         return (new ArchivedThreadView(summary, posts, [directory]), manifest);
