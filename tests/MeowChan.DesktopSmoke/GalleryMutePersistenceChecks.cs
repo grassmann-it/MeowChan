@@ -67,7 +67,7 @@ internal static class GalleryMutePersistenceChecks
             await WaitAsync(p => p.AudioAvailable && !p.Muted && p.State == "Playing");
             await HoldAsync(false, "Playing");
 
-            // Existing explicit user-volume unmute behavior, via actual Up/Down input.
+            // The gallery volume shortcuts unmute without resuming playback.
             await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
             await WaitAsync(p => p.State == "Paused");
             foreach (var (key, expectedVolume) in new[] { (MediaNativeInput.Up, 43), (MediaNativeInput.Down, 42) })
@@ -76,7 +76,7 @@ internal static class GalleryMutePersistenceChecks
                 await native.ClickAsync(
                     () => NativeTargetAsync<Slider>("GalleryVideoSeek"),
                     current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.TrackPoint(current, .20)));
-                await native.KeyAsync(key);
+                await native.ShiftKeyAsync(key);
                 await WaitAsync(p => !p.Muted && p.Volume == expectedVolume && p.State == "Paused");
                 await HoldAsync(false, "Paused");
             }
@@ -91,7 +91,7 @@ internal static class GalleryMutePersistenceChecks
             await HoldAsync(saved.VideoStartMuted, "Playing");
             Require(window.SessionHost.Config.VideoStartMuted == saved.VideoStartMuted,
                 "Gallery runtime mute changed the saved startup policy.");
-            Console.WriteLine("SMOKE gallery mute persistence: native mute/unmute, held production volume/mute and retirement races, changed Configure volume, video/image/video Next/Prev, Repeat retained, explicit Up/Down unmute without resume, and fresh-gallery startup policy passed. Decoder observations only; no physical audio-output acceptance.");
+            Console.WriteLine("SMOKE gallery mute persistence: native mute/unmute, held production volume/mute and retirement races, changed Configure volume, video/image/video Next/Prev, Repeat retained, Shift+Up/Shift+Down unmute without resume, and fresh-gallery startup policy passed. Decoder observations only; no physical audio-output acceptance.");
         }
         finally
         {
