@@ -80,9 +80,7 @@ public partial class MainWindow
             GalleryMediaTagUnavailable unavailable = GalleryMediaTagUnavailable.InvalidIdentity;
             MediaTagSubject? target = request.TagsBlocked == null ? MediaTagSubjects.Of(match, out unavailable) : null;
             string label = match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path);
-            PopoverDecisionOwner decisionOwner = new(this);
-            using GalleryDecisionSession decisionSession = new(decisionOwner);
-            decision = DecisionFor(new[] { match }, request.InitialFocus, decisionOwner, decisionSession);
+            decision = DecisionFor(new[] { match }, request.InitialFocus);
             // The popover gives the keyboard back at once (↑/↓ and R work right after Esc); the page places it again after it rebuilt its tiles.
             QuickTagPopoverOptions options = PopoverOptions(context, sidebar ? Current : hostCurrent, restoreFocus: true, "MediaTagPopover") with
             {
@@ -136,16 +134,13 @@ public partial class MainWindow
         GalleryMediaTagUnavailable unavailable = GalleryMediaTagUnavailable.InvalidIdentity;
         MediaTagSubject? target = request.TagsBlocked == null ? MediaTagSubjects.Of(entry, out unavailable) : null;
         string label = entry.Asset.OriginalFileName ?? Path.GetFileName(entry.Asset.Path);
-        PopoverDecisionOwner decisionOwner = new(this);
-        using GalleryDecisionSession decisionSession = new(decisionOwner);
-        QuickTagPopoverDecision decision = DecisionFor(new[] { entry }, request.InitialFocus, decisionOwner, decisionSession);
+        QuickTagPopoverDecision? decision = DecisionFor(new[] { entry }, request.InitialFocus);
         if (target == null)
         {
             // Not taggable (a Danbooru medium, a file shared by several posts): the stars stay, the reason is said as text.
-            QuickTagPopover blocked = QuickTagPopover.OpenBlocked(anchor, label, request.TagsBlocked
+            QuickTagPopover.OpenBlocked(anchor, label, request.TagsBlocked
                 ?? MediaMenuReasons.Tags(unavailable, BooruMediaIdentity.IsBooruThread(entry.Key.Thread)),
                 new QuickTagPopoverOptions { IsCurrent = isCurrent, Decision = decision, TooltipKeyContext = "reader", FocusFallback = request.FocusFallback });
-            await blocked.Result;
             return;
         }
         using CancellationTokenSource? popoverWrites = request.SidebarToken.CanBeCanceled
@@ -227,20 +222,23 @@ public partial class MainWindow
     /// writes does not rebuild the pages under it (that would drop its anchor); <see cref="QuickTagPopoverDecision.Release"/> refreshes the archive and
     /// gallery after it closed, and the media page does so through <see cref="QuickTagPopoverDecision.HasChanged"/>.
     /// </summary>
-    private QuickTagPopoverDecision DecisionFor(IReadOnlyList<GalleryEntry> targets, QuickTagInitialFocus initialFocus,
-        PopoverDecisionOwner owner, GalleryDecisionSession session)
+    internal QuickTagPopoverDecision? DecisionFor(IReadOnlyList<GalleryEntry> targets, QuickTagInitialFocus initialFocus)
     {
+        if (_isClosing || targets.Count == 0) return null;
         GalleryEntry[] frozen = targets.ToArray();
+        PopoverDecisionOwner owner = new(this);
+        // The decision session belongs to the popover. A caller that never shows the row has no session to release.
+        Lazy<GalleryDecisionSession> session = new(() => new GalleryDecisionSession(owner));
         return new QuickTagPopoverDecision
         {
-            View = () => session.View(frozen),
-            SetRating = value => session.SetRatingAsync(frozen, value),
-            SetFavorite = selected => session.SetFavoriteAsync(frozen, selected),
+            View = () => session.Value.View(frozen),
+            SetRating = value => session.Value.SetRatingAsync(frozen, value),
+            SetFavorite = selected => session.Value.SetFavoriteAsync(frozen, selected),
             InitialFocus = initialFocus,
             HasChanged = () => owner.Changed,
             Release = () =>
             {
-                session.Dispose();
+                if (session.IsValueCreated) session.Value.Dispose();
                 if (owner.Changed && !_isClosing) { _archivePage?.RefreshMediaRatings(); RefreshGalleryRating(); }
             }
         };
