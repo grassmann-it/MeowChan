@@ -1515,10 +1515,14 @@ public partial class ArchivePage
                 || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread
                 || stillRequested?.Invoke() == false) return;
             ++_readerLayoutRevision;
+            // Restoring a distinct selection changes reply-card heights. Align the
+            // saved anchor after those changes, under the same scroll ownership.
+            using ReaderScrollOwner.Jump jump = _readerScrollOwner.BeginJump(interactionRevision);
             if (FindPostRow(anchor.SelectedPostId) is { } selected)
             {
                 list.SelectedItem = selected;
                 _readerPostId = selected.Id;
+                list.UpdateLayout();
             }
             ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
             ArchivePostRow? anchored = FindPostRow(anchor.PostId);
