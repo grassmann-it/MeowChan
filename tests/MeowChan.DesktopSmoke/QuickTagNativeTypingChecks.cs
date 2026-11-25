@@ -161,7 +161,8 @@ internal static partial class QuickTagNativeTypingChecks
             string VideoState()
             {
                 ReaderInlineVideoSlot? videoSlot = page.SidebarInlineVideo;
-                return $"selected={(list.SelectedItem as ArchivePostRow)?.Id} postsShown={page.ReaderShowsPosts} sidebar shown={page.IsMediaSidebarShown}"
+                return $"selected={(list.SelectedItem as ArchivePostRow)?.Id} readerPost={page.CurrentReaderPostId} postsShown={page.ReaderShowsPosts}"
+                    + $" sidebar shown={page.IsMediaSidebarShown} covered={page.IsObscuredByGallery}"
                     + $" header={page.MediaSidebar?.HeaderLine} offered={videoSlot?.IsOffered} live={videoSlot?.IsLive}"
                     + $" playback={videoSlot?.Player?.PlaybackMode} error={videoSlot?.ErrorText}";
             }
@@ -218,7 +219,11 @@ internal static partial class QuickTagNativeTypingChecks
             {
                 Console.WriteLine($"SMOKE quick-tag-native-typing R target {surface}/{medium}: {target.EntryKey}, "
                     + $"anchor={Describe(anchor)}, current={current()}, blocked={request.TagsBlocked ?? "no"}");
-                await openPopover(target, anchor, context, current, request);
+                Task editing = openPopover(target, anchor, context, current, request);
+                if (window.ArchiveTagPopover is { } popover)
+                    popover.Closed += reason => Console.WriteLine($"SMOKE quick-tag-native-typing R closed {surface}/{medium}: {reason}");
+                else Console.WriteLine($"SMOKE quick-tag-native-typing R no editor {surface}/{medium}: attached={anchor.IsAttachedToVisualTree()}, visible={anchor.IsEffectivelyVisible}");
+                await editing;
             };
         }
         try

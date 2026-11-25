@@ -541,7 +541,7 @@ public partial class ArchivePage
         {
             ArchiveMediaSubject subject = ResolveArchiveMediaSubject(medium.Asset, medium.Attachment, medium.PostId);
             Action<string> report = CaptureActionErrorReporter();
-            try { await OpenRateAndTagAsync(subject, medium.Origin, null, initialFocus: QuickTagInitialFocus.TagInput, medium.Attachment.Label); }
+            try { await OpenRateAndTagAsync(subject, RateAndTagKeyAnchor(medium.Origin), null, initialFocus: QuickTagInitialFocus.TagInput, medium.Attachment.Label); }
             catch (Exception error) { report(error.Message); }
             return;
         }
@@ -667,11 +667,24 @@ public partial class ArchivePage
             return;
         }
         ArchiveMediaSubject subject = ResolveArchiveMediaSubject(focused.Asset, focused.Attachment, focused.PostId);
-        Control origin = focused.Origin;
+        Control origin = RateAndTagKeyAnchor(focused.Origin);
         if (buttonAnchor != null && ReferenceEquals(origin, buttonAnchor)) origin = RatingMenuAnchor(buttonAnchor);
         Action<string> reportError = CaptureActionErrorReporter();
         try { await OpenRateAndTagAsync(subject, origin, SeveralSelectedWith(focused.Asset, focused.Attachment), initialFocus); }
         catch (Exception error) { reportError(error.Message); }
+    }
+
+    // A post card can own the shortcut even when its attachment is outside the scroll viewport.
+    // Anchor the editor to that card and keep the resolved attachment as the action target.
+    private Control RateAndTagKeyAnchor(Control origin)
+    {
+        ListBox posts = ArchivePosts;
+        if (origin is ArchiveAttachmentView && posts.SelectedItem is ArchivePostRow post
+            && posts.ContainerFromItem(post) is Control card
+            && TopLevel.GetTopLevel(card)?.FocusManager?.GetFocusedElement() is Visual focus
+            && (ReferenceEquals(card, focus) || card.IsVisualAncestorOf(focus))
+            && !ReferenceEquals(origin, focus) && !origin.IsVisualAncestorOf(focus)) return card;
+        return origin;
     }
 
     private (ContextMenu Menu, MediaMenuSession Session) BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment,
