@@ -354,6 +354,12 @@ public sealed class TaggingPagePanelTests
 
         fixture.ClickEntry(1);
         fixture.ClickEntry(2, RawInputModifiers.Control);
+        if (windowsFileSharing)
+        {
+            await fixture.ShowsAsync(2);
+            await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap poster && poster.PixelSize == new PixelSize(160, 90),
+                "the verified video poster before moving the cursor");
+        }
         fixture.Key(PhysicalKey.ArrowDown, RawInputModifiers.Control);
         await fixture.ShowsAsync(3);
         if (width == 1000) BooruReviewTestPlatform.Resize(fixture.Window, 1400);
@@ -595,12 +601,21 @@ public sealed class TaggingPagePanelTests
                 var assets = names.Select((name, index) =>
                     new ArchiveCleanupFixtures.Asset("media-" + (index + 1), "original", name, name,
                         index + 1 == wideImage ? WideImageBytes() : ImageBytes(index + 1))).ToArray();
+                if (video > 0)
+                {
+                    string clip = ThemePaletteTests.Root("tests/Fixtures/gallery-playback-vp8.webm");
+                    assets[video - 1] = assets[video - 1] with { Bytes = await File.ReadAllBytesAsync(clip) };
+                }
                 await ArchiveCleanupFixtures.AssetsAsync(directory, assets);
                 await ArchiveCleanupFixtures.RegisterAsync(profile.Path, downloads, ThreadId);
                 MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
                 IReadOnlyList<MediaAssetReference> savedAssets = manifest.GetPage();
                 if (video > 0)
-                    videoPath = savedAssets.Single(asset => asset.RequestedFileName == names[video - 1]).Path;
+                {
+                    MediaAssetReference asset = savedAssets.Single(candidate => candidate.RequestedFileName == names[video - 1]);
+                    videoPath = asset.Path;
+                    await PrepareVideoPosterAsync(profile.Path, manifest, asset, windowsFileSharing);
+                }
                 TagQueueItem[] items = names.Select((name, index) =>
                 {
                     int number = index + 1;
@@ -653,6 +668,33 @@ public sealed class TaggingPagePanelTests
                 finally { window.Close(); }
             }
         });
+
+    private static async Task PrepareVideoPosterAsync(string profile, MediaAssetSnapshot manifest, MediaAssetReference asset, bool windowsFileSharing)
+    {
+        byte[] poster = VideoPosterCacheMaintenanceTests.Png(160, 90, SKColors.Teal);
+        Exception? sharingError = null;
+        VideoPosterCacheTestSeam decoder = new()
+        {
+            Decoder = (original, _) =>
+            {
+                using (original)
+                {
+                    // The native decoder owns this verified stream until its callbacks have finished.
+                    if (windowsFileSharing)
+                    {
+                        sharingError = Record.Exception(() =>
+                        {
+                            using FileStream exclusive = new(asset.Path, FileMode.Open, FileAccess.Read, FileShare.None);
+                        });
+                    }
+                    return Task.FromResult(poster);
+                }
+            }
+        };
+        string cache = Path.Combine(profile, "cache", "video-posters-v1");
+        Assert.Equal(poster, await VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None, testSeam: decoder));
+        if (windowsFileSharing) Assert.IsType<IOException>(sharingError);
+    }
 
     private static byte[] WideImageBytes()
     {
