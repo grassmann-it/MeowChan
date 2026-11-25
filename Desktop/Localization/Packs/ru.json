@@ -5541,6 +5541,8 @@
     "booru.tabs.moreActions": "Другие действия",
     "booru.tabs.command.submit": "Запустить поиск в Booru",
     "booru.tabs.command.alternate": "Запустить поиск в Booru в новой вкладке",
+    "booru.tabs.command.watch": "Отслеживать поисковый запрос в Booru",
+    "booru.tabs.command.downloadAll": "Начать или остановить массовую загрузку из Booru",
     "settings.booru.newSearchTarget": "Открывать новый поиск в",
     "settings.booru.newSearchTarget.hint": "Укажите, где открывать новый поиск, запущенный из поля поиска Booru.",
     "settings.booru.newSearchTarget.new": "Новая вкладка",

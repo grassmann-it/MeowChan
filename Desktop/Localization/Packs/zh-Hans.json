@@ -5397,6 +5397,8 @@
     "booru.tabs.moreActions": "更多操作",
     "booru.tabs.command.submit": "开始 Booru 搜索",
     "booru.tabs.command.alternate": "在新标签页中发起 Booru 搜索",
+    "booru.tabs.command.watch": "监视 Booru 搜索",
+    "booru.tabs.command.downloadAll": "开始或停止 Booru 批量下载",
     "settings.booru.newSearchTarget": "新搜索打开位置",
     "settings.booru.newSearchTarget.hint": "选择在 Booru 搜索框中发起的新搜索的打开位置。",
     "settings.booru.newSearchTarget.new": "新标签页",

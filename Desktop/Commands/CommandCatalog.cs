@@ -121,6 +121,8 @@ public static class CommandCatalog
         new("navigation.statistics", "command.navigation.statistics", "Statistics", "Statistik", "monitor", null, CommandScope.Application, new[] { "status-segment", "header-graph", "tray" }),
         new("booru.search.submit", "booru.tabs.command.submit", "Submit Booru search", "Booru-Suche starten", "search", "Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
         new("booru.search.alternate", "booru.tabs.command.alternate", "Submit Booru search in a new tab", "Booru-Suche in einem neuen Tab starten", "search", "Shift+Enter", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
+        new("booru.search.watch", "booru.tabs.command.watch", "Watch a Booru query", "Booru-Suche beobachten", "plus", "Primary+Shift+F7", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
+        new("booru.search.download-all", "booru.tabs.command.downloadAll", "Start or stop Booru bulk download", "Booru-Sammeldownload starten oder stoppen", "download", "Primary+Shift+F8", CommandScope.None, new[] { "booru-search-input" }, new[] { "booru" }),
         new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
@@ -540,7 +542,7 @@ public static class CommandCatalog
             return Texts.T("command.scope.export-open-html.reader");
         return id switch
         {
-            "booru.search.submit" or "booru.search.alternate" => Texts.T("booru.ui.input.label"),
+            "booru.search.submit" or "booru.search.alternate" or "booru.search.watch" or "booru.search.download-all" => Texts.T("booru.ui.input.label"),
             "archive.select-page" => Texts.T("command.scope.archive.select-page"),
             "archive.previous-page" or "archive.next-page" => Texts.T("command.scope.archive.page-navigation"),
             "selection.select-all" => Texts.T("command.scope.selection.select-all"),

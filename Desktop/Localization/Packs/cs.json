@@ -5563,6 +5563,8 @@
     "booru.tabs.moreActions": "Další akce",
     "booru.tabs.command.submit": "Spustit hledání v Booru",
     "booru.tabs.command.alternate": "Spustit hledání v Booru na nové kartě",
+    "booru.tabs.command.watch": "Sledovat dotaz v Booru",
+    "booru.tabs.command.downloadAll": "Spustit nebo zastavit hromadné stahování z Booru",
     "settings.booru.newSearchTarget": "Nové hledání se otevře v",
     "settings.booru.newSearchTarget.hint": "Určuje, kde se otevře nové hledání z vyhledávacího pole Booru.",
     "settings.booru.newSearchTarget.new": "Nová karta",

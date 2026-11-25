@@ -347,6 +347,16 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         {
             if (e.Handled || ShortcutServiceCapturing()) return;
             EffectiveShortcutBindings bindings = ShortcutService.Current;
+            Button? action = MatchesSearchShortcut(e, WatchSearchCommand, bindings) ? _createWatcher
+                : MatchesSearchShortcut(e, DownloadAllCommand, bindings) ? _downloadAll : null;
+            if (action != null)
+            {
+                // Overflow changes the presentation only. Both paths invoke the same enabled action.
+                if (!action.IsEffectivelyEnabled) return;
+                e.Handled = true;
+                CommandBindings.InvokeAction(action);
+                return;
+            }
             bool alternate = MatchesSearchShortcut(e, AlternateSubmitCommand, bindings);
             if (!alternate && !MatchesSearchShortcut(e, SubmitCommand, bindings)) return;
             e.Handled = true;
@@ -584,6 +594,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             : view.Mode == BooruInputMode.Post ? "booru.ui.watcher.createNeedsTags"
             : model.CanCreateWatcher ? "booru.ui.watcher.createHint"
             : "booru.ui.watcher.createInvalidTags");
+        if (_createWatcher.IsEnabled) createHelp = AddSearchShortcut(createHelp, WatchSearchCommand);
         AutomationProperties.SetName(_createWatcher, createName);
         AutomationProperties.SetHelpText(_createWatcher, createHelp);
         ToolTip.SetTip(_createWatcher, createHelp);

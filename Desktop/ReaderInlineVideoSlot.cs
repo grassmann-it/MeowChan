@@ -165,6 +165,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private string _name = string.Empty;
     private Action? _openGallery;
     private bool _current;
+    private bool _startsBlocked;
 
     /// <summary>
     /// Whether one of the owner's own commands has a key (the argument says whether the key is a command's gesture): the video key then gives way to it.
@@ -233,7 +234,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     /// <summary>The row the owner places under the media frame: transport (current video only), error line, live region.</summary>
     internal Control Below => Row;
     internal bool IsLive => _player != null;
-    internal bool IsOffered => _key != null && _controller?.Options.Enabled == true;
+    internal bool IsOffered => !_startsBlocked && _key != null && _controller?.Options.Enabled == true;
     internal bool IsPlaying => _player?.IsPlaying == true;
     internal string LiveText => _live.Text ?? string.Empty;
     internal string ErrorText => _error.IsVisible ? _error.Text ?? string.Empty : string.Empty;
@@ -247,6 +248,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     internal void Offer(ReaderInlineVideoController? controller, string? key, Func<CancellationToken, Task<GalleryEntry?>>? resolve, string name,
         Action? openGallery = null)
     {
+        if (_startsBlocked) return;
         bool usable = controller is { Options.Enabled: true } && key != null && resolve != null;
         if (!usable) { key = null; resolve = null; name = string.Empty; }
         if (!ReferenceEquals(controller, _controller) || !string.Equals(key, _key, StringComparison.Ordinal)) _ = ReleaseAsync();
@@ -323,6 +325,8 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             ReaderInlineVideoOptions options = controller.Options;
             await controller.PlayAsync(this, () =>
             {
+                // The controller yields before creating a player, so a release may have cancelled this activation.
+                activation.Token.ThrowIfCancellationRequested();
                 GalleryInlineVideoPlayer player = new(_area, Activator, _transportHost, entry, options,
                     _activatorWhenIdle ? ReaderInlineVideoRules.StartMutedViewer(options, controller.SessionMuted)
                         : ReaderInlineVideoRules.StartMuted(options, controller.SessionMuted, autoplay: muted),
@@ -361,6 +365,15 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         _activation = null;
         try { activation?.Cancel(); } catch (ObjectDisposedException) { }
         return _player != null && _controller != null ? _controller.ReleaseAsync(this) : Task.CompletedTask;
+    }
+
+    internal Task CloseForShutdownAsync()
+    {
+        _startsBlocked = true;
+        _openGallery = null;
+        Task release = ReleaseAsync();
+        UpdatePresentation();
+        return Task.WhenAll(ActivationTask, release);
     }
 
     /// <summary>The page applies the viewport rule (scrolled out pauses; on a native surface, partly out releases).</summary>
