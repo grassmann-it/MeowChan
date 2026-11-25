@@ -106,6 +106,7 @@ public sealed class ActionToolBar : ToolBar
     internal IEnumerable<Control> ReducedItems => Items.OfType<Control>()
         .Where(item => OverflowHost?.Children.Contains(item) == true || OmittedHost.Children.Contains(item));
 
+    internal event EventHandler<KeyEventArgs>? OverflowKeyDown;
 
     public ActionToolBar()
     {
@@ -383,7 +384,8 @@ public sealed class ActionToolBar : ToolBar
     private void OnOverflowKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || OverflowHost == null) return;
-        // This is popup navigation, never an app command/gesture dispatcher.
+        OverflowKeyDown?.Invoke(this, e);
+        if (e.Handled) return;
         if (e.Key == Key.Escape)
         {
             if (More != null) { More.IsChecked = false; More.Focus(); }

@@ -63,7 +63,7 @@ public partial class MainWindow
             menu.Close();
         }, RoutingStrategies.Tunnel);
         PopupToggle.Track(button, menu);
-        menu.Open(button);
+        menu.Open(anchor);
         button.IsChecked = menu.IsOpen;
     }
 
@@ -91,6 +91,7 @@ public partial class MainWindow
     // can run the column command separately. Rows keep their own menu (MainWindow.Selection.cs).
     private void InitializeDownloadHeaderMenus()
     {
+        WorkspaceListActions.OverflowKeyDown += OnDownloadOverflowKeyDown;
         foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
         {
             DataGrid grid = WorkspaceControl<DataGrid>(gridName);
@@ -106,6 +107,14 @@ public partial class MainWindow
                 menu.Open(header);
             }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         }
+    }
+
+    private void OnDownloadOverflowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (ShortcutService.IsCapturing || !CanFocusDownloadSearch || !DownloadsColumnsButton.IsVisible
+            || !CanExecuteShellPowerCommand(e.Source, e.Key) || !DownloadsMatches(e, "table.choose-columns")) return;
+        e.Handled = true;
+        ToggleDownloadColumns();
     }
 
     /// <summary>The column menu of a downloads table: one switch per offered column (the last visible one cannot be hidden), then the reset.</summary>

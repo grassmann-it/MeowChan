@@ -19,10 +19,10 @@ internal sealed class DownloadWindowFixture(MainWindow window, DesktopSessionHos
     internal T Find<T>(string name) where T : Control => Window.FindControl<T>(name)!;
 
     internal static void Run(Func<DownloadWindowFixture, Task> exercise, Action? preparePlatform = null,
-        string workspaceMode = "Advanced") =>
+        string workspaceMode = "Advanced", bool overlayPopups = true) =>
         BooruComponentDispatcher.Run(() =>
         {
-            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using IDisposable platform = BooruReviewTestPlatform.Enter(overlayPopups: overlayPopups);
             preparePlatform?.Invoke();
             using TempDirectory profile = new();
             new Config

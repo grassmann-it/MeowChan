@@ -300,6 +300,36 @@ public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
             : $"{control.GetType().Name}#{AutomationProperties.GetAutomationId(control) ?? control.Name ?? "<unnamed>"}";
     }, mode);
 
+    [Theory]
+    [InlineData("Barebones")]
+    [InlineData("Simple")]
+    public void ColumnsShortcutWorksFromTheOpenDownloadsOverflow(string mode) => RunWithGrid(fixture =>
+    {
+        fixture.ShowThreads([Thread(1)]);
+        var toolbar = ById<ActionToolBar>(fixture.Window, "WorkspaceListActions");
+        var more = Assert.IsAssignableFrom<ToggleButton>(toolbar.More);
+        Click(fixture, more);
+        Assert.True(more.IsChecked);
+        var overflow = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(toolbar.OverflowHost));
+        var columns = ById<ToggleButton>(overflow, "DownloadsColumnsButton");
+        Assert.False(columns.Focusable);
+
+        ShortcutBindingsSection original = ShortcutService.CurrentSection;
+        try
+        {
+            ShortcutService.Publish(original.Set("table.choose-columns", [ShortcutGesture.Parse("F8")]));
+            var gesture = new KeyGesture(Key.F8);
+            Press(fixture, overflow, gesture);
+            var menu = Assert.IsType<ContextMenu>(columns.ContextMenu);
+            Assert.True(menu.IsOpen && menu.IsKeyboardFocusWithin);
+            Assert.Same(columns, menu.PlacementTarget);
+            Press(fixture, TopLevel.GetTopLevel(menu)!, gesture);
+            Assert.False(menu.IsOpen);
+        }
+        finally { ShortcutService.Publish(original); }
+        return Task.CompletedTask;
+    }, mode, overlayPopups: false);
+
     [Fact]
     public void TheReadingHistoryArrowContextShortcutAndEscapeKeepTheSameOpenState() => RunWithGrid(async fixture =>
     {
@@ -363,8 +393,8 @@ public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
             Assert.Single(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS).For("input.focus-download-search"))
                 .Resolve(ShortcutPlatform.MacOS));
 
-    private static void RunWithGrid(Func<DownloadWindowFixture, Task> exercise, string workspaceMode = "Advanced") =>
-        Run(exercise, () => Application.Current!.Styles.Insert(1, new DataGridSemiTheme()), workspaceMode);
+    private static void RunWithGrid(Func<DownloadWindowFixture, Task> exercise, string workspaceMode = "Advanced", bool overlayPopups = true) =>
+        Run(exercise, () => Application.Current!.Styles.Insert(1, new DataGridSemiTheme()), workspaceMode, overlayPopups);
 
     private static T ById<T>(Visual root, string id) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
