@@ -123,7 +123,9 @@ internal static class GalleryImageDecoder
             if (!background) DecodeStarted?.Invoke(request);
             if (previewMaximumPixels == null && entry.Asset.Length > MaximumBytes)
                 throw new InvalidDataException(Localization.Texts.T("gallery.image.error.fileLimit"));
-            await using Stream stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken).ConfigureAwait(false);
+            await using Stream stream = await (previewMaximumPixels.HasValue
+                ? GallerySidebarOriginal.OpenAsync(entry, cancellationToken)
+                : entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken)).ConfigureAwait(false);
             verified?.Invoke();
             if (entry.Asset.Length > MaximumBytes) throw new GalleryPreviewTooLargeException();
             GalleryImageInfo info;

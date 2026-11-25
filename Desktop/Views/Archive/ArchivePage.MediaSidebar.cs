@@ -849,7 +849,7 @@ public partial class ArchivePage
         (double Width, double Height) target = MediaSidebarTarget(sidebar);
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(mediumKey, target);
         if (!ticket.UpToDate && !ticket.SameMedium)
-            sidebar.SetImageVerification(SavedMediaTypes.Classify(file.Name) == SavedMediaKind.Image ? null : true);
+            sidebar.SetImageVerification(null);
         ThreadMediaPositions? media = _thread?.MediaPositions;
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
         GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
@@ -1013,7 +1013,7 @@ public partial class ArchivePage
                 if (sidebar.BeforePreviewDecodeForTests is { } beforeDecode) await beforeDecode(entry.Asset.Path, ct);
                 return await load.ReadImageAsync(entry, new(target.Width, target.Height), ct);
             }
-            if (IsCurrentSidebarRequest(ticket.Request)) sidebar.SetImageVerification(true);
+            if (IsCurrentSidebarRequest(ticket.Request)) sidebar.SetImageVerification(true, entry);
             if (entry.Kind == SavedMediaKind.Video && row.LoadSized is { } poster)
             {
                 Bitmap? bitmap = await poster((int)target.Width, (int)target.Height, ct);
