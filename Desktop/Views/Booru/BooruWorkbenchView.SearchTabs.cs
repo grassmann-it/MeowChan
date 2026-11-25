@@ -89,6 +89,7 @@ internal sealed partial class BooruWorkbenchView
         AutomationProperties.SetAutomationId(_openWatchers, OpenWatchersName);
         AutomationProperties.SetAutomationId(_watchersTab, WatchersTabName);
         AutomationProperties.SetAutomationId(_tabLimitText, TabLimitNoticeName);
+        AutomationProperties.SetAutomationId(_downloadAll, DownloadAllName);
         AutomationProperties.SetAutomationId(_bulkHost, BulkStatusName);
         _searchContent = content;
         _addTab.Header = _newTabButton;
