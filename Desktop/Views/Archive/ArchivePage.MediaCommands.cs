@@ -144,7 +144,7 @@ public partial class ArchivePage
         if (sender is not Control surface || e.Source is not Control source || !ContextClick.IsMacControlPress(e, surface)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
-            || SidebarStripContext(path) != null)
+            || IsSidebarStripSource(path))
             ContextClick.RequestOnMacControlPress(e, surface);
     }
 
@@ -168,11 +168,15 @@ public partial class ArchivePage
     private void OnArchiveMediaContextKey(object? sender, KeyEventArgs e)
     {
         _sidebarPointerContext.Reset(); // a key ends a pointer gesture whose release never came
-        if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)
-            || _mediaSidebar is { } sidebar && IsMediaSidebarSource(source) && SidebarChildOwnsContext(source, sidebar)) return;
+        if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (_mediaSidebar is { } sidebar && IsMediaSidebarSource(source))
+        {
+            if (SidebarChildOwnsContext(source, sidebar)) return;
+            if (sidebar.IsShowingStalePicture && !path.Contains(sidebar.Strip)) { ContextClick.RejectKeyPress(sidebar, e); return; }
+        }
         if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
-            && SidebarMediaContext(path) == null && SidebarStripContext(path) == null
+            && SidebarMediaContext(path) == null && !IsSidebarStripSource(path)
             && (SavedMediaSidebarRow == null || !IsMediaSidebarSource(source))) return;
         ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
@@ -193,10 +197,17 @@ public partial class ArchivePage
         if (e.Handled || _ended || !_available || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || e.Source is not Control source
             || !ContextClick.IsPress(e, sidebar) || SidebarChildOwnsContext(source, sidebar)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
-        if (ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;
-        ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
-        source.RaiseEvent(request);
-        if (!request.Handled) return;
+        if (IsSidebarStripSource(ancestors))
+        {
+            ContextClick.RequestOnMacControlPress(e, sidebar);
+            return;
+        }
+        if (!sidebar.IsShowingStalePicture)
+        {
+            ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
+            source.RaiseEvent(request);
+            if (!request.Handled) return;
+        }
         e.Handled = true;
         _sidebarPointerContext.MenuOpenedByPress(ContextClick.Button(e, sidebar));
     }
@@ -220,21 +231,15 @@ public partial class ArchivePage
         if (e.Handled || _ended || !_available || e.Source is not Control source) return;
         // Text inputs and selectable text keep their own native menu.
         if (MediaMenuPresenter.IsNativeTextSource(source)) return;
+        Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (_mediaSidebar is { } sidebar && IsMediaSidebarSource(source))
         {
             if (SidebarChildOwnsContext(source, sidebar)) return;
-            if (e.TryGetPosition(sidebar, out Point position) && sidebar.IsStalePictureHit(source, position))
+            if (_sidebarPointerContext.TryConsume() || sidebar.IsShowingStalePicture && !ancestors.Contains(sidebar.Strip))
             {
                 e.Handled = true;
                 return;
             }
-        }
-        Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
-        if (_sidebarPointerContext.IsPending && _mediaSidebar != null && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
-            && _sidebarPointerContext.TryConsume()) // the menu opened with the press
-        {
-            e.Handled = true;
-            return;
         }
         ArchiveAttachmentView? attachmentView = ancestors.OfType<ArchiveAttachmentView>().FirstOrDefault();
         ArchiveAttachmentRow? attachment = attachmentView?.DataContext as ArchiveAttachmentRow;
@@ -257,8 +262,9 @@ public partial class ArchivePage
             asset = saved; origin = _mediaSidebar?.FrameArea; playback = _sidebarVideo;
         }
         // A thumbnail of the sidebar's strip: the menu of that file, not of the one shown (right-click, Menu key, Shift+F10).
-        else if (attachment == null && asset == null && SidebarStripContext(ancestors) is { } thumbnail)
+        else if (attachment == null && asset == null && IsSidebarStripSource(ancestors))
         {
+            if (SidebarStripContext(ancestors, keyboard) is not { } thumbnail) { e.Handled = true; return; }
             attachment = thumbnail.Attachment; postId = thumbnail.PostId; origin = thumbnail.Origin; playback = thumbnail.Shown ? _sidebarVideo : null;
         }
         else if (attachment == null && asset == null && SidebarMediaContext(ancestors, keyboard) is { } shown)
@@ -361,14 +367,13 @@ public partial class ArchivePage
         return routed;
     }
 
-    // The sidebar stands for the medium it shows: its attachment, post and menu origin. A pointer right click anywhere in the sidebar counts (picture, video row,
-    // header line and its buttons, the edge around the card); a thumbnail of the strip stands for its own file (SidebarStripContext). With the keyboard (the
-    // Menu key, Shift+F10) any focus inside the sidebar stands for it, its strip included.
+    // The sidebar stands for the medium it shows. The strip resolves each thumbnail through its own binding.
     private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors, bool keyboard = true)
     {
         if (ArchiveMediaTab.IsSelected) return null;
-        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar))
-            || !keyboard && ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))) return null;
+        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Contains(_mediaSidebar)) return null;
+        if (ancestors.Contains(_mediaSidebar.Strip))
+            return keyboard && SidebarStripContext(ancestors) is { } thumbnail ? (thumbnail.Attachment, thumbnail.PostId, thumbnail.Origin) : null;
         return _displayedSidebarMedium is { } shown && ReferenceEquals(_thread, shown.Thread)
             ? (shown.Attachment, shown.Post.Id, _mediaSidebar.FrameArea) : null;
     }
@@ -397,16 +402,20 @@ public partial class ArchivePage
         return OpenRateAndTagAsync(subject, anchor, null, QuickTagInitialFocus.TagInput, shown.Attachment.Label, Current, sidebarToken: token);
     }
 
-    // A thumbnail of the sidebar's strip stands for its own file of the focused post: its attachment, post and the thumbnail as menu origin. From the keyboard the
-    // strip itself is the source, and the menu is the focused (the selected, i.e. shown) thumbnail's. Shown tells whether that file is the one the sidebar shows.
-    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin, bool Shown)? SidebarStripContext(Control[] ancestors)
+    private bool IsSidebarStripSource(Control[] ancestors) => _mediaSidebar is { } sidebar && ancestors.Contains(sidebar.Strip);
+
+    private ListBoxItem? SidebarStripItem(Control[] ancestors, bool keyboard)
     {
-        if (ArchiveMediaTab.IsSelected || _mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.Strip))
-            || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } post) return null;
-        ListBoxItem? item = ancestors.OfType<ListBoxItem>().FirstOrDefault(candidate => candidate.Tag is int)
-            ?? _mediaSidebar.Strip.SelectedItem as ListBoxItem;
-        if (item?.Tag is not int index || index < 0 || index >= post.Attachments.Count) return null;
-        return (post.Attachments[index], post.Id, item, index == ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, post.Attachments.Count));
+        if (_mediaSidebar is not { } sidebar || !ancestors.Contains(sidebar.Strip)) return null;
+        return ItemActivation.ContainerAt(ancestors[0], sidebar.Strip) as ListBoxItem
+            ?? (keyboard ? sidebar.Strip.SelectedItem as ListBoxItem : null);
+    }
+
+    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin, bool Shown)? SidebarStripContext(Control[] ancestors, bool keyboard = true)
+    {
+        if (SidebarStripItem(ancestors, keyboard) is not { Tag: ReaderMediaSidebar.StripTarget target } item
+            || CurrentSidebarStripPost(target) is not { } post) return null;
+        return (post.Attachments[target.Index], post.Id, item, target.Index == _sidebarIndex);
     }
 
     private Func<CancellationToken, Task<bool>>? CaptureSidebarTargetGuard(Control origin, GalleryEntry target)
@@ -639,9 +648,7 @@ public partial class ArchivePage
             asset = saved;
             origin = _mediaSidebar?.FrameArea;
         }
-        else if (asset == null && (SidebarStripContext(parents) is { } thumbnail ? (thumbnail.Attachment, thumbnail.PostId, thumbnail.Origin)
-                     : SidebarMediaContext(parents) is { } shown ? (shown.Attachment, shown.PostId, shown.Origin)
-                     : selectedPost ? SelectedPostMedium(parents, source) : null) is { } medium)
+        else if (asset == null && (SidebarMediaContext(parents) ?? (selectedPost ? SelectedPostMedium(parents, source) : null)) is { } medium)
         {
             (attachment, postId, origin) = medium;
             asset = FindMatchingAsset(threadId, medium.PostId, medium.Attachment.Attachment, _assets);

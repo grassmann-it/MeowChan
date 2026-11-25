@@ -37,6 +37,37 @@ internal static class ContextClick
         e.Handled = request.Handled;
     }
 
+    // Avalonia can request a menu on KeyUp, even when the KeyDown was rejected. Keep that gesture
+    // consumed through repeats and release, including if focus moves within the window.
+    internal static void RejectKeyPress(Control origin, KeyEventArgs press)
+    {
+        press.Handled = true;
+        if (TopLevel.GetTopLevel(origin) is not Window window) return;
+        Key key = press.Key;
+        window.AddHandler(InputElement.KeyDownEvent, ConsumeRepeat, RoutingStrategies.Tunnel);
+        window.AddHandler(InputElement.KeyUpEvent, ConsumeRelease, RoutingStrategies.Tunnel, handledEventsToo: true);
+        window.Deactivated += Detach;
+
+        void ConsumeRepeat(object? sender, KeyEventArgs e)
+        {
+            if (e.Key == key) e.Handled = true;
+        }
+
+        void ConsumeRelease(object? sender, KeyEventArgs e)
+        {
+            if (e.Key != key) return;
+            e.Handled = true;
+            Detach(sender, e);
+        }
+
+        void Detach(object? sender, EventArgs e)
+        {
+            window.RemoveHandler(InputElement.KeyDownEvent, ConsumeRepeat);
+            window.RemoveHandler(InputElement.KeyUpEvent, ConsumeRelease);
+            window.Deactivated -= Detach;
+        }
+    }
+
     internal static void ConsumeOpeningKeyRelease(ContextMenu? menu, Key key, Control? origin = null)
     {
         if (menu is not { IsOpen: true }) return;

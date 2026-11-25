@@ -619,6 +619,23 @@ public sealed class TaggingPagePanelTests
     }
 
     [Fact]
+    public void ClickingTheReadyPosterStartsTheTaggingVideoWithAutoplayOff()
+    {
+        VideoOpens opens = new();
+        WithPage(false, async fixture =>
+        {
+            await ShowVideoAsync(fixture);
+            await fixture.WaitAsync(() => fixture.Picture.Source is Bitmap poster && poster.PixelSize == new PixelSize(160, 90),
+                "the saved video's poster");
+            ReaderInlineVideoSlot slot = Assert.IsType<ReaderInlineVideoSlot>(fixture.Page.PanelVideo);
+            Assert.False(fixture.Page.PanelVideoController.Options.SidebarAutoplay);
+            Assert.Equal(0, opens.ForPlaying);
+            fixture.Click(slot.Activator);
+            Assert.Equal(1, opens.ForPlaying);
+        }, video: 2, openVideoManifest: opens.OpenAsync);
+    }
+
+    [Fact]
     public void TheSidebarVideoFollowsTheSharedLoopMuteAndVolumeSettings() => WithPage(false, async fixture =>
     {
         await fixture.ShowsAsync(1);
