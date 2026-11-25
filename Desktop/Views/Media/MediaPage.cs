@@ -1355,6 +1355,31 @@ public sealed partial class MediaPage : UserControl
         // Everything below the common section belongs to this page: it works on the grid, not on one medium.
         List<Control> context = new();
         if (several) context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
+        foreach (PrivateTagDefinition tag in row.TagChips.Take(row.ShownTagChips))
+        {
+            Guid id = tag.Id.Value;
+            string name = tag.Name.Display;
+            Task FilterTag(bool include)
+            {
+                if (include) FilterToTag(id); else ExcludeTag(id);
+                FocusGrid();
+                return Task.CompletedTask;
+            }
+            MenuItem TagAction(string command, Func<Task> action)
+            {
+                MenuItem item = MediaMenuBuilder.ContextCommandItem(session, command, action, () => true, Run, null, CommandCatalog.Label(command));
+                AutomationProperties.SetAutomationId(item, command + ":" + id);
+                return item;
+            }
+            MenuItem submenu = MediaMenuBuilder.Submenu(session, "media.tile.tag:" + id, name,
+            [
+                TagAction(TagPickerMenu.Include, () => FilterTag(include: true)),
+                TagAction(TagPickerMenu.Exclude, () => FilterTag(include: false)),
+                TagAction(TagPickerMenu.CopyName, () => MenuClipboard.CopyAsync(origin, name))
+            ], icon: MenuIcon(TagPickerMenu.Include));
+            AutomationProperties.SetAutomationId(submenu, "MediaTileTagMenu:" + id);
+            context.Add(submenu);
+        }
         context.Add(MediaMenuBuilder.ContextItem(session, "media.filter.onlyThread", () => { FilterToThread(entry); return Task.CompletedTask; },
             () => !several, Run, MediaMenuReasons.SeveralSelected, MenuIcon("tags.filter-only")));
         context.Add(MediaMenuBuilder.ContextItem(session, "media.occurrences", () => { ShowOccurrences(tile); return Task.CompletedTask; },

@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
@@ -51,6 +52,10 @@ public partial class ArchivePage
             list.AddHandler(InputElement.PointerPressedEvent, (_, e) => NoteMediaLead(e.Source), RoutingStrategies.Tunnel, handledEventsToo: true);
             list.AddHandler(InputElement.KeyDownEvent, OnMediaSelectionKey, RoutingStrategies.Tunnel);
         }
+        ArchiveMediaGrid.CurrentCellChanged += (_, _) =>
+        {
+            if (!_mediaTiles) NoteMediaLead(ArchiveMediaGrid.CurrentRowItem as ArchiveAssetRow);
+        };
         AutomationProperties.SetLiveSetting(ArchiveMediaSelectionStatus, AutomationLiveSetting.Polite);
     }
 
@@ -59,12 +64,50 @@ public partial class ArchivePage
         if (source is not Visual visual) return;
         ArchiveAssetRow? row = visual.GetSelfAndVisualAncestors().OfType<Control>().Select(control => control.DataContext)
             .OfType<ArchiveAssetRow>().FirstOrDefault();
-        if (row == null || ReferenceEquals(row, _mediaLead)) return;
+        NoteMediaLead(row);
+    }
+
+    private void NoteMediaLead(ArchiveAssetRow? row)
+    {
+        if (_rebindingMedia || row == null || ReferenceEquals(row, _mediaLead)) return;
         _mediaLead = row;
         if (SelectedMediaCount > 1) FollowSavedMediaSelection();
     }
 
     private Control VisibleMediaList => _mediaTiles ? ArchiveMediaTiles : ArchiveMediaGrid;
+
+    private bool FocusSelectedMedia() => SelectedMediaFocusTarget()?.Focus() == true || VisibleMediaList.Focus();
+
+    private Control? SelectedMediaFocusTarget()
+    {
+        Control list = VisibleMediaList;
+        if (!list.IsEffectivelyVisible) return null;
+        if (SelectedMediaRow() is { } lead)
+        {
+            if (_mediaTiles)
+            {
+                ArchiveMediaTiles.ScrollIntoView(lead);
+                if (ArchiveMediaTiles.ContainerFromItem(lead) is Control tile) return tile;
+            }
+            else
+            {
+                ArchiveMediaGrid.ScrollIntoView(lead, ArchiveMediaGrid.CurrentColumn);
+                // The grid owns keyboard focus and keeps its current cell independently of SelectedItem.
+                if (ReferenceEquals(ArchiveMediaGrid.CurrentRowItem, lead) && ArchiveMediaGrid.IsKeyboardFocusWithin
+                    && TopLevel.GetTopLevel(list)?.FocusManager?.GetFocusedElement() is Control focused) return focused;
+                DataGridRow? row = ArchiveMediaGrid.GetVisualDescendants().OfType<DataGridRow>()
+                    .FirstOrDefault(item => ReferenceEquals(item.DataContext, lead));
+                DataGridCell? cell = row?.GetVisualDescendants().OfType<DataGridCell>().FirstOrDefault(item => item.IsEffectivelyVisible);
+                if (cell != null)
+                {
+                    cell.Focusable = true;
+                    cell.IsTabStop = false;
+                    return cell;
+                }
+            }
+        }
+        return list;
+    }
 
     private int SelectedMediaCount => (_mediaTiles ? ArchiveMediaTiles.SelectedItems : ArchiveMediaGrid.SelectedItems)?.Count ?? 0;
 
@@ -137,7 +180,9 @@ public partial class ArchivePage
     {
         if (e.Handled || _ended || !_available || IsReaderDialogOpen || sender is not Control list
             || !MainWindow.IsListCommandSource(e.Source, list) || !ReferenceEquals(list, VisibleMediaList)) return;
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && ArchiveMediaSelection.ShowsStatus(SelectedMediaCount))
+        if (e.KeyModifiers == KeyModifiers.Meta && e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
+            e.Handled = true;
+        else if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && ArchiveMediaSelection.ShowsStatus(SelectedMediaCount))
         {
             ClearMediaSelection();
             e.Handled = true;
@@ -221,6 +266,7 @@ public partial class ArchivePage
     private async Task RunMediaSelectionButtonAsync(Button button, Func<ArchivedThreadView, ArchiveAssetRow[], GalleryEntry[], Control, Task> action)
     {
         if (!button.IsEnabled || FreezeMediaSelection() is not { } frozen) return;
+        FocusSelectedMedia();
         Action<string> reportError = CaptureActionErrorReporter();
         try { await action(frozen.Thread, frozen.Rows, frozen.Entries, button); }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
