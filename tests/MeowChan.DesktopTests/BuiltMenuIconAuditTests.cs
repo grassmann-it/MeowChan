@@ -145,47 +145,57 @@ public sealed class BuiltMenuIconAuditTests
         Assert.Equal(Texts.T("shell.switchToDark"), theme.Header);
 
         // Exercise the window's native projection with an in-process tray, regardless of system tray support.
-        TrayIcon tray = (TrayIcon?)Field(typeof(MainWindow), "_trayIcon").GetValue(window) ?? new TrayIcon();
-        if (tray.Menu == null)
+        FieldInfo trayField = Field(typeof(MainWindow), "_trayIcon");
+        TrayIcon? windowTray = (TrayIcon?)trayField.GetValue(window);
+        using TrayIcon? fixtureTray = windowTray == null ? new TrayIcon() : null;
+        TrayIcon tray = windowTray ?? fixtureTray!;
+        try
         {
-            Field(typeof(MainWindow), "_trayIcon").SetValue(window, tray);
-            typeof(MainWindow).GetMethod("ConfigureTrayIcon", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, [tray]);
+            if (tray.Menu == null)
+            {
+                trayField.SetValue(window, tray);
+                typeof(MainWindow).GetMethod("ConfigureTrayIcon", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, [tray]);
+            }
+            var stats = (TrayStatsPresenter)Field(typeof(MainWindow), "_trayStats").GetValue(window)!;
+            var update = (NativeMenuItem)Field(typeof(MainWindow), "_trayUpdateItem").GetValue(window)!;
+            Assert.False(update.IsVisible);
+            Assert.NotNull(update.Icon);
+            Assert.Null(update.Gesture);
+            await session.Updates.CheckAsync();
+            await BooruTestSupport.WaitAsync(() => update.IsVisible, "available update in the tray");
+            Assert.Equal(Texts.T("updates.available", "9.9.9"), update.Header);
+            Texts.SetLanguage("de");
+            await BooruTestSupport.WaitAsync(() => Equals(update.Header, Texts.T("updates.available", "9.9.9")), "localized tray reminder");
+            menu = OpenTaglineMenu();
+            another = Assert.Single(menu.Items.OfType<MenuItem>(), row => AutomationProperties.GetAutomationId(row) == "tagline.another");
+            Assert.Equal(Texts.T("shell.tagline.menuAnother"), another.Header);
+            var settings = Assert.Single(menu.Items.OfType<MenuItem>(), row => Equals(row.Tag, "tagline.settings"));
+            Assert.Equal(CommandCatalog.Label("navigation.settings"), settings.Header);
+            menu.Close();
+            var ids = new Dictionary<NativeMenuItem, string>
+            {
+                [Item("_trayOpenItem")] = "app.show",
+                [Item("_trayFolderItem")] = "location.open-folder",
+                [Item("_clipboardMenuItem")] = "watch.import-clipboard",
+                [Item("_trayPauseItem")] = "session.pause",
+                [update] = "updates.check",
+                [Item("_trayStatusItem")] = "navigation.status",
+                [Item("_traySettingsItem")] = "navigation.settings",
+                [Item("_trayExitItem")] = "app.quit",
+                [stats.RatesItem] = "rate",
+                [stats.DiskItem] = "disk",
+                [stats.DetailItem] = "detail"
+            };
+            MenuIconAudit.VerifyNative("tray", tray.Menu!.Items.OfType<NativeMenuItem>()
+                    .Select((item, index) => (ids.GetValueOrDefault(item, "row." + index), item)),
+                new("tray", "rate", "Live rate summary and a link to statistics."),
+                new("tray", "disk", "Live disk summary and a link to statistics."),
+                new("tray", "detail", "Live activity summary and a link to statistics."));
         }
-        var stats = (TrayStatsPresenter)Field(typeof(MainWindow), "_trayStats").GetValue(window)!;
-        var update = (NativeMenuItem)Field(typeof(MainWindow), "_trayUpdateItem").GetValue(window)!;
-        Assert.False(update.IsVisible);
-        Assert.NotNull(update.Icon);
-        Assert.Null(update.Gesture);
-        await session.Updates.CheckAsync();
-        await BooruTestSupport.WaitAsync(() => update.IsVisible, "available update in the tray");
-        Assert.Equal(Texts.T("updates.available", "9.9.9"), update.Header);
-        Texts.SetLanguage("de");
-        await BooruTestSupport.WaitAsync(() => Equals(update.Header, Texts.T("updates.available", "9.9.9")), "localized tray reminder");
-        menu = OpenTaglineMenu();
-        another = Assert.Single(menu.Items.OfType<MenuItem>(), row => AutomationProperties.GetAutomationId(row) == "tagline.another");
-        Assert.Equal(Texts.T("shell.tagline.menuAnother"), another.Header);
-        var settings = Assert.Single(menu.Items.OfType<MenuItem>(), row => Equals(row.Tag, "tagline.settings"));
-        Assert.Equal(CommandCatalog.Label("navigation.settings"), settings.Header);
-        menu.Close();
-        var ids = new Dictionary<NativeMenuItem, string>
+        finally
         {
-            [Item("_trayOpenItem")] = "app.show",
-            [Item("_trayFolderItem")] = "location.open-folder",
-            [Item("_clipboardMenuItem")] = "watch.import-clipboard",
-            [Item("_trayPauseItem")] = "session.pause",
-            [update] = "updates.check",
-            [Item("_trayStatusItem")] = "navigation.status",
-            [Item("_traySettingsItem")] = "navigation.settings",
-            [Item("_trayExitItem")] = "app.quit",
-            [stats.RatesItem] = "rate",
-            [stats.DiskItem] = "disk",
-            [stats.DetailItem] = "detail"
-        };
-        MenuIconAudit.VerifyNative("tray", tray.Menu!.Items.OfType<NativeMenuItem>()
-                .Select((item, index) => (ids.GetValueOrDefault(item, "row." + index), item)),
-            new("tray", "rate", "Live rate summary and a link to statistics."),
-            new("tray", "disk", "Live disk summary and a link to statistics."),
-            new("tray", "detail", "Live activity summary and a link to statistics."));
+            if (fixtureTray != null) trayField.SetValue(window, null);
+        }
 
         NativeMenuItem Item(string field) => Assert.IsType<NativeMenuItem>(Field(typeof(MainWindow), field).GetValue(window));
         ContextMenu OpenTaglineMenu()
