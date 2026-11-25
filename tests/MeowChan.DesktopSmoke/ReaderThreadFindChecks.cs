@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
@@ -57,7 +58,7 @@ internal static class ReaderThreadFindChecks
                 Texts.SetLanguage(code); // ordinary catalogs/fallback, never fake packs
                 await JourneyAsync(owner, profile, first, second, code);
                 foreach (bool fullscreen in new[] { false, true })
-                foreach (string source in new[] { "ReaderFindQuery", "ReaderFindOpen" })
+                foreach (string source in new[] { "ReaderFindQuery", "ReaderFindNext" })
                     await ShellRoutingAsync(owner, code, fullscreen, source);
             }
         }
@@ -117,14 +118,18 @@ internal static class ReaderThreadFindChecks
             Click("ReaderFindPrevious");
             CheckHit(2, 26); // wrap, two occurrences in one post remain distinct
             Require(query.IsFocused && query.Text == Needle, "Hit navigation moved focus or changed the query.");
-            // SearchBox: the first Escape empties the typed query and keeps the bar; the second closes it.
+            // Toggle audit, Reader Find: Escape collapses even with text. Only Clear discards the draft.
             Dispatch(Key.Escape);
-            Require(string.IsNullOrEmpty(query.Text) && C<StackPanel>("ReaderFindBar").IsVisible,
-                "First own-bar Escape did not clear the typed query while keeping the bar open.");
+            Require(query.Text == Needle && !C<StackPanel>("ReaderFindBar").IsVisible && posts.IsKeyboardFocusWithin,
+                "Escape did not retain the draft and return to the post.");
+            Click("ReaderFindOpen");
+            Require(query.Text == Needle && query.IsFocused, "Reopening Find lost the draft or editor focus.");
+            SmokeActionClick.Execute(((MeowChan.Desktop.Controls.SearchBox)query).ClearButton);
+            Require(string.IsNullOrEmpty(query.Text) && query.IsFocused, "Clear did not empty the visible editor.");
             Dispatch(Key.Escape);
-            Require(!C<StackPanel>("ReaderFindBar").IsVisible, "Own-bar Escape in an empty query did not close.");
-            query.Text = Needle; // the closed bar's query seeds the next sections exactly as before the clear-first Escape
-            Console.WriteLine($"SMOKE reader-find journey [{language}]: offline404/651, count/exact excerpt, offscreen ShowPost, own-bar managed Enter/ShiftEnter/Escape (clear, then close) checked.");
+            Require(!C<StackPanel>("ReaderFindBar").IsVisible && posts.IsKeyboardFocusWithin,
+                "Escape in the empty query did not close Find and focus the post.");
+            Console.WriteLine($"SMOKE reader-find journey [{language}]: exact hits, offscreen post, Enter/ShiftEnter, Escape with draft, explicit Clear and empty Escape checked.");
 
             await InputBoundariesAsync();
             await CappedLayoutAsync();
@@ -486,13 +491,13 @@ internal static class ReaderThreadFindChecks
                 }
                 Require(unexpectedClicks == 0 && routedAtShell == 19,
                     "Find Enter gestures clicked a button or did not traverse the real Window tunnel.");
-                // SF-03 / F17: Enter on the focused active Find toggle closes the bar.
-                await SendAsync(toggle, Key.Enter);
-                Require(!C<StackPanel>("ReaderFindBar").IsVisible && C<Avalonia.Controls.Primitives.ToggleButton>("ReaderFindOpen").IsChecked != true,
-                    "Enter on the focused Find toggle did not close the find bar.");
-                // SF-05: Primary+F opens thread find from a focused reader control.
-                await SendAsync(C<Button>("ReaderFindOpen"), Key.F,
-                    OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
+                // Toggle audit: the unfocusable opener and effective find shortcut both return to the working post.
+                Require(!toggle.Focusable, "The Find opener takes keyboard focus.");
+                KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+                await SendAsync(C<TextBox>("ReaderFindQuery"), Key.F, primary);
+                Require(!C<StackPanel>("ReaderFindBar").IsVisible && C<Avalonia.Controls.Primitives.ToggleButton>("ReaderFindOpen").IsChecked != true
+                    && C<TextBox>("ReaderFindQuery").Text == Needle, "Closing Find lost its state or draft.");
+                await SendAsync(FocusedPost(), Key.F, primary);
                 Require(C<StackPanel>("ReaderFindBar").IsVisible && C<TextBox>("ReaderFindQuery").IsFocused,
                     "Primary+F did not open thread find in the reader.");
                 await page.ThreadFindTask.WaitAsync(Deadline);
@@ -517,24 +522,25 @@ internal static class ReaderThreadFindChecks
                     TextBox findQuery = C<TextBox>("ReaderFindQuery");
                     if (sourceName == "ReaderFindQuery")
                     {
-                        // SearchBox: with a typed query the first Escape only clears it; the bar, reader and shell stay.
                         await SendAsync(findQuery, Key.Escape);
-                        Require(routedAtShell == beforeRoute + 1 && string.IsNullOrEmpty(findQuery.Text)
-                            && C<StackPanel>("ReaderFindBar").IsVisible && reader.IsVisible
+                        Require(routedAtShell == beforeRoute + 1 && findQuery.Text == Needle
+                            && !C<StackPanel>("ReaderFindBar").IsVisible && reader.IsVisible
                             && ReferenceEquals(page.CurrentThread, snapshot) && shell.WindowState == state && unexpectedClicks == 0,
-                            "First Escape in a typed find query did not just clear it.");
+                            "Escape in the typed field lost the draft or dismissed its reader.");
+                        _ = FocusedPost();
+                        await OpenFindAsync();
                         beforeRoute = routedAtShell;
                     }
                     await SendAsync(C<Control>(sourceName), Key.Escape);
                     Require(routedAtShell == beforeRoute + 1
-                        && !C<StackPanel>("ReaderFindBar").IsVisible && reader.IsVisible
+                        && !C<StackPanel>("ReaderFindBar").IsVisible && findQuery.Text == Needle && reader.IsVisible
                         && ReferenceEquals(reader.Content, pane) && ReferenceEquals(page.CurrentThread, snapshot)
                         && page.CurrentThread?.Summary.Id == id && shell.WindowState == state
                         && unexpectedClicks == 0,
                         "First own-bar Escape changed reader/fullscreen/thread or clicked Close.");
                     // Source is now explicitly outside the closed bar. The next
                     // Escape must retain the shell's pre-existing dismissal action.
-                    await SendAsync(C<Button>("ReaderFindOpen"), Key.Escape);
+                    await SendAsync(FocusedPost(), Key.Escape);
                     if (fullscreen)
                     {
                         await UntilAsync(() => shell.WindowState != WindowState.FullScreen);
@@ -544,7 +550,7 @@ internal static class ReaderThreadFindChecks
                     }
                     else Require(!reader.IsVisible, "Second Escape did not close the normal large reader.");
                     await UntilAsync(() => !reader.IsVisible && !page.IsBusy);
-                    Console.WriteLine($"SMOKE reader-find shell-escape [{language}]: source={sourceName}; fullscreen={fullscreen}; query: clear then close the bar; close button: closes only the bar; the next Escape preserves shell dismissal. Managed events only.");
+                    Console.WriteLine($"SMOKE reader-find shell-escape [{language}]: source={sourceName}; fullscreen={fullscreen}; Escape retains the draft and returns to the post; the next Escape preserves shell dismissal. Managed events only.");
                 }
             }
             finally
@@ -580,6 +586,14 @@ internal static class ReaderThreadFindChecks
             }
             void CountClick(object? sender, RoutedEventArgs e) => unexpectedClicks++;
             void ObserveShell(object? sender, KeyEventArgs e) => routedAtShell++;
+            Control FocusedPost()
+            {
+                var posts = shell.GetVisualDescendants().OfType<ListBox>()
+                    .Single(list => AutomationProperties.GetAutomationId(list) == "ArchivePosts");
+                Require(posts.IsKeyboardFocusWithin, "Closing Find did not return focus to the posts.");
+                return shell.FocusManager?.GetFocusedElement() as Control
+                    ?? throw new InvalidOperationException("No post control has keyboard focus.");
+            }
             async Task SendAsync(Control source, Key key, KeyModifiers modifiers = KeyModifiers.None)
             {
                 Require(ReferenceEquals(TopLevel.GetTopLevel(source), shell) && source.IsEffectivelyVisible
