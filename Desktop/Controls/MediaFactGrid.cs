@@ -32,6 +32,8 @@ internal sealed class MediaFactGrid : Grid
             Text = value, Classes = { "media-fact-value" }, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2
         };
         text.Name = name;
+        if (name != null) AutomationProperties.SetAutomationId(text, name);
+        text.Background = Brushes.Transparent;
         text.TextAlignment = TextAlignment.Left;
         text.Focusable = true;
         text.IsTabStop = true;
@@ -43,7 +45,24 @@ internal sealed class MediaFactGrid : Grid
         if (menu.Items[0] is MenuItem item) item.Name = "MediaFactCopy";
         text.ContextMenu = menu;
         text.DetachedFromVisualTree += (_, _) => menu.Close();
-        text.AddHandler(InputElement.PointerPressedEvent, (_, e) => ContextClick.RequestOnMacControlPress(e, text), RoutingStrategies.Tunnel);
+        IPointer? controlClick = null;
+        text.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            if (!ContextClick.IsMacControlPress(e, text)) return;
+            controlClick = e.Pointer;
+            e.Pointer.Capture(text);
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        text.PointerCaptureLost += (_, _) => controlClick = null;
+        text.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
+        {
+            if (e.Pointer != controlClick || e.InitialPressMouseButton != MouseButton.Left) return;
+            controlClick = null;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            // A context click opens after release, so the opening left click cannot also choose Copy.
+            if (new Rect(text.Bounds.Size).Contains(e.GetPosition(text))) menu.Open(text);
+        }, RoutingStrategies.Tunnel);
         text.AddHandler(InputElement.KeyDownEvent, (_, e) =>
         {
             if (!ContextClick.IsKey(e)) return;

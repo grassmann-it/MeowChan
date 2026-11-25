@@ -169,12 +169,12 @@ public sealed partial class MenuIconLayoutTests
         viewer.ApplyWorkView(WorkView.Advanced);
         viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayControls: true, AutoHideControls: false, VideoRepeat: false));
         viewer.SetPosition("1 of 8", true, true);
-        WithWindow(viewer, _ =>
+        WithGalleryWindow(viewer, window =>
         {
             string[] languages = ["en", "de", "cs", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "zh-Hans"];
             Button more = viewer.OverflowButton;
-            Assert.True(more.Focus(NavigationMethod.Tab));
-            Press(more, Key.Enter);
+            Assert.False(more.Focusable);
+            BooruResultActionsTests.Click(more);
             Assert.True(viewer.IsOverflowOpen);
             Assert.Contains(viewer.OverflowMenuContent, Assert.IsAssignableFrom<Visual>(Focused(more)).GetVisualAncestors());
 
@@ -205,11 +205,10 @@ public sealed partial class MenuIconLayoutTests
             }
             Press(repeat, Key.Escape);
             Assert.False(viewer.IsOverflowOpen);
-            Assert.True(more.IsFocused);
+            Assert.Same(viewer, Focused(viewer));
 
-            Button layout = viewer.LayoutButton;
-            Assert.True(layout.Focus(NavigationMethod.Tab));
-            Press(layout, Key.Enter);
+            Assert.False(viewer.LayoutButton.Focusable);
+            WorkspacePopupToggleTests.PressCommand(window, GalleryLayoutMenu.OpenCommandId);
             Assert.True(viewer.IsLayoutMenuOpen);
             LayoutMenuPanel panel = viewer.LayoutMenuRows;
             var filmstrip = Assert.IsType<ToggleButton>(panel.ButtonOf(GalleryLayoutMenu.FilmstripId));
@@ -240,12 +239,13 @@ public sealed partial class MenuIconLayoutTests
             }
             Press(filmstrip, Key.Escape);
             Assert.False(viewer.IsLayoutMenuOpen);
-            Assert.True(layout.IsFocused);
+            Assert.Same(viewer, Focused(viewer));
 
             viewer.ApplyWorkView(WorkView.Barebones);
             Settle(viewer);
-            Assert.True(more.Focus(NavigationMethod.Tab));
-            Press(more, Key.Enter);
+            Assert.Same(viewer, Focused(viewer));
+            WorkspacePopupToggleTests.PressCommand(window, GalleryLayoutMenu.OpenCommandId);
+            Assert.True(viewer.IsOverflowOpen);
             var slideshow = ById<ToggleButton>(viewer.OverflowMenuContent, "gallery.slideshow-toggle");
             var slideshowEntry = Assert.IsType<GalleryViewer.OverflowItem>(slideshow.Tag);
             AssertMask(slideshow, Assert.IsType<Border>(slideshowEntry.Icon.Content), "play");
@@ -388,6 +388,14 @@ public sealed partial class MenuIconLayoutTests
         try { test(); }
         finally { Texts.SetLanguage(language); }
     });
+
+    private static void WithGalleryWindow(GalleryViewer viewer, Action<Window> test)
+    {
+        ShortcutBindingsSection before = ShortcutService.CurrentSection;
+        ShortcutService.Publish(before.Set(GalleryLayoutMenu.OpenCommandId, [ShortcutGesture.Parse("Primary+Shift+J")]));
+        try { WithWindow(viewer, test); }
+        finally { ShortcutService.Publish(before); }
+    }
 
     private static void WithWindow(Control content, Action<Window> test)
     {

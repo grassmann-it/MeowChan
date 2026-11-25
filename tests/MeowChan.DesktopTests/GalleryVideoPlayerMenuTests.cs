@@ -26,9 +26,11 @@ public sealed class GalleryVideoPlayerMenuTests
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
     [Theory]
-    [InlineData(1)]
-    [InlineData(1.5)]
-    public void CatalogIconsAndLocalizedLabelsFitThePlayerMenuAcrossBundledLanguages(double scale) => WithPlayer((player, anchor) =>
+    [InlineData(1, false)]
+    [InlineData(1.5, false)]
+    [InlineData(1, true)]
+    [InlineData(1.5, true)]
+    public void CatalogIconsAndLocalizedLabelsFitThePlayerMenuAcrossBundledLanguages(double scale, bool largerText) => WithPlayer((player, anchor) =>
     {
         TopLevel.GetTopLevel(anchor)!.SetRenderScaling(scale);
         var viewer = new GalleryViewer();
@@ -37,9 +39,12 @@ public sealed class GalleryVideoPlayerMenuTests
             var overflowRepeat = Assert.IsType<GalleryViewer.OverflowItem>(
                 Assert.Single(viewer.OverflowItems, item => item.Name == "GalleryVideoRepeatToggle").Tag);
             player.ObserveAudioTracks([new(1, "Original"), new(2, "")], 1);
+            if (largerText)
+                foreach (MenuItem item in player.PlayerMenu.Items.OfType<MenuItem>()) item.FontSize = 20;
 
             foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
             {
+                ReaderFonts.Apply(Application.Current!, language);
                 Texts.SetLanguage(language);
                 Assert.Equal(language, Texts.Language);
                 MenuItem[] rows = Open(player, anchor);
@@ -217,7 +222,10 @@ public sealed class GalleryVideoPlayerMenuTests
         Assert.InRange(icon.Bounds.Width, 15, 17);
         Assert.InRange(icon.Bounds.Height, 15, 17);
         Assert.True(icon.TranslatePoint(new Point(icon.Bounds.Width, 0), row)!.Value.X <= label.TranslatePoint(default, row)!.Value.X + 1);
-        Assert.True(MenuLayout.TextWidth(label, expectedLabel) <= label.Bounds.Width + 1);
+        double required = MenuLayout.TextWidth(label, expectedLabel);
+        Assert.True(required <= label.Bounds.Width + 1,
+            $"{Texts.Language}: {expectedLabel} needs {required} DIP, has {label.Bounds.Width} at {label.FontSize} DIP.");
+        Assert.False(Assert.Single(label.TextLayout.TextLines).HasCollapsed, expectedLabel);
         Control chevron = Assert.Single(row.GetVisualDescendants().OfType<Control>(), part => part.Name == "PART_ExpandIcon");
         Assert.True(chevron.IsEffectivelyVisible);
         Assert.True(label.TranslatePoint(new Point(label.Bounds.Width, 0), row)!.Value.X <= chevron.TranslatePoint(default, row)!.Value.X + 1);

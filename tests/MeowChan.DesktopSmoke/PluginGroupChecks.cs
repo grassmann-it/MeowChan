@@ -8,7 +8,7 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.DesktopSmoke;
 
 /// <summary>
-/// One card per plugin however many files it has, active plugins before disabled ones, a "needs attention" chip that the ordering
+/// One card per plugin or undescribed candidate, active plugins before disabled ones, a "needs attention" chip that the ordering
 /// never hides, and the files chosen inside the detail. Passive fixture: nothing is compiled, described or started.
 /// </summary>
 internal static class PluginGroupChecks
@@ -31,31 +31,41 @@ internal static class PluginGroupChecks
             MergedSourcesSmoke.OpenPlugins(window);
             await page.ActivateAsync();
             SelectionList list = page.FindControl<SelectionList>("PluginCards")!;
-            Require(list.Items.Count == 2, $"Three files of two plugins must give two cards, not {list.Items.Count}.");
-            Require(page.FindControl<TextBlock>("PluginsCount")!.Text == Texts.T("plugins.count", 2), "The header counts files, not plugins.");
-            Require(((SelectionListItem)list.Items[0]!).GetVisualDescendants().OfType<TextBlock>().Any(text => text.Name == "PluginListName" && text.Text == "Image dimensions"),
-                "The enabled plugin is not first in the list.");
-            SelectionListItem sourceCard = (SelectionListItem)list.Items[1]!;
+            const int expectedCardCount = 3;
+            Require(list.Items.Count == expectedCardCount,
+                $"Expected two plugin cards and an undescribed candidate card, but found {list.Items.Count} cards.");
+            Require(page.FindControl<TextBlock>("PluginsCount")!.Text == Texts.T("plugins.count", expectedCardCount),
+                "The header must count the plugin and candidate cards.");
+
+            SelectionListItem filterCard = SelectCard(page, list, PluginUxFixture.FilterKey, PluginUxFixture.FilterPluginId);
+            Require(list.SelectedIndex == 0, "The enabled filter plugin must have the first card.");
+            SelectionListItem unknownCard = SelectCard(page, list, PluginUxFixture.UnknownKey, null);
+            Require(page.Selected is { Description: null } && !ReferenceEquals(unknownCard, filterCard),
+                "The undescribed candidate must have a separate card.");
+            SelectionListItem sourceCard = SelectCard(page, list, PluginUxFixture.SourceKey, PluginUxFixture.SourcePluginId);
+            await Settle();
+            Require(!ReferenceEquals(sourceCard, filterCard) && !ReferenceEquals(sourceCard, unknownCard),
+                "The source plugin must have its own card.");
             Require(sourceCard.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Name == "PluginListIdentity" && text.IsVisible
                 && text.Text == Texts.T("plugins.filesCount", 2)), "The card of a plugin with two files does not say so.");
 
             // The detail lists both files; choosing the other one shows its entry while the card stays the same.
-            page.Select(PluginUxFixture.SourceKey);
-            await Settle();
             StackPanel files = page.FindControl<StackPanel>("PluginFilesPanel")!;
             Require(files.IsVisible && page.FindControl<TextBlock>("PluginFilesHeading")!.Text == Texts.T("plugins.files", 2), "The detail does not list the plugin's files.");
             Button[] choices = page.FindControl<StackPanel>("PluginFileChoices")!.Children.OfType<Button>().ToArray();
-            Require(choices.Length == 2, "The file list does not have one row per file.");
-            choices.Single(button => (string?)button.Tag == PluginUxFixture.SecondSourceKey).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Button? secondFile = choices.FirstOrDefault(button => (string?)button.Tag == PluginUxFixture.SecondSourceKey);
+            Require(choices.Length == 2 && secondFile != null && choices.Any(button => (string?)button.Tag == PluginUxFixture.SourceKey),
+                "The file list must contain exactly the two source candidates.");
+            secondFile!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Settle();
-            Require(page.Selected?.Key == PluginUxFixture.SecondSourceKey && ReferenceEquals(list.SelectedItem, sourceCard) && list.Items.Count == 2,
+            Require(page.Selected is { Key: PluginUxFixture.SecondSourceKey, PluginId: PluginUxFixture.SourcePluginId }
+                && ReferenceEquals(list.SelectedItem, sourceCard) && list.Items.Count == expectedCardCount,
                 "Choosing the second file did not show it under the same card.");
             // A problem is shown on the card, wherever the ordering puts it.
             await fixture.FailSourceAsync(missing: false);
             await page.RefreshAsync();
+            SelectionListItem current = SelectCard(page, list, PluginUxFixture.SecondSourceKey, PluginUxFixture.SourcePluginId);
             await Settle();
-            SelectionListItem current = list.Items.OfType<SelectionListItem>().Single(card => card.GetVisualDescendants().OfType<TextBlock>()
-                .Any(text => text.Name == "PluginListName" && text.Text == "Discussion reader"));
             Require(current.GetVisualDescendants().OfType<Border>().Any(chip => chip.Name == "PluginListChip"
                 && ((TextBlock)chip.Child!).Text == Texts.T("plugins.problem")), "A plugin that needs attention has no chip on its card.");
 
@@ -63,9 +73,18 @@ internal static class PluginGroupChecks
             await page.RefreshAsync();
             Require(page.FindControl<TextBlock>("PluginFilesHeading")!.Text == Texts.T("plugins.files", 2), "The files heading did not follow the language.");
             Require(fixture.ForbiddenCalls == 0, "The group checks compiled, described, started or probed a plugin.");
-            Console.WriteLine("PLUGIN_GROUP_CHECKS PASS: one card per plugin, state order, files in the detail, attention chip.");
+            Console.WriteLine("PLUGIN_GROUP_CHECKS PASS: plugin IDs, separate undescribed candidate, state order, files in the detail, attention chip.");
         }
         finally { sources.EndLifetime(); host.Content = retained; Texts.SetLanguage(language); }
+    }
+
+    private static SelectionListItem SelectCard(PluginsPage page, SelectionList list, string candidateKey, string? pluginId)
+    {
+        page.Select(candidateKey);
+        Require(page.Selected is { } entry && entry.Key == candidateKey && entry.PluginId == pluginId,
+            $"Selecting candidate {candidateKey} did not show the expected entry.");
+        return list.SelectedItem as SelectionListItem
+            ?? throw new InvalidOperationException($"Selecting candidate {candidateKey} did not select a card.");
     }
 
     private static async Task Settle()

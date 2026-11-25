@@ -368,7 +368,7 @@ public sealed class ActionToolBar : ToolBar
         Dispatcher.UIThread.Post(() =>
         {
             if (More?.IsChecked == true)
-                OverflowHost?.Children.FirstOrDefault(c => c.IsVisible && c.IsEffectivelyEnabled)?.Focus(NavigationMethod.Tab);
+                OverflowHost?.Children.FirstOrDefault(c => c.IsVisible && c.IsEffectivelyEnabled && c.Focusable)?.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
     private void OnOverflowActionClick(object? sender, RoutedEventArgs e)
     {

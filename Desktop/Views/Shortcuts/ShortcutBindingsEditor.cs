@@ -691,7 +691,10 @@ public sealed partial class ShortcutBindingsEditor : UserControl, IDisposable
         }
         void Refresh()
         {
-            label.Text = CommandCatalog.Label(row.CommandId);
+            if (ShortcutHelp.ContextualActionLabel(row.CommandId, _context.Area) is { } contextualLabel)
+                label.Text = contextualLabel;
+            else
+                label.Text = CommandCatalog.Label(row.CommandId);
             meta.Text = Meta();
             meta.IsVisible = meta.Text.Length > 0;
             foreach (KeyCapText cap in caps) cap.Refresh();
@@ -1019,7 +1022,7 @@ public sealed partial class ShortcutBindingsEditor : UserControl, IDisposable
         ShortcutHelpContext context = _context;
         string[] ids = context.Preferred.Distinct(StringComparer.Ordinal)
             .Where(id => CommandCatalog.TryGet(id, out _) && CommandCatalog.ShortcutDisplay(id) != null).ToArray();
-        string HelpLine(string id) => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
+        string HelpLine(string id) => ShortcutHelp.ActionLabel(id, context.Area) + "   " + CommandCatalog.ShortcutDisplay(id)
             + (!CommandCatalog.HasGenericScope(id) && CommandCatalog.ScopeHint(id, context.ScopeContext) is string hint ? " · " + hint : string.Empty)
             + (context.UnderMore?.Invoke(id) == true ? " · " + Texts.T("workview.underMore") : string.Empty);
         List<string> sections = new();

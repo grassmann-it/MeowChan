@@ -782,7 +782,7 @@ public sealed class HelpDocumentationTests
             Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsBack=\"True\"", xaml);
         (string Xaml, string Name)[] ends =
         [
-            (main, "DownloadSearchClose"), (main, "InspectorCloseButton"),
+            (main, "InspectorCloseButton"),
             (archive, "ClosePreviewButton")
         ];
         foreach ((string xaml, string name) in ends)

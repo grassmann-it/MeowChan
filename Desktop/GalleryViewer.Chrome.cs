@@ -371,13 +371,11 @@ internal sealed partial class GalleryViewer
         _taggingStrip.VerticalAlignment = VerticalAlignment.Stretch;
     }
 
-    // A block that held the keyboard focus left the screen with a mode change: the focus goes to the switch (the mode's half), else to
-    // "More", else to the picture, never to nothing.
+    // A mode change can hide the focused block. Move focus to the mode switch or the picture.
     private void RescueChromeFocus()
     {
         NavigationMethod method = _keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer;
         if (_modeTools.IsEffectivelyVisible) (IsTagMode ? _modeTag : _modeView).Focus(method);
-        else if (_overflowButton.IsEffectivelyVisible) _overflowButton.Focus(method);
         else FocusGallerySurface();
     }
 

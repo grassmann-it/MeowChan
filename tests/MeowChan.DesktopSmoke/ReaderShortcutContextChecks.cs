@@ -98,7 +98,8 @@ internal static class ReaderShortcutContextChecks
                 && !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "9998");
             await page.MediaLoadTask;
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-            Button next = page.FindControl<Button>("ReaderNextPost")!;
+            var navigationBar = window.GetVisualDescendants().OfType<Border>()
+                .Single(control => AutomationProperties.GetAutomationId(control) == "ReaderNavigationBar");
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             string? Selected() => (posts.SelectedItem as ArchivePostRow)?.Id;
             async Task Probe(Control source, Key key, bool expectedNavigation, string name)
@@ -124,10 +125,13 @@ internal static class ReaderShortcutContextChecks
             }
             await Commit(original);
             await CheckPostMediaContextAsync(page, Check);
+            await Probe(navigationBar, Key.Down, false, "navigation-bar-blocks-down");
+            Check(Selected() == "1000" && navigationBar.IsFocused, "navigation-bar-keeps-post-and-focus");
             await page.FocusPostAsync("1050");
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
             page.ShowReaderNavigation();
-            next.Focus(); Press(next, Key.Down); await page.ReaderNavigationTask;
+            Press(ReaderUxChecks.FocusSelectedPost(window), Key.Down);
+            await page.ReaderNavigationTask;
             Check(Selected() == "1051", "protected-full44-down-1051", new { selected = Selected() });
             Grid surface = page.FindControl<Grid>("ReaderContentSurface")!;
             Button nativeButton = new() { Width = 1, Height = 1, Opacity = 0 };
@@ -187,7 +191,14 @@ internal static class ReaderShortcutContextChecks
         var previous = page.OpenGallery;
         int opens = 0;
         GalleryEntryKey? target = null;
-        page.OpenGallery = (_, key, _) => { opens++; target = key; return Task.CompletedTask; };
+        page.OpenGallery = (_, key, origin) =>
+        {
+            opens++;
+            target = key;
+            if (key == null)
+                Console.WriteLine($"SMOKE shortcut-context gallery fallback from {origin?.Name ?? origin?.GetType().Name}: {Environment.StackTrace}");
+            return Task.CompletedTask;
+        };
         // Enter on a post follows "Clicking a medium" (sidebar by default); this check is about the gallery path.
         ReaderMediaPreferences mediaBefore = ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery);
         ReaderBodyTextBlock Body() => posts.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single(body =>
@@ -205,19 +216,31 @@ internal static class ReaderShortcutContextChecks
                 await page.ReaderMediaActivationTask;
                 check(e.Handled && opens == before + 1 && target?.PostId == "1003", "selected-later-body-media-" + key, target);
                 body.SelectionEnd = 4;
-                before = opens; Press(body, key); await page.ReaderMediaActivationTask;
+                before = opens;
+                await Activate(body, key);
                 check(opens == before, "selected-body-text-selection-" + key, null);
                 body.SelectionEnd = 0;
                 posts.SelectedItem = null;
-                Press(body, key); await page.ReaderMediaActivationTask;
-                check(opens == before, "no-reader-post-selection-" + key, new { before, opens, target });
+                before = opens;
+                bool handled = await Activate(body, key);
+                check(opens == before, "no-reader-post-selection-" + key, new { before, opens, target, handled });
                 await page.FocusPostAsync("1001"); // Mixed fixture: text-only, unlike 1003.
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-                body = Body(); body.Focus(); Press(body, key); await page.ReaderMediaActivationTask;
-                check(opens == before, "text-only-selected-post-" + key, new { before, opens, target });
+                body = Body(); body.Focus();
+                before = opens;
+                handled = await Activate(body, key);
+                check(opens == before, "text-only-selected-post-" + key, new { before, opens, target, handled });
             }
         }
         finally { page.OpenGallery = previous; ReaderSmokeSetup.Restore(page, mediaBefore); }
+
+        async Task<bool> Activate(Control source, Key key)
+        {
+            KeyEventArgs e = Press(source, key);
+            source.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = key });
+            await page.ReaderMediaActivationTask;
+            return e.Handled;
+        }
     }
 
     private static KeyEventArgs Press(Control source, Key key)

@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using MeowChan.Desktop;
@@ -67,13 +69,36 @@ internal static class FirstRunSetupChecks
             attempts++;
             return Task.FromResult(new FirstRunSetupCommitResult(false));
         }, new DownloadDestinationValidator());
+        T Need<T>(string id) where T : Control => window.GetLogicalDescendants().OfType<T>()
+            .Single(control => ControlAutomationPeer.CreatePeerForElement(control).GetAutomationId() == id);
+        TextBox path = Need<TextBox>("SetupFolderInput");
+        void OnFirstFocus(object? sender, FocusChangedEventArgs args)
+        {
+            path.GotFocus -= OnFirstFocus;
+            LogGeometry("first path focus");
+        }
+
+        string Geometry() => FormattableString.Invariant(
+            $"request={window.Width}x{window.Height}; client={window.ClientSize}; frame={window.FrameSize?.ToString() ?? "unknown"}; bounds={window.Bounds.Size}; minimum={window.MinWidth}x{window.MinHeight} (DIP); scale={window.RenderScaling}; working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea} (px)");
+        void LogGeometry(string phase) => Console.WriteLine($"SMOKE first-run folder geometry {phase}: {Geometry()}");
+        int nativeResizes = 0, arrangedResize = 0;
+        void OnResized(object? sender, WindowResizedEventArgs args) =>
+            LogGeometry($"native resize {++nativeResizes} ({args.Reason})");
+        void OnLayoutUpdated(object? sender, EventArgs args)
+        {
+            if (arrangedResize == nativeResizes) return;
+            arrangedResize = nativeResizes;
+            LogGeometry($"layout after native resize {arrangedResize}");
+        }
+
+        path.GotFocus += OnFirstFocus;
+        window.Resized += OnResized;
+        window.LayoutUpdated += OnLayoutUpdated;
         window.Width = window.MinWidth;
         window.Height = window.MinHeight;
         Task<FirstRunSetupRunResult> showing = window.ShowAsync(owner);
-        T Need<T>(string name) where T : Control => window.FindControl<T>(name)!;
         try
         {
-            TextBox path = Need<TextBox>("SetupFolderInput");
             TextBox rate = Need<TextBox>("SetupBandwidthInput");
             TextBox count = Need<TextBox>("SetupParallelInput");
             Button check = Need<Button>("SetupCheckButton");
@@ -84,13 +109,27 @@ internal static class FirstRunSetupChecks
             TextBlock error = Need<TextBlock>("SetupPathError");
             ScrollViewer body = Need<ScrollViewer>("DialogFrameBody");
 
-            await Program.WaitUntilAsync(() => path.IsFocused && check.Bounds.Height > 0);
+            bool IsMinimum(Size size) => Math.Abs(size.Height - window.MinHeight) <= 1
+                && Math.Abs(size.Width - window.MinWidth) <= 1;
+            bool? minimumAtFirstLayout = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                if (minimumAtFirstLayout == null)
+                {
+                    if (!path.IsFocused || check.Bounds.Height <= 0) return false;
+                    minimumAtFirstLayout = IsMinimum(window.Bounds.Size);
+                    LogGeometry("first focused layout");
+                }
+                // Keep the original assertion while observing whether the native resize catches up.
+                return minimumAtFirstLayout.Value || (IsMinimum(window.ClientSize) && IsMinimum(window.Bounds.Size));
+            }, Geometry);
+            LogGeometry("before minimum-size assertion");
+            window.Resized -= OnResized;
+            window.LayoutUpdated -= OnLayoutUpdated;
+            Require(minimumAtFirstLayout == true, "The folder test did not run at the dialog's minimum size.");
             double Top(Control control) => control.TranslatePoint(default, window)!.Value.Y;
             double Bottom(Control control) => Top(control) + control.Bounds.Height;
             double footerTop = Top(later);
-            Require(Math.Abs(window.Bounds.Height - window.MinHeight) <= 1
-                && Math.Abs(window.Bounds.Width - window.MinWidth) <= 1,
-                "The folder test did not run at the dialog's minimum size.");
             Console.WriteLine(FormattableString.Invariant($"SMOKE render scaling: actual={window.RenderScaling}; first-run folder minimum size."));
 
             string raw = Path.GetRelativePath(config.DownloadPathBaseDirectory, folder);

@@ -10,6 +10,8 @@ namespace MeowChan.Desktop.Commands;
 public enum ShortcutPlatform { Windows, Linux, MacOS }
 public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers, string? Symbol = null)
 {
+    internal const string MacCommand = "⌘";
+
     public static ShortcutGesture Parse(string text)
     {
         var parts = text.Split('+');
@@ -59,7 +61,7 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         if (mods.HasFlag(KeyModifiers.Control)) parts.Add("⌃");
         if (mods.HasFlag(KeyModifiers.Alt)) parts.Add("⌥");
         if (mods.HasFlag(KeyModifiers.Shift) && Symbol == null) parts.Add("⇧");
-        if (mods.HasFlag(KeyModifiers.Meta)) parts.Add("⌘");
+        if (mods.HasFlag(KeyModifiers.Meta)) parts.Add(MacCommand);
         string key = Symbol ?? Key switch
         {
             "Back" => "⌫", "Delete" => "⌦", "Enter" or "Return" => "↩", "Escape" => "⎋", "Space" => "␣", "Tab" => "⇥",
@@ -115,7 +117,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 27;
+    public const int DefaultsRevision = 29;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -129,6 +131,8 @@ public sealed class EffectiveShortcutBindings
     /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
+        ["plugins.watches"] = 29,
+        ["tagging.stamp"] = 28, ["settings.more"] = 28,
         ["media.sidebar.autohide"] = 27, ["gallery.layout.info"] = 27,
         ["media.sidebar.info"] = 26,
         ["booru.search.submit"] = 25, ["booru.search.alternate"] = 25,
@@ -295,7 +299,8 @@ public sealed class EffectiveShortcutBindings
     private static readonly HashSet<string> MacOnlyDefaultChanges = new(StringComparer.Ordinal)
     {
         "window.fullscreen", "viewer.shortcut-help", "watch.remove", "archive.delete-permanently", "thread.details",
-        "watch.check", "watch.retry-media", "archive.previous-page", "archive.next-page", "media.return", "window.minimize"
+        "watch.check", "watch.retry-media", "archive.previous-page", "archive.next-page", "media.return", "window.minimize",
+        "tagging.stamp", "settings.more"
     };
     /// <summary>Whether the default of <paramref name="id"/> yields to saved bindings on <paramref name="platform"/>.</summary>
     public static bool YieldsOn(string id, ShortcutPlatform platform) =>
@@ -447,6 +452,8 @@ public sealed class EffectiveShortcutBindings
             // of one step) come first and Alt+Home/Alt+End stay extras.
             "tagging.move-first" => Of("Primary+Alt+Up", "Alt+Home"),
             "tagging.move-last" => Of("Primary+Alt+Down", "Alt+End"),
+            "tagging.stamp" => Of("Primary+Alt+S", "F9"),
+            "settings.more" => Of("Control+Primary+M", "Primary+Shift+F10"),
             // Quick tagging: an Apple keyboard has no PageUp/PageDown (Fn+arrow), so the ⌘-arrow is the first gesture there.
             "tags.quick.next" => Of("Primary+Down", "PageDown"),
             "tags.quick.previous" => Of("Primary+Up", "PageUp"),

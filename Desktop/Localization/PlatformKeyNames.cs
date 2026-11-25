@@ -13,4 +13,7 @@ internal static class PlatformKeyNames
 
     /// <summary><see cref="Alt(ShortcutPlatform)"/> for the running system.</summary>
     internal static string Alt() => Alt(EffectiveShortcutBindings.CurrentPlatform);
+
+    internal static string Primary(ShortcutPlatform platform) =>
+        platform == ShortcutPlatform.MacOS ? ShortcutGesture.MacCommand : Texts.T("key.ctrl");
 }

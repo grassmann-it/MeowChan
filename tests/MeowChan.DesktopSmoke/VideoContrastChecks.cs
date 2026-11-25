@@ -3,6 +3,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -112,18 +113,33 @@ internal static class VideoContrastChecks
                 await Task.Delay(50);
             } while (true);
             Console.WriteLine("SMOKE video playback evidence: " + JsonSerializer.Serialize(playback));
-            await Program.WaitUntilAsync(() => player.GetVisualDescendants().OfType<TextBlock>().Any(block => block.Text?.Contains(" / ") == true));
-            TextBlock time = player.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Text?.Contains(" / ") == true);
-            Check(window, viewer, time, theme, "time", failures);
+            // The transfer owns removal from the player. Wait for this player's transport on the live gallery root.
+            await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<Border>()
+                .Any(border => ReferenceEquals(border, player.TransportControl) && border.IsEffectivelyVisible
+                    && border.GetVisualDescendants().OfType<TextBlock>().Any(block => HasId(block, "GalleryVideoTime")
+                        && block.IsEffectivelyVisible && block.Text?.Contains(" / ", StringComparison.Ordinal) == true)),
+                () => "The current gallery did not present the video transport and its clock.");
+            Border transport = (Border)player.TransportControl;
+            TextBlock time = TransportControl<TextBlock>(transport, "GalleryVideoTime");
+            Check(window, viewer, transport, time, theme, "time", failures);
             await GalleryFocusChecks.CheckVideoAsync(window, viewer, player, theme);
-            if (theme == ThemeVariant.Light) await VideoZoomRotateChecks.RunAsync(window, viewer, player, theme);
-            if (theme == ThemeVariant.Light) await GalleryCaptionChecks.RunAsync(window, viewer, video: true);
-            TextBlock status = player.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "GalleryVideoStatus");
+            if (theme == ThemeVariant.Light)
+            {
+                await VideoZoomRotateChecks.RunAsync(window, viewer, player, theme);
+                // The caption matrix measures the persistent dock below the picture, including its idle state.
+                var preferences = GalleryPlaybackPreferences.FromConfig(window.SessionHost.Config);
+                viewer.ConfigurePlayback(preferences.WithControlsOverlay(false));
+                try { await GalleryCaptionChecks.RunAsync(window, viewer, video: true); }
+                finally { viewer.ConfigurePlayback(preferences); }
+                if (viewer.ControlsHiddenNow)
+                    viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+            }
+            TextBlock status = TransportControl<TextBlock>(transport, "GalleryVideoStatus");
             if (!ReferenceEquals(player, viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single())
                 || viewer.CaptureState().PostId != "2500")
                 throw new InvalidOperationException("Caption checks changed the verified video player or post identity.");
-            Slider seek = player.GetVisualDescendants().OfType<Slider>().Single(control => control.Name == "GalleryVideoSeek");
-            if (!seek.IsEnabled || seek.Minimum != 0 || seek.Maximum != 1000)
+            Slider seek = TransportControl<Slider>(transport, "GalleryVideoSeek");
+            if (!seek.IsEffectivelyEnabled || !seek.IsEffectivelyVisible || seek.Minimum != 0 || seek.Maximum != 1000)
                 throw new InvalidOperationException("The real video timeline is unavailable or has changed its range.");
             Console.WriteLine("SMOKE video before end seek: " + JsonSerializer.Serialize(new
                 { theme = theme.ToString(), status.Text, playback = await player.InspectPlaybackAsync(), targetPermille = 900 }));
@@ -133,7 +149,7 @@ internal static class VideoContrastChecks
             // the seek and the real EndReached event below always belong to a live playback.
             if ((await player.InspectPlaybackAsync()).State == "Ended")
             {
-                Button replay = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoPlayPause");
+                Button replay = TransportControl<Button>(transport, "GalleryVideoPlayPause");
                 replay.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await WaitNativeAsync(player, evidence => evidence.State == "Playing" && evidence.Time < 6000);
                 await Program.WaitUntilAsync(() => status.Text != Texts.T("gallery.video.ended"));
@@ -157,15 +173,16 @@ internal static class VideoContrastChecks
                 .ToString(endedPlayback.Length >= 3_600_000 ? @"h\:mm\:ss" : @"m\:ss");
             if (endedPlayback.Length <= 0 || time.Text != endedClock + " / " + endedClock)
                 throw new InvalidOperationException("Ended video did not retain its terminal clock: " + time.Text);
-            Check(window, viewer, status, theme, "ended", failures);
+            Console.WriteLine($"SMOKE video terminal clock: theme={theme}, time={time.Text}");
+            Check(window, viewer, transport, status, theme, "ended", failures);
             if ((await player.InspectPlaybackAsync()).LoopEnabled)
                 throw new InvalidOperationException("Repeat did not default off for the verified video.");
-            Button playbackButton = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoPlayPause");
+            Button playbackButton = TransportControl<Button>(transport, "GalleryVideoPlayPause");
             playbackButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await WaitNativeAsync(player, evidence => evidence.State == "Playing" && evidence.Time > 100);
-            Button mute = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoMute");
+            Button mute = TransportControl<Button>(transport, "GalleryVideoMute");
             var audio = await player.InspectPlaybackAsync();
-            Slider volume = viewer.GetGalleryVisualDescendants().OfType<Slider>().Single(control => control.Name == "GalleryVideoVolume");
+            Slider volume = TransportControl<Slider>(transport, "GalleryVideoVolume");
             // This pinned fixture is intentionally silent. It proves unavailable
             // audio controls, never a native mute/unmute transition.
             if (audio.AudioTracks != 0 || audio.AudioAvailable)
@@ -175,7 +192,7 @@ internal static class VideoContrastChecks
                 || string.IsNullOrWhiteSpace(ToolTip.GetTip(volume)?.ToString()))
                 throw new InvalidOperationException("Unavailable audio controls lack an accessible explanation.");
             Console.WriteLine("SMOKE video no-audio-track evidence: " + JsonSerializer.Serialize(audio));
-            Button loop = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoLoop");
+            Button loop = TransportControl<Button>(transport, "GalleryVideoLoop");
             loop.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             seek.Value = 980;
             var repeated = await WaitNativeAsync(player, evidence => evidence.LoopEnabled && evidence.LoopRestarts > 0
@@ -200,7 +217,7 @@ internal static class VideoContrastChecks
                     && notice.Message.StartsWith(Texts.T("gallery.video.error.decode"), StringComparison.Ordinal)));
             }
             finally { viewer.DiagnosticNotice -= notices.Add; }
-            Check(window, viewer, status, theme, "error", failures);
+            Check(window, viewer, transport, status, theme, "error", failures);
             Button close = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose");
             close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => !host.IsVisible);
@@ -222,25 +239,43 @@ internal static class VideoContrastChecks
         }
     }
 
-    private static void Check(Window window, GalleryViewer viewer, TextBlock text, ThemeVariant theme, string state, List<string> failures)
+    private static bool HasId(Control control, string id) =>
+        (AutomationProperties.GetAutomationId(control) ?? control.Name) == id;
+
+    private static T TransportControl<T>(Border transport, string id) where T : Control =>
+        transport.GetVisualDescendants().OfType<T>().Single(control => HasId(control, id));
+
+    private static void Check(Window window, GalleryViewer viewer, Border transport, TextBlock text, ThemeVariant theme,
+        string state, List<string> failures)
     {
         window.UpdateLayout();
-        Color foreground = (text.Foreground as ISolidColorBrush)?.Color ?? throw new InvalidOperationException("Expected a measurable solid text foreground.");
-        Border transport = viewer.GetGalleryVisualDescendants().OfType<Border>().Single(border => border.Name == "GalleryVideoTransport");
-        if (!text.GetVisualAncestors().Contains(transport))
+        ISolidColorBrush foreground = text.Foreground as ISolidColorBrush
+            ?? throw new InvalidOperationException("Expected a measurable solid text foreground.");
+        if (!viewer.GetGalleryVisualDescendants().Contains(transport) || !text.GetVisualAncestors().Contains(transport))
             throw new InvalidOperationException("Video text is no longer carried by its measured transport surface.");
-        Color background = (transport.Background as ISolidColorBrush)?.Color ?? throw new InvalidOperationException("Expected the production video transport backdrop.");
-        double ratio = Contrast(foreground, background);
+        ISolidColorBrush background = transport.Background as ISolidColorBrush
+            ?? throw new InvalidOperationException("Expected the production video transport backdrop.");
+        // A floating transport can cover both dark and bright video pixels.
+        double ratio = new[] { Colors.Black, Colors.White }.Select(pixel => Over(background, pixel))
+            .Min(backdrop => Contrast(Over(foreground, backdrop), backdrop));
         Point origin = text.TranslatePoint(default, viewer) ?? throw new InvalidOperationException("Video text is detached.");
         Rect textBounds = new(origin, text.Bounds.Size);
         bool chromeOverlap = viewer.GetGalleryVisualDescendants().OfType<Button>()
             .Where(button => button.IsEffectivelyVisible && button.Name is "GalleryClose" or "GalleryNext" or "GalleryFavorite" or "GalleryExport")
             .Any(button => button.TranslatePoint(default, viewer) is Point point && new Rect(point, button.Bounds.Size).Intersects(textBounds));
         Console.WriteLine("SMOKE video contrast: " + JsonSerializer.Serialize(new { theme = theme.ToString(), state,
-            text.Text, foreground = foreground.ToString(), background = background.ToString(), ratio,
+            text.Text, foreground = foreground.Color.ToString(), background = background.Color.ToString(), ratio,
             text.IsEffectivelyVisible, chromeOverlap, bounds = text.Bounds.ToString(), client = window.ClientSize.ToString(), window.RenderScaling }));
         Program.CaptureWindow(window, $"smoke-video-contrast-{theme.ToString().ToLowerInvariant()}-{state}.png");
         if (!text.IsEffectivelyVisible || text.Bounds.Width <= 0 || ratio < 4.5 || chromeOverlap) failures.Add($"{theme}/{state}={ratio:0.###}, chromeOverlap={chromeOverlap}");
+    }
+
+    private static Color Over(ISolidColorBrush brush, Color backdrop)
+    {
+        Color color = brush.Color;
+        double alpha = color.A / 255d * brush.Opacity;
+        byte Blend(byte front, byte back) => (byte)Math.Round(front * alpha + back * (1 - alpha));
+        return Color.FromRgb(Blend(color.R, backdrop.R), Blend(color.G, backdrop.G), Blend(color.B, backdrop.B));
     }
 
     private static double Contrast(Color first, Color second)

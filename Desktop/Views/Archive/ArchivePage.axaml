@@ -717,19 +717,19 @@
                                         <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
                                             <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                            <Button x:Name="ArchiveMediaSelectionTag" Click="OnMediaSelectionTagClick" />
-                                            <Button x:Name="ArchiveMediaSelectionQueue" Click="OnMediaSelectionQueueClick" />
-                                            <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
-                                            <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
-                                            <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />
+                                            <Button x:Name="ArchiveMediaSelectionTag" Focusable="False" IsTabStop="False" Click="OnMediaSelectionTagClick" />
+                                            <Button x:Name="ArchiveMediaSelectionQueue" Focusable="False" IsTabStop="False" Click="OnMediaSelectionQueueClick" />
+                                            <Button x:Name="ArchiveMediaSelectionGallery" Focusable="False" IsTabStop="False" Click="OnMediaSelectionGalleryClick" />
+                                            <Button x:Name="ArchiveMediaSelectionExport" Focusable="False" IsTabStop="False" Click="OnMediaSelectionExportClick" />
+                                            <Button x:Name="ArchiveMediaSelectionClear" Focusable="False" IsTabStop="False" Click="OnMediaSelectionClearClick" />
                                         </WrapPanel>
                                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                             <controls:TrimTipTextBlock x:Name="ArchiveThreadMediaTotal" Classes="muted tnum"
                                                                        VerticalAlignment="Center" IsVisible="False" />
                                             <desktop:ActionToolBar x:Name="ReaderMediaActions" AutomationProperties.AutomationId="ReaderMediaActions" Grid.Column="1" HorizontalAlignment="Right" PrioritizedOverflow="True">
-                                                <Button x:Name="ArchiveEditRatingButton" wv:WorkViewElement.Id="reader.media.edit-rating" IsEnabled="False" Click="OnEditMediaRatingClick" />
-                                                <Button x:Name="PreviewArchiveMediaButton" wv:WorkViewElement.Id="reader.media.preview" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" />
-                                                <Button x:Name="ArchiveManageRatingsButton" wv:WorkViewElement.Id="reader.media.manage-ratings" Click="OnManageMediaRatingsClick" />
+                                                <Button x:Name="ArchiveEditRatingButton" AutomationProperties.AutomationId="ArchiveEditRatingButton" Focusable="False" IsTabStop="False" wv:WorkViewElement.Id="reader.media.edit-rating" IsEnabled="False" Click="OnEditMediaRatingClick" />
+                                                <Button x:Name="PreviewArchiveMediaButton" AutomationProperties.AutomationId="PreviewArchiveMediaButton" Focusable="False" IsTabStop="False" wv:WorkViewElement.Id="reader.media.preview" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" />
+                                                <Button x:Name="ArchiveManageRatingsButton" AutomationProperties.AutomationId="ArchiveManageRatingsButton" Focusable="False" IsTabStop="False" wv:WorkViewElement.Id="reader.media.manage-ratings" Click="OnManageMediaRatingsClick" />
                                             </desktop:ActionToolBar>
                                         </Grid>
                                     </StackPanel>
@@ -744,7 +744,7 @@
                                     </StackPanel>
                                     <ListBox x:Name="ArchiveReferences" Grid.Row="2">
                                         <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                            <Button Classes="reader-reference" Content="{Binding Label}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick"
+                                            <Button Classes="reader-reference" Content="{Binding Label}" AutomationProperties.AutomationId="ArchiveReferenceOpen" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick"
                                                     PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited" HorizontalAlignment="Stretch" Margin="0,4" />
                                         </DataTemplate></ListBox.ItemTemplate>
                                     </ListBox>
@@ -788,18 +788,19 @@
                                             <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
                                             <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" />
                                             <Setter Property="Padding" Value="4" /><Setter Property="VerticalAlignment" Value="Center" />
+                                            <Setter Property="Focusable" Value="False" /><Setter Property="IsTabStop" Value="False" />
                                         </Style>
                                     </StackPanel.Styles>
                                     <StackPanel x:Name="ReaderThreadGroup" Orientation="Horizontal">
-                                        <Button x:Name="ReaderPreviousThread" Tag="reader.previousThread" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <Button x:Name="ReaderPreviousThread" AutomationProperties.AutomationId="ReaderPreviousThread" Tag="reader.previousThread" Classes="localized ghost" Focusable="False" IsTabStop="False" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                         <TextBlock x:Name="ReaderThreadPosition" AutomationProperties.AutomationId="ReaderThreadPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
-                                        <Button x:Name="ReaderNextThread" Tag="reader.nextThread" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <Button x:Name="ReaderNextThread" AutomationProperties.AutomationId="ReaderNextThread" Tag="reader.nextThread" Classes="localized ghost" Focusable="False" IsTabStop="False" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                     </StackPanel>
                                     <Border x:Name="ReaderNavigationSeparator" Width="1" Height="24" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource Workspace.ControlBorder}" />
                                     <StackPanel x:Name="ReaderPostGroup" Orientation="Horizontal">
-                                        <Button x:Name="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <Button x:Name="ReaderPreviousPost" AutomationProperties.AutomationId="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized ghost" Focusable="False" IsTabStop="False" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                         <TextBlock x:Name="ReaderPostPosition" AutomationProperties.AutomationId="ReaderPostPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
-                                        <Button x:Name="ReaderNextPost" Tag="reader.nextPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <Button x:Name="ReaderNextPost" AutomationProperties.AutomationId="ReaderNextPost" Tag="reader.nextPost" Classes="localized ghost" Focusable="False" IsTabStop="False" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
                                     </StackPanel>
                                     </StackPanel>
                                 </Border>

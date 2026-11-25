@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -64,6 +65,12 @@ public partial class MainWindow
     }
 
     private static bool IsDismissKey(KeyEventArgs e) => e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None;
+
+    // Leave Escape on its existing route so the focused admission surface dismisses itself first.
+    private bool IsAdmissionDismissSource(object? source) => source is Avalonia.Visual visual
+        && visual.GetSelfAndVisualAncestors().Any(parent => ReferenceEquals(parent, AdmissionRepairPanel)
+            || ReferenceEquals(parent, AdmissionResultsPanel) || ReferenceEquals(parent, _admissionLinkStrip)
+            || ReferenceEquals(parent, _admissionProblemTools));
 
     private void OnAdmissionRepairKeyDown(object? sender, KeyEventArgs e)
     {

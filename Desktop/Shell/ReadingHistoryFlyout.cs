@@ -272,10 +272,19 @@ internal sealed class ReadingHistoryFlyout : IDisposable
         _panel.AddHandler(InputElement.KeyDownEvent, (_, e) =>
         {
             _keyboard = true;
-            if (_panel.HandleMenuKey(e)) e.Handled = true;
+            if (!ShortcutService.IsCapturing && (MediaMenuPresenter.IsContextKey(e)
+                || CommandBindings.Matches(e, ReadingHistoryMenu.ContinueCommandId)))
+            {
+                e.Handled = true;
+                Close();
+            }
+            else if (_panel.HandleMenuKey(e)) e.Handled = true;
         }, RoutingStrategies.Tunnel);
         _panel.GotFocus += (_, _) => _hadFocus = true;
-        _flyout.Opened += (_, _) => Dispatcher.UIThread.Post(() => _panel.FocusFirst(), DispatcherPriority.Loaded);
+        _flyout.Opened += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            if (_flyout.IsOpen) _panel.FocusFirst();
+        }, DispatcherPriority.Loaded);
         _flyout.Closed += (_, _) => { _closedAt = DateTime.UtcNow; RestoreFocus(); };
     }
 
@@ -355,7 +364,7 @@ internal sealed class ReadingHistoryFlyout : IDisposable
             object? focused = top?.FocusManager?.GetFocusedElement();
             if (focused is Control current && current.IsEffectivelyVisible && current.IsEffectivelyEnabled
                 && !current.GetSelfAndVisualAncestors().Contains(_panel)) return; // something else took it (the opened page)
-            if (target != null && target.IsAttachedToVisualTree() && target.IsEffectivelyVisible && target.IsEffectivelyEnabled)
+            if (target is { Focusable: true } && target.IsAttachedToVisualTree() && target.IsEffectivelyVisible && target.IsEffectivelyEnabled)
                 target.Focus(_keyboard ? NavigationMethod.Tab : NavigationMethod.Pointer);
             else _fallbackFocus?.Invoke();
         }, DispatcherPriority.Background);

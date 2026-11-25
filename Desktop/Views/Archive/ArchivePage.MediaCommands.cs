@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -140,11 +141,11 @@ public partial class ArchivePage
 
     private void OnArchiveMediaControlPress(object? sender, PointerPressedEventArgs e)
     {
-        if (e.Source is not Control source || !ContextClick.IsMacControlPress(e, this)) return;
+        if (sender is not Control surface || e.Source is not Control source || !ContextClick.IsMacControlPress(e, surface)) return;
         Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
             || SidebarStripContext(path) != null)
-            ContextClick.RequestOnMacControlPress(e, this);
+            ContextClick.RequestOnMacControlPress(e, surface);
     }
 
     // The rating caption of a tile (dead-affordance audit 15.11.) opens "Rate and tag" on that tile.
@@ -502,18 +503,7 @@ public partial class ArchivePage
     internal bool FocusAfterRateAndTag()
     {
         if (_ended || !ArchiveReaderPane.IsEffectivelyVisible) return false;
-        if (ReaderPostsInBackground)
-        {
-            if (_mediaTiles)
-            {
-                ListBox tiles = ArchiveMediaTiles;
-                if (!tiles.IsEffectivelyVisible) return false;
-                if (tiles.SelectedItem is { } tile && tiles.ContainerFromItem(tile) is Control container && container.Focus()) return true;
-                return tiles.Focus();
-            }
-            DataGrid grid = ArchiveMediaGrid;
-            return grid.IsEffectivelyVisible && grid.Focus();
-        }
+        if (ArchiveMediaTab.IsSelected) return FocusSelectedMedia();
         ListBox posts = ArchivePosts;
         if (!posts.IsEffectivelyVisible) return false;
         if (posts.SelectedItem is { } item && posts.ContainerFromItem(item) is Control card && card.Focus()) return true;
@@ -805,6 +795,16 @@ public partial class ArchivePage
             })
         };
         List<Control> context = new();
+        if (surface is MediaMenuSurface.ArchiveTiles or MediaMenuSurface.ArchiveTable && ManageMediaRatingsAsync != null)
+        {
+            const string manageCommand = "media.rating.manage";
+            MenuItem manage = MediaMenuBuilder.ContextCommandItem(session, manageCommand,
+                ManageSelectedMediaRatingsAsync, () => ManageMediaRatingsAsync != null, Run, null, CommandCatalog.Label(manageCommand));
+            AutomationProperties.SetAutomationId(manage, "ArchiveManageRatingsMenu");
+            context.Add(manage);
+        }
+        if (_mediaSidebar is { } sidebar && ReferenceEquals(origin, sidebar.FrameArea)
+            && sidebar.ExpandedTagsMenuItem(session, Run) is { } tags) context.Add(tags);
         if (surface is MediaMenuSurface.ArchiveTiles or MediaMenuSurface.ArchiveTable && asset?.Asset.Sha256 is { Length: 64 } hash)
             context.Add(MediaMenuBuilder.ContextItem(session, "archive.media.copySha256",
                 () => MenuClipboard.CopyAsync(origin, hash, reportError), () => true, Run, icon: "copy"));

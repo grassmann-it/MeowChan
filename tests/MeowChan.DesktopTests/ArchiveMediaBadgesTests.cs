@@ -348,10 +348,10 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
         finally { window.Close(); }
     });
 
-    // ---- the quiet toggle: the badge shows the favourite at rest, the toggle only while pointed at ----
+    // ---- the quiet toggle: the badge shows the favourite at rest ----
 
     [Fact]
-    public void TheArchiveTilesFavouriteToggleAppearsOnHoverOrFocusBecauseTheBadgeShowsTheState() => OnPlatform(() =>
+    public void TheArchiveTilesFavouriteToggleAppearsOnTileHoverFocusOrSelection() => OnPlatform(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         TransientPopupPolicy.Install();
@@ -375,8 +375,20 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
 
             window.MouseMove(new Point(-1, -1));
             BooruComponentDispatcher.WaitUntil(() => star.Opacity == 0, "the tile to hide its star after the pointer leaves");
-            Assert.True(star.Focus(NavigationMethod.Tab));
+
+            // Tom's 25.11. 17:55 decision: the tile is the keyboard target. Its star appears on hover, tile focus or selection.
+            Assert.False(star.IsTabStop);
+            Assert.False(star.Focus(NavigationMethod.Tab));
+            container.IsSelected = true;
+            Assert.False(container.IsKeyboardFocusWithin);
             Assert.Equal(1, star.Opacity);
+            Assert.True(star.IsHitTestVisible);
+            container.IsSelected = false;
+            Assert.Equal(0, star.Opacity);
+
+            Assert.True(container.Focus(NavigationMethod.Tab));
+            Assert.Equal(1, star.Opacity);
+            Assert.True(star.IsHitTestVisible);
         }
         finally { window.Close(); }
     });

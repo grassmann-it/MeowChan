@@ -43,11 +43,14 @@ internal static class MediaMenuSurfacesChecks
             MinimizeToTray = false, WorkspaceMode = "Simple" }.SaveConfig(profile);
         Texts.SetLanguage("en");
         await MediaPageChecks.SeedAsync(profile);
-        await using DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
-        await using MainWindow shell = new(session) { Width = 1400, Height = 950 };
-        Exception? failure = null;
+        await using Program.FixtureShell fixture = await Program.FixtureShell.CreateAsync(
+            () => new DesktopSessionHost(profile, Array.Empty<IImageBoard>()), Deadline);
+        MainWindow shell = fixture.Window;
+        DesktopSessionHost session = shell.SessionHost;
         try
         {
+            shell.Width = 1400;
+            shell.Height = 950;
             shell.Show(owner);
             await UntilAsync(() => session.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
 
@@ -60,16 +63,15 @@ internal static class MediaMenuSurfacesChecks
             Same("archive inline", inline, "archive tiles", tiles);
             Console.WriteLine("SMOKE media menu surfaces [en]: right-click on B while A is selected targets B on the media page, archive table, tiles and inline attachment and the gallery; Menu key and Shift+F10 open the same menu; order, labels, availability and reasons are identical across surfaces; the gallery offers media tags; loose and unbound media state honest reasons; the menus refuse after rebuild, thread change and navigation. Loose tile menu: " + string.Join(" / ", tilesLoose));
         }
-        catch (Exception thrown) { failure = thrown; throw; }
+        catch (Exception thrown) { fixture.RecordJourneyFailure(thrown); throw; }
         finally
         {
-            await SmokeCleanup.RunAsync(failure, async () =>
+            await SmokeCleanup.RunAsync(fixture.JourneyFailure, async () =>
             {
                 foreach (Window child in shell.OwnedWindows.Where(child => child.IsVisible).ToArray()) child.Close();
                 if (shell.FindControl<ContentControl>("GalleryHost")?.Content is GalleryViewer open)
                     GalleryViewerChecksAccess.Click(open, "GalleryClose");
-                shell.Close();
-                await UntilAsync(() => !shell.IsVisible);
+                await fixture.CloseAsync();
                 await shell.GalleryCleanupTask.WaitAsync(Deadline);
                 owner.Activate();
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaMenuSurfacesChecks: " + exception));

@@ -11,6 +11,7 @@ using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class BooruSearchTabsAndBulkTests : IDisposable
 {
     private readonly BooruUiHarness _h = new();

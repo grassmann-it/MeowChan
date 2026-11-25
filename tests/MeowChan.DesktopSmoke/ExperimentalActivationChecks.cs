@@ -39,11 +39,12 @@ internal static class ExperimentalActivationChecks
             MaxParallelDownloads = 1, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0,
             WorkspaceMode = "Barebones", Language = "en", Theme = "Dark" }.SaveConfig(profile);
         using var http = new ApphostIntegrityProcessSmoke.FixtureHttp();
-        await using DesktopSessionHost host = new(profile, providers: null,
-            updateSessionFactory: (path, settings) => new UpdateSession(path, settings, http.Client(), disableEnvironment: () => "1"),
-            pluginTransportFactory: http.Client);
-        await using MainWindow window = new(host);
-        window.Show(parent);
+        await using Program.FixtureShell fixture = await Program.FixtureShell.CreateAsync(
+            () => new DesktopSessionHost(profile, providers: null,
+                updateSessionFactory: (path, settings) => new UpdateSession(path, settings, http.Client(), disableEnvironment: () => "1"),
+                pluginTransportFactory: http.Client), TimeSpan.FromSeconds(15));
+        MainWindow window = fixture.Window;
+        DesktopSessionHost host = window.SessionHost;
         TaskCompletionSource<ExperimentalSourceActivationResult>? pending = null;
         string settings = Path.Combine(profile, "settings.json"), retainedSettings = settings + ".activation-retained";
 
@@ -216,9 +217,9 @@ internal static class ExperimentalActivationChecks
                 { cell, actualScale = modal.RenderScaling, warningMinimum = modal.Bounds.ToString(), syntheticPartialSave = true, explicitRetryCalls = calls }));
             }
         }
-        Exception? failureBeforeCleanup = null;
         try
         {
+            window.Show(parent);
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
             await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready && C<Button>(window, "AddUrlButton").IsEnabled);
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
@@ -374,10 +375,10 @@ internal static class ExperimentalActivationChecks
             Console.WriteLine("EXPERIMENTAL_ACTIVATION_GUI PASS: real URL controls, disabled no-work warning/cancel/Escape, explicit Host consent, deterministic worker metadata/media, mixed batch and strict later URL; EN/DE Dark/Light warning and synthetic partial/retry presentation at actual scale " + expectedScale
                 + ". Routed actions are synthetic; no physical/native input or live-source acceptance is claimed.");
         }
-        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
+        catch (Exception thrown) { fixture.RecordJourneyFailure(thrown); throw; }
         finally
         {
-            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            await SmokeCleanup.RunAsync(fixture.JourneyFailure, async () =>
             {
                 if (File.Exists(retainedSettings))
                 {
@@ -385,10 +386,8 @@ internal static class ExperimentalActivationChecks
                     File.Move(retainedSettings, settings);
                 }
                 pending?.TrySetResult(new(ExperimentalSourceActivationStatus.GrantFailed, null, null, "Fixture cleanup"));
-                foreach (var modal in Dialogs().ToArray()) modal.Close();
-                window.Close();
-                await window.DisposeAsync();
-                await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Stopped);
+                foreach (var modal in window.OwnedWindows.OfType<ExperimentalActivationDialog>().ToArray()) modal.Close();
+                await fixture.CloseAsync();
                 Texts.SetLanguage(original.Language); Application.Current.RequestedThemeVariant = originalTheme;
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ExperimentalActivationChecks: " + exception));
         }
@@ -461,15 +460,16 @@ internal static class ExperimentalActivationChecks
             MaxParallelDownloads = 1, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0,
             WorkspaceMode = "Barebones", Language = "en", Theme = "Dark" }.SaveConfig(profile);
         using var http = new ApphostIntegrityProcessSmoke.FixtureHttp();
-        await using DesktopSessionHost host = new(profile, providers: null,
-            updateSessionFactory: (path, settings) => new UpdateSession(path, settings, http.Client(), disableEnvironment: () => "1"),
-            pluginTransportFactory: http.Client);
-        await using MainWindow window = new(host);
-        window.Show(owner);
+        await using Program.FixtureShell fixture = await Program.FixtureShell.CreateAsync(
+            () => new DesktopSessionHost(profile, providers: null,
+                updateSessionFactory: (path, settings) => new UpdateSession(path, settings, http.Client(), disableEnvironment: () => "1"),
+                pluginTransportFactory: http.Client), TimeSpan.FromSeconds(15));
+        MainWindow window = fixture.Window;
+        DesktopSessionHost host = window.SessionHost;
         string settings = Path.Combine(profile, "settings.json"), retainedSettings = settings + ".edge-retained";
-        Exception? failureBeforeCleanup = null;
         try
         {
+            window.Show(owner);
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
             await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready && C<Button>(window, "AddUrlButton").IsEnabled);
             TextBox input = C<TextBox>(window, "UrlInput");
@@ -652,16 +652,14 @@ internal static class ExperimentalActivationChecks
             string grantsBeforeStop = JsonSerializer.Serialize(Config.LoadConfig(profile).SourceMediaIntegrityPermissions);
             await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(45));
             Require(stopping.IsVisible && host.State == DesktopSessionState.Stopped, "Shutdown did not leave the captured modal testable.");
-            stopping.Closed += (_, _) => window.Close();
+            stopping.Closed += (_, _) => fixture.RequestClose();
             await RejectStaleAsync(stopping);
             // StopAsync above sealed the profile's final writes, so the window's own shutdown cannot confirm its
             // preferences. By design (MainWindow.CloseApplicationAsync) it then leaves an inert, disposed window
             // for acknowledgement and the SECOND close request exits directly. Wait for that settled state.
-            const System.Reflection.BindingFlags shellFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-            bool Shell(string field) => (bool)typeof(MainWindow).GetField(field, shellFlags)!.GetValue(window)!;
-            await Program.WaitUntilAsync(() => !window.IsVisible || Shell("_allowClose") && !Shell("_shutdownRunning"));
-            if (window.IsVisible) window.Close();
-            await Program.WaitUntilAsync(() => !window.IsVisible);
+            Require(fixture.CloseRequested, "Dismissal of the stale activation did not start the owner shutdown.");
+            await fixture.CloseAsync(budget => budget.FailedStep == "final-preferences"
+                && budget.Failure is InvalidOperationException { Message: "Final preferences unavailable: Family closed." });
             Require(!input.IsFocused, "A late canceled modal restored focus while its owner was closing.");
             Require((await host.Plugins.ProfileStore.ReadAsync()).Revision == saved.Revision
                 && JsonSerializer.Serialize(Config.LoadConfig(profile).SourceMediaIntegrityPermissions) == grantsBeforeStop
@@ -670,21 +668,18 @@ internal static class ExperimentalActivationChecks
                 "Late confirmation after real shutdown changed durable consent or redirected into the other session.");
             Console.WriteLine("EXPERIMENTAL_OPEN_DIALOG_EDGES PASS: real selected-build invalidation, foreign-Host target rejection, existing strict Watch during partial consent and real StopAsync before late confirm; no in-place owner/session replacement or native-focus acceptance is claimed.");
         }
-        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
+        catch (Exception thrown) { fixture.RecordJourneyFailure(thrown); throw; }
         finally
         {
-            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            await SmokeCleanup.RunAsync(fixture.JourneyFailure, async () =>
             {
                 if (File.Exists(retainedSettings))
                 {
                     if (Directory.Exists(settings)) Directory.Delete(settings);
                     File.Move(retainedSettings, settings);
                 }
-                foreach (var modal in Dialogs().ToArray()) modal.Close();
-                window.Close();
-                await window.DisposeAsync();
-                await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(45));
-                await Program.WaitUntilAsync(() => !window.IsVisible);
+                foreach (var modal in window.OwnedWindows.OfType<ExperimentalActivationDialog>().ToArray()) modal.Close();
+                await fixture.DisposeAsync();
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ExperimentalActivationChecks: " + exception));
         }
     }

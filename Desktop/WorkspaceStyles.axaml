@@ -1957,6 +1957,11 @@
     <Style Selector="controls|HeaderBar:compact > Button.header-back TextBlock">
         <Setter Property="IsVisible" Value="False" />
     </Style>
+    <Style Selector=":is(Button).popup-open /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
     <Style Selector="Button.icon-square">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
@@ -2094,6 +2099,28 @@
     </Style>
     <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
         <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.surface-toggle:checked:not(:disabled):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.surface-toggle:checked:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="TextDecorations" Value="Underline" />
+    </Style>
+    <Style Selector="ToggleButton.header-icon.surface-toggle:checked Path.header-icon">
+        <Setter Property="RenderTransform" Value="rotate(180deg)" />
+    </Style>
+    <Style Selector="ToggleButton.header-icon.surface-toggle /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.header-icon.surface-toggle:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.header-icon.surface-toggle:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="Opacity" Value="0.75" />
     </Style>
     <Style Selector="ToggleButton.toolbar-toggle.segment:checked:pressed:not(:disabled):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.SegmentPressed}" />
@@ -2352,14 +2379,14 @@
     <Style Selector="ToggleButton.tile-favorite:checked:disabled, ToggleButton.tile-favorite:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite:disabled">
         <Setter Property="Opacity" Value="0.75" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
-    <!-- MB1b: where the shared media badges already show the favourite at rest (archive tiles), the toggle is only shown while the tile is
-         hovered or holds keyboard focus, set or not (declared after the rules above, so it wins over ":checked"). -->
+    <!-- MB1b: the shared badge shows the favourite at rest. Tom's 25.11. 17:55 decision keeps focus on the tile,
+         so its toggle is revealed by hover, tile focus or selection. -->
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked"><Setter Property="Opacity" Value="0" /><Setter Property="IsHitTestVisible" Value="False" /></Style>
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
     <Style Selector="ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
-    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
+    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet, ListBoxItem:selected ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /><Setter Property="IsHitTestVisible" Value="True" /></Style>
     <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked:disabled"><Setter Property="Opacity" Value="0" /><Setter Property="IsHitTestVisible" Value="False" /></Style>
-    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:disabled:focus-visible, ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet:disabled, ListBoxItem:selected ToggleButton.tile-favorite.tile-favorite-quiet:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 
     <!-- D4 (E7, A11Y M7): a chosen chip is never the tint alone. The chip-selected class gives the tint and a solid 2-px accent
@@ -2561,7 +2588,7 @@
     <!-- MV2 Booru result tile: the media page's tile look without the list host. No card: transparent at rest, with the 1-px edge reserved
          (the picture size is unchanged), a quiet Raised background and ControlBorder edge on hover or keyboard focus, AccentSurface and a
          3-px accent bar (Border.booru-tile-bar) when selected, together with the accent check on the picture. The actions row is transparent
-         until hover, focus inside or selection; it stays focusable. Square corners. -->
+         until hover, focus inside or selection. Square corners. -->
     <Style Selector="Border.booru-tile">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="0" />
@@ -2588,7 +2615,7 @@
     <Style Selector="Border.workspace-card-focusable">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.ViewportFocusAdorner}" />
     </Style>
-    <Style Selector="Border.booru-tile WrapPanel.booru-tile-actions > Button, Border.booru-tile WrapPanel.booru-tile-actions > CheckBox">
+    <Style Selector="Border.workspace-card-focusable.booru-tile">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.InsetViewportFocusAdorner}" />
     </Style>
     <Style Selector="Border.booru-stage-focus">

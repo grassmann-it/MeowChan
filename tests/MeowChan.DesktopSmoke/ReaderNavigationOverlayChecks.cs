@@ -137,6 +137,7 @@ internal static class ReaderNavigationOverlayChecks
                 return hit != null && hit.GetSelfAndVisualAncestors().Contains(dialog);
             });
             page.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await CheckHistoryShortcutAsync(window, page, history);
         }
         catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
@@ -150,7 +151,7 @@ internal static class ReaderNavigationOverlayChecks
                 window.Width = width; window.Height = height;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
                 page.MediaTilesPreference = mediaTiles;
-                if (historyCreated)
+                if (historyCreated && page.CanGoHistoryBack)
                 {
                     history.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     await Program.WaitUntilAsync(() => !history.IsVisible
@@ -162,6 +163,31 @@ internal static class ReaderNavigationOverlayChecks
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderNavigationOverlayChecks: " + exception));
         }
         Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-width, full-height overlaid viewport, idle auto-hide and show-on-move, scrollbar spacing, controlled toolbar wrapping with visible history label, the 40 dip navigation bar (arrow row, counters, compact form below 700 dip, whole-capsule hit-test, Auto/Always/Off), four accessible commands, retained secondary tabs and dialog hit-test passed.");
+    }
+
+    private static async Task CheckHistoryShortcutAsync(MainWindow window, ArchivePage page, Button history)
+    {
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        await page.FocusPostAsync("1003");
+        Require(posts.SelectedItem is ArchivePostRow { Id: "1003" } source
+            && posts.ContainerFromItem(source) is ListBoxItem { IsFocused: true },
+            "Reader history shortcut requires focus on post 1003.");
+        Control origin = (Control)window.FocusManager!.GetFocusedElement()!;
+        KeyEventArgs back = new()
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.Left,
+            KeyModifiers = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Alt
+        };
+        origin.RaiseEvent(back);
+        Require(back.Handled, "The reader history shortcut was not handled from the focused post.");
+        await Program.WaitUntilAsync(() => !history.IsVisible
+            && posts.SelectedItem is ArchivePostRow { Id: "1000" } restored
+            && posts.ContainerFromItem(restored) is ListBoxItem { IsFocused: true },
+            () => $"History return: visible={history.IsVisible}, selected={(posts.SelectedItem as ArchivePostRow)?.Id}, "
+                + $"focused={((window.FocusManager?.GetFocusedElement() as Control)?.DataContext as ArchivePostRow)?.Id}.");
+        await page.MediaLoadTask;
+        Console.WriteLine("SMOKE reader history shortcut: post 1003 returned to selected, focused post 1000.");
     }
 
     // Idle auto-hide (mode Auto): any pointer movement over the reader, the pointer over or near the bar, keyboard focus in it and a
@@ -185,10 +211,8 @@ internal static class ReaderNavigationOverlayChecks
             // so an already-running timer would otherwise retain the old interval.
             page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
             page.ReaderNavigationMode = Config.ReaderNavigationModeAuto;
-            // Establish the idle precondition explicitly. The preceding quote-navigation
-            // check may leave keyboard focus on a navigation button; focus is intentionally
-            // a keep-visible condition and must not make this idle assertion flaky.
-            tabs.Focus();
+            // Focus inside the capsule keeps it visible. Start idle with the post focused.
+            ReaderUxChecks.FocusSelectedPost(window);
             await Dispatcher.Yield();
             Point far = new(60, 60);
             Point onBar = Bounds(bar, window) is Rect box ? new Point(box.Center.X, box.Center.Y) : default;
@@ -234,7 +258,8 @@ internal static class ReaderNavigationOverlayChecks
             // Auto-hide collapses ReaderNavigationHitHost, so even an enabled edge action
             // is not a focus target while idle. This is retention coverage, not hidden-bar
             // keyboard discovery: reveal first, without changing any focusability flags.
-            Border focusSurface = page.FindControl<Border>("ReaderNavigationBar")!;
+            Border focusSurface = bar.GetVisualDescendants().OfType<Border>()
+                .Single(control => AutomationProperties.GetAutomationId(control) == "ReaderNavigationBar");
             string FocusState() => $"target={focusSurface.Name} visible={focusSurface.IsEffectivelyVisible} "
                 + $"enabled={focusSurface.IsEffectivelyEnabled} focusable={focusSurface.Focusable} "
                 + $"hostVisible={page.FindControl<Border>("ReaderNavigationHitHost")!.IsVisible} "
@@ -243,18 +268,12 @@ internal static class ReaderNavigationOverlayChecks
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    // Reproduce the historical enabled-edge attempt before revealing the host.
-                    // Enabled alone is not sufficient when an ancestor is collapsed.
-                    Button hiddenEdge = page.FindControl<Button>("ReaderNextPost")!;
-                    if (!hiddenEdge.IsEffectivelyEnabled)
-                        hiddenEdge = page.FindControl<Button>("ReaderPreviousPost")!;
-                    Require(hiddenEdge.IsEffectivelyEnabled && hiddenEdge.Focusable,
-                        "Reader navigation fixture has no enabled focusable edge action.");
-                    Console.WriteLine($"SMOKE reader navigation hidden focus probe: target={hiddenEdge.Name} "
-                        + $"visible={hiddenEdge.IsEffectivelyVisible} enabled={hiddenEdge.IsEffectivelyEnabled} "
-                        + $"focusable={hiddenEdge.Focusable} assigned={hiddenEdge.Focus()}; " + FocusState());
+                    Button edge = page.FindControl<Button>("ReaderNextPost")!;
+                    if (!edge.IsEffectivelyEnabled) edge = page.FindControl<Button>("ReaderPreviousPost")!;
+                    Require(edge.IsEffectivelyEnabled && !edge.Focusable && !edge.IsTabStop && !edge.Focus(),
+                        "A hidden navigation action took focus or the fixture has no enabled post arrow.");
                     page.ShowReaderNavigation();
-                    Require(focusSurface.IsEffectivelyVisible && focusSurface.IsEffectivelyEnabled && focusSurface.Focusable,
+                    Require(focusSurface.IsEffectivelyVisible && focusSurface.IsEffectivelyEnabled && focusSurface.Focusable && focusSurface.IsTabStop,
                         "Reader navigation focus precondition failed: " + FocusState());
                     Require(focusSurface.Focus() && focusSurface.IsFocused && bar.IsKeyboardFocusWithin,
                         "Reader navigation focus could not be assigned: " + FocusState());
@@ -270,7 +289,7 @@ internal static class ReaderNavigationOverlayChecks
                     "The bar lost keyboard focus or hid after the idle delay: " + FocusState());
                 Console.WriteLine("SMOKE reader navigation focus retained beyond idle delay: " + FocusState());
             });
-            Require(page.FindControl<Button>("ArchiveCloseReader")!.Focus() && !bar.IsKeyboardFocusWithin, "Focus did not leave the bar.");
+            Require(ReaderUxChecks.FocusSelectedPost(window).IsFocused && !bar.IsKeyboardFocusWithin, "Focus did not return to the post.");
             await WaitHiddenAsync();
             // A navigation shortcut shows it briefly.
             await page.NavigateReaderAsync(1, 0);
@@ -542,7 +561,7 @@ internal static class ReaderNavigationOverlayChecks
             (Name: "ReaderNextPost", Id: "reader.next-post") })
         {
             Button button = page.FindControl<Button>(command.Name)!;
-            Require(button.IsEffectivelyVisible && button.Focusable && Bounds(button, window).Width >= 32
+            Require(button.IsEffectivelyVisible && !button.Focusable && !button.IsTabStop && Bounds(button, window).Width >= 32
                 && Bounds(button, window).Height >= 32
                 && AutomationProperties.GetName(button) == CommandCatalog.Label(command.Id)
                 && ToolTip.GetTip(button) as string == CommandBindings.Tooltip(command.Id),
@@ -762,7 +781,7 @@ internal static class ReaderNavigationOverlayChecks
         // Narrow readers keep history behind More; its label and command semantics move with it.
         TextBlock? label = history.GetVisualDescendants().OfType<TextBlock>()
             .FirstOrDefault(text => (historyInMore || text.IsEffectivelyVisible) && text.Text == expected);
-        Require(history.IsVisible && history.IsEffectivelyEnabled && history.Focusable && label != null
+        Require(history.IsVisible && history.IsEffectivelyEnabled && label != null
             && (historyInMore ? overflowHost!.Children.Contains(history)
                 : history.IsEffectivelyVisible && label.Bounds.Width > 0 && label.DesiredSize.Width <= label.Bounds.Width + 1
                     && Contains(Bounds(history, window), Bounds(label, window)))
