@@ -72,6 +72,7 @@ public partial class MainWindow
         _taggingPage?.ConfigurePanelInfo(ReaderMediaPreferences.From(_session.Config));
         _mediaPage?.ConfigurePanel(ReaderInlineVideoOptions.From(_session.Config) with { Enabled = true }, ReaderSettingsPreferences.Gallery(_session.Config));
         ConfigureGalleryScrubPreview(); // the panel's timeline hover preview uses the profile's scrub cache (the gallery's)
+        ConfigureTaggingPanelVideo();
     }
 
     private void InitializeMediaPage()
