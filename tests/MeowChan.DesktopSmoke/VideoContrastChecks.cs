@@ -3,6 +3,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -122,8 +123,17 @@ internal static class VideoContrastChecks
             TextBlock time = TransportControl<TextBlock>(transport, "GalleryVideoTime");
             Check(window, viewer, transport, time, theme, "time", failures);
             await GalleryFocusChecks.CheckVideoAsync(window, viewer, player, theme);
-            if (theme == ThemeVariant.Light) await VideoZoomRotateChecks.RunAsync(window, viewer, player, theme);
-            if (theme == ThemeVariant.Light) await GalleryCaptionChecks.RunAsync(window, viewer, video: true);
+            if (theme == ThemeVariant.Light)
+            {
+                await VideoZoomRotateChecks.RunAsync(window, viewer, player, theme);
+                // The caption matrix measures the persistent dock below the picture, including its idle state.
+                var preferences = GalleryPlaybackPreferences.FromConfig(window.SessionHost.Config);
+                viewer.ConfigurePlayback(preferences.WithControlsOverlay(false));
+                try { await GalleryCaptionChecks.RunAsync(window, viewer, video: true); }
+                finally { viewer.ConfigurePlayback(preferences); }
+                if (viewer.ControlsHiddenNow)
+                    viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+            }
             TextBlock status = TransportControl<TextBlock>(transport, "GalleryVideoStatus");
             if (!ReferenceEquals(player, viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single())
                 || viewer.CaptureState().PostId != "2500")
