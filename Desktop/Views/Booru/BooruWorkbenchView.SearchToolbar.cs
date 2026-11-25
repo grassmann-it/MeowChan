@@ -127,6 +127,7 @@ internal sealed partial class BooruWorkbenchView
     private sealed class SearchToolbar : Panel
     {
         internal const double Gap = 8;
+        private const double MinimumInputWidth = 160;
         private const double PreferredInputWidth = 320;
         private const double MaximumInputWidth = 512;
 
@@ -176,6 +177,9 @@ internal sealed partial class BooruWorkbenchView
             }
             for (int i = 0; i < _optional.Length; i++) _optional[i].SetInline(i < inline);
             _actions.Measure(Avalonia.Size.Infinity);
+            double modeBudget = availableSize.Width - MinimumInputWidth - (ReservedWidth - _mode.DesiredSize.Width);
+            if (_mode.DesiredSize.Width > modeBudget)
+                _mode.Measure(new Size(Math.Max(0, modeBudget), double.PositiveInfinity));
             double width = double.IsPositiveInfinity(availableSize.Width) ? ReservedWidth + PreferredInputWidth : availableSize.Width;
             _input.Measure(new Size(InputWidth(width), double.PositiveInfinity));
             double height = Math.Max(Math.Max(_mode.DesiredSize.Height, _input.DesiredSize.Height),

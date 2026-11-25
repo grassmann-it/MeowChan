@@ -118,8 +118,7 @@ public sealed class BooruSearchOverflowTests
             if (id == BooruWorkbenchView.AlternateSubmitName)
                 Assert.Equal(new KeyGesture(Key.Enter, KeyModifiers.Shift), item.InputGesture);
             else Assert.Null(item.InputGesture);
-            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            Settle(window);
+            PointerClick(item, window);
             Assert.False(menu.IsOpen);
             Assert.Same(input, window.FocusManager?.GetFocusedElement());
         }
@@ -179,12 +178,19 @@ public sealed class BooruSearchOverflowTests
     private static MenuFlyout Open(Window window, Button overflow)
     {
         MenuFlyout menu = Assert.IsType<MenuFlyout>(overflow.Flyout);
-        Point center = overflow.TranslatePoint(new Rect(overflow.Bounds.Size).Center, window)!.Value;
-        window.MouseDown(center, MouseButton.Left);
-        window.MouseUp(center, MouseButton.Left);
-        Settle(window);
+        PointerClick(overflow, window);
         Assert.True(menu.IsOpen);
         return menu;
+    }
+
+    private static void PointerClick(Control control, Window window)
+    {
+        TopLevel root = Assert.IsAssignableFrom<TopLevel>(control.GetVisualRoot());
+        Point center = control.TranslatePoint(new Rect(control.Bounds.Size).Center, root)!.Value;
+        root.MouseMove(center);
+        root.MouseDown(center, MouseButton.Left);
+        root.MouseUp(center, MouseButton.Left);
+        Settle(window);
     }
 
     private static T Find<T>(Control root, string id) where T : Control => root.GetVisualDescendants().OfType<T>()

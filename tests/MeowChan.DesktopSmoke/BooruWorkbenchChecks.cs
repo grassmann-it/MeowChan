@@ -789,9 +789,10 @@ internal static partial class BooruWorkbenchChecks
             string[] entryIds = secondary.Select(button => AutomationProperties.GetAutomationId(button) + "Overflow").ToArray();
             MenuItem[] entries = menu.Items.OfType<MenuItem>().Where(item => item.IsEffectivelyVisible).ToArray();
             Require(entries.Select(AutomationProperties.GetAutomationId).SequenceEqual(entryIds), "Narrow overflow did not list all three search actions.");
-            Require(entries[0].InputGesture is { Key: Key.Enter, KeyModifiers: KeyModifiers.Shift }, "The alternate-search menu gesture is missing.");
+            MenuItem alternateEntry = entries.Single(item => AutomationProperties.GetAutomationId(item) == BooruWorkbenchView.AlternateSubmitName + "Overflow");
+            Require(alternateEntry.InputGesture is { Key: Key.Enter, KeyModifiers: KeyModifiers.Shift }, "The alternate-search menu gesture is missing.");
             Capture(window, shots, "search-overflow-en-640");
-            await native.ClickAsync(entries.Single(item => AutomationProperties.GetAutomationId(item) == entryIds[0]));
+            await native.ClickAsync(alternateEntry);
             await Program.WaitUntilAsync(() => !menu.IsOpen && input.IsFocused && page.Model.Search.View.ExecutedQuery == "dog",
                 () => "Choosing the overflow action did not search in a new tab and refocus the search field.");
             Require(page.View.SearchTabs.Ids.Count == 2, "The overflow action did not open a second search tab.");
