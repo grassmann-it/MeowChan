@@ -122,7 +122,9 @@ public sealed class HeaderTaglineLayoutTests
                 if (mode == TaglinePicker.ModeDaily)
                 {
                     TaglinePick expected = TaglinePicker.Pick(mode, "cats", pool, today, current, seen, atStart: true, new Random(3));
-                    Assert.Equal(updated, expected.ReleaseHighlight);
+                    // Without a release quip for the current version an update uses the daily rule.
+                    bool hasReleaseQuip = pool.Any(e => e.Category == TaglineCategory.Release && e.Since == current);
+                    Assert.Equal(updated && hasReleaseQuip, expected.ReleaseHighlight);
                     Assert.Equal(expected.Entry!.Text, quip);
                     Assert.Equal(current.ToString(3), session.Config.LastTaglineVersion);
                 }
