@@ -142,6 +142,7 @@ public sealed class IconForegroundTests
         Assert.Equal(ThemePalette.Build(ThemePaletteTests.Base(ThemeTokenTheme.Dark)).Colors["Workspace.Rating"], VideoPlayMark.RatingColor);
         foreach (MediaBadgeId id in new[] { MediaBadgeId.TagCount, MediaBadgeId.Queued, MediaBadgeId.Tagging, MediaBadgeId.Missing, MediaBadgeId.Booru })
             Assert.Equal(Colors.White, MediaBadgeLayout.IconColor(id));
+        Assert.Equal(Colors.White, VideoPlayMark.GlyphColor);
         // The disc is dark in both themes; the worst picture under it is white.
         Color disc = VideoPlayMark.DiscColor;
         string overWhite = ContrastRules.CompositeOver($"#{disc.A:X2}{disc.R:X2}{disc.G:X2}{disc.B:X2}", "#FFFFFF");

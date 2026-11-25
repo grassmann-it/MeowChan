@@ -197,8 +197,8 @@
                     <SolidColorBrush x:Key="ComboBoxSelectorPressedBorderBrush">#6AA7FF</SolidColorBrush>
                     <!-- The caption close button's red hover (#C42B1C) is 2.95:1 on the Dark Panel: a 1-px Text edge (10.75:1) carries the boundary. -->
                     <SolidColorBrush x:Key="Workspace.CaptionCloseEdge">#EEF1F4</SolidColorBrush>
-                    <!-- The favourite heart is red, the rating star gold (Tom, 26.11.2026): two tokens. Red is 5.2:1 on the Dark Panel, Gold 10.6-13.2:1 on the dark surfaces. -->
-                    <SolidColorBrush x:Key="Workspace.Favorite">#FF4D5E</SolidColorBrush>
+                    <!-- The favourite heart is red, the rating star gold (Tom, 26.11.2026): two tokens. Red is 5.5:1 on the Dark Panel (3.4:1 on the media scrim over a white picture), Gold 10.6-13.2:1 on the dark surfaces. -->
+                    <SolidColorBrush x:Key="Workspace.Favorite">#FF5C6C</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Rating">#FFD700</SolidColorBrush>
                     <!-- Semi blue leftovers (2026-11-14): text box and combo box focus, selection, check box and radio button checked states, slider, progress, pagination, line tabs, info banner/toast, loading icon, badge. Each key is an accent/palette token; the glyph on an accent fill is OnAccent. -->
                     <!-- Field focus and text selection (selection pair is opaque accent with OnAccent, as the TextBox style sets it). -->

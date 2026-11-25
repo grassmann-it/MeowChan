@@ -288,7 +288,7 @@ internal static class MediaBadgeLayout
     {
         MediaBadgeId.Favorite => VideoPlayMark.FavoriteColor,
         MediaBadgeId.Rating => VideoPlayMark.RatingColor,
-        _ => Colors.White
+        _ => VideoPlayMark.GlyphColor
     };
 
     /// <summary>What a picture of this shorter side can carry under these limits.</summary>
@@ -539,7 +539,7 @@ internal static class MediaBadgeIconBitmaps
 {
     private static readonly Dictionary<(string Icon, uint Color), Bitmap> Cache = new();
 
-    internal static Bitmap Get(string icon) => Get(icon, Colors.White);
+    internal static Bitmap Get(string icon) => Get(icon, VideoPlayMark.GlyphColor);
 
     internal static Bitmap Get(string icon, Color color)
     {
