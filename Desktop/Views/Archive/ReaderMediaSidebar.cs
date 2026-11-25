@@ -371,6 +371,21 @@ internal sealed partial class ReaderMediaSidebar : Border
         && (InBar(_image, visual) || InBar(_play, visual)
             || video is not null && InBar(video.Activator, visual)
             || _factPlayer is not null && InBar(_factPlayer, visual));
+
+    internal bool IsStalePictureHit(object? source, Point position) =>
+        PictureIsStale && source is Visual visual && InBar(_frame, visual) && PictureContains(position);
+
+    internal bool IsCurrentMediaSurface(object? source, Point position, ReaderInlineVideoSlot? video) => source is Visual visual
+        && (video?.Player is { } player && InBar(player, visual)
+            || !PictureIsStale && PictureContains(position) && IsMediaSurfaceSource(source, video));
+
+    // The header and video offer can change before a decode replaces the picture.
+    private bool PictureIsStale => IsDimmed || !string.Equals(Load.ShownKey, _mediumKey, StringComparison.Ordinal);
+
+    private bool PictureContains(Point position) => _bitmap != null && _image.IsEffectivelyVisible
+        && this.TranslatePoint(position, _image) is { } point && new Rect(_image.Bounds.Size).Contains(point);
+
+    internal Func<string, CancellationToken, Task>? BeforePreviewDecodeForTests { get; set; }
     internal Bitmap? Shown => _bitmap;
     /// <summary>
     /// The load state of the picture (which load is the latest, which medium is shown and how large): the host asks it before it decodes, the view
@@ -435,14 +450,15 @@ internal sealed partial class ReaderMediaSidebar : Border
         _frame.Children.Add(_status);
         _frame.PointerReleased += (_, e) =>
         {
-            if (e.InitialPressMouseButton != MouseButton.Left || IsOverlaySource(e.Source) || _bitmap == null && !_status.IsVisible) return;
+            if (e.InitialPressMouseButton != MouseButton.Left || IsOverlaySource(e.Source)
+                || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
             e.Handled = true;
             PictureActivated?.Invoke(this, EventArgs.Empty);
         };
 
         _frame.DoubleTapped += (_, e) =>
         {
-            if (IsOverlaySource(e.Source) || _bitmap == null && !_status.IsVisible) return;
+            if (IsOverlaySource(e.Source) || (_bitmap != null ? PictureIsStale : !_status.IsVisible)) return;
             e.Handled = true;
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };

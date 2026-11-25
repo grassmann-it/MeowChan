@@ -46,6 +46,7 @@ public sealed partial class MediaPage
     private string _panelAnnouncement = string.Empty;
     private GalleryFitPreferences _panelFit = new();
     private readonly PressOpenedContextGate _panelPointerContext = new();
+    private readonly MiddleClickTracker _panelMiddleClick = new();
 
     /// <summary>The panel view (smoke and test seam); null until the panel was shown once.</summary>
     internal ReaderMediaSidebar? Panel => _panel;
@@ -453,6 +454,7 @@ public sealed partial class MediaPage
             if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
             if (entry.Kind == SavedMediaKind.Image)
             {
+                if (panel.BeforePreviewDecodeForTests is { } beforeDecode) await beforeDecode(entry.Asset.Path, ct);
                 (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
                 return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
             }
@@ -622,11 +624,18 @@ public sealed partial class MediaPage
     private void OnPanelPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         _panelPointerContext.BeginPress(); // each press starts its own gesture
-        if (e.Handled || _lifetime.IsCancellationRequested || _panel is not { } panel || !OwnsPanelMenu(e.Source, panel)
-            || !ContextClick.IsPress(e, panel) || _panelRow is not { } row) return;
-        panel.Frame.Focusable = true;
-        panel.Frame.Focus();
-        OpenSharedMediaMenu(row, panel.Frame, _panelVideo);
+        _panelMiddleClick.Cancel();
+        if (e.Handled || _lifetime.IsCancellationRequested || _panel is not { } panel || _panelRow is not { } row) return;
+        Point position = e.GetPosition(panel);
+        if (MiddleClickTracker.IsPress(e, panel) && panel.IsCurrentMediaSurface(e.Source, position, _panelVideo))
+            _panelMiddleClick.Pressed(row);
+        if (!ContextClick.IsPress(e, panel) || !OwnsPanelMenu(e.Source, panel)) return;
+        if (!panel.IsStalePictureHit(e.Source, position))
+        {
+            panel.Frame.Focusable = true;
+            panel.Frame.Focus();
+            OpenSharedMediaMenu(row, panel.Frame, _panelVideo);
+        }
         _panelPointerContext.MenuOpenedByPress(ContextClick.Button(e, panel));
         e.Handled = true;
     }
@@ -635,6 +644,12 @@ public sealed partial class MediaPage
     private void OnPanelPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         _panelPointerContext.Released(e.InitialPressMouseButton);
+        if (!MiddleClickTracker.IsRelease(e)) return;
+        MediaLibraryTileRow? row = !e.Handled && _panelShown && !_panelObscured && _panel is { } panel
+            && panel.IsCurrentMediaSurface(MiddleClickTracker.HitAt(e, panel), e.GetPosition(panel), _panelVideo) ? _panelRow : null;
+        if (!_panelMiddleClick.Released(row) || row == null) return;
+        e.Handled = true;
+        OpenActions.Start(() => RunMediaCommandOnTileAsync("media.open-external", row), "media.panel.middleClick");
     }
 
     private void OnPanelContextRequested(object? sender, ContextRequestedEventArgs e)
@@ -642,7 +657,8 @@ public sealed partial class MediaPage
         if (e.Handled || _panel is not { } panel || !OwnsPanelMenu(e.Source, panel)) return;
         if (_panelPointerContext.TryConsume()) { e.Handled = true; return; }
         if (_panelRow is not { } row) return;
-        bool keyboard = !e.TryGetPosition(panel, out _);
+        bool keyboard = !e.TryGetPosition(panel, out Point position);
+        if (!keyboard && panel.IsStalePictureHit(e.Source, position)) { e.Handled = true; return; }
         if (!keyboard)
         {
             panel.Frame.Focusable = true;

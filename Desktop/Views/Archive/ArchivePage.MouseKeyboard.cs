@@ -140,7 +140,8 @@ public partial class ArchivePage
     private void OnSidebarMiddlePressed(object? sender, PointerPressedEventArgs e)
     {
         _sidebarMiddleTarget = _mediaSidebarShown && _mediaSidebar is { } sidebar && MiddleClickTracker.IsPress(e, sidebar)
-            && sidebar.IsMediaSurfaceSource(e.Source, _sidebarVideo) ? (SavedMediaSidebarRow, _displayedSidebarMedium) : null;
+            && sidebar.IsCurrentMediaSurface(e.Source, e.GetPosition(sidebar), _sidebarVideo)
+            ? (SavedMediaSidebarRow, _displayedSidebarMedium) : null;
     }
 
     private void OnSidebarMiddleReleased(object? sender, PointerReleasedEventArgs e)
@@ -148,7 +149,8 @@ public partial class ArchivePage
         if (e.Handled || !MiddleClickTracker.IsRelease(e) || _mediaSidebar is not { } sidebar) return;
         var pressed = _sidebarMiddleTarget;
         _sidebarMiddleTarget = null;
-        if (pressed is not { } target || !_mediaSidebarShown || !sidebar.IsMediaSurfaceSource(MiddleClickTracker.HitAt(e, sidebar), _sidebarVideo)
+        if (pressed is not { } target || !_mediaSidebarShown
+            || !sidebar.IsCurrentMediaSurface(MiddleClickTracker.HitAt(e, sidebar), e.GetPosition(sidebar), _sidebarVideo)
             || target.Saved != SavedMediaSidebarRow || target.Inline != _displayedSidebarMedium) return;
         if (target.Saved is { } saved) OpenMediaByMiddleClick(saved);
         else if (target.Inline is { } shown) OpenMediaByMiddleClick(null, shown.Attachment, shown.Post.Id);
