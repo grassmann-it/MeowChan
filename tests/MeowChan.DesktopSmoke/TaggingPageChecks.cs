@@ -125,6 +125,7 @@ internal static class TaggingPageChecks
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.show-in-media"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("media.show-in-folder"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("media.copy-path"),
+                MeowChan.Desktop.Commands.CommandCatalog.Label("media.copy-file-name"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-up"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-down"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-first"),

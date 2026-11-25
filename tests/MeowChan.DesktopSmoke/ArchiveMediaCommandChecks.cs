@@ -63,7 +63,7 @@ internal static class ArchiveMediaCommandChecks
             MenuItem[] commands = items.Take(items.Length - 1).ToArray();
             string[] actualTags = commands.Select(item => item.Tag as string ?? "<untagged>").ToArray();
             Require(actualTags.SequenceEqual(new[]
-            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" }),
+            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original", "media.copy-path", "media.copy-file-name", "media.show-in-folder", "media.open-external", "media.details", "gallery.show-in-thread" }),
                 "Inline media menu lacks the shared media actions or order: " + string.Join(", ", actualTags));
             MenuItem rating = commands.Single(item => (string)item.Tag! == "media.rating.edit");
             Require(rating.IsEnabled && rating.Command?.CanExecute(rating.CommandParameter) == true,

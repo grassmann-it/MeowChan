@@ -1247,18 +1247,33 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     // Right click, Menu key or Shift+F10 on a chip of an own tag: put it into the stamp or take it out. The menu is filled when it
     // opens (on the UI thread, and always with the current stamp), so a chip needs no item collection while the strip is rebuilt.
+    internal Action<TagId>? FilterMediaByTag { get; set; }
+
     private void AttachStampMenu(Button chip, TagId tag)
     {
         ContextMenu menu = new();
-        menu.Opening += (_, _) => menu.ItemsSource = StampMenuItems(tag);
+        menu.Opening += (_, e) =>
+        {
+            ContextMenuBuilder builder = new();
+            IReadOnlyList<MenuItem> stamp = StampMenuItems(tag);
+            if (_session.Snapshot?.Find(tag) is { } definition)
+            {
+                builder = OwnTagChipMenu.IdentityActions(chip, definition.Name.Display, tag, FilterMediaByTag);
+                builder.Append(new Separator());
+            }
+            e.Cancel = !builder.Append(stamp.ToArray()).Populate(menu);
+        };
         chip.ContextMenu = menu;
+        chip.AddHandler(InputElement.PointerPressedEvent, (_, e) => ContextClick.RequestOnMacControlPress(e, chip), RoutingStrategies.Tunnel);
     }
 
     /// <summary>The context menu entries of the chip of <paramref name="tag"/>: "Add to stamp" or "Remove from stamp".</summary>
     internal IReadOnlyList<MenuItem> StampMenuItems(TagId tag)
     {
         bool inStamp = _session.InStamp(tag);
-        MenuItem item = new() { Header = Texts.T(inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd"), Name = _name + (inStamp ? "StampRemove" : "StampAdd") };
+        string key = inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd";
+        MenuItem item = new() { Header = Texts.T(key), Tag = key, Name = _name + (inStamp ? "StampRemove" : "StampAdd"),
+            Icon = CommandBindings.IconFromKey(inStamp ? "minus" : "plus") };
         item.Click += (_, _) => { if (inStamp) _session.RemoveFromStamp(tag); else _session.AddToStamp(tag); };
         return new[] { item };
     }

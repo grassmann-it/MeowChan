@@ -29,7 +29,8 @@ internal static class MediaMenuBuilder
     /// <param name="leadingItems">A group on top of the common section (the playback group of a video in the reader), followed by a separator.</param>
     internal static ContextMenu Build(MediaMenuSession session, MediaMenuModel model,
         IReadOnlyDictionary<MediaMenuAction, Func<Task>> handlers, Func<Func<Task>, Task> run,
-        IReadOnlyList<Control>? contextItems = null, Action<string>? explain = null, IReadOnlyList<Control>? leadingItems = null)
+        IReadOnlyList<Control>? contextItems = null, Action<string>? explain = null, IReadOnlyList<Control>? leadingItems = null,
+        Func<string?>? openExternalReason = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(model);
@@ -46,7 +47,7 @@ internal static class MediaMenuBuilder
         {
             if (group >= 0 && entry.Group != group) items.Add(new Separator());
             group = entry.Group;
-            items.Add(Item(session, entry, handlers, run));
+            items.Add(Item(session, entry, handlers, run, entry.Action == MediaMenuAction.OpenExternal ? openExternalReason : null));
         }
         if (contextItems is { Count: > 0 })
         {
@@ -74,7 +75,7 @@ internal static class MediaMenuBuilder
     }
 
     private static MenuItem Item(MediaMenuSession session, MediaMenuItemModel entry,
-        IReadOnlyDictionary<MediaMenuAction, Func<Task>> handlers, Func<Func<Task>, Task> run)
+        IReadOnlyDictionary<MediaMenuAction, Func<Task>> handlers, Func<Func<Task>, Task> run, Func<string?>? liveBlockedReason)
     {
         bool executable = entry.Available && handlers.ContainsKey(entry.Action);
         // An action the composition made available without a handler is shown disabled; the guard tests hear of it (MediaMenuHandlers.NoOp).
@@ -84,10 +85,10 @@ internal static class MediaMenuBuilder
             if (!session.IsCurrent || !handlers.TryGetValue(entry.Action, out Func<Task>? handler)) return;
             _ = run(handler);
         }
-        bool CanExecute() => executable && session.IsCurrent;
+        bool CanExecute() => executable && session.IsCurrent && liveBlockedReason?.Invoke() == null;
         MenuItem item;
         if (entry.CommandId is { } id)
-            item = CommandBindings.CreateMenuItem(id, Execute, CanExecute, () => executable ? null : entry.Reason ?? MediaMenuReasons.Unavailable,
+            item = CommandBindings.CreateMenuItem(id, Execute, CanExecute, () => executable ? liveBlockedReason?.Invoke() : entry.Reason ?? MediaMenuReasons.Unavailable,
                 () => entry.Label, entry.ShowShortcut);
         else
         {
@@ -250,6 +251,7 @@ internal sealed class MediaMenuPresenter
 
     internal ContextMenu? Menu { get; private set; }
     internal MediaMenuSession? Session => _session;
+    internal Control? Origin => _owner;
 
     /// <summary>Opens <paramref name="menu"/> on <paramref name="origin"/> for <paramref name="session"/>.</summary>
     /// <param name="attachToOrigin">Also sets the origin's ContextMenu for the lifetime of the open menu.</param>
@@ -323,8 +325,5 @@ internal sealed class MediaMenuPresenter
         && visual.GetSelfAndVisualAncestors().Any(control => PointerFocusReclaim.IsTextInput(control) || control is Slider or SelectableTextBlock);
 
     /// <summary>The keyboard gestures that open a context menu: the Menu key, Shift+F10 and the configurable context-open command.</summary>
-    internal static bool IsContextKey(KeyEventArgs e) => !e.Handled && !CommandRouter.IsNativeInput(e.Source, e.Key)
-        && (e.Key == Key.Apps && e.KeyModifiers == KeyModifiers.None
-            || e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift
-            || CommandBindings.Matches(e, "menu.context-open"));
+    internal static bool IsContextKey(KeyEventArgs e) => ContextClick.IsKey(e);
 }

@@ -2666,6 +2666,7 @@
     "command.media.details": "Mostrar detalles del medio",
     "command.post.copy-link": "Copiar enlace de la publicación",
     "command.post.open-source": "Abrir la publicación en la fuente",
+    "command.media.copy-file-name": "Copiar nombres de archivo",
     "command.media.copy-path": "Copiar ruta del archivo",
     "command.media.open-external": "Abrir con el programa predeterminado",
     "command.post.copy-text": "Copiar texto de la publicación",

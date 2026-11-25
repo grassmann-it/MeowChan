@@ -15,6 +15,7 @@ public partial class MainWindow
     public ObservableCollection<ThreadRow> VisibleThreads { get; } = new();
     public ObservableCollection<BoardRow> VisibleBoards { get; } = new();
     private bool _refreshingDownloadSearch;
+    private bool _steppingDownloadSearch;
     private bool _downloadSearchOpen;
     private long _downloadSearchQueryRevision;
     private long _appliedDownloadSearchRevision = -1;
@@ -146,6 +147,13 @@ public partial class MainWindow
     // callback advances only one plan. The current literal query never changes under an in-flight plan.
     private bool StepDownloadSearch(DesktopSessionProjection projection)
     {
+        _steppingDownloadSearch = true;
+        try { return StepDownloadSearchCore(projection); }
+        finally { _steppingDownloadSearch = false; }
+    }
+
+    private bool StepDownloadSearchCore(DesktopSessionProjection projection)
+    {
         BeginDownloadSearch(projection);
         if (!_threadSearchReconciliation!.IsCompleted)
         {
@@ -189,6 +197,29 @@ public partial class MainWindow
             yield return () => { if (_threadSearchReconciliation!.Includes(row) && !threads.SelectedItems.Contains(row)) threads.SelectedItems.Add(row); };
         foreach (BoardRow row in _retainedBoardSelection)
             yield return () => { if (_boardSearchReconciliation!.Includes(row) && !boards.SelectedItems.Contains(row)) boards.SelectedItems.Add(row); };
+    }
+
+    private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_refreshingDownloadSearch) { RefreshWorkspace(); return; }
+        if (!_sessionRowsApplying || _steppingDownloadSearch || !ReferenceEquals(e.Source, sender)) return;
+
+        // A selection can arrive after a slice inserts visible rows and before selection repair runs.
+        // Keep those changes, while discarding selection churn from the collection changes within a slice.
+        if (ReferenceEquals(sender, ThreadsDataGrid))
+        {
+            _retainedThreadSelection = _retainedThreadSelection.Except(e.RemovedItems.OfType<ThreadRow>())
+                .Union(e.AddedItems.OfType<ThreadRow>().Where(row => !row.IsHistorical)).ToArray();
+            _retainedThreadSet = new(_retainedThreadSelection);
+        }
+        else if (ReferenceEquals(sender, BoardsDataGrid))
+        {
+            _retainedBoardSelection = _retainedBoardSelection.Except(e.RemovedItems.OfType<BoardRow>())
+                .Union(e.AddedItems.OfType<BoardRow>()).ToArray();
+            _retainedBoardSet = new(_retainedBoardSelection);
+        }
+        _restoreDownloadSelection?.Dispose();
+        _restoreDownloadSelection = null;
     }
 
     private void RefreshDownloadSearchPresentation()

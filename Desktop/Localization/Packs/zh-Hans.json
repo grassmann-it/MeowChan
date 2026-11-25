@@ -2516,6 +2516,7 @@
     "command.media.details": "显示媒体详情",
     "command.post.copy-link": "复制帖子链接",
     "command.post.open-source": "在来源处打开帖子",
+    "command.media.copy-file-name": "复制文件名",
     "command.media.copy-path": "复制文件路径",
     "command.media.open-external": "用默认程序打开",
     "command.post.copy-text": "复制帖子文本",

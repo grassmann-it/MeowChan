@@ -2516,6 +2516,7 @@
     "command.media.details": "メディアの詳細を表示",
     "command.post.copy-link": "投稿のリンクをコピー",
     "command.post.open-source": "投稿をソースで開く",
+    "command.media.copy-file-name": "ファイル名をコピー",
     "command.media.copy-path": "ファイルパスをコピー",
     "command.media.open-external": "既定のプログラムで開く",
     "command.post.copy-text": "投稿のテキストをコピー",

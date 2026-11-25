@@ -18,8 +18,7 @@ namespace MeowChan.Desktop.Controls;
 /// </summary>
 internal sealed class ContextMenuHost : IDisposable
 {
-    // Avalonia may follow a handled key or press with a positionless ContextRequested of its own; it is consumed, not opened again.
-    private static readonly TimeSpan PairedRequestWindow = TimeSpan.FromMilliseconds(400);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, ContextMenuHost> Installed = new();
 
     private readonly Control _origin;
     private readonly Func<ContextMenuBuilder?> _compose;
@@ -28,7 +27,6 @@ internal sealed class ContextMenuHost : IDisposable
     private Control? _openOn;
     private readonly Action? _fallbackFocus;
     private ContextMenu? _menu;
-    private DateTime _lastKeyOpen = DateTime.MinValue;
     private bool _disposed;
 
     /// <param name="origin">The control the menu belongs to; focus returns to it.</param>
@@ -49,6 +47,7 @@ internal sealed class ContextMenuHost : IDisposable
         // handler of the list sees them, so a rebinding of "Open context menu" to one of them would never arrive. Other origins keep the bubble phase,
         // where a child that handles the key itself (a nested chip with a menu of its own) still wins.
         origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, (origin is ListBox or DataGrid) ? RoutingStrategies.Tunnel : RoutingStrategies.Bubble);
+        origin.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         origin.AddHandler(Control.ContextRequestedEvent, OnContextRequested, RoutingStrategies.Bubble);
         // A card/row can be rebuilt while its popup is open (Booru paging, archive refresh, virtualized lists).
         // Close before the detached control can leave a menu whose buttons still point at the old row.
@@ -58,34 +57,50 @@ internal sealed class ContextMenuHost : IDisposable
     /// <summary>The menu that is open now, if any.</summary>
     internal ContextMenu? OpenMenu => _menu is { IsOpen: true } ? _menu : null;
 
+    internal static void Install(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null)
+    {
+        Uninstall(origin);
+        Installed.GetValue(origin, control => new ContextMenuHost(control, compose, fallbackFocus));
+        origin.DetachedFromVisualTree += UninstallOnDetach;
+    }
+
+    internal static void Uninstall(Control origin)
+    {
+        origin.DetachedFromVisualTree -= UninstallOnDetach;
+        if (Installed.TryGetValue(origin, out ContextMenuHost? host)) host.Dispose();
+        Installed.Remove(origin);
+    }
+
+    private static void UninstallOnDetach(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is Control origin) Uninstall(origin);
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_disposed || !MediaMenuPresenter.IsContextKey(e) || _acceptSource?.Invoke(e.Source) == false) return;
+        if (_disposed || !ContextClick.IsKey(e) || _acceptSource?.Invoke(e.Source) == false) return;
         // In the tunnel phase an interactive part of a row (a nested button or text field) keeps the key.
         if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
-        _lastKeyOpen = DateTime.UtcNow;
         e.Handled = true;
+        if (OpenMenu != null) return;
         Show(atPointer: false);
-        if (OpenMenu is not { } menu) return;
+        ContextClick.ConsumeOpeningKeyRelease(OpenMenu, e.Key, TopLevel.GetTopLevel(_origin) ?? _origin);
+    }
 
-        // The popup receives focus on open. Avalonia would otherwise close it on the release of its own menu key.
-        Key openingKey = e.Key;
-        menu.AddHandler(InputElement.KeyUpEvent, ConsumeOpeningKeyRelease, RoutingStrategies.Tunnel);
-
-        void ConsumeOpeningKeyRelease(object? sender, KeyEventArgs release)
-        {
-            if (release.Key != openingKey) return;
-            release.Handled = true;
-            menu.RemoveHandler(InputElement.KeyUpEvent, ConsumeOpeningKeyRelease);
-        }
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_disposed || _acceptSource?.Invoke(e.Source) == false || ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)
+            || MediaMenuPresenter.IsNativeTextSource(e.Source)) return;
+        ContextClick.RequestOnMacControlPress(e, _origin);
     }
 
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (_disposed || e.Handled || _acceptSource?.Invoke(e.Source) == false) return;
+        if (_disposed || e.Handled || _acceptSource?.Invoke(e.Source) == false || MediaMenuPresenter.IsNativeTextSource(e.Source)) return;
+        if (_origin is ListBox or DataGrid && ItemActivation.IsOwnedByInteractivePart(e.Source, _origin)) return;
         bool positioned = e.TryGetPosition(_origin, out _);
         e.Handled = true;
-        if (!positioned && DateTime.UtcNow - _lastKeyOpen < PairedRequestWindow) return;
+        if (!positioned && OpenMenu != null) return;
         Show(atPointer: positioned);
     }
 
@@ -151,6 +166,7 @@ internal sealed class ContextMenuHost : IDisposable
         Close();
         _disposed = true;
         _origin.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
+        _origin.RemoveHandler(InputElement.PointerPressedEvent, OnPointerPressed);
         _origin.RemoveHandler(Control.ContextRequestedEvent, OnContextRequested);
         _origin.DetachedFromVisualTree -= OnOriginDetached;
     }

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -90,6 +91,7 @@ public partial class MainWindow
             EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
             TagPopoverAsync = OpenMediaLibraryTagPopoverAsync,
             TagPopoverOptions = TagPopoverDefaults,
+            BuildPanelTagMenu = BuildSidebarTagMenu,
             DecisionForEntries = DecisionForMediaEntries,
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             PendingFavorite = PendingMediaFavorite,
@@ -343,6 +345,7 @@ public partial class MainWindow
                     if (Path.GetDirectoryName(entry.Asset.Path) is string directory) OpenDirectory(directory);
                     break;
                 case "media.copy-path": await CopyMediaPathAsync(entry); break;
+                case "media.open-external": await OpenMediaFileExternallyAsync(entry); break;
                 case "media.details": await ShowGalleryDetailsAsync(entry); break;
                 case "media.tags.edit": await EditMediaLibraryTagsForMenuAsync(indexed, Current, entry); break;
                 default: throw new InvalidOperationException("Unsupported media menu action: " + id);
@@ -367,10 +370,10 @@ public partial class MainWindow
         EditMediaLibraryTagsForMenuAsync(entry, () => true);
 
     private async Task EditMediaLibraryTagsForMenuAsync(MediaLibraryEntry indexed, Func<bool> presentationCurrent,
-        GalleryEntry? alreadyResolved = null, Control? returnTo = null)
+        GalleryEntry? alreadyResolved = null, Control? returnTo = null, CancellationToken sidebarToken = default)
     {
         Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
-        bool Current() => hostCurrent() && presentationCurrent();
+        bool Current() => !sidebarToken.IsCancellationRequested && hostCurrent() && presentationCurrent();
         if (!Current() || _mediaTagDialogOpen) return;
         _mediaTagDialogOpen = true;
         Control? origin = returnTo ?? FocusManager?.GetFocusedElement() as Control;
@@ -390,11 +393,16 @@ public partial class MainWindow
                     NotificationType.Warning, operation: "media.tags");
                 return;
             }
-            MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot,
-                _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), _session.ReadBooruCatalog);
+            MediaTagSession session = NewPopoverTagSession(target, Current, sidebarToken);
+            using MediaTagDialog dialog = new(session, match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), _session.ReadBooruCatalog);
             MediaPageTagWindow = dialog;
-            await dialog.ShowDialog(this);
+            Task shown = dialog.ShowDialog(this);
+            using CancellationTokenRegistration closeOnTargetChange = sidebarToken.Register(() =>
+            {
+                if (Dispatcher.UIThread.CheckAccess()) dialog.CloseForLifetime();
+                else Dispatcher.UIThread.Post(dialog.CloseForLifetime);
+            });
+            await shown;
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
             or Microsoft.Data.Sqlite.SqliteException)

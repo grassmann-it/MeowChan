@@ -303,13 +303,14 @@ public sealed class SavedMediaReaderTests
     [Fact]
     public void FavoriteKeysAndMiddleClickFollowTheShownSavedRevision()
     {
-        List<string> folders = [];
+        List<string> opened = [];
         Run((page, window) =>
         {
             page.MediaTilesPreference = true;
             Layout(window);
-            ListBox tiles = page.FindControl<ListBox>("ArchiveMediaTiles")!;
+            ListBox tiles = ById<ListBox>(window, "ArchiveMediaTiles");
             ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+            page.OpenMediaExternallyAsync = entry => { opened.Add(entry.Asset.Path); return Task.CompletedTask; };
             ArchiveAssetRow first = ShownRows(page, grid: true).Single(row => row.Asset.IsCurrent);
             ArchiveAssetRow second = ShownRows(page, grid: true).Single(row => !row.Asset.IsCurrent);
             FavoriteAssetKey firstKey = FavoriteAssetKey.From(ThreadId, first.Asset);
@@ -334,21 +335,22 @@ public sealed class SavedMediaReaderTests
             WaitUntil(() => sidebar.Load.ShownSource == new PixelSize(17, 11));
             // W112-72 §§1,3: “Die Leisten nehmen im Overlay nie Layoutplatz”.
             sidebar.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true });
-            Control frame = FocusSidebarFrame(sidebar);
+            FocusSidebarFrame(sidebar);
             Layout(window);
             Control overlay = ById<Control>(sidebar, "ReaderMediaSidebarOverlay");
-            Point imagePoint = HitPoint(window, frame);
+            Image picture = ById<Image>(sidebar, "ReaderMediaSidebarPicture");
+            Point imagePoint = HitPoint(window, picture);
             Assert.False(overlay.IsVisualAncestorOf(Assert.IsAssignableFrom<Visual>(window.InputHitTest(imagePoint))));
             PressKey(window, PhysicalKey.M);
             BooruComponentDispatcher.Wait(page.FavoriteKeyTask);
             MiddleClick(imagePoint, imagePoint);
-            Assert.Single(folders);
+            Assert.Equal(first.Asset.Path, Assert.Single(opened));
             sidebar.RevealBars();
             Point overlayPoint = HitPoint(window, overlay);
             MiddleClick(overlayPoint, overlayPoint);
-            Assert.Single(folders);
+            Assert.Single(opened);
             MiddleClick(imagePoint, overlayPoint);
-            Assert.Single(folders);
+            Assert.Single(opened);
 
             window.MouseDown(imagePoint, MouseButton.Middle, RawInputModifiers.None);
             tiles.SelectedItem = second;
@@ -366,9 +368,9 @@ public sealed class SavedMediaReaderTests
             page.TickMediaSidebarFollow();
             WaitUntil(() => sidebar.Load.ShownSource == new PixelSize(19, 13));
             Layout(window);
-            Point secondImagePoint = HitPoint(window, frame);
+            Point secondImagePoint = HitPoint(window, picture);
             window.MouseUp(secondImagePoint, MouseButton.Middle, RawInputModifiers.None);
-            Assert.Single(folders);
+            Assert.Single(opened);
             FocusSidebarFrame(sidebar);
             PressKey(window, PhysicalKey.U);
             BooruComponentDispatcher.Wait(page.FavoriteKeyTask);
@@ -376,7 +378,7 @@ public sealed class SavedMediaReaderTests
 
             Assert.Equal(new[] { (firstKey, true), (secondKey, false) }, writes);
             Assert.Equal(firstKey, Assert.Single(favorites));
-            Assert.Equal(new[] { Path.GetDirectoryName(first.Asset.Path), Path.GetDirectoryName(second.Asset.Path) }, folders);
+            Assert.Equal(new[] { first.Asset.Path, second.Asset.Path }, opened);
 
             void MiddleClick(Point press, Point release)
             {
@@ -384,7 +386,7 @@ public sealed class SavedMediaReaderTests
                 window.MouseUp(release, MouseButton.Middle, RawInputModifiers.None);
                 Layout(window);
             }
-        }, openFolder: folders.Add);
+        });
     }
 
     private static async Task ShowSidebarSelectionAsync(ArchivePage page, Window window, ReaderMediaSidebar sidebar, string label)
@@ -803,14 +805,14 @@ public sealed class SavedMediaReaderTests
         (grid ? page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource : page.FindControl<DataGrid>("ArchiveMediaGrid")!.ItemsSource)!
         .Cast<ArchiveAssetRow>().ToArray();
 
-    private static void Run(Action<ArchivePage, Window> test, Action<string>? openFolder = null, bool? gridPreference = null) => BooruComponentDispatcher.Run(() =>
+    private static void Run(Action<ArchivePage, Window> test, bool? gridPreference = null) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
         using TempDirectory temp = new();
         (ArchivedThreadView thread, MediaAssetSnapshot manifest) = CreateFixture(temp.Path);
         ArchivePage page = new(_ => throw new InvalidOperationException("The prepared thread should be used"),
-            (_, _) => Task.CompletedTask, openFolder ?? (_ => { }), (_, _) => Task.FromResult(manifest))
+            (_, _) => Task.CompletedTask, _ => { }, (_, _) => Task.FromResult(manifest))
         {
             IsAvailable = true,
             IsArchiveFavorite = entry => entry.Asset.IsCurrent

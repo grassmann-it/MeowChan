@@ -171,12 +171,18 @@ public partial class ArchivePage
         return frame;
     }
 
+    internal Func<Control, string, MeowChan.Desktop.Controls.ContextMenuBuilder>? BuildPanelTagMenu { get; set; }
+
     private ReaderMediaSidebar EnsureMediaSidebar()
     {
         if (_mediaSidebar is { } existing) return existing;
         // Publish only a fully configured sidebar: a failed reader move must
         // not leave an incomplete cached sidebar poisoning the next attempt.
-        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false, DecisionKeyContext = "reader" };
+        ReaderMediaSidebar sidebar = new ReaderMediaSidebar
+        {
+            IsVisible = false, DecisionKeyContext = "reader",
+            BuildTagMenu = (chip, tag) => BuildPanelTagMenu?.Invoke(chip, tag)
+        };
         if (_largeReader) ReaderHostingStep("sidebar.created");
         GridSplitter splitter = new GridSplitter
         {
@@ -774,7 +780,7 @@ public partial class ArchivePage
         sidebar.SetTags(tags, blocked ?? (subject == null ? MediaMenuReasons.NotSaved : null));
         sidebar.SetSourceFacts(resource.Source + " /" + resource.Board + "/ · " + resource.Thread, post.Author, post.Posted,
             saved?.Asset.Length, row.Attachment.ExpectedSize, row.Attachment.ProviderSizeHint,
-            MediaProvenanceText.Summary(resolved?.Binding), saved?.Asset.IsCurrent == false);
+            MediaProvenanceText.Summary(resolved?.Binding), saved?.Asset.IsCurrent == false, hash: saved?.Asset.Sha256);
     }
 
     private void RefreshMediaSidebar()
@@ -894,6 +900,7 @@ public partial class ArchivePage
             ? (thread, post, attachment) : null;
         if (_displayedSidebarMedium == next) return;
         _displayedSidebarMedium = next;
+        InvalidateSidebarMediaMenu();
         _mediaSidebar?.InvalidateDecisionTarget();
     }
 
@@ -992,6 +999,7 @@ public partial class ArchivePage
             if (entry == null) return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
             if (entry.Kind == SavedMediaKind.Image)
             {
+                if (sidebar.BeforePreviewDecodeForTests is { } beforeDecode) await beforeDecode(entry.Asset.Path, ct);
                 (Bitmap bitmap, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(entry,
                     new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
                 return new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));

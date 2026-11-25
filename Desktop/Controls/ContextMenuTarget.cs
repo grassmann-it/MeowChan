@@ -26,7 +26,16 @@ internal sealed class ContextMenuTarget
         _origin = origin ?? throw new ArgumentNullException(nameof(origin));
         // Tunnel and handled-too: a list that handles its own presses (selection) must not hide the click from the menu.
         origin.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        origin.AddHandler(InputElement.ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel, handledEventsToo: true);
         origin.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    internal void Detach()
+    {
+        _origin.RemoveHandler(InputElement.PointerPressedEvent, OnPointerPressed);
+        _origin.RemoveHandler(InputElement.ContextRequestedEvent, OnContextRequested);
+        _origin.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
+        _pointer = null;
     }
 
     /// <summary>The control the menu is for: the last right-clicked control, else the focused one; null when there is neither.</summary>
@@ -55,9 +64,11 @@ internal sealed class ContextMenuTarget
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.GetCurrentPoint(_origin).Properties.IsRightButtonPressed) _pointer = e.Source as Visual;
-        else _pointer = null;
+        _pointer = ContextClick.IsPress(e, _origin) ? e.Source as Visual : null;
     }
+
+    private void OnContextRequested(object? sender, ContextRequestedEventArgs e) =>
+        _pointer = e.TryGetPosition(_origin, out _) ? _pointer ?? e.Source as Visual : null;
 
     private void OnKeyDown(object? sender, KeyEventArgs e) => _pointer = null;
 
