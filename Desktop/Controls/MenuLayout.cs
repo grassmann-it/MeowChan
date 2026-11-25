@@ -137,6 +137,7 @@ internal sealed class MenuLayout : AvaloniaObject
         label.VerticalAlignment = VerticalAlignment.Center;
         label.TextTrimming = TextTrimming.CharacterEllipsis;
         input.Classes.Add("gallery-menu-input");
+        input.HorizontalAlignment = HorizontalAlignment.Stretch;
         input.VerticalAlignment = VerticalAlignment.Center;
         return row;
     }
