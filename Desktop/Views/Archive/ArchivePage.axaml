@@ -744,7 +744,7 @@
                                     </StackPanel>
                                     <ListBox x:Name="ArchiveReferences" Grid.Row="2">
                                         <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                            <Button Classes="reader-reference" AutomationProperties.AutomationId="ArchiveReferenceOpen" Content="{Binding Label}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick"
+                                            <Button Classes="reader-reference" Content="{Binding Label}" AutomationProperties.AutomationId="ArchiveReferenceOpen" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick"
                                                     PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited" HorizontalAlignment="Stretch" Margin="0,4" />
                                         </DataTemplate></ListBox.ItemTemplate>
                                     </ListBox>

@@ -321,13 +321,6 @@ public partial class ArchivePage
             if (ReaderSelectionOwnsActivationKey(e)) return;
             if (!TryRouteFavoriteKey(posts, e)) TryRouteArchiveMediaShortcut(posts, e);
         }, RoutingStrategies.Tunnel);
-        // Once the post and its children have had Enter, a missing medium must not open the toolbar's thread gallery.
-        posts.AddHandler(KeyDownEvent, (_, e) =>
-        {
-            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && IsMediumGalleryKey(e)
-                && e.Source is Visual source && !ReaderMediaBelongsToNativeControl(source, posts)
-                && !ClaimedByOtherReaderCommand(e)) e.Handled = true;
-        }, RoutingStrategies.Bubble);
         posts.AddHandler(PointerWheelChangedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(KeyDownEvent, (_, e) =>
@@ -341,6 +334,13 @@ public partial class ArchivePage
         // The automatic scroll stays off for jumps and the pointer; a control inside a realized card that the keyboard focuses
         // (Tab to a link below the view) is brought in explicitly, so keyboard users never lose sight of the focus.
         posts.AddHandler(GotFocusEvent, OnReaderPostsGotFocus, RoutingStrategies.Bubble);
+        // Once the post and its children have had Enter, a missing medium must not open the toolbar's thread gallery.
+        posts.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && IsMediumGalleryKey(e)
+                && e.Source is Visual source && !ReaderMediaBelongsToNativeControl(source, posts)
+                && !ClaimedByOtherReaderCommand(e)) e.Handled = true;
+        }, RoutingStrategies.Bubble);
     }
 
     private void OnReaderPostsGotFocus(object? sender, FocusChangedEventArgs e)

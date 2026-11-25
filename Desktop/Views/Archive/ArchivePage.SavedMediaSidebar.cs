@@ -18,7 +18,7 @@ public partial class ArchivePage
 {
     private ArchiveAssetRow? _savedMediaSidebarRow;
     private (ArchivedThreadView Thread, IReadOnlyList<ArchiveAssetRow> Assets, Task<ILookup<GalleryAssetKey, GalleryEntry>> Entries)? _savedSidebarTags;
-    internal Func<GalleryEntry, GalleryDecodeRequest.Fit, CancellationToken, Task<ReaderMediaSidebarContent.Picture>> SavedSidebarImageLoader { get; set; }
+    internal Func<GalleryEntry, GalleryDecodeRequest.Fit, CancellationToken, Task<ReaderMediaSidebarContent.Picture>> SavedSidebarImageLoaderForTests { get; set; }
         = DecodeSavedSidebarImageAsync;
 
     private ArchiveAssetRow? SavedMediaSidebarRow => ArchiveMediaTab.IsSelected && _shownMediaThread == _selectedThread
@@ -146,7 +146,7 @@ public partial class ArchivePage
             return load.RunAsync(async ct =>
             {
                 if (entry.Kind == SavedMediaKind.Image)
-                    return await SavedSidebarImageLoader(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
+                    return await SavedSidebarImageLoaderForTests(entry, new GalleryDecodeRequest.Fit(target.Width, target.Height), ct);
                 if (entry.Kind == SavedMediaKind.Video)
                 {
                     Bitmap? poster = await MediaTileThumbnails.LoadPosterAsync(row.Manifest, row.Asset,

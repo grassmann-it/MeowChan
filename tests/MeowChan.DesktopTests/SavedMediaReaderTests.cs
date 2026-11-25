@@ -1019,7 +1019,7 @@ public sealed class SavedMediaReaderTests
         Control frame = VisibleById<Control>(sidebar, "ReaderMediaSidebarFrame");
         Image image = Assert.Single(frame.GetVisualDescendants().OfType<Image>(), child => ReferenceEquals(child, sidebar.Picture));
         int started = -1;
-        page.SavedSidebarImageLoader = (entry, _, _) =>
+        page.SavedSidebarImageLoaderForTests = (entry, _, _) =>
         {
             started = Array.FindIndex(rows, row => row.Asset.AssetId == entry.Asset.AssetId);
             return started switch
