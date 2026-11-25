@@ -593,10 +593,9 @@ public sealed partial class MediaPage
         if (!TryDismissPanelTagEditor(e) && !TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
     }
 
-    private static bool OwnsPanelMenu(object? source, ReaderMediaSidebar panel) =>
+    private bool OwnsPanelMenu(object? source, ReaderMediaSidebar panel) =>
         !IsNativeContextSource(source) && !panel.IsInfoMenuSource(source)
-        && (!ItemActivation.IsOwnedByInteractivePart(source, panel)
-            || source is Visual visual && panel.Frame.IsVisualAncestorOf(visual));
+        && (!ItemActivation.IsOwnedByInteractivePart(source, panel) || panel.IsMediaSurfaceSource(source, _panelVideo));
 
     private bool TryRoutePanelKey(KeyEventArgs e, bool fromPanel)
     {

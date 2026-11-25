@@ -100,11 +100,12 @@ internal sealed class MediaInfoBar : Grid
     {
         Button chip = new()
         {
-            Name = name, Height = 24, MinHeight = 0, MinWidth = 0, Padding = new Thickness(8, 0), Focusable = false, IsTabStop = false,
+            Name = name, Height = 24, MinHeight = 0, MinWidth = 0, Padding = new Thickness(8, 0), Focusable = true, IsTabStop = true,
             Classes = { WorkspaceChips.Chip, WorkspaceChips.Compact },
             Content = new TextBlock { Text = tag, Classes = { WorkspaceChips.Label }, TextWrapping = TextWrapping.NoWrap }
         };
         AutomationProperties.SetName(chip, tag);
+        AutomationProperties.SetAutomationId(chip, name);
         return chip;
     }
 

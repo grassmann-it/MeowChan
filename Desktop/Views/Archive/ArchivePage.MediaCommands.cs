@@ -190,9 +190,9 @@ public partial class ArchivePage
     // (only the right button: e.InitialPressMouseButton != MouseButton.Right leaves it open).
     private void OnSidebarPointerReleased(object? sender, PointerReleasedEventArgs e) => _sidebarPointerContext.Released(e.InitialPressMouseButton);
 
-    private static bool SidebarChildOwnsContext(Control source, ReaderMediaSidebar sidebar) =>
+    private bool SidebarChildOwnsContext(Control source, ReaderMediaSidebar sidebar) =>
         MediaMenuPresenter.IsNativeTextSource(source) || sidebar.IsInfoMenuSource(source)
-        || ItemActivation.IsOwnedByInteractivePart(source, sidebar) && !sidebar.FrameArea.IsVisualAncestorOf(source);
+        || ItemActivation.IsOwnedByInteractivePart(source, sidebar) && !sidebar.IsMediaSurfaceSource(source, _sidebarVideo);
 
     private void InvalidateSidebarMediaMenu()
     {
@@ -706,13 +706,13 @@ public partial class ArchivePage
         MediaMenuModel model = MediaMenuComposition.Compose(facts);
         // The guard is the page state the menu was opened on. A different thread, a reloaded thread, a closed page or an
         // open filename search retires it; a mere filter change keeps the frozen visible sequence it was built from.
-        bool sidebarMenu = _mediaSidebar is { } sidebar && ReferenceEquals(sidebar.FrameArea, origin);
+        ReaderMediaSidebar? menuSidebar = ReferenceEquals(origin, _mediaSidebar?.FrameArea) ? _mediaSidebar : null;
         var shownSidebar = _displayedSidebarMedium;
         ArchiveAssetRow? shownSaved = SavedMediaSidebarRow;
         MediaMenuSession session = new(surface, model.Target, () => !_ended && _available && !IsFilenameSearchOpen
             && ReferenceEquals(_thread, thread) && _selectedThread == threadId
-            && (!sidebarMenu || _mediaSidebarShown && _displayedSidebarMedium == shownSidebar && ReferenceEquals(SavedMediaSidebarRow, shownSaved)));
-        // The popover outlives the menu session (a tag write invalidates the menu on purpose); it lives while this thread is on screen.
+            && (menuSidebar == null || _mediaSidebarShown && _displayedSidebarMedium == shownSidebar && ReferenceEquals(SavedMediaSidebarRow, shownSaved)));
+        // The popover has its own lifetime. The sidebar editor also tracks the displayed medium.
         Task Run(Func<Task> action) => RunArchiveMenuActionAsync(action, session, reportError);
         Func<Task> When(MediaMenuAction action, Func<bool> ready, Func<Task> run) => MediaMenuHandlers.When(surface, action, ready, run);
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
@@ -725,7 +725,8 @@ public partial class ArchivePage
             [MediaMenuAction.Favorite] = When(MediaMenuAction.Favorite, CanFavorite, () => ToggleArchiveMediaFavoriteAsync(target!)),
             // "Rate and tag…": the popover on the tile or attachment the menu opened on (frozen with the menu), the tag field focused. A file that cannot be
             // rated or tagged gets the popover with the reason as text, so the entry has no precondition of its own.
-            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(subject, origin, selection, initialFocus: QuickTagInitialFocus.TagInput, attachment?.Label),
+            [MediaMenuAction.RateAndTag] = menuSidebar != null ? menuSidebar.EditTagsAsync
+                : () => OpenRateAndTagAsync(subject, origin, selection, initialFocus: QuickTagInitialFocus.TagInput, attachment?.Label),
             [MediaMenuAction.Queue] = When(MediaMenuAction.Queue, CanQueue, async () =>
             {
                 string message = await AddToTagQueue!(new[] { target! });

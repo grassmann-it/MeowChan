@@ -136,11 +136,11 @@ public partial class ArchivePage
         return post == null ? null : (thread, post, attachment);
     }
 
-    // The picture of the media sidebar (its frame, a video's play surface included; not the header or the video row), in either host.
+    // The picture or video surface of the media sidebar, in either host.
     private void OnSidebarMiddlePressed(object? sender, PointerPressedEventArgs e)
     {
         _sidebarMiddleTarget = _mediaSidebarShown && _mediaSidebar is { } sidebar && MiddleClickTracker.IsPress(e, sidebar)
-            && InSidebarFrame(e.Source, sidebar) ? (SavedMediaSidebarRow, _displayedSidebarMedium) : null;
+            && sidebar.IsMediaSurfaceSource(e.Source, _sidebarVideo) ? (SavedMediaSidebarRow, _displayedSidebarMedium) : null;
     }
 
     private void OnSidebarMiddleReleased(object? sender, PointerReleasedEventArgs e)
@@ -148,16 +148,13 @@ public partial class ArchivePage
         if (e.Handled || !MiddleClickTracker.IsRelease(e) || _mediaSidebar is not { } sidebar) return;
         var pressed = _sidebarMiddleTarget;
         _sidebarMiddleTarget = null;
-        if (pressed is not { } target || !_mediaSidebarShown || !InSidebarFrame(MiddleClickTracker.HitAt(e, sidebar), sidebar)
+        if (pressed is not { } target || !_mediaSidebarShown || !sidebar.IsMediaSurfaceSource(MiddleClickTracker.HitAt(e, sidebar), _sidebarVideo)
             || target.Saved != SavedMediaSidebarRow || target.Inline != _displayedSidebarMedium) return;
         if (target.Saved is { } saved) OpenMediaByMiddleClick(saved);
         else if (target.Inline is { } shown) OpenMediaByMiddleClick(null, shown.Attachment, shown.Post.Id);
         else return;
         e.Handled = true;
     }
-
-    private static bool InSidebarFrame(object? source, ReaderMediaSidebar sidebar) =>
-        source is Visual visual && visual.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar.FrameArea));
 
     private void OpenMediaByMiddleClick(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment = null, string? postId = null)
     {

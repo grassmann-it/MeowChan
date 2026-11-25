@@ -1246,7 +1246,8 @@ public sealed partial class MediaPage : UserControl
         HashSet<int> selection = _grid.Selection.SelectedIndexes.ToHashSet();
         object? rows = _grid.ItemsSource;
         object? originData = origin.DataContext;
-        bool panel = ReferenceEquals(origin, _panel?.Frame);
+        ReaderMediaSidebar? menuSidebar = ReferenceEquals(origin, _panel?.Frame) ? _panel : null;
+        bool panel = menuSidebar != null;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible
             && revision == _mediaMenuRevision && serial == _mediaMenuSerial
             && (panel ? _panelShown && SamePanelTagTarget(row?.Entry, _panelRow?.Entry)
@@ -1335,7 +1336,8 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.Favorite] = several
                 ? () => Current() ? FavoriteKeyTask = WriteFavoriteKeyAsync(FavoriteKeyAction.Toggle, favoriteRows) : Task.CompletedTask
                 : () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
-            [MediaMenuAction.RateAndTag] = () => OpenRateAndTagAsync(entry, row, origin, Current, initialFocus: QuickTagInitialFocus.TagInput),
+            [MediaMenuAction.RateAndTag] = menuSidebar != null ? menuSidebar.EditTagsAsync
+                : () => OpenRateAndTagAsync(entry, row, origin, Current, initialFocus: QuickTagInitialFocus.TagInput),
             // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
             [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
             [MediaMenuAction.Export] = several ? () => Current() ? ExportSelectionAsync() : Task.CompletedTask

@@ -366,6 +366,11 @@ internal sealed partial class ReaderMediaSidebar : Border
     /// <summary>The height of the primary header row, shared with workspace controls.</summary>
     internal const double HeaderLineHeight = 48;
     internal Image Picture => _image;
+
+    internal bool IsMediaSurfaceSource(object? source, ReaderInlineVideoSlot? video) => source is Visual visual
+        && (InBar(_image, visual) || InBar(_play, visual)
+            || video is not null && InBar(video.Activator, visual)
+            || _factPlayer is not null && InBar(_factPlayer, visual));
     internal Bitmap? Shown => _bitmap;
     /// <summary>
     /// The load state of the picture (which load is the latest, which medium is shown and how large): the host asks it before it decodes, the view
@@ -491,6 +496,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             Close, _details, _decision, _facts, _infoBar, _card, _videoRow })
             AutomationProperties.SetAutomationId(control, control.Name);
         AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
+        AutomationProperties.SetAutomationId(_image, "ReaderMediaSidebarPicture");
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
