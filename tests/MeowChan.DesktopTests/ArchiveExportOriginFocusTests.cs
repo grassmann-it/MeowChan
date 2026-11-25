@@ -68,6 +68,8 @@ public sealed class ArchiveExportOriginFocusTests
                 if (results) await page.OpenExportForAllResultsAsync(origin);
                 else await page.OpenExportForThreadAsync(thread.Summary.Id, origin);
                 Assert.True(page.IsReaderDialogOpen);
+                var destination = Assert.Single(window.GetVisualDescendants().OfType<TextBox>(), item => Id(item) == "ArchiveExportDestination");
+                Assert.True(destination.IsKeyboardFocusWithin, $"Expected the export destination, focused {window.FocusManager!.GetFocusedElement()}.");
                 Assert.False(list.IsKeyboardFocusWithin);
                 RateAndTagWindowFixture.Escape(window);
                 Assert.False(page.IsReaderDialogOpen);
