@@ -88,9 +88,10 @@ internal static class MediaHashSearchChecks
         {
             Texts.SetLanguage("en");
             returned = dialog.ShowDialog<MediaAssetReference?>(owner);
-            using MediaNativeInput native = await StageAsync(owner, dialog, scene);
+            await WaitForMappingAsync(owner, dialog, scene);
+            using var native = new MediaNativeInput(dialog);
+            await ActivateAsync(dialog, native, scene);
             TextBox input = Named<TextBox>(dialog, "MediaHashSearchInput");
-            Button search = Named<Button>(dialog, "MediaHashSearchStart");
             Require(dialog.Operation.Current.Status == Status.Ready && dialog.Operation.Current.Request == 0
                 && Rows(dialog).Length == 0 && !returned.IsCompleted, "Opening automatically searched/selected.");
             Require(dialog.WindowDecorations == WindowDecorations.BorderOnly
@@ -101,27 +102,31 @@ internal static class MediaHashSearchChecks
 
             if (keyboard)
             {
-                foreach (string invalid in new[] { new string('a', 32), " " + Hash, "sha256:" + Hash, Hash[..63] + "Ａ" })
+                await ReachAsync(dialog, input, "typing-input");
+                await native.ClickAsync(input);
+                await FocusedAsync(dialog, input, "typing-native-input-focus");
+                var beforeTyping = dialog.Operation.Current;
+                await native.KeyAsync(MediaNativeInput.Space);
+                await SettleAsync(dialog);
+                // An edit invalidates the previous draft once without submitting a search.
+                Require(input.Text == " " && dialog.Operation.Current.Request == beforeTyping.Request + 1
+                    && dialog.Operation.Current.Status == Status.Ready && Rows(dialog).Length == 0 && !returned.IsCompleted,
+                    "Typing did not leave a passive draft.");
+                Console.WriteLine(Marker + "NATIVE_TYPING_OK passive_draft");
+
+                foreach (bool submitWithEnter in new[] { true, false })
                 {
-                    SetFixtureText(dialog, input, invalid);
-                    var draft = dialog.Operation.Current;
-                    await ReachAsync(dialog, input, scene + " invalid-input");
-                    await native.ClickAsync(input);
-                    await FocusedAsync(dialog, input, "native-pointer-input-focus");
-                    // No IsDefault action in this UI: Enter in TextBox must not search implicitly.
-                    await native.KeyAsync(MediaNativeInput.Enter);
-                    await SettleAsync(dialog);
-                    Require(dialog.Operation.Current.Request == draft.Request && dialog.Operation.Current.Status == Status.Ready,
-                        "Typing/Enter in input implicitly dispatched a query.");
-                    await ReachAsync(dialog, search, scene + " invalid-search");
-                    Require(search.Focus(), "Cannot stage real Search button focus.");
-                    await FocusedAsync(dialog, search, "staged-search-focus");
-                    await native.KeyAsync(MediaNativeInput.Enter);
-                    await WaitAsync(() => dialog.Operation.Current.Status == Status.Invalid
-                        && Named<TextBlock>(dialog, "MediaHashSearchStatus").Text == Expected("mediahash.invalid", "en"), "invalid-visible");
-                    Require(Rows(dialog).Length == 0 && !returned.IsCompleted, "Invalid hash produced a result/return.");
+                    foreach (string invalid in new[] { new string('a', 32), " " + Hash, "sha256:" + Hash, Hash[..63] + "Ａ" })
+                    {
+                        SetFixtureText(dialog, input, invalid);
+                        await SubmitAsync(dialog, native, input, submitWithEnter, Status.Invalid);
+                        await WaitAsync(() => Named<TextBlock>(dialog, "MediaHashSearchStatus").Text
+                            == Expected("mediahash.invalid", "en"), "invalid-visible");
+                        Require(Rows(dialog).Length == 0 && !returned.IsCompleted, "Invalid hash produced a result/return.");
+                    }
+                    Console.WriteLine(Marker + "INVALID_SUBMIT_OK activation=" + (submitWithEnter ? "input-enter" : "search-button")
+                        + " single_request md5_whitespace_prefix_unicode");
                 }
-                Console.WriteLine(Marker + "INVALID_EXPLICIT_ENTER_OK md5_whitespace_prefix_unicode input_enter_no_autosearch");
             }
 
             SetFixtureText(dialog, input, Hash.ToUpperInvariant());
@@ -129,18 +134,13 @@ internal static class MediaHashSearchChecks
             if (keyboard) await PresentationAsync(owner, dialog, input, ready, withResults: false);
             await ResizeAsync(dialog, 760, 640);
             Texts.SetLanguage("en"); await SettleAsync(dialog);
-            await ReachAsync(dialog, input, "valid-input");
-            await native.ClickAsync(input);
-            await FocusedAsync(dialog, input, "valid-native-input-focus");
-            // Real native Tab, not programmatic focus, from input to explicit search.
-            await native.KeyAsync(MediaNativeInput.Tab);
-            await FocusedAsync(dialog, search, "native-tab-search-focus");
-            await ReachAsync(dialog, search, "valid-search");
-            await native.KeyAsync(MediaNativeInput.Enter);
+            Require(ReferenceEquals(ready, dialog.Operation.Current), "Valid draft submitted before explicit activation.");
+            await SubmitAsync(dialog, native, input, keyboard, Status.Available);
             await WaitAsync(() => dialog.Operation.Current.Status == Status.Available
                 && dialog.Operation.Current.Count == Matches && Rows(dialog).Length == 100
                 && Named<TextBlock>(dialog, "MediaHashSearchStatus").Text == Expected("mediahash.matches", "en", Matches), "query100-rendered");
             Require(!returned.IsCompleted, "Search automatically selected a reference.");
+            Console.WriteLine(Marker + "VALID_SUBMIT_OK activation=" + (keyboard ? "input-enter" : "search-button") + " single_request");
             CheckPage(dialog, assets, 0, 100);
             if (keyboard) await PresentationAsync(owner, dialog, input, dialog.Operation.Current, withResults: true);
             await ResizeAsync(dialog, 760, 640);
@@ -197,8 +197,35 @@ internal static class MediaHashSearchChecks
         }
     }
 
+    private static async Task SubmitAsync(MediaHashSearchDialog dialog, MediaNativeInput native, TextBox input,
+        bool keyboard, Status expected)
+    {
+        string scene = (keyboard ? "input-enter-" : "search-button-") + expected;
+        var draft = dialog.Operation.Current;
+        await ReachAsync(dialog, input, scene + "-input");
+        await native.ClickAsync(input);
+        await FocusedAsync(dialog, input, scene + "-input-focus");
+        Button? search = null;
+        if (!keyboard)
+        {
+            search = Named<Button>(dialog, "MediaHashSearchStart");
+            await native.KeyAsync(MediaNativeInput.Tab);
+            await FocusedAsync(dialog, search, scene + "-tab-search-focus");
+            await ReachAsync(dialog, search, scene);
+        }
+        Require(ReferenceEquals(draft, dialog.Operation.Current), "Focus dispatched a query: " + scene);
+
+        if (search == null) await native.KeyAsync(MediaNativeInput.Enter);
+        else await native.ClickAsync(search);
+        await WaitAsync(() => dialog.Operation.Current.Status == expected, scene + "-operation");
+        await SettleAsync(dialog);
+        Require(dialog.Operation.Current.Request == draft.Request + 1 && dialog.Operation.Current.Status == expected,
+            "Expected exactly one search request: " + scene);
+    }
+
     private static async Task ParentCancelAsync(MainWindow owner, MediaAssetSnapshot snapshot)
     {
+        const string scene = "parent-cancel";
         using var parent = new CancellationTokenSource();
         var dialog = new MediaHashSearchDialog(snapshot, parent.Token);
         Task<MediaAssetReference?>? returned = null;
@@ -206,7 +233,9 @@ internal static class MediaHashSearchChecks
         {
             Texts.SetLanguage("en");
             returned = dialog.ShowDialog<MediaAssetReference?>(owner);
-            using MediaNativeInput native = await StageAsync(owner, dialog, "parent-cancel");
+            await WaitForMappingAsync(owner, dialog, scene);
+            using var native = new MediaNativeInput(dialog);
+            await ActivateAsync(dialog, native, scene);
             TextBox input = Named<TextBox>(dialog, "MediaHashSearchInput");
             SetFixtureText(dialog, input, Hash);
             Button search = Named<Button>(dialog, "MediaHashSearchStart");
@@ -239,12 +268,15 @@ internal static class MediaHashSearchChecks
 
     private static async Task EscapeAsync(MainWindow owner, MediaAssetSnapshot snapshot)
     {
+        const string scene = "escape-draft";
         var dialog = new MediaHashSearchDialog(snapshot);
         Task<MediaAssetReference?>? returned = null;
         try
         {
             returned = dialog.ShowDialog<MediaAssetReference?>(owner);
-            using MediaNativeInput native = await StageAsync(owner, dialog, "escape-draft");
+            await WaitForMappingAsync(owner, dialog, scene);
+            using var native = new MediaNativeInput(dialog);
+            await ActivateAsync(dialog, native, scene);
             TextBox input = Named<TextBox>(dialog, "MediaHashSearchInput");
             SetFixtureText(dialog, input, Hash);
             var before = dialog.Operation.Current;
@@ -352,23 +384,20 @@ internal static class MediaHashSearchChecks
         }
         Console.WriteLine(Marker + "PAGE_EXACT_OK offset=" + offset + " count=" + count + " total=" + Matches + " no_dedup_same_object_refs");
     }
-    private static async Task<MediaNativeInput> StageAsync(MainWindow owner, MediaHashSearchDialog dialog, string scene)
+    private static async Task WaitForMappingAsync(MainWindow owner, MediaHashSearchDialog dialog, string scene)
     {
         using var map = new PrivateMapProbe();
         await WaitAsync(() => dialog.IsVisible && owner.OwnedWindows.Contains(dialog)
             && dialog.TryGetPlatformHandle()?.Handle is nint handle && handle != 0, scene + " owned-native");
         await SettleAsync(dialog);
         await WaitAsync(() => dialog.ClientSize.Width > 0 && dialog.ClientSize.Height > 0 && map.IsViewable(dialog), scene + " mapped-native");
-        var native = new MediaNativeInput(dialog);
-        try
-        {
-            dialog.Activate(); // Explicit harness map/activation staging, not product initial-focus evidence.
-            await WaitAsync(() => dialog.IsActive, scene + " active-native");
-            await SettleAsync(dialog);
-            Console.WriteLine(Marker + "STAGED scene=" + scene + " actual_MainWindow_owner native_handle theme=" + dialog.ActualThemeVariant + " backend=" + native.Backend);
-            return native;
-        }
-        catch { native.Dispose(); throw; }
+    }
+    private static async Task ActivateAsync(MediaHashSearchDialog dialog, MediaNativeInput native, string scene)
+    {
+        dialog.Activate(); // Explicit harness map/activation staging, not product initial-focus evidence.
+        await WaitAsync(() => dialog.IsActive, scene + " active-native");
+        await SettleAsync(dialog);
+        Console.WriteLine(Marker + "STAGED scene=" + scene + " actual_MainWindow_owner native_handle theme=" + dialog.ActualThemeVariant + " backend=" + native.Backend);
     }
     private static async Task ResizeAsync(Window dialog, double width, double height)
     {
@@ -430,10 +459,9 @@ internal static class MediaHashSearchChecks
     private static string RowText(Button row) => (row.Content as TextBlock)?.Text ?? "";
     private static T Named<T>(Window dialog, string name) where T : Control
     {
-        // Code-built dialogs have no parent NameScope. Require a unique actual name BEFORE
-        // checking its type, so a same-name control of another type cannot be hidden.
+        // Require a unique automation ID before checking its type.
         Control[] matches = dialog.GetVisualDescendants().OfType<Control>().Prepend(dialog)
-            .Where(control => string.Equals(control.Name, name, StringComparison.Ordinal)).ToArray();
+            .Where(control => (AutomationProperties.GetAutomationId(control) ?? control.Name) == name).ToArray();
         Require(matches.Length == 1, "Expected exactly one actual hash dialog control: " + name + "; found " + matches.Length);
         return matches[0] is T typed ? typed
             : throw new InvalidOperationException(Marker + "ASSERT_FAILED Wrong actual hash dialog control type: " + name);
