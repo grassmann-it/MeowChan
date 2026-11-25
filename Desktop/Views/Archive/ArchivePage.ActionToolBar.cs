@@ -49,12 +49,13 @@ public partial class ArchivePage
         if (origin is Button)
         {
             if (ArchiveResultActions.Items.Contains(origin))
-                return _threadTable ? ArchiveThreadTable : SelectedItemOrList(ArchiveThreads);
+                return _threadTable ? ArchiveThreadTable : ItemOrList(ArchiveThreads, ArchiveLead);
             if (ReaderToolbar.Items.Contains(origin) || ReaderMediaTools.Items.Contains(origin)
                 || ReaderMediaActions.Items.Contains(origin) || ArchiveMediaFooter.IsVisualAncestorOf(origin))
             {
                 if (ArchiveMediaTab.IsSelected) return SelectedMediaFocusTarget();
-                return SelectedItemOrList(ArchiveReferencesTab.IsSelected ? ArchiveReferences : ArchivePosts);
+                ListBox list = ArchiveReferencesTab.IsSelected ? ArchiveReferences : ArchivePosts;
+                return ItemOrList(list, list.SelectedItem);
             }
         }
         // Items stay logical children of their toolbar in the direct panel and in a closed popup alike.
@@ -75,8 +76,8 @@ public partial class ArchivePage
             item.Focusable && item.IsEffectivelyVisible && item.IsEffectivelyEnabled && ReferenceEquals(TopLevel.GetTopLevel(item), root));
     }
 
-    private static Control SelectedItemOrList(ListBox list) =>
-        list.SelectedItem is { } selected && list.ContainerFromItem(selected) is Control item ? item : list;
+    private static Control ItemOrList(ListBox list, object? item) =>
+        item == null ? list : list.ContainerFromItem(item) ?? (Control)list;
 
     // What each results-bar action was last presented for: its disabled reason and the language. The presentation is rewritten
     // only when that changes (shortcut changes reach it through the CommandBindings observer).

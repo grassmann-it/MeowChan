@@ -1,6 +1,9 @@
 using Avalonia;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -27,6 +30,15 @@ public sealed class ArchiveExportOriginFocusTests
             using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
             var thread = RateAndTagWindowFixture.View(media);
             await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
+            ResourceId leadId = thread.Summary.Id with { Thread = "51" };
+            if (results)
+            {
+                var lead = new ArchivedThreadView(thread.Summary with
+                {
+                    Id = leadId, Url = "https://offline.invalid/thread/51", Title = "Second result"
+                }, [new CapturedPost("51", 0, PostFieldPresence.All, Html: "Second result")]);
+                await RateAndTagWindowFixture.SeedAsync(profile.Path, lead);
+            }
             ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token), (_, _) => Task.CompletedTask,
                 _ => { }, (_, _) => Task.FromResult(media.Snapshot))
             {
@@ -59,10 +71,32 @@ public sealed class ArchiveExportOriginFocusTests
                 string listId = results ? "ArchiveThreads" : "ArchivePosts";
                 var list = Assert.Single(window.GetVisualDescendants().OfType<ListBox>(), item => Id(item) == listId);
                 Assert.True(list.ItemCount > 0);
-                list.SelectedItem = results ? list.Items.Single() : list.Items.OfType<ArchivePostRow>().Single(post => post.Id == "44");
-                await BooruTestSupport.WaitAsync(() => !page.IsBusy, "the selected thread preview");
-                window.UpdateLayout();
-                var row = Assert.IsAssignableFrom<Control>(list.ContainerFromItem(list.SelectedItem!));
+                Control row;
+                if (results)
+                {
+                    var primary = list.Items.OfType<ArchiveThreadRow>().Single(hit => hit.Summary.Id == thread.Summary.Id);
+                    var lead = list.Items.OfType<ArchiveThreadRow>().Single(hit => hit.Summary.Id == leadId);
+                    list.SelectedItem = primary;
+                    await BooruTestSupport.WaitAsync(() => !page.IsBusy, "the primary result preview");
+                    window.UpdateLayout();
+                    row = Assert.IsAssignableFrom<Control>(list.ContainerFromItem(lead));
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Point point = row.TranslatePoint(new Point(row.Bounds.Width / 2, row.Bounds.Height / 2), window)!.Value;
+                    var toggle = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+                    window.MouseDown(point, MouseButton.Left, toggle);
+                    window.MouseUp(point, MouseButton.Left, toggle);
+                    await BooruTestSupport.WaitAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == leadId,
+                        "the added lead result preview");
+                    Assert.Same(primary, list.SelectedItem);
+                    AssertSelection();
+                }
+                else
+                {
+                    list.SelectedItem = list.Items.OfType<ArchivePostRow>().Single(post => post.Id == "44");
+                    await BooruTestSupport.WaitAsync(() => !page.IsBusy, "the selected thread preview");
+                    window.UpdateLayout();
+                    row = Assert.IsAssignableFrom<Control>(list.ContainerFromItem(list.SelectedItem!));
+                }
                 Assert.True(row.Focus());
 
                 if (results) await page.OpenExportForAllResultsAsync(origin);
@@ -76,6 +110,10 @@ public sealed class ArchiveExportOriginFocusTests
                 Assert.Same(row, window.FocusManager!.GetFocusedElement());
                 Dispatcher.UIThread.RunJobs();
                 Assert.Same(row, window.FocusManager.GetFocusedElement());
+                if (results) AssertSelection();
+
+                void AssertSelection() => Assert.True(new[] { thread.Summary.Id, leadId }.ToHashSet()
+                    .SetEquals(list.SelectedItems!.Cast<ArchiveThreadRow>().Select(hit => hit.Summary.Id)));
             }
             finally
             {
