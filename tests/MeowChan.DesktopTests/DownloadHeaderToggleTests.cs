@@ -332,7 +332,7 @@ public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
         }
         finally { ShortcutService.Publish(original); }
         return Task.CompletedTask;
-    }, mode, overlayPopups: false);
+    }, mode);
 
     [Fact]
     public void TheReadingHistoryArrowContextShortcutAndEscapeKeepTheSameOpenState() => RunWithGrid(async fixture =>
@@ -397,8 +397,8 @@ public sealed class DownloadHeaderToggleTests(ITestOutputHelper output)
             Assert.Single(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS).For("input.focus-download-search"))
                 .Resolve(ShortcutPlatform.MacOS));
 
-    private static void RunWithGrid(Func<DownloadWindowFixture, Task> exercise, string workspaceMode = "Advanced", bool overlayPopups = true) =>
-        Run(exercise, () => Application.Current!.Styles.Insert(1, new DataGridSemiTheme()), workspaceMode, overlayPopups);
+    private static void RunWithGrid(Func<DownloadWindowFixture, Task> exercise, string workspaceMode = "Advanced") =>
+        Run(exercise, () => Application.Current!.Styles.Insert(1, new DataGridSemiTheme()), workspaceMode);
 
     private static T ById<T>(Visual root, string id) where T : Control =>
         Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
