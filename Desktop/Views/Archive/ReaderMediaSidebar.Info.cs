@@ -171,11 +171,14 @@ internal sealed partial class ReaderMediaSidebar
             string? keyContext = _decision.KeyContext;
             var bindings = ShortcutService.Current;
             item.Header = label;
+            item.Icon ??= CommandBindings.Icon(commandId);
             item.IsChecked = isChecked;
             item.InputGesture = bindings.For(commandId)
                 .FirstOrDefault(gesture => keyContext == null || ShortcutHelp.ActsHere(commandId, gesture, keyContext, bindings))?.Resolve(bindings.Platform);
+            string tip = CommandBindings.Tooltip(commandId, visibleLabel: label, keyContext: keyContext);
+            ToolTip.SetTip(item, tip);
             AutomationProperties.SetName(item, label);
-            AutomationProperties.SetHelpText(item, CommandBindings.Tooltip(commandId, visibleLabel: label, keyContext: keyContext));
+            AutomationProperties.SetHelpText(item, tip);
         }
     }
 
@@ -194,7 +197,7 @@ internal sealed partial class ReaderMediaSidebar
     internal bool IsInfoMenuSource(object? source) =>
         source is Visual visual && (InBar(InfoToggle, visual) || InBar(SettingsButton, visual));
 
-    private bool IsOverlaySource(object? source) => source is Visual visual &&
+    internal bool IsOverlaySource(object? source) => source is Visual visual &&
         (InBar(_headBar, visual) || InBar(_details, visual) || InBar(_closeFace, visual));
 
     private static bool InBar(Visual bar, Visual source) => bar == source || bar.IsVisualAncestorOf(source);

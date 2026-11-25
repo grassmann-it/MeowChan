@@ -88,6 +88,15 @@ internal sealed class ContextMenuBuilder
         return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, available, reason, invoke, true, Icon: icon));
     }
 
+    /// <summary>A switch presented with its catalog command's icon, label and shortcut.</summary>
+    internal ContextMenuBuilder Check(string commandId, bool isChecked, Action invoke, bool available = true, string? reason = null)
+    {
+        ArgumentNullException.ThrowIfNull(invoke);
+        string Label() => CommandCatalog.Label(commandId);
+        return Add(new(ContextMenuEntryKind.Check, commandId, Label(), commandId, null, isChecked, available, reason, invoke,
+            LabelFactory: Label));
+    }
+
     /// <summary>A submenu whose children are composed with the same section and availability rules.</summary>
     internal ContextMenuBuilder Submenu(string id, string label, ContextMenuModel children, bool available = true, string? reason = null,
         string? icon = null)
@@ -100,6 +109,9 @@ internal sealed class ContextMenuBuilder
     /// <summary>A disabled explanatory sentence.</summary>
     internal ContextMenuBuilder Note(string text) =>
         Add(new(ContextMenuEntryKind.Note, "note:" + _sections.Sum(section => section.Count), text, null, null, false, false, null, null, false));
+
+    internal ContextMenuBuilder GroupHeading(string id, string text) =>
+        Add(new(ContextMenuEntryKind.GroupHeading, id, text, null, null, false, false, null, null, false));
 
     private ContextMenuBuilder Add(ContextMenuEntry entry)
     {
@@ -198,11 +210,24 @@ internal sealed class ContextMenuBuilder
 
     private static Control Item(ContextMenuEntry entry)
     {
-        if (entry.Kind == ContextMenuEntryKind.Note) return MediaMenuBuilder.Note(entry.Label);
+        if (entry.Kind == ContextMenuEntryKind.Note)
+        {
+            MenuItem note = MediaMenuBuilder.Note(entry.Label);
+            AutomationProperties.SetAutomationId(note, entry.Id);
+            return note;
+        }
+        if (entry.Kind == ContextMenuEntryKind.GroupHeading)
+        {
+            MenuItem heading = new() { Tag = entry.Id, Header = entry.Label, IsEnabled = false, Classes = { "menu-group-label" } };
+            AutomationProperties.SetName(heading, entry.Label);
+            AutomationProperties.SetAutomationId(heading, entry.Id);
+            return heading;
+        }
         if (entry.Kind == ContextMenuEntryKind.Submenu)
         {
             MenuItem submenu = new() { Header = entry.Label, IsEnabled = entry.Available, ItemsSource = Items(entry.Children ?? Array.Empty<IReadOnlyList<ContextMenuEntry>>()) };
             AutomationProperties.SetName(submenu, entry.Label);
+            AutomationProperties.SetAutomationId(submenu, entry.Id);
             if (!entry.Available && entry.Reason is { } unavailable)
             {
                 ToolTip.SetShowOnDisabled(submenu, true);
@@ -233,8 +258,7 @@ internal sealed class ContextMenuBuilder
             }
         }
         item.Tag = entry.Id;
-        if (string.IsNullOrEmpty(AutomationProperties.GetAutomationId(item)))
-            AutomationProperties.SetAutomationId(item, entry.Id);
+        AutomationProperties.SetAutomationId(item, entry.Id);
         if (entry.Dangerous) item.Classes.Add("danger");
         if (entry.Kind == ContextMenuEntryKind.Radio)
         {

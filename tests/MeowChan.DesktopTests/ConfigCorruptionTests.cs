@@ -131,9 +131,10 @@ public sealed class ConfigCorruptionTests
     }
 
     [Fact]
-    public void BooruResultTagsShownDefaultsToTwelveAndIsCopied()
+    public void BooruResultTagsShownDefaultsToAvailableSpaceAndIsCopied()
     {
-        Assert.Equal((12, 0, 200), (new Config().BooruResultTagsShown, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum));
+        // Astra W112-69 B §4 gives automatic folding a distinct persisted value.
+        Assert.Equal((-1, -1, 200), (new Config().BooruResultTagsShown, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum));
         Config live = new();
         live.CopySettingsFieldsFrom(new Config { BooruResultTagsShown = 0 });
         Assert.Equal(0, live.BooruResultTagsShown);

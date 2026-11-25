@@ -27,15 +27,24 @@ public sealed class BooruResultActionsTests
     [InlineData(true)]
     public void AGridHasOnePreviewPerHitAndRestoresTheScrolledHitAfterAnAction(bool separate) => Run(() =>
     {
+        Texts.SetLanguage("de");
         using Fixture fixture = new(separate, perPage: 10);
         fixture.Search("cat");
         ScrollViewer scroll = Find<ScrollViewer>(fixture.View, "BooruResultScroll");
         Border[] tiles = fixture.View.TilePanel!.Children.Cast<Border>().ToArray();
         Assert.Equal(10, tiles.Length);
-        foreach (Border tile in tiles)
+        var rows = fixture.View.Model.Search.View.Rows;
+        Assert.Equal(tiles.Length, rows.Length);
+        foreach (BooruResultRowView row in rows)
         {
-            Assert.Equal(tile.Name, AutomationProperties.GetName(tile));
+            string postId = row.Post.PostId;
+            Border tile = fixture.Hit(postId);
+            Assert.Contains(tile, tiles);
             Assert.Equal(tile.Name, AutomationProperties.GetAutomationId(tile));
+            string? accessibleName = AutomationProperties.GetName(tile);
+            Assert.False(string.IsNullOrWhiteSpace(accessibleName));
+            Assert.Contains(Texts.T("booru.ui.post.title", postId), accessibleName);
+            Assert.Contains(Texts.T("booru.ui.post.rating", BooruText.Rating(row.Post.Rating)), accessibleName);
             Assert.Single(tile.GetSelfAndVisualDescendants().OfType<Border>(), IsHit);
             Assert.Single(tile.GetSelfAndLogicalDescendants().OfType<Border>(), IsHit);
             Border frame = Assert.Single(tile.GetVisualDescendants().OfType<Border>(),
@@ -48,7 +57,7 @@ public sealed class BooruResultActionsTests
             Assert.InRange(frame.Bounds.Width, BooruTileMetrics.PictureSize(MediaTileSize.Large) - 1, BooruTileMetrics.PictureSize(MediaTileSize.Large) + 1);
         }
 
-        Assert.True(tiles[0].Focus());
+        Assert.True(fixture.Hit("101").Focus());
         Key(fixture.Window, PhysicalKey.End);
         fixture.Settle();
         Assert.True(scroll.Offset.Y > 0);
@@ -346,7 +355,8 @@ public sealed class BooruResultActionsTests
                 "the arranged search results");
         }
 
-        internal Border Hit(string id) => Find<Border>(View, "BooruResult:" + id);
+        internal Border Hit(string id) => Assert.Single(View.GetVisualDescendants().OfType<Border>(),
+            card => AutomationProperties.GetAutomationId(card) == "BooruResult:" + id);
         internal Point Picture(string id) => Bounds(Find<Border>(Hit(id), "BooruPreviewFrame:" + id), Window).Center;
         internal BooruResultRowView Row(string id) => View.Model.Search.View.Rows.Single(row => row.Post.PostId == id);
         internal ContextMenu OpenMore()

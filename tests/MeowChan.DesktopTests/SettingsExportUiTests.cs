@@ -507,6 +507,24 @@ public sealed class SettingsExportUiTests
         Assert.False(editor.IsBusy);
     });
 
+    [Fact]
+    public void DisposedEditorCanBeCollectedWithoutEverAttaching()
+    {
+        WeakReference<SettingsEditor>? reference = null;
+        BooruComponentDispatcher.Run(() =>
+        {
+            using SettingsEditor editor = new(new Config());
+            reference = new(editor);
+        });
+
+        // The dispatcher has drained and stopped, so its stack and pending callbacks cannot keep the editor alive.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.NotNull(reference);
+        Assert.False(reference.TryGetTarget(out _));
+    }
+
     // .NET dictionary version catches transient Add/Clear/reinsert that equal final bytes miss.
     private static int DictionaryVersion<TKey, TValue>(Dictionary<TKey, TValue> dictionary) where TKey : notnull =>
         (int)typeof(Dictionary<TKey, TValue>).GetField("_version", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(dictionary)!;

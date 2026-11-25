@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Platform;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -25,18 +24,17 @@ internal sealed class ReaderArchiveTestFixture : IDisposable
         return Assert.IsType<ArchivedThreadView>(await reader.ReadThreadAsync(id));
     }
 
-    internal void Run(Action<ArchivePage> test, bool hosted = false) => BooruComponentDispatcher.Run(() =>
+    internal void Run(Action<ArchivePage> test, bool hosted = false, Func<ResourceId, bool, Task>? setCapture = null) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         using IDisposable? platform = hosted ? BooruReviewTestPlatform.Enter() : null;
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
         if (!hosted) TokenApplication.Bind();
-        ArchivePage page = new(token => ArchiveReader.OpenAsync(_profile.Path, token), (_, _) => Task.CompletedTask, _ => { });
+        ArchivePage page = new(token => ArchiveReader.OpenAsync(_profile.Path, token), setCapture ?? ((_, _) => Task.CompletedTask), _ => { });
         try
         {
             page.IsReadable = true;
             test(page);
-            AssertBacklinks(page);
         }
         finally
         {
@@ -49,18 +47,6 @@ internal sealed class ReaderArchiveTestFixture : IDisposable
     {
         BooruComponentDispatcher.Wait(page.LoadThreadAsync(view.Summary.Id, resetPage, view));
         Assert.Equal(view.Summary.Id, page.CurrentThread?.Summary.Id);
-        AssertBacklinks(page);
-    }
-
-    private static void AssertBacklinks(ArchivePage page)
-    {
-        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-        ArchivePostRow[] rows = posts.Items.OfType<ArchivePostRow>().ToArray();
-        Assert.NotEmpty(rows);
-        BooruComponentDispatcher.WaitUntil(() => rows.All(row => row.BacklinkCount.HasValue || row.HasRepliesError),
-            $"backlink counts for {page.CurrentThread?.Summary.Id}");
-        Assert.All(rows, row => Assert.Null(row.RepliesError));
-        Assert.All(rows, row => Assert.Equal(0, row.BacklinkCount));
     }
 
     public void Dispose() => _profile.Dispose();

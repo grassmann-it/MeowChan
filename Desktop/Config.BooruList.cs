@@ -10,6 +10,13 @@ public partial class Config
     internal BooruListLayoutSettings BooruListLayout { get; set; } = new();
 
     [JsonInclude]
+    internal int BooruListTagLines
+    {
+        get => BooruListLayout.TagLines;
+        set => BooruListLayout = BooruListLayout with { TagLines = value };
+    }
+
+    [JsonInclude]
     internal int BooruListPreviewWidth
     {
         get => BooruListLayout.PreviewWidth;
@@ -96,9 +103,12 @@ public partial class Config
 internal sealed record BooruListLayoutSettings
 {
     internal const int WidthStep = 32;
-    internal const int ActionHeight = 20;
-    internal const int MinimumFrameAndActions = ActionHeight + 4;
+    internal const int ActionHeight = 24;
+    internal const int MinimumFrameAndActions = 24;
     internal const int MinimumNarrowFrameAndTags = MinimumFrameAndActions + 48;
+    internal const int TagLinesDefault = 0;
+    internal const int TagLinesMinimum = 0;
+    internal const int TagLinesMaximum = 12;
 
     public int PreviewWidth { get; init; } = 192;
     public int MinimumWidth { get; init; } = 128;
@@ -111,6 +121,7 @@ internal sealed record BooruListLayoutSettings
     public int NarrowRowHeight { get; init; } = 248;
     public int MediumRowHeight { get; init; } = 200;
     public int WideRowHeight { get; init; } = 168;
+    public int TagLines { get; init; } = TagLinesDefault;
 
     internal static BooruListLayoutSettings Default { get; } = new();
 
@@ -142,7 +153,8 @@ internal sealed record BooruListLayoutSettings
         new(nameof(WidePreviewHeight), 64, 320, p => p.WidePreviewHeight, (p, x) => p with { WidePreviewHeight = x }),
         new(nameof(NarrowRowHeight), 160, 512, p => p.NarrowRowHeight, (p, x) => p with { NarrowRowHeight = x }),
         new(nameof(MediumRowHeight), 128, 512, p => p.MediumRowHeight, (p, x) => p with { MediumRowHeight = x }),
-        new(nameof(WideRowHeight), 128, 512, p => p.WideRowHeight, (p, x) => p with { WideRowHeight = x })
+        new(nameof(WideRowHeight), 128, 512, p => p.WideRowHeight, (p, x) => p with { WideRowHeight = x }),
+        new(nameof(TagLines), TagLinesMinimum, TagLinesMaximum, p => p.TagLines, (p, x) => p with { TagLines = x })
     ];
 
     internal string? InvalidField()

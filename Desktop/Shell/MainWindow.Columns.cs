@@ -88,8 +88,9 @@ public partial class MainWindow
             bool available = !visible || CanHideDownloadColumn(gridName, column.SortMemberPath,
                 grid.Columns.Where(candidate => candidate.IsVisible).Select(candidate => candidate.SortMemberPath).ToArray());
             builder.Check(key, column.Header?.ToString() ?? key, visible,
-                async () => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode), available: available);
-            if (IsAdvancedWorkColumn(column))
+                async () => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode),
+                available: available, reason: available ? null : Texts.T("archive.columns.required"));
+            if (available && IsAdvancedWorkColumn(column))
                 help.Add((key, Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint")));
         }
         builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
