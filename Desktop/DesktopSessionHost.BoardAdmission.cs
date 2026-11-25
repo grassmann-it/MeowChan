@@ -20,6 +20,9 @@ internal sealed partial class DesktopSessionHost
     {
         _profileLease.StoreLimits.ExportHistory = new(Config.ExportHistorySizeMiB, Config.ExportHistoryEntryLimit);
         _profileLease.StoreLimits.BoardAdmissionSizeMiB = Config.BoardAdmissionSizeMiB;
+        // Applying settings hands every board the new RecheckTimer; own watcher intervals win again here.
+        // The first call runs in the constructor, before the registry exists.
+        _registry?.ApplyBoardWatcherIntervals();
     }
 
     private BoardAdmissionStore OpenBoardAdmissionStore()

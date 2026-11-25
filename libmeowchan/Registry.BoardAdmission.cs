@@ -23,6 +23,9 @@ public sealed partial class Registry
             if (lease != null && !ReferenceEquals(lease, store.ProfileLease))
                 throw new InvalidOperationException("Admission storage belongs to a different profile lease.");
             _boardAdmission = store;
+            // Registry.cs hands every board the session interval on start, admission and option
+            // changes. Reassert own intervals before each provider check reads its next delay.
+            _queue.ProviderCheckAdmitted = ApplyBoardWatcherIntervals;
         }
         if (store.LoadWarning != null) Warn(store.LoadWarning);
     }
@@ -88,9 +91,14 @@ public sealed partial class Registry
             int? previousInterval = _boardAdmission.Get(resource.Url).WatcherIntervalMinutes;
             if (admission != null) _boardAdmission.SaveAdmitted(resource.Url, policy, admission);
             else _boardAdmission.Save(resource.Url, policy);
-            if (previousInterval != policy.WatcherIntervalMinutes
-                && _watches.TryGetValue(resource.Key, out Watch? watch) && !watch.Stopping && watch.Board is { } board)
-                board.UpdateMonitoringInterval(ResolveBoardInterval(board, _boardInterval));
+            if (previousInterval != policy.WatcherIntervalMinutes)
+            {
+                IBoard? watched;
+                lock (_state) watched = _watches.TryGetValue(resource.Key, out Watch? watch) && !watch.Stopping ? watch.Board : null;
+                // A cleared field returns the running watcher to the session interval immediately.
+                watched?.UpdateMonitoringInterval(policy.WatcherIntervalMinutes is int minutes
+                    ? TimeSpan.FromMinutes(minutes) : _boardInterval);
+            }
         }
         finally { _gate.Release(); }
         foreach (var choice in policy.Exceptions.Where(pair => pair.Value == ThreadAdmissionException.Include
@@ -98,7 +106,9 @@ public sealed partial class Registry
             await AddAdmittedAsync(choice.Key, admission).ConfigureAwait(false);
         SignalChanged();
         // Use normal admission so a previous stopping board lifetime is drained before replacement.
-        return await AddAdmittedAsync(url, admission).ConfigureAwait(false);
+        AdmissionResult result = await AddAdmittedAsync(url, admission).ConfigureAwait(false);
+        ApplyBoardWatcherIntervals();
+        return result;
     }
 
     private bool AllowsBoardDiscovery(IBoard board, IThread thread)
@@ -107,7 +117,20 @@ public sealed partial class Registry
         return policy.Evaluate(new(thread.ThreadId, thread.ThreadUri.AbsoluteUri, thread.Title, thread.CatalogOpeningText)).Included;
     }
 
-    private TimeSpan ResolveBoardInterval(IBoard board, TimeSpan globalInterval) =>
-        GetBoardAdmissionPolicy(board.BoardUri.AbsoluteUri).WatcherIntervalMinutes is int minutes
-            ? TimeSpan.FromMinutes(minutes) : globalInterval;
+    /// <summary>Gives every watched board with its own interval that interval again. Boards with an
+    /// empty field keep the session interval that Registry.cs distributes.</summary>
+    internal void ApplyBoardWatcherIntervals()
+    {
+        BoardAdmissionStore? store = _boardAdmission;
+        if (store is not { HasWatcherIntervals: true }) return;
+        List<(IBoard Board, TimeSpan Interval)> own = new();
+        lock (_state)
+        {
+            foreach (Watch watch in _watches.Values)
+                if (watch is { Board: { } board, Stopping: false }
+                    && store.Get(board.BoardUri.AbsoluteUri).WatcherIntervalMinutes is int minutes)
+                    own.Add((board, TimeSpan.FromMinutes(minutes)));
+        }
+        foreach ((IBoard board, TimeSpan interval) in own) board.UpdateMonitoringInterval(interval);
+    }
 }

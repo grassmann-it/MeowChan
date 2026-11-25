@@ -29,8 +29,8 @@ public sealed class BoardWatcherRegistryTests
             Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
             await host.ApplyBoardAdmissionAsync(customUrl, new BoardAdmissionPolicy([], null, " Recent photos ", 12));
             await host.ApplyBoardAdmissionAsync(inheritedUrl, new BoardAdmissionPolicy([], null, " ", null));
-            Assert.Equal(720, source.Custom.StartedWithSeconds);
-            Assert.Equal(70, source.Inherited.StartedWithSeconds);
+            Assert.Equal(TimeSpan.FromMinutes(12), await source.Custom.DelayAfterNextCheckAsync());
+            Assert.Equal(TimeSpan.FromSeconds(70), await source.Inherited.DelayAfterNextCheckAsync());
             AssertBoardName(host, customUrl, "Recent photos");
             AssertBoardName(host, inheritedUrl, source.Inherited.NiceName);
         }
@@ -43,8 +43,8 @@ public sealed class BoardWatcherRegistryTests
             Assert.Equal(12, host.GetBoardAdmissionPolicy(customUrl).WatcherIntervalMinutes);
             Assert.Equal("Recent photos", host.GetBoardAdmissionPolicy(customUrl).WatcherName);
             Assert.Null(host.GetBoardAdmissionPolicy(inheritedUrl).WatcherIntervalMinutes);
-            Assert.Equal(720, reopened.Custom.StartedWithSeconds);
-            Assert.Equal(70, reopened.Inherited.StartedWithSeconds);
+            Assert.Equal(TimeSpan.FromMinutes(12), await reopened.Custom.DelayAfterNextCheckAsync());
+            Assert.Equal(TimeSpan.FromSeconds(70), await reopened.Inherited.DelayAfterNextCheckAsync());
             AssertBoardName(host, customUrl, "Recent photos");
             AssertBoardName(host, inheritedUrl, reopened.Inherited.NiceName);
 
@@ -53,9 +53,12 @@ public sealed class BoardWatcherRegistryTests
             Assert.True(await host.ApplySettingsAsync(next));
             Assert.Equal(TimeSpan.FromMinutes(12), reopened.Custom.CurrentInterval);
             Assert.Equal(TimeSpan.FromSeconds(85), reopened.Inherited.CurrentInterval);
+            Assert.Equal(TimeSpan.FromMinutes(12), await reopened.Custom.DelayAfterNextCheckAsync());
+            Assert.Equal(TimeSpan.FromSeconds(85), await reopened.Inherited.DelayAfterNextCheckAsync());
 
             await host.ApplyBoardAdmissionAsync(customUrl, new BoardAdmissionPolicy([], null, null, null));
             Assert.Equal(TimeSpan.FromSeconds(85), reopened.Custom.CurrentInterval);
+            Assert.Equal(TimeSpan.FromSeconds(85), await reopened.Custom.DelayAfterNextCheckAsync());
             AssertBoardName(host, customUrl, reopened.Custom.NiceName);
         }
     }
@@ -93,7 +96,9 @@ public sealed class BoardWatcherRegistryTests
 
     private sealed class FixtureBoard(FixtureSource source, string code, string name) : BaseBoard, IBoard
     {
-        internal int StartedWithSeconds { get; private set; }
+        private readonly object _sync = new();
+        private int _checks;
+        private (int Check, TaskCompletionSource<TimeSpan> Delay)? _awaited;
         internal TimeSpan CurrentInterval { get; private set; }
         public override IImageBoard ImageBoard => source;
         public override string BoardCode => code;
@@ -102,11 +107,29 @@ public sealed class BoardWatcherRegistryTests
         public override Uri BoardUri => new(source.BaseUri, code + "/");
 
         public override Task<IEnumerable<IThread>> GetThreadsAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IEnumerable<IThread>>([]);
+        {
+            lock (_sync) _checks++;
+            return Task.FromResult<IEnumerable<IThread>>([]);
+        }
+
+        // The delay the watcher really waits with after a check that began once the caller asked for one.
+        internal async Task<TimeSpan> DelayAfterNextCheckAsync()
+        {
+            TaskCompletionSource<TimeSpan> delay = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_sync) _awaited = (_checks, delay);
+            Assert.Contains(RequestCheck(), new[] { CheckRequestStatus.Scheduled, CheckRequestStatus.AlreadyScheduled });
+            return await delay.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+
+        protected override Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)
+        {
+            lock (_sync)
+                if (_awaited is { } awaited && _checks > awaited.Check) awaited.Delay.TrySetResult(interval);
+            return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
 
         void IBoard.StartMonitoring(int intervalInSeconds)
         {
-            StartedWithSeconds = intervalInSeconds;
             CurrentInterval = TimeSpan.FromSeconds(intervalInSeconds);
             StartMonitoring(intervalInSeconds);
         }
