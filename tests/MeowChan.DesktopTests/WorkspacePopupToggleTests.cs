@@ -21,11 +21,12 @@ using MeowChan.Persistence;
 using MeowChan.Rules;
 using MeowChan.Storage;
 using MeowChan.Tags;
+using Xunit.Abstractions;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Avalonia global state")]
-public sealed class WorkspacePopupToggleTests
+public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData("RulesMoreButton")]
@@ -215,7 +216,7 @@ public sealed class WorkspacePopupToggleTests
             ToggleButton more = Assert.IsAssignableFrom<ToggleButton>(page.Actions.More);
             Click(window, more);
             Button groupOpener = page.GroupManageButton;
-            VerifyPopup(window, groupOpener, () => groupOpener.ContextMenu?.IsOpen == true);
+            VerifyPopup(window, groupOpener, () => groupOpener.ContextMenu?.IsOpen == true, output.WriteLine);
             more.IsChecked = false;
             Layout(window);
 
@@ -408,7 +409,7 @@ public sealed class WorkspacePopupToggleTests
         return window;
     }
 
-    private static void VerifyPopup(Window window, Button opener, Func<bool> isOpen)
+    private static void VerifyPopup(Window window, Button opener, Func<bool> isOpen, Action<string>? logRoute = null)
     {
         Assert.False(opener.Focusable);
         Assert.False(isOpen());
@@ -416,6 +417,7 @@ public sealed class WorkspacePopupToggleTests
         Assert.True(isOpen());
         Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(opener));
         string route = TracePopupClick(window, opener);
+        logRoute?.Invoke(route);
         Assert.False(isOpen(), route);
         Click(TopLevel.GetTopLevel(opener) ?? window, opener);
         Assert.True(isOpen());
@@ -426,7 +428,7 @@ public sealed class WorkspacePopupToggleTests
 
     private static string TracePopupClick(Window window, Button opener)
     {
-        Popup? before = AnchoredPopup();
+        Popup? before = AnchoredPopup(window.OpenedPopups);
         List<string> route = [PopupState("Before", before)];
         int clicks = 0, opened = 0, closed = 0;
         window.AddHandler(InputElement.PointerPressedEvent, LogPointer,
@@ -442,7 +444,7 @@ public sealed class WorkspacePopupToggleTests
         try
         {
             Click(TopLevel.GetTopLevel(opener) ?? window, opener);
-            Popup? after = AnchoredPopup();
+            Popup? after = AnchoredPopup(window.OpenedPopups);
             if (after != null && !ReferenceEquals(after, before)) opened++;
             route.Add(PopupState("After", after));
             route.Add($"Click={clicks}, Opened={opened}, Closed={closed}");
@@ -474,17 +476,29 @@ public sealed class WorkspacePopupToggleTests
         void OnOpened(object? sender, EventArgs e) => opened++;
         void OnClosed(object? sender, EventArgs e) => closed++;
 
-        Popup? AnchoredPopup() => window.OpenedPopups.FirstOrDefault(popup => ReferenceEquals(popup.PlacementTarget, opener));
+        Popup? AnchoredPopup(IEnumerable<Popup> popups)
+        {
+            foreach (Popup popup in popups)
+            {
+                if (popup.Child is ToolTip) continue;
+                if (ReferenceEquals(popup.PlacementTarget, opener)) return popup;
+                if (AnchoredPopup(popup.OpenedPopups) is { } nested) return nested;
+            }
+            return null;
+        }
 
         string PopupState(string phase, Popup? popup) =>
             $"{phase}: OpenedPopups.Count={window.OpenedPopups.Count}, OverlayPopupHost={popup?.IsUsingOverlayLayer}, " +
+            $"popup.Child={popup?.Child?.GetType().Name ?? "<none>"}, opener.Attached={opener.IsAttachedToVisualTree()}, " +
             $"opener.Bounds={BoundsInWindow(opener)}, menu.Bounds={BoundsInWindow(popup?.Child)}";
 
-        Rect? BoundsInWindow(Visual? visual)
+        string BoundsInWindow(Visual? visual)
         {
-            if (visual == null) return null;
-            Point InWindow(Point point) => visual.TranslatePoint(point, window) ?? window.PointToClient(visual.PointToScreen(point));
-            return new Rect(InWindow(default), InWindow(new Point(visual.Bounds.Width, visual.Bounds.Height)));
+            if (visual == null) return "<none>";
+            if (!visual.IsAttachedToVisualTree() || visual.TranslatePoint(default, window) is not { } topLeft ||
+                visual.TranslatePoint(new Point(visual.Bounds.Width, visual.Bounds.Height), window) is not { } bottomRight)
+                return "<nicht eingehängt>";
+            return new Rect(topLeft, bottomRight).ToString();
         }
     }
 
