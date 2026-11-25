@@ -85,11 +85,21 @@ internal sealed partial class BooruWorkbenchView
 
     private void OnMediaSidebarKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || !_mediaSidebar.IsEffectivelyVisible || ShortcutServiceCapturing()
-            || !ShortcutService.Current.Matches(e, "media.sidebar.info", "booru")
+        if (e.Handled || !_mediaToggle.IsEffectivelyVisible || ShortcutServiceCapturing()
             || CommandRouter.IsNativeInput(e.Source, e.Key) || !CommandRouter.IsRoutingContextActive(this, e.Source)) return;
-        e.Handled = true;
-        _mediaSidebar.ToggleFacts();
+        EffectiveShortcutBindings bindings = ShortcutService.Current;
+        if (bindings.Matches(e, "media.panel.toggle", "booru"))
+        {
+            e.Handled = true;
+            ToggleMediaSidebar();
+        }
+        else if (bindings.Matches(e, "media.sidebar.info", "booru"))
+        {
+            e.Handled = true;
+            bool wasShown = _mediaSidebar.IsEffectivelyVisible;
+            SetMediaSidebarOpen(open: true, returnFocus: false);
+            if (wasShown || _mediaSidebar.Info.IsChecked != true) _mediaSidebar.ToggleFacts();
+        }
     }
 
     private void ToggleMediaSidebar()
@@ -121,9 +131,10 @@ internal sealed partial class BooruWorkbenchView
         bool widthAllows = _mediaSidebarPageWidth >= SidebarPageMinimum;
         if (supported)
         {
-            IconButtons.Apply(_mediaToggle, "panel-right", Texts.T("media.layout.panel"));
-            if (!widthAllows)
-                ToolTip.SetTip(_mediaToggle, Texts.T("media.layout.panel.collapsed", SidebarPageMinimum));
+            string label = Texts.T("media.layout.panel");
+            IconButtons.Apply(_mediaToggle, "panel-right", label);
+            string? reason = widthAllows ? null : Texts.T("media.layout.panel.collapsed", SidebarPageMinimum);
+            ToolTip.SetTip(_mediaToggle, CommandBindings.Tooltip("media.panel.toggle", reason, label, keyContext: "booru"));
         }
 
         _mediaSidebar.IsVisible = supported && _mediaSidebarOpen && widthAllows;

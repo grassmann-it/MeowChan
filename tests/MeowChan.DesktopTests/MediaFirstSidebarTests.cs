@@ -121,14 +121,12 @@ public sealed class MediaFirstSidebarTests
         Config config = new();
         Assert.False(config.MediaSidebarAutoHide);
         Assert.True(config.MediaSidebarFacts);
-        Assert.Equal(("Auto", 104, 40), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
+        Assert.Equal(("Auto", 40), (config.MediaSidebarInfo, config.MediaSidebarInfoMaximumShare));
         config.MediaSidebarInfo = "unknown";
-        config.MediaSidebarInfoMinimumFree = -1;
         config.MediaSidebarInfoMaximumShare = 120;
-        Assert.Equal(("Auto", 64, 60), (config.MediaSidebarInfo, config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
-        config.MediaSidebarInfoMinimumFree = 900;
+        Assert.Equal(("Auto", 60), (config.MediaSidebarInfo, config.MediaSidebarInfoMaximumShare));
         config.MediaSidebarInfoMaximumShare = 0;
-        Assert.Equal((480, 20), (config.MediaSidebarInfoMinimumFree, config.MediaSidebarInfoMaximumShare));
+        Assert.Equal(20, config.MediaSidebarInfoMaximumShare);
     }
 
     [Fact]

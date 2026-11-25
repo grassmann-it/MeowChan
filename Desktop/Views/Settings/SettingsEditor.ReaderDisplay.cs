@@ -31,8 +31,6 @@ public partial class SettingsEditor
     public int ReadingHistoryMenuEntriesMaximum => Config.ReadingHistoryMenuEntriesMaximum;
     public int ReaderMediaSidebarWidthMinimum => Config.ReaderMediaSidebarWidthMinimum;
     public int ReaderMediaSidebarWidthMaximum => Config.ReaderMediaSidebarWidthMaximum;
-    public int MediaSidebarInfoMinimumFreeMinimum => Config.MediaSidebarInfoMinimumFreeMinimum;
-    public int MediaSidebarInfoMinimumFreeMaximum => Config.MediaSidebarInfoMinimumFreeMaximum;
     public int ReaderMediaSidebarMinimumWidthMinimum => Config.ReaderMediaSidebarMinimumWidthMinimum;
     public int ReaderMediaSidebarMinimumWidthMaximum => Config.ReaderMediaSidebarMinimumWidthMaximum;
     public int ReaderInlineVideoMaxPlayersMinimum => Config.ReaderInlineVideoMaxPlayersMinimum;
@@ -228,11 +226,6 @@ public partial class SettingsEditor
     public string ReaderMediaSidebarWidthLabel => Texts.T("settings.reader.mediaSidebarWidth");
     public string ReaderMediaSidebarWidthHint => Texts.T("settings.reader.mediaSidebarWidth.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum);
     public string ReaderMediaSidebarWidthHelp => FieldHelp(nameof(ReaderMediaSidebarWidthInput), ReaderMediaSidebarWidthHint);
-    private decimal? _mediaSidebarInfoMinimumFree;
-    public decimal? MediaSidebarInfoMinimumFree { get => _mediaSidebarInfoMinimumFree; set => SetField(ref _mediaSidebarInfoMinimumFree, value, nameof(MediaSidebarInfoMinimumFree)); }
-    public string MediaSidebarInfoMinimumFreeLabel => Texts.T("settings.reader.mediaSidebarInfoMinimumFree");
-    public string MediaSidebarInfoMinimumFreeHint => Texts.T("settings.reader.mediaSidebarInfoMinimumFree.hint") + " " + Texts.T("settings.reader.range", Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum);
-    public string MediaSidebarInfoMinimumFreeHelp => FieldHelp(nameof(MediaSidebarInfoMinimumFreeInput), MediaSidebarInfoMinimumFreeHint);
     private decimal? _readerMediaSidebarMinimumWidth;
     public decimal? ReaderMediaSidebarMinimumWidth { get => _readerMediaSidebarMinimumWidth; set => SetField(ref _readerMediaSidebarMinimumWidth, value, nameof(ReaderMediaSidebarMinimumWidth)); }
     public string ReaderMediaSidebarMinimumWidthLabel => Texts.T("settings.reader.mediaSidebarMinimumWidth");
@@ -475,8 +468,6 @@ public partial class SettingsEditor
         ReaderMediaSidebar = config.ReaderMediaSidebar;
         ReaderMediaSidebarWidth = config.ReaderMediaSidebarWidth;
         ResetNumber(ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth.Value);
-        MediaSidebarInfoMinimumFree = config.MediaSidebarInfoMinimumFree;
-        ResetNumber(MediaSidebarInfoMinimumFreeInput, MediaSidebarInfoMinimumFree.Value);
         ReaderMediaSidebarMinimumWidth = config.ReaderMediaSidebarMinimumWidth;
         ResetNumber(ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth.Value);
         RefreshMediaClickChoices(ReaderMediaClickRules.ToKey(config.EffectiveReaderMediaClick));
@@ -542,7 +533,6 @@ public partial class SettingsEditor
         }
         candidate.ReaderMediaSidebarSide = SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide;
         candidate.ReaderMediaSidebarWidth = GetInteger(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum);
-        candidate.MediaSidebarInfoMinimumFree = GetInteger(MediaSidebarInfoMinimumFree, MediaSidebarInfoMinimumFreeLabel, Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum);
         candidate.ReaderMediaSidebarMinimumWidth = GetInteger(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
         candidate.ChooseReaderMediaClick(ReaderMediaClickRules.FromKey(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick)));
         candidate.ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted;
@@ -601,7 +591,6 @@ public partial class SettingsEditor
         yield return (ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, string.Empty, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum, true);
         yield return (ReaderHoverEnlargeDelayMsInput, ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsLabel, string.Empty, Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum, true);
         yield return (ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, string.Empty, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum, true);
-        yield return (MediaSidebarInfoMinimumFreeInput, MediaSidebarInfoMinimumFree, MediaSidebarInfoMinimumFreeLabel, string.Empty, Config.MediaSidebarInfoMinimumFreeMinimum, Config.MediaSidebarInfoMinimumFreeMaximum, true);
         yield return (ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, string.Empty, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, true);
         yield return (ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, string.Empty, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum, true);
         yield return (ReaderInlineVideoMaxFileMiBInput, ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, string.Empty, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, true);
@@ -692,11 +681,6 @@ public partial class SettingsEditor
                     ReaderMediaSidebarWidth = _config.ReaderMediaSidebarWidth;
                     ResetNumber(ReaderMediaSidebarWidthInput, _config.ReaderMediaSidebarWidth);
                     break;
-                case SettingsFieldId.MediaSidebarInfoMinimumFree:
-                    MediaSidebarInfoMinimumFree = _config.MediaSidebarInfoMinimumFree;
-                    ResetNumber(MediaSidebarInfoMinimumFreeInput, _config.MediaSidebarInfoMinimumFree);
-                    break;
-
                 case SettingsFieldId.ReaderMediaSidebarMinimumWidth:
                     ReaderMediaSidebarMinimumWidth = _config.ReaderMediaSidebarMinimumWidth;
                     ResetNumber(ReaderMediaSidebarMinimumWidthInput, _config.ReaderMediaSidebarMinimumWidth);
@@ -790,7 +774,6 @@ public partial class SettingsEditor
         nameof(MediaSidebarInfoLabel), nameof(MediaSidebarInfoHint),
         nameof(ReaderMediaSidebarSideLabel), nameof(ReaderMediaSidebarSideHint),
         nameof(ReaderMediaSidebarWidthLabel), nameof(ReaderMediaSidebarWidthHint), nameof(ReaderMediaSidebarWidthHelp),
-        nameof(MediaSidebarInfoMinimumFreeLabel), nameof(MediaSidebarInfoMinimumFreeHint), nameof(MediaSidebarInfoMinimumFreeHelp),
         nameof(ReaderMediaSidebarMinimumWidthLabel), nameof(ReaderMediaSidebarMinimumWidthHint), nameof(ReaderMediaSidebarMinimumWidthHelp),
         nameof(ReaderMediaClickLabel), nameof(ReaderMediaClickHint),
         nameof(ReaderInlineVideoAutoplayMutedLabel), nameof(ReaderInlineVideoAutoplayMutedHint),
@@ -833,7 +816,6 @@ public partial class SettingsEditor
         nameof(ReaderHoverEnlargeSizeHelp),
         nameof(ReaderHoverEnlargeDelayMsHelp),
         nameof(ReaderMediaSidebarWidthHelp),
-        nameof(MediaSidebarInfoMinimumFreeHelp),
         nameof(ReaderMediaSidebarMinimumWidthHelp),
         nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBHelp),

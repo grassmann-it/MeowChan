@@ -706,15 +706,6 @@ namespace MeowChan
         }
         public string MediaSidebarInfo { get => _mediaSidebarInfo; set => _mediaSidebarInfo = NormalizeSidebarInfo(value); }
 
-        internal const int MediaSidebarInfoMinimumFreeMinimum = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeMinimum;
-        internal const int MediaSidebarInfoMinimumFreeMaximum = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeMaximum;
-        private int _mediaSidebarInfoMinimumFree = ReaderDisplayPreferences.MediaSidebarInfoMinimumFreeDefault;
-        public int MediaSidebarInfoMinimumFree
-        {
-            get => _mediaSidebarInfoMinimumFree;
-            set => _mediaSidebarInfoMinimumFree = Math.Clamp(value, MediaSidebarInfoMinimumFreeMinimum, MediaSidebarInfoMinimumFreeMaximum);
-        }
-
         internal const int MediaSidebarInfoMaximumShareMinimum = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareMinimum;
         internal const int MediaSidebarInfoMaximumShareMaximum = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareMaximum;
         private int _mediaSidebarInfoMaximumShare = ReaderDisplayPreferences.MediaSidebarInfoMaximumShareDefault;
@@ -2272,7 +2263,6 @@ namespace MeowChan
                 MediaSidebarFacts = MediaSidebarFacts,
                 MediaSidebarPinned = MediaSidebarPinned,
                 MediaSidebarInfo = MediaSidebarInfo,
-                MediaSidebarInfoMinimumFree = MediaSidebarInfoMinimumFree,
                 MediaSidebarInfoMaximumShare = MediaSidebarInfoMaximumShare,
                 ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
                 ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
@@ -2581,7 +2571,6 @@ namespace MeowChan
             MediaSidebarFacts = source.MediaSidebarFacts;
             MediaSidebarPinned = source.MediaSidebarPinned;
             MediaSidebarInfo = source.MediaSidebarInfo;
-            MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree;
             MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
@@ -2864,7 +2853,6 @@ namespace MeowChan
             MediaSidebarFacts = source.MediaSidebarFacts;
             MediaSidebarPinned = source.MediaSidebarPinned;
             MediaSidebarInfo = source.MediaSidebarInfo;
-            MediaSidebarInfoMinimumFree = source.MediaSidebarInfoMinimumFree;
             MediaSidebarInfoMaximumShare = source.MediaSidebarInfoMaximumShare;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
