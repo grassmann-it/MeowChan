@@ -575,7 +575,15 @@ public sealed partial class MediaPage
     private void OnPanelKeyDown(object? sender, KeyEventArgs e)
     {
         _panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came
-        if (!TryDismissPanelTagEditor(e) && !TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
+        if (TryDismissPanelTagEditor(e)) return;
+        if (_panelShown && !ShortcutService.IsCapturing && e.Source is Control source
+            && IsContextKey(e) && !IsNativeContextSource(source))
+        {
+            var request = new ContextRequestedEventArgs { RoutedEvent = ContextRequestedEvent };
+            source.RaiseEvent(request);
+            if (request.Handled) { e.Handled = true; return; }
+        }
+        if (!TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
     }
 
     private bool TryRoutePanelKey(KeyEventArgs e, bool fromPanel)
