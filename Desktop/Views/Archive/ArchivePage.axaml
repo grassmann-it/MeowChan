@@ -171,7 +171,8 @@
                 </Border>
                 <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="workspace-section-flush">
                     <Grid RowDefinitions="*,Auto">
-                        <ListBox x:Name="ArchiveThreads" AutomationProperties.AutomationId="ArchiveThreads" Classes="workspace-selection-bar" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox x:Name="ArchiveThreads" AutomationProperties.AutomationId="ArchiveThreads" Classes="workspace-selection-bar" Focusable="True" IsTabStop="False"
+                                 SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">

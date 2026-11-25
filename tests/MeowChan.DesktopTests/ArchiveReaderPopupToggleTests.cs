@@ -130,7 +130,7 @@ public sealed class ArchiveReaderPopupToggleTests
 
         var posts = Find<ListBox>(window, "ArchivePosts");
         Assert.True(posts.IsKeyboardFocusWithin || posts.Focus(NavigationMethod.Tab), FocusState(window, posts));
-        KeyGesture settingsKey = CommandBindings.Gesture("reader.quick-settings")!;
+        KeyGesture settingsKey = Assert.IsType<KeyGesture>(CommandBindings.Gesture("reader.quick-settings"));
         Press(fixture, settingsKey);
         Assert.True(page.IsQuickSettingsOpen);
         Press(fixture, settingsKey);
@@ -195,7 +195,7 @@ public sealed class ArchiveReaderPopupToggleTests
         }
         var table = Find<DataGrid>(window, "ArchiveThreadTable");
         Assert.True(table.IsKeyboardFocusWithin || table.Focus(NavigationMethod.Tab), FocusState(window, table));
-        KeyGesture gesture = CommandBindings.Gesture("table.choose-columns")!;
+        KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture("table.choose-columns"));
         Press(fixture, gesture);
         ContextMenu first = Assert.IsType<ContextMenu>(columns.ContextMenu);
         Press(fixture, gesture);
@@ -212,10 +212,11 @@ public sealed class ArchiveReaderPopupToggleTests
     {
         PopupEscape.Install();
         ShortcutBindingsSection before = ShortcutService.CurrentSection;
-        ShortcutService.Publish(before
+        var bindings = before
             .Set("navigation.archive", [ShortcutGesture.Parse("F8")])
-            .Set("reader.quick-settings", [ShortcutGesture.Parse("Primary+Alt+J")])
-            .Set("table.choose-columns", [ShortcutGesture.Parse("Primary+Alt+K")]));
+            .Set("reader.quick-settings", [ShortcutGesture.Parse("Primary+Shift+J")])
+            .Set("table.choose-columns", [ShortcutGesture.Parse("Primary+Shift+K")]);
+        ShortcutService.Publish(bindings);
         try
         {
             fixture.Window.Width = 1960;
