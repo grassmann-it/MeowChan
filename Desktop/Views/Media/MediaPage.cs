@@ -1353,7 +1353,7 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.CopyProviderPost] = () => CopyProviderPostAsync(entry)
         };
         List<Control> context = new();
-        if (menuSidebar?.ShowAllTagsMenuItem(session, Run) is { } showTags) context.Add(showTags);
+        if (menuSidebar?.ExpandedTagsMenuItem(session, Run) is { } tags) context.Add(tags);
         if (several) context.Add(MediaMenuBuilder.Note(Texts.T("media.menu.note.selection", selectedCount)));
         foreach (PrivateTagDefinition tag in row.TagChips.Take(row.ShownTagChips))
         {

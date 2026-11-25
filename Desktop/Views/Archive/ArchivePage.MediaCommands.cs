@@ -804,7 +804,7 @@ public partial class ArchivePage
             context.Add(manage);
         }
         if (_mediaSidebar is { } sidebar && ReferenceEquals(origin, sidebar.FrameArea)
-            && sidebar.ShowAllTagsMenuItem(session, Run) is { } showTags) context.Add(showTags);
+            && sidebar.ExpandedTagsMenuItem(session, Run) is { } tags) context.Add(tags);
         if (surface is MediaMenuSurface.ArchiveTiles or MediaMenuSurface.ArchiveTable && asset?.Asset.Sha256 is { Length: 64 } hash)
             context.Add(MediaMenuBuilder.ContextItem(session, "archive.media.copySha256",
                 () => MenuClipboard.CopyAsync(origin, hash, reportError), () => true, Run, icon: "copy"));

@@ -175,24 +175,40 @@ public sealed class ReaderMediaSidebarHostClickTests
         Click(window, SidePanelDesignTests.ById<ToggleButton>(sidebar, "ReaderMediaSidebarExpand"));
         Assert.False(expanded.IsEffectivelyVisible);
         Assert.True(frame.Focus(NavigationMethod.Tab));
-        window.KeyPressQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
-        window.KeyReleaseQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
-        Dispatcher.UIThread.RunJobs();
-        ContextMenu menu = Assert.IsType<ContextMenu>(openMenu());
-        Assert.True(menu.IsOpen);
-        MenuItem show = Assert.Single(menu.Items.OfType<MenuItem>(),
-            item => AutomationProperties.GetAutomationId(item) == "media.sidebar.showAllTags");
-        Assert.Equal(Texts.T("media.sidebar.showAllTags"), show.Header);
-        BooruResultActionsTests.Click(show);
-        window.UpdateLayout();
-        Assert.False(menu.IsOpen);
+        ActivateWithKeyboard("media.sidebar.showAllTags");
         CheckRevealed();
+        ActivateWithKeyboard("action.hideDetails");
+        Assert.False(expanded.IsEffectivelyVisible);
+        CheckFocusAndPin();
+
+        void ActivateWithKeyboard(string label)
+        {
+            window.KeyPressQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
+            window.KeyReleaseQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
+            Dispatcher.UIThread.RunJobs();
+            ContextMenu menu = Assert.IsType<ContextMenu>(openMenu());
+            Assert.True(menu.IsOpen);
+            MenuItem action = Assert.Single(menu.Items.OfType<MenuItem>(),
+                item => AutomationProperties.GetAutomationId(item) == "media.sidebar.showAllTags");
+            Assert.Equal(Texts.T(label), action.Header);
+            Assert.True(action.Focus(NavigationMethod.Tab));
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.False(menu.IsOpen);
+        }
 
         void CheckRevealed()
         {
             Assert.True(expanded.IsEffectivelyVisible);
             var allTags = SidePanelDesignTests.ById<WrapPanel>(expanded, "ReaderMediaSidebarAllTags");
             Assert.Equal(names, allTags.GetVisualDescendants().OfType<TextBlock>().Select(text => text.Text));
+            CheckFocusAndPin();
+        }
+
+        void CheckFocusAndPin()
+        {
             Assert.Same(frame, window.FocusManager!.GetFocusedElement());
             Assert.Null(QuickTagPopover.Current);
             Assert.False(settings.MediaSidebarPinned);

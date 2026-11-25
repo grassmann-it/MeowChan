@@ -327,18 +327,23 @@ internal sealed partial class ReaderMediaSidebar
         _frame.Focus();
     }
 
-    internal MenuItem? ShowAllTagsMenuItem(MediaMenuSession session, Func<Func<Task>, Task> run)
+    internal MenuItem? ExpandedTagsMenuItem(MediaMenuSession session, Func<Func<Task>, Task> run)
     {
         if (_tags is not { Count: > 0 }) return null;
-        const string key = "media.sidebar.showAllTags";
+        const string id = "media.sidebar.showAllTags";
+        bool collapse = TagsRequested && !Pinned;
         int revision = _mediumRevision;
-        MenuItem item = MediaMenuBuilder.ContextItem(session, key, () =>
+        return MediaMenuBuilder.ContextItem(session, id, Texts.T(collapse ? "action.hideDetails" : id), () =>
         {
-            if (revision == _mediumRevision) ShowAllTags();
+            if (revision != _mediumRevision) return Task.CompletedTask;
+            if (collapse)
+            {
+                CloseHover();
+                _frame.Focus();
+            }
+            else ShowAllTags();
             return Task.CompletedTask;
         }, () => revision == _mediumRevision, run, icon: "tag");
-        AutomationProperties.SetAutomationId(item, key);
-        return item;
     }
 
     private void PopulateExpandedTags()
@@ -373,7 +378,7 @@ internal sealed partial class ReaderMediaSidebar
         _extraFacts.IsVisible = _extraGrid.Children.Count > 0 || _provenanceNote.IsVisible;
         _expandedRows.MaxHeight = Math.Max(0, Bounds.Height * _infoPreferences.MediaSidebarInfoMaximumShare / 100);
         _expandedRows.IsVisible = open;
-        // A separate popup also layers above native video. Only pinning contributes to the docked height.
+        // The hover popup layers above native video. Explicit expansion shares the pinned layout.
         if (!hover) _hoverPopup.IsOpen = false;
         Border parent = hover ? _hoverSurface : _dockedExpansion;
         if (!ReferenceEquals(parent.Child, _expandedRows))
