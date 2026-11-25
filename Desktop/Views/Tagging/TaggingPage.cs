@@ -155,6 +155,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
 
     private TaggingHeader BuildHeader()
     {
+        AutomationProperties.SetAutomationId(_bar, "TaggingProgressBar");
         Grid.SetColumn(_progressText, 1);
         _progress.Children.Add(_bar);
         _progress.Children.Add(_progressText);

@@ -119,8 +119,15 @@ public sealed class FavoritesEverywhereTests : IDisposable
         Assert.Equal(Texts.T("viewer.favorite.remove") + " · F / U", Assert.IsType<string>(ToolTip.GetTip(star)));
 
         Texts.SetLanguage("de");
-        ShortcutService.Publish(new ShortcutBindingsSection().Set(FavoriteKeys.ToggleId, [ShortcutGesture.Parse("F9")]));
-        Assert.Equal(Texts.T("viewer.favorite.remove") + " · F9 / U", Assert.IsType<string>(ToolTip.GetTip(star)));
+        var rebound = new ShortcutBindingsSection().Set(FavoriteKeys.ToggleId, [ShortcutGesture.Parse("F9")]);
+        ShortcutService.Publish(rebound);
+        // Help.md, macOS shortcuts: F-keys are shown as “F5 (Fn)”.
+        string remove = Texts.T("viewer.favorite.remove");
+        string mac = remove + " · F9 (Fn) / U";
+        string other = remove + " · F9 / U";
+        Assert.Equal(mac, FavoriteKeys.Tooltip(true, "reader", EffectiveShortcutBindings.Build(rebound, ShortcutPlatform.MacOS)));
+        Assert.Equal(other, FavoriteKeys.Tooltip(true, "reader", EffectiveShortcutBindings.Build(rebound, ShortcutPlatform.Linux)));
+        Assert.Equal(OperatingSystem.IsMacOS() ? mac : other, Assert.IsType<string>(ToolTip.GetTip(star)));
     });
 
     // ---- every star toggles ----
