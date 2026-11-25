@@ -441,6 +441,8 @@ internal sealed class MediaNativeInput : IDisposable
     internal Task KeyAsync(ulong key, bool modified = false) => KeyboardInputAsync(key, TimeSpan.FromMilliseconds(40),
         modified ? new[] { ControlLeft, ShiftLeft } : []);
 
+    internal Task ShiftKeyAsync(ulong key) => KeyboardInputAsync(key, TimeSpan.FromMilliseconds(40), [ShiftLeft]);
+
     private Task KeyboardInputAsync(ulong key, TimeSpan duration, ulong[] modifiers, bool hold = false)
     {
         TopLevel? pointerRoot = _pointerTarget == null ? null : TopLevel.GetTopLevel(_pointerTarget);
