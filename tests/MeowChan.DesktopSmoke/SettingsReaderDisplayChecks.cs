@@ -230,7 +230,7 @@ internal static class SettingsReaderDisplayChecks
                 int renders = 0;
                 void Changed(object? sender, AvaloniaPropertyChangedEventArgs e)
                 {
-                    if (e.Property.Name == "ItemsSource" && list.ItemsSource is ArchivePostRow[]) renders++;
+                    if (e.Property.Name == "ItemsSource" && list.ItemCount > 0) renders++;
                 }
                 list.PropertyChanged += Changed;
                 try
@@ -277,7 +277,7 @@ internal static class SettingsReaderDisplayChecks
             int combinedRenders = 0;
             void CombinedChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
             {
-                if (e.Property.Name == "ItemsSource" && list.ItemsSource is ArchivePostRow[]) combinedRenders++;
+                if (e.Property.Name == "ItemsSource" && list.ItemCount > 0) combinedRenders++;
             }
             list.PropertyChanged += CombinedChanged;
             try

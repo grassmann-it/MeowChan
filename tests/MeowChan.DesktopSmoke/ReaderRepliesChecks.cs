@@ -42,11 +42,14 @@ internal static class ReaderRepliesChecks
             page.IsAvailable = true;
             await page.LoadThreadAsync(id);
             ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
-            ArchivePostRow target = list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == "100");
-            await Program.WaitUntilAsync(() => target.BacklinkCount == 25);
-            ArchivePostRow zero = list.ItemsSource!.Cast<ArchivePostRow>().Single(row => row.Id == "125");
+            await page.FocusPostAsync("125");
+            await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "125", BacklinkCount: 0 });
+            ArchivePostRow zero = (ArchivePostRow)list.SelectedItem!;
             Require(zero.HasConfirmedNoReplies && !zero.CanExpandReplies && !zero.HasReplyToggle,
                 "A confirmed zero remained an interactive reply counter.");
+            await page.FocusPostAsync("100");
+            await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: "100", BacklinkCount: 25 });
+            ArchivePostRow target = (ArchivePostRow)list.SelectedItem!;
             Require(target.Replies.Count == 0 && !target.RepliesLoaded,
                 "Collapsed replies loaded the backlink page eagerly.");
             Require(target.BacklinksLabel.Contains("25"), "Inline reply count was not displayed.");
@@ -161,12 +164,9 @@ internal static class ReaderRepliesChecks
     {
         ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
         // The preceding backlink navigation re-renders the page; read the settled rows.
-        await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemsSource is ArchivePostRow[]);
+        await Program.WaitUntilAsync(() => !page.IsBusy && list.ItemCount > 0);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
-        ArchivePostRow opening = rows.Single(row => row.Id == "100"), reply = rows.Single(row => row.Id == "101"); // Realized right below the long OP.
-        Require(opening.IsOpeningPost && !reply.IsOpeningPost, "The thread-number post was not the only opening post.");
-        await Program.WaitUntilAsync(() => opening.BacklinkCount == 25);
+        bool HasCard(string id) => list.GetRealizedContainers().Any(item => item.DataContext is ArchivePostRow row && row.Id == id);
         ListBoxItem Container(ArchivePostRow row) => list.GetVisualDescendants().OfType<ListBoxItem>()
             .Single(item => ReferenceEquals(item.DataContext, row));
         // The preceding async quote click can still be settling its focus/layout passes after selecting 101.
@@ -180,13 +180,14 @@ internal static class ReaderRepliesChecks
             "The inactive-card fixture could not move focus to the reader toolbar.");
         await Program.WaitUntilAsync(() =>
         {
-            list.ScrollIntoView(opening); list.UpdateLayout();
+            list.ScrollIntoView(0); list.UpdateLayout();
             return list.SelectedItem is ArchivePostRow { Id: not ("100" or "101") }
-                && list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, opening))
-                && list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, reply));
+                && HasCard("100") && HasCard("101");
         }, () => "selected=" + (list.SelectedItem as ArchivePostRow)?.Id + "; realized=" + string.Join(",", list.GetVisualDescendants()
-            .OfType<ListBoxItem>().Select(item => (item.DataContext as ArchivePostRow)?.Id)) + "; rows=" + string.Join(",", rows.Select(row => row.Id))
-            + "; source=" + ReferenceEquals(list.ItemsSource, rows) + "/" + (list.ItemsSource as ArchivePostRow[])?.Length);
+            .OfType<ListBoxItem>().Select(item => (item.DataContext as ArchivePostRow)?.Id)) + "; posts=" + list.ItemCount);
+        ArchivePostRow opening = (ArchivePostRow)list.Items[0]!, reply = (ArchivePostRow)list.Items[1]!;
+        Require(opening.IsOpeningPost && !reply.IsOpeningPost, "The opening post did not retain its header state.");
+        await Program.WaitUntilAsync(() => opening.BacklinkCount == 25);
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         Color Token(string key) => Application.Current!.TryGetResource(key, window.ActualThemeVariant, out object? value)
             && value is ISolidColorBrush brush ? brush.Color : throw new InvalidOperationException("Missing token " + key);

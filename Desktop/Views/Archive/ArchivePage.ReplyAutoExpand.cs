@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using MeowChan.Desktop;
@@ -21,12 +20,12 @@ public partial class ArchivePage
         set
         {
             if (_replyAutoExpand.Enabled == value) return;
-            if (_ended || ArchivePosts.ItemsSource is not IEnumerable<ArchivePostRow> rows) { _replyAutoExpand.Enabled = value; return; }
+            if (_ended || ArchivePosts.ItemsSource is not ReaderPostRows rows) { _replyAutoExpand.Enabled = value; return; }
             // The selected card keeps its place while the cards above and below it change height.
             Func<Task>? keepSelected = CaptureReaderCountLayoutCorrection();
             _replyAutoExpand.SwitchThread(_thread?.Summary.Id);
-            if (value) foreach (ArchivePostRow row in _replyAutoExpand.Enable(rows, HasLiveCard)) _ = LoadInlineRepliesAsync(row);
-            else _replyAutoExpand.Disable(rows);
+            if (value) foreach (ArchivePostRow row in _replyAutoExpand.Enable(rows.Materialized, HasLiveCard)) _ = LoadInlineRepliesAsync(row);
+            else _replyAutoExpand.Disable(rows.Materialized);
             if (keepSelected != null) _ = keepSelected();
         }
     }
@@ -35,7 +34,8 @@ public partial class ArchivePage
     internal void ApplyAutomaticReplies(ArchivePostRow row)
     {
         _replyAutoExpand.SwitchThread(_thread?.Summary.Id);
-        if (_replyAutoExpand.Realise(row) && !_ended) _ = LoadInlineRepliesAsync(row);
+        if ((_replyAutoExpand.Realise(row) || row.RepliesExpanded && !row.RepliesLoaded && !row.HasRepliesError) && !_ended)
+            _ = LoadInlineRepliesAsync(row);
     }
 
     // Reply counts arrive after the first cards are realised; only cards already shown open their replies then (the rest do when realised).
