@@ -16,6 +16,8 @@ namespace MeowChan.DesktopSmoke;
 
 internal static class UpdateGuiChecks
 {
+    private static readonly string[] RetainedActionNames = ["UpdateReleaseButton", "UpdateDownloadButton", "SkipUpdateButton"];
+
     internal static async Task RunAsync(MainWindow owner, string browserCapture)
     {
         string profile = Path.Combine(owner.SessionHost.ProfileDirectory, "update-gui-fixture");
@@ -186,7 +188,7 @@ internal static class UpdateGuiChecks
             "The manual failure hid the known release version while retaining its actions.");
         Require(status.IsVisible && status.Text == Texts.T("updates.error.rateLimited"),
             "The retained release version replaced the manual check error.");
-        Require(actions.IsVisible && new[] { "UpdateReleaseButton", "UpdateDownloadButton", "SkipUpdateButton" }
+        Require(actions.IsVisible && RetainedActionNames
             .All(name => about.FindControl<Button>(name)!.IsEffectivelyEnabled),
             "The known release actions were lost after a failed manual check.");
     }
@@ -195,7 +197,7 @@ internal static class UpdateGuiChecks
     {
         foreach (string language in new[] { "en", "de" })
         foreach (string theme in new[] { "Dark", "Light" })
-        foreach (Size size in new[] { new Size(800, 660), new Size(440, 400) })
+        foreach (Size size in new[] { new Size(800, 660), WorkspaceMetrics.DialogMinimumSize(DialogSize.L) })
         {
             Texts.SetLanguage(language);
             ThemeVariant variant = theme == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
@@ -217,7 +219,7 @@ internal static class UpdateGuiChecks
             WrapPanel actions = about.FindControl<WrapPanel>("UpdateActions")!;
             actions.BringIntoView();
             await Program.WaitUntilAsync(() => FullyInViewport(available, scroll) && FullyInViewport(actions, scroll));
-            Require(new[] { "UpdateReleaseButton", "UpdateDownloadButton", "SkipUpdateButton" }
+            Require(RetainedActionNames
                 .All(name => FullyInViewport(about.FindControl<Button>(name)!, scroll)),
                 "A retained release action is clipped at the About minimum size.");
             Capture(about, $"smoke-updates-retained-error-{language}-{theme}-{(int)size.Width}-actions.png");
