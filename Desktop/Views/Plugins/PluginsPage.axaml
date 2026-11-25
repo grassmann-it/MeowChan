@@ -63,7 +63,7 @@
         </ScrollViewer>
       </Grid>
       <ContentControl x:Name="SourceContentHost" Grid.ColumnSpan="2" />
-      <!-- The draft footer joins the scrolling body when the card is too short to show the primary actions. -->
+      <!-- One detail card with a scrolling body and a pinned draft footer; in a short card the reasons give up height first. -->
       <Border x:Name="PluginDetailCard" Grid.Column="1" Classes="workspace-section" IsVisible="False">
         <Grid x:Name="PluginDetailLayout" RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
           <ScrollViewer x:Name="PluginDetailsPane" AutomationProperties.AutomationId="PluginDetailsPane">
@@ -157,7 +157,7 @@
           <Border x:Name="PluginDraftFooter" AutomationProperties.AutomationId="PluginDraftFooter" Grid.Row="1" wv:WorkViewElement.Id="plugins.detail.draft-footer" Classes="workspace-card-footer">
             <StackPanel Classes="workspace-section-header">
               <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-              <SelectableTextBlock x:Name="PluginDraftReasons" AutomationProperties.AutomationId="PluginDraftReasons" TextWrapping="Wrap" Focusable="True" Classes="workspace-help" />
+              <SelectableTextBlock x:Name="PluginDraftReasons" AutomationProperties.AutomationId="PluginDraftReasons" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Focusable="True" Classes="workspace-help" />
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
                 <Button x:Name="PluginDiscard" AutomationProperties.AutomationId="PluginDiscard" HorizontalAlignment="Left" Click="OnDiscardClick" />
                 <Button x:Name="PluginSave" AutomationProperties.AutomationId="PluginSave" Grid.Column="1" HorizontalAlignment="Right" Classes="primary" Click="OnSaveClick" />
