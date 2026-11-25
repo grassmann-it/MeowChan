@@ -6,6 +6,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using SkiaSharp;
 
@@ -23,6 +24,23 @@ public sealed class NativeMenuPresentationTests
         ShortcutBindingsSection previous = ShortcutService.CurrentSection;
         try { test(app); }
         finally { ShortcutService.Publish(previous); }
+    });
+
+    [Fact]
+    public void StatefulMenuRefreshKeepsTheLabelAndIconOfTheNextTheme() => WithApplication(app =>
+    {
+        var item = new MenuItem();
+        string State() => app.ActualThemeVariant == ThemeVariant.Dark ? "choose_light" : "choose_dark";
+        string Label() => Texts.T(State() == "choose_light" ? "shell.switchToLight" : "shell.switchToDark");
+        CommandBindings.ApplyStateful(item, "appearance.theme", State, Label);
+        Assert.Equal("moon", MenuIcons.KeyOf(item));
+        Assert.Equal(Label(), item.Header);
+
+        app.RequestedThemeVariant = ThemeVariant.Dark;
+        Texts.SetLanguage("de");
+        ShortcutService.Publish(new ShortcutBindingsSection());
+        Assert.Equal("sun", MenuIcons.KeyOf(item));
+        Assert.Equal(Texts.T("shell.switchToLight"), item.Header);
     });
 
     [Fact]

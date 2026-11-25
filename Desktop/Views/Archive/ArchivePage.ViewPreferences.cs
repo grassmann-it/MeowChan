@@ -208,9 +208,9 @@ public partial class ArchivePage
         string[] keys = ColumnKeys(grid);
         if (target != null)
             builder.Item("archive.columnsFit", Texts.T("archive.columnsFit"),
-                () => _ = FitArchiveColumnsAsync(grid, target), available: CanFitArchiveColumn(grid, target));
+                () => _ = FitArchiveColumnsAsync(grid, target), available: CanFitArchiveColumn(grid, target), icon: "maximize-2");
         builder.Item("archive.columnsFitAll", Texts.T("archive.columnsFitAll"),
-            () => _ = FitArchiveColumnsAsync(grid, null));
+            () => _ = FitArchiveColumnsAsync(grid, null), icon: "columns");
         builder.Section();
         foreach (string key in keys)
         {
@@ -221,8 +221,8 @@ public partial class ArchivePage
                 () => _ = ToggleArchiveColumnAsync(grid, key, !visible),
                 available: available, reason: available ? null : Texts.T("archive.columns.required"));
         }
-        builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
-            () => _ = ResetArchiveColumnsAsync(grid));
+        builder.Section().Command("table.reset-layout", () => _ = ResetArchiveColumnsAsync(grid),
+            label: Texts.T("archive.columnsReset"), entryId: "archive.columnsReset", showShortcut: false);
         ContextMenu menu = builder.Build()!;
         if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "archive.columnsReset")) is { } reset)
         {

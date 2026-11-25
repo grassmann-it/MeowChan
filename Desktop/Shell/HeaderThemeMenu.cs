@@ -1,4 +1,5 @@
 using System;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Theming;
@@ -23,6 +24,7 @@ internal static class HeaderThemeMenu
         ArgumentNullException.ThrowIfNull(choose);
         return new ContextMenuBuilder().Named(Texts.T("settings.theme"))
             .Check(FollowSystemId, Texts.T("shell.theme.followSystem"), ThemePreference.FollowsSystem(preference),
-                () => choose(ThemePreference.FollowSystemToggled(preference, effectiveDark)));
+                () => choose(ThemePreference.FollowSystemToggled(preference, effectiveDark)),
+                icon: CommandCatalog.IconForState("appearance.theme", "choose_system"));
     }
 }

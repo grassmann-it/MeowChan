@@ -1509,9 +1509,9 @@ public sealed partial class MediaPage : UserControl
         _title.Text = Texts.T("media.title");
         _subtitle.Text = Texts.T("media.subtitle");
         // The tools of the row beside the order are icons (M1); the name is the tooltip and the accessible name.
-        WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T("media.shuffle"));
+        IconButtons.Apply(_shuffle, "shuffle", Texts.T("media.shuffle"));
         _missing.Content = Texts.T("media.showMissing");
-        WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T("media.refresh"));
+        IconButtons.Apply(_refresh, "refresh-cw", Texts.T("media.refresh"));
         LocalizeFocus();
         LocalizeBooruMode();
         LocalizeLayout();

@@ -30,12 +30,12 @@ internal static class MediaLayoutMenu
     /// <summary>The exclusive groups of the tag list's side, the media panel's side, the size and the presets.</summary>
     internal const string SideGroup = "side", PanelSideGroup = "panelSide", SizeGroup = "size", PresetGroup = "preset";
 
-    private static readonly (string Id, string Key, MediaTileCaption Part)[] Captions =
+    private static readonly (string Id, MediaTileCaption Part, string Icon)[] Captions =
     [
-        (CaptionNameId, "media.layout.caption.name", MediaTileCaption.Name),
-        (CaptionTagsId, "media.layout.caption.tags", MediaTileCaption.TagCount),
-        (CaptionQueueId, "media.layout.caption.queue", MediaTileCaption.QueueMark),
-        (CaptionSourceId, "media.layout.caption.source", MediaTileCaption.Source)
+        (CaptionNameId, MediaTileCaption.Name, "type"),
+        (CaptionTagsId, MediaTileCaption.TagCount, "tag"),
+        (CaptionQueueId, MediaTileCaption.QueueMark, "list"),
+        (CaptionSourceId, MediaTileCaption.Source, "globe")
     ];
 
     private static readonly (string Id, string Key, MediaTileSize Size)[] Sizes =
@@ -64,30 +64,35 @@ internal static class MediaLayoutMenu
         ArgumentNullException.ThrowIfNull(current);
         MediaPageLayout now = current.Normalized();
         List<LayoutMenuRow> rows = [];
-        void Toggle(string id, string label, bool on) => rows.Add(new(LayoutMenuRowKind.Toggle, id, label) { Checked = on });
+        void Toggle(string id, string label, bool on, string icon) =>
+            rows.Add(new(LayoutMenuRowKind.Toggle, id, label) { Checked = on, IconKey = icon });
         void Choice(string group, string id, string label, bool on) => rows.Add(new(LayoutMenuRowKind.Choice, id, label) { Checked = on, Group = group });
         void Separator() => rows.Add(new(LayoutMenuRowKind.Separator, IdPrefix + "separator." + rows.Count, string.Empty));
 
-        Toggle(TagListId, Texts.T("media.tagList"), now.TagList);
+        Toggle(TagListId, Texts.T("media.tagList"), now.TagList, now.TagListSide == MediaTagListSide.Left ? "panel-left" : "panel-right");
         Choice(SideGroup, SideLeftId, Texts.T("media.layout.side.left"), now.TagListSide == MediaTagListSide.Left);
         Choice(SideGroup, SideRightId, Texts.T("media.layout.side.right"), now.TagListSide == MediaTagListSide.Right);
         Separator();
-        rows.Add(new(LayoutMenuRowKind.Toggle, PanelId, Texts.T("media.layout.panel")) { Checked = now.Panel, Hint = now.Panel ? panelHint : null, CommandId = MeowChan.Desktop.MediaPanelKeys.ToggleCommandId });
+        rows.Add(new(LayoutMenuRowKind.Toggle, PanelId, Texts.T("media.layout.panel"))
+        {
+            Checked = now.Panel, Hint = now.Panel ? panelHint : null, CommandId = MediaPanelKeys.ToggleCommandId,
+            IconKey = now.PanelSide == MediaPanelSide.Left ? "panel-left" : "panel-right"
+        });
         Choice(PanelSideGroup, PanelSideLeftId, Texts.T("media.layout.panelSide.left"), now.PanelSide == MediaPanelSide.Left);
         Choice(PanelSideGroup, PanelSideRightId, Texts.T("media.layout.panelSide.right"), now.PanelSide == MediaPanelSide.Right);
         Separator();
-        Toggle(ChipsId, Texts.T("media.layout.chips"), now.FilterChips);
-        Toggle(StatusId, Texts.T("media.layout.status"), now.StatusLine);
-        Toggle(SubtitleId, Texts.T("media.layout.subtitle"), now.Subtitle);
+        Toggle(ChipsId, Texts.T(ChipsId), now.FilterChips, "filter");
+        Toggle(StatusId, Texts.T(StatusId), now.StatusLine, "info");
+        Toggle(SubtitleId, Texts.T(SubtitleId), now.Subtitle, "file-text");
         Separator();
-        foreach ((string id, string key, MediaTileCaption part) in Captions) Toggle(id, Texts.T(key), now.Caption.HasFlag(part));
+        foreach ((string id, MediaTileCaption part, string icon) in Captions) Toggle(id, Texts.T(id), now.Caption.HasFlag(part), icon);
         Separator();
         foreach ((string id, string key, MediaTileSize size) in Sizes) Choice(SizeGroup, id, Texts.T(key), now.TileSize == size);
         Separator();
         MediaLayoutPreset? matching = now.MatchingPreset;
         foreach ((string id, string key, MediaLayoutPreset preset) in Presets) Choice(PresetGroup, id, Texts.T(key), matching == preset);
         Separator();
-        rows.Add(new(LayoutMenuRowKind.Action, ResetId, Texts.T("media.layout.reset")) { Hint = Texts.T("media.layout.resetHelp") });
+        rows.Add(new(LayoutMenuRowKind.Action, ResetId, Texts.T(ResetId)) { Hint = Texts.T("media.layout.resetHelp"), IconKey = "rotate-ccw" });
         return new LayoutMenuModel(string.Empty, rows);
     }
 
@@ -109,7 +114,7 @@ internal static class MediaLayoutMenu
             case SubtitleId: return now with { Subtitle = !now.Subtitle };
             case ResetId: return MediaPageLayout.Reset;
         }
-        foreach ((string id, _, MediaTileCaption part) in Captions)
+        foreach ((string id, MediaTileCaption part, _) in Captions)
             if (id == rowId) return now with { Caption = now.Caption ^ part };
         foreach ((string id, _, MediaTileSize size) in Sizes)
             if (id == rowId) return now with { TileSize = size };

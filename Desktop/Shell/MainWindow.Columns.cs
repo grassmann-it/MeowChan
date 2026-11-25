@@ -152,8 +152,8 @@ public partial class MainWindow
             if (available && IsAdvancedWorkColumn(column))
                 help.Add((key, Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint")));
         }
-        builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
-            () => _ = ResetDownloadColumnsAsync(gridName, mode));
+        builder.Section().Command("table.reset-layout", () => _ = ResetDownloadColumnsAsync(gridName, mode),
+            label: Texts.T("archive.columnsReset"), entryId: "archive.columnsReset", showShortcut: false);
         help.Add(("archive.columnsReset", Texts.T("archive.columnsReset.hint")));
         ContextMenu menu = builder.Build()!;
         foreach ((string key, string? text) in help)

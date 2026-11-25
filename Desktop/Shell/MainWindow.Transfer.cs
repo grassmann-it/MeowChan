@@ -361,10 +361,9 @@ public partial class MainWindow
         if (_lastDarkThemeIcon != dark)
         {
             _lastDarkThemeIcon = dark;
-            ThemeToggleButton.Content = MeowChan.Desktop.Commands.CommandBindings.Icon("appearance.theme", 16,
-                dark ? "choose_light" : "choose_dark");
+            ThemeToggleButton.Content = MeowChan.Desktop.Commands.CommandBindings.Icon("appearance.theme", state: ThemeActionState());
         }
-        string label = Texts.T(dark ? "shell.switchToLight" : "shell.switchToDark");
+        string label = ThemeMenuLabel();
         Button button = ThemeToggleButton;
         AutomationProperties.SetName(button, label);
         ToolTip.SetTip(button, label);

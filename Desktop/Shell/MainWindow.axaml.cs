@@ -887,6 +887,7 @@ public partial class MainWindow : Window
         menu.Items.Add(_trayPauseItem);
         // Quiet reminder while an update is available; it only opens the update section of About.
         _trayUpdateItem = new NativeMenuItem { IsVisible = false };
+        ApplyTrayCommandItem(_trayUpdateItem, "updates.check", TrayMenuModel.UpdateIcon);
         _trayUpdateItem.Click += OnTrayUpdateClick;
         menu.Items.Add(_trayUpdateItem);
         menu.Items.Add(new NativeMenuItemSeparator());
@@ -1032,7 +1033,7 @@ public partial class MainWindow : Window
 
     private void ApplyTrayCommandItem(NativeMenuItem item, string command, string? icon = null)
     {
-        // A state-dependent entry (pause) sets its own header; the command binding would reset it.
+        // Pause and update reminders set their own headers.
         // The header names a shortcut only when it works from the whole window (shell): "Open folder" of the tray opens the download
         // folder, while Ctrl/Cmd+O opens the selected thread's folder, and the clipboard import key acts in the Downloads list only.
         if (icon == null) CommandBindings.Apply(item, command, shortcut: () => TrayShortcut(command), applyIcon: false);
@@ -1076,6 +1077,7 @@ public partial class MainWindow : Window
         if (_trayFolderItem != null) ApplyTrayCommandItem(_trayFolderItem, "location.open-folder");
         if (_clipboardMenuItem != null) ApplyTrayCommandItem(_clipboardMenuItem, "watch.import-clipboard");
         RefreshTrayNavigationIcons();
+        if (_trayUpdateItem != null) ApplyTrayCommandItem(_trayUpdateItem, "updates.check", TrayMenuModel.UpdateIcon);
         if (_trayExitItem != null) ApplyTrayCommandItem(_trayExitItem, "app.quit");
         _trayPauseIconPaused = null;
         RefreshTray();
@@ -1111,7 +1113,7 @@ public partial class MainWindow : Window
             if (key != _trayUpdateKey)
             {
                 _trayUpdateKey = key;
-                updateItem.Header = available ? Texts.T("updates.available", updates.Update!.Version) : string.Empty;
+                updateItem.Header = TrayMenuModel.UpdateHeader(available ? updates.Update!.Version.ToString() : null);
             }
             if (updateItem.IsVisible != available) updateItem.IsVisible = available;
         }
@@ -1355,8 +1357,8 @@ public partial class MainWindow : Window
         bool paused = _session.Projection.IsPaused;
         MenuItem menu = PauseMenuItem;
         menu.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
-        CommandBindings.Apply(menu, "session.pause", label: () => Texts.T(paused ? "action.resume" : "action.pause"));
-        menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
+        CommandBindings.ApplyStateful(menu, "session.pause", state: () => paused ? "paused" : "running",
+            label: () => Texts.T(paused ? "action.resume" : "action.pause"));
         Button button = PauseButton;
         button.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
         if (_lastPauseIcon != paused)

@@ -2,10 +2,10 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
@@ -291,9 +291,10 @@ public sealed class ThreadPriorityContextMenuTests
         Assert.Contains(count.ToString(Texts.Culture), label);
         Assert.Equal(label, item.Header);
         Assert.Equal(label, AutomationProperties.GetName(item));
+        Assert.Equal(key == "priority.menuHigh" ? "trending-up" : "trending-down", MenuIcons.KeyOf(item));
     }
 
-    private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    private static void Click(MenuItem item) => item.Command!.Execute(item.CommandParameter);
 
     private sealed class MenuModel : IDisposable
     {

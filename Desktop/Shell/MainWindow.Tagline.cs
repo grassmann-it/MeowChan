@@ -219,9 +219,10 @@ public partial class MainWindow
 
     private ContextMenuBuilder ComposeTaglineMenu() => new ContextMenuBuilder()
         .Item("tagline.another", Texts.T("shell.tagline.menuAnother"), () => OnTaglineAnotherClick(null, new RoutedEventArgs()),
-            available: _taglinePool.Count > 1, icon: "refresh-cw")
+            available: _taglinePool.Count > 1, icon: "shuffle")
         .Item("tagline.hide", Texts.T("shell.tagline.menuHide"), () => OnTaglineHideClick(null, new RoutedEventArgs()), icon: "eye-off")
-        .Section().Command("navigation.settings", () => NavigateWorkspace(WorkspacePage.Settings), entryId: "tagline.settings", showShortcut: false);
+        .Section().Command("navigation.settings", () => NavigateWorkspace(WorkspacePage.Settings), entryId: "tagline.settings",
+            showShortcut: false, labelWhen: () => CommandCatalog.Label("navigation.settings"));
 
     // Only for this session: the setting and the stored quip stay as they are.
     private void OnTaglineAnotherClick(object? sender, RoutedEventArgs e)

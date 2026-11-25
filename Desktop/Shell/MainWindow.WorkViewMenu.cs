@@ -53,7 +53,7 @@ public partial class MainWindow
         WorkspaceMenuItem.Items.Insert(at, _themeMenu);
         WorkspaceMenuItem.Items.Insert(at + 1, _fullscreenMenu);
         WorkspaceMenuItem.Items.Insert(at + 2, _workViewGroupMenu);
-        _shortcutRouter?.Register(new CommandRegistration("workspace.view-cycle", this, () => true, () => CanSwitchWorkView,
+        _shortcutRouter?.RegisterOwned(new CommandRegistration("workspace.view-cycle", this, () => true, () => CanSwitchWorkView,
             () => _ = CycleWorkViewAsync()));
         ActualThemeVariantChanged += (_, _) => RefreshWorkViewMenu();
         RefreshWorkViewMenu();
@@ -100,6 +100,8 @@ public partial class MainWindow
 
     private string ThemeMenuLabel() => Texts.T(ActualThemeVariant == ThemeVariant.Dark ? "shell.switchToLight" : "shell.switchToDark");
 
+    private string ThemeActionState() => ActualThemeVariant == ThemeVariant.Dark ? "choose_light" : "choose_dark";
+
     /// <summary>Labels, checked view and availability of the entries above; called when the language, theme, view or readiness changes.</summary>
     private void RefreshWorkViewMenu()
     {
@@ -107,7 +109,7 @@ public partial class MainWindow
         RefreshBooruToolsPresentation();
         if (_workViewGroupMenu == null || _themeMenu == null || _fullscreenMenu == null || _viewCycleMenu == null) return;
         WorkView current = ConfiguredWorkView;
-        CommandBindings.Apply(_themeMenu, "appearance.theme", label: ThemeMenuLabel);
+        CommandBindings.ApplyStateful(_themeMenu, "appearance.theme", ThemeActionState, ThemeMenuLabel);
         CommandBindings.Apply(_fullscreenMenu, "window.fullscreen");
         CommandBindings.Apply(_viewCycleMenu, "workspace.view-cycle");
         _workViewGroupMenu.Header = Texts.T("shell.mode");

@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -59,12 +60,14 @@ public partial class ArchivePage
             string? reason = draft.Length == 0 ? Texts.T("search.carry.empty")
                 : ArchiveScope == SearchScope.Sha256 ? Texts.T("search.carry.noHash") : null;
             yield return new SearchCarryAction("ArchiveSearchInMedia", CarryLabel("search.carry.toMedia", draft), reason == null,
-                () => { if (!_ended) SearchInMediaRequested?.Invoke(draft); }, reason);
+                () => { if (!_ended) SearchInMediaRequested?.Invoke(draft); }, reason)
+            { IconKey = CommandCatalog.Get("navigation.media").Icon };
         }
         string? thread = draft.Length == 0 ? Texts.T("search.carry.empty")
             : _thread == null || _busy || _ended || IsReaderDialogOpen ? Texts.T("search.carry.noThread") : null;
         yield return new SearchCarryAction("ArchiveSearchInThread", CarryLabel("search.carry.toThread", draft), thread == null,
-            () => CarryToReader(ArchiveScope, draft), thread);
+            () => CarryToReader(ArchiveScope, draft), thread)
+        { IconKey = "book-open" };
     }
 
     private IEnumerable<SearchCarryAction> ReaderCarryActions()
@@ -72,7 +75,8 @@ public partial class ArchivePage
         string draft = ReaderScopedBox.Text ?? string.Empty;
         string? reason = draft.Length == 0 ? Texts.T("search.carry.empty") : null;
         yield return new SearchCarryAction("ReaderSearchInArchive", CarryLabel("search.carry.toArchive", draft), reason == null,
-            () => CarryFromReader(ReaderScope, draft), reason);
+            () => CarryFromReader(ReaderScope, draft), reason)
+        { IconKey = CommandCatalog.Get("navigation.archive").Icon };
     }
 
     /// <summary>Puts a query carried from elsewhere into the archive field with <paramref name="scope"/>. An empty field

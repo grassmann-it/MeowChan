@@ -53,6 +53,7 @@ public sealed class HeaderThemeMenuTests : IDisposable
         Assert.Equal(ContextMenuEntryKind.Check, entry.Kind);
         Assert.Equal(HeaderThemeMenu.FollowSystemId, entry.Id);
         Assert.Equal("Follow system", entry.Label);
+        Assert.Equal("monitor", entry.Icon);
         Assert.Equal(isChecked, entry.Checked);
         entry.Invoke!();
         Assert.Equal(chosen, choice);

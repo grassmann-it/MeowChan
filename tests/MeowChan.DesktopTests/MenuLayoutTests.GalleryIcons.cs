@@ -206,6 +206,7 @@ public sealed partial class MenuIconLayoutTests
             Assert.Equal(1.5, popup.RenderScaling);
             var viewport = Assert.IsType<ScrollContentPresenter>(viewer.OverflowMenuContent.FindAncestorOfType<ScrollContentPresenter>());
 
+            MenuIconAudit.Verify("gallery-more", viewer.OverflowItems);
             foreach (Button row in viewer.OverflowItems.Where(row => row.IsEffectivelyVisible))
             {
                 var entry = Assert.IsType<GalleryViewer.OverflowItem>(row.Tag);
@@ -312,6 +313,9 @@ public sealed partial class MenuIconLayoutTests
             Assert.True(viewer.IsLayoutMenuOpen);
 
             LayoutMenuPanel panel = viewer.LayoutMenuRows;
+            MenuIconAudit.Verify("gallery-layout", panel.Children,
+                new MenuIconAudit.Exception("gallery-layout", GalleryLayoutMenu.FilmstripTopId, "A filmstrip position."),
+                new MenuIconAudit.Exception("gallery-layout", GalleryLayoutMenu.FilmstripBottomId, "A filmstrip position."));
             var keys = new Dictionary<string, string>
             {
                 [GalleryLayoutMenu.FilmstripId] = "film",

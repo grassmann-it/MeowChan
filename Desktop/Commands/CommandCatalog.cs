@@ -452,7 +452,7 @@ public static class CommandCatalog
     private static readonly IReadOnlyDictionary<string, CommandDefinition> ById =
         new ReadOnlyDictionary<string, CommandDefinition>(Entries.ToDictionary(x => x.Id, StringComparer.Ordinal));
 
-    private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> StateIcons =
+    internal static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> StateIcons =
         new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal)
     {
         { "session.pause", new Dictionary<string, string>(StringComparer.Ordinal) { { "running", "pause" }, { "paused", "play" } } },
