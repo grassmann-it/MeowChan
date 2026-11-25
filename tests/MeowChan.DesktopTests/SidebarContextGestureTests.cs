@@ -748,6 +748,8 @@ public sealed class SidebarContextGestureTests
         ArchiveAttachmentRow replacement = old with
         {
             Attachment = old.Attachment with { ExpectedMd5 = other.Attachment.ExpectedMd5 },
+            // A context click can select the thumbnail for the full preview too.
+            ResolveEntry = other.ResolveEntry,
             LoadStripThumbnail = async (width, height, token) =>
             {
                 await loadReplacement.Task.WaitAsync(token);
@@ -1015,9 +1017,13 @@ public sealed class SidebarContextGestureTests
             Assert.True(sidebar.IsShowingStalePicture);
             ContextGestures.Settle(window);
             Assert.True(slot.Activator.IsEffectivelyVisible);
-            Point center = slot.Activator.TranslatePoint(new Rect(slot.Activator.Bounds.Size).Center, window)!.Value;
-            Assert.Contains(slot.Activator, Assert.IsAssignableFrom<Visual>(window.InputHitTest(center)).GetSelfAndVisualAncestors());
-            ContextGestures.Click(slot.Activator);
+            Point posterPoint = new(40, 35);
+            Point position = Picture(sidebar).TranslatePoint(posterPoint, window)!.Value;
+            window.MouseMove(position);
+            await BooruTestSupport.WaitAsync(() =>
+                window.InputHitTest(position) is Visual hit && (ReferenceEquals(hit, slot.Activator) || slot.Activator.IsVisualAncestorOf(hit)),
+                "the arranged play button under the pointer");
+            ContextGestures.Click(slot.Activator, point: Picture(sidebar).TranslatePoint(posterPoint, slot.Activator));
             await slot.ActivationTask;
             Assert.Equal(0, starts);
             Assert.True(work.IsKeyboardFocusWithin, "The rejected play click must return the keys to the working list.");

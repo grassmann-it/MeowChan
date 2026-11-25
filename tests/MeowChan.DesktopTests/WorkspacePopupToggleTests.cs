@@ -652,18 +652,26 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             Assert.True(opener.IsEffectivelyEnabled);
             Assert.False(opener.Focusable);
 
-            await BooruTestSupport.WaitAsync(() =>
-            {
-                opener.BringIntoView();
-                window.UpdateLayout();
-                return opener.IsEffectivelyVisible && opener.Bounds.Height > 0
-                    && FullyInside(window, window.ClientSize)
-                    && opener.GetVisualAncestors().OfType<ScrollViewer>().All(scroll => FullyInside(scroll, scroll.Viewport));
-            }, "the full plugin More actions button inside the detail viewport");
-
             var scroll = Find<ScrollViewer>(window, "PluginDetailsPane");
             var footer = Find<Border>(window, "PluginDraftFooter");
             var reasons = Find<SelectableTextBlock>(window, "PluginDraftReasons");
+            try
+            {
+                await BooruTestSupport.WaitAsync(() =>
+                {
+                    opener.BringIntoView();
+                    window.UpdateLayout();
+                    return opener.IsEffectivelyVisible && opener.Bounds.Height > 0
+                        && FullyInside(window, window.ClientSize)
+                        && opener.GetVisualAncestors().OfType<ScrollViewer>().All(ancestor => FullyInside(ancestor, ancestor.Viewport));
+                }, "the full plugin More actions button inside the detail viewport");
+            }
+            catch (TimeoutException error)
+            {
+                throw new TimeoutException($"{error.Message}. Button={opener.Bounds.Size} at {opener.TranslatePoint(default, scroll)}, "
+                    + $"viewport={scroll.Viewport}, offset={scroll.Offset}, footer={footer.Bounds.Size}, reasons={reasons.Bounds.Size}.", error);
+            }
+
             var save = Find<Button>(window, "PluginSave");
             var discard = Find<Button>(window, "PluginDiscard");
             Assert.False(string.IsNullOrWhiteSpace(reasons.Text));
