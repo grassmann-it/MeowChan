@@ -19,7 +19,7 @@ internal static class MenuIconAudit
 
     internal static void VerifyNative(string menuId, IEnumerable<(string Id, NativeMenuItem Item)> rows, params Exception[] allowlist)
     {
-        VerifyEntries(menuId, rows.Where(row => row.Item.IsVisible)
+        VerifyEntries(menuId, rows.Where(row => row.Item.IsVisible && row.Item is not NativeMenuItemSeparator)
             .Select(row => new Entry(row.Id, null, row.Item.Icon != null)), allowlist);
     }
 
