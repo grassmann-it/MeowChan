@@ -37,6 +37,7 @@ public sealed partial class TaggingPage
     private readonly ToggleButton _panelToggle = new() { Name = "TaggingPanelToggle", Focusable = false };
     private readonly ReaderMediaFollowThrottle _panelThrottle = new();
     private readonly HeldKeyLatch _panelFavoriteKey = new();
+    private ContextMenuHost? _panelPictureMenu;
     private ReaderMediaSidebar? _taggingPanel;
     private DispatcherTimer? _panelAnnounceTimer;
     private CancellationTokenSource? _panelFollowDelay;
@@ -58,6 +59,7 @@ public sealed partial class TaggingPage
     internal Action<int>? SavePanelWidth { get; set; }
     internal Action<bool>? SavePanelEnabled { get; set; }
     internal Action<Action<Config>>? SavePanelSetting { get; set; }
+    internal QuickSettingsHost? SidebarVideoSettings { get; init; }
     internal Func<string, MediaLibraryEntry, Func<bool>, Task>? ExecutePanelDecisionAsync { get; set; }
     internal ToggleButton PanelToggle => _panelToggle;
     internal bool IsPanelShown => !_queueWork.Ended && _taggingPanel is { IsEffectivelyVisible: true };
@@ -87,7 +89,7 @@ public sealed partial class TaggingPage
         bool wasShown = IsPanelShown;
         if (!wasShown && id == "media.sidebar.info" && !_panelEnabled) TogglePanel();
         string? hint = EnsureTaggingPanel().RunBarCommand(id, wasShown);
-        if (_panelTooNarrow) hint = Texts.T("tagging.page.panel.narrow");
+        if (_panelTooNarrow) hint = Texts.T("media.layout.panel.collapsed", PanelMinimumWidth);
         if (hint != null) ShowStatus(hint);
     }
 
@@ -146,18 +148,21 @@ public sealed partial class TaggingPage
         string name = CommandCatalog.Label(PanelCommand);
         string? gesture = CommandCatalog.ShortcutTooltipDisplay(PanelCommand, "tagging");
         string tip = ReaderMediaSidebarRules.HeaderText(name, gesture ?? string.Empty,
-            _panelTooNarrow ? Texts.T("tagging.page.panel.narrow") : string.Empty);
+            _panelTooNarrow ? Texts.T("media.layout.panel.collapsed", PanelMinimumWidth) : string.Empty);
         AutomationProperties.SetName(_panelToggle, name);
         AutomationProperties.SetHelpText(_panelToggle, tip);
         ToolTip.SetTip(_panelToggle, tip);
     }
+
+    private double PanelMinimumWidth => Math.Max(_host.Config.MediaPanelMinimumPageWidth,
+        MinimumListWidth + MediaPage.HandleWidth + Config.MediaPanelWidthMinimum);
 
     internal void ApplyPanelLayout()
     {
         if (_queueWork.Ended) return;
         MediaPageLayout layout = GetPanelLayout();
         double room = Bounds.Width - MinimumListWidth - MediaPage.HandleWidth;
-        _panelTooNarrow = Bounds.Width > 0 && (Bounds.Width < _host.Config.MediaPanelMinimumPageWidth || room < Config.MediaPanelWidthMinimum);
+        _panelTooNarrow = Bounds.Width > 0 && Bounds.Width < PanelMinimumWidth;
         bool visible = _panelEnabled && Bounds.Width > 0 && !_panelTooNarrow;
         bool wasVisible = _taggingPanel?.IsVisible == true;
         bool reclaimFocus = !visible && (_taggingPanel?.IsKeyboardFocusWithin == true || _panelHandle.IsKeyboardFocusWithin);
@@ -205,13 +210,14 @@ public sealed partial class TaggingPage
         if (_taggingPanel is { } existing) return existing;
         ReaderMediaSidebar panel = _taggingPanel = new()
         {
-            Name = "TaggingPanel", IsVisible = false, TitleKey = "command.media.panel.toggle", EmptyKey = "tagging.page.panel.empty",
+            Name = "TaggingPanel", IsVisible = false, TitleKey = "media.layout.panel", EmptyKey = "tagging.page.panel.empty",
             CloseKey = "media.panel.close", ToggleCommandId = PanelCommand, DecisionKeyContext = "tagging",
             ShowEmptyTitle = true, SingleClickActs = true
         };
         panel[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.CardEdge");
         panel.Styles.Add(new Style(selector => selector.OfType<Button>()) { Setters = { new Setter(FocusableProperty, false) } });
         panel.ConfigureInfo(_panelInfo);
+        panel.SidebarVideoSettings = SidebarVideoSettings;
         panel.SaveSidebarSetting = update =>
         {
             _panelInfo = panel.CopyBarSettingsTo(_panelInfo);
@@ -225,6 +231,7 @@ public sealed partial class TaggingPage
         panel.Open.Click += (_, _) => OpenPanelGallery();
         panel.PictureActivated += (_, _) => OpenPanelGallery();
         panel.GalleryRequested += (_, _) => OpenPanelGallery();
+        InstallPanelPictureMenu(panel);
         panel.Close.Click += (_, _) =>
         {
             TagQueueKey? cursor = _panelRow?.Key;
@@ -242,6 +249,38 @@ public sealed partial class TaggingPage
         panel.ShowEmpty();
         _panelBody.Children.Add(panel);
         return panel;
+    }
+
+    private void InstallPanelPictureMenu(ReaderMediaSidebar panel)
+    {
+        Control frame = panel.Frame;
+        PressOpenedContextGate press = new();
+        frame.AddHandler(ContextRequestedEvent, (_, e) =>
+        {
+            if (e.TryGetPosition(frame, out Point _) && press.TryConsume()) e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        ContextMenuHost menu = _panelPictureMenu = new(frame, () =>
+        {
+            if (!IsPanelShown || _tagBusy || panel.IsShowingStalePicture
+                || RowForPanel(_panelRow?.Key) is not { } row || !Queue.Contains(row.Key)
+                || PanelMediaKey(row, EntryOf(row.Item)) != _panelMediaKey)
+                return null;
+
+            SetContextLead(ActiveList, row);
+            FocusContent(row.Key);
+            return ComposeRowMenu();
+        }, fallbackFocus: () => FocusContent(_panelRow?.Key),
+            acceptSource: source => panel.IsMediaSurfaceSource(source, _panelVideo));
+        panel.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            press.BeginPress();
+            if (e.Handled || !ContextClick.IsPress(e, panel) || !panel.IsMediaSurfaceSource(e.Source, _panelVideo)) return;
+            press.MenuOpenedByPress(ContextClick.Button(e, panel));
+            e.Handled = true;
+            if (panel.IsCurrentMediaSurface(e.Source, e.GetPosition(panel), _panelVideo)) menu.Show(atPointer: true);
+        }, RoutingStrategies.Tunnel);
+        frame.AddHandler(PointerReleasedEvent, (_, e) => press.Released(e.InitialPressMouseButton),
+            RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     private int PanelIndex(TagQueueKey key)
@@ -349,6 +388,7 @@ public sealed partial class TaggingPage
 
     internal void StopPanel()
     {
+        _panelPictureMenu?.Close();
         CancelPanelLoad();
         CancelPanelFollow();
         _panelAnnounceTimer?.Stop();
@@ -391,10 +431,11 @@ public sealed partial class TaggingPage
         }
 
         MediaLibraryEntry entry = EntryOf(row.Item);
-        string key = string.Join("\n", row.Key, entry.Sha256, entry.Length, entry.Variant, entry.AttachmentRevisionKey);
+        string key = PanelMediaKey(row, entry);
         bool changed = key != _panelMediaKey;
         if (changed)
         {
+            _panelPictureMenu?.Close();
             CancelPanelLoad();
             _panelMediaKey = key;
             _panelFileAvailable = null;
@@ -412,6 +453,9 @@ public sealed partial class TaggingPage
         OpenActions.Start(() => LoadTaggingPanelAsync(panel, entry, key, ticket, target), "tagging.panel.load");
     }
 
+    private static string PanelMediaKey(TaggingQueueRow row, MediaLibraryEntry entry) =>
+        string.Join("\n", row.Key, entry.Sha256, entry.Length, entry.Variant, entry.AttachmentRevisionKey);
+
     private GalleryTagPanelPosition DescribePanel(ReaderMediaSidebar panel, TaggingQueueRow row, MediaLibraryEntry entry, string key)
     {
         GalleryTagPanelPosition position = new(PanelIndex(row.Key) + 1, _rows.Count, More: false);
@@ -420,7 +464,7 @@ public sealed partial class TaggingPage
         string? blocked = PanelTagBlocked(entry);
         panel.OpenTagsAsync = blocked == null ? (anchor, token) => TagRowAsync(row, anchor, token) : null;
         panel.Describe(post != null ? Texts.T("reader.postNumber", post) : string.Empty, row.Name,
-            source is { } size ? $"{size.Width}×{size.Height}" : string.Empty, OpenGallery != null,
+            source is { } size ? MediaFactGrid.FormatDimensions(size.Width, size.Height) : string.Empty, OpenGallery != null,
             threadPosition: position, savedBytes: entry.Length, mediumKey: key);
         panel.SetSourceFacts(row.SourceText, null, null, entry.Length, null, null);
         RefreshPanelActions();
@@ -447,7 +491,7 @@ public sealed partial class TaggingPage
         {
             await request.RunAsync(ReadContentAsync, picture =>
             {
-                if (picture.Source is { } size) panel.SetDetail($"{size.Width}×{size.Height}");
+                if (picture.Source is { } size) panel.SetDetail(MediaFactGrid.FormatDimensions(size.Width, size.Height));
                 // The first decode may have started before a drag enlarged the frame. Retry only for a larger target.
                 var needed = PanelTarget(panel);
                 if ((needed.Width > target.Width || needed.Height > target.Height)

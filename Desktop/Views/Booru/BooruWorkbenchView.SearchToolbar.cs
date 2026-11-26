@@ -36,10 +36,9 @@ internal sealed partial class BooruWorkbenchView
         _bulkHost.Child = _bulkText;
         AutomationProperties.SetLiveSetting(_bulkText, AutomationLiveSetting.Polite);
 
-        AutomationProperties.SetAutomationId(_searchOverflow, SearchOverflowName);
         _searchOverflow.Content = CommandBindings.ButtonIcon("more-horizontal", 16, byKey: true);
-        MenuFlyout menu = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
-        _searchOverflow.Flyout = menu;
+        MenuFlyout menu = new() { Placement = PlacementMode.BottomEdgeAlignedRight, OverlayInputPassThroughElement = _searchOverflow };
+        PopupToggle.BindFlyout(_searchOverflow, menu);
         SearchAction[] actions = [new(_alternateSubmit, AlternateSubmitCommand), new(_createWatcher, WatchSearchCommand), new(_downloadAll, DownloadAllCommand)];
         menu.Opening += (_, _) =>
         {
@@ -58,7 +57,7 @@ internal sealed partial class BooruWorkbenchView
 
     private void RenderSearchOverflow()
     {
-        string label = Texts.T("booru.tabs.moreActions");
+        string label = Texts.T("workview.more");
         ToolTip.SetTip(_searchOverflow, label);
         AutomationProperties.SetName(_searchOverflow, label);
     }
@@ -122,10 +121,13 @@ internal sealed partial class BooruWorkbenchView
         internal MenuItem Item { get; }
         internal double Width => Button.DesiredSize.Width + SearchToolbar.Gap;
 
-        internal void RefreshGesture(EffectiveShortcutBindings bindings) =>
+        internal void RefreshGesture(EffectiveShortcutBindings bindings)
+        {
+            Item.Icon ??= CommandBindings.Icon(_command);
             Item.InputGesture = bindings.For(_command)
                 .FirstOrDefault(gesture => ShortcutHelp.ActsHere(_command, gesture, "booru", bindings))
                 ?.Resolve(bindings.Platform);
+        }
 
         internal void SetInline(bool inline)
         {
@@ -151,13 +153,13 @@ internal sealed partial class BooruWorkbenchView
         {
             (_mode, _input, _submit, _cancel, _overflow, _menu, _optional) = (mode, input, submit, cancel, overflow, menu, optional);
             AutomationProperties.SetAutomationId(_actions, _actions.Name);
-            _actions.Children.Add(overflow);
             foreach (SearchAction action in optional)
             {
                 _actions.Children.Add(action.Slot);
                 menu.Items.Add(action.Item);
             }
             _actions.Children.Add(cancel);
+            _actions.Children.Add(overflow);
             Children.AddRange([mode, input, submit, _actions]);
         }
 

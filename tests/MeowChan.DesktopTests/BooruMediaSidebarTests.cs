@@ -13,6 +13,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.PluginSdk;
@@ -24,6 +25,73 @@ namespace MeowChan.DesktopTests;
 [Collection("Booru exact navigation")]
 public sealed class BooruMediaSidebarTests
 {
+    [Fact]
+    public void TheGearReadsAndWritesTheSameFactsChoiceAsTheReader() => InWindow((harness, model, view, window) =>
+    {
+        Config config = new() { MediaSidebarInfo = "Off", MediaSidebarFacts = true };
+        view.MediaSidebarSettings = new QuickSettingsHost
+        {
+            CurrentConfig = () => config,
+            SaveAsync = update => { update(config); return Task.CompletedTask; }
+        };
+        harness.Serve(pages: 1, perPage: 2);
+        Search(model, view);
+        BooruMediaSidebar sidebar = Sidebar(view);
+        Button gear = ById<Button>(sidebar, "BooruMediaSettings");
+        Control facts = ById<Control>(sidebar, "BooruMediaFacts");
+        Assert.False(facts.IsEffectivelyVisible);
+        MenuFlyout menu = Assert.IsType<MenuFlyout>(gear.Flyout);
+        ContextGestures.Click(gear);
+        Assert.True(menu.IsOpen);
+        MenuItem item = Assert.Single(menu.Items.OfType<MenuItem>(),
+            entry => AutomationProperties.GetAutomationId(entry) == "BooruMediaSettingsFacts");
+        Assert.False(item.IsChecked);
+        ContextGestures.Click(item);
+        Assert.True(facts.IsEffectivelyVisible);
+        Assert.True(config.SidebarFactsVisible);
+
+        ReaderMediaSidebar reader = new() { SaveSidebarSetting = change => change(config) };
+        reader.ConfigureInfo(ReaderMediaPreferences.From(config));
+        Assert.True(reader.InfoToggle.IsChecked);
+        reader.ToggleDetails();
+        Assert.False(config.SidebarFactsVisible);
+        view.IsVisible = false;
+        config = JsonSerializer.Deserialize(JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config), ConfigJsonContext.Default.Config)!;
+        view.IsVisible = true;
+        Settle(window);
+        Assert.False(facts.IsEffectivelyVisible);
+        Assert.False(ById<ToggleButton>(sidebar, "BooruMediaInfo").IsChecked);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreviewContextClickCopiesTheDisplayedHitAndReturnsFocus(bool mac) => InWindow((harness, model, view, window) =>
+    {
+        harness.Serve(pages: 1, perPage: 2);
+        Search(model, view);
+        Border hit = Hit(view, "102");
+        Focus(hit);
+        Focus(ById<TextBox>(view, BooruWorkbenchView.InputName));
+        Button picture = ById<Button>(Sidebar(view), "BooruMediaOpenGallery");
+        ContextClick.MacOSForTests = mac;
+        try
+        {
+            if (mac) ContextGestures.ControlClick(picture);
+            else ContextGestures.RightClick(picture);
+            ContextMenu menu = Assert.IsType<ContextMenu>(picture.ContextMenu);
+            Assert.True(menu.IsOpen);
+            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == BooruWorkbenchView.MenuCopyLink).Activate();
+            BooruComponentDispatcher.WaitUntil(() => harness.Links.Copied.Count > 0, "the link copy action");
+            Assert.Equal("https://danbooru.donmai.us/posts/102", Assert.Single(harness.Links.Copied));
+            Assert.False(menu.IsOpen);
+            Settle(window);
+            Assert.True(hit.IsFocused);
+            Assert.True(picture.IsEffectivelyVisible);
+        }
+        finally { ContextClick.MacOSForTests = null; }
+    });
+
     [Fact]
     public void SidebarFollowsTheCursorAndKeepsItsPictureAcrossAListRebuild() => InWindow((harness, model, view, window) =>
     {

@@ -3,8 +3,10 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Input.Raw;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -24,6 +26,85 @@ namespace MeowChan.DesktopTests;
 public sealed class SidebarContextGestureTests
 {
     private static readonly ResourceId Thread = new("fixture", "g", "42");
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TaggingSidebarContextClickTargetsThePictureAndReturnsToItsRow(bool mac) => Run(async (window, _) =>
+    {
+        MediaPage media = await OpenMediaAsync(window);
+        TagQueueItem[] entries = media.Grid.Items.OfType<MediaLibraryTileRow>()
+            .OrderBy(row => row.Entry.Name).Select(row => TagQueueItem.From(row.Entry, DateTimeOffset.UnixEpoch)!).ToArray();
+        Assert.Equal(2, entries.Length);
+        await window.SessionHost.EnqueueTagQueueAsync(entries);
+        Assert.True(window.ShowTaggingPage());
+        using TaggingPage page = Assert.IsType<TaggingPage>(window.TaggingPage);
+        await BooruTestSupport.WaitAsync(() =>
+        {
+            window.UpdateLayout();
+            return page.IsPanelShown && page.Queue.Contains(entries[1].Key);
+        }, "the Tagging queue and sidebar to be shown");
+        ListBox list = SidePanelDesignTests.ById<ListBox>(page, "tagging.list");
+        ReaderMediaSidebar sidebar = SidePanelDesignTests.ById<ReaderMediaSidebar>(page, "TaggingPanel");
+        Image picture = Picture(sidebar);
+        var row = Assert.Single(list.Items.OfType<TaggingQueueRow>(), row => row.Key == entries[1].Key);
+        list.SelectedItem = row;
+        page.FocusContent(row.Key);
+        await BooruTestSupport.WaitAsync(() =>
+        {
+            window.UpdateLayout();
+            return sidebar.HeaderLine.Contains("b.png", StringComparison.Ordinal)
+                && picture.IsEffectivelyVisible && picture.Source != null;
+        }, "the Tagging sidebar image for b.png");
+        Control frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+        ContextClick.MacOSForTests = mac;
+        try
+        {
+            if (mac) ContextGestures.ControlClick(picture);
+            else ContextGestures.RightClick(picture);
+            ContextMenu menu = Assert.IsType<ContextMenu>(frame.ContextMenu);
+            Assert.True(menu.IsOpen);
+            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == "media.copy-file-name").Activate();
+            Assert.Equal("b.png", await window.Clipboard!.TryGetTextAsync());
+            Assert.False(menu.IsOpen);
+            ContextGestures.Settle(window);
+            Assert.True(Assert.IsType<ListBoxItem>(list.ContainerFromItem(row)).IsFocused);
+        }
+        finally { ContextClick.MacOSForTests = null; }
+    });
+
+    [Fact]
+    public void VideoSettingsFromTheMediaSidebarReachTheActiveControllerAndTheSavedProfile() => Run(async (window, _) =>
+    {
+        MediaPage page = await OpenMediaAsync(window);
+        page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
+        page.Grid.SelectedItem = Assert.Single(page.Grid.Items.OfType<MediaLibraryTileRow>(), row => row.Entry.Name == "a.png");
+        ReaderMediaSidebar sidebar = await MediaSidebarAsync(window, page, "a.png");
+        ToggleButton gear = SidePanelDesignTests.ById<ToggleButton>(sidebar, "ReaderMediaSidebarSettings");
+        await ToggleAsync(SettingsFieldId.ReaderSidebarVideoAutoplay, () => !page.PanelVideoController.Options.SidebarAutoplay);
+        await ToggleAsync(SettingsFieldId.ReaderSidebarVideoLoop, () => !page.PanelVideoController.Options.SidebarLoop);
+        await ToggleAsync(SettingsFieldId.ReaderSidebarVideoStartMuted, () => page.PanelVideoController.Options.SidebarStartMuted);
+        Config saved = Config.LoadConfig(window.SessionHost.ProfileDirectory);
+        Assert.False(saved.ReaderSidebarVideoAutoplay);
+        Assert.False(saved.ReaderSidebarVideoLoop);
+        Assert.True(saved.ReaderSidebarVideoStartMuted);
+
+        var (reader, _) = await OpenReaderAsync(window);
+        await BooruTestSupport.WaitAsync(() => !reader.InlineVideo.Options.SidebarAutoplay
+            && !reader.InlineVideo.Options.SidebarLoop && reader.InlineVideo.Options.SidebarStartMuted,
+            "the Reader controller to share the saved preferences");
+
+        async Task ToggleAsync(string field, Func<bool> applied)
+        {
+            ContextGestures.Click(gear);
+            MenuFlyout flyout = Assert.IsType<MenuFlyout>(gear.Flyout);
+            Assert.True(flyout.IsOpen);
+            MenuItem item = Assert.Single(flyout.Items.OfType<MenuItem>(),
+                candidate => AutomationProperties.GetAutomationId(candidate) == "ReaderMediaSidebarSettings" + field);
+            ContextGestures.Click(item);
+            await BooruTestSupport.WaitAsync(applied, "the active controller to apply " + field);
+        }
+    });
 
     [Fact]
     public void MediaPanelMenuWritesOnlyToTheShownMediumOfAMultipleSelection() => Run(async (window, _) =>

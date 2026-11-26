@@ -84,6 +84,7 @@ public partial class MainWindow
         }
         _mediaPage = new MediaPage(_session.OpenArchiveReaderAsync, cachePath: Path.Combine(_session.ProfileDirectory, "cache", MediaLibraryIndexCache.FileName))
         {
+            SidebarVideoSettings = CreateQuickSettingsHost(),
             OpenGallery = (window, start) => OpenMediaLibraryGalleryAsync(window, start),
             OpenSelectionGallery = (entries, start) => OpenMediaLibraryGalleryAsync(entries, start, useThreadCount: false),
             ShowInThread = ShowMediaLibraryEntryInThreadAsync,

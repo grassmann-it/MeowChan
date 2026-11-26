@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tests.Shared;
 
@@ -44,7 +45,7 @@ public sealed class BooruSearchOverflowTests
             Assert.Equal(inlineCount < actions.Length, overflow.IsEffectivelyVisible);
 
             Rect prior = InWindow(input);
-            foreach (Button button in new[] { submit, overflow }.Concat(actions).Where(button => button.IsEffectivelyVisible))
+            foreach (Button button in new[] { submit }.Concat(actions).Append(overflow).Where(button => button.IsEffectivelyVisible))
             {
                 Rect bounds = InWindow(button);
                 Assert.True(toolbar.Contains(bounds), $"{width} DIP: {AutomationProperties.GetAutomationId(button)} {bounds} outside {toolbar}");
@@ -56,13 +57,22 @@ public sealed class BooruSearchOverflowTests
             }
 
             if (!overflow.IsEffectivelyVisible) return;
-            Assert.Equal(8, InWindow(overflow).Left - InWindow(submit).Right, 0);
-            Assert.Equal(Texts.T("booru.tabs.moreActions"), ToolTip.GetTip(overflow));
+            Button lastInline = inlineCount == 0 ? submit : actions[inlineCount - 1];
+            Assert.Equal(8, InWindow(overflow).Left - InWindow(lastInline).Right, 0);
+            Assert.Equal(Texts.T("workview.more"), ToolTip.GetTip(overflow));
             MenuFlyout menu = Open(window, overflow);
+            Assert.Contains("popup-open", overflow.Classes);
+            Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(overflow));
+            MenuItem[] entries = menu.Items.OfType<MenuItem>().Where(item => item.IsEffectivelyVisible).ToArray();
             Assert.Equal(OptionalIds.Skip(inlineCount).Select(id => id + "Overflow"),
-                menu.Items.OfType<MenuItem>().Where(item => item.IsEffectivelyVisible).Select(AutomationProperties.GetAutomationId));
-            menu.Hide();
-            Settle(window);
+                entries.Select(AutomationProperties.GetAutomationId));
+            Assert.Equal(new[] { "search", "plus", "download" }.Skip(inlineCount),
+                entries.Select(item => MenuIcons.KeyOf(Assert.IsType<Border>(item.Icon))));
+            PointerClick(overflow, window);
+            Assert.False(menu.IsOpen);
+            Assert.DoesNotContain("popup-open", overflow.Classes);
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(overflow));
+            Assert.Same(input, window.FocusManager?.GetFocusedElement());
         }
 
         Rect InWindow(Control control) => new(control.TranslatePoint(default, window)!.Value, control.Bounds.Size);
