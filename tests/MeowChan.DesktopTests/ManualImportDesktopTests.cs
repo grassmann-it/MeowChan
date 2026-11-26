@@ -1,6 +1,11 @@
 using System.Security.Cryptography;
+using Avalonia.Automation.Peers;
+using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -182,13 +187,85 @@ public sealed class ManualImportDesktopTests : IDisposable
     }
 
     [Fact]
+    public void CopyProgressKeepsThePreviewStableAndTheDialogCanStillCancel() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory fixture = new();
+        ManualImportPlan plan = Plan(Candidate("a.png", ManualImportDisposition.New),
+            Candidate("b.png", ManualImportDisposition.New), Candidate("c.png", ManualImportDisposition.New));
+        IProgress<ManualImportCopyProgress>? copyProgress = null;
+        ManualImportSession session = new((_, _, _) => Task.FromResult(plan), async (preview, _, progress, token) =>
+        {
+            Assert.Same(plan, preview);
+            copyProgress = progress;
+            try { await Task.Delay(Timeout.Infinite, token); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            return new ManualImportOutcome(SummaryBatch(true, SummaryItem(ManualImportItemState.Committed),
+                SummaryItem(ManualImportItemState.Committed)), false, false, null);
+        }, DateTimeOffset.UnixEpoch);
+        using ManualImportDialog dialog = new(session, fixture.Path, () => null);
+        session.AddRoots([fixture.Path]);
+        await session.WorkTask;
+        Dispatcher.UIThread.RunJobs();
+        Button start = FindByAutomationId<Button>(dialog, "ManualImportStart");
+        Assert.True(start.IsEnabled);
+        start.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+
+        ListBox list = FindByAutomationId<ListBox>(dialog, "ManualImportList");
+        ProgressBar bar = FindByAutomationId<ProgressBar>(dialog, "ManualImportProgress");
+        TextBlock counter = FindByAutomationId<TextBlock>(dialog, "ManualImportProgressText");
+        Button cancel = FindByAutomationId<Button>(dialog, "ManualImportCancel");
+        Assert.True(cancel.IsVisible);
+        Assert.True(bar.IsIndeterminate);
+        var previewItems = list.ItemsSource;
+        Assert.NotNull(previewItems);
+        Assert.Equal(3, list.ItemCount);
+        IProgress<ManualImportCopyProgress> progress = Assert.IsAssignableFrom<IProgress<ManualImportCopyProgress>>(copyProgress);
+
+        progress.Report(new ManualImportCopyProgress(1, 3, 10, 30));
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(bar.IsIndeterminate);
+        Assert.Equal(1d / 3, bar.Value);
+        Assert.Equal(Texts.T("import.run.progress", 1, 3), counter.Text);
+        var firstItems = list.ItemsSource;
+
+        progress.Report(new ManualImportCopyProgress(2, 3, 20, 30));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2d / 3, bar.Value);
+        Assert.Equal(Texts.T("import.run.progress", 2, 3), counter.Text);
+        var secondItems = list.ItemsSource;
+        string? englishTitle = dialog.Title;
+        Texts.SetLanguage("de");
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotEqual(englishTitle, dialog.Title);
+        Assert.Equal(Texts.T("import.run.progress", 2, 3), counter.Text);
+
+        cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await session.WorkTask.WaitAsync(BooruComponentDispatcher.Cancellation);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(ManualImportStage.Done, session.Stage);
+        Assert.True(session.Outcome!.Batch.Cancelled);
+        Assert.False(cancel.IsVisible);
+        Assert.False(bar.IsVisible);
+        Assert.Empty(counter.Text!);
+        Assert.Same(previewItems, firstItems);
+        Assert.Same(previewItems, secondItems);
+    });
+
+    private static T FindByAutomationId<T>(Control root, string id) where T : Control =>
+        Assert.Single(root.GetLogicalDescendants().OfType<T>(), control => ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId() == id);
+
+    [Fact]
     public void DroppedFilesAndFoldersCarryTheirLocalPathsForTheImportDialog()
     {
         string folder = Path.Combine(Path.GetTempPath(), "dropped folder");
         string file = Path.Combine(folder, "image.png");
-        DataTransfer transfer = new();
-        transfer.Add(DataTransferItem.CreateFile(new FixtureFolder(new Uri(folder))));
-        transfer.Add(DataTransferItem.CreateFile(new FixtureFolder(new Uri(file))));
+        using FixtureFolder droppedFolder = new(new Uri(folder));
+        using FixtureFolder droppedFile = new(new Uri(file));
+        using DataTransfer transfer = new();
+        transfer.Add(DataTransferItem.CreateFile(droppedFolder));
+        transfer.Add(DataTransferItem.CreateFile(droppedFile));
         DroppedContent content = DroppedLinks.Read(transfer);
         Assert.Equal(DroppedContentKind.Files, content.Kind);
         Assert.Equal(new[] { folder, file }, content.Paths);

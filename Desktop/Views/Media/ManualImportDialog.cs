@@ -139,7 +139,9 @@ internal sealed class ManualImportDialog : Window, IDisposable
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
         Opened += OnOpened; Closed += OnClosed;
-        _session.Updated += OnSessionUpdated; Texts.Changed += OnLanguageChanged;
+        _session.Updated += OnSessionUpdated;
+        _session.ProgressUpdated += OnSessionProgressUpdated;
+        Texts.Changed += OnLanguageChanged;
         Refresh();
     }
 
@@ -150,6 +152,7 @@ internal sealed class ManualImportDialog : Window, IDisposable
     }
 
     private void OnSessionUpdated() => Dispatcher.UIThread.Post(Refresh);
+    private void OnSessionProgressUpdated() => Dispatcher.UIThread.Post(RefreshProgress);
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
 
     private IReadOnlySet<TagId> AssignedTags()
@@ -357,6 +360,7 @@ internal sealed class ManualImportDialog : Window, IDisposable
 
     private void RefreshProgress()
     {
+        if (_closed) return;
         if (_session.Stage == ManualImportStage.Checking)
         {
             ManualImportCheckProgress? progress = _session.CheckProgress;
@@ -425,7 +429,9 @@ internal sealed class ManualImportDialog : Window, IDisposable
         _closed = true;
         // A running check stops; a running copy stops at once (finished files stay, the file in progress is not kept).
         _session.Cancel();
-        _session.Updated -= OnSessionUpdated; Texts.Changed -= OnLanguageChanged;
+        _session.Updated -= OnSessionUpdated;
+        _session.ProgressUpdated -= OnSessionProgressUpdated;
+        Texts.Changed -= OnLanguageChanged;
         _tagInput.Dispose(); _sources.End();
         _addFiles.Click -= OnAddFiles; _addFolder.Click -= OnAddFolder;
         _import.Click -= OnImport; _cancel.Click -= OnCancel; _close.Click -= OnClose; _showBatch.Click -= OnShowBatch; _tagAdd.Click -= OnTagAdd;
