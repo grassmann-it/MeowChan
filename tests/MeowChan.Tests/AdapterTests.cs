@@ -10,6 +10,90 @@ namespace MeowChan.Tests;
 
 public sealed class AdapterTests
 {
+    private static readonly DateTimeOffset Modified = DateTimeOffset.FromUnixTimeSeconds(1700000000);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FourChanAndEightKunCatalogReuseAcceptedSnapshotOnNotModified(bool eightKun)
+    {
+        List<DateTimeOffset?> conditions = new();
+        using HttpClient client = new(new DelegateHandler((request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/boards.json")
+                return Task.FromResult(Json(eightKun ? "[]" : """{"boards":[]}"""));
+
+            Assert.Equal("/g/catalog.json", request.RequestUri.AbsolutePath);
+            conditions.Add(request.Headers.IfModifiedSince);
+            return Task.FromResult(conditions.Count switch
+            {
+                1 => Json("""[{"page":1,"threads":[{"no":123,"sub":"Fixture"}]}]""", Modified),
+                3 => Json("{ invalid", Modified.AddDays(1)),
+                _ => Json("{ invalid", status: HttpStatusCode.NotModified)
+            });
+        }));
+        IBoard board = Provider(eightKun, client).GetBoard(new Uri(BoardUrl(eightKun)));
+
+        IEnumerable<IThread> catalog = await board.GetThreadsAsync();
+        Assert.Equal("123", Assert.Single(catalog).ThreadId);
+        Assert.Same(catalog, await board.GetThreadsAsync());
+        await Assert.ThrowsAsync<Newtonsoft.Json.JsonReaderException>(() => board.GetThreadsAsync());
+        Assert.Same(catalog, await board.GetThreadsAsync());
+        Assert.Equal(new DateTimeOffset?[] { null, Modified, Modified, Modified }, conditions);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FourChanAndEightKunCatalogRejectNotModifiedBeforeAnySnapshot(bool eightKun)
+    {
+        using HttpClient client = new(new DelegateHandler((request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/boards.json")
+                return Task.FromResult(Json(eightKun ? "[]" : """{"boards":[]}"""));
+
+            Assert.Equal("/g/catalog.json", request.RequestUri.AbsolutePath);
+            Assert.Null(request.Headers.IfModifiedSince);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified));
+        }));
+        IBoard board = Provider(eightKun, client).GetBoard(new Uri(BoardUrl(eightKun)));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => board.GetThreadsAsync());
+    }
+
+    [Fact]
+    public async Task FourChanNewBoardRevalidatesSharedBoardNames()
+    {
+        List<DateTimeOffset?> conditions = new();
+        using HttpClient client = new(new DelegateHandler((request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath != "/boards.json") return Task.FromResult(Json("[]"));
+
+            conditions.Add(request.Headers.IfModifiedSince);
+            return Task.FromResult(conditions.Count == 1
+                ? Json("""{"boards":[{"board":"g","title":"Technology"},{"board":"a","title":"Anime"}]}""", Modified)
+                : Json("{ invalid", status: HttpStatusCode.NotModified));
+        }));
+        IImageBoard provider = new FourChanImageBoard(client);
+        IBoard first = provider.GetBoard(new Uri("https://boards.4chan.org/g/"));
+        IBoard second = provider.GetBoard(new Uri("https://boards.4chan.org/a/"));
+
+        await first.GetThreadsAsync();
+        await second.GetThreadsAsync();
+        await second.GetThreadsAsync();
+
+        Assert.Equal("Technology", first.Name);
+        Assert.Equal("Anime", second.Name);
+        Assert.Equal(new DateTimeOffset?[] { null, Modified }, conditions);
+    }
+
+    private static HttpResponseMessage Json(string body, DateTimeOffset? modified = null, HttpStatusCode status = HttpStatusCode.OK)
+    {
+        HttpResponseMessage response = new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        response.Content.Headers.LastModified = modified;
+        return response;
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
