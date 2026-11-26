@@ -1,13 +1,27 @@
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using MeowChan.Archive;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.WorkViews;
+using MeowChan.Interfaces;
+using Semi.Avalonia.DataGrid;
 
 namespace MeowChan.DesktopTests;
 
 // Bug 14.11.2026 (Status page): "Can only change SelectedItems collection in Extended selection mode". Avalonia's DataGrid.SelectedItems
 // throws on every write in Single mode, even Clear() on an empty selection. The diagnostics page cleared the platform table (Single)
 // through SelectedItems whenever a row of the main table was selected, so every selection raised the unexpected-error banner.
+[Collection("Avalonia global state")]
 public sealed class DataGridSelectionTests
 {
     private static readonly string[] Rows = ["a", "b", "c"];
@@ -69,6 +83,73 @@ public sealed class DataGridSelectionTests
         Assert.Equal("c", single.SelectedItem);
         DataGridSelection.Select(single, []);
         Assert.Null(single.SelectedItem);
+    }
+
+    [Fact]
+    public async Task ArchiveTableMovesRowFocusWithTheKeyboardAndKeepsColumnMenuAndDoubleTap()
+    {
+        using ReaderArchiveTestFixture archive = new();
+        ResourceId first = new("synthetic", "b", "1");
+        ResourceId second = new("synthetic", "b", "2");
+        await archive.CaptureAsync(first, "First thread", [new("1", 0, PostFieldPresence.All, Html: "First post")]);
+        await archive.CaptureAsync(second, "Second thread", [new("2", 0, PostFieldPresence.All, Html: "Second post")]);
+
+        archive.Run(page =>
+        {
+            Application.Current!.Styles.Insert(1, new DataGridSemiTheme());
+            page.ArchiveColumnModePreference = WorkViewSetting.AdvancedName;
+            page.ArchiveLayoutPreference = "Table";
+            page.OpenGallery = (_, _, _) => Task.CompletedTask;
+            Window window = new() { Content = page, Width = 1600, Height = 850 };
+            try
+            {
+                window.Show();
+                BooruComponentDispatcher.Wait(page.ActivateAsync());
+                Layout();
+                DataGrid table = Assert.Single(page.GetVisualDescendants().OfType<DataGrid>(),
+                    grid => AutomationProperties.GetAutomationId(grid) == "ArchiveThreadTable");
+                ArchiveThreadRow[] rows = table.CollectionView!.Cast<ArchiveThreadRow>().ToArray();
+                Assert.Equal(2, rows.Length);
+                table.SelectedItem = rows[0];
+                Assert.True(table.Focus(NavigationMethod.Tab));
+                window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, null);
+                Layout();
+                Assert.Same(rows[1], Assert.Single(table.SelectedItems));
+
+                DataGridRow row = Assert.Single(table.GetVisualDescendants().OfType<DataGridRow>(),
+                    candidate => ReferenceEquals(candidate.DataContext, rows[1]));
+                Border focus = Assert.Single(row.GetVisualDescendants().OfType<Border>(),
+                    border => border.Name == "BackgroundBorder" && border.TemplatedParent == row);
+                Assert.Equal(new Thickness(3, 1, 1, 1), focus.BorderThickness);
+
+                ContextMenu? columns = null;
+                page.ShowColumnMenu = (menu, _) => columns = menu;
+                DataGridColumn title = Assert.Single(table.Columns, column => column.SortMemberPath == "TitleOrId");
+                DataGridColumnHeader header = Assert.Single(table.GetVisualDescendants().OfType<DataGridColumnHeader>(),
+                    candidate => Equals(candidate.Content, title.Header));
+                header.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+                ContextMenu menu = Assert.IsType<ContextMenu>(columns);
+                Assert.Contains(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "archive.columnsFitAll"));
+                Assert.Same(rows[1], table.SelectedItem);
+
+                Control? readerOrigin = null;
+                page.OpenReaderRequested = origin => readerOrigin = origin;
+                TextBlock target = Assert.Single(row.GetVisualDescendants().OfType<TextBlock>(),
+                    text => text.Text == rows[1].TitleOrId);
+                target.RaiseEvent(new TappedEventArgs(InputElement.DoubleTappedEvent,
+                    new PointerEventArgs(InputElement.PointerReleasedEvent, target,
+                        new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), target, default, 0,
+                        PointerPointProperties.None, KeyModifiers.None)));
+                Assert.Same(row, readerOrigin);
+            }
+            finally { window.Close(); }
+
+            void Layout()
+            {
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+            }
+        }, hosted: true);
     }
 
     // The markup contract: which grids of the page are Single, and that no code writes to their SelectedItems. A grid that is Single in

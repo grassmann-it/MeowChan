@@ -57,7 +57,7 @@
                         <!-- The platform facts live in their own group below, so this table holds requests and problems only and
                              its "nothing to show" text can sit over the empty grid. -->
                         <Grid>
-                            <DataGrid x:Name="DiagnosticsGrid" AutomationProperties.AutomationId="DiagnosticsGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="120"
+                            <controls:RowFocusDataGrid x:Name="DiagnosticsGrid" AutomationProperties.AutomationId="DiagnosticsGrid" Classes="row-focus" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="120"
                                       GridLinesVisibility="None" SelectionMode="Extended" RowHeight="44"
                                       CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">
                                 <DataGrid.Columns>
@@ -65,7 +65,7 @@
                                     <DataGridTextColumn MinWidth="200" Width="3*" Binding="{Binding Resource, DataType=desktop:DiagnosticEntry}" />
                                     <DataGridTextColumn MinWidth="160" Width="2*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
                                 </DataGrid.Columns>
-                            </DataGrid>
+                            </controls:RowFocusDataGrid>
                             <TextBlock x:Name="DiagnosticsEmpty" Classes="muted" Margin="12"
                                        TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                         </Grid>
@@ -83,25 +83,25 @@
                 </Grid>
                 <!-- Facts about this machine (always the same few rows): a closed group with its count, not rows in the table. -->
                 <Expander x:Name="DiagnosticPlatformSection" wv:WorkViewElement.Id="diagnostics.platform" Grid.Row="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                    <DataGrid x:Name="PlatformGrid" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="180"
+                    <controls:RowFocusDataGrid x:Name="PlatformGrid" AutomationProperties.AutomationId="PlatformGrid" Classes="row-focus" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="180"
                               SelectionMode="Single" GridLinesVisibility="None" CanUserReorderColumns="False"
                               SelectionChanged="OnPlatformSelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTextColumn Width="*" MinWidth="180" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
                         </DataGrid.Columns>
-                    </DataGrid>
+                    </controls:RowFocusDataGrid>
                 </Expander>
                 <Expander x:Name="SessionFeedbackSection" wv:WorkViewElement.Id="diagnostics.session-messages" Grid.Row="4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                         <TextBlock x:Name="SessionFeedbackEmpty" Tag="feedback.empty" Classes="muted localized" TextWrapping="Wrap" />
-                        <DataGrid x:Name="SessionFeedbackGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="80" MaxHeight="160"
+                        <controls:RowFocusDataGrid x:Name="SessionFeedbackGrid" AutomationProperties.AutomationId="SessionFeedbackGrid" Classes="row-focus" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="80" MaxHeight="160"
                                   SelectionMode="Single" GridLinesVisibility="None" SelectionChanged="OnFeedbackSelectionChanged">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Width="130" Binding="{Binding TimeLabel, DataType=feedback:SessionFeedback}" />
                                 <DataGridTextColumn Width="100" Binding="{Binding CategoryLabel, DataType=feedback:SessionFeedback}" />
                                 <DataGridTextColumn Width="*" MinWidth="160" Binding="{Binding Description, DataType=feedback:SessionFeedback}" />
                             </DataGrid.Columns>
-                        </DataGrid>
+                        </controls:RowFocusDataGrid>
                         <TextBox x:Name="SessionFeedbackDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="36" MaxHeight="90" />
                         <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
                             <Button x:Name="CopySessionFeedbackButton" Click="OnCopyFeedback" />
