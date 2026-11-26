@@ -18,7 +18,7 @@ public sealed class AdapterTests
     public async Task FourChanAndEightKunCatalogReuseAcceptedSnapshotOnNotModified(bool eightKun)
     {
         List<DateTimeOffset?> conditions = new();
-        using HttpClient client = new(new DelegateHandler((request, _) =>
+        using DelegateHandler handler = new((request, _) =>
         {
             if (request.RequestUri!.AbsolutePath == "/boards.json")
                 return Task.FromResult(Json(eightKun ? "[]" : """{"boards":[]}"""));
@@ -31,7 +31,8 @@ public sealed class AdapterTests
                 3 => Json("{ invalid", Modified.AddDays(1)),
                 _ => Json("{ invalid", status: HttpStatusCode.NotModified)
             });
-        }));
+        });
+        using HttpClient client = new(handler);
         IBoard board = Provider(eightKun, client).GetBoard(new Uri(BoardUrl(eightKun)));
 
         IEnumerable<IThread> catalog = await board.GetThreadsAsync();
@@ -47,7 +48,7 @@ public sealed class AdapterTests
     [InlineData(true)]
     public async Task FourChanAndEightKunCatalogRejectNotModifiedBeforeAnySnapshot(bool eightKun)
     {
-        using HttpClient client = new(new DelegateHandler((request, _) =>
+        using DelegateHandler handler = new((request, _) =>
         {
             if (request.RequestUri!.AbsolutePath == "/boards.json")
                 return Task.FromResult(Json(eightKun ? "[]" : """{"boards":[]}"""));
@@ -55,7 +56,8 @@ public sealed class AdapterTests
             Assert.Equal("/g/catalog.json", request.RequestUri.AbsolutePath);
             Assert.Null(request.Headers.IfModifiedSince);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified));
-        }));
+        });
+        using HttpClient client = new(handler);
         IBoard board = Provider(eightKun, client).GetBoard(new Uri(BoardUrl(eightKun)));
 
         await Assert.ThrowsAsync<InvalidDataException>(() => board.GetThreadsAsync());
@@ -65,7 +67,7 @@ public sealed class AdapterTests
     public async Task FourChanNewBoardRevalidatesSharedBoardNames()
     {
         List<DateTimeOffset?> conditions = new();
-        using HttpClient client = new(new DelegateHandler((request, _) =>
+        using DelegateHandler handler = new((request, _) =>
         {
             if (request.RequestUri!.AbsolutePath != "/boards.json") return Task.FromResult(Json("[]"));
 
@@ -73,7 +75,8 @@ public sealed class AdapterTests
             return Task.FromResult(conditions.Count == 1
                 ? Json("""{"boards":[{"board":"g","title":"Technology"},{"board":"a","title":"Anime"}]}""", Modified)
                 : Json("{ invalid", status: HttpStatusCode.NotModified));
-        }));
+        });
+        using HttpClient client = new(handler);
         IImageBoard provider = new FourChanImageBoard(client);
         IBoard first = provider.GetBoard(new Uri("https://boards.4chan.org/g/"));
         IBoard second = provider.GetBoard(new Uri("https://boards.4chan.org/a/"));
