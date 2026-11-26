@@ -19,6 +19,10 @@ internal static class ReaderSidebarShortcutChecks
 {
     private static readonly ResourceId Fixture = new("4chan", "g", "9989");
 
+    internal static ListBoxItem FindThumbnail(ReaderMediaSidebar sidebar, int index) =>
+        sidebar.Strip.Items.OfType<ListBoxItem>().Single(item => item.Tag is ReaderMediaSidebar.StripTarget target
+            && target.Thread == Fixture && target.PostId == "7000" && target.Index == index);
+
     internal static async Task SeedAsync(ArchiveCatalog catalog, string media)
     {
         // Three attachments make a duplicate media-step observable (0 -> 2 instead of 1).
@@ -94,14 +98,12 @@ internal static class ReaderSidebarShortcutChecks
                 string mode = large ? "large" : "embedded";
                 Control Post() => posts.ContainerFromItem(posts.SelectedItem!) as ListBoxItem
                     ?? throw new InvalidOperationException("Selected post has no materialized ListBoxItem.");
-                Control Thumbnail() => sidebar.Strip.Items.OfType<ListBoxItem>().Single(item => Equals(item.Tag, 0));
-
                 foreach (bool thumbnail in new[] { false, true })
                 {
                     page.SelectMediaSidebarIndex(0);
                     await page.MediaSidebarTask;
                     await Flush(window);
-                    Control source = thumbnail ? Thumbnail() : Post();
+                    Control source = thumbnail ? FindThumbnail(sidebar, 0) : Post();
                     string name = mode + (thumbnail ? "-thumbnail" : "-post");
                     Focus(window, source);
                     Require(source is ListBoxItem && source.GetVisualAncestors().Contains(thumbnail ? sidebar.Strip : posts), "Not a real owned list item.");
@@ -123,7 +125,7 @@ internal static class ReaderSidebarShortcutChecks
                     await popover.Result;
                     await Flush(window);
 
-                    source = thumbnail ? Thumbnail() : Post();
+                    source = thumbnail ? FindThumbnail(sidebar, 0) : Post();
                     Focus(window, source);
                     bool hover = page.ReaderMedia.HoverEnlarge;
                     KeyEventArgs view = Press(source, Key.J);
@@ -159,7 +161,7 @@ internal static class ReaderSidebarShortcutChecks
                 await page.MediaSidebarTask;
                 await Flush(window);
                 ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-                Control source = thumbnail ? panel.Strip.Items.OfType<ListBoxItem>().Single(item => Equals(item.Tag, 0))
+                Control source = thumbnail ? FindThumbnail(panel, 0)
                     : (Control)posts.ContainerFromItem(posts.SelectedItem!)!;
                 Focus(window, source);
                 bool oldChordReachedItem = false;

@@ -79,6 +79,9 @@ public partial class ArchivePage
     // or mode changes, without reopening the popup or executing any action.
     internal Control? GalleryOriginFocusTarget(Control? origin)
     {
+        // The round trip can reattach the reader and replace the results ItemsSource
+        // in the same turn. Resolve the selected row after that layout is current.
+        if (ReferenceEquals(origin, ArchiveResultsGallery)) UpdateLayout();
         if (origin != null && ArchiveMediaTab.IsSelected && (ReferenceEquals(origin, _mediaSidebar?.FrameArea)
             || ReferenceEquals(origin, VisibleMediaList) || origin.DataContext is ArchiveAssetRow))
             return SelectedMediaFocusTarget() ?? VisibleMediaList;
@@ -120,7 +123,8 @@ public partial class ArchivePage
     }
 
     private static Control ItemOrList(ListBox list, object? item) =>
-        item == null ? list : list.ContainerFromItem(item) ?? (Control)list;
+        item != null && list.ContainerFromItem(item) is { Focusable: true, IsEffectivelyVisible: true, IsEffectivelyEnabled: true } row
+            && list.IsVisualAncestorOf(row) ? row : list;
 
     // What each results-bar action was last presented for: its disabled reason and the language. The presentation is rewritten
     // only when that changes (shortcut changes reach it through the CommandBindings observer).

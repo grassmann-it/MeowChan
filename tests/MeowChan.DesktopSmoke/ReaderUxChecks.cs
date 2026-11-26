@@ -572,11 +572,13 @@ internal static class ReaderUxChecks
                     "List-origin gallery close changed the selected result.");
                 Require(more?.IsChecked != true, "Returning from the list-origin gallery reopened its overflow popup.");
                 Control? focus = window.FocusManager?.GetFocusedElement() as Control;
+                string focusState = $"type={focus?.GetType().Name}; id={focus?.Name}; bounds={focus?.Bounds}; "
+                    + $"visible={focus?.IsEffectivelyVisible}; focusable={focus?.Focusable}; inResults={focus != null && results.IsVisualAncestorOf(focus)}";
                 Require(focus is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true, Focusable: true }
                     && ReferenceEquals(TopLevel.GetTopLevel(focus), window) && focus.Bounds.Width > 0 && focus.Bounds.Height > 0
                     && (ReferenceEquals(focus, results) || focus is ListBoxItem row && results.IsVisualAncestorOf(row)
                         && row.DataContext is ArchiveThreadRow focused && focused.Summary.Id == selected.Summary.Id),
-                    $"List-origin focus did not return to the selected row or results list at {width} DIP: {focus?.Name}.");
+                    $"List-origin focus did not return to the selected row or results list at {width} DIP. {focusState}.");
                 RawKeyboardInput.Press(window, Key.Down);
                 ResourceId next = ((ArchiveThreadRow)results.Items[1]!).Summary.Id;
                 await Program.WaitUntilAsync(() => results.SelectedItem is ArchiveThreadRow row && row.Summary.Id == next,
