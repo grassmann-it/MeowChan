@@ -143,6 +143,29 @@ internal static class GridChecks
     private static async Task CheckContextSelectionAsync(MainWindow window, DataGrid grid, object first, object second)
     {
         ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The grid context menu is missing.");
+        menu.Close();
+        Point? blank = null;
+        InputElement? blankTarget = null;
+        // The last row can reach the old fixed offset on a scaled, shorter desktop.
+        // Hit-test before opening the menu, while the grid is outside any light-dismiss layer.
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            for (double y = grid.Bounds.Height - 2; y >= grid.Bounds.Height / 2; y -= 2)
+            {
+                Point? candidate = grid.TranslatePoint(new Point(20, y), window);
+                InputElement? hit = candidate.HasValue ? window.InputHitTest(candidate.Value) as InputElement : null;
+                DataGrid? hitGrid = hit as DataGrid ?? hit?.FindAncestorOfType<DataGrid>();
+                if (!ReferenceEquals(hitGrid, grid) || hit is DataGridRow || hit?.FindAncestorOfType<DataGridRow>() != null
+                    || hit is ScrollBar || hit?.FindAncestorOfType<ScrollBar>() != null
+                    || hit is DataGridColumnHeader || hit?.FindAncestorOfType<DataGridColumnHeader>() != null)
+                    continue;
+                blank = candidate;
+                blankTarget = hit;
+                return true;
+            }
+            return false;
+        });
         foreach (KeyModifiers modifiers in new[] { KeyModifiers.None, KeyModifiers.Control })
         {
             menu.Close();
@@ -156,38 +179,18 @@ internal static class GridChecks
                 throw new InvalidOperationException("The pointed watch had no available Copy links command.");
         }
 
-        Point? blank = null;
-        // The last row can reach the old fixed offset on a scaled, shorter desktop.
-        // Require a real empty grid target before exercising the selection-preserving dismissal.
-        await Program.WaitUntilAsync(() =>
-        {
-            window.UpdateLayout();
-            for (double y = grid.Bounds.Height - 2; y >= grid.Bounds.Height / 2; y -= 2)
-            {
-                Point? candidate = grid.TranslatePoint(new Point(20, y), window);
-                Visual? hit = candidate.HasValue ? window.InputHitTest(candidate.Value) as Visual : null;
-                DataGrid? hitGrid = hit as DataGrid ?? hit?.FindAncestorOfType<DataGrid>();
-                if (!ReferenceEquals(hitGrid, grid) || hit is DataGridRow || hit?.FindAncestorOfType<DataGridRow>() != null
-                    || hit is ScrollBar || hit?.FindAncestorOfType<ScrollBar>() != null
-                    || hit is DataGridColumnHeader || hit?.FindAncestorOfType<DataGridColumnHeader>() != null)
-                    continue;
-                blank = candidate;
-                return true;
-            }
-            return false;
-        });
-        RightPress(window, blank!.Value, KeyModifiers.None);
+        RightPress(window, blank!.Value, KeyModifiers.None, blankTarget);
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         if (menu.IsOpen || !ReferenceEquals(grid.SelectedItem, second)
             || grid.SelectedItems.Count != 1 || !grid.SelectedItems.Contains(second))
             throw new InvalidOperationException("Right click on blank space kept the row menu open or changed the selected watch.");
     }
 
-    private static void RightPress(MainWindow window, Point position, KeyModifiers modifiers)
+    private static void RightPress(MainWindow window, Point position, KeyModifiers modifiers, InputElement? target = null)
     {
         using Pointer pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
         PointerPointProperties properties = new PointerPointProperties(RawInputModifiers.RightMouseButton, PointerUpdateKind.RightButtonPressed);
-        InputElement hit = window.InputHitTest(position) as InputElement
+        InputElement hit = target ?? window.InputHitTest(position) as InputElement
             ?? throw new InvalidOperationException("The pointer target is not hit-testable.");
         hit.RaiseEvent(new PointerPressedEventArgs(hit, pointer, window, position, 0, properties, modifiers));
         pointer.Capture(null);
