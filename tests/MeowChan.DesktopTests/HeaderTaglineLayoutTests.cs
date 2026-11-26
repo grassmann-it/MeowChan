@@ -291,7 +291,7 @@ public sealed class HeaderTaglineLayoutTests
         new Config
         {
             DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1,
-            HeaderTagline = TaglinePicker.ModeFixed, HeaderTaglineFixedId = "lightdark"
+            HeaderTagline = TaglinePicker.ModeFixed, HeaderTaglineFixedId = "offline"
         }.SaveConfig(profile.Path);
         BooruComponentDispatcher.Wait(Exercise());
 
@@ -342,27 +342,27 @@ public sealed class HeaderTaglineLayoutTests
 
                 ReaderFonts.Apply(Application.Current!, "en");
                 Texts.SetLanguage("en");
-                session.Config.HeaderTaglineFixedId = "lightdark";
+                session.Config.HeaderTaglineFixedId = "offline";
                 apply();
                 window.UpdateLayout();
-                string lightDark = Texts.T("shell.tagline.quip.lightdark"), englishLead = Texts.T("shell.tagline.lead");
+                string offline = Texts.T("shell.tagline.quip.offline"), englishLead = Texts.T("shell.tagline.lead");
                 Assert.Equal(HeaderTaglineStage.Full, window.TaglineStage);
 
                 // A column as wide as the untrimmed advance still lacks room for the reserve and italic ink.
                 host.MaxWidth = subtitle.TextLayout.WidthIncludingTrailingWhitespace;
                 window.UpdateLayout();
                 Assert.Equal(HeaderTaglineStage.Quip, window.TaglineStage);
-                CheckVisibleForm(window, host, subtitle, englishLead, lightDark, $"lightdark as a quip, {scale}×");
+                CheckVisibleForm(window, host, subtitle, englishLead, offline, $"offline as a quip, {scale}×");
 
                 host.MaxWidth = subtitle.TextLayout.WidthIncludingTrailingWhitespace;
                 window.UpdateLayout();
                 Assert.Equal(HeaderTaglineStage.None, window.TaglineStage);
-                CheckVisibleForm(window, host, subtitle, englishLead, lightDark, $"lightdark hidden, {scale}×");
+                CheckVisibleForm(window, host, subtitle, englishLead, offline, $"offline hidden, {scale}×");
 
                 host.MaxWidth = double.PositiveInfinity;
                 window.UpdateLayout();
                 Assert.Equal(HeaderTaglineStage.Full, window.TaglineStage);
-                CheckVisibleForm(window, host, subtitle, englishLead, lightDark, $"lightdark restored in full, {scale}×");
+                CheckVisibleForm(window, host, subtitle, englishLead, offline, $"offline restored in full, {scale}×");
             }
             finally
             {
