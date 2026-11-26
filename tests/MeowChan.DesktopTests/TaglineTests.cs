@@ -223,14 +223,13 @@ public sealed class TaglineTests : IDisposable
     public void OnlyReleaseQuipsCanHighlightAnUpdateInAnyLanguage()
     {
         Version baseline = new(1, 0, 0), previous = new(1, 1, 1), current = new(1, 1, 2);
-        // Tom's final selection: B1 adds seven release taglines for 1.1.2, B3 also marks P105 as Release.
-        string[] currentRelease = ["favefinal", "firstclick", "fivestars", "heartedstarred", "heartsandstars", "polishontop", "polishrelease", "roughhearts"];
-        // Tom's final selection, B2: the Seasonal rows of the approved language matrix run in their date windows.
-        string[] seasonal = ["adalovelace", "archivebewithyou", "baselwheels", "bikeride", "blackcat", "blazingfast",
+        // Tagline curation § ENTSCHEIDUNG TOM keeps polishontop and removes blazingfast, mediaforall and pueblacover.
+        string[] currentRelease = ["favefinal", "firstclick", "fivestars", "heartsandstars", "polishontop", "polishrelease", "roughhearts"];
+        string[] seasonal = ["adalovelace", "archivebewithyou", "baselwheels", "bikeride", "blackcat",
             "breadroses", "breathingthumbs", "catday", "catdaysearch", "catnipresearch", "catsnacks", "catsvote",
-            "cloudindependence", "dontpanic", "eighthours", "fireworksgif", "forgottowel", "giftbox", "goodfolder", "inmyfavorites",
-            "lastyeardownload", "linuxbirthday", "mediaforall", "mirrorghost", "newyearbacklog", "nocloud", "notthethreads",
-            "pirateparrot", "pistars", "pithreads", "plunderboards", "pueblacover", "queueovertime", "redheart", "ribbon", "roseswilt",
+            "cloudindependence", "dontpanic", "eighthours", "fireworksgif", "forgottowel", "giftbox", "goodfolder",
+            "inmyfavorites", "lastyeardownload", "linuxbirthday", "mirrorghost", "newyearbacklog", "nocloud",
+            "pirateparrot", "pistars", "pithreads", "queueovertime", "redheart", "ribbon", "roseswilt",
             "smallmoon", "snowed", "treasuremisc", "treefell", "trickorthread", "underbed", "unodostres", "unpaidmods",
             "vacuumindependence", "worldbackup"];
         foreach (string language in AllLanguages)
@@ -242,8 +241,8 @@ public sealed class TaglineTests : IDisposable
             Assert.Equal(["boorutabs", "downloadall", "taglinesfeature", "threadswitch"],
                 TaglinePicker.ReleaseCandidates(pool, previous, baseline).Select(entry => entry.Id));
             Assert.Equal(currentRelease, TaglinePicker.ReleaseCandidates(pool, current, previous).Select(entry => entry.Id));
-            // Round 4 designates only R132, R134 and R139 as release highlights for 1.1.3.
-            Assert.Equal(["bobrapproves", "lookatthispolish", "polishzrozumiano"],
+            // Tagline curation § ENTSCHEIDUNG TOM keeps the original Polish puns and adds two more.
+            Assert.Equal(["bobrapproves", "lookatthispolish", "polishbuttons", "polishcat", "polishzrozumiano"],
                 TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 3), current).Select(entry => entry.Id));
             foreach (string mode in new[] { TaglinePicker.ModeDaily, TaglinePicker.ModePerStart, TaglinePicker.ModeInterval })
             {
@@ -400,25 +399,19 @@ public sealed class TaglineTests : IDisposable
     [Fact]
     public void AllTwelveLanguagesLocalizeTheQuipsExceptForTheApprovedSharedEnglish()
     {
-        // Tom's final selection specifies "EN überall" and the English pun fallback. The pack audit verifies exact copies by bundle.
-        string[] sharedEnglish = ["amenthread", "archivesit", "babycassettes", "babyvehicles", "bangarchived", "believebackup",
-            "bobbycopies", "bobbyfolder", "bobrapproves", "boneofmyarchive", "celltags", "cloudpain", "croppingluna", "dadsinitials",
-            "diskspaaace", "downloadersrollout", "finaldownload", "formerskyline", "fourstarball", "gasandlinks", "ginyuformation",
-            "ginyupose", "gokubrother", "grayskulldownloads", "highressoul", "idjitbackup", "inspaaace", "justsaiyan", "kakarot",
-            "krillingallery", "lookatthispolish", "losslesscell", "lunanotes", "meetstheeye", "moontiara", "nappaboard", "nappabumps",
-            "narutoqueue", "ninjaway", "peckingorder", "pinkyfinal", "policegirl", "policegirltea", "polishontop", "polishzrozumiano",
-            "popofaster", "poporoot", "popowatches", "powerscombined", "radarfilter", "raditzarchived", "scouterloadmore",
-            "scouterqueue", "scouterreposts", "searchdestroyarchive", "shadowclone", "somethingthumbnail", "teafirst",
-            "technicallythumbnail", "threadcowboy", "threadlightly", "trickorthread", "tworaditz", "uncompressedform", "venusgoddess",
-            "waywardthread", "wholethreadjpeg", "zarbonbefore", "zarbonfetch"];
-        string[] germanFallbacks = ["crescentarchive", "namekzip", "skeletorbackup", "spikespeed"];
+        // The Top 100 consensus limits the General selection. Tagline curation keeps the approved "EN überall" texts.
+        string[] sharedEnglish = ["archivitah", "believebackup", "bobrapproves", "buttersthumbnail", "croppingluna",
+            "curiosity", "formerskyline", "fusionmerge", "kakarot", "lookatthispolish", "lupinoriginal", "ninjaway",
+            "pinkyfinal", "polishbuttons", "polishcat", "polishontop", "polishzrozumiano", "popofaster", "poporoot",
+            "potpiefile", "shreddersearch", "teafirst", "threadcowboy", "threadlightly", "trickorthread", "wholethreadjpeg"];
+        string[] germanFallbacks = ["namekzip"];
         Texts.SetLanguage("en");
         Dictionary<string, string> english = TaglineCatalog.Available().ToDictionary(entry => entry.Id, entry => entry.Text);
         foreach (string language in AllLanguages.Where(code => code != "en"))
         {
             Texts.SetLanguage(language);
             IEnumerable<string> exactEnglish = TaglineCatalog.Available().Where(entry => entry.Text == english[entry.Id]).Select(entry => entry.Id);
-            // The four R4 rows marked too long in German use their English fallback.
+            // The remaining R4 row marked too long in German uses its English fallback.
             if (language == "de")
                 Assert.Equal(sharedEnglish.Concat(germanFallbacks).Order(StringComparer.Ordinal), exactEnglish);
             else
@@ -427,15 +420,15 @@ public sealed class TaglineTests : IDisposable
     }
 
     [Fact]
-    public void TheCatalogShipsTheFullSelectionAndTheReleaseOnesAreThere()
+    public void TheCatalogShipsTheTop100AndTheSeasonalAndReleaseQuips()
     {
         Texts.SetLanguage("en");
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        // Tom's final selection adds 42 in B1, 51 in B2, 78 in B3 and 47 in B4, with four removals from the previous catalog.
-        // The 1.1.3 round 4 selection adds 91 General quips and three Polish release quips.
-        Assert.Equal(354, pool.Count);
+        // Taglines Top 100 consensus (26.11.) keeps 100 General quips and preserves the curated seasonal and release selection.
+        Assert.Equal(165, pool.Count);
+        Assert.Equal(100, pool.Count(entry => entry.Category == TaglineCategory.General));
         Version roundFour = new(1, 1, 3);
-        Assert.Equal(91, pool.Count(entry => entry.Since == roundFour && entry.Category == TaglineCategory.General));
+        Assert.Equal(28, pool.Count(entry => entry.Since == roundFour && entry.Category == TaglineCategory.General));
         Assert.Contains(pool, entry => entry.Id == TaglineCatalog.DefaultId);
         Assert.Equal("now with 100% more cats", pool.Single(entry => entry.Id == "cats").Text);
         Assert.Equal("now with booru support", pool.Single(entry => entry.Id == "booru").Text);
