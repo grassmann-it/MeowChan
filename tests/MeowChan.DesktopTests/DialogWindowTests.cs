@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Layout;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using MeowChan.Desktop;
@@ -211,7 +212,7 @@ public sealed class DialogWindowTests
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Border content = new() { Height = 24 };
         AutomationProperties.SetAutomationId(content, "DialogBodyContent");
-        Border body = new() { Child = content, Classes = { "workspace-dialog-body" } };
+        Border body = new() { Child = content, VerticalAlignment = VerticalAlignment.Top, Classes = { "workspace-dialog-body" } };
         Grid frame = DialogFrame.Build(withHeader ? new Border { Height = 24 } : null, body, footer: null);
         Window window = new() { Width = 420, Height = 360, Content = frame, RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light };
         try
