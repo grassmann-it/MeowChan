@@ -7,13 +7,13 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>1.1.2 · Latest release</strong></p>
+<p align="center"><strong>1.1.3 · Latest release</strong></p>
 
 <p align="center">Original media. Better viewing. Your archive, offline.</p>
 
 MeowChan is a desktop app that watches imageboard threads and boards and saves original media and posts on your computer. You can search and read captured threads offline, browse your media, or export a thread as a portable HTML folder.
 
-[**Get MeowChan 1.1.2 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.2) · [Quick start](#quick-start) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.2.md)
+[**Get MeowChan 1.1.3 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.3) · [Quick start](#quick-start) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.3.md)
 
 ## What you can do with MeowChan
 
@@ -26,15 +26,14 @@ MeowChan is a desktop app that watches imageboard threads and boards and saves o
 - **Manage plugins and sources.** Open **Plugins** to see what each source supports and enable the ones you want. Experimental sources start disabled. Five local filters cover dimensions, file size and names, SHA-256 blocklists, animation and file formats, and PNG metadata. [Plugin guide and inventory](docs/plugins/README.md)
 - **Make the interface yours.** New profiles start in Simple view. Choose Barebones for a compact layout or Advanced for more controls. Pick a light or dark theme, choose one of six colour presets (each with its own heart and star colours), and customise keyboard shortcuts. The interface offers 12 languages, including ten preview translations. [Desktop views](docs/Help.md#desktop-view-defaults) · [Language packs](docs/Help.md#language-packs) · [Keyboard shortcuts](docs/Help.md#customizing-shortcuts)
 
-## New in 1.1.2
+## New in 1.1.3
 
-- Rate a photo beside the Gallery’s favourite heart, then use the arrow keys to keep browsing. Press **Shift+I** for file facts or **Shift+Z** for the info line.
-- Scroll through a long thread without paging, or follow a quote straight to a distant post.
-- Set autoplay, repeat and mute once for the Reader, Media and Tagging sidebars.
-- Choose **Continue tagging** to return to the next open file in your group or filter. At the end of the round, you can revisit skipped files.
-- Preview the opening post in a supported 4chan board’s archive before choosing **Watch thread**.
+- Read a text-only post and its saved replies side by side with the thread in the Reader.
+- Watch selected GIFs in the media sidebars with interface animations enabled. Booru plays animated previews and samples from the source.
+- Look up a picture’s public URL with SauceNAO, IQDB or Google Lens from its context menu.
+- Press **B** in the Gallery to cycle picture backgrounds, or choose **Flip horizontally** to mirror the current image or video.
 
-[Full 1.1.2 release notes](docs/releases/v1.1.2.md)
+[Full 1.1.3 release notes](docs/releases/v1.1.3.md)
 
 ## Take a look around · 1.1.2
 
@@ -66,15 +65,15 @@ Moving from GChan? [Import your watches and saved files](docs/Help.md#moving-fro
 
 ## Downloads
 
-| Platform | Download 1.1.2 |
+| Platform | Download 1.1.3 |
 | --- | --- |
-| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/01-MeowChan-1.1.2-win-x64.zip) |
-| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/02-MeowChan-1.1.2-osx-arm64.dmg) |
-| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/03-MeowChan-1.1.2-osx-x64.dmg) |
-| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/04-MeowChan-1.1.2-linux-x64.AppImage) |
-| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/05-MeowChan-1.1.2-linux-arm64.AppImage) |
+| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.3/01-MeowChan-1.1.3-win-x64.zip) |
+| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.3/02-MeowChan-1.1.3-osx-arm64.dmg) |
+| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.3/03-MeowChan-1.1.3-osx-x64.dmg) |
+| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.3/04-MeowChan-1.1.3-linux-x64.AppImage) |
+| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.3/05-MeowChan-1.1.3-linux-arm64.AppImage) |
 
-[All 1.1.2 packages, including Linux archives](docs/releases/v1.1.2.md#downloads-2) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/SHA256SUMS) · [Package validation](docs/releases/v1.1.2.md#validation-status)
+[All 1.1.3 packages, including Linux archives](docs/releases/v1.1.3.md#downloads) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.3/SHA256SUMS) · [Package validation](docs/releases/v1.1.3.md#validation-status)
 
 ### Platform requirements and upgrades
 
