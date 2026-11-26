@@ -421,10 +421,8 @@ public static class CommandBindings
             // F17: a toggle tool shows a small x inside its own button while it is on (the bar it opened closes with it).
             if (closeWhenChecked)
             {
-                Avalonia.Controls.Shapes.Path close = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Close);
-                close.Width = 10;
-                close.Height = 10;
-                close.Stretch = Stretch.Uniform;
+                Avalonia.Controls.Shapes.Path close = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.CloseSmall);
+                close.Margin = new Thickness(4, 0, 0, 0);
                 close.VerticalAlignment = VerticalAlignment.Center;
                 close.Name = "ToolActiveClose";
                 // Follows the owner's IsChecked through the captured button (no ancestor lookup, which is not resolvable while the template

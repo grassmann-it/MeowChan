@@ -68,8 +68,8 @@ public sealed class ReaderToolbarAppearanceTests
                 AssertGap(ByAutomationId<Button>(page, "ArchiveOpenGallery"), find, ActionToolBarPanel.ItemGap);
                 AssertGap(find, tags, ActionToolBarPanel.GroupGap);
                 AssertGap(tags, ByAutomationId<Button>(page, "ExportArchiveButton"), ActionToolBarPanel.ItemGap);
-                AssertInlineToggle(find, ByAutomationId<StackPanel>(page, "ReaderFindBar"));
-                AssertInlineToggle(tags, ByAutomationId<StackPanel>(page, "ReaderTagBar"));
+                AssertInlineToggle(window, find, ByAutomationId<StackPanel>(page, "ReaderFindBar"));
+                AssertInlineToggle(window, tags, ByAutomationId<StackPanel>(page, "ReaderTagBar"));
             }
         }
         finally
@@ -248,22 +248,39 @@ public sealed class ReaderToolbarAppearanceTests
         state.Set(":pointerover", false);
     }
 
-    private static void AssertInlineToggle(ToggleButton action, StackPanel inlineBar)
+    private static void AssertInlineToggle(Window window, ToggleButton action, StackPanel inlineBar)
     {
         Assert.Contains("toolbar-toggle", action.Classes);
         Assert.False(action.IsChecked);
+        ContentPresenter presenter = Presenter(action);
+        Assert.False(ActiveClose().IsEffectivelyVisible);
         inlineBar.IsVisible = true;
         Assert.True(action.IsChecked);
+        Settle(window);
         // Popup UX audit, 25 November: “Dezenter Strich … Keine dauernde Akzentfüllung”.
-        ContentPresenter presenter = Presenter(action);
         Assert.Equal(Token("Workspace.Hover"), ColorOf(presenter.Background));
         Assert.Contains(presenter.GetVisualDescendants().OfType<TextBlock>(), HasUnderline);
+        TextBlock label = Assert.Single(presenter.GetVisualDescendants().OfType<TextBlock>(), HasUnderline);
+        var close = ActiveClose();
+        Assert.True(close.IsEffectivelyVisible);
+        Assert.Equal(new Size(10, 10), close.Bounds.Size);
+        Assert.Equal(new Size(7, 7), close.Data!.Bounds.Size);
+        Assert.Equal(Stretch.None, close.Stretch);
+        Assert.Equal(1.5, close.StrokeThickness);
+        Assert.Equal(ColorOf(label.Foreground), ColorOf(close.Stroke));
+        Point labelEnd = label.TranslatePoint(new Point(label.Bounds.Width, 0), presenter)!.Value;
+        Point closeStart = close.TranslatePoint(default, presenter)!.Value;
+        Assert.Equal(8, closeStart.X - labelEnd.X, precision: 1);
         Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(action));
         inlineBar.IsVisible = false;
         Assert.False(action.IsChecked);
+        Assert.False(ActiveClose().IsEffectivelyVisible);
         Assert.Equal(Colors.Transparent, ColorOf(presenter.BorderBrush));
         Assert.DoesNotContain(presenter.GetVisualDescendants().OfType<TextBlock>(), HasUnderline);
         Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(action));
+
+        Avalonia.Controls.Shapes.Path ActiveClose() => Assert.Single(presenter.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>(),
+            glyph => glyph.Name == "ToolActiveClose");
 
         static bool HasUnderline(TextBlock label) => label.TextDecorations?.Any(decoration => decoration.Location == TextDecorationLocation.Underline) == true;
     }
