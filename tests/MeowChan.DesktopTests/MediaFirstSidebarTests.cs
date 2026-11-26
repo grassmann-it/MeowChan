@@ -372,7 +372,10 @@ public sealed class MediaFirstSidebarTests
         bool marked = false;
         string? error = null;
         panel.ConfigureFavorite(() => true, () => marked, () => Task.CompletedTask, () => error);
-        Window window = new() { Width = 1000, Height = 720, Content = panel, RequestedThemeVariant = theme };
+        Window window = new()
+        {
+            Width = 1000, Height = 720, Content = panel, RequestedThemeVariant = theme, Classes = { MotionPolicy.OffClass }
+        };
         try
         {
             window.Show();
