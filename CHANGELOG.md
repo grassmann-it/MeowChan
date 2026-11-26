@@ -40,7 +40,7 @@
 - Clarify first-run deferral, new-board watch intervals, Booru tag limits and the
   **Stamp** action. Use installed languages for settings recovery and the system
   language, when available, for a failed Linux video startup check.
-- Choose from 100 general header taglines, plus seasonal and release lines.
+- Choose from 51 hand-picked general header taglines, plus seasonal and release lines.
   A removed fixed choice falls back to `cats`.
 - See the [1.1.3 release notes](docs/releases/v1.1.3.md) for upgrade details and downloads.
 
