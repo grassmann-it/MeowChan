@@ -99,6 +99,11 @@ public partial class ArchivePage
     // The reader jumps (FocusPostAsync) own the list's offset while they align their target (ReaderScrollOwner).
     private readonly ReaderScrollOwner _readerScrollOwner = new();
     private bool ReaderJumpOwnsScroll => _readerScrollOwner.JumpOwns(_readerInteractionRevision);
+    private (int Focus, int Interaction)? _keyboardAlignedPost;
+    private bool KeyboardPostAlignmentIsCurrent => _keyboardAlignedPost == (_readerFocusRequest, _readerInteractionRevision);
+    private bool KeyboardPostAtEdge => KeyboardPostAlignmentIsCurrent && KeyboardPostIsAtListEdge;
+    private bool KeyboardPostIsAtListEdge => ArchivePosts.SelectedIndex >= 0
+        && (ArchivePosts.SelectedIndex == 0 || ArchivePosts.SelectedIndex == ArchivePosts.ItemCount - 1);
     private IDisposable? _readerTabScope;
     private readonly HashSet<Key> _readerMediaHeldKeys = new();
     private CancellationTokenSource? _readerMediaActivationCancellation;
@@ -274,6 +279,7 @@ public partial class ArchivePage
         posts.SelectionChanged += (_, e) =>
         {
             if (!ReferenceEquals(e.Source, posts)) return;
+            _keyboardAlignedPost = null;
             ++_readerLayoutRevision;
             CancelReaderMediaActivation();
             if (posts.SelectedItem is ArchivePostRow selected) _readerPostId = selected.Id;
@@ -325,8 +331,11 @@ public partial class ArchivePage
         posts.AddHandler(PointerPressedEvent, (_, _) => ++_readerInteractionRevision, RoutingStrategies.Tunnel, handledEventsToo: true);
         posts.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (e.Key is Key.PageDown or Key.PageUp or Key.Home or Key.End or Key.Space) ++_readerInteractionRevision;
+            if (e.Key is Key.PageDown or Key.PageUp or Key.Home or Key.End or Key.Space
+                || (e.Key is Key.Up or Key.Down && e.Source is Visual source
+                    && source.GetSelfAndVisualAncestors().Any(node => node is ScrollBar))) ++_readerInteractionRevision;
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        posts.AddHandler(ScrollViewer.ScrollChangedEvent, OnReaderPostScrollChanged, RoutingStrategies.Bubble);
         // The theme's list template does not pass ScrollViewer.BringIntoViewOnFocusChange (set on the list in the XAML) on to its
         // scroll viewer: focusing a card must not scroll the list (FocusPostAsync aligns it), so it is set on the parts themselves.
         posts.TemplateApplied += (_, _) => KeepFocusFromScrolling(posts);
@@ -350,6 +359,19 @@ public partial class ArchivePage
         // The reader moves the list itself now: a jump or a pending re-fit stands back (they end at a revision change).
         ++_readerInteractionRevision;
         source.BringIntoView();
+    }
+
+    private double ReaderPostEdgeOffset(ScrollViewer scroll) => ArchivePosts.SelectedIndex == 0
+        ? 0 : Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height);
+
+    private void OnReaderPostScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        // Layout publishes the new scroll range after a card grows. Keep the keyboard endpoint until another
+        // selection, focus request or reader interaction takes over.
+        if (_ended || !ReaderShowsPosts || !KeyboardPostAtEdge || e.Source is not ScrollViewer scroll
+            || !ReferenceEquals(scroll, ArchivePosts.Scroll) || (e.ExtentDelta.Y == 0 && e.ViewportDelta.Y == 0)) return;
+        double offset = ReaderPostEdgeOffset(scroll);
+        if (scroll.Offset.Y != offset) scroll.Offset = new Vector(scroll.Offset.X, offset);
     }
 
     private static void KeepFocusFromScrolling(ListBox posts)
@@ -517,15 +539,15 @@ public partial class ArchivePage
     }
 
     // The callers outside the page are explicit jumps (gallery "Show in thread", media return): reveal, then focus.
-    internal async Task FocusPostAsync(string postId)
+    internal async Task FocusPostAsync(string postId, bool keyboardStep = false)
     {
         await RevealPostAsync(postId);
-        await FocusPostAsync(postId, null);
+        await FocusPostAsync(postId, null, keyboardStep: keyboardStep);
     }
     // passiveOpen: the first-post focus of a reader that was only opened. Opening is no reading: it never writes a reading position
     // (the saved place stays the one "Continue reading" offers); only the user's own jumps and input do.
     private async Task FocusPostAsync(string postId, int? interactionRevision, bool restoreFocus = true,
-        ReaderFocusIntent? focusIntent = null, bool passiveOpen = false, Func<bool>? stillRequested = null)
+        ReaderFocusIntent? focusIntent = null, bool passiveOpen = false, Func<bool>? stillRequested = null, bool keyboardStep = false)
     {
         // A live continuation can already be stale before its first dispatcher
         // yield. Validate before ShowPost changes the tab or selection.
@@ -572,6 +594,7 @@ public partial class ArchivePage
         // the grown target card with the presenter's scroll anchoring applied (the old card is held, the target jumps out of view),
         // and the alignment below would then bring it back: a bounce. Here that layout runs inside UpdateLayout, unrendered.
         ShowPost(postId, null, reveal: false, scroll: false);
+        bool alignEdge = keyboardStep && KeyboardPostIsAtListEdge;
         UpdateReaderNavigation();
         // ScrollIntoView realizes a virtualized target. Its measured height can
         // replace an estimate on the next layout; retry only while the request
@@ -597,6 +620,19 @@ public partial class ArchivePage
             // its centre while the enlarged focused media makes the jump centre the card. The window of that re-fit starts now: the
             // decoded pictures of a real thread arrive after the jump, not after the selection.
             RememberFocusedCardTop();
+            if (keyboardStep && container != null && IsCurrent())
+            {
+                _keyboardAlignedPost = (focusRequest, interactionBaseline);
+                if (alignEdge && posts.Scroll is ScrollViewer scroll)
+                {
+                    double offset = ReaderPostEdgeOffset(scroll);
+                    if (scroll.Offset.Y != offset)
+                    {
+                        scroll.Offset = new Vector(scroll.Offset.X, offset);
+                        posts.UpdateLayout();
+                    }
+                }
+            }
             _alignedCardItem = FocusedMediaEnlarged && container != null ? posts.SelectedItem : null;
             if (_alignedCardItem != null)
                 _readerScrollOwner.OpenFitWindow(Environment.TickCount64, _readerInteractionRevision, FocusFitWindowMilliseconds);
@@ -630,15 +666,17 @@ public partial class ArchivePage
             posts.UpdateLayout();
             if (posts.ContainerFromItem(row) is not Control container) continue;
             FocusTarget(container);
-            ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            ScrollContentPresenter? viewport = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
+            if (posts.Scroll is not ScrollViewer scroll) continue;
+            ScrollContentPresenter? viewport = scroll.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
             if (viewport == null || container.TranslatePoint(default, viewport) is not Point position) continue;
             // The post that carries the reading line scrolls to just below the line, which sits above its card. With the focused media
             // enlarged the card is centred in the viewport instead (ReaderMediaFit.JumpOffset), and it stays centred when its size
             // changes late (HoldFocusedCard).
-            double offset = ReaderMediaFit.JumpOffset(scroll!.Offset.Y, position.Y, container.Bounds.Height, scroll.Viewport.Height,
-                scroll.Extent.Height, row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0, FocusedMediaEnlarged, ReaderMedia.FocusedPostTopPaddingPercent);
-            if (Math.Abs(offset - scroll.Offset.Y) > 1)
+            double offset = alignEdge ? ReaderPostEdgeOffset(scroll) :
+                ReaderMediaFit.JumpOffset(scroll.Offset.Y, position.Y, container.Bounds.Height, scroll.Viewport.Height,
+                    scroll.Extent.Height, row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0, FocusedMediaEnlarged,
+                    ReaderMedia.FocusedPostTopPaddingPercent, keepCardVisible: keyboardStep);
+            if (Math.Abs(offset - scroll.Offset.Y) > (alignEdge ? 0 : 1))
             {
                 scroll.Offset = new Vector(scroll.Offset.X, offset);
                 // Laid out in this turn: the anchoring of the layout after the write also stays unrendered.
@@ -1055,7 +1093,7 @@ public partial class ArchivePage
         int thread = MatchesNavigation("reader.previous-thread") ? -1 : MatchesNavigation("reader.next-thread") ? 1 : 0;
         if (post == 0 && thread == 0) return;
         e.Handled = true;
-        await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
+        await (ReaderNavigationTask = NavigateReaderAsync(post, thread, keyboardStep: true));
     }
 
     /// <summary>
@@ -1070,7 +1108,7 @@ public partial class ArchivePage
         int thread = ShortcutService.Current.Matches(e, "reader.previous-thread") ? -1 : ShortcutService.Current.Matches(e, "reader.next-thread") ? 1 : 0;
         if (post == 0 && thread == 0) return false;
         e.Handled = true;
-        ReaderNavigationTask = NavigateReaderAsync(post, thread);
+        ReaderNavigationTask = NavigateReaderAsync(post, thread, keyboardStep: true);
         return true;
     }
 
@@ -1356,13 +1394,13 @@ public partial class ArchivePage
         return false;
     }
 
-    internal async Task NavigateReaderAsync(int postDelta, int threadDelta)
+    internal async Task NavigateReaderAsync(int postDelta, int threadDelta, bool keyboardStep = false)
     {
         if (!_largeReader || _busy || _ended || IsReaderDialogOpen) return;
         ShowReaderNavigation();
-        ++_readerInteractionRevision;
         if (threadDelta != 0)
         {
+            ++_readerInteractionRevision;
             // URSA-12 shared navigation hook; only explicitly skipped missing members are omitted.
             int index = _readerGroupScope ? ReaderGroupTargetIndex(threadDelta) : ReaderThreadIndex + threadDelta;
             if (ReaderThreadIndex < 0 || index < 0 || index >= _readerThreads.Count) return;
@@ -1386,9 +1424,10 @@ public partial class ArchivePage
             // Up/Down follow the shown order: hidden posts are skipped, a conversation goes through its tree.
             int index = ReaderPostIndex + postDelta;
             if (ReaderPostIndex < 0 || index < 0 || index >= shown.Count) return;
+            ++_readerInteractionRevision;
             // With the Media tab shown the move happens behind it: no tab switch, no focus change.
             if (ReaderPostsInBackground) await MoveReaderPostInBackgroundAsync(shown[index].Post.PostId);
-            else await FocusPostAsync(shown[index].Post.PostId);
+            else await FocusPostAsync(shown[index].Post.PostId, keyboardStep);
         }
         UpdateReaderNavigation();
     }
@@ -1400,7 +1439,7 @@ public partial class ArchivePage
         Grid pane = ArchiveReaderPane;
         bool Presented() => pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
             && TopLevel.GetTopLevel(pane) is Window { IsVisible: true };
-        if (!MayRefreshReaderNow || !Presented() || _thread == null) return null;
+        if (!MayRefreshReaderNow || !Presented() || _thread == null || KeyboardPostAtEdge) return null;
         ListBox posts = ArchivePosts;
         if (posts.SelectedItem is not ArchivePostRow row || posts.ContainerFromItem(row) is not Control container)
             return null;

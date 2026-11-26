@@ -102,16 +102,20 @@ internal static class ReaderMediaFit
     /// (below <paramref name="leading"/>, the reading line some cards carry above them). With it (the focused media is enlarged) the card,
     /// leading part included, is centred vertically in the viewport. A card that is taller than the viewport falls back
     /// to a top inset of <paramref name="topPaddingPercent"/> percent of the viewport, so its header stays visible. The result is limited
-    /// to the scroll range, so cards near the start and the end of the list sit as close to the target position as the extent allows.
+    /// to the scroll range. With <paramref name="keepCardVisible"/>, the inset gives way to an entire card that fits,
+    /// or to a visible header for a card taller than the viewport.
     /// </summary>
     internal static double JumpOffset(double offset, double cardTop, double cardHeight, double viewportHeight, double extentHeight,
-        double leading, bool centre, int topPaddingPercent = ReaderDisplayPreferences.FocusedPostTopPaddingPercentDefault)
+        double leading, bool centre, int topPaddingPercent = ReaderDisplayPreferences.FocusedPostTopPaddingPercentDefault,
+        bool keepCardVisible = false)
     {
         double desiredTop = AlignedTop + leading;
         if (centre && FitsCentred(cardHeight, viewportHeight, leading))
             desiredTop = (viewportHeight - (cardHeight + leading)) / 2 + leading;
         else if (centre && cardHeight > 0 && double.IsFinite(cardHeight) && viewportHeight > 0 && cardHeight + leading > viewportHeight)
             desiredTop = viewportHeight * topPaddingPercent / 100 + leading;
+        if (keepCardVisible && double.IsFinite(cardHeight) && double.IsFinite(viewportHeight) && viewportHeight > 0)
+            desiredTop = Math.Min(desiredTop, cardHeight <= viewportHeight ? viewportHeight - cardHeight : viewportHeight * topPaddingPercent / 100);
         double range = double.IsFinite(extentHeight) && double.IsFinite(viewportHeight) ? Math.Max(0, extentHeight - viewportHeight) : double.PositiveInfinity;
         return Math.Clamp(offset + cardTop - desiredTop, 0, range);
     }

@@ -326,6 +326,18 @@ public sealed class ReaderMediaFitTests : IDisposable
         Assert.Equal(5000 + 123 - 64 - 30, ReaderMediaFit.JumpOffset(5000, 123, 780, 800, 20000, 30, centre: true), 1e-6);
     }
 
+    [Theory]
+    [InlineData(798, 0, false, 2)]
+    [InlineData(780, 30, true, 20)]
+    [InlineData(1200, 30, true, 64)]
+    public void KeyboardStepsKeepAFittingCardWholeAndTheHeaderOfATallerCardVisible(double height, double leading,
+        bool centre, double expectedTop)
+    {
+        double offset = ReaderMediaFit.JumpOffset(5000, 123, height, 800, 20000, leading, centre,
+            topPaddingPercent: 8, keepCardVisible: true);
+        Assert.Equal(expectedTop, 5000 + 123 - offset, 1e-6);
+    }
+
     [Fact]
     public void ACardNearTheStartOrTheEndOfTheListIsAsCentredAsTheExtentAllows()
     {
