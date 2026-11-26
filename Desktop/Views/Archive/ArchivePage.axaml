@@ -705,7 +705,7 @@
                                 </Grid>
                             </TabItem>
                             <TabItem x:Name="ArchiveMediaTab" AutomationProperties.AutomationId="ArchiveMediaTab" wv:WorkViewElement.Id="reader.tabs.media" Header="Media">
-                                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}" Margin="8,4">
+                                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}" Margin="{StaticResource Workspace.Inset.MediaTab}">
                                     <!-- WV3: one bar instead of a wrapping row; what the view does not show directly sits under More.
                                          An active favourites/rating filter or all versions stays on the bar (R6). -->
                                     <desktop:ActionToolBar x:Name="ReaderMediaTools" AutomationProperties.AutomationId="ReaderMediaTools" PrioritizedOverflow="True">
@@ -757,7 +757,7 @@
                                         </ListBox>
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,32,8,8" />
                                     </Grid>
-                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}">
+                                    <StackPanel x:Name="ArchiveMediaFooter" AutomationProperties.AutomationId="ArchiveMediaFooter" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}">
                                         <TextBlock x:Name="ArchiveRatingStatus" wv:WorkViewElement.Id="reader.media.rating-error" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
                                         <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">

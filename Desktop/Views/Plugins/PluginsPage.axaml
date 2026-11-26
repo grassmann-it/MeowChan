@@ -154,7 +154,7 @@
               </Expander>
             </StackPanel>
           </ScrollViewer>
-          <Border x:Name="PluginDraftFooter" AutomationProperties.AutomationId="PluginDraftFooter" Grid.Row="1" wv:WorkViewElement.Id="plugins.detail.draft-footer" Classes="workspace-card-footer" Padding="0,4,0,0">
+          <Border x:Name="PluginDraftFooter" AutomationProperties.AutomationId="PluginDraftFooter" Grid.Row="1" wv:WorkViewElement.Id="plugins.detail.draft-footer" Classes="workspace-card-footer">
             <StackPanel Spacing="{StaticResource Workspace.Space.4}">
               <TextBlock x:Name="PluginDraftStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
               <SelectableTextBlock x:Name="PluginDraftReasons" AutomationProperties.AutomationId="PluginDraftReasons" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Focusable="True" Classes="workspace-help" />

@@ -8,6 +8,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -49,7 +50,12 @@ internal static class ReadingHistoryWindow
     /// <summary>The list of the window (a seam for tests: no window needed). <paramref name="choose"/> receives the place of the row that was clicked or entered.</summary>
     internal static ListBox BuildList(IReadOnlyList<LocalReadingHistoryEntry> entries, DateTimeOffset now, Action<LocalReadingPosition> choose)
     {
-        ListBox list = new() { Name = ListName, ItemsSource = entries, SelectionMode = SelectionMode.Single };
+        ListBox list = new()
+        {
+            Name = ListName, ItemsSource = entries, SelectionMode = SelectionMode.Single,
+            [!Layoutable.MarginProperty] = new DynamicResourceExtension("Workspace.Inset.DialogBody")
+        };
+        AutomationProperties.SetAutomationId(list, ListName);
         AutomationProperties.SetName(list, Texts.T("resume.history.menu"));
         list.ItemTemplate = new FuncDataTemplate<LocalReadingHistoryEntry>((entry, _) =>
         {

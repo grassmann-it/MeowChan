@@ -1,9 +1,12 @@
 using System.Runtime.CompilerServices;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Layout;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -198,6 +201,57 @@ public sealed class DialogWindowTests
         Assert.DoesNotContain(bare.Children, child => child.Name == DialogFrame.FooterName);
         Assert.Single(bare.Children, child => child.Name == DialogFrame.BodyName);
     }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void DialogBodyStartsAtTheFrameInset(bool withHeader, bool dark) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Border content = new() { Height = 24 };
+        AutomationProperties.SetAutomationId(content, "DialogBodyContent");
+        Border body = new() { Child = content, VerticalAlignment = VerticalAlignment.Top, Classes = { "workspace-dialog-body" } };
+        Grid frame = DialogFrame.Build(withHeader ? new Border { Height = 24 } : null, body, footer: null);
+        Window window = new() { Width = 420, Height = 360, Content = frame, RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+
+            // Padding audit §2, rank 6: the frame owns the 16 dip top inset and the 8 dip gap after a heading.
+            Border laidOut = SidePanelDesignTests.ById<Border>(window, "DialogBodyContent");
+            Assert.Equal(new Point(16, withHeader ? 16 + 24 + 8 : 16), laidOut.TranslatePoint(default, window)!.Value);
+            Assert.Equal(16, window.ClientSize.Width - 16 - laidOut.Bounds.Width);
+            Assert.Equal(16, body.Bounds.Height - laidOut.Bounds.Height);
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReadingHistoryListKeepsClearOfTheWindowEdges(bool dark) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ListBox list = ReadingHistoryWindow.BuildList([], DateTimeOffset.UnixEpoch, _ => { });
+        Grid frame = DialogFrame.Build(new Border { Height = 24 }, list, footer: null, fillBody: true);
+        Window window = new() { Width = 420, Height = 360, Content = frame, RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+
+            // Padding audit §2, rank 5: the list shares the heading's 16 dip side inset and keeps 16 dip below it.
+            ListBox laidOut = SidePanelDesignTests.ById<ListBox>(window, "ReadingHistoryList");
+            Point topLeft = laidOut.TranslatePoint(default, window)!.Value;
+            Assert.Equal(new Point(16, 16 + 24 + 8), topLeft);
+            Assert.Equal(16, window.ClientSize.Width - topLeft.X - laidOut.Bounds.Width);
+            Assert.Equal(16, window.ClientSize.Height - topLeft.Y - laidOut.Bounds.Height);
+        }
+        finally { window.Close(); }
+    });
 
     // The remaining reference dialogs of MD1: no title repeated in the body, Escape through the policy, the footer through the factory.
     [Theory]

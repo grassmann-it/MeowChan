@@ -234,13 +234,12 @@ internal sealed record MediaPageLayout
 
 /// <summary>
 /// What a tile looks like at a size and with a caption: the measures in dip of its cell and its preview and which caption parts it shows.
-/// The measures are layout measures of the tile (medium is today's tile), not limits of the user's data. The cell is only as high as its
-/// rows: a tile without a name or source line is shorter by that line.
+/// Media and Tagging share the picture dimensions. Each surface budgets space for its own caption rows.
 /// </summary>
 internal readonly record struct MediaTileAppearance(double CellWidth, double CellHeight, double PreviewHeight, MediaTileCaption Caption)
 {
     /// <summary>The longest side of the picture: the cell minus the tile's own 8 dip margins.</summary>
-    internal double PictureWidth => CellWidth - 16;
+    internal double PictureWidth => CellWidth - 2 * WorkspaceMetrics.Space8;
     internal bool Shows(MediaTileCaption part) => (Caption & part) == part;
 }
 
@@ -250,25 +249,37 @@ internal static class MediaTileMetrics
     internal const double SmallCellWidth = 150, MediumCellWidth = 190, LargeCellWidth = 250;
     internal const double SmallPreviewHeight = 90, MediumPreviewHeight = 120, LargePreviewHeight = 170;
     /// <summary>What the rows under the picture take besides the name and source lines: margins, the size line, the tag row and the row gaps.</summary>
-    internal const double BaseBelowPreview = 106;
+    internal const double BaseBelowPreview = 94 + 2 * WorkspaceMetrics.Space8;
     /// <summary>The height of the name line and of the source line with the 2 dip row gap in front of it (what a tile without them gives back).</summary>
     internal const double NameLine = 20, SourceLine = 18;
 
-    /// <summary>The medium tile with every part: today's tile, 190 by 226 dip.</summary>
+    /// <summary>The medium media tile with every caption part.</summary>
     internal static MediaTileAppearance Standard { get; } = For(MediaTileSize.Medium, MediaTileCaption.All);
+    internal static MediaTileAppearance StandardTagging { get; } = ForTagging(MediaTileSize.Medium);
+    internal const double TaggingCaptionLineHeight = WorkspaceMetrics.Space16;
 
     internal static MediaTileAppearance For(MediaTileSize size, MediaTileCaption caption)
     {
-        (double width, double preview) = size switch
-        {
-            MediaTileSize.Small => (SmallCellWidth, SmallPreviewHeight),
-            MediaTileSize.Large => (LargeCellWidth, LargePreviewHeight),
-            _ => (MediumCellWidth, MediumPreviewHeight)
-        };
+        (double width, double preview) = DimensionsFor(size);
         double height = preview + BaseBelowPreview
             - (caption.HasFlag(MediaTileCaption.Name) ? 0 : NameLine) - (caption.HasFlag(MediaTileCaption.Source) ? 0 : SourceLine);
         return new MediaTileAppearance(width, height, preview, caption & MediaTileCaption.All);
     }
+
+    internal static MediaTileAppearance ForTagging(MediaTileSize size)
+    {
+        (double width, double preview) = DimensionsFor(size);
+        // The file name and group each follow a 4 DIP gap. The content has 8 DIP on all sides.
+        double height = preview + 2 * (WorkspaceMetrics.Space8 + WorkspaceMetrics.Space4 + TaggingCaptionLineHeight);
+        return new MediaTileAppearance(width, height, preview, MediaTileCaption.All);
+    }
+
+    private static (double Width, double Preview) DimensionsFor(MediaTileSize size) => size switch
+    {
+        MediaTileSize.Small => (SmallCellWidth, SmallPreviewHeight),
+        MediaTileSize.Large => (LargeCellWidth, LargePreviewHeight),
+        _ => (MediumCellWidth, MediumPreviewHeight)
+    };
 }
 
 /// <summary>What the page knows besides the layout that decides which blocks show: the focus mode and whether the status line has something to say that must not be lost.</summary>

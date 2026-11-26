@@ -75,11 +75,6 @@ public partial class MainWindow
             CopyPath = CopyTaggingEntryPathAsync,
             SaveViewMode = mode => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPageView = mode.ToString()),
             SavePreviewColumn = visible => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPreviewColumn = visible),
-            ReadMediaTileAppearance = () =>
-            {
-                MediaPageLayout layout = CurrentMediaLayout();
-                return MediaTileMetrics.For(layout.TileSize, layout.Caption);
-            },
             ReadMediaTileSize = () => CurrentMediaLayout().TileSize,
             ChooseMediaTileSize = ChooseSharedTileSize,
             ReadPanelLayout = CurrentMediaLayout,

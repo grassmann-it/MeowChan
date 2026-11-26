@@ -29,11 +29,9 @@ public sealed partial class TaggingPage
     private TaggingViewMode _viewMode = TaggingViewMode.List;
     private ContextMenuHost? _gridMenuHost;
     private bool _syncingView, _rendering;
-    private MediaTileAppearance _tileAppearance = MediaTileMetrics.Standard;
+    private MediaTileAppearance _tileAppearance = MediaTileMetrics.StandardTagging;
     private MediaTileSize _currentTileSize = MediaTileSize.Medium;
 
-    /// <summary>Reads the media page's active tile metrics; the default keeps the page usable in tests and before the shell wires it.</summary>
-    internal Func<MediaTileAppearance>? ReadMediaTileAppearance { get; set; }
     internal MediaTileAppearance TileAppearance => _tileAppearance;
 
     /// <summary>The tile size both pages share (the media page's setting); the default keeps the page usable in tests and before the shell wires it.</summary>
@@ -103,8 +101,7 @@ public sealed partial class TaggingPage
 
     private void ApplyTileAppearance(bool force = false)
     {
-        MediaTileAppearance next = ReadMediaTileAppearance?.Invoke() ?? MediaTileMetrics.Standard;
-        if (next.CellWidth < 1 || next.CellHeight < 1 || next.PreviewHeight < 1) next = MediaTileMetrics.Standard;
+        MediaTileAppearance next = MediaTileMetrics.ForTagging(ReadMediaTileSize?.Invoke() ?? _currentTileSize);
         if (!force && next == _tileAppearance) return;
         // The row at the top of the view stays at the top of the view while the cells grow or shrink (the panel and the tiles are made again).
         (int Index, double Offset)? anchor = force ? null : _grid.GetVisualDescendants().OfType<MediaTilePanel>().FirstOrDefault()?.CaptureAnchor();

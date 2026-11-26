@@ -207,6 +207,7 @@ internal static class CommandLabelCatalog
         ("command.media.details", "Show media details", "Mediendetails anzeigen"),
         ("command.media.next-untagged", "Next untagged medium", "Nächstes Medium ohne Tags"),
         ("command.media.copy-path", "Copy file path", "Dateipfad kopieren"),
+        ("command.media.copy-booru-tags", "Copy tags as Booru text", "Tags als Booru-Text kopieren"),
         ("command.media.open-external", "Open with default program", "Mit Standardprogramm öffnen"),
         ("command.media.copy-file-name", "Copy file names", "Dateinamen kopieren"),
         ("command.post.copy-link", "Copy post link", "Post-Link kopieren"),

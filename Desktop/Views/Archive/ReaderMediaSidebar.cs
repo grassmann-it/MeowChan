@@ -291,7 +291,11 @@ internal sealed partial class ReaderMediaSidebar : Border
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Classes = { "workspace-meta" }, Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly GalleryDecisionRow _decision = new("ReaderMediaSidebarDecision", compact: true, favorite: false, sidebar: true);
-    private readonly TextBlock _decisionError = new() { Margin = new Thickness(0, 4, 0, 0), Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _decisionError = new()
+    {
+        Name = "ReaderMediaSidebarDecisionError", Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false,
+        [!MarginProperty] = new DynamicResourceExtension("Workspace.Inset.MediaDecisionError")
+    };
     private readonly Button _editTags = new() { Name = "ReaderMediaSidebarEditTags" };
     private Func<bool>? _favoriteAvailable;
     private Func<bool>? _isFavorite;
@@ -456,12 +460,13 @@ internal sealed partial class ReaderMediaSidebar : Border
     internal event EventHandler<int>? StripActivated;
     internal Func<StripTarget, bool>? StripTargetIsCurrent { get; set; }
 
-    // The rows under the medium: the video row shows while one of its parts does; each shown row keeps 8 dip from the medium and the edge.
+    // The video row shows while one of its parts does. The strip's top margin supplies the 8 dip gap when both rows are visible.
     private void UpdateCardRows()
     {
         _videoRow.IsVisible = _videoRow.Children.Any(child => child.IsVisible);
-        _stripRow.Margin = new Thickness(8);
-        _videoRow.Margin = new Thickness(8, 0);
+        const double inset = WorkspaceMetrics.MediaFirstInset;
+        _stripRow.Margin = new Thickness(inset);
+        _videoRow.Margin = new Thickness(inset, inset, inset, _stripRow.IsVisible ? 0 : inset);
         UpdateInfoLayout();
     }
 
@@ -551,7 +556,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, SettingsButton, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _header.ReserveCloseSpace(Close);
         foreach (Control control in new Control[] { _header, _heading, _header.Meta, _headerFavorite, InfoToggle, Open, SettingsButton,
-            Close, _details, _decision, _facts, _infoBar, _card, _videoRow, _play, _badges })
+            Close, _details, _decision, _decisionError, _facts, _infoBar, _card, _videoRow, _stripRow, _play, _badges })
             AutomationProperties.SetAutomationId(control, control.Name);
         AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
         AutomationProperties.SetAutomationId(_image, "ReaderMediaSidebarPicture");

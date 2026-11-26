@@ -224,10 +224,11 @@ public sealed class MediaPageLayoutTests : IDisposable
     // ---- The tile measures ----
 
     [Fact]
-    public void TheMediumTileWithEveryPartIsTodaysTile()
+    public void TheMediumTileWithEveryPartBudgetsBothInsets()
     {
         MediaTileAppearance standard = MediaTileMetrics.Standard;
-        Assert.Equal((190d, 226d, 120d), (standard.CellWidth, standard.CellHeight, standard.PreviewHeight));
+        // Padding audit (Opus, item 3): 8 DIP on every side adds 4 DIP to the cell's previous height.
+        Assert.Equal((190d, 230d, 120d), (standard.CellWidth, standard.CellHeight, standard.PreviewHeight));
         Assert.Equal(MediaLibraryTileView.TileHeight, standard.CellHeight);
         Assert.Equal(MediaTilePanel.CellWidth, standard.CellWidth);
         Assert.Equal(174d, standard.PictureWidth);

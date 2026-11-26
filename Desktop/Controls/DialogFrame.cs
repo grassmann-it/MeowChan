@@ -46,7 +46,7 @@ internal static class DialogFrame
         };
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto") };
         if (header != null) layout.Children.Add(new Border { Name = HeaderName, Child = header, Padding = new Thickness(16, 16, 16, 8) });
-        else layout.Margin = new Thickness(0, 16, 0, 0);
+        else layout.Margin = new Thickness(0, WorkspaceMetrics.SectionInset, 0, 0);
         if (errorStrip != null)
         {
             Border errorHost = new() { Name = ErrorStripName, Child = errorStrip, Padding = new Thickness(16, 0, 16, 8) };
