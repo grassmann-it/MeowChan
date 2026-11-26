@@ -267,7 +267,7 @@ public sealed partial class TaggingPage
         AutomationProperties.SetAutomationId(_clearQuestion, "tagging.clear-question");
         AutomationProperties.SetAutomationId(_clearNo, "tagging.clear-cancel");
         AutomationProperties.SetAutomationId(_clearYes, "tagging.clear-confirm-action");
-        StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _clearNo, _clearYes } };
+        WrapPanel buttons = new() { ItemSpacing = WorkspaceMetrics.Space8, LineSpacing = WorkspaceMetrics.Space4, Children = { _clearNo, _clearYes } };
         _clearConfirm.Child = new StackPanel { Spacing = 8, Children = { _clearQuestion, buttons } };
         return _clearConfirm;
     }
@@ -606,7 +606,12 @@ public sealed partial class TaggingPage
         _clearResetsDamagedQueue = _queueWork.LoadError != null;
         RefreshClearQuestionText();
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: true);
-        _clearNo.Focus();
+        if (!_clearNo.Focus())
+        {
+            // The host may still be laying out the newly opened page.
+            UpdateLayout();
+            _clearNo.Focus();
+        }
     }
 
     private void RefreshClearQuestionText()

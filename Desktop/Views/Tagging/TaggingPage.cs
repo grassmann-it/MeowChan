@@ -345,7 +345,10 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         if (_queueWork.Ended) return;
         if (first) ShowStatus(null);
         Show();
-        Dispatcher.UIThread.Post(FocusOnOpen, DispatcherPriority.Input);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_clearConfirm.IsEffectivelyVisible) FocusOnOpen();
+        }, DispatcherPriority.Input);
     }
 
     /// <summary>Retries the queue read without presenting a failed read as an empty queue.</summary>
