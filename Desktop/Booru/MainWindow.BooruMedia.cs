@@ -46,6 +46,8 @@ public partial class MainWindow
         view.SaveResultView = mode => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruPageView = mode.ToString()), "booru.saveResultView");
         view.SaveMediaSidebar = open => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruMediaSidebar = open), "booru.saveMediaSidebar");
         view.MediaSidebarSettings = CreateQuickSettingsHost();
+        view.ReadMediaSidebarWidth = () => CurrentMediaLayout().PanelWidth;
+        view.SaveMediaSidebarWidth = ChooseSharedPanelWidth;
         view.SaveTileSize = size => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruTileSize = size.ToString()), "booru.saveTileSize");
         view.RestoreViewerBounds = () => _session.Config.ReadBooruViewerBounds();
         view.SaveViewerBounds = bounds =>
