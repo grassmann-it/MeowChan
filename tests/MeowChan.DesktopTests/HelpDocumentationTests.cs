@@ -1807,6 +1807,11 @@ public sealed class HelpDocumentationTests
             ? @"tags and (?<value>\w+) optional rating:"
             : @"und optional (?<value>\w+) rating:-Term",
             DanbooruTagQuery.MaximumTerms - DanbooruTagQuery.MaximumTagTerms);
+        Match range = Capture(text, file == Help
+            ? @"Booru search page limit in Settings accepts (?<min>\d+) to (?<max>\d+)\."
+            : @"Booru-Suchen lässt sich zwischen (?<min>\d+) und (?<max>\d+) einstellen\.");
+        Assert.Equal(Config.BooruSearchPagesMinimum, Number(range.Groups["min"].Value));
+        Assert.Equal(BooruHostHttp.MaximumSearchPage, Number(range.Groups["max"].Value));
         Match[] pages = Regex.Matches(text, pagesPattern).Cast<Match>().ToArray();
         Assert.Equal(2, pages.Length); // Search and watcher each document their budget.
         foreach (Match page in pages)
@@ -1815,7 +1820,6 @@ public sealed class HelpDocumentationTests
             int size = Number(page.Groups["size"].Value);
             Assert.Equal(Config.BooruSearchPagesDefault, count);
             Assert.Equal(DanbooruWatcher.DefaultPageBudget, count);
-            Assert.Contains(BooruHostHttp.MaximumSearchPage.ToString(CultureInfo.InvariantCulture), text, StringComparison.Ordinal);
             Assert.Equal(DanbooruTagQuery.MaximumSearchPageSize, size);
             Assert.Equal(DanbooruWatcher.DefaultPageSize, size);
             Assert.Equal(BooruHostHttp.MaximumSearchLimit, size);

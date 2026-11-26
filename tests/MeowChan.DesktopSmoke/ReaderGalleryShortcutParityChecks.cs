@@ -63,7 +63,7 @@ internal static class ReaderGalleryShortcutParityChecks
         }
         Control Post() => (Control)page.FindControl<ListBox>("ArchivePosts")!.ContainerFromItem(
             page.FindControl<ListBox>("ArchivePosts")!.SelectedItem!)!;
-        Control Thumbnail(int index) => page.MediaSidebar!.Strip.Items.OfType<ListBoxItem>().Single(item => Equals(item.Tag, index));
+        Control Thumbnail(int index) => ReaderSidebarShortcutChecks.FindThumbnail(page.MediaSidebar!, index);
         try
         {
             foreach (bool large in new[] { true, false })

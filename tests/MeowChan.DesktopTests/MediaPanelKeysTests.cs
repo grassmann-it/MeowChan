@@ -103,8 +103,8 @@ public sealed class MediaPanelKeysTests : IDisposable
     {
         CommandDefinition toggle = CommandCatalog.Get(MediaPanelKeys.ToggleCommandId);
         Assert.Equal(CommandScope.Media, toggle.Scope);
-        // W112-73 spec §1: "media.panel.toggle … bekommt den Tastenkontext tagging; die Shell leitet ihn an die sichtbare Seite".
-        Assert.Equal(new[] { "media", "tagging" }, toggle.ExecutionContexts);
+        // W112-73 §1 adds Tagging, and Fable's 1.1.2 UX review §6 adds Booru to the same command.
+        Assert.Equal(new[] { "media", "tagging", "booru" }, toggle.ExecutionContexts);
         Assert.True(toggle.IsImplemented);
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
         Assert.Equal(bindings.Display("reader.sidebar.toggle"), bindings.Display(MediaPanelKeys.ToggleCommandId));
@@ -115,8 +115,7 @@ public sealed class MediaPanelKeysTests : IDisposable
         // A binding saved before the switch existed keeps its key: the new default yields.
         var section = new ShortcutBindingsSection().Set("media.focus-mode", [ShortcutGesture.Parse("Primary+Shift+M")]);
         EffectiveShortcutBindings saved = EffectiveShortcutBindings.Build(section, platform);
-        // W112-73 spec §1 gives the switch the tagging context as well: it yields on the Media page, where the saved binding runs,
-        // and keeps the key on the tagging page ("Primary+Shift+M | Panel ein/aus", spec §2).
+        // The saved binding takes precedence on Media. Tagging and Booru keep the default gesture.
         Assert.Equal(new[] { "media" }, saved.YieldedContexts(MediaPanelKeys.ToggleCommandId, ShortcutGesture.Parse("Primary+Shift+M")));
         var key = new Avalonia.Input.KeyEventArgs
         {
@@ -125,6 +124,7 @@ public sealed class MediaPanelKeysTests : IDisposable
         };
         Assert.False(saved.Matches(key, MediaPanelKeys.ToggleCommandId, "media"));
         Assert.True(saved.Matches(key, MediaPanelKeys.ToggleCommandId, "tagging"));
+        Assert.True(saved.Matches(key, MediaPanelKeys.ToggleCommandId, "booru"));
         Assert.True(Has(saved, "media.focus-mode", ShortcutGesture.Parse("Primary+Shift+M")));
         Assert.DoesNotContain(saved.Issues, issue => issue.BlocksSave);
     }

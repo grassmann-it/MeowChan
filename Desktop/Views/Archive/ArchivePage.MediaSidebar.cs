@@ -17,6 +17,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Favorites;
@@ -201,6 +202,7 @@ public partial class ArchivePage
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
+        sidebar.SidebarVideoSettings = QuickSettingsHost;
         sidebar.SaveSidebarSetting = update =>
         {
             var next = sidebar.CopyBarSettingsTo(ReaderMedia);
@@ -1105,7 +1107,7 @@ public partial class ArchivePage
         }, picture =>
         {
             _sidebarShownDetail = picture.Source is { } source
-                ? $"{source.Width}×{source.Height}" : string.Empty;
+                ? MediaFactGrid.FormatDimensions(source.Width, source.Height) : string.Empty;
             sidebar.SetDetail(_sidebarShownDetail);
         }, () => PreloadMediaSidebarNeighboursAsync(post, target, token));
     }

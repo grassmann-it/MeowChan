@@ -22,6 +22,7 @@ using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using Semi.Avalonia.DataGrid;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
+using Pointer = Avalonia.Input.Pointer;
 using static MeowChan.DesktopTests.DownloadWindowFixture;
 
 namespace MeowChan.DesktopTests;
@@ -102,6 +103,35 @@ public sealed class DownloadsSelectionMenuTests
         fixture.Layout();
         Assert.Equal("Jetzt prüfen (1 von 2)", check.Header);
         menu.Close();
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public void RightClickOnBlankGridSpaceClosesTheMenuAndPreservesTheSelection() => RunWithGrid(fixture =>
+    {
+        fixture.ShowThreads([Thread(1), Thread(2)]);
+        fixture.Select(1, 2);
+        MainWindow window = fixture.Window;
+        DataGrid grid = FindByAutomationId<DataGrid>(window, "ThreadsDataGrid");
+        Point blank = grid.TranslatePoint(new Point(grid.Bounds.Width - 24, grid.Bounds.Height / 2), window)!.Value;
+        InputElement hit = Assert.IsAssignableFrom<InputElement>(window.InputHitTest(blank));
+        Assert.Contains(grid, hit.GetSelfAndVisualAncestors());
+        Assert.DoesNotContain(hit.GetSelfAndVisualAncestors(), visual => visual is DataGridRow);
+
+        ContextMenu menu = OpenMenu(fixture, keyboard: true);
+        MenuItem copy = Assert.Single(menu.Items.OfType<MenuItem>(),
+            item => AutomationProperties.GetAutomationId(item) == "selection.copy-links");
+        Assert.True(copy.Command?.CanExecute(copy.CommandParameter));
+
+        // Route the press from the verified grid target. The headless popup's
+        // light-dismiss layer otherwise receives the press before the grid.
+        using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+        PointerPointProperties properties = new(RawInputModifiers.RightMouseButton, PointerUpdateKind.RightButtonPressed);
+        hit.RaiseEvent(new PointerPressedEventArgs(hit, pointer, window, blank, 0, properties, KeyModifiers.None));
+        fixture.Layout();
+
+        Assert.False(menu.IsOpen);
+        Assert.Equal(new long[] { 1, 2 }, window.SelectedThreadsForTests().Select(row => row.WatchId).Order());
         return Task.CompletedTask;
     });
 

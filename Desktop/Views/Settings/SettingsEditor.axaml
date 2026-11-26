@@ -520,7 +520,7 @@
                                         <TextBlock x:Name="MediaSidebarInfoFieldLabel" Text="{Binding MediaSidebarInfoLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding MediaSidebarInfoHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <ComboBox x:Name="MediaSidebarInfoInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding MediaSidebarInfoChoices}" SelectedItem="{Binding SelectedMediaSidebarInfo, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoHint}">
+                                    <ComboBox x:Name="MediaSidebarInfoInput" AutomationProperties.AutomationId="MediaSidebarInfoInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding MediaSidebarInfoChoices}" SelectedItem="{Binding SelectedMediaSidebarInfo, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoHint}">
                                     <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                                 </ComboBox>
                                 </Grid>
@@ -665,7 +665,7 @@
                                         <TextBlock Text="{Binding SidebarPreviewMaximumPixelsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <desktop:SettingsNumberInput x:Name="SidebarPreviewMaximumPixelsInput" Value="{Binding SidebarPreviewMaximumPixels, Mode=TwoWay}" Minimum="{Binding SidebarPreviewMaximumPixelsMinimum}" Maximum="{Binding SidebarPreviewMaximumPixelsMaximum}" Increment="1000000" AutomationProperties.LabeledBy="{Binding ElementName=SidebarPreviewMaximumPixelsFieldLabel}" AutomationProperties.Name="{Binding SidebarPreviewMaximumPixelsLabel}" AutomationProperties.HelpText="{Binding SidebarPreviewMaximumPixelsHelp}" />
+                                        <desktop:SettingsNumberInput x:Name="SidebarPreviewMaximumPixelsInput" AutomationProperties.AutomationId="SidebarPreviewMaximumPixelsInput" Value="{Binding SidebarPreviewMaximumMegapixels, Mode=TwoWay}" Minimum="{Binding SidebarPreviewMaximumMegapixelsMinimum}" Maximum="{Binding SidebarPreviewMaximumMegapixelsMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SidebarPreviewMaximumPixelsFieldLabel}" AutomationProperties.Name="{Binding SidebarPreviewMaximumPixelsLabel}" AutomationProperties.HelpText="{Binding SidebarPreviewMaximumPixelsHelp}" />
                                         <TextBlock x:Name="SidebarPreviewMaximumPixelsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>

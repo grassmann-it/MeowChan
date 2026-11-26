@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Automation;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -12,6 +13,38 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class MediaFactGridTests
 {
+    [Theory]
+    [InlineData(280)]
+    [InlineData(460)]
+    public void CompactFactsOmitUnknownFieldsForFolderMedia(int width) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        MediaSidebarFacts facts = new() { Width = width };
+        Window window = new() { Width = 560, Height = 300, Content = facts };
+        try
+        {
+            window.Show();
+            facts.Show("Folder: fixtures", "Poster", "25.11.", "file.png", "2 KiB", "99 × 50", null);
+            ContextGestures.Settle(window);
+            var author = SidePanelDesignTests.ById<SelectableTextBlock>(facts, "ReaderMediaSidebarFactAuthor");
+            var posted = SidePanelDesignTests.ById<SelectableTextBlock>(facts, "ReaderMediaSidebarFactPosted");
+            var dimensions = SidePanelDesignTests.ById<SelectableTextBlock>(facts, "ReaderMediaSidebarFactDimensions");
+            Assert.True(author.IsEffectivelyVisible);
+            Assert.True(posted.IsEffectivelyVisible);
+
+            facts.Show("Folder: fixtures", null, null, "file.png", null, "1600 × 900", null);
+            ContextGestures.Settle(window);
+            Assert.False(author.IsEffectivelyVisible);
+            Assert.False(posted.IsEffectivelyVisible);
+            Assert.False(SidePanelDesignTests.ById<SelectableTextBlock>(facts, "ReaderMediaSidebarFactSize").IsEffectivelyVisible);
+            Assert.Equal("1600 × 900", dimensions.Text);
+            Assert.True(dimensions.IsEffectivelyVisible);
+            Assert.DoesNotContain(facts.GetVisualDescendants().OfType<TextBlock>(),
+                text => text.IsEffectivelyVisible && (text.Text == "—" || text.Text == "·"));
+        }
+        finally { window.Close(); }
+    });
+
     [Theory]
     [InlineData("en", 206)]
     [InlineData("de", 246)]

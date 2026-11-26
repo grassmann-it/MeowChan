@@ -20,8 +20,8 @@ namespace MeowChan.DesktopTests;
 public sealed class ReaderMediaSidebarSettingsMenuTests
 {
     [Theory]
-    [InlineData("reader", true, "de", "Auto-Hide", "Fakten anzeigen")]
-    [InlineData("media", false, "en", "Auto-hide", "Show sidebar facts")]
+    [InlineData("reader", true, "de", "Leisten automatisch ausblenden", "Fakten anzeigen")]
+    [InlineData("media", false, "en", "Auto-hide sidebar controls", "Show sidebar facts")]
     public void GearRendersCatalogIconsAndActiveChipsWithAllShortcuts(string keyContext, bool autoHide,
         string language, string autoHideLabel, string factsLabel) => BooruComponentDispatcher.Run(() =>
     {
@@ -35,7 +35,12 @@ public sealed class ReaderMediaSidebarSettingsMenuTests
         ReaderMediaSidebar sidebar = new()
         {
             DecisionKeyContext = keyContext,
-            SaveSidebarSetting = update => { update(saved); writes++; }
+            SaveSidebarSetting = update => { update(saved); writes++; },
+            SidebarVideoSettings = new QuickSettingsHost
+            {
+                CurrentConfig = () => saved,
+                SaveAsync = update => { update(saved); writes++; return Task.CompletedTask; }
+            }
         };
         sidebar.Describe("No. 42", "fixture.jpg", "640 × 480", true);
         sidebar.ConfigureInfo(ReaderMediaPreferences.From(saved));
@@ -71,9 +76,22 @@ public sealed class ReaderMediaSidebarSettingsMenuTests
                 Settle(root);
                 MenuItem[] rows = presenter.GetVisualDescendants().OfType<MenuItem>()
                     .Where(row => row.IsEffectivelyVisible && row.Bounds.Width > 0 && row.Bounds.Height > 0).ToArray();
-                Assert.True(rows.Length == 2, $"Expected two laid-out menu rows, found {rows.Length} with {menu.Items.Count} flyout entries.");
+                Assert.Equal(5, rows.Length);
+                VerifyVideoCheck(SettingsFieldId.ReaderSidebarVideoAutoplay, "settings.reader.sidebarVideoAutoplay", saved.ReaderSidebarVideoAutoplay);
+                VerifyVideoCheck(SettingsFieldId.ReaderSidebarVideoLoop, "settings.reader.sidebarVideoLoop", saved.ReaderSidebarVideoLoop);
+                VerifyVideoCheck(SettingsFieldId.ReaderSidebarVideoStartMuted, "settings.reader.sidebarVideoMuted", saved.ReaderSidebarVideoStartMuted);
                 return (FindRow("ReaderMediaSidebarSettingsAutoHide", Key.A, autoHideLabel, "eye-off", autoHideAlias),
                     FindRow("ReaderMediaSidebarSettingsFacts", Key.I, factsLabel, "info", factsAlias));
+
+                void VerifyVideoCheck(string field, string labelKey, bool isChecked)
+                {
+                    MenuItem row = SidePanelDesignTests.ById<MenuItem>(presenter, "ReaderMediaSidebarSettings" + field);
+                    Assert.Contains(row, rows);
+                    Assert.Equal(MenuItemToggleType.CheckBox, row.ToggleType);
+                    Assert.Equal(Texts.T(labelKey), row.Header);
+                    Assert.Equal(isChecked, row.IsChecked);
+                    Assert.Null(row.InputGesture);
+                }
 
                 MenuItem FindRow(string id, Key key, string label, string mask, ShortcutGesture alias)
                 {

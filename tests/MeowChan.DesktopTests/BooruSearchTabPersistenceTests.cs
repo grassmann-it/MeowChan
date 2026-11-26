@@ -143,6 +143,145 @@ public sealed class BooruSearchTabPersistenceTests(ITestOutputHelper output)
         Assert.Equal(0, offline.ProviderRequests);
     });
 
+    [Theory]
+    [InlineData(false, new[] { "draft_1", "edited", "draft_3" })]
+    [InlineData(true, new[] { "draft_1", "edited" })]
+    public void SavingUnderAReducedOpenLimitKeepsUnopenedTabsUpToTheSaveLimit(bool reduceSaveLimit, string[] expected) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using TempDirectory profile = new();
+            using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+            lease.Admission.CompleteStartup();
+            Config config = new() { BooruSearchTabs = 4, BooruSavedTabs = 4 };
+            BooruSearchTabStore store = new(lease);
+            BooruUiHarness online = new();
+            online.Search.OnPost = (id, _) => Task.FromResult(BooruCallResult<BooruPostView>.Ok(Post(id)));
+            using (BooruPage initial = new(WithSource(online)))
+            {
+                initial.RestoreSearchTabs(store, config);
+                for (int i = 0; i < 4; i++) Assert.True(initial.View.TryShowQueryInNewTab($"draft_{i}"));
+                BooruSearchTabs tabs = initial.View.SearchTabs;
+                Assert.True(tabs.Select(tabs.Ids[1]));
+                BooruSearchModel search = initial.Model.Search;
+                search.SetMode(BooruInputMode.Post);
+                search.SetInput("42");
+                BooruComponentDispatcher.Wait(search.SubmitAsync());
+                search.SetInput("draft_1");
+                Assert.True(tabs.Select(tabs.Ids[2]));
+            }
+            BooruComponentDispatcher.Wait(store.PendingSave);
+
+            BooruUiHarness offline = new();
+            config.BooruSearchTabs = 2;
+            if (reduceSaveLimit) config.BooruSavedTabs = 2;
+            using (BooruPage page = new(WithSource(offline)))
+            {
+                page.RestoreSearchTabs(store, config);
+                BooruSearchTabs tabs = page.View.SearchTabs;
+                Assert.Equal(new[] { "draft_0", "draft_2" }, tabs.Ids.Select(id => tabs.ViewOf(id)!.Input));
+                Assert.Equal(tabs.Ids[1], tabs.ActiveId);
+                Assert.True(tabs.Select(tabs.Ids[0]));
+                Assert.True(tabs.Close(tabs.ActiveId!.Value));
+                Assert.Equal("draft_2", page.Model.Search.View.Input);
+                Assert.True(tabs.CanAdd);
+                page.Model.Search.SetInput("edited");
+                page.FlushSearchTabs();
+                BooruComponentDispatcher.Wait(store.PendingSave);
+            }
+
+            config.BooruSearchTabs = 4;
+            config.BooruSavedTabs = 4;
+            using BooruPage reopened = new(WithSource(offline));
+            reopened.RestoreSearchTabs(new BooruSearchTabStore(lease), config);
+            BooruSearchTabs restored = reopened.View.SearchTabs;
+            Assert.Equal(expected, restored.Ids.Select(id => restored.ViewOf(id)!.Input));
+            Assert.Equal(restored.Ids[1], restored.ActiveId);
+            BooruSearchView hidden = Assert.IsType<BooruSearchView>(restored.ViewOf(restored.Ids[0]));
+            Assert.Equal(BooruInputMode.Post, hidden.Mode);
+            Assert.Equal("42", hidden.ExecutedPostId);
+            Assert.Equal("42", Assert.Single(hidden.Rows).Post.PostId);
+            Assert.Equal(0, offline.ProviderRequests);
+        });
+
+    [Fact]
+    public void ClosingAllVisibleTabsKeepsUnopenedTabsAndTheNewDraftAcrossRestart() => BooruComponentDispatcher.Run(() =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        Config config = new() { BooruSearchTabs = 3, BooruSavedTabs = 3 };
+        BooruSearchTabStore store = new(lease);
+        BooruUiHarness offline = new();
+        using (BooruPage initial = new(WithSource(offline)))
+        {
+            initial.RestoreSearchTabs(store, config);
+            foreach (string query in new[] { "first", "hidden", "last" })
+                Assert.True(initial.View.TryShowQueryInNewTab(query));
+        }
+        BooruComponentDispatcher.Wait(store.PendingSave);
+
+        config.BooruSearchTabs = 2;
+        using (BooruPage page = new(WithSource(offline)))
+        {
+            page.RestoreSearchTabs(store, config);
+            BooruSearchTabs tabs = page.View.SearchTabs;
+            Assert.Equal(new[] { "first", "last" }, tabs.Ids.Select(id => tabs.ViewOf(id)!.Input));
+            Assert.True(tabs.Close(tabs.ActiveId!.Value));
+            Assert.Equal("first", page.Model.Search.View.Input);
+            Assert.True(tabs.Close(Assert.Single(tabs.Ids)));
+            Assert.Null(tabs.ActiveId);
+            Assert.Empty(page.Model.Search.View.Input);
+            page.Model.Search.SetMode(BooruInputMode.Post);
+            page.Model.Search.SetInput("42");
+        }
+        BooruComponentDispatcher.Wait(store.PendingSave);
+
+        config.BooruSearchTabs = 3;
+        using BooruPage reopened = new(WithSource(offline));
+        reopened.RestoreSearchTabs(new BooruSearchTabStore(lease), config);
+        BooruSearchTabs restored = reopened.View.SearchTabs;
+        Assert.Equal(new[] { "hidden", "42" }, restored.Ids.Select(id => restored.ViewOf(id)!.Input));
+        Assert.Equal(restored.Ids[1], restored.ActiveId);
+        Assert.Equal(BooruInputMode.Post, reopened.Model.Search.View.Mode);
+        Assert.Equal(0, offline.ProviderRequests);
+    });
+
+    [Fact]
+    public void RestartKeepsTheLastResultPageAfterPagingBack() => BooruComponentDispatcher.Run(() =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        BooruSearchTabStore store = new(lease);
+        BooruUiHarness online = new();
+        online.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, page == 9, Post("101"))));
+        using (BooruPage page = new(WithSource(online)))
+        {
+            page.RestoreSearchTabs(store, new Config());
+            BooruSearchModel search = page.Model.Search;
+            search.ReadPagerLimits = () => new(12, 20);
+            page.ShowQuery("cat");
+            BooruComponentDispatcher.Wait(search.SubmitAsync());
+            BooruComponentDispatcher.Wait(search.GoToPageAsync(9));
+            Assert.Equal(9, search.View.LastResultPage);
+            BooruComponentDispatcher.Wait(search.GoToPageAsync(8));
+            Assert.Equal(9, search.View.LastResultPage);
+        }
+        BooruComponentDispatcher.Wait(store.PendingSave);
+
+        BooruUiHarness offline = new();
+        using BooruPage reopened = new(WithSource(offline));
+        reopened.RestoreSearchTabs(new BooruSearchTabStore(lease), new Config());
+        BooruSearchModel restored = reopened.Model.Search;
+        Assert.Equal(8, restored.View.Page);
+        Assert.Equal(9, restored.View.LastResultPage);
+        Assert.True(restored.View.HasNextPage);
+        BooruComponentDispatcher.Wait(restored.GoToPageAsync(10));
+        Assert.Equal(8, restored.View.Page);
+        Assert.Equal(0, offline.ProviderRequests);
+    });
+
     [Fact]
     public void RestartRestoresTheTabStripAndSnapshotWithoutCallingAnyProviderPort() => BooruComponentDispatcher.Run(() =>
     {
@@ -578,6 +717,7 @@ public sealed class BooruSearchTabPersistenceTests(ITestOutputHelper output)
     [InlineData("""{"version":2,"state":{"activeIndex":0,"tabs":[{"sourceId":"danbooru","instanceId":"default","query":"cat","page":1}]}}""")]
     [InlineData("""{"Version":1,"State":{"ActiveIndex":0,"Tabs":[{"SourceId":"danbooru","InstanceId":"default","Query":"cat","Page":1}]}}""")]
     [InlineData("""{"version":17,"state":{}}""")]
+    [InlineData("""{"version":1,"providerId":"other","activeIndex":0,"tabs":[null]}""")]
     public async Task NewerAndScopedFormatsStayInPlaceEvenAfterAnEdit(string content)
     {
         using TempDirectory profile = new();

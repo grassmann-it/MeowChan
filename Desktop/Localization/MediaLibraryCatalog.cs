@@ -242,9 +242,9 @@ internal static class MediaLibraryCatalog
         ("media.tags.hint", "Enter or click: only media with the tag · Shift+Enter or {0}+click: hide them · Delete: take the tag out of the filter · Menu key: more", "Enter oder Klick: nur Medien mit dem Tag · Umschalt+Enter oder {0}+Klick: ausblenden · Entf: Tag aus dem Filter nehmen · Menütaste: mehr"),
         ("settings.limits.mediaTagListTop", "Tag list: tags shown per group", "Tag-Liste: angezeigte Tags je Gruppe"),
         ("settings.limits.mediaTagListTop.hint", "The tag list beside the media shows this many tags per group, the most frequent first; “Show all” lists the rest.", "Die Tag-Liste neben den Medien zeigt so viele Tags je Gruppe, die häufigsten zuerst; „Alle anzeigen“ listet den Rest."),
-        ("settings.limits.booruResultTagsShown", "Danbooru results: tags shown per result", "Danbooru-Treffer: angezeigte Tags je Treffer"),
-        ("settings.limits.booruResultTagsShown.hint", "Show up to this many source tags per result, depending on the space available. The “+N more” button reveals the rest. At 0, all tags are behind the button. At -1, the available space sets the limit.", "Zeigt je nach Platz bis zu dieser Anzahl an Quelltags pro Treffer. „+N weitere“ zeigt den Rest. Bei 0 bleiben alle Tags hinter der Schaltfläche. Bei -1 bestimmt der verfügbare Platz die Obergrenze."),
-        ("settings.limits.mediaTagListWidth", "Tag list: width (dip)", "Tag-Liste: Breite (dip)"),
+        ("settings.limits.booruResultTagsShown", "Booru: tags per result", "Booru: Tags je Treffer"),
+        ("settings.limits.booruResultTagsShown.hint", "-1 (Automatic, default) fits as many tags as space allows. 0 puts all tags behind +N. Positive values cap the number of visible tags. Set the line limit under “Booru list: tag lines”.", "-1 (Automatisch, Standard) zeigt so viele Tags wie möglich. Bei 0 stehen alle Tags hinter +N. Positive Werte begrenzen die Anzahl sichtbarer Tags. Die Zeilengrenze stellst du unter „Booru-Liste: Tag-Zeilen“ ein."),
+        ("settings.limits.mediaTagListWidth", "Tag list: width (DIP)", "Tag-Liste: Breite (DIP)"),
         ("settings.limits.mediaTagListWidth.hint", "Width of the tag list beside the media. You can also change it by dragging the list's edge.", "Breite der Tag-Liste neben den Medien. Du kannst sie auch ändern, indem du den Rand der Liste ziehst.")
     };
 }

@@ -39,7 +39,8 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
         bool AllTabsClosable = false, SavedTab? Draft = null);
     private sealed record SavedTab(BooruInputMode Mode, string Input, string? Query, string? PostId,
         int Page, bool IsEnd, bool Empty, JsonElement[] Rows,
-        int MaximumPage = Config.BooruSearchPagesDefault, int PostsPerPage = Config.BooruSearchPostsPerPageDefault);
+        int MaximumPage = Config.BooruSearchPagesDefault, int PostsPerPage = Config.BooruSearchPostsPerPageDefault,
+        int? LastResultPage = null);
     private sealed record SavedRow(BooruPost Post, byte[]? Preview);
 
     private readonly string _path = Path.Combine(lease.ProfileDirectory, FileName);
@@ -212,7 +213,7 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
         string input = view.Input.Length <= MaximumDraftLength ? view.Input : view.Input[..MaximumDraftLength];
         return new SavedTab(view.Mode, input, view.ExecutedQuery, view.ExecutedPostId,
             view.Page, view.IsEnd, view.Status == BooruSearchStatus.Empty, rows.ToArray(),
-            view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
+            view.PagerLimits.Pages, view.PagerLimits.PostsPerPage, view.LastResultPage);
     }
 
     private static BooruSearchView RestoreTab(SavedTab tab, BooruSearchView current, int resultLimit, SourceDescription? source)
@@ -250,10 +251,13 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
         }
         BooruSearchStatus status = count > 0 ? BooruSearchStatus.Results
             : tab.Empty ? BooruSearchStatus.Empty : BooruSearchStatus.Idle;
+        int? lastResultPage = tab.Query is not null && !tab.Empty && tab.LastResultPage is int lastPage
+            && lastPage >= tab.Page && lastPage <= tab.MaximumPage && (!tab.IsEnd || lastPage == tab.Page)
+            ? lastPage : null;
         return new BooruSearchView(current.ProviderId, current.ProviderName, tab.Mode, tab.Input,
             BooruInput.Parse(tab.Mode, tab.Input), status, tab.Query, tab.PostId, tab.Page, tab.IsEnd,
             rows.MoveToImmutable(), null, null, null, NeedsLoad: status == BooruSearchStatus.Idle
                 && (!string.IsNullOrWhiteSpace(tab.Input) || tab.Query is not null || tab.PostId is not null))
-        { PagerLimits = new(tab.MaximumPage, tab.PostsPerPage) };
+        { PagerLimits = new(tab.MaximumPage, tab.PostsPerPage), LastResultPage = lastResultPage };
     }
 }

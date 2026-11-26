@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
@@ -165,7 +166,7 @@ public partial class ArchivePage
                 return new ReaderMediaSidebarContent.Unavailable("reader.sidebar.unavailable");
             }, picture =>
             {
-                _sidebarShownDetail = picture.Source is { } source ? $"{source.Width}×{source.Height}" : string.Empty;
+                _sidebarShownDetail = picture.Source is { } source ? MediaFactGrid.FormatDimensions(source.Width, source.Height) : string.Empty;
                 sidebar.SetDetail(_sidebarShownDetail);
             });
         });

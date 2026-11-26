@@ -130,10 +130,11 @@ public sealed class TrayStatsModelTests : IDisposable
     }
 
     [Fact]
-    public void TheBasicTooltipUsesAMiddleDotInEachState()
+    public void TheBasicTooltipAddsStateWhenPausedOrDownloading()
     {
         Texts.SetLanguage("en");
-        Assert.Equal("MeowChan · Image Downloader", TrayMenuModel.Tooltip(false, 0));
+        // Fable 23: in the idle state, the tooltip only shows the app name.
+        Assert.Equal("MeowChan", TrayMenuModel.Tooltip(false, 0));
         Assert.Equal("MeowChan · Active downloads: 2", TrayMenuModel.Tooltip(false, 2));
         Assert.Equal("MeowChan · paused", TrayMenuModel.Tooltip(true, 2));
     }

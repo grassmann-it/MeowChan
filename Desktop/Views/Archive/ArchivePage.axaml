@@ -248,7 +248,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <DataGrid x:Name="ArchiveThreadTable" AutomationProperties.AutomationId="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
+                        <controls:RowFocusDataGrid x:Name="ArchiveThreadTable" AutomationProperties.AutomationId="ArchiveThreadTable" Classes="row-focus" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
                                   PointerReleased="OnArchiveColumnsReleased"
                                   SelectionChanged="OnThreadTableSelected" DoubleTapped="OnThreadTableDoubleTapped">
                             <DataGrid.Styles>
@@ -284,7 +284,7 @@
                                 <DataGridTemplateColumn Header="Found in" SortMemberPath="FoundInSortKey" Width="140" MinWidth="90" IsVisible="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding FoundIn}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding FoundIn}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             </DataGrid.Columns>
                             <DataGrid.ContextMenu><ContextMenu Opening="OnArchiveSelectionMenuOpening" /></DataGrid.ContextMenu>
-                        </DataGrid>
+                        </controls:RowFocusDataGrid>
                         <!-- Same pattern as the empty Downloads list: centred, one sentence, one primary next step. -->
                         <controls:WorkspaceEmptyState x:Name="ArchiveEmptyState" IsVisible="False">
                             <TextBlock x:Name="ArchiveEmpty" Classes="workspace-empty-text" />

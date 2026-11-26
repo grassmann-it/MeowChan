@@ -90,6 +90,7 @@ internal sealed partial class ReaderMediaSidebar
     private readonly Grid _dockedHead = new();
     internal ToggleButton SettingsButton { get; } = new() { Name = "ReaderMediaSidebarSettings" };
     internal Action<Action<Config>>? SaveSidebarSetting { get; set; }
+    internal QuickSettingsHost? SidebarVideoSettings { get; set; }
     private bool _barsHidden;
     private bool _postWithoutMedia;
 
@@ -162,11 +163,17 @@ internal sealed partial class ReaderMediaSidebar
         // MenuFlyout's presenter takes the backing collection before Opening.
         MenuItem autoHide = AddCheck("autoHide", "ReaderMediaSidebarSettingsAutoHide", ToggleAutoHide);
         MenuItem facts = AddCheck("facts", "ReaderMediaSidebarSettingsFacts", ToggleDetails);
+        AddVideoCheck("videoAutoplay", SettingsFieldId.ReaderSidebarVideoAutoplay, "settings.reader.sidebarVideoAutoplay", "play",
+            config => config.ReaderSidebarVideoAutoplay, (config, value) => config.ReaderSidebarVideoAutoplay = value);
+        AddVideoCheck("videoLoop", SettingsFieldId.ReaderSidebarVideoLoop, "settings.reader.sidebarVideoLoop", "repeat",
+            config => config.ReaderSidebarVideoLoop, (config, value) => config.ReaderSidebarVideoLoop = value);
+        AddVideoCheck("videoMuted", SettingsFieldId.ReaderSidebarVideoStartMuted, "settings.reader.sidebarVideoMuted", "volume-x",
+            config => config.ReaderSidebarVideoStartMuted, (config, value) => config.ReaderSidebarVideoStartMuted = value);
         SettingsButton.Flyout = _settingsMenu;
         _settingsMenu.OverlayInputPassThroughElement = SettingsButton;
         _settingsMenu.Opening += (_, _) =>
         {
-            RefreshCheck(autoHide, "media.sidebar.autohide", Texts.T("viewer.playback.autoHide"), _infoPreferences.MediaSidebarAutoHide);
+            RefreshCheck(autoHide, "media.sidebar.autohide", CommandCatalog.Label("media.sidebar.autohide"), _infoPreferences.MediaSidebarAutoHide);
             RefreshCheck(facts, "media.sidebar.info", CommandCatalog.Label("media.sidebar.info"), FactsVisible);
         };
         _settingsMenu.Opened += (_, _) => SettingsButton.IsChecked = true;
@@ -178,6 +185,33 @@ internal sealed partial class ReaderMediaSidebar
             AutomationProperties.SetAutomationId(item, automationId);
             _settingsMenu.Items.Add(item);
             return item;
+        }
+
+        void AddVideoCheck(string tag, string field, string labelKey, string icon,
+            Func<Config, bool> read, Action<Config, bool> write)
+        {
+            MenuItem item = AddCheck(tag, "ReaderMediaSidebarSettings" + field, () =>
+            {
+                if (SidebarVideoSettings is not { } host) return;
+                OpenActions.Start(async () =>
+                {
+                    await host.SaveAsync(config => write(config, !read(config)));
+                    host.Applied?.Invoke([field]);
+                }, "media.sidebar.video");
+            });
+            _settingsMenu.Opening += (_, _) =>
+            {
+                Config? config = SidebarVideoSettings?.CurrentConfig();
+                item.IsVisible = config != null;
+                if (config == null) return;
+                string label = Texts.T(labelKey);
+                item.Header = label;
+                item.Icon ??= CommandBindings.IconFromKey(icon, 16);
+                item.IsChecked = read(config);
+                ToolTip.SetTip(item, Texts.T(labelKey + ".hint"));
+                AutomationProperties.SetName(item, label);
+                AutomationProperties.SetHelpText(item, Texts.T(labelKey + ".hint"));
+            };
         }
 
         void RefreshCheck(MenuItem item, string commandId, string label, bool isChecked)

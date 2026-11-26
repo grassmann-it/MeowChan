@@ -488,8 +488,8 @@ internal sealed partial class GalleryViewer
     private void RefreshSlideshowNumbers()
     {
         bool slideshow = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow;
-        SetNumber(_slideshowSeconds, _playbackPreferences.ImageSeconds, slideshow, Texts.T("gallery.slideshow.secondsLabel"),
-            GalleryPlaybackCatalog.Get("viewer.playback.numberHelp"));
+        string numberHelp = Texts.T("viewer.playback.numberHelp", PlatformKeyNames.Alt());
+        SetNumber(_slideshowSeconds, _playbackPreferences.ImageSeconds, slideshow, Texts.T("gallery.slideshow.secondsLabel"), numberHelp);
         _modeSetting.IsVisible = ReferenceEquals(_playbackMode.Parent, _modeSetting);
         _secondsSetting.IsVisible = slideshow && ReferenceEquals(_slideshowSeconds.Parent, _secondsSetting);
         string[] rules =
@@ -516,7 +516,7 @@ internal sealed partial class GalleryViewer
         string secondsName = GalleryPlaybackCatalog.Get("viewer.playback.videoSeconds");
         string repeatsName = GalleryPlaybackCatalog.Get("viewer.playback.videoRepeats");
         SetNumber(_videoSeconds, _playbackPreferences.VideoSeconds, seconds, secondsName, GalleryPlaybackCatalog.Get("viewer.playback.videoSecondsHelp"));
-        SetNumber(_videoRepeats, _playbackPreferences.VideoRepeats, repeats, repeatsName, GalleryPlaybackCatalog.Get("viewer.playback.numberHelp"));
+        SetNumber(_videoRepeats, _playbackPreferences.VideoRepeats, repeats, repeatsName, numberHelp);
         _videoSecondsSetting.IsVisible = seconds;
         _videoRepeatsSetting.IsVisible = repeats;
         SetSettingLabel(_videoSecondsCaption, secondsName);

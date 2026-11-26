@@ -6,6 +6,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
@@ -501,113 +502,100 @@ internal static class ReaderUxChecks
     private static async Task CheckListGalleryReturnAsync(MainWindow window, ArchivePage page, ContentControl reader)
     {
         ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
-        GalleryViewer viewer;
+        ListBox results = page.GetVisualDescendants().OfType<ListBox>()
+            .Single(list => AutomationProperties.GetAutomationId(list) == "ArchiveThreads");
+        TextBox search = page.GetVisualDescendants().OfType<TextBox>()
+            .Single(input => AutomationProperties.GetAutomationId(input) == "ArchiveSearchText");
+        ActionToolBar resultActions = page.GetVisualDescendants().OfType<ActionToolBar>()
+            .Single(bar => AutomationProperties.GetAutomationId(bar) == "ArchiveResultActions");
+        Button resultsGallery = resultActions.Items.OfType<Button>()
+            .Single(button => AutomationProperties.GetAutomationId(button) == "ArchiveResultsGallery");
         Click(page.FindControl<Button>("NextThreadsButton")!);
-        await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 2);
-        string? listPage = page.FindControl<TextBlock>("ArchiveThreadPage")!.Text;
-        Button resultsGallery = page.FindControl<Button>("ArchiveResultsGallery")!;
-        ActionToolBar resultActions = page.FindControl<ActionToolBar>("ArchiveResultActions")!;
-        bool ResultsGalleryHit()
-        {
-            TopLevel? root = TopLevel.GetTopLevel(resultsGallery);
-            Point? center = root == null ? null : resultsGallery.TranslatePoint(
-                new Point(resultsGallery.Bounds.Width / 2, resultsGallery.Bounds.Height / 2), root);
-            return root?.IsVisible == true && center.HasValue && root.InputHitTest(center.Value) is Visual hit
-                && hit.GetSelfAndVisualAncestors().Contains(resultsGallery);
-        }
-        void TraceResultsGallery(string stage)
-        {
-            TopLevel? root = TopLevel.GetTopLevel(resultsGallery);
-            Point? center = root == null ? null : resultsGallery.TranslatePoint(
-                new Point(resultsGallery.Bounds.Width / 2, resultsGallery.Bounds.Height / 2), root);
-            Visual? hit = center.HasValue ? root!.InputHitTest(center.Value) as Visual : null;
-            string? Focus(TopLevel? value) => (value?.FocusManager?.GetFocusedElement() as Control)?.Name;
-            Console.WriteLine("SMOKE list-origin gallery action: " + JsonSerializer.Serialize(new
-            {
-                stage, inOverflow = resultActions.OverflowHost?.Children.Contains(resultsGallery),
-                moreVisible = resultActions.More?.IsEffectivelyVisible, moreOpen = resultActions.More?.IsChecked,
-                resultsGallery.IsEffectivelyVisible, resultsGallery.IsEffectivelyEnabled, resultsGallery.IsHitTestVisible,
-                bounds = resultsGallery.Bounds.ToString(), root = root?.GetType().Name, rootVisible = root?.IsVisible,
-                center = center?.ToString(), rootFocus = Focus(root), windowFocus = Focus(window),
-                hit = hit is Control control ? control.GetType().Name + ":" + control.Name : hit?.GetType().Name,
-                ancestors = resultsGallery.GetVisualAncestors().OfType<Control>().Select(control => new
-                {
-                    type = control.GetType().Name, control.Name, bounds = control.Bounds.ToString(),
-                    control.IsVisible, control.ClipToBounds, clip = control.Clip?.Bounds.ToString()
-                }).ToArray()
-            }));
-        }
-        window.UpdateLayout();
-        TraceResultsGallery("before reveal");
-        bool galleryInOverflow = resultActions.OverflowHost?.Children.Contains(resultsGallery) == true;
-        if (galleryInOverflow)
-        {
-            Require(resultActions.More?.IsEffectivelyVisible == true, "The list-origin gallery overflow is not reachable.");
-            resultActions.More!.IsChecked = true;
-        }
+        await Program.WaitUntilAsync(() => !page.IsBusy && results.ItemCount == 2);
+        TextBlock pager = page.FindControl<TextBlock>("ArchiveThreadPage")!;
+        string? listPage = pager.Text;
+        double? originalSplit = page.ArchiveSplitPreference;
         try
         {
-            await Program.WaitUntilAsync(() => resultsGallery.IsEffectivelyVisible && resultsGallery.IsEffectivelyEnabled
-                && ResultsGalleryHit());
-            Require(resultsGallery.IsEffectivelyVisible && resultsGallery.IsEffectivelyEnabled,
-                "The list-origin gallery action is not reachable.");
-            Require(resultsGallery.Focus(), "The list-origin gallery action could not receive focus.");
-            await Program.WaitUntilAsync(() => ReferenceEquals(TopLevel.GetTopLevel(resultsGallery)?.FocusManager?.GetFocusedElement(), resultsGallery));
-            TraceResultsGallery("focused before Enter");
-            // Enter invokes Button.OnClick: both ICommand and the routed Click
-            // consumed by ActionToolBar's overflow-close handler must run.
-            int galleryClicks = 0;
-            void ObserveGalleryClick(object? sender, RoutedEventArgs args) => galleryClicks++;
-            resultsGallery.Click += ObserveGalleryClick;
-            try
+            foreach ((double width, bool overflow) in new[] { (1000d, false), (270d, true) })
             {
-                resultsGallery.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-                resultsGallery.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Enter });
+                page.ArchiveSplitPreference = width;
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                bool underMore = resultActions.OverflowHost?.Children.Contains(resultsGallery) == true;
+                Require(underMore == overflow, $"The {width}-DIP results pane did not exercise the expected gallery presentation.");
+
+                var selected = (ArchiveThreadRow)results.Items[0]!;
+                results.SelectedItem = selected;
+                await Program.WaitUntilAsync(() => !page.IsBusy);
+                await page.MediaLoadTask;
+                ToggleButton? more = resultActions.GetVisualDescendants().OfType<ToggleButton>()
+                    .SingleOrDefault(button => AutomationProperties.GetAutomationId(button) == "ArchiveResultActionsMore");
+                if (overflow)
+                {
+                    Require(more is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }, "The list-origin gallery overflow is not reachable.");
+                    more!.IsChecked = true;
+                }
+
+                await Program.WaitUntilAsync(() => GalleryActionIsReachable(resultsGallery),
+                    () => $"gallery action at {width} DIP: bounds={resultsGallery.Bounds}, root={TopLevel.GetTopLevel(resultsGallery)}");
+                Require(resultsGallery.Focus(), "The list-origin gallery action could not receive focus.");
+                await Program.WaitUntilAsync(() => ReferenceEquals(TopLevel.GetTopLevel(resultsGallery)?.FocusManager?.GetFocusedElement(), resultsGallery));
+                // Enter runs both ICommand and the actual Click used to close the overflow.
+                int galleryClicks = 0;
+                void ObserveGalleryClick(object? sender, RoutedEventArgs args) => galleryClicks++;
+                resultsGallery.Click += ObserveGalleryClick;
+                try
+                {
+                    resultsGallery.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+                    resultsGallery.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Enter });
+                }
+                finally { resultsGallery.Click -= ObserveGalleryClick; }
+                Require(galleryClicks == 1, "The list-origin gallery Enter did not invoke exactly one actual button click.");
+                if (overflow) await Program.WaitUntilAsync(() => more!.IsChecked != true);
+
+                await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>().Any(image => image.Source is Bitmap));
+                GalleryViewer viewer = (GalleryViewer)gallery.Content!;
+                if (!viewer.CaptureState().ContextOpen) Click(GalleryButton(viewer, "GalleryToggleContext"));
+                await Program.WaitUntilAsync(() => viewer.CaptureState().ContextOpen
+                    && viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"
+                        && button.IsEffectivelyVisible && button.IsEffectivelyEnabled));
+                Click(GalleryButton(viewer, "GalleryReadPost"));
+                await Program.WaitUntilAsync(() => reader.IsVisible && !gallery.IsVisible && !page.IsBusy);
+                Click(page.FindControl<Button>("ArchiveGalleryReturn")!);
+                Click(GalleryButton(viewer, "GalleryClose"));
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+
+                // Release plan §1 P2: result actions return to the selected row or the results list.
+                Require(!reader.IsVisible && !gallery.IsVisible && pager.Text == listPage && search.Text == "Reader UX",
+                    "List-origin gallery close lost the search or page.");
+                Require(results.SelectedItems!.OfType<ArchiveThreadRow>().Select(row => row.Summary.Id).SequenceEqual([selected.Summary.Id]),
+                    "List-origin gallery close changed the selected result.");
+                Require(more?.IsChecked != true, "Returning from the list-origin gallery reopened its overflow popup.");
+                Control? focus = window.FocusManager?.GetFocusedElement() as Control;
+                string focusState = $"type={focus?.GetType().Name}; id={focus?.Name}; bounds={focus?.Bounds}; "
+                    + $"visible={focus?.IsEffectivelyVisible}; focusable={focus?.Focusable}; inResults={focus != null && results.IsVisualAncestorOf(focus)}";
+                Require(focus is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true, Focusable: true }
+                    && ReferenceEquals(TopLevel.GetTopLevel(focus), window) && focus.Bounds.Width > 0 && focus.Bounds.Height > 0
+                    && (ReferenceEquals(focus, results) || focus is ListBoxItem row && results.IsVisualAncestorOf(row)
+                        && row.DataContext is ArchiveThreadRow focused && focused.Summary.Id == selected.Summary.Id),
+                    $"List-origin focus did not return to the selected row or results list at {width} DIP. {focusState}.");
+                RawKeyboardInput.Press(window, Key.Down);
+                ResourceId next = ((ArchiveThreadRow)results.Items[1]!).Summary.Id;
+                await Program.WaitUntilAsync(() => results.SelectedItem is ArchiveThreadRow row && row.Summary.Id == next,
+                    () => $"Down did not move the restored results selection at {width} DIP.");
+                Console.WriteLine($"SMOKE list-origin round trip: width={width}, overflow={overflow}, focus={focus?.GetType().Name}, preserved search/page/selection and moved to the next result.");
             }
-            finally { resultsGallery.Click -= ObserveGalleryClick; }
-            Require(galleryClicks == 1, "The list-origin gallery Enter did not invoke exactly one actual button click.");
-            if (galleryInOverflow)
-                await Program.WaitUntilAsync(() => resultActions.More?.IsChecked != true);
         }
-        catch { TraceResultsGallery("opening failed"); throw; }
-        TraceResultsGallery("after actual click");
-        await Program.WaitUntilAsync(() => gallery.IsVisible && gallery.GetVisualDescendants().OfType<Image>().Any(image => image.Source is Bitmap));
-        viewer = (GalleryViewer)gallery.Content!;
-        // Earlier galleries persist an open context; toggling blindly can close it while its controls remain.
-        if (!viewer.CaptureState().ContextOpen) Click(GalleryButton(viewer, "GalleryToggleContext"));
-        await Program.WaitUntilAsync(() => viewer.CaptureState().ContextOpen
-            && viewer.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryReadPost"
-                && button.IsEffectivelyVisible && button.IsEffectivelyEnabled));
-        Click(GalleryButton(viewer, "GalleryReadPost"));
-        await Program.WaitUntilAsync(() => reader.IsVisible && !gallery.IsVisible && !page.IsBusy);
-        Click(page.FindControl<Button>("ArchiveGalleryReturn")!);
-        Click(GalleryButton(viewer, "GalleryClose"));
-        Require(!reader.IsVisible && page.FindControl<TextBlock>("ArchiveThreadPage")!.Text == listPage
-            && page.FindControl<TextBox>("ArchiveSearchText")!.Text == "Reader UX", "List-origin gallery close lost search or page.");
-        TraceResultsGallery("after gallery close before return-focus assertion");
-        // Derive the expected target from the current real toolbar tree, not the
-        // product focus resolver: a closed overflow returns to its visible More.
-        window.UpdateLayout();
-        bool returnedToOverflow = resultActions.OverflowHost?.Children.Contains(resultsGallery) == true;
-        Control expectedGalleryFocus = returnedToOverflow
-            ? resultActions.More ?? throw new InvalidOperationException("The gallery origin has no overflow focus target.")
-            : resultsGallery;
-        Console.WriteLine("SMOKE list-origin expected return focus: " + JsonSerializer.Serialize(new
-        {
-            returnedToOverflow, expectedGalleryFocus.Name, type = expectedGalleryFocus.GetType().Name,
-            root = TopLevel.GetTopLevel(expectedGalleryFocus)?.GetType().Name,
-            rootIsWindow = ReferenceEquals(TopLevel.GetTopLevel(expectedGalleryFocus), window),
-            expectedGalleryFocus.IsEffectivelyVisible, expectedGalleryFocus.IsEffectivelyEnabled,
-            bounds = expectedGalleryFocus.Bounds.ToString(), moreOpen = resultActions.More?.IsChecked,
-            actualFocusMatches = ReferenceEquals(window.FocusManager!.GetFocusedElement(), expectedGalleryFocus)
-        }));
-        Require(ReferenceEquals(TopLevel.GetTopLevel(expectedGalleryFocus), window)
-            && expectedGalleryFocus.IsEffectivelyVisible && expectedGalleryFocus.IsEffectivelyEnabled
-            && expectedGalleryFocus.Bounds.Width > 0 && expectedGalleryFocus.Bounds.Height > 0,
-            "The list-origin return focus target is detached, hidden or disabled.");
-        Require(!returnedToOverflow || resultActions.More!.IsChecked != true,
-            "Returning from the list-origin gallery reopened its overflow popup.");
-        Require(ReferenceEquals(window.FocusManager!.GetFocusedElement(), expectedGalleryFocus), "List-origin focus was not restored.");
+        finally { page.ArchiveSplitPreference = originalSplit; }
+    }
+
+    private static bool GalleryActionIsReachable(Button action)
+    {
+        if (!action.IsEffectivelyVisible || !action.IsEffectivelyEnabled
+            || TopLevel.GetTopLevel(action) is not { IsVisible: true } root) return false;
+        Point? center = action.TranslatePoint(new Point(action.Bounds.Width / 2, action.Bounds.Height / 2), root);
+        return center.HasValue && root.InputHitTest(center.Value) is Visual hit
+            && hit.GetSelfAndVisualAncestors().Contains(action);
     }
 
     internal static async Task CheckOverlayChromeAsync(MainWindow window, ContentControl overlay)

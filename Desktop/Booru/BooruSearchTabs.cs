@@ -13,10 +13,11 @@ internal sealed class BooruSearchTabs
     private int _nextId = 1;
     private int? _activeId;
 
-    private sealed class Slot(int id, BooruSearchView? snapshot)
+    private sealed class Slot(int id, BooruSearchView? snapshot, bool isHidden = false)
     {
         internal int Id { get; } = id;
         internal BooruSearchView? Snapshot { get; set; } = snapshot;
+        internal bool IsHidden { get; } = isHidden;
     }
 
     internal BooruSearchTabs(BooruSearchModel search, Func<int>? limit = null)
@@ -28,21 +29,35 @@ internal sealed class BooruSearchTabs
 
     internal event Action? Changed;
     internal int? ActiveId => _activeId;
-    internal IReadOnlyList<int> Ids => _slots.Select(slot => slot.Id).ToArray();
+    internal IReadOnlyList<int> Ids => _slots.Where(slot => !slot.IsHidden).Select(slot => slot.Id).ToArray();
     internal int Limit => Math.Clamp(_limit(), Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
-    internal bool CanAdd => _slots.Count < Limit;
+    internal bool CanAdd => _slots.Count(slot => !slot.IsHidden) < Limit;
 
     internal BooruTabSnapshot Capture(int limit)
     {
-        int activeIndex = _slots.FindIndex(slot => slot.Id == _activeId);
         BooruSearchView current = _search.View;
-        if (activeIndex < 0)
+        if (_slots.Count == 0)
             return new BooruTabSnapshot(current.ProviderId, -1, [], current);
 
-        // Keep the active tab and the earliest remaining tabs in strip order.
-        int[] indices = RetainedIndices(_slots.Count, activeIndex, limit);
+        int activeIndex = _slots.FindIndex(slot => slot.Id == _activeId);
+        List<BooruSearchView?> views = _slots.Select(slot => slot.Id == _activeId ? current : slot.Snapshot).ToList();
+        if (activeIndex < 0 && HasStartDraft(current))
+        {
+            // V1 stores a separate draft only for an empty strip. Keep this draft as the active saved tab.
+            activeIndex = views.Count;
+            views.Add(current);
+        }
+        else if (activeIndex < 0)
+        {
+            activeIndex = 0;
+            // A lone null entry is V1's empty-strip placeholder.
+            views[0] ??= current;
+        }
+
+        // The storage limit applies to visible and hidden tabs together, in their original order.
+        int[] indices = RetainedIndices(views.Count, activeIndex, limit);
         return new BooruTabSnapshot(current.ProviderId, Array.IndexOf(indices, activeIndex),
-            indices.Select(index => index == activeIndex ? current : _slots[index].Snapshot).ToArray());
+            Array.ConvertAll(indices, index => views[index]));
     }
 
     private static int[] RetainedIndices(int count, int activeIndex, int limit) => activeIndex < limit
@@ -54,9 +69,10 @@ internal sealed class BooruSearchTabs
         foreach (Slot slot in _slots) _search.CancelBulk(slot.Id);
         _slots.Clear();
         Slot? active = null;
-        foreach (int index in RetainedIndices(snapshot.Tabs.Length, snapshot.ActiveIndex, Limit))
+        HashSet<int> visible = RetainedIndices(snapshot.Tabs.Length, snapshot.ActiveIndex, Limit).ToHashSet();
+        for (int index = 0; index < snapshot.Tabs.Length; index++)
         {
-            Slot slot = new(_nextId++, snapshot.Tabs[index]);
+            Slot slot = new(_nextId++, snapshot.Tabs[index], isHidden: !visible.Contains(index));
             _slots.Add(slot);
             if (index == snapshot.ActiveIndex) active = slot;
         }
@@ -75,7 +91,7 @@ internal sealed class BooruSearchTabs
         if (!CanAdd) return -1;
         BooruSearchView? snapshot = copyFrom is { } id ? ViewOf(id) : null;
         BooruSearchView current = _search.View;
-        if (_activeId is null && (current.Input.Length > 0 || current.Mode != BooruInputMode.Tags))
+        if (_activeId is null && HasStartDraft(current))
             _slots.Add(new Slot(_nextId++, current));
         else Store();
         Slot slot = new(_nextId++, snapshot);
@@ -105,11 +121,12 @@ internal sealed class BooruSearchTabs
 
     internal bool Close(int id)
     {
-        int index = _slots.FindIndex(slot => slot.Id == id);
+        int index = _slots.FindIndex(slot => slot.Id == id && !slot.IsHidden);
         if (index < 0) return false;
         _search.CancelBulk(id);
         _slots.RemoveAt(index);
-        if (id == _activeId) Activate(_slots.Count == 0 ? null : _slots[Math.Max(0, index - 1)]);
+        if (id == _activeId)
+            Activate(_slots.Take(index).LastOrDefault(slot => !slot.IsHidden) ?? _slots.Find(slot => !slot.IsHidden));
         else Changed?.Invoke();
         return true;
     }
@@ -128,7 +145,9 @@ internal sealed class BooruSearchTabs
         Changed?.Invoke();
     }
 
-    private Slot? Find(int id) => _slots.Find(slot => slot.Id == id);
+    private Slot? Find(int id) => _slots.Find(slot => slot.Id == id && !slot.IsHidden);
+
+    private static bool HasStartDraft(BooruSearchView view) => view.Input.Length > 0 || view.Mode != BooruInputMode.Tags;
 
     private void Store()
     {

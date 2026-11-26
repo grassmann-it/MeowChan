@@ -14,7 +14,6 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class SettingsRecoveryStartupTests : IDisposable
 {
-    private static readonly string[] Languages = { "en", "de", "es", "fr", "ru" };
     private readonly string _previous = Texts.Language;
     public SettingsRecoveryStartupTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage(_previous); }
@@ -93,7 +92,7 @@ public sealed class SettingsRecoveryStartupTests : IDisposable
             () => new DesktopSessionHost(temp.Path, Array.Empty<IImageBoard>()));
 
         HashSet<string> seen = new(StringComparer.Ordinal);
-        foreach (string language in Languages)
+        foreach (string language in Texts.BundledPackCodes().Prepend("de").Prepend("en"))
         {
             Texts.SetLanguage(language);
             string shown = stop.LocalizedMessage();
@@ -123,9 +122,16 @@ public sealed class SettingsRecoveryStartupTests : IDisposable
     [Theory]
     [InlineData("de", "en-US", "de")]
     [InlineData("fr-FR", "en-US", "fr")]
+    [InlineData("pt-br", "de-DE", "pt-BR")]
+    [InlineData("zh-CN", "de-DE", "zh-Hans")]
     [InlineData(null, "ru-RU", "ru")]
     [InlineData(null, "es-MX", "es")]
-    [InlineData(null, "ja-JP", "en")]
+    [InlineData(null, "ja-JP", "ja")]
+    [InlineData(null, "zh-CN", "zh-Hans")]
+    [InlineData(null, "zh-TW", "en")]
+    [InlineData(null, "pt-PT", "en")]
+    [InlineData("de-!", "de-DE", "en")]
+    [InlineData("", "de-DE", "en")]
     [InlineData("xx-unknown", "de-DE", "en")]
     [InlineData(null, "en-GB", "en")]
     public void TheStartupLanguageIsTheBackupsOrTheOperatingSystemsWithEnglishAsTheFallback(string? saved, string osCulture, string expected) =>

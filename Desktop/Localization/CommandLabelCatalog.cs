@@ -8,6 +8,7 @@ internal static class CommandLabelCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("command.tagging.stamp", "Stamp", "Stempel"),
         ("command.media.sidebar.info", "Show sidebar facts", "Fakten anzeigen"),
         ("command.media.sidebar.autohide", "Auto-hide sidebar controls", "Leisten automatisch ausblenden"),
         ("command.sections.open-navigation", "Navigate sections", "Abschnitte öffnen"),
