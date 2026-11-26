@@ -352,20 +352,4 @@ public partial class MainWindow
         ApplyIoSnapshot(force: true);
         ApplyHeaderMonitorVisibility(); // the words of another language may no longer fit beside the header icons
     }
-
-    private bool? _lastDarkThemeIcon;
-
-    private void UpdateThemeIcon()
-    {
-        bool dark = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
-        if (_lastDarkThemeIcon != dark)
-        {
-            _lastDarkThemeIcon = dark;
-            ThemeToggleButton.Content = MeowChan.Desktop.Commands.CommandBindings.Icon("appearance.theme", state: ThemeActionState());
-        }
-        string label = ThemeMenuLabel();
-        Button button = ThemeToggleButton;
-        AutomationProperties.SetName(button, label);
-        ToolTip.SetTip(button, label);
-    }
 }

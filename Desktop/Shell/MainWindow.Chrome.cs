@@ -108,7 +108,7 @@ public partial class MainWindow
             ContinueCaptionRestore();
         if (e.Property == ActualThemeVariantProperty)
         {
-            UpdateThemeIcon();
+            RefreshThemeAction();
             RefreshTrayMenuIcons();
         }
         if (e.Property == WindowStateProperty || e.Property == CanMinimizeProperty
