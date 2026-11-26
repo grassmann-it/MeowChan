@@ -26,7 +26,9 @@ internal sealed partial class BooruWorkbenchView
     private readonly List<Button> _sidebarWorkViewButtons = new();
     private readonly List<ContextMenuHost> _sidebarTagMenus = new();
     private readonly List<(Button Button, ChipOutline Outline, BooruTag Tag, string Category)> _sidebarTags = new();
+    private readonly PressOpenedContextGate _sidebarContextPress = new();
     private ContextMenuHost? _sidebarViewMenu;
+    private ContextMenuHost? _sidebarPictureMenu;
     private (BooruResultRevision Revision, BooruResultRowView Row, string Language, bool Saved, int MaximumPixels)? _sidebarContent;
     private (BooruResultTarget Target, string Language)? _sidebarTagContent;
     private (BooruInputMode Mode, string Input)? _sidebarTagDraft;
@@ -95,14 +97,42 @@ internal sealed partial class BooruWorkbenchView
             e.Handled = true;
             SetMediaSidebarOpen(open: false, returnFocus: true);
         };
-        _mediaSidebar.OpenGallery.Click += (_, _) =>
+        Button picture = _mediaSidebar.OpenGallery;
+        picture.Click += (_, _) =>
         {
-            BooruSearchView view = _model.Search.View;
-            if (!_mediaSidebar.IsEffectivelyVisible || _sidebarContent is not { } content
-                || content.Revision != view.ResultRevision) return;
-            ResultActions result = new(this, BooruResultTarget.From(view, content.Row));
-            if (SidebarResultIsCurrent(result)) OpenGallery(result.PostId);
+            if (CurrentSidebarResult() is { } result) OpenGallery(result.PostId);
         };
+        picture.AddHandler(ContextRequestedEvent, (_, e) =>
+        {
+            if (e.TryGetPosition(picture, out _) && _sidebarContextPress.TryConsume()) e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        ContextMenuHost pictureMenu = _sidebarPictureMenu = new(picture, () =>
+        {
+            if (CurrentSidebarResult() is not { } result || ComposeResultMenu(result) is not { } menu) return null;
+            FocusSidebarHit(result.PostId);
+            return menu;
+        }, fallbackFocus: () =>
+        {
+            if (CurrentSidebarResult() is { } result) FocusSidebarHit(result.PostId);
+        });
+        picture.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            _sidebarContextPress.BeginPress();
+            if (e.Handled || !ContextClick.IsPress(e, picture)) return;
+            _sidebarContextPress.MenuOpenedByPress(ContextClick.Button(e, picture));
+            e.Handled = true;
+            pictureMenu.Show(atPointer: true);
+        }, RoutingStrategies.Tunnel);
+        picture.AddHandler(PointerReleasedEvent, (_, e) => _sidebarContextPress.Released(e.InitialPressMouseButton),
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    private ResultActions? CurrentSidebarResult()
+    {
+        BooruSearchView view = _model.Search.View;
+        if (_sidebarContent is not { } content || content.Revision != view.ResultRevision) return null;
+        ResultActions result = new(this, BooruResultTarget.From(view, content.Row));
+        return SidebarResultIsCurrent(result) ? result : null;
     }
 
     private void RefreshSidebarFacts()
@@ -186,6 +216,9 @@ internal sealed partial class BooruWorkbenchView
         var content = (view.ResultRevision, row, Texts.Language, saved, maximumPixels);
         if (_sidebarContent != content)
         {
+            if (_sidebarContent is { } previous
+                && (previous.Revision != view.ResultRevision || !ReferenceEquals(previous.Row.Post, row.Post)))
+                _sidebarPictureMenu?.Close();
             _sidebarContent = content;
             _mediaSidebar.Present(target, row, saved, maximumPixels, view.ProviderName);
             BuildSidebarActions(row, result);
@@ -333,6 +366,7 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_sidebarContent is null) return;
         _sidebarContent = null;
+        _sidebarPictureMenu?.Close();
         ReleaseSidebarTags();
         _mediaSidebar.Tags.Content = null;
         _mediaSidebar.ClearActions();
@@ -343,6 +377,7 @@ internal sealed partial class BooruWorkbenchView
     private void DisposeMediaSidebar()
     {
         ReleaseMediaSidebar();
+        _sidebarPictureMenu?.Dispose();
         _sidebarViewMenu?.Dispose();
         _mediaSidebar.Dispose();
     }

@@ -37,6 +37,7 @@ public sealed partial class TaggingPage
     private readonly ToggleButton _panelToggle = new() { Name = "TaggingPanelToggle", Focusable = false };
     private readonly ReaderMediaFollowThrottle _panelThrottle = new();
     private readonly HeldKeyLatch _panelFavoriteKey = new();
+    private ContextMenuHost? _panelPictureMenu;
     private ReaderMediaSidebar? _taggingPanel;
     private DispatcherTimer? _panelAnnounceTimer;
     private CancellationTokenSource? _panelFollowDelay;
@@ -227,6 +228,7 @@ public sealed partial class TaggingPage
         panel.Open.Click += (_, _) => OpenPanelGallery();
         panel.PictureActivated += (_, _) => OpenPanelGallery();
         panel.GalleryRequested += (_, _) => OpenPanelGallery();
+        InstallPanelPictureMenu(panel);
         panel.Close.Click += (_, _) =>
         {
             TagQueueKey? cursor = _panelRow?.Key;
@@ -244,6 +246,38 @@ public sealed partial class TaggingPage
         panel.ShowEmpty();
         _panelBody.Children.Add(panel);
         return panel;
+    }
+
+    private void InstallPanelPictureMenu(ReaderMediaSidebar panel)
+    {
+        Control frame = panel.Frame;
+        PressOpenedContextGate press = new();
+        frame.AddHandler(ContextRequestedEvent, (_, e) =>
+        {
+            if (e.TryGetPosition(frame, out _) && press.TryConsume()) e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        ContextMenuHost menu = _panelPictureMenu = new(frame, () =>
+        {
+            if (!IsPanelShown || _tagBusy || panel.IsShowingStalePicture
+                || RowForPanel(_panelRow?.Key) is not { } row || !Queue.Contains(row.Key)
+                || PanelMediaKey(row, EntryOf(row.Item)) != _panelMediaKey)
+                return null;
+
+            SetContextLead(ActiveList, row);
+            FocusContent(row.Key);
+            return ComposeRowMenu();
+        }, fallbackFocus: () => FocusContent(_panelRow?.Key),
+            acceptSource: source => panel.IsMediaSurfaceSource(source, _panelVideo));
+        panel.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            press.BeginPress();
+            if (e.Handled || !ContextClick.IsPress(e, panel) || !panel.IsMediaSurfaceSource(e.Source, _panelVideo)) return;
+            press.MenuOpenedByPress(ContextClick.Button(e, panel));
+            e.Handled = true;
+            if (panel.IsCurrentMediaSurface(e.Source, e.GetPosition(panel), _panelVideo)) menu.Show(atPointer: true);
+        }, RoutingStrategies.Tunnel);
+        frame.AddHandler(PointerReleasedEvent, (_, e) => press.Released(e.InitialPressMouseButton),
+            RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     private int PanelIndex(TagQueueKey key)
@@ -351,6 +385,7 @@ public sealed partial class TaggingPage
 
     internal void StopPanel()
     {
+        _panelPictureMenu?.Close();
         CancelPanelLoad();
         CancelPanelFollow();
         _panelAnnounceTimer?.Stop();
@@ -393,10 +428,11 @@ public sealed partial class TaggingPage
         }
 
         MediaLibraryEntry entry = EntryOf(row.Item);
-        string key = string.Join("\n", row.Key, entry.Sha256, entry.Length, entry.Variant, entry.AttachmentRevisionKey);
+        string key = PanelMediaKey(row, entry);
         bool changed = key != _panelMediaKey;
         if (changed)
         {
+            _panelPictureMenu?.Close();
             CancelPanelLoad();
             _panelMediaKey = key;
             _panelFileAvailable = null;
@@ -413,6 +449,9 @@ public sealed partial class TaggingPage
         if (ticket.UpToDate) return;
         OpenActions.Start(() => LoadTaggingPanelAsync(panel, entry, key, ticket, target), "tagging.panel.load");
     }
+
+    private static string PanelMediaKey(TaggingQueueRow row, MediaLibraryEntry entry) =>
+        string.Join("\n", row.Key, entry.Sha256, entry.Length, entry.Variant, entry.AttachmentRevisionKey);
 
     private GalleryTagPanelPosition DescribePanel(ReaderMediaSidebar panel, TaggingQueueRow row, MediaLibraryEntry entry, string key)
     {
