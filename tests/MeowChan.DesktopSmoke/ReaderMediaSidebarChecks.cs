@@ -341,9 +341,12 @@ internal static class ReaderMediaSidebarChecks
     {
         await Program.WaitUntilAsync(() => host.Bounds.Height > 0 && sidebar.Frame.Bounds.Height > 0
             && Math.Abs(sidebar.Bounds.Height - host.Bounds.Height) <= 1);
+        // The overlay spec allows the header bars to hide while the pointer is away.
+        sidebar.RevealBars();
         await Flush();
         Require(sidebar.TranslatePoint(default, host) is { Y: >= -1 and <= 1 }, "The sidebar does not start at the host's top.");
-        Require(HeaderControlsReachable(sidebar), "The sidebar header controls are missing their top inset or are unreachable.");
+        Require(HeaderControlsReachable(sidebar, out string headerState),
+            "The sidebar header controls are missing their top inset or are unreachable. " + headerState);
         Require(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight, "The sidebar header is shorter than a control row.");
         Require(sidebar.Padding == new Thickness(8), "The reader sidebar lost its four-sided inset.");
         Control details = sidebar.Details;
@@ -355,21 +358,28 @@ internal static class ReaderMediaSidebarChecks
             Program.CaptureWindow(window, $"smoke-reader-full-height-{host.Name}-{Grid.GetColumn(sidebar)}.png");
     }
 
-    internal static bool HeaderControlsReachable(ReaderMediaSidebar sidebar)
+    internal static bool HeaderControlsReachable(ReaderMediaSidebar sidebar, out string state)
     {
-        // Fable overlay spec §§1–2: 8 DIP panel inset plus 4 DIP inside the header bar.
-        const double controlTop = 8 + 4;
-        if (TopLevel.GetTopLevel(sidebar) is not { } root) return false;
+        // Fable overlay spec §§1–2: the docked bar starts at the 8 DIP panel inset.
+        // An overlay bar starts at the media frame. Both have 4 DIP of inner padding.
+        TopLevel? root = TopLevel.GetTopLevel(sidebar);
         Control? header = sidebar.GetVisualDescendants().OfType<Control>()
             .SingleOrDefault(control => AutomationProperties.GetAutomationId(control) == "ReaderMediaSidebarHeaderRow");
         Button? close = sidebar.GetVisualDescendants().OfType<Button>()
             .SingleOrDefault(button => AutomationProperties.GetAutomationId(button) == "ReaderMediaSidebarClose");
-        return header is { IsEffectivelyVisible: true }
-            && header.TranslatePoint(default, sidebar) is Point top && Math.Abs(top.Y - controlTop) <= 1
+        double? barTop = header != null && sidebar.FrameArea.IsVisualAncestorOf(header)
+            ? sidebar.FrameArea.TranslatePoint(default, sidebar)?.Y : 8;
+        double? headerTop = header?.TranslatePoint(default, sidebar)?.Y;
+        Point? closeCenter = root == null || close == null ? null
+            : close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), root);
+        Visual? hit = closeCenter.HasValue ? root!.InputHitTest(closeCenter.Value) as Visual : null;
+        state = $"barTop={barTop}; headerTop={headerTop}; headerVisible={header?.IsEffectivelyVisible}; "
+            + $"close={close?.Bounds}; hit={(hit as Control)?.Name ?? hit?.GetType().Name}.";
+        return header is { IsEffectivelyVisible: true } && barTop.HasValue && headerTop.HasValue
+            && Math.Abs(headerTop.Value - barTop.Value - 4) <= 1
             && close is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true, IsHitTestVisible: true }
             && close.Bounds.Width > 0 && close.Bounds.Height > 0
-            && close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), root) is Point center
-            && root.InputHitTest(center) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(close);
+            && hit?.GetSelfAndVisualAncestors().Contains(close) == true;
     }
 
     // The sidebar has no arrows and no counter over the medium (named controls of the old overlay).

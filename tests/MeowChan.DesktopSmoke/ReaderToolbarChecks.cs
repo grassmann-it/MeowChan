@@ -77,9 +77,10 @@ internal static class ReaderToolbarChecks
             Require(!Named(page, "ArchiveThreadListToggle").IsVisible && !Named(page, "ArchiveReadPosts").IsVisible,
                 "The detached reader shows an embedded-only action.");
             CheckSeparators(bar, Named(page, "ArchiveOpenGallery"), () => "detached Reader at 1380");
+            string headerState = "sidebar hidden";
             await Program.WaitUntilAsync(() => page.MediaSidebar is { IsEffectivelyVisible: true } sidebar
-                && ReaderMediaSidebarChecks.HeaderControlsReachable(sidebar),
-                () => "The detached reader's media header controls are missing their top inset or are unreachable.");
+                && ReaderMediaSidebarChecks.HeaderControlsReachable(sidebar, out headerState),
+                () => "The detached reader's media header controls are missing their top inset or are unreachable. " + headerState);
             await CaptureThemesAsync(window, "smoke-reader-toolbar-detached-1380-advanced");
         }
         finally
