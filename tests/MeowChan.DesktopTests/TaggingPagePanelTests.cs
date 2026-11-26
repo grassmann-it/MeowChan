@@ -599,6 +599,40 @@ public sealed class TaggingPagePanelTests
     }
 
     [Fact]
+    public void MinimizingWhileAutoplayWaitsForTheManifestPreventsVideoPlayback()
+    {
+        ManualClock clock = new();
+        TaskCompletionSource manifestRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseManifest = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        WithPage(false, async fixture =>
+        {
+            await ShowVideoAsync(fixture);
+            ReaderInlineVideoSlot video = Assert.IsType<ReaderInlineVideoSlot>(fixture.Page.PanelVideo);
+            clock.Advance(ReaderInlineVideoRules.AutoplayDelayMs);
+            await manifestRequested.Task.WaitAsync(Deadline);
+            Task activation = video.ActivationTask;
+
+            fixture.Window.WindowState = WindowState.Minimized;
+            releaseManifest.SetResult();
+            await activation.WaitAsync(Deadline);
+
+            Assert.Equal(0, fixture.Page.PanelVideoController.Created);
+            Assert.True(video.IsOffered);
+        }, clock: clock, video: 2, openVideoManifest: OpenDelayedManifestAsync, configure: config =>
+        {
+            config.ReaderSidebarVideoAutoplay = true;
+            config.ReaderSidebarVideoStartMuted = false;
+        });
+
+        async Task<MediaAssetSnapshot> OpenDelayedManifestAsync(string directory, CancellationToken _)
+        {
+            manifestRequested.TrySetResult();
+            await releaseManifest.Task.WaitAsync(Deadline);
+            return await MediaAssetReader.OpenAsync(directory);
+        }
+    }
+
+    [Fact]
     public void TheSidebarLeavesASavedVideoStillWhenAutoplayIsOff()
     {
         ManualClock clock = new();
