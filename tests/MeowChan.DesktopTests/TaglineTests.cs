@@ -242,6 +242,9 @@ public sealed class TaglineTests : IDisposable
             Assert.Equal(["boorutabs", "downloadall", "taglinesfeature", "threadswitch"],
                 TaglinePicker.ReleaseCandidates(pool, previous, baseline).Select(entry => entry.Id));
             Assert.Equal(currentRelease, TaglinePicker.ReleaseCandidates(pool, current, previous).Select(entry => entry.Id));
+            // Round 4 designates only R132, R134 and R139 as release highlights for 1.1.3.
+            Assert.Equal(["bobrapproves", "lookatthispolish", "polishzrozumiano"],
+                TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 3), current).Select(entry => entry.Id));
             foreach (string mode in new[] { TaglinePicker.ModeDaily, TaglinePicker.ModePerStart, TaglinePicker.ModeInterval })
             {
                 TaglinePick first = TaglinePicker.Pick(mode, "cats", pool, Day, current, previous, true, new Random(3));
@@ -398,16 +401,28 @@ public sealed class TaglineTests : IDisposable
     public void AllTwelveLanguagesLocalizeTheQuipsExceptForTheApprovedSharedEnglish()
     {
         // Tom's final selection specifies "EN überall" and the English pun fallback. The pack audit verifies exact copies by bundle.
-        string[] sharedEnglish = ["archivesit", "believebackup", "cloudpain", "diskspaaace", "finaldownload", "fourstarball",
-            "inspaaace", "justsaiyan", "kakarot", "narutoqueue", "ninjaway", "pinkyfinal", "policegirl", "polishontop",
-            "powerscombined", "radarfilter", "shadowclone", "threadcowboy", "threadlightly", "trickorthread", "waywardthread"];
+        string[] sharedEnglish = ["amenthread", "archivesit", "babycassettes", "babyvehicles", "bangarchived", "believebackup",
+            "bobbycopies", "bobbyfolder", "bobrapproves", "boneofmyarchive", "celltags", "cloudpain", "croppingluna", "dadsinitials",
+            "diskspaaace", "downloadersrollout", "finaldownload", "formerskyline", "fourstarball", "gasandlinks", "ginyuformation",
+            "ginyupose", "gokubrother", "grayskulldownloads", "highressoul", "idjitbackup", "inspaaace", "justsaiyan", "kakarot",
+            "krillingallery", "lookatthispolish", "losslesscell", "lunanotes", "meetstheeye", "moontiara", "nappaboard", "nappabumps",
+            "narutoqueue", "ninjaway", "peckingorder", "pinkyfinal", "policegirl", "policegirltea", "polishontop", "polishzrozumiano",
+            "popofaster", "poporoot", "popowatches", "powerscombined", "radarfilter", "raditzarchived", "scouterloadmore",
+            "scouterqueue", "scouterreposts", "searchdestroyarchive", "shadowclone", "somethingthumbnail", "teafirst",
+            "technicallythumbnail", "threadcowboy", "threadlightly", "trickorthread", "tworaditz", "uncompressedform", "venusgoddess",
+            "waywardthread", "wholethreadjpeg", "zarbonbefore", "zarbonfetch"];
+        string[] germanFallbacks = ["crescentarchive", "namekzip", "skeletorbackup", "spikespeed"];
         Texts.SetLanguage("en");
         Dictionary<string, string> english = TaglineCatalog.Available().ToDictionary(entry => entry.Id, entry => entry.Text);
         foreach (string language in AllLanguages.Where(code => code != "en"))
         {
             Texts.SetLanguage(language);
             IEnumerable<string> exactEnglish = TaglineCatalog.Available().Where(entry => entry.Text == english[entry.Id]).Select(entry => entry.Id);
-            Assert.Equal(sharedEnglish, exactEnglish.Where(id => language == "de" || sharedEnglish.Contains(id, StringComparer.Ordinal)));
+            // The four R4 rows marked too long in German use their English fallback.
+            if (language == "de")
+                Assert.Equal(sharedEnglish.Concat(germanFallbacks).Order(StringComparer.Ordinal), exactEnglish);
+            else
+                Assert.Equal(sharedEnglish, exactEnglish.Where(id => sharedEnglish.Contains(id, StringComparer.Ordinal)));
         }
     }
 
@@ -417,7 +432,10 @@ public sealed class TaglineTests : IDisposable
         Texts.SetLanguage("en");
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
         // Tom's final selection adds 42 in B1, 51 in B2, 78 in B3 and 47 in B4, with four removals from the previous catalog.
-        Assert.Equal(260, pool.Count);
+        // The 1.1.3 round 4 selection adds 91 General quips and three Polish release quips.
+        Assert.Equal(354, pool.Count);
+        Version roundFour = new(1, 1, 3);
+        Assert.Equal(91, pool.Count(entry => entry.Since == roundFour && entry.Category == TaglineCategory.General));
         Assert.Contains(pool, entry => entry.Id == TaglineCatalog.DefaultId);
         Assert.Equal("now with 100% more cats", pool.Single(entry => entry.Id == "cats").Text);
         Assert.Equal("now with booru support", pool.Single(entry => entry.Id == "booru").Text);
