@@ -3,12 +3,14 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Platform;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
@@ -84,6 +86,92 @@ public sealed class SettingsResetCoverageTests : IDisposable
             Assert.Equal(Config.SidebarPreviewMaximumPixelsDefault, Config.LoadConfig(profile.Path).SidebarPreviewMaximumPixels);
         });
     }
+
+    [Fact]
+    public void LegacySidebarPreviewLimitSurvivesDiscardAndUnrelatedSaveUntilEditedInMegapixels()
+    {
+        using TempDirectory profile = new();
+        const int legacyPixels = 2_345_678;
+        new Config { SidebarPreviewMaximumPixels = legacyPixels, DownloadPath = profile.Path }.SaveConfig(profile.Path);
+        string settings = Path.Combine(profile.Path, "settings.json");
+        string original = File.ReadAllText(settings);
+        Config config = Config.LoadConfig(profile.Path);
+        WithEditors(config, (editor, _) =>
+        {
+            editor.IsAvailable = true;
+            NumericUpDown limit = ById<NumericUpDown>(editor, "SidebarPreviewMaximumPixelsInput");
+            Button save = ById<Button>(editor, "SaveSettingsButton");
+            Assert.Equal(1m, limit.Minimum);
+            Assert.Equal(80m, limit.Maximum);
+            Assert.Equal(1m, limit.Increment);
+            Assert.Equal(2m, limit.Value);
+            Assert.Contains("MP", ControlAutomationPeer.CreatePeerForElement(limit)!.GetName());
+            Assert.Contains("80 MP", ControlAutomationPeer.CreatePeerForElement(limit)!.GetHelpText());
+
+            limit.Value = 6;
+            editor.CancelChanges();
+            Assert.Equal(2m, limit.Value);
+            Assert.Equal(legacyPixels, config.SidebarPreviewMaximumPixels);
+            Assert.Equal(original, File.ReadAllText(settings));
+
+            editor.ReaderFocusedPostTopPaddingPercent = 12;
+            Save();
+            Config stored = Config.LoadConfig(profile.Path);
+            Assert.Equal(12, stored.ReaderFocusedPostTopPaddingPercent);
+            Assert.Equal(legacyPixels, stored.SidebarPreviewMaximumPixels);
+
+            limit.Value = 3;
+            Save();
+            Assert.Equal(3_000_000, Config.LoadConfig(profile.Path).SidebarPreviewMaximumPixels);
+
+            void Save()
+            {
+                save.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                BooruComponentDispatcher.Wait(WaitForSaveAsync(editor));
+                Assert.False(editor.HasError, editor.ErrorMessage);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("SidebarPreviewMaximumPixelsInput")]
+    [InlineData("ReaderFocusedPostTopPaddingPercentInput")]
+    [InlineData("MediaSidebarInfoInput")]
+    public void EachReaderRowResetsOnlyItsOwnDraft(string id)
+    {
+        string[] ids = ["SidebarPreviewMaximumPixelsInput", "ReaderFocusedPostTopPaddingPercentInput", "MediaSidebarInfoInput"];
+        Config config = new() { SidebarPreviewMaximumPixels = 2_345_678, ReaderFocusedPostTopPaddingPercent = 19, MediaSidebarFacts = false };
+        WithEditors(config, (editor, defaults) =>
+        {
+            Control[] inputs = ids.Select(id => ById<Control>(editor, id)).ToArray();
+            object?[] previous = inputs.Select(ValueOf).ToArray();
+            Control input = ById<Control>(editor, id);
+            Assert.Contains(id, editor.ResettableInputNames);
+            ContextMenuEntry ResetEntry() => Assert.Single(editor.ComposeRowMenu(input)!.ToModel().Entries,
+                entry => entry.CommandId == SettingsRowMenu.Reset);
+            ContextMenuEntry reset = ResetEntry();
+            Assert.True(reset.Available, reset.Reason);
+            reset.Invoke!();
+            Assert.Equal(ValueOf(ById<Control>(defaults, id)), ValueOf(input));
+            for (int i = 0; i < inputs.Length; i++)
+                if (inputs[i] != input) Assert.Equal(previous[i], ValueOf(inputs[i]));
+            Assert.False(ResetEntry().Available);
+            Assert.Equal(2_345_678, config.SidebarPreviewMaximumPixels);
+            Assert.Equal(19, config.ReaderFocusedPostTopPaddingPercent);
+            Assert.False(config.MediaSidebarFacts);
+        });
+
+        static object? ValueOf(Control control) => control switch
+        {
+            NumericUpDown number => number.Value,
+            ComboBox choice => ((SettingsChoice?)choice.SelectedItem)?.Value,
+            _ => throw new InvalidOperationException("Unexpected reader setting control.")
+        };
+    }
+
+    private static T ById<T>(SettingsEditor editor, string id) where T : Control =>
+        Assert.Single(editor.GetLogicalDescendants().OfType<T>(),
+            control => ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId() == id);
 
     [Fact]
     public void CompatibilityEditorKeepsReadingDataUntilTheSettingsCommitSucceeds()
