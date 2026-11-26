@@ -434,7 +434,8 @@ public sealed class TaggingPagePanelTests
         Assert.False(fixture.Find<Control>(fixture.Window, HandleId).IsEffectivelyVisible);
         Assert.True(toggle.IsEffectivelyEnabled);
         Assert.True(toggle.IsChecked);
-        Assert.Contains(Texts.T("tagging.page.panel.narrow"), Assert.IsType<string>(ToolTip.GetTip(toggle)));
+        Assert.Contains(Texts.T("media.layout.panel.collapsed", fixture.Session.Config.MediaPanelMinimumPageWidth),
+            Assert.IsType<string>(ToolTip.GetTip(toggle)));
         BooruReviewTestPlatform.Resize(fixture.Window, 1400);
         await fixture.WaitAsync(() => fixture.Panel.IsEffectivelyVisible, "sidebar after widening");
         Assert.All(fixture.Panel.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible),
