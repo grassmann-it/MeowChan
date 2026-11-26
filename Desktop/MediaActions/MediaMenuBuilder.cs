@@ -5,7 +5,9 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Platform;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
@@ -30,7 +32,7 @@ internal static class MediaMenuBuilder
     internal static ContextMenu Build(MediaMenuSession session, MediaMenuModel model,
         IReadOnlyDictionary<MediaMenuAction, Func<Task>> handlers, Func<Func<Task>, Task> run,
         IReadOnlyList<Control>? contextItems = null, Action<string>? explain = null, IReadOnlyList<Control>? leadingItems = null,
-        Func<string?>? openExternalReason = null, IReadOnlyList<Control>? sourceItems = null)
+        Func<string?>? openExternalReason = null, IReadOnlyList<Control>? sourceItems = null, bool keyboard = false)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(model);
@@ -70,13 +72,47 @@ internal static class MediaMenuBuilder
             info.Click += (_, _) => { if (session.IsCurrent) explain(explanation); };
             items.Add(info);
         }
-        ContextMenu menu = new() { ItemsSource = items };
+        ContextMenu menu = keyboard ? new(new KeyboardMenuInteraction()) : new();
+        menu.ItemsSource = items;
         session.Invalidated += () =>
         {
             foreach (MenuItem item in items.OfType<MenuItem>()) item.IsEnabled = false;
             menu.Close();
         };
         return menu;
+    }
+
+    private sealed class KeyboardMenuInteraction() : DefaultMenuInteractionHandler(isContextMenu: true)
+    {
+        private bool _keyboard = true;
+
+        protected override void KeyDown(object? sender, KeyEventArgs e)
+        {
+            _keyboard = true;
+            base.KeyDown(sender, e);
+        }
+
+        // Layout can move a row under a stationary pointer while source metadata loads.
+        // Avalonia's hover selection also moves focus, so wait for actual pointer motion.
+        protected override void PointerEntered(object? sender, RoutedEventArgs e)
+        {
+            if (!_keyboard) base.PointerEntered(sender, e);
+        }
+
+        protected override void PointerExited(object? sender, RoutedEventArgs e)
+        {
+            if (!_keyboard) base.PointerExited(sender, e);
+        }
+
+        protected override void PointerMoved(object? sender, PointerEventArgs e)
+        {
+            if (_keyboard)
+            {
+                _keyboard = false;
+                base.PointerEntered(sender, e);
+            }
+            base.PointerMoved(sender, e);
+        }
     }
 
     private static MenuItem Item(MediaMenuSession session, MediaMenuItemModel entry,

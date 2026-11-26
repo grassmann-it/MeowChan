@@ -14,7 +14,7 @@ public partial class MainWindow
         string previous = _config.GalleryBackground;
         _config.GalleryBackground = mode;
         _settingsEditor?.RefreshConfirmedGalleryBackground(previous, mode);
-        _ = SaveGalleryBackgroundAsync(mode);
+        OpenActions.Start(() => SaveGalleryBackgroundAsync(mode), "preferences.gallery-background");
     }
 
     private async Task SaveGalleryBackgroundAsync(string mode)

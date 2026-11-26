@@ -17,7 +17,6 @@ internal static class MediaMenuCatalog
         ("media.menu.reverseSearch", "Reverse image search", "Bildrückwärtssuche"),
         ("media.menu.reverseSearch.hint", "Shares the public media URL with the selected service in your browser.", "Gibt die öffentliche Medien-URL im Browser an den gewählten Dienst weiter."),
         ("media.menu.reverseSearch.noUrl", "No public original or post URL is available.", "Es ist keine öffentliche Original- oder Post-URL verfügbar."),
-        ("command.media.copy-booru-tags", "Copy tags as Booru text", "Tags als Booru-Text kopieren"),
         ("media.menu.copyBooruTags.empty", "This item has no tags to copy.", "Dieses Medium hat keine Tags zum Kopieren."),
         ("media.menu.note.selection", "These actions apply to all selected items ({0}). Details, folder and file path need a single item.", "Diese Aktionen gelten für alle ausgewählten Einträge ({0}). Details, Ordner und Dateipfad brauchen einen einzelnen Eintrag."),
         ("media.menu.details.posts", "Posts: {0}", "Anzahl Posts: {0}")
