@@ -201,6 +201,7 @@ public partial class ArchivePage
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
+        sidebar.SidebarVideoSettings = QuickSettingsHost;
         sidebar.SaveSidebarSetting = update =>
         {
             var next = sidebar.CopyBarSettingsTo(ReaderMedia);

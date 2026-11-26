@@ -58,6 +58,7 @@ public sealed partial class TaggingPage
     internal Action<int>? SavePanelWidth { get; set; }
     internal Action<bool>? SavePanelEnabled { get; set; }
     internal Action<Action<Config>>? SavePanelSetting { get; set; }
+    internal QuickSettingsHost? SidebarVideoSettings { get; init; }
     internal Func<string, MediaLibraryEntry, Func<bool>, Task>? ExecutePanelDecisionAsync { get; set; }
     internal ToggleButton PanelToggle => _panelToggle;
     internal bool IsPanelShown => !_queueWork.Ended && _taggingPanel is { IsEffectivelyVisible: true };
@@ -212,6 +213,7 @@ public sealed partial class TaggingPage
         panel[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.CardEdge");
         panel.Styles.Add(new Style(selector => selector.OfType<Button>()) { Setters = { new Setter(FocusableProperty, false) } });
         panel.ConfigureInfo(_panelInfo);
+        panel.SidebarVideoSettings = SidebarVideoSettings;
         panel.SaveSidebarSetting = update =>
         {
             _panelInfo = panel.CopyBarSettingsTo(_panelInfo);

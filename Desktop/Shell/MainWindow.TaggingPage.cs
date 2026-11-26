@@ -86,6 +86,7 @@ public partial class MainWindow
             SavePanelWidth = ChooseSharedPanelWidth,
             SavePanelEnabled = enabled => OpenActions.Start(
                 () => _session.SaveViewPreferencesAsync(config => config.TaggingPagePanel = enabled), "tagging.panel"),
+            SidebarVideoSettings = CreateQuickSettingsHost(),
             SavePanelSetting = update => OpenActions.Start(async () =>
             {
                 bool previous = _config.SidebarFactsVisible;
