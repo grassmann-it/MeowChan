@@ -143,6 +143,7 @@ public static class SettingsTransfer
             ReaderNavigationMode = source.ReaderNavigationMode,
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition,
             GalleryWheelMode = source.GalleryWheelMode,
+            GalleryBackground = source.GalleryBackground,
             GalleryStatusDwellMs = source.GalleryStatusDwellMs,
             GalleryPostTagChipLimit = source.GalleryPostTagChipLimit,
             StatsHistorySamples = source.StatsHistorySamples,

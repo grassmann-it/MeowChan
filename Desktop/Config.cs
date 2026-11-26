@@ -1376,6 +1376,26 @@ namespace MeowChan
         // Mouse wheel over the gallery's picture or video: "Zoom" (default, the wheel zooms at the pointer) or "Browse" (the wheel moves to the
         // next or previous medium). Ctrl+wheel does the other one. Any other stored value reads as "Zoom". The filmstrip, the video controls
         // and the panels keep their own wheel (see GalleryWheel).
+        private string _galleryBackground = GalleryBackgroundBlack;
+        internal const string GalleryBackgroundBlack = "Black", GalleryBackgroundTheme = "Theme",
+            GalleryBackgroundWhite = "White", GalleryBackgroundCheckerboard = "Checkerboard";
+        internal static readonly IReadOnlyList<string> GalleryBackgroundModes =
+            Array.AsReadOnly(new[] { GalleryBackgroundBlack, GalleryBackgroundTheme, GalleryBackgroundWhite, GalleryBackgroundCheckerboard });
+
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryBackground
+        {
+            get => _galleryBackground;
+            set => _galleryBackground = NormalizeGalleryBackground(value);
+        }
+
+        internal static string NormalizeGalleryBackground(string? value)
+        {
+            string? name = value?.Trim();
+            return GalleryBackgroundModes.FirstOrDefault(mode => string.Equals(mode, name, StringComparison.OrdinalIgnoreCase))
+                ?? GalleryBackgroundBlack;
+        }
+
         private string _galleryWheelMode = GalleryWheelModeZoom;
         public const string GalleryWheelModeZoom = "Zoom", GalleryWheelModeBrowse = "Browse";
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -2190,6 +2210,7 @@ namespace MeowChan
                 ReaderNavigationMode = ReaderNavigationMode,
                 ReaderNavigationShowPosition = ReaderNavigationShowPosition,
                 GalleryWheelMode = GalleryWheelMode,
+                GalleryBackground = GalleryBackground,
                 GalleryStatusDwellMs = GalleryStatusDwellMs,
                 GalleryPostTagChipLimit = GalleryPostTagChipLimit,
                 GalleryFilmstrip = GalleryFilmstrip,
@@ -2498,6 +2519,7 @@ namespace MeowChan
             ReaderNavigationMode = source.ReaderNavigationMode;
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
             GalleryWheelMode = source.GalleryWheelMode;
+            GalleryBackground = source.GalleryBackground;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             GalleryPostTagChipLimit = source.GalleryPostTagChipLimit;
             GalleryFilmstrip = source.GalleryFilmstrip;
@@ -2762,6 +2784,7 @@ namespace MeowChan
             ReaderNavigationMode = source.ReaderNavigationMode;
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
             GalleryWheelMode = source.GalleryWheelMode;
+            GalleryBackground = source.GalleryBackground;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             GalleryPostTagChipLimit = source.GalleryPostTagChipLimit;
             // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the

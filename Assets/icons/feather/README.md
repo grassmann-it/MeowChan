@@ -41,3 +41,6 @@ Feather is only their style reference: 24 grid, 2 px round stroke, the frame of 
 the divider and the filled left or right part (the side panel the switch controls); `workspace-expand`/`workspace-shrink` are the frame with
 two arrows pointing apart or together (viewer focus mode). Rendered like the others (`rsvg-convert -w 48 -h 48`). `sidebar.svg` is no longer
 used by a command.
+
+`flip-horizontal` uses MeowChan’s own Feather-style drawing of two triangles
+around a vertical mirror axis. The 48 × 48 mask uses the same renderer.

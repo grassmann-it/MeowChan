@@ -240,6 +240,7 @@ public partial class MainWindow
         _gallery.PlaybackPreferencesChanged += preferences =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
         _gallery.WheelModeChanged += mode => OnGalleryWheelModeChanged(preferenceOwner, mode);
+        _gallery.BackgroundChanged += mode => OnGalleryBackgroundChanged(preferenceOwner, mode);
         _gallery.LayoutChoiceChanged += (mode, choice) => OnGalleryLayoutChoiceChanged(preferenceOwner, mode, choice);
         _gallery.LayoutResetPerformed += (mode, previous) => OnGalleryLayoutReset(preferenceOwner, mode, previous);
         _gallery.CloseRequested += () => CloseGallery();

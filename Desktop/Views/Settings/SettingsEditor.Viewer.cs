@@ -206,7 +206,8 @@ public partial class SettingsEditor
         nameof(GalleryFilmstripTileGapLabel), nameof(GalleryFilmstripTileGapHint), nameof(GalleryPostTagChipLimitLabel), nameof(GalleryPostTagChipLimitHint),
         nameof(GalleryFilmstripFlagFavoriteLabel), nameof(GalleryFilmstripFlagFavoriteHint), nameof(GalleryFilmstripFlagRatingLabel),
         nameof(GalleryFilmstripFlagRatingHint), nameof(GalleryFilmstripFlagUntaggedLabel), nameof(GalleryFilmstripFlagUntaggedHint),
-        nameof(GalleryWheelModeLabel), nameof(GalleryWheelModeHint)
+        nameof(GalleryWheelModeLabel), nameof(GalleryWheelModeHint),
+        nameof(GalleryBackgroundLabel), nameof(GalleryBackgroundHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -231,6 +232,7 @@ public partial class SettingsEditor
         RefreshReaderNavigationModeChoices(SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode);
         RefreshGalleryFilmstripFlagUntaggedChoices(SelectedGalleryFilmstripFlagUntagged?.Value ?? _config.GalleryFilmstripFlagUntagged);
         RefreshGalleryWheelModeChoices(SelectedGalleryWheelMode?.Value ?? _config.GalleryWheelMode);
+        RefreshGalleryBackgroundChoices(SelectedGalleryBackground?.Value ?? _config.GalleryBackground);
         if (_refreshingLanguageLabels) RaiseViewerVisibilityChanged();
     }
 
@@ -291,6 +293,7 @@ public partial class SettingsEditor
         RefreshReaderNavigationModeChoices(config.ReaderNavigationMode);
         ReaderNavigationShowPosition = config.ReaderNavigationShowPosition;
         RefreshGalleryWheelModeChoices(config.GalleryWheelMode);
+        RefreshGalleryBackgroundChoices(config.GalleryBackground);
         GalleryFilmstrip = config.GalleryFilmstrip;
         GalleryFilmstripFlagFavorite = config.GalleryFilmstripFlagFavorite;
         GalleryFilmstripFlagRating = config.GalleryFilmstripFlagRating;
@@ -323,6 +326,7 @@ public partial class SettingsEditor
         candidate.ReaderNavigationMode = SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode;
         candidate.ReaderNavigationShowPosition = ReaderNavigationShowPosition;
         candidate.GalleryWheelMode = SelectedGalleryWheelMode?.Value ?? _config.GalleryWheelMode;
+        candidate.GalleryBackground = SelectedGalleryBackground?.Value ?? _config.GalleryBackground;
         candidate.GalleryFilmstrip = GalleryFilmstrip;
         candidate.GalleryFilmstripFlagFavorite = GalleryFilmstripFlagFavorite;
         candidate.GalleryFilmstripFlagRating = GalleryFilmstripFlagRating;

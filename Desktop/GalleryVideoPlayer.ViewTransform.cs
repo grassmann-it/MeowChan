@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,9 +24,9 @@ internal sealed partial class GalleryVideoPlayer
     private readonly Panel _softwareHost = new() { Name = "GallerySoftwareVideoHost", MinHeight = 100, ClipToBounds = true, Background = Brushes.Transparent };
     private readonly MatrixTransform _surfaceTransform = new();
     private (int Width, int Height)? _sourceSize;
-    // Windows: what the view wants and what the running player has.
-    private volatile int _nativeRotation;
-    private int _nativeRotationApplied;
+    // Windows: the LibVLC transform types the view wants and the player has.
+    private volatile string? _nativeTransform;
+    private string? _nativeTransformApplied;
     private int _rotationRunning, _cropScheduled, _sizeQueryPending;
     private string? _wantedCrop;
     private string? _appliedCrop;
@@ -60,7 +61,7 @@ internal sealed partial class GalleryVideoPlayer
     internal bool TurnsNow => UsesSoftwareVideo
         || VideoNativeRotation.Decide(_intent.Current.Mode, _length, _knownSeekable) != NativeRotationAction.Unavailable;
     /// <summary>Windows: the wanted rotation has not reached the output yet (it waits for a seekable input; nothing is applied meanwhile).</summary>
-    internal bool NativeRotationPending => !UsesSoftwareVideo && _nativeRotation != _nativeRotationApplied;
+    internal bool NativeRotationPending => !UsesSoftwareVideo && _nativeTransform != _nativeTransformApplied;
 
     /// <summary>Whether <paramref name="source"/> is the picture itself (not the transport or another control of the player).</summary>
     internal bool OwnsSurface(object? source) => source is Visual visual
@@ -82,14 +83,18 @@ internal sealed partial class GalleryVideoPlayer
     }
 
     /// <summary>Windows: the rotation the next medium opens with (a new medium 0°, the same medium shown again its own).</summary>
-    internal void PrepareRotation(int degrees) { _nativeRotation = GalleryRotation.Normalize(degrees); _nativeRotationApplied = 0; }
+    internal void PrepareRotation(int degrees, bool flipped = false)
+    {
+        _nativeTransform = NativeTransformType(degrees, flipped);
+        _nativeTransformApplied = null;
+    }
 
     // A new medium shows upright and unzoomed until the viewer places it.
     private void ResetViewTransform()
     {
         _sourceSize = null;
         _surfaceTransform.Matrix = Matrix.Identity;
-        _nativeRotationApplied = 0; // The wanted rotation is set by the viewer (PrepareRotation) before each medium.
+        _nativeTransformApplied = null; // The viewer sets the wanted transform before each medium.
         _wantedCrop = _appliedCrop = null;
         Interlocked.Exchange(ref _cropScheduled, 0);
         Interlocked.Exchange(ref _sizeQueryPending, 0);
@@ -108,7 +113,7 @@ internal sealed partial class GalleryVideoPlayer
         {
             Size cell = _softwareHost.Bounds.Size;
             _surfaceTransform.Matrix = VideoSurfaceTransform.For(geometry.SourceWidth, geometry.SourceHeight, cell.Width, cell.Height,
-                displayScale, placement, geometry.Rotation).ToMatrix();
+                displayScale, placement, geometry.Rotation, geometry.Flipped).ToMatrix();
             return;
         }
         ApplyNativeView(geometry, placement, displayScale);
@@ -116,8 +121,8 @@ internal sealed partial class GalleryVideoPlayer
 
     private void ApplyNativeView(GalleryViewGeometry geometry, GalleryViewPlacement placement, double displayScale)
     {
-        _nativeRotation = geometry.Rotation;
-        if (_nativeRotation != _nativeRotationApplied) _ = SyncNativeRotationAsync();
+        _nativeTransform = NativeTransformType(geometry.Rotation, geometry.Flipped);
+        if (_nativeTransform != _nativeTransformApplied) _ = SyncNativeRotationAsync();
         // The native output always fills its window: the crop is relative to that uncapped fit.
         (int width, int height) = geometry.Oriented;
         double fit = GalleryGeometry.Fit(width, height, geometry.ViewportWidth, geometry.ViewportHeight, displayScale);
@@ -146,9 +151,9 @@ internal sealed partial class GalleryVideoPlayer
         if (Interlocked.Exchange(ref _rotationRunning, 1) != 0) return;
         try
         {
-            while (_nativeRotation != _nativeRotationApplied && IsCurrent(generation) && !IsDisposed)
+            while (_nativeTransform != _nativeTransformApplied && IsCurrent(generation) && !IsDisposed)
             {
-                int target = _nativeRotation, attached = _nativeRotationApplied;
+                string? target = _nativeTransform, attached = _nativeTransformApplied;
                 NativeRotationAction action = VideoNativeRotation.Decide(_intent.Current.Mode, _length, _knownSeekable);
                 // A playing input that cannot reopen at its position keeps its orientation: nothing is added or marked as applied,
                 // the wish stays pending and the next view update tries again once the video is seekable.
@@ -157,10 +162,10 @@ internal sealed partial class GalleryVideoPlayer
                 long position = _timeline.DisplayPosition;
                 await CommandAsync(playback =>
                 {
-                    AddRotationOptions(playback.Media, attached, target);
+                    AddTransformOptions(playback.Media, attached, target);
                     if (reopen) playback.Player.Stop();
                 }).ConfigureAwait(true);
-                _nativeRotationApplied = target;
+                _nativeTransformApplied = target;
                 if (!reopen || !IsCurrent(generation)) continue;
                 if (_timeline.Request(generation, Math.Clamp(position * 1000d / _length, 0, 1000), _length, seekable: true) is { } request)
                     _ = _seeks.Enqueue(request);
@@ -171,21 +176,28 @@ internal sealed partial class GalleryVideoPlayer
     }
 
     /// <summary>The media options of a rotation (0° removes the filter again). Later options win over earlier ones.</summary>
-    internal static string[] RotationOptions(int degrees) => GalleryRotation.Normalize(degrees) switch
-    {
-        0 => new[] { ":video-filter=" },
-        int turn => new[] { ":video-filter=transform", ":transform-type=" + turn }
-    };
+    internal static string[] RotationOptions(int degrees) => VideoNativeRotation.Options(NativeTransformType(degrees));
 
-    private static void AddRotationOptions(Media media, int attached, int degrees)
+    internal static string? NativeTransformType(int degrees, bool flipped = false)
     {
-        foreach (string option in VideoNativeRotation.OptionsToAdd(attached, degrees)) media.AddOption(option);
+        int rotation = GalleryRotation.Normalize(degrees);
+        // The mirror acts on the displayed image, after its rotation.
+        if (flipped)
+            return rotation switch { 90 => "transpose", 180 => "vflip", 270 => "antitranspose", _ => "hflip" };
+        return rotation == 0 ? null : rotation.ToString(CultureInfo.InvariantCulture);
     }
 
-    // A medium shown again with its rotation (a video back from the reader) opens already turned.
+    private static void AddTransformOptions(Media media, string? attached, string? wanted)
+    {
+        foreach (string option in VideoNativeRotation.OptionsToAdd(attached, wanted)) media.AddOption(option);
+    }
+
+    // A medium shown again opens in its existing orientation.
     private void AddInitialRotation(Media media)
     {
-        if (!UsesSoftwareVideo && _nativeRotation != 0) { AddRotationOptions(media, 0, _nativeRotation); _nativeRotationApplied = _nativeRotation; }
+        if (UsesSoftwareVideo || _nativeTransform is not string wanted) return;
+        AddTransformOptions(media, null, wanted);
+        _nativeTransformApplied = wanted;
     }
 
     // Windows reports the video size once its output exists: ask on the worker after the first time ticks, until it is known.
@@ -212,7 +224,8 @@ internal sealed partial class GalleryVideoPlayer
             {
                 if (!IsCurrent(generation) || IsDisposed || _sourceSize != null) return;
                 // The size of an already turned output is the turned one: report the picture's own size.
-                _sourceSize = GalleryRotation.IsQuarterTurn(_nativeRotation) ? (known.Item2, known.Item1) : known;
+                _sourceSize = _nativeTransformApplied is "90" or "270" or "transpose" or "antitranspose"
+                    ? (known.Item2, known.Item1) : known;
                 ViewSurfaceChanged?.Invoke();
             });
         });
@@ -244,5 +257,12 @@ internal static class VideoNativeRotation
     /// win, so a repeated or no-op request must add nothing).
     /// </summary>
     internal static string[] OptionsToAdd(int attached, int wanted) =>
-        GalleryRotation.Normalize(attached) == GalleryRotation.Normalize(wanted) ? Array.Empty<string>() : GalleryVideoPlayer.RotationOptions(wanted);
+        OptionsToAdd(GalleryVideoPlayer.NativeTransformType(attached), GalleryVideoPlayer.NativeTransformType(wanted));
+
+    internal static string[] OptionsToAdd(string? attached, string? wanted) =>
+        attached == wanted ? Array.Empty<string>() : Options(wanted);
+
+    internal static string[] Options(string? type) => type == null
+        ? new[] { ":video-filter=" }
+        : new[] { ":video-filter=transform", ":transform-type=" + type };
 }

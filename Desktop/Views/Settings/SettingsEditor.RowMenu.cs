@@ -173,6 +173,8 @@ public partial class SettingsEditor
             Flag(GalleryFilmstripFlagFavoriteInput, () => GalleryFilmstripFlagFavorite, value => GalleryFilmstripFlagFavorite = value, config => config.GalleryFilmstripFlagFavorite),
             Flag(GalleryFilmstripFlagRatingInput, () => GalleryFilmstripFlagRating, value => GalleryFilmstripFlagRating = value, config => config.GalleryFilmstripFlagRating),
             Choice(GalleryFilmstripFlagUntaggedInput, () => SelectedGalleryFilmstripFlagUntagged?.Value, value => SelectedGalleryFilmstripFlagUntagged = GalleryFilmstripFlagUntaggedChoices.FirstOrDefault(item => item.Value == value) ?? SelectedGalleryFilmstripFlagUntagged, config => config.GalleryFilmstripFlagUntagged),
+            Choice(GalleryBackgroundInput, () => SelectedGalleryBackground?.Value,
+                value => SelectedGalleryBackground = GalleryBackgroundChoices.FirstOrDefault(item => item.Value == value), config => config.GalleryBackground),
             Choice(GalleryWheelModeInput, () => SelectedGalleryWheelMode?.Value, value => SelectedGalleryWheelMode = GalleryWheelModeChoices.FirstOrDefault(item => item.Value == value) ?? SelectedGalleryWheelMode, config => config.GalleryWheelMode),
             Choice(ReaderNavigationModeInput, () => SelectedReaderNavigationMode?.Value, value => SelectedReaderNavigationMode = ReaderNavigationModeChoices.FirstOrDefault(item => item.Value == value) ?? SelectedReaderNavigationMode, config => config.ReaderNavigationMode),
             Choice(MediaSidebarInfoInput, () => SelectedMediaSidebarInfo?.Value, value => SelectedMediaSidebarInfo = MediaSidebarInfoChoices.First(item => item.Value == value), config => config.SidebarFactsVisible ? "Always" : "Off"),

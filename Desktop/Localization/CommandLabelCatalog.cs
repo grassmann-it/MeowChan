@@ -121,6 +121,8 @@ internal static class CommandLabelCatalog
         ("command.gallery.actual-size", "1:1", "1:1"),
         ("command.gallery.zoom-in", "Zoom in", "Vergrößern"),
         ("command.gallery.rotate", "Rotate 90°", "90° drehen"),
+        ("command.gallery.flip-horizontal", "Flip horizontally", "Horizontal spiegeln"),
+        ("command.gallery.background", "Background", "Hintergrund"),
         ("command.gallery.mode-toggle", "Gallery mode: view / tag", "Galeriemodus: Ansehen / Taggen"),
         ("command.gallery.zoom-out", "Zoom out", "Verkleinern"),
         ("command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden"),
