@@ -19,7 +19,7 @@ namespace MeowChan;
 // is disabled with its reason in the tip. Deleting a thread permanently stays in the lists.
 public partial class ArchivePage
 {
-    /// <summary>The ids of the "Thread" menu's entries, in their order (separators are not listed).</summary>
+    /// <summary>The unconditional "Thread" menu entries, in order (separators are not listed).</summary>
     internal static readonly string[] ReaderThreadMenuIds =
     {
         "archive.capture-toggle", "watch.check", "watch.retry-media", "rules.edit-scope",
@@ -107,6 +107,9 @@ public partial class ArchivePage
             () => SelectionLeadAction != null && !string.IsNullOrWhiteSpace(summary?.MediaDirectory), () => Texts.T("archive.command.noFolder"));
         Add("location.open-source", () => { if (row != null) RunArchiveLeadAction(row, "browser"); },
             () => SelectionLeadAction != null && !string.IsNullOrWhiteSpace(summary?.Url), () => Texts.T("archive.command.noSource"));
+        Uri? thirdPartyArchive = OpenThirdPartyArchive is { } openArchive
+            ? ThirdPartyThreadArchiveMenu.Add(builder, id, openArchive, () => ThreadMenuReady && _thread?.Summary.Id == id)
+            : null;
         Add("selection.copy-links", () => { if (summary != null && CopySelectedUrls != null) _ = CopySelectedUrls(new[] { summary.Url }); },
             () => CopySelectedUrls != null && !string.IsNullOrWhiteSpace(summary?.Url), () => Texts.T("archive.command.noSource"),
             () => Texts.T("reader.thread.copyLink"));
@@ -115,6 +118,7 @@ public partial class ArchivePage
             () => RemoveSelectedWatches != null && OpenThreadIsWatched, () => Texts.T("archive.command.noWatch"));
 
         ContextMenu menu = builder.Build()!;
+        ThirdPartyThreadArchiveMenu.Present(menu, thirdPartyArchive);
         MenuItem? capture = menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "archive.capture-toggle"));
         if (capture != null)
         {

@@ -2332,6 +2332,8 @@
     "archive.command.noRetry": "Aucune surveillance sélectionnée n’a de médias manquants pouvant être réessayés.",
     "archive.command.noFolder": "Aucun dossier de médias n’est enregistré pour cette entrée.",
     "archive.command.noSource": "Aucune URL de source n’est enregistrée pour cette entrée.",
+    "archive.command.openThirdParty": "Ouvrir dans une archive tierce",
+    "archive.command.openThirdPartyTip": "Ouvre {0} dans le navigateur par défaut. MeowChan n’envoie aucune requête à ce site.",
     "archive.command.unavailable": "Pourquoi les actions sont-elles indisponibles ?",
     "archive.command.selectionCount": "{0} fils sélectionnés · chaque action affiche ses cibles admissibles",
     "archive.command.batchCount": "{0} ({1} fils)",

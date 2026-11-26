@@ -2342,6 +2342,8 @@
     "archive.command.noRetry": "Ни у одного выбранного наблюдения нет недостающих медиа, для которых доступен повтор.",
     "archive.command.noFolder": "Для этой записи не указана папка медиа.",
     "archive.command.noSource": "Для этой записи не указан URL источника.",
+    "archive.command.openThirdParty": "Открыть в стороннем архиве",
+    "archive.command.openThirdPartyTip": "Открывает {0} в браузере по умолчанию. MeowChan не отправляет запросы на этот сайт.",
     "archive.command.unavailable": "Почему действия недоступны?",
     "archive.command.selectionCount": "Выбрано тредов: {0} · каждое действие показывает подходящие цели",
     "archive.command.batchCount": "{0} (тредов: {1})",

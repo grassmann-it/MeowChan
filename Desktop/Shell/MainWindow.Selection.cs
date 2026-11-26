@@ -126,6 +126,7 @@ public partial class MainWindow
         ArchivePage.CanCheckWatch = id => ArchiveWatchRow(id) is { } row && _session.CanRequestCheck(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
         ArchivePage.CanRetryWatch = id => ArchiveWatchRow(id)?.CanRetryMedia == true;
         ArchivePage.CopySelectedUrls = urls => CopyUrlsAsync(urls, ArchivePage.CaptureActionErrorReporter());
+        ArchivePage.OpenThirdPartyArchive = target => OpenThirdPartyArchive(target, ArchivePage.CaptureActionErrorReporter());
         ArchivePage.SelectionLeadAction = (id, action) =>
         {
             if (_sessionRowsApplying) return;

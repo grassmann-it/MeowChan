@@ -21,6 +21,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private readonly Dictionary<ContextMenu, DispatcherTimer> _archiveMenuRefreshTimers = new();
+    internal Action<Uri>? OpenThirdPartyArchive { get; set; }
 
     private static bool MatchesArchiveCommand(KeyEventArgs e, string id) => CommandBindings.Matches(e, id);
 
@@ -168,6 +169,9 @@ public partial class ArchivePage
             () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"));
         Add("location.open-source", () => RunArchiveLeadAction(lead, "browser"),
             () => !string.IsNullOrWhiteSpace(lead.Summary.Url), Texts.T("archive.command.noSource"));
+        Uri? thirdPartyArchive = OpenThirdPartyArchive is { } openArchive
+            ? ThirdPartyThreadArchiveMenu.Add(builder, lead.Summary.Id, openArchive, Ready)
+            : null;
         builder.Section();
         Add("watch.check", async () => await CheckArchiveTargetsAsync(ids, false),
             () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, false).Length > 0, Texts.T("archive.command.noCheck"), count: () => EligibleArchiveWatches(ids, false).Length);
@@ -210,6 +214,7 @@ public partial class ArchivePage
         builder.Append(unavailable);
         UpdateExplanation();
         builder.Populate(menu);
+        ThirdPartyThreadArchiveMenu.Present(menu, thirdPartyArchive);
         MenuItem? tags = menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "thread.tags"));
         if (tags != null)
         {

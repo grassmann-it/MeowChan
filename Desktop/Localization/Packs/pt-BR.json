@@ -1832,6 +1832,8 @@
     "archive.command.noRetry": "Nenhum acompanhamento selecionado tem mídias ausentes que possam ser tentadas de novo.",
     "archive.command.noFolder": "Nenhuma pasta de mídia registrada para esta entrada.",
     "archive.command.noSource": "Nenhuma URL de origem registrada para esta entrada.",
+    "archive.command.openThirdParty": "Abrir em um arquivo de terceiros",
+    "archive.command.openThirdPartyTip": "Abre {0} no navegador padrão. O próprio MeowChan não faz nenhuma solicitação a esse site.",
     "archive.command.unavailable": "Por que as ações estão indisponíveis?",
     "archive.command.selectionCount": "{0} tópicos selecionados · cada ação mostra seus alvos elegíveis",
     "archive.command.batchCount": "{0} ({1} tópicos)",

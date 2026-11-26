@@ -15,6 +15,7 @@ namespace MeowChan.DesktopSmoke;
 internal static class ReaderThreadMenuChecks
 {
     private const string BookmarkManager = "post-bookmarks.open-manager";
+    private const string OpenThirdPartyArchive = "location.open-third-party-archive";
 
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 
@@ -43,6 +44,7 @@ internal static class ReaderThreadMenuChecks
                 CopySelectedUrls = urls => { calls.Add("copy:" + string.Join(",", urls)); return Task.CompletedTask; },
                 RemoveSelectedWatches = ids => { calls.Add("remove:" + string.Join(",", ids.Select(item => item.Thread))); return Task.CompletedTask; },
                 SelectionLeadAction = (target, action) => calls.Add(action + ":" + target.Thread),
+                OpenThirdPartyArchive = target => calls.Add(target.AbsoluteUri),
                 SelectionDetailsRequested = target => calls.Add("details:" + target.Thread),
                 OpenPostBookmarks = () => calls.Add("bookmarks"),
                 ShowThreadInMediaRequested = (target, threadTitle) => calls.Add("media:" + target.Thread + ":" + threadTitle)
@@ -57,6 +59,9 @@ internal static class ReaderThreadMenuChecks
             Button gear = page.FindControl<Button>("ReaderSettingsOpen")!;
             MenuItem[] Items() => page.BuildReaderThreadMenu().Items.OfType<MenuItem>().ToArray();
             MenuItem Item(string command) => Items().Single(item => AutomationProperties.GetAutomationId(item) == command);
+            // Fable §1 Z2 places the action directly below the source for this /g/ thread.
+            List<string> expectedIds = new(ArchivePage.ReaderThreadMenuIds);
+            expectedIds.Insert(expectedIds.IndexOf("location.open-source") + 1, OpenThirdPartyArchive);
             foreach (bool detached in new[] { false, true })
             {
                 if (detached) window.Content = page.DetachReader();
@@ -71,7 +76,7 @@ internal static class ReaderThreadMenuChecks
                 if (detached) Program.CaptureWindow(window, "smoke-reader-thread-menu-bar.png");
 
                 watched = false;
-                Require(Items().Select(AutomationProperties.GetAutomationId).SequenceEqual(ArchivePage.ReaderThreadMenuIds),
+                Require(Items().Select(AutomationProperties.GetAutomationId).SequenceEqual(expectedIds),
                     "The Thread menu lists other entries.");
                 Require(page.BuildReaderThreadMenu().Items.OfType<Separator>().Count() == 2, "The Thread menu must have two separators.");
                 MenuItem capture = Item("archive.capture-toggle");
@@ -108,9 +113,10 @@ internal static class ReaderThreadMenuChecks
                     ["archive.capture-toggle"] = "capture:7300:" + !captureBefore, ["watch.check"] = "check:7300", ["watch.retry-media"] = "retry:7300",
                     ["rules.edit-scope"] = "rules:7300", [BookmarkManager] = "bookmarks", ["thread.details"] = "details:7300",
                     ["thread.show-in-media"] = "media:7300:" + title, ["location.open-folder"] = "folder:7300",
-                    ["location.open-source"] = "browser:7300", ["selection.copy-links"] = "copy:" + url, ["watch.remove"] = "remove:7300"
+                    ["location.open-source"] = "browser:7300", [OpenThirdPartyArchive] = "https://desuarchive.org/g/thread/7300/",
+                    ["selection.copy-links"] = "copy:" + url, ["watch.remove"] = "remove:7300"
                 };
-                foreach (string command in ArchivePage.ReaderThreadMenuIds)
+                foreach (string command in expectedIds)
                 {
                     if (detached && command == BookmarkManager) continue;
                     calls.Clear();
