@@ -474,7 +474,8 @@ public sealed class TrayStatsPresenterTests : IDisposable
         h.OpenMenu();
         Assert.Equal(actions, items.Where(item => item.IsVisible));
         if (!useStatisticsShortcut) Assert.Null(h.Presenter.RatesItem.Header); // hidden lines are not computed
-        Assert.Equal("MeowChan · Image Downloader", h.Tooltip);
+        // Fable 23: closing the tray menu restores the app name when idle.
+        Assert.Equal("MeowChan", h.Tooltip);
         h.CloseMenu();
         h.MenuOn = true;
         h.Presenter.Refresh();
@@ -483,7 +484,7 @@ public sealed class TrayStatsPresenterTests : IDisposable
         Assert.Equal(items, items.Where(item => item.IsVisible));
         string[] expectedHeaders = useStatisticsShortcut ? ["Statistics"] : ["Idle", "Today ↓ 1.0 MiB", "Disk: 0 B written"];
         Assert.Equal(expectedHeaders, stats.Select(item => item.Header));
-        Assert.Equal("MeowChan · Image Downloader", h.Tooltip);
+        Assert.Equal("MeowChan", h.Tooltip);
         h.MenuOn = false;
         h.Presenter.Refresh();
         Assert.Equal(actions, items.Where(item => item.IsVisible));

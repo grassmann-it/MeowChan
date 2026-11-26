@@ -254,9 +254,10 @@ public sealed class DownloadsFeedbackTests
     // ---- tray (D-05) --------------------------------------------------------------------------------------
 
     [Theory]
-    [InlineData("en", false, "Pause downloads and checks", "pause", "MeowChan · Image Downloader")]
+    // Fable 23: the idle tooltip only shows the app name in every language.
+    [InlineData("en", false, "Pause downloads and checks", "pause", "MeowChan")]
     [InlineData("en", true, "Resume downloads and checks", "play", "MeowChan · paused")]
-    [InlineData("de", false, "Downloads und Prüfungen pausieren", "pause", "MeowChan · Image Downloader")]
+    [InlineData("de", false, "Downloads und Prüfungen pausieren", "pause", "MeowChan")]
     [InlineData("de", true, "Downloads und Prüfungen fortsetzen", "play", "MeowChan · pausiert")]
     public void TrayPauseEntryNamesTheActionItWillPerformAndTheTooltipSaysWhenPaused(string language, bool paused, string header, string icon, string tooltip)
     {

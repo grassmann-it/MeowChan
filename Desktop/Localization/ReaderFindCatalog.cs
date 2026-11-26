@@ -8,7 +8,6 @@ internal static class ReaderFindCatalog
         ("readerFind.query", "Find text (up to 512 characters)", "Text suchen (bis 512 Zeichen)"),
         ("readerFind.previous", "Previous hit", "Voriger Treffer"),
         ("readerFind.next", "Next hit", "Nächster Treffer"),
-        ("readerFind.close", "Close find", "Suche schließen"),
         ("readerFind.ready", "Search the saved thread. Enter: next · Shift+Enter: previous · Esc: close", "Gespeicherten Thread durchsuchen. Enter: weiter · Umschalt+Enter: zurück · Esc: schließen"),
         ("readerFind.invalid", "Use at most 512 UTF-16 code units; NUL is not supported.", "Höchstens 512 UTF-16-Codeeinheiten verwenden; NUL wird nicht unterstützt."),
         ("readerFind.searching", "Searching saved posts…", "Gespeicherte Posts werden durchsucht…"),

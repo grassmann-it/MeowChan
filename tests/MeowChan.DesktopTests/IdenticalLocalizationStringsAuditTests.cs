@@ -16,16 +16,16 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
             // Tom's B1/B2 selection adds the shared English quips and the per-language "EN" cells from the approved matrix.
             // Tom's B3/B4 selection keeps English where the pop culture references work best in the original.
             // Round 4 keeps the marked English lines, release puns and language-specific English fallbacks.
-            ["cs"] = (5922, 256, "8d45ae587656e9e578580f9e444daf6adf6747f2c05c1174aa81204031a02ca9"),
-            ["es"] = (5866, 238, "605eb4bd90740f258ea891e73762c28e6811fcce35321575ccbf969ed7abd000"),
-            ["fr"] = (5866, 278, "3d2c107ac5a19691bd115f358f1eb63548817c8caed2baa4a8e6e84936766fc7"),
-            ["it"] = (5872, 289, "114ce5c476623ab8f44052120178fb1d09b24ff60349c7920ed35b3a43589136"),
-            ["ja"] = (5756, 214, "15983fe3bd9b286d5d06eb1a5a6438965819fb442ad08d97f0855fd0fcfc9982"),
-            ["ko"] = (5756, 213, "16a5334b521e605e259cd2da2ad47ee269d8d3d62595fafcc71792c5f7143a43"),
-            ["pl"] = (5923, 258, "ba370653d2fcdcfd25ad41991ed7f25f51fa3b7b5be9b5be076719fd93eac96b"),
-            ["pt-BR"] = (5872, 302, "0aab3e2f9f60292ea3b7549ddfb9e729c4f99bd392ff0ddcef14fcdf5e77979d"),
-            ["ru"] = (5900, 224, "386f3601ae0d6b7faed6b8bacfeaee59c17902be0c35db39fc34c7da11bf721f"),
-            ["zh-Hans"] = (5756, 207, "41dd1847a83a96d02596a70e9ff61df45006ff2ca234854770ae4d67a7b19f9f"),
+            ["cs"] = (5920, 256, "8d45ae587656e9e578580f9e444daf6adf6747f2c05c1174aa81204031a02ca9"),
+            ["es"] = (5864, 238, "605eb4bd90740f258ea891e73762c28e6811fcce35321575ccbf969ed7abd000"),
+            ["fr"] = (5864, 278, "3d2c107ac5a19691bd115f358f1eb63548817c8caed2baa4a8e6e84936766fc7"),
+            ["it"] = (5870, 289, "114ce5c476623ab8f44052120178fb1d09b24ff60349c7920ed35b3a43589136"),
+            ["ja"] = (5754, 214, "15983fe3bd9b286d5d06eb1a5a6438965819fb442ad08d97f0855fd0fcfc9982"),
+            ["ko"] = (5754, 213, "16a5334b521e605e259cd2da2ad47ee269d8d3d62595fafcc71792c5f7143a43"),
+            ["pl"] = (5921, 258, "ba370653d2fcdcfd25ad41991ed7f25f51fa3b7b5be9b5be076719fd93eac96b"),
+            ["pt-BR"] = (5870, 302, "0aab3e2f9f60292ea3b7549ddfb9e729c4f99bd392ff0ddcef14fcdf5e77979d"),
+            ["ru"] = (5898, 224, "386f3601ae0d6b7faed6b8bacfeaee59c17902be0c35db39fc34c7da11bf721f"),
+            ["zh-Hans"] = (5754, 207, "41dd1847a83a96d02596a70e9ff61df45006ff2ca234854770ae4d67a7b19f9f"),
         };
 
     // The provider number, unit and precision retain the same punctuation in these packs.
@@ -62,7 +62,8 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
         // Tom's B1/B2 selection adds 93 taglines and removes four that were still in the catalog.
         // Tom's B3/B4 selection adds 125 pop culture taglines.
         // Tom’s 1.1.3 round 4 selection adds 94 taglines.
-        Assert.Equal(5868, BuiltInCatalog.English.Count);
+        // Fable 18 and 25 add the Stamp command label and remove three unused labels.
+        Assert.Equal(5866, BuiltInCatalog.English.Count);
         Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
         Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
     }

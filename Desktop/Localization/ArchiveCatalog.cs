@@ -140,7 +140,6 @@ internal static class ArchiveCatalog
         ("gallery.open", "Open in gallery", "In der Galerie öffnen"),
         ("gallery.results", "Images of matching threads", "Bilder der gefundenen Threads"),
         ("gallery.read", "Read posts", "Posts lesen"),
-        ("gallery.tiles", "Tiles", "Kacheln"),
         ("gallery.list", "List", "Liste"),
         ("gallery.allVersions", "All saved versions", "Alle gespeicherten Fassungen"),
         ("gallery.earlierVersion", "Earlier saved version", "Frühere gespeicherte Fassung"),

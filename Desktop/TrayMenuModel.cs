@@ -7,7 +7,7 @@ namespace MeowChan.Desktop;
 internal static class TrayMenuModel
 {
     private const string Separator = " · ";
-    internal const string BaseTooltip = "MeowChan" + Separator + "Image Downloader";
+    internal const string BaseTooltip = "MeowChan";
 
     /// <summary>The entry names the action it will perform, not the current state.</summary>
     internal static string PauseHeader(bool paused, string? shortcut = null)

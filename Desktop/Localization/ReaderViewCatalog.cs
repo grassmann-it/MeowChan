@@ -35,7 +35,7 @@ internal static class ReaderViewCatalog
         ("reader.sidebar.position", "{0} of {1}", "{0} von {1}"),
         ("thread.media.total", "Thread attachments: {0}", "Thread-Anhänge: {0}"),
         ("thread.media.unavailable", "Unavailable here: {0}", "Hier nicht verfügbar: {0}"),
-        ("reader.sidebar.empty", "Select a post to see its media here.", "Einen Post markieren, um seine Medien hier zu sehen."),
+        ("reader.sidebar.empty", "Select a post to see its media here.", "Wähle einen Post aus, um seine Medien hier zu sehen."),
         ("reader.sidebar.postDetail", "Post details for No. {0}", "Details zu Post Nr. {0}"),
         ("reader.sidebar.noPosts", "No posts to show.", "Keine Posts zum Anzeigen."),
         ("reader.sidebar.hidden", "The view hides the media of No. {0}", "Die Ansicht blendet die Medien von Nr. {0} aus"),
