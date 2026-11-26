@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using Avalonia.Input;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -699,6 +700,7 @@ public partial class MainWindow
     {
         if (_galleryCoversWorkspace == covers) return;
         _galleryCoversWorkspace = covers;
+        SidebarGifPlayback.SetSuspended(this, covers);
         if (covers)
         {
             LayoutUpdated += OnGalleryCoveredLayoutUpdated;

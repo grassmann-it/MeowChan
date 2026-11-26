@@ -267,6 +267,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly SidebarGifPlayback _gif;
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
     private readonly TextBlock _status = new TextBlock
     {
@@ -278,7 +279,8 @@ internal sealed partial class ReaderMediaSidebar : Border
     // The shared media badges over exactly the shown picture. The sidebar keeps its own play button (MediaPlayMarkMode.External) and draws no
     // favorite badge because the decision block supplies the favorite state and control.
     private readonly MediaBadgeView _badges = new() { Name = "ReaderMediaSidebarBadges", Options = MediaBadgeOptions.Sidebar };
-    private bool _badgesOn, _playable;
+    private bool _badgesOn;
+    private MediaBadgeKind _pictureKind;
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
     // R10: the row under the picture for an inline video's transport, error line and live region (empty unless a video plays here).
     private readonly Panel _videoRow = new() { Name = "ReaderMediaSidebarVideoRow", IsVisible = false };
@@ -465,6 +467,7 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     internal ReaderMediaSidebar()
     {
+        _gif = new(_image, () => !PictureIsStale);
         Name = "ReaderMediaSidebar";
         Padding = new Thickness(WorkspaceMetrics.MediaFirstInset);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
@@ -672,6 +675,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         {
             InvalidateDecisionTarget();
             _mediumKey = mediumKey;
+            _gif.Refresh();
             _videoSize = null;
             _videoDuration = null;
         }
@@ -1066,7 +1070,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         if (!_badgesOn || !_image.IsVisible || _headBar.IsVisible) { _badges.Clear(); return; }
         // No Favorite here: the header's star toggle shows and changes the favourite, a second filled star on the picture only duplicated it.
-        _badges.Apply(new MediaBadgeState(Rating: _decision.View.Rating, Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
+        _badges.Apply(new MediaBadgeState(Rating: _decision.View.Rating, Kind: _pictureKind), _image.Bounds.Size);
     }
 
     internal void SetDetail(string detailLine)
@@ -1081,7 +1085,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     /// decoded again while this picture still covers the frame); <paramref name="source"/> is its source size when known.
     /// </summary>
     internal void ShowPicture(Bitmap bitmap, Action<Bitmap> release, bool playable, double maximumWidth, double maximumHeight,
-        string? mediumKey = null, PixelSize? source = null)
+        string? mediumKey = null, PixelSize? source = null, GalleryEntry? gif = null)
     {
         ReleasePicture();
         _bitmap = bitmap;
@@ -1095,10 +1099,16 @@ internal sealed partial class ReaderMediaSidebar : Border
         _play.IsVisible = playable;
         _placeholder.IsVisible = false;
         _status.IsVisible = false;
-        _badgesOn = true; _playable = playable;
+        _badgesOn = true;
+        _pictureKind = gif != null ? MediaBadgeKind.Gif : playable ? MediaBadgeKind.Video : MediaBadgeKind.Image;
         UpdateBadges();
         UpdateFrameCursor();
         Load.Showed(mediumKey, bitmap.PixelSize, source);
+        if (gif != null)
+        {
+            PixelSize viewport = bitmap.PixelSize;
+            _gif.Show(bitmap, async token => await GifFrameDecoder.OpenAsync(gif, token, viewport));
+        }
         UpdateInfoLayout();
     }
 
@@ -1167,6 +1177,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         UpdateFrameCursor();
         UpdateInfoLayout();
         Load.Dimmed();
+        _gif.Refresh();
     }
 
     /// <summary>No post is selected (or the reader closed): nothing kept.</summary>
@@ -1356,6 +1367,7 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void ClearPicture(bool answered)
     {
+        _gif.Clear();
         Bitmap? bitmap = _bitmap;
         Action<Bitmap>? release = _release;
         _bitmap = null;
