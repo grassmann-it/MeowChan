@@ -13,6 +13,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
+using MeowChan.Storage;
 using SkiaSharp;
 
 namespace MeowChan.DesktopTests;
