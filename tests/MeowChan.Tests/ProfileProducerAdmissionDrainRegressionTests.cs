@@ -315,7 +315,8 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
                     producerCancelled.TrySetResult();
-                    await releaseProducer.Task.WaitAsync(Deadline);
+                    // Keep the cancelled producer active until the test releases it.
+                    await releaseProducer.Task.WaitAsync(Deadline, CancellationToken.None);
                     producerReleased.TrySetResult();
                     throw;
                 }
@@ -418,33 +419,43 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
 
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    private static FieldInfo ObservationField(Type type, string name) =>
+        type.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException($"Required observation field {type.Name}.{name} is missing.");
+
+    private static object ReadObservationField(object target, string name) =>
+        ObservationField(target.GetType(), name).GetValue(target)
+        ?? throw new InvalidOperationException($"Required observation field {target.GetType().Name}.{name} is null.");
+
     private static async Task AwaitQueueRegistryDeliveryIdleAsync(DownloadQueue queue, Registry registry)
     {
         // StopAllAsync does not join CoalescedEvent delivery. With this empty,
         // stopped queue no further signals are produced: observe the actual
         // Registry subscription becoming idle, not a timer or a different subscriber.
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        object Field(object target, string name) => target.GetType().GetField(name, flags)?.GetValue(target)
-            ?? throw new InvalidOperationException($"Required delivery observation field {name} is missing.");
-        object changes = Field(queue, "_changes");
+        object changes = ReadObservationField(queue, "_changes");
+        object subscriptions = ReadObservationField(changes, "_subscriptions");
         object subscription;
-        lock (Field(changes, "_gate"))
+        lock (ReadObservationField(subscriptions, "_gate"))
         {
-            subscription = Assert.Single(((System.Collections.IEnumerable)Field(changes, "_subscriptions"))
-                .Cast<object>().Where(candidate =>
-                {
-                    Delegate handler = Assert.IsAssignableFrom<Delegate>(candidate.GetType()
-                        .GetProperty("Handler")!.GetValue(candidate));
-                    return ReferenceEquals(handler.Target, registry) && handler.Method.Name == "SignalChanged";
-                }));
+            var entries = Assert.IsAssignableFrom<System.Collections.IEnumerable>(
+                ReadObservationField(subscriptions, "_subscriptions"));
+            subscription = Assert.Single(entries.Cast<object>().Where(candidate =>
+            {
+                PropertyInfo handlerProperty = candidate.GetType().GetProperty("Handler")
+                    ?? throw new InvalidOperationException("The delivery subscription handler is missing.");
+                Delegate handler = Assert.IsAssignableFrom<Delegate>(handlerProperty.GetValue(candidate));
+                return ReferenceEquals(handler.Target, registry) && handler.Method.Name == "SignalChanged";
+            }));
         }
+        object gate = ReadObservationField(subscription, "_gate");
         using CancellationTokenSource timeout = new(Deadline);
         while (true)
         {
-            lock (Field(subscription, "_gate"))
+            lock (gate)
             {
-                Assert.False((bool)Field(subscription, "_disposed"));
-                if (!(bool)Field(subscription, "_running") && !(bool)Field(subscription, "_pending")) return;
+                Assert.False((bool)ReadObservationField(subscription, "_retired"));
+                if (!(bool)ReadObservationField(subscription, "_running")
+                    && !(bool)ReadObservationField(subscription, "_pending")) return;
             }
             if (timeout.IsCancellationRequested)
                 throw new TimeoutException("The stopped queue's Registry notification did not become idle.");
@@ -455,17 +466,14 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
     private static async Task AssertPostScanOwnerStillPendingAsync(Registry registry, ProfileAdmission admission,
         ProfileAdmissionToken blocker, Task owner, Task stop)
     {
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        FieldInfo Field(Type type, string name) => type.GetField(name, flags)
-            ?? throw new InvalidOperationException($"Required drain observation field {type.Name}.{name} is missing.");
-        object state = Field(typeof(Registry), "_state").GetValue(registry)!;
-        FieldInfo epoch = Field(typeof(Registry), "_producerEpoch");
-        SemaphoreSlim transitions = Assert.IsType<SemaphoreSlim>(
-            Field(typeof(Registry), "_producerTransitions").GetValue(registry));
-        object admissionSync = Field(typeof(ProfileAdmission), "_sync").GetValue(admission)!;
-        FieldInfo pending = Field(typeof(ProfileAdmission), "_pending");
+        object state = ReadObservationField(registry, "_state");
+        FieldInfo epoch = ObservationField(typeof(Registry), "_producerEpoch");
+        object transitions = ReadObservationField(registry, "_producerTransitions");
+        SemaphoreSlim semaphore = Assert.IsType<SemaphoreSlim>(ReadObservationField(transitions, "_semaphore"));
+        object admissionSync = ReadObservationField(admission, "_sync");
+        FieldInfo pending = ObservationField(typeof(ProfileAdmission), "_pending");
         HashSet<ProfileAdmissionToken> active = Assert.IsType<HashSet<ProfileAdmissionToken>>(
-            Field(typeof(ProfileAdmission), "_active").GetValue(admission));
+            ReadObservationField(admission, "_active"));
         using CancellationTokenSource timeout = new(Deadline);
         while (true)
         {
@@ -487,13 +495,13 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
         {
             object waiter = pending.GetValue(admission)
                 ?? throw new InvalidOperationException("The owner's Exclusive reservation is no longer pending.");
-            PropertyInfo completion = waiter.GetType().GetProperty("Completion", flags)
+            PropertyInfo completion = waiter.GetType().GetProperty("Completion", BindingFlags.Instance | BindingFlags.NonPublic)
                 ?? throw new InvalidOperationException("The pending reservation completion is missing.");
             Assert.False(Assert.IsType<TaskCompletionSource<ProfileAdmissionToken>>(
                 completion.GetValue(waiter)).Task.IsCompleted);
             Assert.Same(blocker, Assert.Single(active));
         }
-        Assert.Equal(0, transitions.CurrentCount);
+        Assert.Equal(0, semaphore.CurrentCount);
         // No observation monitor remains held while testing the actual tasks.
         Assert.False(stop.IsCompleted);
         Assert.False(owner.IsCompleted);
