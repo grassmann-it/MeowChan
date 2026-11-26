@@ -52,6 +52,18 @@ internal static class VideoPlayMark
     internal static readonly Color FavoriteColor = Color.FromArgb(255, 0xFF, 0x5C, 0x6C), RatingColor = Color.FromArgb(255, 0xFF, 0xD7, 0x00),
         GlyphColor = Color.FromArgb(255, 255, 255, 255);
 
+    /// <summary>
+    /// The heart on the disc as shown now: the Dark tone of the favourite colour in use (a preset's or the user's own), because the disc is
+    /// dark in both themes; <see cref="FavoriteColor"/> while the runtime palette is not installed.
+    /// </summary>
+    internal static Color CurrentFavoriteColor => CurrentDark(Controls.FavoriteStar.Token, FavoriteColor);
+
+    /// <summary>The rating star on the disc as shown now, like <see cref="CurrentFavoriteColor"/>.</summary>
+    internal static Color CurrentRatingColor => CurrentDark(Controls.RatingStar.Token, RatingColor);
+
+    private static Color CurrentDark(string token, Color builtIn) =>
+        Theming.ThemeRuntime.Current(Avalonia.Styling.ThemeVariant.Dark) is { Colors: var inUse } && inUse.TryGetValue(token, out Color color) ? color : builtIn;
+
     /// <summary>The triangle's bounding box for a circle of this diameter.</summary>
     internal static Size GlyphSize(double diameter) => new(diameter * GlyphWidthRatio, diameter * GlyphHeightRatio);
 
