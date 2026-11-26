@@ -22,8 +22,8 @@
   a changed sidebar rating after it is saved.
 - Clarify the first-run deferral, new-board watch interval, Booru tag limits and
   F9 stamp action across languages. Use installed languages for settings recovery.
-- Curate the header taglines from 354 to around 300, with more cats, South Park
-  and Dorohedoro. A removed fixed choice quietly falls back to `cats`.
+- Trim the header to the 100 best general taglines, with more cats, South Park
+  and Dorohedoro; seasonal and release lines stay. A removed fixed choice quietly falls back to `cats`.
 - See the [1.1.3 release notes](docs/releases/v1.1.3.md) for upgrade details and downloads.
 
 ## 1.1.2
