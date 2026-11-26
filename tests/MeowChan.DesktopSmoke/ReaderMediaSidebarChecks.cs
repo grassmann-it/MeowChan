@@ -67,6 +67,10 @@ internal static class ReaderMediaSidebarChecks
             Rect title = InHeader(Find<TextBlock>("ReaderMediaSidebarHeading")), positionBounds = InHeader(position), close = InHeader(closeButton);
             Rect file = InHeader(Find<TextBlock>("ReaderMediaSidebarMeta"));
             bool belowTitle = positionBounds.Top >= title.Bottom - 1;
+            // Fable overlay spec §2: a 32 DIP control row and a 16 DIP metadata
+            // line when wrapped. The bar padding is outside this control.
+            Require(Math.Abs(header.Bounds.Height - (belowTitle ? 48 : 32)) <= 1,
+                $"The reader header has the wrong height for its visible rows: {header.Bounds.Height} DIP.");
             Require(!requireSingleRow || !belowTitle, "The wide reader header did not fit in one row.");
             Require(position.IsEffectivelyVisible && !string.IsNullOrWhiteSpace(position.Text) && positionBounds.Width > 0
                 && Math.Abs(title.Left) <= 1 && Math.Abs(close.Right - header.Bounds.Width) <= 1
@@ -348,7 +352,8 @@ internal static class ReaderMediaSidebarChecks
         Require(sidebar.TranslatePoint(default, host) is { Y: >= -1 and <= 1 }, "The sidebar does not start at the host's top.");
         Require(HeaderControlsReachable(sidebar, out string headerState),
             "The sidebar header controls are missing their top inset or are unreachable. " + headerState);
-        Require(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight, "The sidebar header is shorter than a control row.");
+        Require(sidebar.HeaderRow.Bounds.Height >= WorkspaceMetrics.InputHeight - 1,
+            $"The sidebar header is shorter than a control row: {sidebar.HeaderRow.Bounds.Height} DIP.");
         Require(sidebar.Padding == new Thickness(8), "The reader sidebar lost its four-sided inset.");
         Control details = sidebar.Details;
         Control last = details.IsVisible ? details : sidebar.Card;
