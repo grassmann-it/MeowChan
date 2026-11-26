@@ -86,7 +86,7 @@ public sealed class BoardWatcherSettingsTests
             Texts.SetLanguage("de");
             Layout(dialog);
             Assert.Equal("/p/ · 3 Muster", name.Text);
-            Assert.Equal("Watcher-Name", AutomationProperties.GetName(name));
+            Assert.Equal(Texts.T("wizard.watcher.name"), AutomationProperties.GetName(name));
 
             name.Text = string.Empty;
             Find<CheckBox>(dialog, "BoardAdmissionSuggestion./fgt/").IsChecked = false;

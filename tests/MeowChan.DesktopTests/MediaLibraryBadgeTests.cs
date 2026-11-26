@@ -232,6 +232,41 @@ public sealed class MediaLibraryBadgeTests : IDisposable
     });
 
     [Fact]
+    public void FullTileCaptionsFitWithSymmetricInsetsAtEverySize() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        MediaLibraryEntry entry = Entry() with { Length = 8192 };
+        MediaLibraryEntry second = entry with { Thread = new ResourceId("s", "b", "2") };
+        MediaLibraryTile group = new(entry, [entry, second], MediaLibraryFavoriteState.All);
+        MediaLibraryTileView view = new() { DataContext = Row(entry, MediaLibraryFlag.Yes, tags: 2, tile: group) };
+        Window window = new() { Width = 500, Height = 400, Content = view };
+        try
+        {
+            window.Show();
+            foreach (MediaTileSize size in Enum.GetValues<MediaTileSize>())
+            {
+                for (int flags = 0; flags <= (int)MediaTileCaption.All; flags++)
+                {
+                    view.Appearance = MediaTileMetrics.For(size, (MediaTileCaption)flags);
+                    window.UpdateLayout();
+                    Control content = ById<Control>(view, "MediaLibraryTileContent");
+                    Control chip = ById<Control>(content, "MediaTileTag0");
+                    Point inset = content.TranslatePoint(default, view)!.Value;
+                    Point chipEnd = chip.TranslatePoint(new Point(chip.Bounds.Width, chip.Bounds.Height), content)!.Value;
+                    Assert.Equal(new Point(8, 8), inset);
+                    Assert.Equal(8, view.Bounds.Width - inset.X - content.Bounds.Width, 1);
+                    Assert.Equal(8, view.Bounds.Height - inset.Y - content.Bounds.Height, 1);
+                    Assert.True(chip.IsEffectivelyVisible && new Rect(content.Bounds.Size).Contains(chipEnd));
+                }
+            }
+        }
+        finally { window.Close(); }
+
+        static T ById<T>(Visual root, string id) where T : Control =>
+            Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
+    });
+
+    [Fact]
     public void RebindingAnUnchangedStateAllocatesNothing()
     {
         MediaLibraryEntry entry = Entry("a.gif");

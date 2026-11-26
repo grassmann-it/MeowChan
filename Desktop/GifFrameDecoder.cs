@@ -48,7 +48,7 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
     private readonly object _state = new();
     private readonly CancellationTokenSource _shutdown = new();
     private readonly TaskCompletionSource _drained = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private TaskCompletionSource? _retirement;
+    private Task? _retirement;
     private bool _closed;
     private int _pending;
     private MemoryStream? _encoded;
@@ -175,11 +175,9 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
                     }
                 }
                 cancellationToken.ThrowIfCancellationRequested();
-                GifFrameDecoder result = new(encoded, managed, codec, canvas, preview, frames, repetitions);
-                encoded = null; managed = null; codec = null; canvas = null; preview = null;
-                return result;
+                return new GifFrameDecoder(encoded, managed, codec, canvas, preview, frames, repetitions);
             }
-            finally
+            catch
             {
                 try { preview?.Dispose(); canvas?.Dispose(); codec?.Dispose(); managed?.Dispose(); encoded?.Dispose(); }
                 catch (Exception cleanup)
@@ -188,6 +186,7 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
                     // a codec whose retirement failed must not lose its managed stream owner.
                     throw new GifRetirementException(new object?[] { preview, canvas, codec, managed, encoded }, cleanup);
                 }
+                throw;
             }
         }
         finally { GlobalGifGate.Release(); }
@@ -226,7 +225,7 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
     {
         lock (_state)
         {
-            if (_closed) throw new ObjectDisposedException(nameof(GifFrameDecoder));
+            ObjectDisposedException.ThrowIf(_closed, this);
             if ((uint)index >= (uint)FrameCount) throw new ArgumentOutOfRangeException(nameof(index));
             CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
             _pending++;
@@ -287,19 +286,19 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
 
     public ValueTask DisposeAsync()
     {
-        TaskCompletionSource completion;
         lock (_state)
         {
-            if (_retirement != null) return new(_retirement.Task);
-            _closed = true;
-            completion = _retirement = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (_pending == 0) _drained.TrySetResult();
+            if (_retirement == null)
+            {
+                _closed = true;
+                if (_pending == 0) _drained.TrySetResult();
+                _retirement = RetireAsync();
+            }
+            return new(_retirement);
         }
-        _ = RetireAsync(completion);
-        return new(completion.Task);
     }
 
-    private async Task RetireAsync(TaskCompletionSource completion)
+    private async Task RetireAsync()
     {
         try
         {
@@ -310,9 +309,8 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
                 await Task.Run(DisposeNativeAsync).ConfigureAwait(false);
             }
             finally { _operations.Dispose(); _shutdown.Dispose(); }
-            completion.TrySetResult();
         }
-        catch (Exception error) { completion.TrySetException(new GifRetirementException(this, error)); }
+        catch (Exception error) { throw new GifRetirementException(this, error); }
     }
 
     private async Task DisposeNativeAsync()

@@ -804,6 +804,11 @@ public sealed class SavedMediaReaderTests
         TextBlock total = page.FindControl<TextBlock>("ArchiveThreadMediaTotal")!;
         Assert.True(total.IsEffectivelyVisible);
         Assert.Equal(Texts.T("thread.media.total", 1), total.Text);
+        // Padding audit (Opus, item 9): the saved-media footer finishes at the regularly inset tab edge.
+        Control tabContent = Assert.IsAssignableFrom<Control>(ById<TabItem>(window, "ArchiveMediaTab").Content);
+        Control footer = ById<Control>(window, "ArchiveMediaFooter");
+        Assert.Equal(new Thickness(8), tabContent.Margin);
+        Assert.Equal(tabContent.Bounds.Height, footer.TranslatePoint(new Point(0, footer.Bounds.Height), tabContent)!.Value.Y, 1);
         foreach (string name in FooterActions)
         {
             Button action = page.FindControl<Button>(name)!;

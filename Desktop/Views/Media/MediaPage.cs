@@ -1440,7 +1440,7 @@ public sealed partial class MediaPage : UserControl
             checkExternal ? () => externalReason : null,
             sourceItems: MediaSourceMenu.Build(source, () => session.IsCurrent, origin, ShowSelectionNote,
                 readOriginal: providerId == null && entry.FolderItemId == null ? () => ReadMediaSearchUrlAsync(entry) : null,
-                blocked: several ? MediaMenuReasons.SeveralSelected : null));
+                blocked: several ? MediaMenuReasons.SeveralSelected : null), keyboard: keyboard && panel);
         if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
         if (checkExternal) OpenActions.Start(CheckExternalAsync, "media.menu.open-external");
