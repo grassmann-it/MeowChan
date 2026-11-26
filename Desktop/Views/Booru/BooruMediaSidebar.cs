@@ -24,6 +24,7 @@ namespace MeowChan.Desktop.Booru;
 internal sealed class BooruMediaSidebar : Grid, IDisposable
 {
     private const double Inset = 8;
+    internal const double HandleMargin = 2;
     private const double TagRoom = 96;
     private const double FactsHeight = 112;
     private const int PreviewEdge = 512;
@@ -93,7 +94,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         _gif = new(_image);
         Name = "BooruMediaSidebar";
         IsVisible = false;
-        Margin = new Thickness(Inset, 0, 0, 0);
+        Margin = new Thickness(HandleMargin, 0, 0, 0); // the 6 DIP handle and this margin keep the former 8 DIP gap to the hits
         RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*,Auto");
         RowSpacing = Inset;
         ClipToBounds = true;
@@ -359,7 +360,8 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        double width = Math.Min(Width, availableSize.Width);
+        // The column gives the width now (the handle drags it), so an unset Width must not fall back to the default size.
+        double width = double.IsFinite(Width) ? Math.Min(Width, availableSize.Width) : availableSize.Width;
         if (!double.IsFinite(width)) width = Config.MediaPanelWidthDefault;
         Size row = new(width, double.PositiveInfinity);
         _header.Measure(row);

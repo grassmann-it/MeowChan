@@ -419,10 +419,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         hits.Children.Add(footer);
         Grid layout = new()
         {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,*"),
+            ColumnDefinitions = new ColumnDefinitions("*,0,0"), RowDefinitions = new RowDefinitions("Auto,*"),
             RowSpacing = 8, Children = { tab, hits }
         };
-        Grid.SetColumnSpan(tab, 2);
+        Grid.SetColumnSpan(tab, 3);
         Grid.SetRow(hits, 1);
         InstallMediaSidebar(layout);
         return layout;
