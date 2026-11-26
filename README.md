@@ -15,6 +15,15 @@ Save the threads you care about—and make them worth coming back to. **MeowChan
 
 [**Get MeowChan 1.1.2 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.2) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.2.md) · [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
 
+## Features introduced in 1.1.2
+
+- **A heart and five stars in the gallery.** Mark a favourite or rate a photo beside **Back to thread**, then use the arrow keys to keep browsing.
+- **One scroll through a long thread.** The Reader loads posts around your reading position, even when you follow a quote beyond post 50.
+- **Set video playback once.** Your autoplay, repeat and mute choices carry across the Reader, Media and Tagging sidebars.
+- **Booru page controls stay in reach.** Jump to a page by number or scroll through results with the navigation still in view. In a narrow window, open **⋯** for search actions.
+- **Resume a tagging round.** List and Grid mark the next open file. Choose **Continue tagging** to return to it, or revisit skipped files at the end of the round.
+- **Preview a thread before watching it.** Open a supported 4chan board’s archive in Downloads and read the opening post before adding the thread to your watches.
+
 ## Features introduced in 1.1.1
 
 - **Danbooru searches you can return to.** Booru is in the default navigation. Searches open in tabs and can be restored at startup. The **Watchers** button opens the watcher overview from beside the search tabs.
@@ -48,21 +57,23 @@ See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and 
 
 The [1.0.0 release notes](docs/releases/v1.0.0.md) cover the original feature release and upgrade considerations; the [changelog](CHANGELOG.md) records the details. Back up your profile and media before upgrading. If you run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new); use [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) only with an untouched profile or pre-upgrade backup.
 
-## Take a look around · 1.1.1
+## Take a look around · 1.1.2
 
-The **Media page** brings your saved files into a single grid beside a large preview. These Linux captures use offline demonstration data. [Capture notes](docs/screenshots/1.1.1/README.md)
+In the **Gallery**, the heart marks a favourite and the stars record its rating. The filmstrip keeps the next photo within reach. [All 12 screenshots and capture notes](docs/screenshots/1.1.2/README.md)
 
-[![MeowChan 1.1.1 Media page with grid and preview sidebar](docs/screenshots/1.1.1/media-library-dark.png)](docs/screenshots/1.1.1/media-library-dark.png)
+[![Cat beneath a flower planter with the favourite heart and five filled stars above the photo](docs/screenshots/1.1.2/gallery-heart-stars-dark.png)](docs/screenshots/1.1.2/gallery-heart-stars-dark.png)
 
-| Downloads | Reader with media sidebar |
+| Reader · post 158 of 379 | Media · sort by rating |
 | --- | --- |
-| [![MeowChan 1.1.1 Downloads with the Threads and Boards toolbar](docs/screenshots/1.1.1/downloads.png)](docs/screenshots/1.1.1/downloads.png) | [![MeowChan 1.1.1 Reader with posts and a media preview](docs/screenshots/1.1.1/reader-sidebar-dark.png)](docs/screenshots/1.1.1/reader-sidebar-dark.png) |
+| [![Cat General at post 158 of 379, with Pirate’s photo and four-star rating in the sidebar](docs/screenshots/1.1.2/reader-long-thread-dark.png)](docs/screenshots/1.1.2/reader-long-thread-dark.png) | [![Saved cat photos sorted by rating, with a five-star favourite selected](docs/screenshots/1.1.2/media-rating-sort-light.png)](docs/screenshots/1.1.2/media-rating-sort-light.png) |
 
-| Booru gallery | Tagging queue |
+| Booru · search tabs | Tagging · quick tags |
 | --- | --- |
-| [![MeowChan 1.1.1 Booru gallery with result navigation and source tags](docs/screenshots/1.1.1/booru-gallery-dark.png)](docs/screenshots/1.1.1/booru-gallery-dark.png) | [![MeowChan 1.1.1 compact Tagging header with stamp and progress](docs/screenshots/1.1.1/tagging-queue-dark.png)](docs/screenshots/1.1.1/tagging-queue-dark.png) |
+| [![Three Danbooru tabs above a scrolled grid with the page controls still visible](docs/screenshots/1.1.2/booru-search-tabs-dark.png)](docs/screenshots/1.1.2/booru-search-tabs-dark.png) | [![Quick-tag popover with cat, kot and orange tags for the selected clip](docs/screenshots/1.1.2/tagging-quick-tags-dark.png)](docs/screenshots/1.1.2/tagging-quick-tags-dark.png) |
 
-The search toolbar and Watchers button are also visible in List view. [Booru workbench screenshot](docs/screenshots/1.1.1/booru-workbench-dark.png)
+| Tagging walk · undo | Downloads · board archive |
+| --- | --- |
+| [![A cat portrait in the tagging walk with a tooltip explaining the Back action](docs/screenshots/1.1.2/tagging-walk-undo-dark.png)](docs/screenshots/1.1.2/tagging-walk-undo-dark.png) | [![The opening post about a cormorant beside the Watch thread action](docs/screenshots/1.1.2/board-archive-preview-light.png)](docs/screenshots/1.1.2/board-archive-preview-light.png) |
 
 <details>
 <summary>Before and after · 1.0.1 vs 1.1.0</summary>
@@ -81,7 +92,7 @@ Same offline demonstration data, old interface left, new interface right.
 
 </details>
 
-Earlier captures and their provenance are available for [1.1.0](docs/screenshots/v1.1.0/README.md), [1.0.1](docs/screenshots/v1.0.1/README.md), [1.0.0](docs/screenshots/v1.0.0/README.md) and [0.9.0](docs/screenshots/README.md).
+Earlier captures and their provenance are available for [1.1.1](docs/screenshots/1.1.1/README.md), [1.1.0](docs/screenshots/v1.1.0/README.md), [1.0.1](docs/screenshots/v1.0.1/README.md), [1.0.0](docs/screenshots/v1.0.0/README.md) and [0.9.0](docs/screenshots/README.md).
 
 ## Quick start
 
