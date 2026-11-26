@@ -8,7 +8,9 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -305,7 +307,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private IQuickTagExtraUndo? _extraUndo;
     private readonly TextBlock _title = new() { Classes = { "workspace-panel-title" }, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly PanelCloseButton _close;
-    private readonly IdentitySuggestionBox _input = new() { Height = WorkspaceMetrics.InputHeight, ProtectComposition = true };
+    private readonly IdentitySuggestionBox _input = new() { ProtectComposition = true };
     private readonly TextBlock _suggestionsHeading = new() { FontWeight = FontWeight.SemiBold, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _strip = new() { ItemSpacing = StripItemSpacing, LineSpacing = 0, VerticalAlignment = VerticalAlignment.Top };
     // One viewport for the entire surface in both hosts. Assigned tags and suggestions never scroll independently.
@@ -362,6 +364,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         Focusable = false;
         _close = new PanelCloseButton(_name + "Close");
         _input.Name = _name + "Input"; _strip.Name = _name + "Suggestions"; _more.Name = _name + "More";
+        _input.Template = new FuncControlTemplate<IdentitySuggestionBox>(BuildTagInput);
         _allChips.Name = _name + "Assigned"; _someChips.Name = _name + "AssignedSome"; _status.Name = _name + "Status";
         _undo.Name = _name + "Undo"; _stamp.Name = _name + "Stamp"; _advanced.Name = _name + "Advanced"; _title.Name = _name + "Title"; _extra.Name = _name + "Extra";
         _stripHost.Name = _name + "SuggestionsHost"; _upper.Name = _name + "Body"; _flow.Name = _name + "Scroll";
@@ -449,11 +452,62 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _input.AddHandler(PointerPressedEvent, OnInputPointerPressed, RoutingStrategies.Tunnel);
         _input.AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
+        AddHandler(PointerPressedEvent, HoldFieldLayoutDuringButtonPress, RoutingStrategies.Tunnel);
         SizeChanged += OnSizeChanged;
         AttachedToVisualTree += OnAttached;
         DetachedFromVisualTree += OnDetached;
         Localize();
         Refresh();
+    }
+
+    private static Control BuildTagInput(IdentitySuggestionBox input, INameScope scope)
+    {
+        TextBox editor = new() { Name = "PART_TextBox", Height = WorkspaceMetrics.InputHeight };
+        editor.Bind(TextBox.PlaceholderTextProperty, input.GetObservable(IdentitySuggestionBox.PlaceholderTextProperty));
+        AutomationProperties.SetAutomationId(editor, input.Name + "Editor");
+        scope.Register("PART_TextBox", editor);
+
+        ListBox matches = new() { Name = "PART_SelectingItemsControl", IsTabStop = false };
+        matches.Bind(ItemsControl.ItemTemplateProperty, input.GetObservable(IdentitySuggestionBox.ItemTemplateProperty));
+        KeyboardNavigation.SetTabNavigation(matches, KeyboardNavigationMode.None);
+        ScrollViewer.SetHorizontalScrollBarVisibility(matches, ScrollBarVisibility.Disabled);
+        ScrollViewer.SetIsScrollChainingEnabled(matches, false);
+        AutomationProperties.SetAutomationId(matches, input.Name + "Suggestions");
+        scope.Register("PART_SelectingItemsControl", matches);
+
+        // The AutoCompleteBox selection adapter takes care of keyboard navigation
+        // and pointer acceptance. Lay its results out in the same flow as the chips.
+        Border results = new()
+        {
+            Child = matches,
+            Margin = new Thickness(0, 4, 0, 0),
+            [!MaxHeightProperty] = new DynamicResourceExtension("AutoCompleteMaxDropdownHeight"),
+            [!Border.BackgroundProperty] = new DynamicResourceExtension("AutoCompleteBoxPopupBackground"),
+            [!Border.BorderBrushProperty] = new DynamicResourceExtension("AutoCompleteBoxPopupBorderBrush"),
+            [!Border.BorderThicknessProperty] = new DynamicResourceExtension("AutoCompleteBoxPopupBorderThickness"),
+            [!Border.CornerRadiusProperty] = new DynamicResourceExtension("AutoCompleteBoxPopupCornerRadius")
+        };
+        results.Bind(IsVisibleProperty, input.GetObservable(IdentitySuggestionBox.IsDropDownOpenProperty));
+        return new StackPanel { Children = { editor, results } };
+    }
+
+    private void HoldFieldLayoutDuringButtonPress(object? sender, PointerPressedEventArgs e)
+    {
+        if (_input.Bounds.Height <= WorkspaceMetrics.InputHeight || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
+            || e.Pointer.Captured is not InputElement captured
+            || !captured.GetSelfAndVisualAncestors().OfType<Button>().Any()) return;
+
+        // Focus can close the suggestions on press. Keep the button under the pointer
+        // until its release is delivered, even if a layout pass happens in between.
+        _fieldArea.MinHeight = _fieldArea.Bounds.Height;
+        captured.AddHandler(PointerCaptureLostEvent, OnCaptureLost);
+
+        void OnCaptureLost(object? source, PointerCaptureLostEventArgs lost)
+        {
+            if (!ReferenceEquals(lost.Pointer, e.Pointer)) return;
+            captured.RemoveHandler(PointerCaptureLostEvent, OnCaptureLost);
+            _fieldArea.ClearValue(MinHeightProperty);
+        }
     }
 
     /// <summary>HB2: the "Suggestions" heading with the help button at the right edge (how suggestions are ranked and toggled).</summary>
@@ -1701,6 +1755,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (StateGlyph(assignment.State) is { } glyph) content.Children.Add(glyph);
             content.Children.Add(ChipLabel(display));
             Button chip = new() { Name = name, Content = content };
+            AutomationProperties.SetAutomationId(chip, name);
             // All: the accent-tinted pill; some: the quiet pill with an accent edge and a dash (Tom, 16.11.2026: the check on assigned chips is dropped).
             if (assignment.State == TagToggleState.All) WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned);
             else WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOffered(chip), WorkspaceChips.TagPillPartial);
@@ -1710,6 +1765,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             AutomationProperties.SetName(chip, accessible);
             ToolTip.SetTip(chip, accessible);
             Button remove = new() { Name = name + "Remove" };
+            AutomationProperties.SetAutomationId(remove, remove.Name);
             string removeName = Texts.T(selection ? "tags.quick.chip.removeAll" : "tags.quick.chip.remove", display);
             remove.Content = WorkspaceIcons.Create(WorkspaceIcons.CloseSmall);
             remove.Classes.Add(WorkspaceIcons.SquareClass);
