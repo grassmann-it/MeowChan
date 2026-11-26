@@ -684,8 +684,10 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         return new(new(new("fixture", "g", "42"), directory, asset.AssetId), manifest, asset, null, null, false, false);
     }
 
-    [Fact]
-    public void PluginDetailMoreIsFullyClickableAtMinimumWindowSizeInGerman() => OnUi(async () =>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PluginDetailMoreIsFullyClickableAtMinimumWindowSizeInGerman(bool dark) => OnUi(async () =>
     {
         Texts.SetLanguage("de");
         using TempDirectory temp = new();
@@ -698,7 +700,7 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
         {
             Width = 640,
             Height = 480,
-            RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark,
+            RequestedThemeVariant = dark ? Avalonia.Styling.ThemeVariant.Dark : Avalonia.Styling.ThemeVariant.Light,
             Content = new Border { Padding = new Thickness(0, 48, 0, 78), Child = sources },
             Classes = { MotionPolicy.OffClass }
         };
@@ -718,6 +720,8 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             var scroll = Find<ScrollViewer>(window, "PluginDetailsPane");
             var footer = Find<Border>(window, "PluginDraftFooter");
             var reasons = Find<SelectableTextBlock>(window, "PluginDraftReasons");
+            // Padding audit §2, rank 11: the standard card footer gives 12 dip after the divider.
+            Assert.Equal(12, footer.Padding.Top);
             try
             {
                 await BooruTestSupport.WaitAsync(() =>
