@@ -635,8 +635,8 @@ public sealed class TaggingPagePanelTests
         async Task<MediaAssetSnapshot> OpenDelayedManifestAsync(string directory, CancellationToken _)
         {
             manifestRequested.TrySetResult();
-            await releaseManifest.Task.WaitAsync(Deadline);
-            return await MediaAssetReader.OpenAsync(directory);
+            await releaseManifest.Task.WaitAsync(Deadline, CancellationToken.None);
+            return await MediaAssetReader.OpenAsync(directory, CancellationToken.None);
         }
     }
 
