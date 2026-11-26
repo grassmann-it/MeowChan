@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using MeowChan.Gallery;
 using SkiaSharp;
 
@@ -47,13 +48,14 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
     private readonly object _state = new();
     private readonly CancellationTokenSource _shutdown = new();
     private readonly TaskCompletionSource _drained = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private Task? _disposeTask;
+    private TaskCompletionSource? _retirement;
     private bool _closed;
     private int _pending;
     private MemoryStream? _encoded;
     private SKManagedStream? _managed;
     private SKCodec? _codec;
     private SKBitmap? _canvas;
+    private SKBitmap? _preview;
     private readonly SKCodecFrameInfo[] _frames;
     private readonly SKImageInfo _output;
     private int _lastFrame = -1;
@@ -71,10 +73,10 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
     // No pointer/codec is provided and production presentation does not use this seam.
     internal Action? BeforeNativeDecode { get; set; }
 
-    private GifFrameDecoder(MemoryStream encoded, SKManagedStream managed, SKCodec codec, SKBitmap canvas,
+    private GifFrameDecoder(MemoryStream encoded, SKManagedStream managed, SKCodec codec, SKBitmap canvas, SKBitmap? preview,
         SKCodecFrameInfo[] frames, int repetitionCount)
     {
-        _encoded = encoded; _managed = managed; _codec = codec; _canvas = canvas; _frames = frames;
+        _encoded = encoded; _managed = managed; _codec = codec; _canvas = canvas; _preview = preview; _frames = frames;
         _output = canvas.Info;
         Info = new(canvas.Width, canvas.Height, "GIF", StillFrame: false);
         RepetitionCount = repetitionCount;
@@ -98,39 +100,55 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
         if (frames <= 0 || frames > MaximumFrames) throw new InvalidDataException("GIF exceeds the 1024 frame limit.");
     }
 
-    internal static Task<GifFrameDecoder?> OpenAsync(GalleryEntry entry, CancellationToken cancellationToken) => Task.Run(async () =>
+    internal static bool HasGifHeader(ReadOnlySpan<byte> bytes) =>
+        bytes.StartsWith("GIF87a"u8) || bytes.StartsWith("GIF89a"u8);
+
+    internal static Task<GifFrameDecoder?> OpenAsync(GalleryEntry entry, CancellationToken cancellationToken, PixelSize? viewport = null) =>
+        OpenAsync(token => ReadVerifiedAsync(entry, token), MaximumPixels, viewport, cancellationToken);
+
+    // Booru display variants have already been fetched through the bounded preview/sample port.
+    internal static Task<GifFrameDecoder?> OpenPreviewAsync(byte[] bytes, int maximumPixels, PixelSize viewport,
+        CancellationToken cancellationToken) =>
+        OpenAsync(_ => Task.FromResult(bytes), Math.Min(maximumPixels, MaximumPixels), viewport, cancellationToken);
+
+    private static async Task<byte[]> ReadVerifiedAsync(GalleryEntry entry, CancellationToken token)
+    {
+        if (entry.Asset.Length < 0 || entry.Asset.Length > MaximumBytes)
+            throw new InvalidDataException("GIF source exceeds the 64 MiB limit.");
+        await using Stream source = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false);
+        byte[] bytes = new byte[checked((int)entry.Asset.Length)];
+        await source.ReadExactlyAsync(bytes.AsMemory(), token).ConfigureAwait(false);
+        byte[] extra = new byte[1];
+        if (await source.ReadAsync(extra.AsMemory(), token).ConfigureAwait(false) != 0)
+            throw new InvalidDataException("Verified media length changed while copying the GIF source.");
+        return bytes;
+    }
+
+    private static Task<GifFrameDecoder?> OpenAsync(Func<CancellationToken, Task<byte[]>> read, long maximumPixels,
+        PixelSize? viewport, CancellationToken cancellationToken) => Task.Run(async () =>
     {
         cancellationToken.ThrowIfCancellationRequested();
         await GlobalGifGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (entry.Asset.Length < 0 || entry.Asset.Length > MaximumBytes)
-                throw new InvalidDataException("GIF source exceeds the 64 MiB limit.");
-            byte[] bytes;
-            // Dispose the manifest's original verified handle BEFORE constructing the codec.
-            await using (Stream source = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken).ConfigureAwait(false))
-            {
-                bytes = new byte[checked((int)entry.Asset.Length)];
-                await source.ReadExactlyAsync(bytes.AsMemory(), cancellationToken).ConfigureAwait(false);
-                byte[] extra = new byte[1];
-                if (await source.ReadAsync(extra.AsMemory(), cancellationToken).ConfigureAwait(false) != 0)
-                    throw new InvalidDataException("Verified media length changed while copying the GIF source.");
-            }
+            byte[] bytes = await read(cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            bool gif = bytes.Length >= 6 && bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F'
-                && bytes[3] == '8' && (bytes[4] == '7' || bytes[4] == '9') && bytes[5] == 'a';
-            if (!gif) return null; // Actual bytes, not filename/extension, choose the existing decoder fallback.
+            if (bytes.LongLength > MaximumBytes) throw new InvalidDataException("GIF source exceeds the 64 MiB limit.");
+            if (!HasGifHeader(bytes)) return null;
 
             MemoryStream? encoded = null;
             SKManagedStream? managed = null;
             SKCodec? codec = null;
             SKBitmap? canvas = null;
+            SKBitmap? preview = null;
             try
             {
                 encoded = new MemoryStream(bytes, writable: false);
                 managed = new SKManagedStream(encoded, disposeManagedStream: false);
                 codec = SKCodec.Create(managed) ?? throw new InvalidDataException("Unsupported or damaged GIF.");
                 if (codec.EncodedFormat != SKEncodedImageFormat.Gif) throw new InvalidDataException("GIF header/codec format mismatch.");
+                if (maximumPixels < MaximumPixels && (long)codec.Info.Width * codec.Info.Height > maximumPixels)
+                    throw new InvalidDataException("GIF canvas exceeds the preview pixel limit.");
                 int count = Math.Max(1, codec.FrameCount); // Skia may report zero for a single-frame image.
                 ValidateLimits(bytes.LongLength, codec.Info.Width, codec.Info.Height, count);
                 SKCodecFrameInfo[] frames = codec.FrameInfo;
@@ -146,57 +164,83 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
                 cancellationToken.ThrowIfCancellationRequested();
                 canvas = new SKBitmap(new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Bgra8888, SKAlphaType.Premul));
                 if (canvas.GetPixels() == IntPtr.Zero) throw new InvalidDataException("GIF canvas allocation failed.");
+                if (viewport is { } box)
+                {
+                    GalleryImageInfo original = new(canvas.Width, canvas.Height, "GIF", StillFrame: false);
+                    PixelSize size = GalleryFitTarget.Calculate(original, new(box.Width, box.Height));
+                    if (size.Width != canvas.Width || size.Height != canvas.Height)
+                    {
+                        preview = new(new SKImageInfo(size.Width, size.Height, canvas.ColorType, canvas.AlphaType));
+                        if (preview.GetPixels() == IntPtr.Zero) throw new InvalidDataException("GIF preview allocation failed.");
+                    }
+                }
                 cancellationToken.ThrowIfCancellationRequested();
-                GifFrameDecoder result = new(encoded, managed, codec, canvas, frames, repetitions);
-                encoded = null; managed = null; codec = null; canvas = null; // Transfer the whole ownership unit.
+                GifFrameDecoder result = new(encoded, managed, codec, canvas, preview, frames, repetitions);
+                encoded = null; managed = null; codec = null; canvas = null; preview = null;
                 return result;
             }
             finally
             {
-                try { canvas?.Dispose(); codec?.Dispose(); managed?.Dispose(); encoded?.Dispose(); }
+                try { preview?.Dispose(); canvas?.Dispose(); codec?.Dispose(); managed?.Dispose(); encoded?.Dispose(); }
                 catch (Exception cleanup)
                 {
                     // Retain the entire partially constructed dependency unit. In particular,
                     // a codec whose retirement failed must not lose its managed stream owner.
-                    throw new GifRetirementException(new object?[] { canvas, codec, managed, encoded }, cleanup);
+                    throw new GifRetirementException(new object?[] { preview, canvas, codec, managed, encoded }, cleanup);
                 }
             }
         }
         finally { GlobalGifGate.Release(); }
-    }); // Never put cancellation on Task.Run itself: the worker owns cleanup once scheduled.
+    }, CancellationToken.None); // The worker owns cleanup once scheduled.
 
-    internal Task<GifDecodedFrame> DecodeAsync(int index, CancellationToken cancellationToken)
+    internal Task<GifDecodedFrame> DecodeAsync(int index, CancellationToken cancellationToken) =>
+        DecodeOwnedAsync(index, BeginDecode(index, cancellationToken));
+
+    private async Task<GifDecodedFrame> DecodeOwnedAsync(int index, CancellationTokenSource linked)
     {
-        CancellationTokenSource linked;
+        try
+        {
+            using (linked)
+            {
+                return await Task.Run(async () =>
+                {
+                    await _operations.WaitAsync(linked.Token).ConfigureAwait(false);
+                    try
+                    {
+                        await GlobalGifGate.WaitAsync(linked.Token).ConfigureAwait(false);
+                        try
+                        {
+                            linked.Token.ThrowIfCancellationRequested();
+                            return DecodeCore(index, linked.Token);
+                        }
+                        finally { GlobalGifGate.Release(); }
+                    }
+                    finally { _operations.Release(); }
+                }, CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        finally { EndDecode(); }
+    }
+
+    private CancellationTokenSource BeginDecode(int index, CancellationToken cancellationToken)
+    {
         lock (_state)
         {
             if (_closed) throw new ObjectDisposedException(nameof(GifFrameDecoder));
             if ((uint)index >= (uint)FrameCount) throw new ArgumentOutOfRangeException(nameof(index));
-            linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
+            CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
             _pending++;
+            return linked;
         }
-        return Task.Run(async () =>
+    }
+
+    private void EndDecode()
+    {
+        lock (_state)
         {
-            bool ownOperation = false, ownGlobal = false;
-            try
-            {
-                await _operations.WaitAsync(linked.Token).ConfigureAwait(false); ownOperation = true;
-                await GlobalGifGate.WaitAsync(linked.Token).ConfigureAwait(false); ownGlobal = true;
-                linked.Token.ThrowIfCancellationRequested();
-                return DecodeCore(index, linked.Token);
-            }
-            finally
-            {
-                if (ownGlobal) GlobalGifGate.Release();
-                if (ownOperation) _operations.Release();
-                linked.Dispose();
-                lock (_state)
-                {
-                    _pending--;
-                    if (_closed && _pending == 0) _drained.TrySetResult();
-                }
-            }
-        });
+            _pending--;
+            if (_closed && _pending == 0) _drained.TrySetResult();
+        }
     }
 
     private GifDecodedFrame DecodeCore(int index, CancellationToken token)
@@ -218,11 +262,18 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
                 throw new InvalidDataException("GIF frame decode failed: " + decoded + "."); // IncompleteInput is NOT a frame.
             _lastFrame = index;
             token.ThrowIfCancellationRequested();
-            int length = checked(canvas.RowBytes * canvas.Height);
+            SKBitmap output = canvas;
+            if (_preview is { } preview)
+            {
+                if (!canvas.ScalePixels(preview, new SKSamplingOptions(SKFilterMode.Linear)))
+                    throw new InvalidDataException("GIF preview scaling failed.");
+                output = preview;
+            }
+            int length = checked(output.RowBytes * output.Height);
             pixels = ArrayPool<byte>.Shared.Rent(length);
-            Marshal.Copy(canvas.GetPixels(), pixels, 0, length);
+            Marshal.Copy(output.GetPixels(), pixels, 0, length);
             token.ThrowIfCancellationRequested();
-            GifDecodedFrame frame = new(pixels, canvas.Width, canvas.Height, canvas.RowBytes, index, DurationsMs[index]);
+            GifDecodedFrame frame = new(pixels, output.Width, output.Height, output.RowBytes, index, DurationsMs[index]);
             pixels = null;
             return frame;
         }
@@ -239,32 +290,42 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
         TaskCompletionSource completion;
         lock (_state)
         {
-            if (_disposeTask != null) return new(_disposeTask);
+            if (_retirement != null) return new(_retirement.Task);
             _closed = true;
-            completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            _disposeTask = completion.Task;
+            completion = _retirement = new(TaskCreationOptions.RunContinuationsAsynchronously);
             if (_pending == 0) _drained.TrySetResult();
         }
-        _shutdown.Cancel(); // Wake waiters, not the synchronous native operation or its canvas owner.
-        _ = Task.Run(async () =>
+        _ = RetireAsync(completion);
+        return new(completion.Task);
+    }
+
+    private async Task RetireAsync(TaskCompletionSource completion)
+    {
+        try
         {
             try
             {
+                _shutdown.Cancel(); // Wake waiters while the native operation still owns the canvas.
                 await _drained.Task.ConfigureAwait(false);
-                await GlobalGifGate.WaitAsync().ConfigureAwait(false);
-                try
-                {
-                    _canvas?.Dispose(); _canvas = null;
-                    _codec?.Dispose(); _codec = null;
-                    _managed?.Dispose(); _managed = null;
-                    _encoded?.Dispose(); _encoded = null;
-                }
-                finally { GlobalGifGate.Release(); }
-                _operations.Dispose(); _shutdown.Dispose();
-                completion.TrySetResult();
+                await Task.Run(DisposeNativeAsync).ConfigureAwait(false);
             }
-            catch (Exception error) { completion.TrySetException(new GifRetirementException(this, error)); }
-        });
-        return new(completion.Task);
+            finally { _operations.Dispose(); _shutdown.Dispose(); }
+            completion.TrySetResult();
+        }
+        catch (Exception error) { completion.TrySetException(new GifRetirementException(this, error)); }
+    }
+
+    private async Task DisposeNativeAsync()
+    {
+        await GlobalGifGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            _preview?.Dispose(); _preview = null;
+            _canvas?.Dispose(); _canvas = null;
+            _codec?.Dispose(); _codec = null;
+            _managed?.Dispose(); _managed = null;
+            _encoded?.Dispose(); _encoded = null;
+        }
+        finally { GlobalGifGate.Release(); }
     }
 }

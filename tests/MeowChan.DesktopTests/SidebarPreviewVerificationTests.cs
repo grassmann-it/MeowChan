@@ -245,7 +245,7 @@ public sealed class SidebarPreviewVerificationTests
             }
         });
 
-    private static async Task ShowSidebarAsync(MainWindow window, string host, ResourceId thread)
+    internal static async Task ShowSidebarAsync(MainWindow window, string host, ResourceId thread)
     {
         if (host == "Reader")
         {

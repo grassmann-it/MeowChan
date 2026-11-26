@@ -48,7 +48,12 @@ internal sealed class BooruGallerySampleLoader
 
     internal Task? Start(IBooruSamplePort? port, BooruPostView post, Func<BooruGallerySampleLimits>? settings,
         TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode,
-        Func<IImage, bool> adopt, Action changed, Func<TimeSpan, CancellationToken, Task>? waitAsync = null)
+        Func<IImage, bool> adopt, Action changed, Func<TimeSpan, CancellationToken, Task>? waitAsync = null) =>
+        Start(port, post, settings, delay, decode, (image, _) => adopt(image), changed, waitAsync);
+
+    internal Task? Start(IBooruSamplePort? port, BooruPostView post, Func<BooruGallerySampleLimits>? settings,
+        TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode,
+        Func<IImage, byte[], bool> adopt, Action changed, Func<TimeSpan, CancellationToken, Task>? waitAsync = null)
     {
         if (State != BooruGallerySampleState.Deferred || port is null) return null;
         Limits = settings?.Invoke() ?? BooruGallerySampleLimits.FromSettings();
@@ -60,12 +65,13 @@ internal sealed class BooruGallerySampleLoader
 
     private async Task LoadAsync(IBooruSamplePort port, BooruPostView post, BooruGallerySampleLimits limits,
         TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode,
-        Func<IImage, bool> adopt, Action changed, Func<TimeSpan, CancellationToken, Task> waitAsync)
+        Func<IImage, byte[], bool> adopt, Action changed, Func<TimeSpan, CancellationToken, Task> waitAsync)
     {
         using CancellationTokenSource cancellation = new();
         _cancel = () => { try { cancellation.Cancel(); } catch (ObjectDisposedException) { } };
         CancellationToken token = cancellation.Token;
         IImage? image = null;
+        byte[]? encoded = null;
         try
         {
             BooruGallerySampleState state;
@@ -77,7 +83,10 @@ internal sealed class BooruGallerySampleLoader
                     TimeSpan.FromSeconds(limits.TimeoutSeconds), token);
                 state = result.TimedOut ? BooruGallerySampleState.TimedOut : BooruGallerySampleState.Failed;
                 if (result.Bytes is { Length: > 0 } bytes && bytes.Length <= limits.Bytes)
+                {
+                    encoded = bytes;
                     (image, state) = await Task.Run(() => decode(bytes, limits.MaximumWidth, limits.MaximumPixels), token);
+                }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
             catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -92,9 +101,9 @@ internal sealed class BooruGallerySampleLoader
             {
                 if (token.IsCancellationRequested) return;
                 _cancel = null;
-                if (image is not null)
+                if (image is not null && encoded is not null)
                 {
-                    if (adopt(image)) image = null;
+                    if (adopt(image, encoded)) image = null;
                     else state = BooruGallerySampleState.Deferred;
                 }
                 State = state;

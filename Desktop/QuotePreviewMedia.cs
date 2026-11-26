@@ -401,17 +401,24 @@ internal sealed class QuotePreviewMedia : IReaderInlineVideoOwner
 
     private async Task AnimateGifAsync(GalleryEntry entry, int request, CancellationTokenSource loading)
     {
-        GalleryGifPlayback? gif = await GalleryGifPlayback.OpenAsync(entry, _picture, loading.Token);
-        if (gif == null) return; // not a GIF after all: the still picture stays
-        if (!IsCurrent(request, loading)) { OpenActions.Start(() => RetireGifAsync(gif), "reader.quotePreview.gif.retire"); return; }
-        _gif = gif;
-        gif.Adopt();
-        gif.SetActive(true);
-        // The animation shows its own frames: the still decode goes back.
-        Bitmap? still = _bitmap;
-        _bitmap = null;
-        if (still != null) MediaTileThumbnails.Release(still);
-        SetFrame(QuotePreviewMediaRules.Fit(gif.Info.Width, gif.Info.Height, _box));
+        GalleryGifPlayback? pending = null;
+        try
+        {
+            pending = await GalleryGifPlayback.OpenAsync(entry, _picture, loading.Token);
+            if (pending == null || !IsCurrent(request, loading)) return;
+            GalleryGifPlayback gif = _gif = pending;
+            pending = null;
+            gif.Adopt();
+            gif.SetActive(true);
+            Bitmap? still = _bitmap;
+            _bitmap = null;
+            if (still != null) MediaTileThumbnails.Release(still);
+            SetFrame(QuotePreviewMediaRules.Fit(gif.Info.Width, gif.Info.Height, _box));
+        }
+        finally
+        {
+            if (pending != null) await RetireGifAsync(pending);
+        }
     }
 
     private static async Task RetireGifAsync(GalleryGifPlayback gif)

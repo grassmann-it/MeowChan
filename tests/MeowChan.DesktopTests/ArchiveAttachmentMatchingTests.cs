@@ -107,20 +107,22 @@ public sealed class ArchiveAttachmentMatchingTests
     internal sealed record Fixture(string Directory, MediaAssetSnapshot Snapshot, MediaAssetReference Asset,
         CapturedAttachment Attachment, MediaAttachmentBinding? Binding) : IDisposable
     {
-        internal static async Task<Fixture> CreateAsync(bool bound = true, bool mismatch = true, bool extended = false, byte[]? image = null)
+        internal static async Task<Fixture> CreateAsync(bool bound = true, bool mismatch = true, bool extended = false,
+            byte[]? image = null, string fileName = "a.png")
         {
             string directory = Path.Combine(Path.GetTempPath(), "meowchan-consumer-" + Guid.NewGuid().ToString("N"));
             System.IO.Directory.CreateDirectory(directory);
             byte[] bytes = image ?? Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABEAAAALCAIAAAAWQvFQAAAAF0lEQVR4nGO8oxHAQCJgIlXDqJ5hqQcAEJEBagzqPS4AAAAASUVORK5CYII=");
-            await File.WriteAllBytesAsync(Path.Combine(directory, "a.png"), bytes);
-            object entry = new { MediaIdentifier = "777", Variant = "original", SourceUrl = "https://fixture.invalid/a.png",
-                FileName = "a.png", Length = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
-                Md5 = Convert.ToBase64String(MD5.HashData(bytes)), Sha1 = extended ? Convert.ToBase64String(SHA1.HashData(bytes)) : null, OriginalFileName = "a.png" };
+            await File.WriteAllBytesAsync(Path.Combine(directory, fileName), bytes);
+            string url = "https://fixture.invalid/" + fileName;
+            object entry = new { MediaIdentifier = "777", Variant = "original", SourceUrl = url,
+                FileName = fileName, Length = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+                Md5 = Convert.ToBase64String(MD5.HashData(bytes)), Sha1 = extended ? Convert.ToBase64String(SHA1.HashData(bytes)) : null, OriginalFileName = fileName };
             string path = Path.Combine(directory, ".meowchan-manifest.json");
-            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = 1, Entries = new Dictionary<string, object> { ["a.png"] = entry } }));
+            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = 1, Entries = new Dictionary<string, object> { [fileName] = entry } }));
             MediaAssetSnapshot snapshot = await MediaAssetReader.OpenAsync(directory);
             MediaAssetReference asset = Assert.Single(snapshot.GetPage());
-            MediaProviderMetadata provider = new("777", "original", "https://fixture.invalid/a.png", "a.png",
+            MediaProviderMetadata provider = new("777", "original", url, fileName,
                 mismatch ? bytes.Length + 17 : bytes.Length,
                 mismatch ? Convert.ToBase64String(MD5.HashData(new byte[] { 3, 1, 4 })) : asset.Md5, null)
                 { ExpectedSha1 = extended ? asset.Sha1 : null, ProviderSizeHint = extended ? new("2.4e1", "Кб") : null };
@@ -137,8 +139,8 @@ public sealed class ArchiveAttachmentMatchingTests
                         : new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UtcNow));
                 attachment = attachment with { AttachmentRevisionKey = key };
                 await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = extended ? 4 : 3,
-                    Entries = new Dictionary<string, object> { ["a.png"] = entry },
-                    Assets = new Dictionary<string, object> { [asset.AssetId] = new { RequestedFileName = "a.png", Entry = entry } },
+                    Entries = new Dictionary<string, object> { [fileName] = entry },
+                    Assets = new Dictionary<string, object> { [asset.AssetId] = new { RequestedFileName = fileName, Entry = entry } },
                     AttachmentBindings = new Dictionary<string, MediaAttachmentBinding> { [key] = binding } }));
                 snapshot = await MediaAssetReader.OpenAsync(directory);
                 asset = Assert.Single(snapshot.GetPage());
