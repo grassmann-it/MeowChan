@@ -38,8 +38,12 @@ public sealed class SidebarContextGestureTests
         Assert.Equal(2, entries.Length);
         await window.SessionHost.EnqueueTagQueueAsync(entries);
         Assert.True(window.ShowTaggingPage());
-        TaggingPage page = Assert.IsType<TaggingPage>(window.TaggingPage);
-        await page.ActivateAsync();
+        using TaggingPage page = Assert.IsType<TaggingPage>(window.TaggingPage);
+        await BooruTestSupport.WaitAsync(() =>
+        {
+            window.UpdateLayout();
+            return page.IsPanelShown && page.Queue.Contains(entries[1].Key);
+        }, "the Tagging queue and sidebar to be shown");
         ListBox list = SidePanelDesignTests.ById<ListBox>(page, "tagging.list");
         ReaderMediaSidebar sidebar = SidePanelDesignTests.ById<ReaderMediaSidebar>(page, "TaggingPanel");
         Image picture = Picture(sidebar);
@@ -62,6 +66,7 @@ public sealed class SidebarContextGestureTests
             Assert.True(menu.IsOpen);
             Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == "media.copy-file-name").Activate();
             Assert.Equal("b.png", await window.Clipboard!.TryGetTextAsync());
+            Assert.False(menu.IsOpen);
             ContextGestures.Settle(window);
             Assert.True(Assert.IsType<ListBoxItem>(list.ContainerFromItem(row)).IsFocused);
         }

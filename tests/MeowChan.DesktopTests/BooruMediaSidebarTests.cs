@@ -5,7 +5,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
-using Avalonia.Input.Platform;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
@@ -83,9 +82,9 @@ public sealed class BooruMediaSidebarTests
             ContextMenu menu = Assert.IsType<ContextMenu>(picture.ContextMenu);
             Assert.True(menu.IsOpen);
             Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == BooruWorkbenchView.MenuCopyLink).Activate();
-            BooruComponentDispatcher.WaitUntil(() =>
-                BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync())?.EndsWith("/102", StringComparison.Ordinal) == true,
-                "the link to the displayed hit");
+            BooruComponentDispatcher.WaitUntil(() => harness.Links.Copied.Count > 0, "the link copy action");
+            Assert.Equal("https://danbooru.donmai.us/posts/102", Assert.Single(harness.Links.Copied));
+            Assert.False(menu.IsOpen);
             Settle(window);
             Assert.True(hit.IsFocused);
             Assert.True(picture.IsEffectivelyVisible);
