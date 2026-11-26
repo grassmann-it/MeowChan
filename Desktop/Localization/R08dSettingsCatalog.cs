@@ -8,7 +8,7 @@ internal static class R08dSettingsCatalog
         ("setup.intro", "Choose the download folder and two limits. You can change everything later under Settings → Downloads.", "Wähle den Downloadordner und zwei Grenzen. Alles lässt sich später unter Einstellungen → Downloads ändern."),
         ("setup.bandwidth", "Bandwidth limit (MiB/s)", "Bandbreitenlimit (MiB/s)"),
         ("setup.accept", "Apply and get started", "Übernehmen und loslegen"),
-        ("setup.later", "Later (use defaults)", "Später (Standardwerte verwenden)"),
+        ("setup.later", "Ask again next time", "Beim nächsten Start erneut fragen"),
         ("setup.close", "Close", "Schließen"),
         ("setup.reserve", "Free-space reserve: {0} GiB (unchanged by this setup). You can change it later under Settings → Storage and limits.", "Speicherplatzreserve: {0} GiB (wird durch die Einrichtung nicht geändert). Du kannst sie später unter Einstellungen → Speicher und Grenzen ändern."),
         ("setup.positiveLimits", "Enter a bandwidth limit greater than 0 MiB/s (at most 100000) and a whole number of parallel downloads from 1 to 256. Zero does not mean unlimited.", "Gib ein Bandbreitenlimit größer als 0 MiB/s (höchstens 100000) und eine ganze Zahl paralleler Downloads von 1 bis 256 ein. Null bedeutet nicht unbegrenzt."),
