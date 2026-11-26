@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -352,6 +353,114 @@ public sealed class MediaFirstSidebarTests
                     Assert.IsAssignableFrom<ISolidColorBrush>(scrim).Color);
                 Assert.Equal(scrim, headBar.Background);
                 Assert.Equal(scrim, details.Background);
+            }
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SidebarHeaderActionsShareSizingAndChrome(bool light) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ThemeVariant theme = light ? ThemeVariant.Light : ThemeVariant.Dark;
+        ReaderMediaSidebar panel = new();
+        panel.Describe("No. 7", "sample.png", "", true);
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true, MediaSidebarFacts = false });
+        panel.SetImageVerification(true);
+        bool marked = false;
+        string? error = null;
+        panel.ConfigureFavorite(() => true, () => marked, () => Task.CompletedTask, () => error);
+        Window window = new() { Width = 1000, Height = 720, Content = panel, RequestedThemeVariant = theme };
+        try
+        {
+            window.Show();
+            Settle(window);
+            var favorite = SidePanelDesignTests.ById<ToggleButton>(panel, "ReaderMediaSidebarFavorite");
+            var info = SidePanelDesignTests.ById<ToggleButton>(panel, "ReaderMediaSidebarInfoToggle");
+            var gallery = SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarOpen");
+            var gear = SidePanelDesignTests.ById<ToggleButton>(panel, "ReaderMediaSidebarSettings");
+            var close = SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarClose");
+            Color text = Token("Workspace.Text"), muted = Token("Workspace.Muted");
+            Color hover = Token("Workspace.Hover"), border = Token("Workspace.ControlBorder"), clear = Colors.Transparent;
+            foreach (Button button in new Button[] { favorite, info, gallery, gear, close })
+            {
+                Assert.True(button.IsEffectivelyVisible);
+                Assert.Equal(32, button.Bounds.Height);
+                Assert.False(button.Focusable);
+                Assert.False(button.IsTabStop);
+                Assert.NotNull(button.FocusAdorner);
+                AssertChrome(button, clear, clear, text);
+                var state = (IPseudoClasses)button.Classes;
+                state.Set(":pointerover", true);
+                AssertChrome(button, hover, border, text);
+                state.Set(":pressed", true);
+                AssertChrome(button, Token("Workspace.AccentSurface"), Token("Workspace.Accent"), text);
+                state.Set(":pressed", false);
+                state.Set(":pointerover", false);
+            }
+            foreach (Button button in new Button[] { favorite, info, gallery })
+            {
+                var label = Assert.Single(Presenter(button).GetVisualDescendants().OfType<TextBlock>(), control => control.IsEffectivelyVisible);
+                Assert.Equal(FontWeight.Normal, label.FontWeight);
+                Assert.Equal(Assert.IsType<double>(window.FindResource(theme, "Workspace.Text.Body")), label.FontSize);
+                Assert.Equal(new Thickness(8, 0), button.Padding);
+                Assert.Equal(Math.Ceiling(label.TextLayout.Width) + 40, button.Width);
+            }
+            foreach (Button button in new Button[] { gear, close })
+            {
+                Assert.Equal(32, button.Bounds.Width);
+                Assert.Equal(default, button.Padding);
+            }
+
+            panel.ToggleDetails();
+            Settle(window);
+            Assert.True(info.IsChecked);
+            AssertChrome(info, hover, clear, text);
+            var infoState = (IPseudoClasses)info.Classes;
+            infoState.Set(":pointerover", true);
+            AssertChrome(info, hover, border, text);
+            infoState.Set(":pointerover", false);
+            var menu = Assert.IsType<MenuFlyout>(gear.Flyout);
+            menu.ShowAt(gear);
+            Settle(window);
+            Assert.True(gear.IsChecked);
+            AssertChrome(gear, hover, clear, text);
+            menu.Hide();
+
+            marked = true;
+            panel.RefreshFavorite();
+            Settle(window);
+            Assert.True(favorite.IsChecked);
+            AssertChrome(favorite, clear, clear, text);
+            var heart = Assert.Single(Presenter(favorite).GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>());
+            Assert.Equal(Token("Workspace.Favorite"), BrushColor(heart.Fill));
+            error = "Fixture write failed";
+            panel.RefreshFavorite();
+            AssertChrome(favorite, clear, Token("Workspace.Error"), text);
+            Assert.Equal(new Thickness(1.5), Presenter(favorite).BorderThickness);
+            var favoriteState = (IPseudoClasses)favorite.Classes;
+            favoriteState.Set(":pointerover", true);
+            AssertChrome(favorite, hover, Token("Workspace.Error"), text);
+            favoriteState.Set(":pointerover", false);
+            panel.SetImageVerification(false);
+            AssertChrome(favorite, clear, clear, muted);
+            Assert.Equal(0.6, Presenter(favorite).Opacity);
+            gallery.IsEnabled = false;
+            AssertChrome(gallery, clear, clear, muted);
+
+            Color Token(string key) => BrushColor(Assert.IsAssignableFrom<IBrush>(window.FindResource(theme, key)));
+
+            static ContentPresenter Presenter(Button action) => Assert.Single(action.GetVisualDescendants().OfType<ContentPresenter>(),
+                presenter => presenter.Name == "PART_ContentPresenter");
+            static Color BrushColor(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
+            static void AssertChrome(Button action, Color background, Color outline, Color foreground)
+            {
+                ContentPresenter presenter = Presenter(action);
+                Assert.Equal(background, BrushColor(presenter.Background));
+                Assert.Equal(outline, BrushColor(presenter.BorderBrush));
+                Assert.Equal(foreground, BrushColor(presenter.Foreground));
             }
         }
         finally { window.Close(); }

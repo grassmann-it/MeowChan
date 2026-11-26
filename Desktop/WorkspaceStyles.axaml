@@ -2334,6 +2334,40 @@
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.6" />
     </Style>
+
+    <Style Selector="Button.media-header-action, ToggleButton.media-header-action">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" /><Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="ToggleButton.media-header-action:checked">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+    </Style>
+    <Style Selector="ToggleButton.media-header-action.favorite-star:checked">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.media-header-action:pointerover, ToggleButton.media-header-action:pointerover">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="Button.media-header-action:pressed, ToggleButton.media-header-action:pressed">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="Button.media-header-action:disabled, ToggleButton.media-header-action:disabled">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <!-- Use the button's resolved edge so a favourite's local error outline survives every presenter state. -->
+    <Style Selector="Button.media-header-action /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-header-action /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{ReflectionBinding Background, RelativeSource={RelativeSource TemplatedParent}}" />
+        <Setter Property="BorderBrush" Value="{ReflectionBinding BorderBrush, RelativeSource={RelativeSource TemplatedParent}}" />
+        <Setter Property="BorderThickness" Value="{ReflectionBinding BorderThickness, RelativeSource={RelativeSource TemplatedParent}}" />
+        <Setter Property="Foreground" Value="{ReflectionBinding Foreground, RelativeSource={RelativeSource TemplatedParent}}" />
+    </Style>
     <!-- I7 tile corners: static chip badges and marks; the favourite star appears by opacity only (set, hover, keyboard focus),
          so nothing moves and the tile keeps its height. -->
     <Style Selector="Border.tile-mark"><Setter Property="Padding" Value="3" /></Style>
