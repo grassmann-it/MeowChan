@@ -8,6 +8,8 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Gallery;
+using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
 
@@ -84,11 +86,21 @@ public sealed class ReaderMediaPanelDecisionTests
     public void TagEditorRetiresWhenTheDisplayedOccurrenceChanges(bool differentPost) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
-        using RenderTargetBitmap picture = new(new PixelSize(64, 64));
-        MediaLibraryEntry first = MediaTagCountsTests.Entry(1) with { Directory = null, AttachmentRevisionKey = "v1" };
-        MediaLibraryEntry second = differentPost ? first with { PostId = "p2" } : first with { AttachmentRevisionKey = "v2" };
-        string key = MediaPage.PanelVideoKey(first);
-        Assert.Equal(key, MediaPage.PanelVideoKey(second));
+        using var media = BooruComponentDispatcher.Wait(ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false));
+        MediaAttachmentBinding binding = Assert.IsType<MediaAttachmentBinding>(media.Binding);
+        MediaLibraryEntry first = MediaTagCountsTests.Entry(1) with
+        {
+            Thread = binding.Reference.Resource, PostId = binding.Reference.PostId, Position = binding.Reference.Position,
+            AttachmentRevisionKey = binding.Reference.RevisionKey, Directory = media.Directory, AssetId = media.Asset.AssetId,
+            Sha256 = media.Asset.Sha256, Length = media.Asset.Length, MediaId = media.Asset.MediaIdentifier,
+            Name = media.Asset.OriginalFileName
+        };
+        MediaLibraryEntry second = differentPost ? first with { PostId = "44" } : first with
+        {
+            AttachmentRevisionKey = MediaRevisionKeys.CreateAttachmentKey(first.Thread, binding.Reference.PostId, binding.Reference.Position,
+                binding.Provider with { ExpectedSize = null })
+        };
+        Assert.Equal(MediaPage.PanelVideoKey(first), MediaPage.PanelVideoKey(second));
 
         MediaPage page = new(_ => throw new InvalidOperationException());
         page.ConfigurePanelInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always" });
@@ -99,46 +111,68 @@ public sealed class ReaderMediaPanelDecisionTests
         typeof(MediaPage).GetField("_shown", fields)!.SetValue(page, new[] { first, second });
         page.ApplyLayout(page.PageLayout with { Panel = true, PanelWidth = 280 }, save: false);
         Window window = new() { Width = 1440, Height = 800, Content = page };
+        TaskCompletionSource close = new(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
             window.Show();
             window.UpdateLayout();
-            MediaLibraryTileRow[] rows = [new(new(first, [first]), 0), new(new(second, [second]), 1)];
+            MediaLibraryEntryState StateOf(MediaLibraryEntry entry) => new(MediaLibraryFlag.No, true, null, true, [], [],
+                Assert.IsType<MediaTagSubject.Bound>(MediaTagSubjects.Of(entry)));
+            MediaLibraryTileRow[] rows = [new(tiles[0], 0, StateOf), new(tiles[1], 1, StateOf)];
             page.Grid.ItemsSource = rows;
             page.Grid.SelectedIndex = 0;
             ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.Panel);
             BooruComponentDispatcher.WaitUntil(() => ReferenceEquals(page.PanelRow?.Entry, first), "first occurrence");
             BooruComponentDispatcher.Wait(page.PanelTask);
-            sidebar.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, key, picture.PixelSize);
-            // W112-72 §3: “Kein Entfernen-Knopf, kein ⋯”. Exercise the live editor's revision guard.
-            List<MediaLibraryEntry> edited = [];
-            TaskCompletionSource close = new();
-            Func<bool>? current = null;
-            page.TagPopoverAsync = (entry, _, _, isCurrent, _) =>
+            Bitmap picture = Assert.IsAssignableFrom<Bitmap>(sidebar.Shown);
+            Assert.True(sidebar.CanUseMediaActions);
+
+            // Keep the first editor open while the selected occurrence changes, even though its picture can be reused.
+            List<(MediaLibraryEntry Entry, Control Anchor, Func<bool> IsCurrent, RateAndTagRequest Request)> edited = [];
+            page.TagPopoverAsync = (entry, anchor, _, isCurrent, request) =>
             {
-                current = isCurrent;
-                edited.Add(entry);
+                Assert.True(isCurrent());
+                edited.Add((entry, anchor, isCurrent, request));
                 return edited.Count == 1 ? close.Task : Task.CompletedTask;
             };
             window.UpdateLayout();
             var edit = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarEditTags");
             Assert.True(edit.IsEffectivelyVisible);
+            Assert.True(edit.IsEffectivelyEnabled);
             Assert.Null(edit.Flyout);
-            Task editor = sidebar.EditTagsAsync();
-            Assert.Same(first, Assert.Single(edited));
-            Assert.True(current!());
+            Click(edit);
+            BooruComponentDispatcher.WaitUntil(() => edited.Count > 0, "the first occurrence's tag editor");
+            var opened = Assert.Single(edited);
+            Assert.Same(first, opened.Entry);
+            Assert.Same(edit, opened.Anchor);
+            Assert.Null(opened.Request.TagsBlocked);
+            Assert.True(opened.IsCurrent());
+
             page.Grid.SelectedIndex = 1;
-            Assert.False(current());
+            Assert.False(opened.IsCurrent());
+            Assert.True(opened.Request.SidebarToken.IsCancellationRequested);
             close.SetResult();
-            BooruComponentDispatcher.Wait(editor);
             BooruComponentDispatcher.WaitUntil(() => ReferenceEquals(page.PanelRow?.Entry, second), "second occurrence");
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
             Assert.Same(picture, sidebar.Shown);
-            BooruComponentDispatcher.Wait(sidebar.EditTagsAsync());
-            Assert.Collection(edited, entry => Assert.Same(first, entry), entry => Assert.Same(second, entry));
+            Assert.True(edit.IsEffectivelyVisible);
+            Assert.True(edit.IsEffectivelyEnabled);
+            Click(edit);
+            BooruComponentDispatcher.WaitUntil(() => edited.Count > 1, "the second occurrence's tag editor");
+            Assert.Collection(edited, call => Assert.Same(first, call.Entry), call =>
+            {
+                Assert.Same(second, call.Entry);
+                Assert.Same(edit, call.Anchor);
+                Assert.Null(call.Request.TagsBlocked);
+            });
         }
-        finally { window.Close(); page.EndLifetime(); }
+        finally
+        {
+            close.TrySetResult();
+            window.Close();
+            page.EndLifetime();
+        }
     });
 
     [Theory]
