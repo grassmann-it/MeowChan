@@ -138,25 +138,25 @@ public sealed class BuiltMenuIconAuditTests
         menu.Close();
 
         MenuItem appMenu = Assert.Single(window.GetVisualDescendants().OfType<MenuItem>(),
-            row => AutomationProperties.GetAutomationId(row) == "shell.header.app-menu");
+            row => ControlAutomationPeer.CreatePeerForElement(row)?.GetAutomationId() == "WorkspaceMenuItem");
         Button themeToggle = Assert.Single(window.GetVisualDescendants().OfType<Button>(),
-            button => AutomationProperties.GetAutomationId(button) == "shell.header.theme");
+            button => ControlAutomationPeer.CreatePeerForElement(button)?.GetAutomationId() == "ThemeToggleButton");
         MenuItem theme = Assert.Single(appMenu.Items.OfType<MenuItem>(),
-            row => AutomationProperties.GetAutomationId(row) == "shell.appmenu.theme");
+            row => ControlAutomationPeer.CreatePeerForElement(row)?.GetAutomationId() == "ThemeMenuItem");
         Assert.Equal(ThemeVariant.Dark, window.ActualThemeVariant);
         appMenu.IsSubMenuOpen = true;
-        AssertThemeAction("sun", "shell.switchToLight");
+        AssertThemeAction("sun", "Switch to light theme");
 
         Avalonia.Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
-        AssertThemeAction("moon", "shell.switchToDark");
+        AssertThemeAction("moon", "Switch to dark theme");
         Avalonia.Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
-        AssertThemeAction("sun", "shell.switchToLight");
+        AssertThemeAction("sun", "Switch to light theme");
 
         theme.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         appMenu.IsSubMenuOpen = false;
         await BooruTestSupport.WaitAsync(() => window.ActualThemeVariant == ThemeVariant.Light, "the light theme selected in the app menu");
         appMenu.IsSubMenuOpen = true;
-        AssertThemeAction("moon", "shell.switchToDark");
+        AssertThemeAction("moon", "Switch to dark theme");
         appMenu.IsSubMenuOpen = false;
 
         // Exercise the window's native projection with an in-process tray, regardless of system tray support.
@@ -222,12 +222,12 @@ public sealed class BuiltMenuIconAuditTests
         }
 
         NativeMenuItem Item(string field) => Assert.IsType<NativeMenuItem>(Field(typeof(MainWindow), field).GetValue(window));
-        void AssertThemeAction(string icon, string labelKey)
+        void AssertThemeAction(string icon, string label)
         {
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
             Assert.True(appMenu.IsSubMenuOpen);
-            string label = Texts.T(labelKey);
             Assert.Equal(label, theme.Header);
             Assert.Equal(label, AutomationProperties.GetName(themeToggle));
             Assert.Equal(icon, MenuIcons.KeyOf(themeToggle.Content as Control));
