@@ -10,6 +10,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Media;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -54,6 +55,8 @@ public sealed class GalleryAppearanceTests
     public void TheSettingsChoiceIsSearchableAndResettable() => Run(() =>
     {
         using var editor = new SettingsEditor(new Config { GalleryBackground = "Theme" });
+        // ProbeSearchJump runs synchronously; keep its search from scheduling a timer beyond this test.
+        ById<SearchBox>(editor, "SettingsSearchBox").Debounce = TimeSpan.Zero;
         var picker = ById<ComboBox>(editor, "GalleryBackgroundInput");
         Assert.Equal("Background", AutomationProperties.GetName(picker));
         Assert.NotNull(editor.ProbeSearchJump("checkerboard"));
