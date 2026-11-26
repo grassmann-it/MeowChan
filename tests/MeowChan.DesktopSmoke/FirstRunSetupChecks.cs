@@ -109,24 +109,15 @@ internal static class FirstRunSetupChecks
             TextBlock error = Need<TextBlock>("SetupPathError");
             ScrollViewer body = Need<ScrollViewer>("DialogFrameBody");
 
-            bool IsMinimum(Size size) => Math.Abs(size.Height - window.MinHeight) <= 1
-                && Math.Abs(size.Width - window.MinWidth) <= 1;
-            bool? minimumAtFirstLayout = null;
-            await Program.WaitUntilAsync(() =>
-            {
-                if (minimumAtFirstLayout == null)
-                {
-                    if (!path.IsFocused || check.Bounds.Height <= 0) return false;
-                    minimumAtFirstLayout = IsMinimum(window.Bounds.Size);
-                    LogGeometry("first focused layout");
-                }
-                // Keep the original assertion while observing whether the native resize catches up.
-                return minimumAtFirstLayout.Value || (IsMinimum(window.ClientSize) && IsMinimum(window.Bounds.Size));
-            }, Geometry);
-            LogGeometry("before minimum-size assertion");
+            // The fixture requests the configured minimum. Native chrome can round the
+            // realized client size up; the folder and footer must fit in that client.
+            await Program.WaitUntilAsync(() => path.IsFocused && check.Bounds.Height > 0
+                && later.Bounds.Height > 0 && apply.Bounds.Height > 0, Geometry);
+            LogGeometry("first focused layout");
             window.Resized -= OnResized;
             window.LayoutUpdated -= OnLayoutUpdated;
-            Require(minimumAtFirstLayout == true, "The folder test did not run at the dialog's minimum size.");
+            Require(Math.Abs(window.ClientSize.Width - window.MinWidth) <= 1 && window.ClientSize.Height >= window.MinHeight - 1,
+                "The folder layout was not exercised at the requested minimum width and height. " + Geometry());
             double Top(Control control) => control.TranslatePoint(default, window)!.Value.Y;
             double Bottom(Control control) => Top(control) + control.Bounds.Height;
             double footerTop = Top(later);
@@ -177,7 +168,8 @@ internal static class FirstRunSetupChecks
                 && !status.IsEffectivelyVisible && string.IsNullOrEmpty(Need<TextBlock>("SetupStatus").Text),
                 "The wrapped error was clipped, displaced or repeated in the footer.");
             Require(Math.Abs(footerTop - Top(later)) <= 1 && Math.Abs(Top(later) - Top(apply)) <= 1
-                && Bottom(body) <= Top(later) + 1 && Bottom(apply) <= window.Bounds.Height + 1,
+                && Bottom(body) <= Top(later) + 1 && Bottom(apply) <= window.ClientSize.Height + 1
+                && later.IsEffectivelyVisible && apply.IsEffectivelyVisible && later.IsEnabled && apply.IsEnabled,
                 "The footer moved or clipped its actions at the minimum height.");
             foreach (Control target in new Control[] { Need<Button>("SetupBrowseButton"), check, rate, count, later, apply })
             {

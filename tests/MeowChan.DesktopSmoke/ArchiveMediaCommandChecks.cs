@@ -10,6 +10,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Persistence;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -51,35 +52,50 @@ internal static class ArchiveMediaCommandChecks
             Console.WriteLine("SMOKE archive media menu: " + JsonSerializer.Serialize(items
                 .Select(item => new { item.Tag, header = item.Header?.ToString(), item.IsEnabled,
                     canExecute = item.Command?.CanExecute(item.CommandParameter) })));
-            // The common media section comes first, in the one shared order (wave3 adds "Add to tagging queue" after the tag entry, PT1);
-            // the page's own post-bookmark action follows it.
-            Require(page.EditPostBookmark != null && items.Length == 10 && items[^1].Tag == null
-                && Equals(items[^1].Header, CommandCatalog.Label("post-bookmarks.edit-post")),
-                "The real reader media menu lost its trailing post-bookmark action or contains unexpected actions.");
+            // P2 verifies the shared actions and the final post bookmark on the captured attachment.
+            string[] expectedCommands =
+            [
+                "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original",
+                "media.copy-path", "media.copy-file-name", "media.show-in-folder", "media.open-external", "media.details",
+                "gallery.show-in-thread"
+            ];
+            string[] actualCommands = items.SkipLast(1).Select(item => AutomationProperties.GetAutomationId(item) ?? "").ToArray();
+            Require(actualCommands.SequenceEqual(expectedCommands),
+                "Inline media menu lacks the shared media actions or order: " + string.Join(", ", actualCommands));
             MenuItem bookmark = items[^1];
-            Require(bookmark.IsEnabled && bookmark.Command?.CanExecute(bookmark.CommandParameter) == true,
-                "The captured inline post has no available shared bookmark action.");
-            // Check every remaining item; do not hide the untagged bookmark or any unexpected action.
-            MenuItem[] commands = items.Take(items.Length - 1).ToArray();
-            string[] actualTags = commands.Select(item => item.Tag as string ?? "<untagged>").ToArray();
-            Require(actualTags.SequenceEqual(new[]
-            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original", "media.copy-path", "media.copy-file-name", "media.show-in-folder", "media.open-external", "media.details", "gallery.show-in-thread" }),
-                "Inline media menu lacks the shared media actions or order: " + string.Join(", ", actualTags));
-            MenuItem rating = commands.Single(item => (string)item.Tag! == "media.rating.edit");
+            var editBookmark = page.EditPostBookmark;
+            Require(editBookmark != null && bookmark.Tag == null
+                && Equals(bookmark.Header, CommandCatalog.Label("post-bookmarks.edit-post"))
+                && bookmark.IsEffectivelyEnabled && bookmark.Command?.CanExecute(bookmark.CommandParameter) == true,
+                "The captured inline post has no available trailing bookmark action.");
+            MenuItem showInThread = items.Single(item => AutomationProperties.GetAutomationId(item) == "gallery.show-in-thread");
+            Require(showInThread.IsEffectivelyEnabled && showInThread.Command?.CanExecute(showInThread.CommandParameter) == true,
+                "The menu cannot show the captured attachment in its thread.");
+
+            var expectedBookmark = new PostBookmarkKey(page.CurrentThread!.Summary.Id,
+                ((ArchivePostRow)current.FindAncestorOfType<ListBoxItem>()!.DataContext!).Id);
+            PostBookmarkKey? invokedBookmark = null;
+            page.EditPostBookmark = (key, _) => { invokedBookmark = key; return Task.CompletedTask; };
+            try { bookmark.Command!.Execute(bookmark.CommandParameter); }
+            finally { page.EditPostBookmark = editBookmark; }
+            Require(invokedBookmark == expectedBookmark, "The inline bookmark did not target the clicked attachment's post.");
+
+            MenuItem[] commands = items.SkipLast(1).ToArray();
+            MenuItem rating = commands.Single(item => AutomationProperties.GetAutomationId(item) == "media.rating.edit");
             Require(rating.IsEnabled && rating.Command?.CanExecute(rating.CommandParameter) == true,
                 "Saved inline media has no available shared rating action.");
             // Review 15.11.: "Rate and tag…" is one entry (no rating submenu, no second tag entry); it opens the quick tag popover with the stars on top.
             Require(rating.ItemsSource == null || !rating.ItemsSource.Cast<object>().Any(), "The inline media menu's rate-and-tag entry must not have a submenu.");
             Require(Equals(rating.Header, CommandCatalog.Label("media.rating.edit")) && page.TagPopoverAsync != null,
                 "The inline media menu's rate-and-tag entry is not the one popover action.");
-            commands.Single(item => (string)item.Tag! == "gallery.open").Command!.Execute(null);
+            commands.Single(item => AutomationProperties.GetAutomationId(item) == "gallery.open").Command!.Execute(null);
             Require(opened?.PostId == page.CurrentThread!.GetPosts(0, 1).Single().PostId,
                 "Inline context gallery lost the clicked attachment's post association.");
             ArchiveAssetRow[] visible = page.FindControl<ListBox>("ArchiveMediaTiles")!.ItemsSource!.Cast<ArchiveAssetRow>().ToArray();
             Require(openedEntries?.Select(entry => (entry.Manifest.Directory, entry.Asset.AssetId))
                 .SequenceEqual(visible.Select(row => (row.Manifest.Directory, row.Asset.AssetId))) == true,
                 "Inline context gallery did not use the visible media sequence.");
-            commands.Single(item => (string)item.Tag! == "favorites.toggle").Command!.Execute(null);
+            commands.Single(item => AutomationProperties.GetAutomationId(item) == "favorites.toggle").Command!.Execute(null);
             Require(!marked, "Inline context favorite did not use the same favorite action as its visible star.");
             menu.Close();
             // An already opened menu retains its visible scope even when the favorites

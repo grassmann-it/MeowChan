@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 
@@ -63,7 +65,7 @@ internal static class GridChecks
             await WaitForRowsAsync(boardGrid, first, second);
             await CheckContextSelectionAsync(window, boardGrid, first, second);
             await ClipboardChecks.CheckCopyAsync(window, two, second);
-            Console.WriteLine("SMOKE thread and board context menus select the pointed row and clear stale selection on blank space.");
+            Console.WriteLine("SMOKE thread and board context menus target the pointed row, then close on blank space and preserve selection.");
         }
         finally
         {
@@ -91,10 +93,11 @@ internal static class GridChecks
 
     private static DataGridRow FindRow(DataGrid grid, object item) => VisibleRows(grid, item).Single();
 
-    internal static async Task OpenContextForAsync(MainWindow window, DataGrid grid, object item)
+    internal static async Task OpenContextForAsync(MainWindow window, DataGrid grid, object item,
+        KeyModifiers modifiers = KeyModifiers.None)
     {
         Point position = await WaitForRowTargetAsync(window, grid, item);
-        RightPress(window, position, KeyModifiers.None);
+        RightPress(window, position, modifiers);
         ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The copy context menu is missing.");
         // The product opens the menu from a dispatcher callback after Avalonia's
         // DataGrid has applied the right-click selection. Opening it here as well
@@ -106,7 +109,7 @@ internal static class GridChecks
             () => ReferenceEquals(grid.SelectedItem, item) && grid.SelectedItems.Contains(item),
             () => "selected=" + Describe(grid.SelectedItem) + "; selected-count=" + grid.SelectedItems.Count);
         await Program.WaitUntilAsync(
-            () => menu.IsOpen && menu.Items.OfType<MenuItem>().Any(entry => entry.Tag as string == expectedAction),
+            () => menu.IsOpen && menu.Items.OfType<MenuItem>().Any(entry => AutomationProperties.GetAutomationId(entry) == expectedAction),
             () => "open=" + menu.IsOpen + "; expected=" + expectedAction + "; items="
                 + string.Join(",", menu.Items.OfType<MenuItem>().Select(entry => entry.Tag as string ?? "<untagged>")));
     }
@@ -142,23 +145,20 @@ internal static class GridChecks
         ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The grid context menu is missing.");
         foreach (KeyModifiers modifiers in new[] { KeyModifiers.None, KeyModifiers.Control })
         {
-            grid.SelectedItem = first;
-            Point position = await WaitForRowTargetAsync(window, grid, second);
-            RightPress(window, position, modifiers);
-            if (!ReferenceEquals(grid.SelectedItem, second))
-                throw new InvalidOperationException("Right click selected the wrong row in " + grid.Name
-                    + "; modifiers=" + modifiers + "; selected=" + Describe(grid.SelectedItem)
-                    + "; expected=" + Describe(second) + "; point=" + position);
-            menu.Open(grid);
-            await Program.WaitUntilAsync(() => menu.IsOpen);
-            if (!ReferenceEquals(grid.SelectedItem, second))
-                throw new InvalidOperationException("Opening the context menu changed the selected row.");
             menu.Close();
+            grid.SelectedItem = first;
+            await OpenContextForAsync(window, grid, second, modifiers);
+            if (grid.SelectedItems.Count != 1 || !grid.SelectedItems.Contains(second))
+                throw new InvalidOperationException("The row context menu did not target exactly the pointed watch.");
+            MenuItem copy = menu.Items.OfType<MenuItem>().Single(entry =>
+                AutomationProperties.GetAutomationId(entry) == "selection.copy-links");
+            if (!copy.IsEffectivelyEnabled || copy.Command?.CanExecute(copy.CommandParameter) != true)
+                throw new InvalidOperationException("The pointed watch had no available Copy links command.");
         }
 
         Point? blank = null;
         // The last row can reach the old fixed offset on a scaled, shorter desktop.
-        // Require a real empty grid target before exercising stale-selection clearing.
+        // Require a real empty grid target before exercising the selection-preserving dismissal.
         await Program.WaitUntilAsync(() =>
         {
             window.UpdateLayout();
@@ -177,8 +177,10 @@ internal static class GridChecks
             return false;
         });
         RightPress(window, blank!.Value, KeyModifiers.None);
-        if (grid.SelectedItem != null)
-            throw new InvalidOperationException("Right click on blank space retained a stale action target.");
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        if (menu.IsOpen || !ReferenceEquals(grid.SelectedItem, second)
+            || grid.SelectedItems.Count != 1 || !grid.SelectedItems.Contains(second))
+            throw new InvalidOperationException("Right click on blank space kept the row menu open or changed the selected watch.");
     }
 
     private static void RightPress(MainWindow window, Point position, KeyModifiers modifiers)

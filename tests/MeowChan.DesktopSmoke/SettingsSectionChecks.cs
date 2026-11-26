@@ -1,4 +1,8 @@
+using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -17,15 +21,17 @@ internal static class SettingsSectionChecks
         try
         {
             await Wait(() => window.IsVisible);
+            T Find<T>(string id) where T : Control => window.Editor.GetLogicalDescendants().OfType<T>()
+                .Single(control => ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId() == id);
             foreach (string language in new[] { "en", "de" })
             {
                 Texts.SetLanguage(language);
-                var timer = window.Editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
-                var path = window.Editor.FindControl<TextBox>("DownloadPathInput")!;
+                var timer = Find<NumericUpDown>("RecheckTimerInput");
+                var path = Find<TextBox>("DownloadPathInput");
                 window.Editor.OpenSectionNavigation();
                 Require(window.Editor.CanGoToSection("settings.downloads"), "Downloads section unavailable in active settings.");
                 window.Editor.GoToSection("settings.downloads");
-                await Wait(() => window.Editor.FindControl<TextBlock>("SettingsDownloadsHeading")!.IsFocused);
+                await Wait(() => Find<TextBlock>("SettingsDownloadsHeading").IsFocused);
                 timer.ApplyTemplate();
                 TextBox numericText = timer.GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "PART_TextBox");
                 numericText.Focus(); numericText.Text = "invalid section draft";
@@ -39,25 +45,37 @@ internal static class SettingsSectionChecks
                     await Task.Delay(50);
                     Require(timer.Text == raw && timer.Value == value && path.Text == "relative unfinished folder ü" && commits == 0,
                         "A section jump changed draft text/model or saved settings.");
-                    Require(!window.Editor.FindControl<SectionNavigationControl>("SettingsSections")!.IsExpanded,
+                    Require(!Find<SectionNavigationControl>("SettingsSections").IsExpanded,
                         "Intentional navigation left contents open.");
                 }
-                numericText.Focus();
-                var scroll = window.Editor.FindControl<ScrollViewer>("SettingsScrollViewer")!;
-                var before = scroll.Offset;
+                Require(numericText.Focus(), "The numeric draft was not focusable before translation.");
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                var scroll = Find<ScrollViewer>("SettingsScrollViewer");
+                var presenter = numericText.FindAncestorOfType<ScrollContentPresenter>()!;
+                Point beforeOrigin = numericText.TranslatePoint(default, presenter)!.Value;
+                Vector before = scroll.Offset;
+                Rect visibleBefore = new Rect(beforeOrigin, numericText.Bounds.Size).Intersect(new Rect(presenter.Viewport));
+                Require(visibleBefore.Height > 0, "No part of the focused draft was visible before translation.");
                 Texts.SetLanguage(language == "en" ? "de" : "en");
-                await Task.Delay(50);
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 Require(numericText.IsFocused, "Passive language refresh stole numeric input focus.");
                 Require(timer.Text == raw && timer.Value == value && path.Text == "relative unfinished folder ü" && commits == 0,
                     "Passive language refresh changed raw input, draft values or saved settings.");
-                // Translated labels can shrink the page below the old offset. ScrollViewer
-                // must clamp to its new bounds; that is not an unsolicited navigation.
-                // Require the exact old offset everywhere it remains representable.
-                var expected = new Avalonia.Vector(
-                    Math.Clamp(before.X, 0, Math.Max(0, scroll.Extent.Width - scroll.Viewport.Width)),
-                    Math.Clamp(before.Y, 0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
-                Require(scroll.Offset == expected,
-                    $"Passive language refresh scrolled: before={before}, expected={expected}, actual={scroll.Offset}.");
+
+                // 35c0d5699 keeps the previously visible part of a focused numeric draft
+                // in view when translated labels reflow. Any scroll is bounded by that part.
+                Rect draftPart = visibleBefore.Translate(-new Vector(beforeOrigin.X, beforeOrigin.Y))
+                    .Intersect(new Rect(numericText.Bounds.Size));
+                Point afterOrigin = numericText.TranslatePoint(default, presenter)!.Value;
+                double maxOffset = Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height);
+                double baseline = Math.Clamp(before.Y, 0, maxOffset);
+                double bottom = afterOrigin.Y + scroll.Offset.Y + draftPart.Bottom;
+                double top = afterOrigin.Y + scroll.Offset.Y + draftPart.Top;
+                double expected = Math.Clamp(baseline, bottom - presenter.Viewport.Height, top);
+                expected = Math.Clamp(expected, 0, maxOffset);
+                Require(draftPart.Height > 0 && Math.Abs(scroll.Offset.Y - expected) <= 1 && scroll.Offset.X == before.X,
+                    $"Passive language refresh scrolled beyond the focused draft: before={before}, expected Y={expected}, actual={scroll.Offset}.");
+                Console.WriteLine($"SMOKE settings language viewport {language}→{Texts.Language}: draft focus kept, before={before}, expected Y={expected}, actual={scroll.Offset}.");
             }
             Console.WriteLine("SMOKE settings sections: explicit targets, draft/raw preservation and passive language focus passed.");
         }
