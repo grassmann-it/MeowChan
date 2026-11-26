@@ -312,7 +312,7 @@ public partial class MainWindow
         SetupInspectorLocalActions();
         RefreshAdmissionResults();
         RefreshArchiveBridgeHint();
-        UpdateThemeIcon();
+        RefreshThemeAction();
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
         CommandBindings.ApplyLabeled(AddUrlButton, "watch.add-url", Texts.T("action.add"));
