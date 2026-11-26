@@ -10,11 +10,24 @@ internal enum TaglineTone { Playful, Plain }
 
 internal enum TaglineCategory { General, Release, Seasonal }
 
+/// <summary>An inclusive, annually recurring date window. The end may fall in the next calendar year.</summary>
+internal readonly record struct TaglineSeason((int Month, int Day) Start, (int Month, int Day) End)
+{
+    internal bool Includes(DateOnly date)
+    {
+        var day = (date.Month, date.Day);
+        bool onOrAfterStart = day.CompareTo(Start) >= 0;
+        bool onOrBeforeEnd = day.CompareTo(End) <= 0;
+        return Start.CompareTo(End) <= 0 ? onOrAfterStart && onOrBeforeEnd : onOrAfterStart || onOrBeforeEnd;
+    }
+}
+
 /// <summary>
 /// One quip, ready to show: its stable <paramref name="Id"/> (what the "Fixed" setting stores), the version of MeowChan that introduced it
 /// (<paramref name="Since"/>, what the release highlight compares with) and the <paramref name="Text"/> in the language it was asked for.
 /// </summary>
-internal sealed record TaglineEntry(string Id, Version Since, TaglineTone Tone, string Text, TaglineCategory Category = TaglineCategory.General);
+internal sealed record TaglineEntry(string Id, Version Since, TaglineTone Tone, string Text,
+    TaglineCategory Category = TaglineCategory.General, TaglineSeason? Season = null);
 
 /// <summary>
 /// A source of quips. The built-in one reads the language packs; a theme (or any later feature) can add its own through
@@ -33,7 +46,8 @@ internal interface ITaglineProvider
 /// <summary>The quips that ship with MeowChan: ids, introducing version and tone here; the text of <c>x</c> is <c>shell.tagline.quip.x</c> in every pack.</summary>
 internal sealed class BuiltInTaglineProvider : ITaglineProvider
 {
-    private sealed record Definition(string Id, Version Since, TaglineTone Tone, TaglineCategory Category = TaglineCategory.General);
+    private sealed record Definition(string Id, Version Since, TaglineTone Tone,
+        TaglineCategory Category = TaglineCategory.General, TaglineSeason? Season = null);
 
     // Ids are persisted in Config.HeaderTaglineFixedId. Release eligibility is explicit and independent of Since and Tone.
     private static readonly Definition[] Definitions =
@@ -84,8 +98,8 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         new("fetchthem", new Version(1, 1, 2), TaglineTone.Playful),
         new("tabsbreed", new Version(1, 1, 2), TaglineTone.Playful),
         new("pawprint", new Version(1, 1, 2), TaglineTone.Playful),
-        new("snowed", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal),
-        new("trickorthread", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal),
+        new("snowed", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((12, 1), (1, 6))),
+        new("trickorthread", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((10, 24), (11, 1))),
     ];
 
     private readonly Func<string, string?> _lookup;
@@ -105,7 +119,7 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         foreach (Definition definition in Definitions)
         {
             string? text = TaglineCatalog.CleanText(_lookup(KeyFor(definition.Id)));
-            if (text != null) result.Add(new TaglineEntry(definition.Id, definition.Since, definition.Tone, text, definition.Category));
+            if (text != null) result.Add(new TaglineEntry(definition.Id, definition.Since, definition.Tone, text, definition.Category, definition.Season));
         }
         return result;
     }
