@@ -106,6 +106,31 @@ public sealed class DownloadsSelectionMenuTests
     });
 
     [Fact]
+    public void RightClickOnBlankGridSpaceClosesTheMenuAndPreservesTheSelection() => RunWithGrid(fixture =>
+    {
+        fixture.ShowThreads([Thread(1), Thread(2)]);
+        fixture.Select(1, 2);
+        MainWindow window = fixture.Window;
+        DataGrid grid = FindByAutomationId<DataGrid>(window, "ThreadsDataGrid");
+        ContextMenu menu = OpenMenu(fixture, keyboard: true);
+        MenuItem copy = Assert.Single(menu.Items.OfType<MenuItem>(),
+            item => AutomationProperties.GetAutomationId(item) == "selection.copy-links");
+        Assert.True(copy.Command?.CanExecute(copy.CommandParameter));
+
+        Point blank = grid.TranslatePoint(new Point(20, grid.Bounds.Height - 4), window)!.Value;
+        Visual hit = Assert.IsAssignableFrom<Visual>(window.InputHitTest(blank));
+        Assert.Contains(grid, hit.GetSelfAndVisualAncestors());
+        Assert.DoesNotContain(hit.GetSelfAndVisualAncestors(), visual => visual is DataGridRow);
+        window.MouseDown(blank, MouseButton.Right);
+        window.MouseUp(blank, MouseButton.Right);
+        fixture.Layout();
+
+        Assert.False(menu.IsOpen);
+        Assert.Equal(new long[] { 1, 2 }, window.SelectedThreadsForTests().Select(row => row.WatchId).Order());
+        return Task.CompletedTask;
+    });
+
+    [Fact]
     public void DeleteAfterBatchExportRemovesTheOriginalSelectionAcrossProjections()
         => BooruComponentDispatcher.Run(async () =>
         {
