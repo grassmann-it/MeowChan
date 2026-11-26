@@ -168,8 +168,9 @@ public sealed class GalleryEntryPointAuditTests
     public void SavingAFrameAfterPickingAFolderUsesTheRequestedVideo(bool switchVideo) => DownloadWindowFixture.Run(async fixture =>
     {
         using TempDirectory destination = new();
+        await using var video = new GalleryVideoPlayer();
         await using var viewer = new GalleryViewer();
-        Set(viewer, "_video", new GalleryVideoPlayer());
+        Set(viewer, "_video", video);
         typeof(MainWindow).GetField("_gallery", Fields)!.SetValue(fixture.Window, viewer);
         try
         {
@@ -210,7 +211,11 @@ public sealed class GalleryEntryPointAuditTests
             using SKBitmap png = SKBitmap.Decode(saved);
             Assert.Equal(SKColors.Red, png.GetPixel(0, 0));
         }
-        finally { typeof(MainWindow).GetField("_gallery", Fields)!.SetValue(fixture.Window, null); }
+        finally
+        {
+            typeof(MainWindow).GetField("_gallery", Fields)!.SetValue(fixture.Window, null);
+            Set(viewer, "_video", null);
+        }
 
         void ShowReadyVideo(GalleryEntry entry)
         {

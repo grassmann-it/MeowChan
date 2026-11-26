@@ -1849,33 +1849,35 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     /// Raised for "Save frame as image". The owner decides the folder: the dedicated frames folder the person chose
     /// (asked for on first use, never an export folder) and then calls <see cref="SaveVideoFrameAsync"/>.
     /// </summary>
-    internal event Action<GalleryEntry>? SaveFrameRequested;
+    internal event Action<GalleryEntry, int>? SaveFrameRequested;
 
     internal Func<GalleryEntry, string, Task<bool>>? CaptureVideoFrameForTests { get; set; }
 
     private void RequestSaveFrame()
     {
-        if (CanUseVideoTransport && _videoReadyRequest == _request && _entry != null) SaveFrameRequested?.Invoke(_entry);
+        if (CanRequestSaveFrame && _entry is { } entry) SaveFrameRequested?.Invoke(entry, _request);
     }
 
     /// <summary>
-    /// Saves the shown frame of the current video into <paramref name="directory"/> as "{file name}-{m-ss-mmm}.png" (a free
-    /// name, never an existing file) and returns its path, or null when no frame could be saved.
+    /// Saves the shown frame into <paramref name="directory"/> as "{file name}-{m-ss-mmm}.png" (a free name) if the
+    /// video selection from the save request is still current. Returns the path, or null when no frame could be saved.
     /// </summary>
-    internal async Task<string?> SaveVideoFrameAsync(string directory)
+    internal async Task<string?> SaveVideoFrameAsync(GalleryEntry entry, int request, string directory)
     {
-        if (!CanUseVideoTransport || _entry is not { } entry || _video is not { } video) return null;
+        if (_video is not { } video || !CanRequestSaveFrame || !IsRequestedVideoCurrent()) return null;
         if (!await Task.Run(() => System.IO.Directory.Exists(directory)).ConfigureAwait(true)) return null;
-        if (!CanUseVideoTransport || !ReferenceEquals(entry, _entry) || !ReferenceEquals(video, _video)) return null;
+        if (!CanRequestSaveFrame || !IsRequestedVideoCurrent()) return null;
         string fileName = entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName ?? string.Empty;
         long position = video.PositionMs;
         // Written under a temporary name and moved into place without replacing a file (a frame is never overwritten).
         string temporary = GalleryFrameFile.TemporaryPath(directory);
         bool saved = await (CaptureVideoFrameForTests?.Invoke(entry, temporary) ?? video.SaveFrameAsync(temporary))
-            .ConfigureAwait(true) && ReferenceEquals(entry, _entry);
+            .ConfigureAwait(true) && IsRequestedVideoCurrent();
         string? path = saved ? await Task.Run(() => GalleryFrameFile.Commit(temporary, directory, fileName, position)).ConfigureAwait(true) : null;
         if (!saved) await Task.Run(() => GalleryFrameFile.Discard(temporary)).ConfigureAwait(true);
         return path;
+
+        bool IsRequestedVideoCurrent() => request == _request && ReferenceEquals(entry, _entry) && ReferenceEquals(video, _video);
     }
 
     private void AdjustVideoVolume(int direction)
