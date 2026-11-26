@@ -270,13 +270,13 @@
                                 <DataGridTemplateColumn Header="Work" SortMemberPath="CompactWork" Width="110" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactWork}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding WorkStatus}" AutomationProperties.HelpText="{Binding WorkStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="Last capture" SortMemberPath="LastCapture" Width="145" MinWidth="125"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><controls:TrimTipTextBlock Text="{Binding LastCapture}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="Tags" SortMemberPath="TagColumnText" Width="170" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock AutomationProperties.AutomationId="ArchiveThreadTagCell" Text="{Binding TagColumnText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TagColumnTip}" AutomationProperties.HelpText="{Binding TagColumnTip}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <!-- A2: the favourite star is the last column by key (saved widths and orders of older versions stay valid) and the first by
+                                <!-- A2: the favourite heart is the last column by key (saved widths and orders of older versions stay valid) and the first by
                                      display (ArchivePage.ViewPreferences pins it at DisplayIndex 0). 48 dip, not resizable or movable; the button is a 24 dip square
-                                     (the width the 12 dip cell padding leaves) with the 18 dip star. -->
+                                     (the width the 12 dip cell padding leaves) with a centred 16 dip heart. -->
                                 <DataGridTemplateColumn Header="Favorite" SortMemberPath="FavoriteSortKey" Width="48" MinWidth="48" MaxWidth="48" CanUserResize="False" CanUserReorder="False">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate x:DataType="desktop:ArchiveThreadRow">
-                                            <desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>

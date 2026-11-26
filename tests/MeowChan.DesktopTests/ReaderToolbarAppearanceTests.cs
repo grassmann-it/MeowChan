@@ -8,10 +8,12 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.WorkViews;
+using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopTests;
 
@@ -75,6 +77,75 @@ public sealed class ReaderToolbarAppearanceTests
             try { window.Close(); }
             finally { page.EndLifetime(); }
         }
+    });
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public void ThreadFavoriteShowsACenteredHeartWithContextualButtonChrome(bool light, bool inToolbar) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        var row = new ArchiveThreadRow(new ArchiveThreadSummary(new ResourceId("source", "board", "42"),
+            "", "", "", ThreadSourceState.NotFound, true, DateTimeOffset.UnixEpoch, null, 1, 1));
+        var favorite = new ArchiveThreadFavoriteButton { DataContext = row };
+        Control content = favorite;
+        if (inToolbar)
+        {
+            var toolbar = new ActionToolBar();
+            toolbar.Items.Add(favorite);
+            content = toolbar;
+        }
+        ThemeVariant theme = light ? ThemeVariant.Light : ThemeVariant.Dark;
+        Window window = TestWindow(content);
+        window.RequestedThemeVariant = theme;
+        try
+        {
+            window.Show();
+            Settle(window);
+            ContentPresenter presenter = Presenter(favorite);
+            Assert.Equal(new Size(32, 32), favorite.Bounds.Size);
+            Assert.False(favorite.IsEnabled);
+            Assert.Equal(0.5, Assert.IsType<Border>(favorite.Content).Opacity);
+            AssertChrome(Colors.Transparent, Colors.Transparent);
+
+            row.SetThreadFavorite(false, available: true, error: null);
+            Settle(window);
+            var heart = Assert.IsType<Border>(favorite.Content);
+            Assert.Equal(new Size(16, 16), heart.Bounds.Size);
+            Assert.Equal(new Point(8, 8), heart.TranslatePoint(default, favorite));
+            var outline = Assert.IsType<Avalonia.Controls.Shapes.Path>(heart.Child);
+            Assert.Null(outline.Fill);
+            Assert.Equal(Token("Workspace.Text", theme), ColorOf(outline.Stroke));
+            AssertChrome(Colors.Transparent, Colors.Transparent);
+
+            Assert.True(favorite.Focus(NavigationMethod.Tab));
+            Assert.NotNull(favorite.FocusAdorner);
+            Assert.Contains(":focus-visible", favorite.Classes);
+            AssertChrome(Colors.Transparent, Colors.Transparent);
+
+            var state = (IPseudoClasses)favorite.Classes;
+            state.Set(":pointerover", true);
+            AssertChrome(Token(inToolbar ? "Workspace.Hover" : "Workspace.Raised", theme), Token("Workspace.ControlBorder", theme));
+            state.Set(":pressed", true);
+            AssertChrome(Token("Workspace.AccentSurface", theme), Token("Workspace.Accent", theme));
+            state.Set(":pressed", false);
+            state.Set(":pointerover", false);
+
+            row.SetThreadFavorite(true, available: true, error: null);
+            Settle(window);
+            var filled = Assert.IsType<Avalonia.Controls.Shapes.Path>(Assert.IsType<Border>(favorite.Content).Child);
+            Assert.Equal(Token("Workspace.Favorite", theme), ColorOf(filled.Fill));
+            AssertChrome(Colors.Transparent, Colors.Transparent);
+
+            void AssertChrome(Color background, Color border)
+            {
+                Assert.Equal(background, ColorOf(presenter.Background));
+                Assert.Equal(border, ColorOf(presenter.BorderBrush));
+            }
+        }
+        finally { window.Close(); }
     });
 
     [Fact]
@@ -207,9 +278,9 @@ public sealed class ReaderToolbarAppearanceTests
     private static ContentPresenter Presenter(Button button) => button.GetVisualDescendants().OfType<ContentPresenter>()
         .First(presenter => presenter.Name == "PART_ContentPresenter");
 
-    private static Color Token(string key)
+    private static Color Token(string key, ThemeVariant? theme = null)
     {
-        Assert.True(Application.Current!.TryGetResource(key, ThemeVariant.Dark, out object? resource), key);
+        Assert.True(Application.Current!.TryGetResource(key, theme ?? ThemeVariant.Dark, out object? resource), key);
         return ColorOf(Assert.IsAssignableFrom<IBrush>(resource));
     }
 
