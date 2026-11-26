@@ -281,11 +281,11 @@ public sealed class ReaderMediaSidebarHostClickTests
             using TempDirectory profile = new();
             using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
             var thread = RateAndTagWindowFixture.View(media);
-            await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
             Config settings = new() { MediaSidebarInfo = legacyOff ? "Off" : "Auto",
-                DownloadPath = Path.Combine(profile.Path, "downloads"), DownloadsPaused = true,
+                DownloadPath = Path.Combine(profile.Path, "downloads"), DownloadsPaused = true, FirstRunSetupVersion = 1,
                 ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways, ReaderMediaSidebarMinimumWidth = 800 };
             settings.SaveConfig(profile.Path);
+            await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
             string[] names = Enumerable.Range(1, 8).Select(index => "long_fixture_tag_" + index).ToArray();
             Assert.True(PrivateMediaTagTarget.TryCreate(media.Binding!.Reference, media.Attachment.MediaId,
                 media.Attachment.Variant, TransferMediaRole.Original, media.Asset.Sha256, out var target, out _));
