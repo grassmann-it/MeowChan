@@ -59,11 +59,12 @@ internal sealed class ContextMenuBuilder
     /// are commands with icons; the same action shows the same icon as its command elsewhere.
     /// </summary>
     internal ContextMenuBuilder Item(string id, string label, Action invoke, bool available = true, string? reason = null,
-        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null, bool dangerous = false)
+        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null, bool dangerous = false,
+        string? tooltip = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
         return Add(new(ContextMenuEntryKind.Command, id, label, null, null, false, available, reason, invoke, true,
-            availableWhen, reasonWhen, labelWhen, Icon: icon, Dangerous: dangerous));
+            availableWhen, reasonWhen, labelWhen, Icon: icon, Dangerous: dangerous, Tooltip: tooltip));
     }
 
     /// <summary>
@@ -255,6 +256,11 @@ internal sealed class ContextMenuBuilder
                 AutomationProperties.SetHelpText(item, Reason());
                 ToolTip.SetTip(item, Label() + " · " + Reason());
                 ToolTip.SetShowOnDisabled(item, true);
+            }
+            else if (entry.Tooltip != null)
+            {
+                ToolTip.SetTip(item, entry.Tooltip);
+                AutomationProperties.SetHelpText(item, entry.Tooltip);
             }
         }
         item.Tag = entry.Id;

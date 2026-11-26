@@ -328,6 +328,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildFooter()
     {
+        AutomationProperties.SetAutomationId(_linkNote, LinkNoteName);
         AutomationProperties.SetLiveSetting(_linkNote, AutomationLiveSetting.Polite);
         return new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { _linkNote } };
     }
@@ -890,9 +891,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         return new[] { open, copy };
     }
 
-    private async Task OpenLinkAsync(string url, BooruResultTarget? target = null)
+    private async Task OpenLinkAsync(string url, BooruResultTarget? target = null,
+        string failureKey = "booru.ui.link.openFailed")
     {
-        // Only canonical post pages reach this method (built by BooruPostLinks); a launcher failure is shown, never retried.
+        // Canonical URLs are built locally. Show launcher failures without logging the URL.
         if (!TryBeginLinkAction(out long revision)) return;
         ResultLinkScope? scope = CaptureResultLink(target);
         try
@@ -902,8 +904,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            Log.Warning(exception, "Could not open a Danbooru post in the browser");
-            SetLinkNote(("booru.ui.link.openFailed", string.Empty, true), revision, scope);
+            Log.Warning("Could not open a Danbooru page in the browser ({FailureType})", exception.GetType().Name);
+            SetLinkNote((failureKey, string.Empty, true), revision, scope);
         }
     }
 
