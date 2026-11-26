@@ -213,12 +213,14 @@ public sealed class ThemeTokenMapTests
 
     private static string Value(Dictionary<string, XElement> resources, string key) => resources[key].Value.Trim();
 
-    private static Dictionary<string, XElement> Resources(ThemeTokenTheme theme, [CallerFilePath] string sourcePath = "")
+    internal static Dictionary<string, XElement> Resources(ThemeTokenTheme theme, [CallerFilePath] string sourcePath = "")
     {
         string path = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../../Desktop/WorkspaceStyles.axaml"));
         XElement dictionary = Assert.Single(XDocument.Load(path).Descendants(A + "ResourceDictionary"),
             element => (string?)element.Attribute(X + "Key") == theme.ToString());
-        // Do not select only known keys or only hex-valued nodes: every direct entry must be classified.
-        return dictionary.Elements().ToDictionary(element => (string)element.Attribute(X + "Key")!, StringComparer.Ordinal);
+        // Package C1 keeps this internal brush outside the user palette. Every other direct entry must be classified.
+        return dictionary.Elements()
+            .Where(element => (string?)element.Attribute(X + "Key") != "Workspace.MediaBarScrim")
+            .ToDictionary(element => (string)element.Attribute(X + "Key")!, StringComparer.Ordinal);
     }
 }
