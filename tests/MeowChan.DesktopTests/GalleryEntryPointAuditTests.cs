@@ -1,15 +1,19 @@
 using System.Reflection;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Platform;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Storage;
+using SkiaSharp;
 
 namespace MeowChan.DesktopTests;
 
@@ -157,6 +161,80 @@ public sealed class GalleryEntryPointAuditTests
         typeof(GalleryViewer).GetMethod("RefreshOverflowItems", Fields)!.Invoke(viewer, null);
         Assert.False(saveFrame.IsEnabled);
     });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SavingAFrameAfterPickingAFolderUsesTheRequestedVideo(bool switchVideo) => DownloadWindowFixture.Run(async fixture =>
+    {
+        using TempDirectory destination = new();
+        await using var video = new GalleryVideoPlayer();
+        await using var viewer = new GalleryViewer();
+        Set(viewer, "_video", video);
+        typeof(MainWindow).GetField("_gallery", Fields)!.SetValue(fixture.Window, viewer);
+        try
+        {
+            fixture.CallWindow("WireGalleryActions");
+            GalleryEntry first = LooseVideo("video-a", destination.Path);
+            GalleryEntry second = LooseVideo("video-b", destination.Path);
+            ShowReadyVideo(first);
+            viewer.CaptureVideoFrameForTests = (entry, path) => GalleryFramePng.WriteAsync(new(1, 1,
+                ReferenceEquals(entry, first) ? [0, 0, 255, 255] : [255, 0, 0, 255]), path);
+            TaskCompletionSource<string?> folder = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            bool pickerOpened = false;
+            fixture.Window.GalleryFramePickerForTests = () =>
+            {
+                pickerOpened = true;
+                return folder.Task;
+            };
+
+            Button saveFrame = Assert.Single(viewer.OverflowMenuContent.GetLogicalDescendants().OfType<Button>(),
+                button => AutomationProperties.GetAutomationId(button) == "video.snapshot");
+            Assert.True(saveFrame.IsEnabled);
+            saveFrame.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(pickerOpened);
+            if (switchVideo) ShowReadyVideo(second);
+            folder.SetResult(destination.Path);
+
+            SessionFeedbackStore feedback = fixture.WindowField<SessionFeedbackStore>("_feedback");
+            await BooruTestSupport.WaitAsync(() => feedback.Entries.Any(item => item.Operation == "video.snapshot")
+                || Directory.EnumerateFiles(destination.Path, "video-*.png").Any(file => new FileInfo(file).Length > 0),
+                "the frame save to finish");
+            if (switchVideo)
+            {
+                Assert.Empty(Directory.EnumerateFiles(destination.Path));
+                return;
+            }
+
+            string saved = Assert.Single(Directory.EnumerateFiles(destination.Path));
+            Assert.Equal("video-a-0-00-000.png", Path.GetFileName(saved));
+            using SKBitmap png = SKBitmap.Decode(saved);
+            Assert.Equal(SKColors.Red, png.GetPixel(0, 0));
+        }
+        finally
+        {
+            typeof(MainWindow).GetField("_gallery", Fields)!.SetValue(fixture.Window, null);
+            Set(viewer, "_video", null);
+        }
+
+        void ShowReadyVideo(GalleryEntry entry)
+        {
+            int request = viewer.MediaRequestGeneration + 1;
+            Set(viewer, "_entry", entry);
+            Set(viewer, "_request", request);
+            Set(viewer, "_videoReadyRequest", request);
+            typeof(GalleryViewer).GetMethod("RefreshFrameCommands", Fields)!.Invoke(viewer, null);
+        }
+    });
+
+    private static GalleryEntry LooseVideo(string id, string directory)
+    {
+        string name = id + ".mp4";
+        var asset = new MediaAssetReference(id, "video", "original", name, Path.Combine(directory, name), 7,
+            new string('a', 64), "https://fixture.invalid/" + name, name, true);
+        var manifest = new MediaAssetSnapshot(directory, MediaManifestStatus.Available, 1, "generation", [asset]);
+        return new(new(new("fixture", "b", "42"), manifest.Directory, asset.AssetId), manifest, asset, null, null, false, true);
+    }
 
     // WRONG TARGET: the Menu key with the focus on a tool of the dock opened the media menu; the dock's own menu is the layout menu (GL3).
     [Fact]
