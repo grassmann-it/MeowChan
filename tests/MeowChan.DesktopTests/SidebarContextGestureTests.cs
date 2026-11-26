@@ -982,9 +982,15 @@ public sealed class SidebarContextGestureTests
         int resolved = 0;
         TestVideoPlayer fake = new(Task.CompletedTask);
         Task presentation = Task.CompletedTask;
+        Point? firstClick = null;
         try
         {
-            if (crossesPresentation) ContextGestures.Click(picture);
+            if (crossesPresentation)
+            {
+                ContextGestures.Settle(window);
+                firstClick = Assert.IsType<Point>(picture.TranslatePoint(new Rect(picture.Bounds.Size).Center, window));
+                ContextGestures.Click(picture);
+            }
             ReaderMediaLoadTicket ticket = sidebar.Load.Begin("next-video", (120, 120));
             sidebar.Describe("43", "b.mp4", string.Empty, true, mediumKey: "next-video");
             slot.Offer(controller, "next-video", _ =>
@@ -1009,9 +1015,11 @@ public sealed class SidebarContextGestureTests
             posterReady.TrySetResult(new ReaderMediaSidebarContent.Picture(bitmap, GalleryImageCache.Shared.Release, Playable: true));
             await presentation;
             Assert.Same(bitmap, picture.Source);
-            if (crossesPresentation)
+            if (firstClick is { } position)
             {
-                ContextGestures.Click(picture);
+                // The video row can move the poster's center. Repeat the click at the same window position.
+                ContextGestures.Settle(window);
+                ContextGestures.Click(picture, point: Assert.IsType<Point>(window.TranslatePoint(position, picture)));
                 await slot.ActivationTask;
                 Assert.Equal(0, galleryRequests);
                 Assert.Equal(0, resolved);

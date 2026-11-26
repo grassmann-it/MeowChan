@@ -200,7 +200,7 @@ public partial class ArchivePage
         Avalonia.Automation.AutomationProperties.SetName(splitter, Texts.T("reader.sidebar.splitter"));
         splitter.DragCompleted += (_, _) => SaveMediaSidebarWidth();
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
-        sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
+        sidebar.Frame.SizeChanged += (_, e) => OnMediaSidebarFrameResized(e);
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
         sidebar.SidebarVideoSettings = QuickSettingsHost;
         sidebar.SaveSidebarSetting = update =>
@@ -735,10 +735,12 @@ public partial class ArchivePage
 
     // A wider or taller picture frame than the shown decode covers asks for one larger decode (through the same throttle).
     // Within NeedsLargerDecode's margin (the alignment's inset corrections, sub-dip layout jitter) nothing is decoded; the larger decode swaps in place.
-    private void OnMediaSidebarFrameResized()
+    private void OnMediaSidebarFrameResized(SizeChangedEventArgs e)
     {
+        // Opening the video row takes space from the poster. Only frame growth can call for more pixels.
+        if (e.NewSize.Width <= e.PreviousSize.Width && e.NewSize.Height <= e.PreviousSize.Height) return;
         if (!_mediaSidebarShown || _mediaSidebar is not { Shown: { } shown } sidebar) return;
-        (double Width, double Height) needed = ReaderMediaSidebarRules.PhysicalTarget(sidebar.Frame.Bounds.Size,
+        (double Width, double Height) needed = ReaderMediaSidebarRules.PhysicalTarget(e.NewSize,
             TopLevel.GetTopLevel(sidebar)?.RenderScaling ?? 1);
         if (!ReaderMediaSidebarRules.NeedsLargerDecode(shown.PixelSize, needed, sidebar.Load.ShownSource)) return;
         OnMediaSidebarSelectionChanged(selectionChanged: false);
