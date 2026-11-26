@@ -287,8 +287,11 @@ public sealed class BooruLinkLifetimeTests
         (Button)(typeof(BooruWorkbenchView).GetMethod("CreateShowInMediaAction", Private)!
             .Invoke(view, new object[] { "test-show", "Show post 42", PostId })!);
 
-    private static Task InvokeLink(BooruWorkbenchView view, string method, string url) =>
-        (Task)(typeof(BooruWorkbenchView).GetMethod(method, Private)!.Invoke(view, [url, null])!);
+    private static Task InvokeLink(BooruWorkbenchView view, string method, string url)
+    {
+        object?[] arguments = method == "OpenLinkAsync" ? [url, null, Type.Missing] : [url, null];
+        return (Task)typeof(BooruWorkbenchView).GetMethod(method, Private)!.Invoke(view, arguments)!;
+    }
 
     private static TextBlock LinkNote(BooruWorkbenchView view) =>
         Assert.Single(view.Footer.GetVisualDescendants().OfType<TextBlock>()

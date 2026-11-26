@@ -120,7 +120,7 @@ public sealed class ThemeLogoTests
         Assert.Contains("ThemeLogo.Follow(this);", Read("Desktop/StartupErrorWindow.cs"));
     }
 
-    // The photographer credit is the same in the notices, the README and the About window; the grey cat is not credited to it.
+    // The notices, README and About window all name the photographer and carry both links.
     [Fact]
     public void PhotoCreditCarriesBothLinksInNoticesReadmeAndAbout()
     {
@@ -131,11 +131,11 @@ public sealed class ThemeLogoTests
         const string name = "Alexander Huxel · Webentwicklung Huxel";
         string[] links = ["https://webentwicklung-huxel.de/", "https://flickr.com/people/204852984@N05/"];
         Assert.Equal(name, AboutWindow.PhotoCreditName);
-        foreach (string text in new[] { notices, readme })
-        {
-            Assert.Contains(name, text);
-            foreach (string link in links) Assert.Contains(link, text);
-        }
+        Assert.Contains(name, notices);
+        foreach (string link in links) Assert.Contains(link, notices);
+        string readmeCredit = Assert.Single(readme.Split('\n'), line => line.Contains("Alexander Huxel", StringComparison.Ordinal));
+        Assert.Contains($"[Webentwicklung Huxel]({links[0]})", readmeCredit);
+        Assert.Contains($"[Flickr]({links[1]})", readmeCredit);
         foreach (string link in links) Assert.Matches($@"Tag=""{Regex.Escape(link)}""\s+Click=""OnLinkClick""", about);
         Assert.Contains("6c9024b7220b6e015eeeb36aec9763fa5d804224b2b9e260caa7c4947c8436b1", notices);
         Assert.Contains("Used with the permission of Alexander Huxel for the projects of Tom Graßmann, on condition of attribution by name, as stated by the project owner on 12 November 2026.",
@@ -148,8 +148,8 @@ public sealed class ThemeLogoTests
         Assert.Contains("Mila", grey);
         Assert.Contains("Simba (orange) and Mila (grey)", notices);
         Assert.Contains("12 November 2026", notices);
-        Assert.Contains("Mila, grey", readme);
-        Assert.Contains("Simba, orange", readme);
+        Assert.Contains("Mila (grey)", readmeCredit);
+        Assert.Contains("Simba (orange)", readmeCredit);
         Assert.DoesNotContain("unknown", grey, StringComparison.OrdinalIgnoreCase);
         // Localized label text exists in the catalog and the machine-translated packs, with the name as a placeholder.
         foreach (string key in new[] { "about.photoCredit", "about.photoCreditFlickr", "about.logoSimba", "about.logoMila" })
