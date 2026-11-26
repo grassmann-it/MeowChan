@@ -940,7 +940,8 @@ public partial class ArchivePage
         };
         AutomationProperties.SetAutomationId(detail, "ReaderSidebarPostDetail");
         detail.AttachedToVisualTree += (_, _) => LoadSidebarPostReplies(detail, content);
-        detail.IsEffectivelyVisibleChanged += (_, _) => LoadSidebarPostReplies(detail, content);
+        // The frame can attach while the shell's reader host is still hidden.
+        detail.LayoutUpdated += (_, _) => LoadSidebarPostReplies(detail, content);
         return detail;
     }
 
