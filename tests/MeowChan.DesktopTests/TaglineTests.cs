@@ -223,27 +223,24 @@ public sealed class TaglineTests : IDisposable
     public void OnlyReleaseQuipsCanHighlightAnUpdateInAnyLanguage()
     {
         Version baseline = new(1, 0, 0), previous = new(1, 1, 1), current = new(1, 1, 2);
-        // Tagline curation § ENTSCHEIDUNG TOM keeps polishontop and removes blazingfast, mediaforall and pueblacover.
-        string[] currentRelease = ["favefinal", "firstclick", "fivestars", "heartsandstars", "polishontop", "polishrelease", "roughhearts"];
-        string[] seasonal = ["adalovelace", "archivebewithyou", "baselwheels", "bikeride", "blackcat",
-            "breadroses", "breathingthumbs", "catday", "catdaysearch", "catnipresearch", "catsnacks", "catsvote",
-            "cloudindependence", "dontpanic", "eighthours", "fireworksgif", "forgottowel", "giftbox", "goodfolder",
-            "inmyfavorites", "lastyeardownload", "linuxbirthday", "mirrorghost", "newyearbacklog", "nocloud",
-            "pirateparrot", "pistars", "pithreads", "queueovertime", "redheart", "ribbon", "roseswilt",
-            "smallmoon", "snowed", "treasuremisc", "treefell", "trickorthread", "underbed", "unodostres", "unpaidmods",
-            "vacuumindependence", "worldbackup"];
+        // TAGEDIT keeps 14 Release and 30 Seasonal quips across the catalog.
+        string[] currentRelease = ["favefinal", "firstclick", "fivestars", "heartsandstars", "polishontop"];
+        string[] seasonal = ["archivebewithyou", "baselwheels", "bikeride", "blackcat", "breathingthumbs", "catday",
+            "catsnacks", "catsvote", "cloudindependence", "dontpanic", "eighthours", "fireworksgif", "giftbox", "goodfolder",
+            "inmyfavorites", "lastyeardownload", "mirrorghost", "newyearbacklog", "nocloud", "pistars", "pithreads",
+            "queueovertime", "redheart", "smallmoon", "snowed", "treasuremisc", "trickorthread", "unodostres", "unpaidmods",
+            "worldbackup"];
         foreach (string language in AllLanguages)
         {
             Texts.SetLanguage(language);
             IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-            Assert.Equal(["booru", "flashbang", "pink", "tags", "vibetested", "workflow", "workviews"],
+            Assert.Equal(["booru", "flashbang", "pink", "tags", "workflow", "workviews"],
                 TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 0), baseline).Select(entry => entry.Id));
-            Assert.Equal(["boorutabs", "downloadall", "taglinesfeature", "threadswitch"],
+            Assert.Equal(["boorutabs", "downloadall", "taglinesfeature"],
                 TaglinePicker.ReleaseCandidates(pool, previous, baseline).Select(entry => entry.Id));
             Assert.Equal(currentRelease, TaglinePicker.ReleaseCandidates(pool, current, previous).Select(entry => entry.Id));
-            // Tagline curation § ENTSCHEIDUNG TOM keeps the original Polish puns and adds two more.
-            Assert.Equal(["bobrapproves", "lookatthispolish", "polishbuttons", "polishcat", "polishzrozumiano"],
-                TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 3), current).Select(entry => entry.Id));
+            // TAGEDIT removes all Release quips introduced in 1.1.3.
+            Assert.Empty(TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 3), current));
             foreach (string mode in new[] { TaglinePicker.ModeDaily, TaglinePicker.ModePerStart, TaglinePicker.ModeInterval })
             {
                 TaglinePick first = TaglinePicker.Pick(mode, "cats", pool, Day, current, previous, true, new Random(3));
@@ -399,36 +396,34 @@ public sealed class TaglineTests : IDisposable
     [Fact]
     public void AllTwelveLanguagesLocalizeTheQuipsExceptForTheApprovedSharedEnglish()
     {
-        // The Top 100 consensus limits the General selection. Tagline curation keeps the approved "EN überall" texts.
-        string[] sharedEnglish = ["archivitah", "believebackup", "bobrapproves", "buttersthumbnail", "croppingluna",
-            "curiosity", "formerskyline", "fusionmerge", "kakarot", "lookatthispolish", "lupinoriginal", "ninjaway",
-            "pinkyfinal", "polishbuttons", "polishcat", "polishontop", "polishzrozumiano", "popofaster", "poporoot",
-            "potpiefile", "shreddersearch", "teafirst", "threadcowboy", "threadlightly", "trickorthread", "wholethreadjpeg"];
-        string[] germanFallbacks = ["namekzip"];
+        // TAGEDIT retains the approved "EN überall" texts for the remaining quips.
+        string[] sharedEnglish = ["archivitah", "believebackup", "buttersthumbnail", "curiosity", "kakarot", "pinkyfinal",
+            "polishontop", "popofaster", "teafirst", "threadcowboy", "threadlightly", "trickorthread", "wholethreadjpeg"];
         Texts.SetLanguage("en");
         Dictionary<string, string> english = TaglineCatalog.Available().ToDictionary(entry => entry.Id, entry => entry.Text);
         foreach (string language in AllLanguages.Where(code => code != "en"))
         {
             Texts.SetLanguage(language);
             IEnumerable<string> exactEnglish = TaglineCatalog.Available().Where(entry => entry.Text == english[entry.Id]).Select(entry => entry.Id);
-            // The remaining R4 row marked too long in German uses its English fallback.
             if (language == "de")
-                Assert.Equal(sharedEnglish.Concat(germanFallbacks).Order(StringComparer.Ordinal), exactEnglish);
+                Assert.Equal(sharedEnglish, exactEnglish);
             else
                 Assert.Equal(sharedEnglish, exactEnglish.Where(id => sharedEnglish.Contains(id, StringComparer.Ordinal)));
         }
     }
 
     [Fact]
-    public void TheCatalogShipsTheTop100AndTheSeasonalAndReleaseQuips()
+    public void TheCatalogShipsTheCuratedGeneralSeasonalAndReleaseQuips()
     {
         Texts.SetLanguage("en");
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        // Taglines Top 100 consensus (26.11.) keeps 100 General quips and preserves the curated seasonal and release selection.
-        Assert.Equal(165, pool.Count);
-        Assert.Equal(100, pool.Count(entry => entry.Category == TaglineCategory.General));
+        // TAGEDIT keeps 95 quips across the three categories.
+        Assert.Equal(95, pool.Count);
+        Assert.Equal(51, pool.Count(entry => entry.Category == TaglineCategory.General));
+        Assert.Equal(30, pool.Count(entry => entry.Category == TaglineCategory.Seasonal));
+        Assert.Equal(14, pool.Count(entry => entry.Category == TaglineCategory.Release));
         Version roundFour = new(1, 1, 3);
-        Assert.Equal(28, pool.Count(entry => entry.Since == roundFour && entry.Category == TaglineCategory.General));
+        Assert.Equal(10, pool.Count(entry => entry.Since == roundFour && entry.Category == TaglineCategory.General));
         Assert.Contains(pool, entry => entry.Id == TaglineCatalog.DefaultId);
         Assert.Equal("now with 100% more cats", pool.Single(entry => entry.Id == "cats").Text);
         Assert.Equal("now with booru support", pool.Single(entry => entry.Id == "booru").Text);
