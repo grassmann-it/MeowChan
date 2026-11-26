@@ -175,7 +175,8 @@ internal static class TaggingQueueMenu
 {
     /// <param name="context">The selection and what is possible now.</param>
     /// <param name="action">What the entry of a command does (called when it is clicked).</param>
-    internal static ContextMenuBuilder Compose(TaggingCommandContext context, Func<string, Action> action)
+    internal static ContextMenuBuilder Compose(TaggingCommandContext context, Func<string, Action> action,
+        Action<ContextMenuBuilder>? mediaSource = null)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(action);
@@ -183,6 +184,11 @@ internal static class TaggingQueueMenu
         for (int section = 0; section < TaggingCommands.Sections.Count; section++)
         {
             if (section > 0) menu.Section();
+            if (section == TaggingCommands.Sections.Count - 1 && mediaSource != null)
+            {
+                mediaSource(menu);
+                menu.Section();
+            }
             foreach (string id in TaggingCommands.Sections[section])
             {
                 TaggingCommandState state = TaggingRowCommands.Evaluate(id, context);

@@ -14,6 +14,7 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 using MeowChan.Tags;
@@ -203,6 +204,8 @@ public partial class MainWindow
         {
             ReturnTarget = GalleryReturnTargetFor(origin, readerOrigin, originPage),
             ProviderContext = BooruGalleryContext,
+            ReadMediaMenuBooruCatalog = _session.ReadBooruCatalog,
+            ReadMediaMenuOwnTags = entry => MediaSourceMenu.OwnTags(_session.GetPublishedPrivateTagSnapshot().Snapshot, MediaTagSubjects.Of(entry)),
             ThreadPositions = threadPositions
         };
         ConfigureGalleryScrubPreview();

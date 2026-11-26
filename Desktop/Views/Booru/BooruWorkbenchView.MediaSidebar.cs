@@ -118,7 +118,7 @@ internal sealed partial class BooruWorkbenchView
             RoutingStrategies.Tunnel, handledEventsToo: true);
         _sidebarPictureMenu = new ContextMenuHost(picture, () =>
         {
-            if (CurrentSidebarResult() is not { } result || ComposeResultMenu(result) is not { } menu) return null;
+            if (CurrentSidebarResult() is not { } result || ComposeResultMenu(result, () => SidebarResultIsCurrent(result)) is not { } menu) return null;
             FocusSidebarHit(result.PostId);
             return menu;
         }, fallbackFocus: () =>

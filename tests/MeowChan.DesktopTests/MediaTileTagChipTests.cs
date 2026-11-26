@@ -12,6 +12,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -124,6 +125,10 @@ public sealed class MediaTileTagChipTests : IDisposable
             ContextMenu menu = Assert.IsType<ContextMenu>(page.MediaMenu);
             Assert.True(menu.IsOpen);
             Assert.Equal(second.AssetId, page.MediaMenuSession!.Target!.AssetId);
+            MenuItem copy = Assert.Single(menu.Items.OfType<MenuItem>(), item => AutomationProperties.GetAutomationId(item) == MediaSourceMenu.CopyId);
+            Assert.True(copy.IsEnabled);
+            copy.Command!.Execute(null);
+            Assert.Equal("dog", BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync()));
             MenuItem tag = Assert.Single(menu.Items.OfType<MenuItem>(), item =>
                 AutomationProperties.GetAutomationId(item) == "MediaTileTagMenu:" + dog.Id.Value);
             Assert.Equal(dog.Name.Display, tag.Header);

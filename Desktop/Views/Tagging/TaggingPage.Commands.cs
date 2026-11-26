@@ -221,6 +221,7 @@ public sealed partial class TaggingPage
         string names = SelectionFileNames(context.Selected);
         TagQueueKey[] keys = context.Selected.Select(row => row.Key).ToArray();
         TagQueueKey lead = context.Lead.Key;
+        bool Current() => !_queueWork.Ended && Lead?.Key == lead && keys.SequenceEqual(Selected.Select(row => row.Key));
         return TaggingQueueMenu.Compose(context, id => () => OpenActions.Start(() =>
         {
             if (_queueWork.Ended) return Task.CompletedTask;
@@ -228,9 +229,20 @@ public sealed partial class TaggingPage
             if (id == TaggingCommands.Remove)
                 return CanChange && keys.All(Queue.Contains)
                     ? AfterAsync(_queueWork.RemoveAsync(keys), select: RowAfter(context.Selected)?.Key) : Task.CompletedTask;
-            if (Lead?.Key != lead || !keys.SequenceEqual(Selected.Select(row => row.Key))) return Task.CompletedTask;
+            if (!Current()) return Task.CompletedTask;
             return ExecuteRowCommandAsync(id);
-        }, "tagging.menu"));
+        }, "tagging.menu"), menu =>
+        {
+            MediaLibraryEntry entry = EntryOf(context.Lead.Item);
+            bool several = keys.Length > 1;
+            string? provider = entry.BooruPostId;
+            MediaSourceMenuData source = provider == null
+                ? new(null, MediaSourceMenu.OwnTags(_userData?.TagSnapshot, MediaTagSubjects.Of(entry)))
+                : MediaSourceMenuData.ForProvider(provider, several ? null : MediaSourceMenu.ReadProvider(provider, ReadBooruCatalog));
+            MediaSourceMenu.AddTo(menu, source, Current, text => MenuClipboard.CopyAsync(this, text, ShowStatus),
+                readOriginal: provider == null ? () => MediaSourceMenu.ReadOriginalAsync(entry, OpenPanelManifestAsync, _lifetime.Token) : null,
+                blocked: several ? MediaMenuReasons.SeveralSelected : null);
+        });
     }
 
     private static string SelectionFileNames(IReadOnlyList<TaggingQueueRow> selected) =>

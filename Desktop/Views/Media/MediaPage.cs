@@ -820,14 +820,31 @@ public sealed partial class MediaPage : UserControl
     internal Uri? ProviderPostUrl(MediaLibraryEntry entry)
     {
         if (entry.BooruPostId is not { } postId) return null;
-        BooruPostRecord? record = null;
         // The first read of a large catalog (tens of MiB) is slow: it never happens here, on the UI thread of a menu. Until the
         // background read has finished, the canonical address of the post is used; the catalog only refines it.
-        if (_booruCatalogWarm)
-            try { record = ReadBooruCatalog?.Invoke()?.TryGetPost(BooruMediaIdentity.Source, postId); }
-            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
-        else WarmBooruCatalog();
-        return BooruMediaIdentity.PostUrl(postId, record?.Post.PostUrl);
+        if (!_booruCatalogWarm) WarmBooruCatalog();
+        return BooruMediaIdentity.PostUrl(postId, ProviderClaim(postId)?.PostUrl);
+    }
+
+    private BooruPostClaim? ProviderClaim(string postId) => _booruCatalogWarm ? MediaSourceMenu.ReadProvider(postId, ReadBooruCatalog) : null;
+
+    private async Task<string?> ReadMediaSearchUrlAsync(MediaLibraryEntry entry)
+    {
+        CancellationToken token = _lifetime.Token;
+        if (entry.AssetId != null) return await MediaSourceMenu.ReadOriginalAsync(entry, OpenManifestAsync, token);
+        if (entry is not { PostId: { } postId, Position: { } position, Variant: "original" }) return null;
+        try
+        {
+            await using ArchiveReader reader = await _openReader(token);
+            ArchivedThreadView? thread = await reader.ReadThreadAsync(entry.Thread, token);
+            if (thread == null || thread.Summary.Revision != entry.ThreadRevision) return null;
+            int index = thread.FindPostIndex(postId);
+            CapturedAttachment? attachment = index < 0 ? null : thread.Posts[index].Attachments?.FirstOrDefault(item =>
+                item.Position == position && item.MediaId == entry.MediaId && item.AttachmentRevisionKey == entry.AttachmentRevisionKey);
+            return MediaSourceMenu.Original(attachment);
+        }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
+            or ObjectDisposedException or Microsoft.Data.Sqlite.SqliteException) { return null; }
     }
 
     private volatile bool _booruCatalogWarm;
@@ -1287,6 +1304,9 @@ public sealed partial class MediaPage : UserControl
         // Several: the clicked tile is one of several selected (a tile outside the selection was made the selection, TargetForMenu); every entry then
         // acts on the selection frozen now, and the one-file entries (details, folder, path, gallery, thread) say why they are off.
         bool several = !panel && selectedCount > 1 && _grid.Selection.IsSelected(row.Index);
+        string? providerId = entry.BooruPostId;
+        if (providerId != null && !_booruCatalogWarm) WarmBooruCatalog();
+        BooruPostClaim? providerClaim = several || providerId == null ? null : ProviderClaim(providerId);
         bool hostActions = ExecuteMediaMenuActionAsync != null;
         IReadOnlyList<MediaLibraryTile>? queueTiles = several ? SelectedTiles : null;
         string?[] fileNames = queueTiles == null ? [MediaFileActions.FileName(entry.Name)]
@@ -1326,7 +1346,7 @@ public sealed partial class MediaPage : UserControl
             Posts = entry.PostId != null ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
             ShowInThreadWired = ShowInThread != null,
             ProviderMedia = entry.BooruPostId != null,
-            ProviderPostKnown = ProviderPostUrl(entry) != null
+            ProviderPostKnown = providerId != null && BooruMediaIdentity.PostUrl(providerId, providerClaim?.PostUrl) != null
         };
         MediaMenuModel model = MediaMenuComposition.Compose(facts);
         MediaMenuSession session = new(MediaMenuSurface.MediaPage, model.Target, Current);
@@ -1413,8 +1433,14 @@ public sealed partial class MediaPage : UserControl
         if (_building != null) (leading ??= new()).Insert(0, MediaMenuBuilder.Note(Texts.T("media.selection.reason.building")));
         bool checkExternal = hostActions && !several && entry.Presence == MediaLibraryPresence.Present && entry.Directory != null;
         string? externalReason = MediaMenuReasons.Unavailable;
+        MediaSourceMenuData source = providerId == null
+            ? new(null, state?.MediaTags)
+            : MediaSourceMenuData.ForProvider(providerId, providerClaim);
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, leading,
-            checkExternal ? () => externalReason : null);
+            checkExternal ? () => externalReason : null,
+            sourceItems: MediaSourceMenu.Build(source, () => session.IsCurrent, origin, ShowSelectionNote,
+                readOriginal: providerId == null && entry.FolderItemId == null ? () => ReadMediaSearchUrlAsync(entry) : null,
+                blocked: several ? MediaMenuReasons.SeveralSelected : null));
         if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
         if (checkExternal) OpenActions.Start(CheckExternalAsync, "media.menu.open-external");
