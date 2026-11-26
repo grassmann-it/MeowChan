@@ -11,7 +11,8 @@ public sealed class DroppedLinksTests
     public async Task DroppedTextIsForwardedUnchangedAndAdmittedLikeTypedText()
     {
         const string text = " https://boards.4chan.org/g/thread/1\r\nnot a URL, https://8kun.top/test/ \n";
-        DroppedContent content = DroppedLinks.Read(Transfer(DataTransferItem.CreateText(text)));
+        using DataTransfer transfer = Transfer(DataTransferItem.CreateText(text));
+        DroppedContent content = DroppedLinks.Read(transfer);
 
         Assert.Equal(DroppedContentKind.Links, content.Kind);
         Assert.Equal(text, content.Text);
@@ -37,7 +38,8 @@ public sealed class DroppedLinksTests
     public void WhitespaceIsEmptyAndNeverBecomesAnEmptyAddThatReadsTheClipboard(string? text)
     {
         Assert.Same(DroppedContent.Empty, DroppedLinks.Classify(text, []));
-        Assert.Same(DroppedContent.Empty, DroppedLinks.Read(new DataTransfer()));
+        using var transfer = new DataTransfer();
+        Assert.Same(DroppedContent.Empty, DroppedLinks.Read(transfer));
     }
 
     [Fact]
@@ -49,8 +51,10 @@ public sealed class DroppedLinksTests
         {
             string file = Path.Combine(folder, "image.png");
             File.WriteAllText(file, "x");
-            var transfer = Transfer(DataTransferItem.CreateFile(new FixtureFolder(new Uri(folder))),
-                DataTransferItem.CreateFile(new FixtureFolder(new Uri(file))), DataTransferItem.CreateText(file));
+            using var folderItem = new FixtureFolder(new Uri(folder));
+            using var fileItem = new FixtureFolder(new Uri(file));
+            using DataTransfer transfer = Transfer(DataTransferItem.CreateFile(folderItem),
+                DataTransferItem.CreateFile(fileItem), DataTransferItem.CreateText(file));
 
             DroppedContent content = DroppedLinks.Read(transfer);
 
@@ -103,8 +107,29 @@ public sealed class DroppedLinksTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExistingPathWithCommaIsPassedIntactForImport(bool includeFolder)
+    {
+        using TempDirectory folder = new();
+        string file = Path.Combine(folder.Path, "cat, red.png");
+        File.WriteAllText(file, "x");
+        string text = includeFolder ? $"{file}\r\n{folder.Path}" : file;
+        string[] expectedPaths = includeFolder ? [file, folder.Path] : [file];
+        using DataTransfer transfer = Transfer(DataTransferItem.CreateText(text));
+
+        DroppedContent content = DroppedLinks.Read(transfer);
+
+        Assert.Equal(DroppedContentKind.Files, content.Kind);
+        Assert.Equal(expectedPaths.Length, content.FileCount);
+        Assert.Equal(expectedPaths, content.Paths);
+        Assert.Null(content.Text);
+    }
+
+    [Theory]
     [InlineData("file:///home/x/a.png", 1)]
     [InlineData("FILE:///home/x/a.png\nfile:///home/x/b.png", 2)]
+    [InlineData("file:///home/x/a.png, file:///home/x/b.png", 2)]
     [InlineData(@"C:\Users\x\a.png", 1)]
     [InlineData("C:/Users/x/a.png", 1)]
     [InlineData(@"\\server\share\a.png", 1)]
@@ -128,7 +153,7 @@ public sealed class DroppedLinksTests
     public void UriListIsReadWhenNoPlainTextIsOffered()
     {
         DataFormat<string> uriList = DataFormat.CreateStringPlatformFormat("text/uri-list");
-        var transfer = Transfer(DataTransferItem.Create(uriList,
+        using DataTransfer transfer = Transfer(DataTransferItem.Create(uriList,
             "# dragged from a browser\r\nhttps://boards.4chan.org/g/thread/1\r\nhttps://boards.4chan.org/g/thread/2\r\n"));
 
         DroppedContent content = DroppedLinks.Read(transfer);
@@ -145,15 +170,17 @@ public sealed class DroppedLinksTests
         item.SetText("https://boards.4chan.org/g/thread/1");
         item.Set(url, Encoding.Unicode.GetBytes("https://other.invalid/\0"));
 
-        Assert.Equal("https://boards.4chan.org/g/thread/1", DroppedLinks.Read(Transfer(item)).Text);
-        Assert.Equal("https://other.invalid/",
-            DroppedLinks.Read(Transfer(DataTransferItem.Create(url, Encoding.Unicode.GetBytes("https://other.invalid/\0")))).Text);
+        using DataTransfer combined = Transfer(item);
+        using DataTransfer urlOnly = Transfer(DataTransferItem.Create(url, Encoding.Unicode.GetBytes("https://other.invalid/\0")));
+        Assert.Equal("https://boards.4chan.org/g/thread/1", DroppedLinks.Read(combined).Text);
+        Assert.Equal("https://other.invalid/", DroppedLinks.Read(urlOnly).Text);
     }
 
     [Fact]
     public void RemoteStorageItemsAreLinksNotFiles()
     {
-        var transfer = Transfer(DataTransferItem.CreateFile(new FixtureFolder(new Uri("https://boards.4chan.org/g/thread/1"))));
+        using var item = new FixtureFolder(new Uri("https://boards.4chan.org/g/thread/1"));
+        using DataTransfer transfer = Transfer(DataTransferItem.CreateFile(item));
         DroppedContent content = DroppedLinks.Read(transfer);
         Assert.Equal(DroppedContentKind.Links, content.Kind);
         Assert.Equal("https://boards.4chan.org/g/thread/1", content.Text);
@@ -163,8 +190,8 @@ public sealed class DroppedLinksTests
     public void UnrelatedFormatsAreEmpty()
     {
         DataFormat<string> html = DataFormat.CreateStringPlatformFormat("text/html");
-        Assert.Same(DroppedContent.Empty,
-            DroppedLinks.Read(Transfer(DataTransferItem.Create(html, "<a href=\"https://boards.4chan.org/g/thread/1\">x</a>"))));
+        using DataTransfer transfer = Transfer(DataTransferItem.Create(html, "<a href=\"https://boards.4chan.org/g/thread/1\">x</a>"));
+        Assert.Same(DroppedContent.Empty, DroppedLinks.Read(transfer));
     }
 
     [Theory]

@@ -13,7 +13,8 @@ namespace MeowChan.Desktop;
 // producer ignored cancellation. The decoder/cache and their size limits remain the host's; this owns only presentation lifetime.
 internal abstract record ReaderMediaSidebarContent
 {
-    internal sealed record Picture(Bitmap Bitmap, Action<Bitmap> Release, bool Playable, PixelSize? Source = null) : ReaderMediaSidebarContent;
+    internal sealed record Picture(Bitmap Bitmap, Action<Bitmap> Release, bool Playable, PixelSize? Source = null,
+        GalleryEntry? Gif = null) : ReaderMediaSidebarContent;
     internal sealed record Unavailable(string TextKey) : ReaderMediaSidebarContent;
 }
 
@@ -89,7 +90,9 @@ internal sealed class ReaderMediaSidebarImageLoad
                 GalleryImageCache.Shared.Release(bitmap);
                 throw new GalleryPreviewTooLargeException();
             }
-            return new(bitmap, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
+            bool gif = string.Equals(info.Format, "GIF", StringComparison.OrdinalIgnoreCase);
+            return new(bitmap, GalleryImageCache.Shared.Release, info.StillFrame && !gif,
+                new PixelSize(info.Width, info.Height), gif ? entry : null);
         }
         finally
         {
@@ -130,7 +133,7 @@ internal sealed class ReaderMediaSidebarImageLoad
                 _view.ShowPicture(picture.Bitmap, picture.Release, picture.Playable,
                     picture.Source is { } source ? ReaderMediaSidebarRules.MaximumDisplay(source.Width, _fit) : double.PositiveInfinity,
                     picture.Source is { } size ? ReaderMediaSidebarRules.MaximumDisplay(size.Height, _fit) : double.PositiveInfinity,
-                    _key, picture.Source);
+                    _key, picture.Source, picture.Gif);
                 presented?.Invoke(picture);
                 shown = true;
             }

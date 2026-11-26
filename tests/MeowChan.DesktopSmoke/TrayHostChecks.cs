@@ -98,10 +98,9 @@ internal static class TrayHostChecks
         string PauseLabel(string action) => $"{Texts.T(action)} · {Texts.T("key.ctrl")}+{Texts.T("key.shift")}+F10";
         string pause = PauseLabel("action.pause");
         string resume = PauseLabel("action.resume");
-        string idle = Texts.T("stats.tray.menuIdle");
-        string paused = Texts.T("stats.tray.menuPaused");
+        string statisticsEntry = Texts.T("stats.settings.title");
         await Program.WaitUntilAsync(() => icon.Menu!.Items.OfType<NativeMenuItem>().Any(item => item.Header == pause));
-        await AssertMenuGroupsAsync(pause, idle);
+        await AssertMenuGroupsAsync(pause, statisticsEntry);
         if (icon.ToolTipText is not { Length: <= TrayStatsModel.MaxTooltipLength } runningTooltip
             || !runningTooltip.StartsWith("MeowChan · ", StringComparison.Ordinal))
             throw new InvalidOperationException("Unexpected running tray tooltip: " + icon.ToolTipText);
@@ -109,44 +108,44 @@ internal static class TrayHostChecks
         await Program.WaitUntilAsync(() => window.SessionHost.Projection.IsPaused && !window.SessionHost.Projection.IsPauseTransitioning
             && icon.ToolTipText == "MeowChan · " + Texts.T("tray.tooltipPaused")
             && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
-        await AssertMenuGroupsAsync(resume, paused);
+        await AssertMenuGroupsAsync(resume, statisticsEntry);
         string language = Texts.Language;
         try
         {
             Texts.SetLanguage(language == "de" ? "en" : "de");
-            await AssertMenuGroupsAsync(PauseLabel("action.resume"), Texts.T("stats.tray.menuPaused"));
+            await AssertMenuGroupsAsync(PauseLabel("action.resume"), Texts.T("stats.settings.title"));
         }
         finally { Texts.SetLanguage(language); }
 
-        await ClickMenuEntryAsync(paused);
-        await AssertRestoredAsync(window, "statistics value click");
+        if (window.StatisticsSegmentShown)
+            throw new InvalidOperationException("Statistics was already selected before clicking its tray entry.");
+        await ClickMenuEntryAsync(statisticsEntry);
+        await AssertRestoredAsync(window, "Statistics menu item on hidden window");
         await Program.WaitUntilAsync(() => window.StatisticsSegmentShown);
 
         candidate.StatsTrayMenu = false;
         candidate.StatsTrayTooltip = false;
         await window.SessionHost.ApplySettingsAsync(candidate);
-        await Program.WaitUntilAsync(() => !icon.Menu!.Items.OfType<NativeMenuItem>().Any(item => item.Header == paused));
-        await AssertMenuGroupsAsync(resume, state: null);
+        await Program.WaitUntilAsync(() => !icon.Menu!.Items.OfType<NativeMenuItem>()
+            .Any(item => item.IsVisible && item.Header == statisticsEntry));
+        await AssertMenuGroupsAsync(resume, statisticsEntry: null);
         await ClickMenuEntryAsync(resume);
         await Program.WaitUntilAsync(() => !window.SessionHost.Projection.IsPaused && !window.SessionHost.Projection.IsPauseTransitioning
-            && icon.ToolTipText == "MeowChan · Image Downloader" && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
-        await AssertMenuGroupsAsync(pause, state: null);
+            && icon.ToolTipText == "MeowChan" && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
+        await AssertMenuGroupsAsync(pause, statisticsEntry: null);
 
         if (!window.ShowStatus(StatusSegment.Diagnostics) || !window.DiagnosticsSegmentShown)
             throw new InvalidOperationException("Could not switch to Diagnostics before testing the tray's Status entry.");
         await ClickMenuEntryAsync(CommandLabel("navigation.status"));
         await Program.WaitUntilAsync(() => window.StatisticsSegmentShown);
         await window.SessionHost.ApplySettingsAsync(original);
-        Console.WriteLine("SMOKE tray menu: native separators, statistics visibility and navigation, pause/resume and rebound shortcut passed.");
+        Console.WriteLine("SMOKE tray menu: native separators, Statistics entry visibility and navigation, pause/resume, rebound shortcut and idle tooltip passed.");
     }
 
-    private static async Task AssertMenuGroupsAsync(string pause, string? state)
+    private static async Task AssertMenuGroupsAsync(string pause, string? statisticsEntry)
     {
         List<string> expected = [CommandLabel("app.show")];
-        if (state != null)
-        {
-            expected.AddRange(["", state, Texts.T("stats.tray.today", "0 B"), Texts.T("stats.tray.diskWritten", "0 B"), ""]);
-        }
+        if (statisticsEntry != null) expected.Add(statisticsEntry);
         expected.AddRange([CommandLabel("location.open-folder"), CommandLabel("watch.import-clipboard"), pause, "",
             CommandLabel("navigation.status"), CommandLabel("navigation.settings"), "", CommandLabel("app.quit")]);
 

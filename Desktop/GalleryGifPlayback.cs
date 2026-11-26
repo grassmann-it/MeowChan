@@ -73,16 +73,22 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
         _sequence.CompletedPasses, Running, _userPaused, _sequence.Ended, _disposed, _failure);
     private bool Running => _adopted && !_disposed && !_failed && _active && !_userPaused && !_sequence.Ended && _sequence.FrameCount > 1;
 
-    private GalleryGifPlayback(IGifFrameDecoder decoder, Image image, TimeProvider? time = null)
+    private GalleryGifPlayback(IGifFrameDecoder decoder, Image image, GifDecodedFrame first)
     {
         Dispatcher.UIThread.VerifyAccess();
-        _decoder = decoder; _image = image; _time = time ?? TimeProvider.System;
+        _decoder = decoder; _image = image; _time = TimeProvider.System;
         _sequence = new(decoder.FrameCount, decoder.RepetitionCount);
-        _bitmap = new(new PixelSize(decoder.Info.Width, decoder.Info.Height), new Vector(96, 96),
-            PixelFormat.Bgra8888, AlphaFormat.Premul);
         _remaining = TimeSpan.FromMilliseconds(decoder.DurationMs(0));
         _timer = new DispatcherTimer(DispatcherPriority.Render);
         _timer.Tick += OnTick;
+        _bitmap = new(new PixelSize(first.Width, first.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+        try { CopyPixels(first); }
+        catch (Exception error)
+        {
+            try { _bitmap.Dispose(); }
+            catch (Exception cleanup) { throw new GifRetirementException(this, new AggregateException(error, cleanup)); }
+            throw;
+        }
     }
 
     internal static async Task<GalleryGifPlayback?> OpenAsync(MeowChan.Gallery.GalleryEntry entry,
@@ -91,26 +97,23 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
     {
         IGifFrameDecoder? decoder = decoderFactory == null
             ? await GifFrameDecoder.OpenAsync(entry, cancellationToken) : await decoderFactory(entry, cancellationToken);
-        if (decoder == null) return null; // Misnamed non-GIF retains the existing image decoder.
-        GalleryGifPlayback? player = null;
+        return decoder == null ? null : await OpenAsync(decoder, target, cancellationToken);
+    }
+
+    internal static async Task<GalleryGifPlayback> OpenAsync(IGifFrameDecoder decoder, Image target,
+        CancellationToken cancellationToken)
+    {
         try
         {
             using GifDecodedFrame first = await decoder.DecodeAsync(0, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            Dispatcher.UIThread.VerifyAccess();
-            player = new(decoder, target);
-            player.CopyPixels(first); // No image/control adoption until the viewer validates its generation.
-            return player;
+            return new(decoder, target, first); // The caller adopts only after validating its request.
         }
         catch (Exception openError)
         {
-            try
-            {
-                if (player != null) await player.DisposeAsync();
-                else await decoder.DisposeAsync();
-            }
+            try { await decoder.DisposeAsync(); }
             catch (Exception cleanup)
-            { throw new GifRetirementException((object?)player ?? decoder, new AggregateException(openError, cleanup)); }
+            { throw new GifRetirementException(decoder, new AggregateException(openError, cleanup)); }
             throw; // A decode/open failure with successful retirement is recoverable.
         }
     }

@@ -406,18 +406,23 @@ internal static class ReaderUxChecks
         Click(GalleryButton(viewer, "GalleryClose"));
         await Program.WaitUntilAsync(() => !gallery.IsVisible && SelectedPost(page) == "1003");
         Require(reader.IsVisible, "Reader-origin gallery close left the large reader.");
-        await Program.WaitUntilAsync(() => window.FocusManager!.GetFocusedElement() is Visual focused && focused.GetVisualAncestors()
-            .Contains(page.FindControl<ListBox>("ArchivePosts")!));
+        ListBox postList = reader.GetVisualDescendants().OfType<ListBox>()
+            .Single(list => AutomationProperties.GetAutomationId(list) == "ArchivePosts");
+        await Program.WaitUntilAsync(() => window.FocusManager!.GetFocusedElement() is Visual focused && postList.IsVisualAncestorOf(focused));
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>().Any(view =>
             view.Thumbnail.Source is Bitmap loaded && loaded.PixelSize.Width > 240
             && view.GetVisualAncestors().OfType<ListBoxItem>().Any(item => item.DataContext is ArchivePostRow post && post.Id == "1003")));
         window.UpdateLayout();
-        ListBox postList = page.FindControl<ListBox>("ArchivePosts")!;
         ListBoxItem targetPost = postList.GetVisualDescendants().OfType<ListBoxItem>().Single(item => item.DataContext is ArchivePostRow post && post.Id == "1003");
         double targetTop = targetPost.TranslatePoint(default, postList)!.Value.Y;
         Require(targetTop >= -40 && targetTop < postList.Bounds.Height / 2,
             "Loading large previews scrolled the returned post out of view.");
         Program.CaptureWindow(window, "smoke-reader-current-post.png");
+        RawKeyboardInput.Press(window, Key.Down);
+        await page.ReaderNavigationTask;
+        Require(reader.IsVisible && SelectedPost(page) == "1004",
+            "Down did not move to the next post after returning to the reader.");
+        Console.WriteLine("SMOKE reader-origin gallery return: Down moved to the next post in the large reader.");
         ArchiveAssetRow savedAsset = page.FindControl<DataGrid>("ArchiveMediaGrid")!.ItemsSource.Cast<ArchiveAssetRow>().First();
         GalleryEntry unassigned = new(new GalleryAssetKey(Hero, savedAsset.Manifest.Directory, savedAsset.Asset.AssetId),
             savedAsset.Manifest, savedAsset.Asset, null, null, false, true);
@@ -429,7 +434,7 @@ internal static class ReaderUxChecks
         Click(GalleryButton(viewer, "GalleryClose"));
         await Program.WaitUntilAsync(() => reader.IsVisible && TopPost(page) == retainedAnchor && SelectedPost(page) == retainedSelection
             && window.FocusManager!.GetFocusedElement() is Visual anchorFocus
-            && anchorFocus.GetVisualAncestors().Contains(page.FindControl<ListBox>("ArchivePosts")!));
+            && postList.IsVisualAncestorOf(anchorFocus));
         page.FindControl<Button>("ArchiveCloseReader")!.Focus();
         for (int i = 0; i < 24; i++)
         {
@@ -579,8 +584,8 @@ internal static class ReaderUxChecks
                     && (ReferenceEquals(focus, results) || focus is ListBoxItem row && results.IsVisualAncestorOf(row)
                         && row.DataContext is ArchiveThreadRow focused && focused.Summary.Id == selected.Summary.Id),
                     $"List-origin focus did not return to the selected row or results list at {width} DIP. {focusState}.");
-                RawKeyboardInput.Press(window, Key.Down);
                 ResourceId next = ((ArchiveThreadRow)results.Items[1]!).Summary.Id;
+                RawKeyboardInput.Press(window, Key.Down);
                 await Program.WaitUntilAsync(() => results.SelectedItem is ArchiveThreadRow row && row.Summary.Id == next,
                     () => $"Down did not move the restored results selection at {width} DIP.");
                 Console.WriteLine($"SMOKE list-origin round trip: width={width}, overflow={overflow}, focus={focus?.GetType().Name}, preserved search/page/selection and moved to the next result.");

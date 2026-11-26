@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using Avalonia.Input;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -178,7 +179,8 @@ public partial class MainWindow
         _galleryMediaReturn = CaptureGalleryMediaReturn(GalleryReturnTargetFor(origin, readerOrigin, originPage));
         _galleryReaderOrigin = readerOrigin;
         _galleryLargeReaderOrigin = largeReaderOrigin;
-        _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin();
+        // A results gallery returns keyboard focus to the list, even with an embedded reader beside it.
+        _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin(restoreReaderFocus: selectThreads == null);
         _galleryVisitedReader = false;
         _galleryThreads = ids;
         _galleryResultsScope = selectThreads != null;
@@ -698,6 +700,7 @@ public partial class MainWindow
     {
         if (_galleryCoversWorkspace == covers) return;
         _galleryCoversWorkspace = covers;
+        SidebarGifPlayback.SetSuspended(this, covers);
         if (covers)
         {
             LayoutUpdated += OnGalleryCoveredLayoutUpdated;
