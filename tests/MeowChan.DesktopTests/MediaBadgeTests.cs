@@ -363,7 +363,10 @@ public sealed class MediaBadgeTests : IDisposable
     {
         Assert.Equal(font, MediaBadgeLayout.FontSize(unit));
         Assert.Equal(margin, MediaBadgeLayout.Margin(unit));
-        Assert.Equal(unit - 4, MediaBadgeLayout.IconSize(MediaBadgeId.Favorite, unit));
+        Assert.Equal(unit - 4, MediaBadgeLayout.IconSize(MediaBadgeId.TagCount, unit));
+        // Tom, 26.11.2026: "Das Herz im runden Badge ist nicht zentriert bzw. zu nah am Kreisrand" - the heart keeps a sixth of the unit to the ring.
+        Assert.Equal(0.65 * unit, MediaBadgeLayout.IconSize(MediaBadgeId.Favorite, unit), 6);
+        Assert.True((unit - MediaBadgeLayout.IconSize(MediaBadgeId.Favorite, unit)) / 2 >= unit / 6);
         Assert.Equal(0.6 * unit, MediaBadgeLayout.IconSize(MediaBadgeId.Rating, unit), 6);
         Assert.InRange(MediaBadgeLayout.FontSize(unit), MediaBadgeLayout.FontMinimum, MediaBadgeLayout.FontMaximum);
     }

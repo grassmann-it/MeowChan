@@ -482,7 +482,8 @@ public sealed class GalleryFavoriteStateTests
             StackPanel glyph = Assert.IsType<StackPanel>(badge.Content);
             Assert.Equal((saved, pending), GalleryViewer.FavoriteBadgeState(badge));
             Avalonia.Controls.Shapes.Path star = Assert.IsType<Avalonia.Controls.Shapes.Path>(glyph.Children[0]);
-            Assert.Equal(saved ? Colors.Gold : Colors.White,
+            // Tom, 26.11.2026: "Herzen standardmäßig ROT, Sterne GOLD" - the saved heart on the viewer's scrim is the badge red.
+            Assert.Equal(saved ? MeowChan.Desktop.VideoPlayMark.FavoriteColor : Colors.White,
                 Assert.IsAssignableFrom<ISolidColorBrush>(star.Stroke).Color);
             Assert.Equal(saved, star.Fill is ISolidColorBrush { Color.A: > 0 });
             string? label = AutomationProperties.GetName(badge);

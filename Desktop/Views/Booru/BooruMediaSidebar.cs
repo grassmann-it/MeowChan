@@ -96,7 +96,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
             Margin = new Thickness(Inset, 4), FileNameReserve = 40
         };
         _header.Meta.Name = "BooruMediaSummary";
-        _tagStat.Children.AddRange([CommandBindings.IconFromKey("tag", 16), _tagCount]);
+        _tagStat.Children.AddRange([CommandBindings.FollowLabel(CommandBindings.IconFromKey("tag", 16), _tagCount), _tagCount]);
         _stats.Children.AddRange([_ratingStat, _scoreStat, _tagStat]);
         Info.Click += (_, _) => ShowFacts(Info.IsChecked == true);
         _kind.Margin = new Thickness(0, 4, 4, 0);

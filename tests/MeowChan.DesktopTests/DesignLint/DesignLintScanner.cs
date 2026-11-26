@@ -73,7 +73,6 @@ internal static class DesignLintScanner
         new(DesignRules.ColorCode, "Desktop/VideoPlayMark.cs", "Color.FromArgb", "Video play badge on arbitrary media (palette item 4)."),
         new(DesignRules.ColorCode, "Desktop/VideoPlayMark.cs", "Brushes.White", "Play triangle of the video badge (palette item 4)."),
         new(DesignRules.ColorCode, "Desktop/GalleryViewer.Favorites.cs", "Brushes.White", "Favourite badge star (palette item 5; GalleryFavoriteStateTests pins it)."),
-        new(DesignRules.ColorCode, "Desktop/GalleryViewer.Favorites.cs", "Brushes.Gold", "Favourite badge star when marked (palette item 5)."),
         new(DesignRules.ColorCode, "Desktop/GalleryViewer.Overlay.cs", "Color.FromArgb", "Edge hint over media (palette item 6) and overlay tone alpha."),
         new(DesignRules.ColorCode, "Desktop/GalleryViewer.Overlay.cs", "Color.FromRgb", "Edge hint and fallback tone when the Workspace.Overlay resource is missing."),
         new(DesignRules.ColorCode, "Desktop/GalleryViewer.cs", "Brushes.Black", "Letterbox behind media (palette item 8)."),

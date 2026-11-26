@@ -52,8 +52,9 @@ internal sealed class MediaInfoBar : Grid
         _edit.Content = _editContent;
         _edit.Click += (_, _) => edit(_edit);
         Expand.Content = _expansionArrow;
-        _toggle.Content = Horizontal(_tagIcon, _count);
-        _empty.Content = Horizontal(_emptyTagIcon, _zero);
+        // The tag icon of the count badge has the colour of its number (white on the accent, not the page's text colour).
+        _toggle.Content = Horizontal(CommandBindings.FollowLabel(_tagIcon, _count), _count);
+        _empty.Content = Horizontal(CommandBindings.FollowLabel(_emptyTagIcon, _zero), _zero);
         foreach (Button button in new Button[] { _toggle, _empty })
         {
             button.Classes.Add("ghost");

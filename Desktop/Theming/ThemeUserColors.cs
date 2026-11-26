@@ -53,7 +53,7 @@ internal sealed record ThemeUserColor(string Id, string Seed, IReadOnlyList<Them
 internal static class ThemeUserColors
 {
     internal const string Accent = "accent", Background = "background", Surface = "surface", Text = "text", Muted = "muted",
-        Border = "border", Favorite = "favorite", Error = "error";
+        Border = "border", Favorite = "favorite", Rating = "rating", Error = "error";
 
     internal static IReadOnlyList<ThemeUserColor> All { get; } = Array.AsReadOnly(new ThemeUserColor[]
     {
@@ -91,7 +91,9 @@ internal static class ThemeUserColors
             new("Workspace.ChipSourceBorder", ThemeSeedDerivation.Follow),
             new("Workspace.CardEdge", ThemeSeedDerivation.Follow),
         ], "Workspace.Panel", ContrastGate.GraphicMinimum),
+        // Favorit (the heart) and Bewertung (the rating stars) are two colours: red and gold by default.
         new(Favorite, "Workspace.Favorite", [], "Workspace.Panel", ContrastGate.GraphicMinimum),
+        new(Rating, "Workspace.Rating", [], "Workspace.Panel", ContrastGate.GraphicMinimum),
         // Fehler; the error surface keeps its lightness, the exclude-chip outline is the error colour.
         new(Error, "Workspace.Error",
         [

@@ -94,7 +94,7 @@ public sealed class ThemeConfiguratorTests : IDisposable
         foreach (ThemeTokenTheme theme in Themes)
         {
             Assert.True(model.Preview(theme).Accepted);
-            Assert.Equal(8, model.Roles(theme).Count);
+            Assert.Equal(9, model.Roles(theme).Count); // Tom, 26.11.2026: the rating stars have a colour of their own beside the favourite.
             Assert.Equal(ThemeUserColors.All.Select(role => role.Id), model.Roles(theme).Select(view => view.RoleId));
             // The built-in colours pass the gate: no role shows a weak pair, an error or a warning.
             Assert.All(model.Roles(theme), view =>
@@ -348,7 +348,7 @@ public sealed class ThemeConfiguratorTests : IDisposable
             foreach (string placeholder in new[] { "{0}", "{1}" })
                 Assert.Equal(english.Contains(placeholder), text.Contains(placeholder));
         }
-        Assert.Equal(58, ThemeColorsCatalog.Entries.Length); // Current catalog includes the live-preview reset hint.
+        Assert.Equal(59, ThemeColorsCatalog.Entries.Length); // Current catalog includes the live-preview reset hint and the rating-star colour (26.11.2026).
     }
 
     [Fact]

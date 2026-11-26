@@ -122,7 +122,9 @@ public sealed class HeaderTaglineLayoutTests
                 if (mode == TaglinePicker.ModeDaily)
                 {
                     TaglinePick expected = TaglinePicker.Pick(mode, "cats", pool, today, current, seen, atStart: true, new Random(3));
-                    Assert.Equal(updated, expected.ReleaseHighlight);
+                    // Without a release quip for the current version an update uses the daily rule.
+                    bool hasReleaseQuip = pool.Any(e => e.Category == TaglineCategory.Release && e.Since == current);
+                    Assert.Equal(updated && hasReleaseQuip, expected.ReleaseHighlight);
                     Assert.Equal(expected.Entry!.Text, quip);
                     Assert.Equal(current.ToString(3), session.Config.LastTaglineVersion);
                 }
@@ -149,6 +151,8 @@ public sealed class HeaderTaglineLayoutTests
     [Theory]
     [InlineData("booru", "booru", true, false)]
     [InlineData("removed-quip", "cats", true, false)]
+    [InlineData("sortedquips", "cats", true, false)]
+    [InlineData("fetchthem", "cats", true, false)]
     [InlineData("booru", "booru", false, false)]
     [InlineData("removed-quip", "cats", false, false)]
     [InlineData("booru", "booru", true, true)]
@@ -217,18 +221,19 @@ public sealed class HeaderTaglineLayoutTests
                     Assert.True(picker.IsDropDownOpen, "Switching back to English closed the picker.");
                     Assert.Equal(effectiveId, Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
                     Assert.EndsWith(Texts.T(BuiltInTaglineProvider.KeyFor(effectiveId)), subtitle.Text);
-                    ComboBoxItem fetch = RevealChoice(editor.HeaderTaglineFixedChoices.Single(choice => choice.Value == "fetchthem"));
+                    // Tom's final selection, B1: replace fetchthem with "gotta archive 'em all".
+                    ComboBoxItem archive = RevealChoice(editor.HeaderTaglineFixedChoices.Single(choice => choice.Value == "archiveemall"));
                     Assert.True(picker.IsDropDownOpen, "Revealing the new quip closed the picker.");
-                    Assert.Contains(fetch.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Gonna fetch them all");
-                    BooruResultActionsTests.Click(fetch);
+                    Assert.Contains(archive.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "gotta archive 'em all");
+                    BooruResultActionsTests.Click(archive);
                     Assert.False(picker.IsDropDownOpen);
-                    Assert.Equal("fetchthem", Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
+                    Assert.Equal("archiveemall", Assert.IsType<SettingsChoice>(picker.SelectedItem).Value);
                     BooruResultActionsTests.Click(editor.FindControl<Button>("SaveSettingsButton")!);
                     using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
                     while (editor.IsBusy) await Task.Delay(10, timeout.Token);
                     Assert.False(editor.HasError, editor.ErrorMessage);
-                    Assert.Equal("fetchthem", Config.LoadConfig(profile.Path).HeaderTaglineFixedId);
-                    Assert.EndsWith("Gonna fetch them all", subtitle.Text);
+                    Assert.Equal("archiveemall", Config.LoadConfig(profile.Path).HeaderTaglineFixedId);
+                    Assert.EndsWith("gotta archive 'em all", subtitle.Text);
                 }
                 finally { Texts.SetLanguage("en"); }
 

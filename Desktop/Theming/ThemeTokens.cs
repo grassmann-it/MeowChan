@@ -86,6 +86,7 @@ internal static class ThemeTokens
         "Workspace.TagCategory.General",
         "Workspace.CaptionCloseEdge",
         "Workspace.Favorite",
+        "Workspace.Rating",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     // BoxShadows are composite resources, NOT JSON colour seeds. Kept in the inventory

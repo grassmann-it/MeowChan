@@ -1,4 +1,5 @@
 using Avalonia.Media;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Theming;
 
 namespace MeowChan.DesktopTests;
@@ -56,8 +57,10 @@ public sealed class ThemeAccentPresetTests
         }
     }
 
+    // Tom, 26.11.2026 00:30: "Fable soll den bestehenden Default-Profilen sinnvolle Farben geben, muss nicht Rot und Gold sein, ggf. passt
+    // bei anderen Farbprofilen anderes." A preset therefore sets the accent and its own heart and star colour, and nothing else.
     [Fact]
-    public void AnAppliedPresetSetsTheAccentOfBothVariantsAndNothingElse()
+    public void AnAppliedPresetSetsTheAccentAndItsHeartAndStarColourOfBothVariantsAndNothingElse()
     {
         foreach (ThemeAccentPreset preset in ThemeAccentPresets.All)
         {
@@ -67,11 +70,70 @@ public sealed class ThemeAccentPresetTests
             {
                 Color expected = preset.For(theme) ?? model.BuiltInAccent(theme);
                 Assert.Equal(expected, model.Role(theme, ThemeUserColors.Accent).Color);
-                // Only the accent role is touched.
-                Assert.All(model.Roles(theme).Where(view => view.RoleId != ThemeUserColors.Accent), view => Assert.False(view.IsCustom, view.RoleId));
+                foreach (string mark in ThemeAccentPresets.MarkRoles)
+                {
+                    Color builtIn = ThemePalette.Build(ThemePaletteTests.Base(theme)).Colors[ThemeUserColors.Require(mark).Seed];
+                    Assert.Equal(preset.Mark(theme, mark) ?? builtIn, model.Role(theme, mark).Color);
+                }
+                // Only the accent, the heart and the stars are touched.
+                Assert.All(model.Roles(theme).Where(view => view.RoleId != ThemeUserColors.Accent && !ThemeAccentPresets.MarkRoles.Contains(view.RoleId)),
+                    view => Assert.False(view.IsCustom, view.RoleId));
             }
             Assert.Same(preset, model.ActivePreset);
         }
+    }
+
+    [Theory, MemberData(nameof(PresetsAndThemes))]
+    public void HeartAndStarsOfAPresetAreReadableOnEverySurfaceAndStandApartFromAccentErrorAndEachOther(string presetId, string themeName)
+    {
+        ThemeTokenTheme theme = Enum.Parse<ThemeTokenTheme>(themeName);
+        ThemeConfiguratorModel model = Model();
+        model.ApplyPreset(ThemeAccentPresets.Find(presetId)!);
+        IReadOnlyDictionary<string, Color> colors = model.Preview(theme).Palette.Colors;
+        Color heart = colors["Workspace.Favorite"], star = colors["Workspace.Rating"];
+        foreach (Color mark in new[] { heart, star })
+        {
+            foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.ChipSurface", "Workspace.AccentSurface" })
+                Assert.True(ContrastRules.Contrast(ThemePalette.Hex(mark), ThemePalette.Hex(colors[surface])) >= ContrastGate.GraphicMinimum,
+                    $"{presetId} {theme}: {ThemePalette.Hex(mark)} on {surface}");
+            if (theme != ThemeTokenTheme.Dark) continue;
+            // The Dark tone is also the one on the dark disc of the tile badges and on the viewer's scrim; the worst picture under the disc is white.
+            Color disc = VideoPlayMark.DiscColor;
+            string overWhite = ContrastRules.CompositeOver($"#{disc.A:X2}{disc.R:X2}{disc.G:X2}{disc.B:X2}", "#FFFFFF");
+            Assert.True(ContrastRules.Contrast(ThemePalette.Hex(mark), overWhite) >= ContrastGate.GraphicMinimum, $"{presetId}: {ThemePalette.Hex(mark)} on the badge disc");
+        }
+        // Told apart at a glance: heart, stars, accent (the selection) and the error colour are four different colours, not shades of one
+        // (RGB distance; the dark tones of Light lie closer together than the bright ones of Dark).
+        Assert.True(Distance(heart, star) >= 60, $"{presetId} {theme}: heart and stars");
+        Assert.True(Distance(heart, colors["Workspace.Accent"]) >= 80, $"{presetId} {theme}: heart and accent");
+        Assert.True(Distance(star, colors["Workspace.Accent"]) >= 35, $"{presetId} {theme}: stars and accent");
+        Assert.NotEqual(colors["Workspace.Error"], heart);
+        Assert.NotEqual(colors["Workspace.Error"], star);
+    }
+
+    private static double Distance(Color first, Color second) =>
+        Math.Sqrt(Math.Pow(first.R - second.R, 2) + Math.Pow(first.G - second.G, 2) + Math.Pow(first.B - second.B, 2));
+
+    [Fact]
+    public void AHeartOrStarColourPickedByHandSurvivesAPresetAndOneFromAPresetFollowsTheNextPreset()
+    {
+        ThemeConfiguratorModel model = Model();
+        Color own = ThemeCustomization.ParseHex("#7A2FB8");
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Favorite, own);
+        model.ApplyPreset(ThemeAccentPresets.Find("green")!);
+        // The user's own heart stays; the variant and the role without an own colour take the preset's.
+        Assert.Equal(own, model.Role(ThemeTokenTheme.Light, ThemeUserColors.Favorite).Color);
+        ThemeAccentPreset green = ThemeAccentPresets.Find("green")!, violet = ThemeAccentPresets.Find("violet")!, blue = ThemeAccentPresets.Find("blue")!;
+        Assert.Equal(green.Mark(ThemeTokenTheme.Dark, ThemeUserColors.Favorite), model.Role(ThemeTokenTheme.Dark, ThemeUserColors.Favorite).Color);
+        Assert.Equal(green.Mark(ThemeTokenTheme.Dark, ThemeUserColors.Rating), model.Role(ThemeTokenTheme.Dark, ThemeUserColors.Rating).Color);
+        model.ApplyPreset(violet);
+        Assert.Equal(own, model.Role(ThemeTokenTheme.Light, ThemeUserColors.Favorite).Color);
+        Assert.Equal(violet.Mark(ThemeTokenTheme.Dark, ThemeUserColors.Favorite), model.Role(ThemeTokenTheme.Dark, ThemeUserColors.Favorite).Color);
+        // Violet keeps the built-in gold, and blue the built-in red and gold: the colours of the earlier preset are reset, not kept.
+        Assert.False(model.Role(ThemeTokenTheme.Dark, ThemeUserColors.Rating).IsCustom);
+        model.ApplyPreset(blue);
+        Assert.False(model.Role(ThemeTokenTheme.Dark, ThemeUserColors.Favorite).IsCustom);
+        Assert.True(model.Role(ThemeTokenTheme.Light, ThemeUserColors.Favorite).IsCustom);
     }
 
     [Fact]

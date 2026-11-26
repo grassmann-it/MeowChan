@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -79,6 +80,71 @@ public sealed class TaggingPageSelectionTests
             Assert.Equal(page.Rows[0].Key, continuedAt);
             page.ClearSelection();
         }
+    });
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void SelectionMoreOpensForOpenAndFinishedEntriesAndReturnsFocus(bool grid, bool finished) => WithPage((page, window) =>
+    {
+        TransientPopupPolicy.Install();
+        page.StartTagging = _ => Task.CompletedTask;
+        page.RestoreViewMode(grid ? TaggingViewMode.Grid : TaggingViewMode.List);
+        ContextGestures.Settle(window);
+
+        string entryId = (grid ? "TaggingGridEntry" : "TaggingListEntry") + (finished ? "3" : "1");
+        ListBoxItem entry = Find<ListBoxItem>(window, entryId);
+        ContextGestures.Click(entry);
+        Assert.True(entry.IsSelected);
+        Assert.Equal(1, page.SelectedCount);
+        if (finished)
+        {
+            ContextGestures.KeyStroke(entry, Key.Enter, PhysicalKey.Enter);
+            Assert.Equal(Texts.T("tagging.page.continue.notOpen"), Find<TextBlock>(window, "TaggingStatus").Text);
+        }
+
+        Button more = Find<Button>(window, "TaggingSelectionMore");
+        int clicks = 0;
+        List<string?> states = [AutomationProperties.GetItemStatus(more)];
+        more.Click += (_, _) => clicks++;
+        more.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == AutomationProperties.ItemStatusProperty) states.Add(AutomationProperties.GetItemStatus(more));
+        };
+
+        ContextMenu menu = OpenByClick();
+        string action = finished ? TaggingCommands.MarkOpen : TaggingCommands.MarkSkipped;
+        Assert.True(Find<MenuItem>(menu, action).IsEffectivelyEnabled);
+        ContextGestures.Click(more);
+        VerifyDismissed(menu);
+
+        menu = OpenByClick();
+        Assert.True(menu.IsKeyboardFocusWithin);
+        window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        window.KeyReleaseQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        ContextGestures.Settle(window);
+        VerifyDismissed(menu);
+
+        ContextMenu OpenByClick()
+        {
+            ContextGestures.Click(more);
+            ContextMenu? current = OpenMenu();
+            Assert.True(current?.IsOpen == true, $"More received {clicks} click(s). Item status: {string.Join(" → ", states)}.");
+            return current!;
+        }
+
+        void VerifyDismissed(ContextMenu previous)
+        {
+            Assert.False(previous.IsOpen);
+            Assert.Null(OpenMenu());
+            Assert.Same(Find<ListBoxItem>(window, entryId), window.FocusManager?.GetFocusedElement());
+            Assert.Equal(1, page.SelectedCount);
+        }
+
+        ContextMenu? OpenMenu() => window.OpenedPopups.Where(popup => ReferenceEquals(popup.PlacementTarget, more))
+            .Select(popup => popup.Child).OfType<ContextMenu>().SingleOrDefault();
     });
 
     [Fact]
@@ -177,6 +243,9 @@ public sealed class TaggingPageSelectionTests
 
     private static Rect BoundsIn(Control control, Control ancestor) =>
         new(control.TranslatePoint(default, ancestor)!.Value, control.Bounds.Size);
+
+    private static T Find<T>(Control root, string automationId) where T : Control =>
+        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == automationId);
 
     private static void WithPage(Action<TaggingPage, Window> check) => BooruComponentDispatcher.Run(() =>
     {
