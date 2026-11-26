@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MeowChan.Booru;
 using MeowChan.Desktop.Booru;
 using MeowChan.PluginSdk;
 using MeowChan.PluginHost.Http;
@@ -86,6 +87,7 @@ internal sealed class FakeBooruSearchPort : IBooruSearchPort
 
     public string ProviderId { get; init; } = BooruUiFixtures.Source;
     public string ProviderName { get; init; } = "Danbooru";
+    public string InstanceId { get; init; } = BooruPostKey.DefaultInstance;
 
     internal int Requests { get { lock (_gate) return Searches.Count + PostReads.Count; } }
 

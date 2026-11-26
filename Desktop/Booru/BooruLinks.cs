@@ -11,13 +11,11 @@ namespace MeowChan.Desktop.Booru;
 /// </summary>
 internal static class BooruPostLinks
 {
-    /// <summary>The canonical page of a post of this provider, or false for another source or an invalid id.</summary>
+    /// <summary>The canonical page of a validated post from the default Danbooru instance.</summary>
     internal static bool TryCanonical(BooruPostView? post, out string url)
     {
-        url = string.Empty;
-        return post is not null
-            && string.Equals(post.SourceId, DanbooruPostReference.ProviderId, StringComparison.Ordinal)
-            && TryCanonical(post.PostId, out url);
+        url = post?.Identity.CanonicalDanbooruUrl?.AbsoluteUri ?? string.Empty;
+        return url.Length > 0;
     }
 
     internal static bool TryCanonical(string? postId, out string url)

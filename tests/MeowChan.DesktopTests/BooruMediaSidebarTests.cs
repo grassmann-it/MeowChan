@@ -278,6 +278,55 @@ public sealed class BooruMediaSidebarTests
     });
 
     [Fact]
+    public void SidebarLinksFollowTheInstanceWhenBothSourcesReturnTheSamePostId() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = new();
+        BooruPostView post = BooruUiFixtures.Post("42", preview: false);
+        BooruPostView otherPost = BooruPostView.From(post.Post with { PostUrl = new("https://other.test/posts/42") }, "other");
+        FakeBooruSearchPort other = new() { InstanceId = "other", ProviderName = "Other Danbooru" };
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, post)));
+        other.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, otherPost)));
+        BooruWorkbenchServices services = new(other, harness.Queue, harness.Watchers, harness.Previews, harness.Clock);
+        using BooruPage page = new(harness.Services, [harness.Services, services]);
+        BooruWorkbenchView view = page.View;
+        view.RestoreMediaSidebar(open: true);
+        Window window = new() { Content = page, Width = 1840, Height = 920 };
+        try
+        {
+            window.Show();
+            BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(page.Model.Search, "cat"));
+            Settle(window);
+            BooruMediaSidebar sidebar = Sidebar(view);
+            Assert.True(sidebar.IsEffectivelyVisible);
+            const string openId = "BooruPanelBooruOpenPost:42";
+            const string copyId = "BooruPanelBooruCopyLink:42";
+            Button open = ById<Button>(sidebar, openId);
+            Button copy = ById<Button>(sidebar, copyId);
+            Click(open);
+            Click(copy);
+
+            ComboBox picker = ById<ComboBox>(view, "BooruSourcePicker");
+            picker.SelectedItem = picker.Items.OfType<ComboBoxItem>().Single(item => ReferenceEquals(item.Tag, other));
+            BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(page.Model.Search, "cat"));
+            Settle(window);
+            Assert.Equal(otherPost.Identity, Assert.Single(page.Model.Search.View.Rows).Post.Identity);
+            Assert.True(sidebar.IsEffectivelyVisible);
+            Assert.True(ById<Button>(sidebar, "BooruPanelBooruLoad:42").IsEffectivelyEnabled);
+            Assert.DoesNotContain(sidebar.GetVisualDescendants().OfType<Button>(),
+                button => AutomationProperties.GetAutomationId(button) is openId or copyId);
+
+            Click(open);
+            Click(copy);
+            Assert.Equal("https://danbooru.donmai.us/posts/42", Assert.Single(harness.Links.Opened));
+            Assert.Equal("https://danbooru.donmai.us/posts/42", Assert.Single(harness.Links.Copied));
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
     public void SidebarOmitsUnknownRatingAndMissingScoreAndTagClicksOnlyEditTheDraft() => InWindow((harness, model, view, window) =>
     {
         BooruPost post = BooruUiFixtures.Post("101", rating: BooruRating.Unknown, rawRating: "").Post;
