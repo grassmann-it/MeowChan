@@ -28,7 +28,10 @@ using MeowChan.Diagnostics;
 namespace MeowChan.Desktop;
 
 internal sealed record GalleryViewerState(GalleryAssetKey? Key, string? PostId, int? AttachmentPosition,
-    bool ManualZoom, double PhysicalZoom, double PanX, double PanY, bool ContextOpen, bool ActualZoom, int Rotation = 0);
+    bool ManualZoom, double PhysicalZoom, double PanX, double PanY, bool ContextOpen, bool ActualZoom, int Rotation = 0)
+{
+    internal bool Flipped { get; init; }
+}
 
 // A frozen mapping revision owns only data, never controls. Navigation uses an O(1) asset lookup;
 // the existing post/attachment-position identity and first-occurrence order remain unchanged.
@@ -59,6 +62,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
 {
     private readonly TranslateTransform _imageTranslation = new();
     private readonly RotateTransform _imageRotation = new();
+    private readonly ScaleTransform _imageFlip = new();
     private readonly Image _image = new() { Name = "GalleryImage", Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = Brushes.Black };
     private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), IsHitTestVisible = false };
@@ -365,8 +369,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             _ratingRouter = CreateRatingRouter(this); _nativeRatingRouter = CreateRatingRouter(_nativeVideoOverlay);
         };
         DetachedFromVisualTree += (_, _) => { _ratingRouter?.Dispose(); _nativeRatingRouter?.Dispose(); };
-        // Rotation first, then the pan: the pan stays in screen space whatever the medium's orientation.
-        _image.RenderTransform = new TransformGroup { Children = { _imageRotation, _imageTranslation } };
+        // Reflection follows rotation, so its axis is horizontal on screen. Pan is applied last.
+        _image.RenderTransform = new TransformGroup { Children = { _imageRotation, _imageFlip, _imageTranslation } };
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
@@ -432,6 +436,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _actualRow = Command(_overflowPanel, "GalleryActualMenu", "1:1", ActualPixels, overflow: true, keepOpen: true);
         _actualRow.IsVisible = false;
         _rotate = Command(_overflowPanel, "GalleryRotate", CommandCatalog.Label("gallery.rotate"), () => RotateView(), overflow: true, keepOpen: true);
+        InitializeAppearanceMenu();
         AddOverflowSeparator();
         CommandBindings.Apply(_manageRatingsButton, "media.rating.manage");
         _manageRatingsButton.Click += (_, _) => { PauseSlideshow(); ManageRatingsRequested?.Invoke(); };
@@ -489,6 +494,9 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _helpPanel.Margin = new Thickness(12, TopRowClearance, 12, 12); // below the top row of the way back and the star (kept below it: the help is also centred over the picture in narrow viewers)
         _helpPanel.MaxWidth = 390;
         _helpPanel.MaxHeight = 350;
+        AutomationProperties.SetAutomationId(_viewport, "GalleryViewport");
+        AutomationProperties.SetAutomationId(_image, "GalleryImage");
+        _viewport.Children.Add(_themeBackdrop);
         _viewport.Children.Add(_image);
         _statusPlate.Child = _status;
         _viewport.Children.Add(_statusPlate);
@@ -600,6 +608,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         UpdateHelp();
         UpdateHelpButtonTooltip();
         SetImageCommands(false);
+        UpdatePictureBackground();
         ApplyCloseLabel();
     }
 
@@ -620,6 +629,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         RefreshPlaybackControls();
         RefreshOverflowItems();
         RefreshGifTransport();
+        RefreshAppearanceMenuText();
         RefreshTaggingTexts();
         PresentModeSwitch();
     }
@@ -965,6 +975,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         int failureRequest = ++_request;
         CancelLoads(); UnbindVideoPlaybackSignals();
         _mediaFailed = true; _navigationPending = false; _browseQueue.Clear();
+        UpdatePictureBackground();
         _imageReadyRequest = _videoReadyRequest = -1;
         SetImageCommands(false); _exportOriginal.IsEnabled = false; _saveFrame.IsEnabled = false;
         _info = null; ClearBitmaps();
@@ -997,7 +1008,11 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         string bounded = message.Length <= 2048 ? message : message[..2048];
         DiagnosticNotice?.Invoke(new(operation, _entry, AssociationRevision, bounded, mediaUnavailable));
     }
-    private void SetImageCommands(bool enabled) => _fit.IsEnabled = _actual.IsEnabled = _actualRow.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = _rotate.IsEnabled = enabled;
+    private void SetImageCommands(bool enabled)
+    {
+        _fit.IsEnabled = _actual.IsEnabled = _actualRow.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = _rotate.IsEnabled = enabled;
+        _flipHorizontal.IsEnabled = enabled && CanFlipView;
+    }
 
     private void SetMediaFocus(bool enabled, bool notify = true)
     {
@@ -1190,7 +1205,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     }
 
     internal GalleryViewerState CaptureState() => new(_entry?.Key, _entry?.Post?.PostId, _entry?.Attachment?.Position,
-        _manualZoom, _zoom, _panX, _panY, _contextOpen, _actualZoom, _rotation);
+        _manualZoom, _zoom, _panX, _panY, _contextOpen, _actualZoom, _rotation) { Flipped = _flipped };
     internal void RestoreState(GalleryViewerState state)
     {
         _restore = state;
@@ -1206,6 +1221,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         UpdateLayout(); // Restored zoom uses the viewport after the context panel has been measured.
         _manualZoom = state.ManualZoom; _actualZoom = state.ActualZoom;
         _rotation = GalleryRotation.Normalize(state.Rotation);
+        SetFlipped(state.Flipped);
         double fit = CurrentFit, maxZoom = CurrentGeometry?.MaxZoom ?? Math.Max(16, fit);
         _zoom = _actualZoom && state.PhysicalZoom < fit
             ? Math.Clamp(state.PhysicalZoom, 1, maxZoom)
@@ -1283,6 +1299,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ResetViewForMedium(entry);
         ReleaseTransientOverlays();
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
+        UpdatePictureBackground();
         RefreshPanelCounter();
         _exportOriginal.IsEnabled = true;
         _saveFrame.IsEnabled = false; // a frame can be saved once the video is ready (RefreshFrameCommands)
@@ -1349,7 +1366,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
                 Dispatcher.UIThread.Post(() => _nativeOverlayWindow?.Hide(), DispatcherPriority.Loaded);
             if (_nativeOverlayActive)
                 Dispatcher.UIThread.Post(CheckNativeOverlayTransparency, DispatcherPriority.Loaded);
-            _video.PrepareRotation(_rotation);
+            _video.PrepareRotation(_rotation, _flipped);
             await _video.ShowAsync(entry, cancellationToken);
             if (request != _request || cancellationToken.IsCancellationRequested) return;
             _videoReadyRequest = request;
@@ -1808,6 +1825,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         else if (CommandBindings.Matches(e, "gallery.zoom-in")) Zoom(1.1);
         else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
         else if (CommandBindings.Matches(e, "gallery.rotate")) RotateView();
+        else if (CanFlipView && CommandBindings.Matches(e, FlipCommandId)) FlipView();
+        else if (CanChooseBackground && CommandBindings.Matches(e, BackgroundCommandId)) CycleBackground();
         else if (CommandBindings.Matches(e, "gallery.close")) CloseRequested?.Invoke();
         else if (CommandBindings.Matches(e, "media.tags.edit")) RequestTagsByKey();
         else if (CommandBindings.Matches(e, "media.queue.add")) { if (_entry != null && QueueRequested != null) QueueRequested.Invoke(_entry); }

@@ -43,6 +43,12 @@ internal static class GalleryActionsCatalog
         ("gallery.toolbar.label.edit", "Edit", "Bearbeiten"),
         ("gallery.toolbar.label.help", "Help", "Hilfe"),
         ("gallery.overflow.label", "More gallery actions", "Weitere Galerieaktionen"),
+        ("gallery.background.black", "Black", "Schwarz"),
+        ("gallery.background.theme", "Theme", "Design"),
+        ("gallery.background.white", "White", "Weiß"),
+        ("gallery.background.checkerboard", "Checkerboard", "Schachbrett"),
+        ("gallery.background.help", "Choose the backdrop for images. Videos use black.", "Wählt den Hintergrund für Bilder. Videos bleiben schwarz."),
+        ("gallery.flipHorizontal.help", "Mirror the displayed media left to right.", "Spiegelt das angezeigte Medium von links nach rechts."),
         ("gallery.overflow.help", "Zoom, rating, tags, export, playback, view options and shortcut help", "Zoom, Bewertung, Tags, Export, Wiedergabe, Ansichtsoptionen und Tastaturhilfe"),
         // V2: the gallery side panel host (segment "Post | Tags", the isolated close button and the drag edge).
         ("gallery.panel.post", "Post", "Post"),

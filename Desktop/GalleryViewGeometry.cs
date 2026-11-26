@@ -49,7 +49,7 @@ internal static class GalleryRotation
 /// give the orientation on screen; every method answers in physical pixels per source pixel (zoom) or dip (pan).
 /// </summary>
 internal readonly record struct GalleryViewGeometry(int SourceWidth, int SourceHeight, double ViewportWidth, double ViewportHeight,
-    double DisplayScale, double? FitCap = null, int MaxZoomPercent = GalleryZoomLimits.MaxPercentDefault, int Rotation = 0)
+    double DisplayScale, double? FitCap = null, int MaxZoomPercent = GalleryZoomLimits.MaxPercentDefault, int Rotation = 0, bool Flipped = false)
 {
     internal bool IsValid => SourceWidth > 0 && SourceHeight > 0 && double.IsFinite(DisplayScale) && DisplayScale > 0;
 
@@ -150,7 +150,7 @@ internal static class GalleryViewMath
 /// How a placed medium is drawn onto a render surface that shows it uniformly fitted into its cell (the software video image):
 /// a uniform scale about the cell centre, the rotation and the pan. The decoded frame is never touched; only this matrix changes.
 /// </summary>
-internal readonly record struct VideoSurfaceTransform(double Scale, int Rotation, double TranslateX, double TranslateY)
+internal readonly record struct VideoSurfaceTransform(double Scale, int Rotation, double TranslateX, double TranslateY, bool Flipped = false)
 {
     internal static readonly VideoSurfaceTransform Identity = new(1, 0, 0, 0);
 
@@ -159,19 +159,20 @@ internal readonly record struct VideoSurfaceTransform(double Scale, int Rotation
     /// Uniform in it. The scale relates the wanted size (zoom / display scale) to that fitted size.
     /// </summary>
     internal static VideoSurfaceTransform For(int sourceWidth, int sourceHeight, double cellWidth, double cellHeight,
-        double displayScale, GalleryViewPlacement view, int rotation)
+        double displayScale, GalleryViewPlacement view, int rotation, bool flipped = false)
     {
         if (sourceWidth <= 0 || sourceHeight <= 0 || cellWidth <= 0 || cellHeight <= 0
             || !double.IsFinite(displayScale) || displayScale <= 0 || !double.IsFinite(view.Zoom) || view.Zoom <= 0) return Identity;
         double uniform = Math.Min(cellWidth / sourceWidth, cellHeight / sourceHeight);
         double scale = view.Zoom / displayScale / uniform;
-        return new(scale, GalleryRotation.Normalize(rotation), view.PanX, view.PanY);
+        return new(scale, GalleryRotation.Normalize(rotation), view.PanX, view.PanY, flipped);
     }
 
-    /// <summary>The transform as one matrix (scale, then rotation, then translation; row-vector convention of Avalonia).</summary>
+    /// <summary>The transform as one matrix (scale, rotation, reflection, then translation; row-vector convention of Avalonia).</summary>
     internal Avalonia.Matrix ToMatrix() =>
         Avalonia.Matrix.CreateScale(Scale, Scale)
         * Avalonia.Matrix.CreateRotation(Rotation * Math.PI / 180)
+        * Avalonia.Matrix.CreateScale(Flipped ? -1 : 1, 1)
         * Avalonia.Matrix.CreateTranslation(TranslateX, TranslateY);
 }
 

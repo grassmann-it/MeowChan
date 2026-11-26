@@ -208,6 +208,7 @@ internal sealed partial class GalleryViewer
             if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root;
         }
         RefreshFrameCommands(); // the moment-dependent rows are enabled exactly while they can act
+        _flipHorizontal.IsEnabled = CanFlipView;
         _playbackHeading.Text = GalleryPlaybackCatalog.Get("viewer.playback.group.playback");
         _viewHeading.Text = GalleryPlaybackCatalog.Get("viewer.playback.group.view");
         SetSettingLabel(_modeCaption, GalleryPlaybackCatalog.Get("viewer.playback.menu.mode"));

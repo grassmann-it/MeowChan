@@ -22,6 +22,7 @@ internal sealed partial class GalleryViewer
     internal const int ViewAnnouncementDelayMs = 400;
 
     private int _rotation;
+    private bool _flipped;
     private int _maxZoomPercent = GalleryZoomLimits.MaxPercentDefault;
     private bool _announceZoom, _announceRotation;
     private readonly DispatcherTimer _announceTimer = new() { Interval = TimeSpan.FromMilliseconds(ViewAnnouncementDelayMs) };
@@ -69,7 +70,7 @@ internal sealed partial class GalleryViewer
     private GalleryViewGeometry? CurrentGeometry => MediaSize is { } size
         ? new GalleryViewGeometry(size.Width, size.Height, ViewportSize.Width, ViewportSize.Height, DisplayScale,
             // Fit enlargement is limited for images only; a video has always filled its area.
-            IsVideoView ? null : FitUpscaleCap, _maxZoomPercent, _rotation)
+            IsVideoView ? null : FitUpscaleCap, _maxZoomPercent, _rotation, _flipped)
         : null;
 
     private GalleryViewPlacement Placement => new(_zoom, _panX, _panY, _manualZoom, _actualZoom);
@@ -174,7 +175,7 @@ internal sealed partial class GalleryViewer
         if (IsVideoView && _video is { TurnsNow: false }) return;
         int next = GalleryRotation.Normalize(_rotation + steps * GalleryRotation.Step);
         GalleryViewGeometry after = before with { Rotation = next };
-        GalleryViewPlacement placement = GalleryViewMath.Rotated(Placement, after, steps);
+        GalleryViewPlacement placement = GalleryViewMath.Rotated(Placement, after, _flipped ? -steps : steps);
         _rotation = next;
         Adopt(placement);
         if (!IsVideoView && !_manualZoom) Fit(retry: false); // The decode target follows the new orientation.
@@ -186,12 +187,33 @@ internal sealed partial class GalleryViewer
         AnnounceView(zoom: true, rotation: true);
     }
 
+    private bool CanFlipView => !_mediaFailed && CurrentGeometry != null && (!IsVideoView || _video is { TurnsNow: true });
+
+    private void FlipView()
+    {
+        if (CanFlipView)
+        {
+            SetFlipped(!_flipped);
+            _panX = -_panX;
+            ApplyPan();
+        }
+        else _flipHorizontal.IsChecked = _flipped;
+    }
+
+    private void SetFlipped(bool flipped)
+    {
+        _flipped = flipped;
+        _imageFlip.ScaleX = flipped ? -1 : 1;
+        _flipHorizontal.IsChecked = flipped;
+    }
+
     // A new medium starts upright; the same medium shown again (a video back from the reader) keeps its rotation.
     private void ResetViewForMedium(GalleryEntry entry)
     {
         bool same = _entry != null && _entry.Key == entry.Key && _entry.Post?.PostId == entry.Post?.PostId
             && _entry.Attachment?.Position == entry.Attachment?.Position;
         _rotation = GalleryViewMath.RotationForMedium(same, _rotation);
+        SetFlipped(same && _flipped);
         _imageRotation.Angle = _rotation;
         _announceZoom = _announceRotation = false;
         _announceTimer.Stop();

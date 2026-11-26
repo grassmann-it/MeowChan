@@ -34,6 +34,7 @@ public sealed class DefaultShortcutInvariantTests
         "tags.queue.cards", "tags.queue.card-1", "tags.queue.card-2", "tags.queue.card-3", "tags.queue.card-4", "tags.queue.card-5",
         // Gallery picture and video: Shift+R turns the shown medium by 90°.
         "gallery.rotate",
+        "gallery.background",
         // PT7: Q puts the open medium in the tag queue (media/gallery contexts, revision 9).
         "media.queue.add",
         // G1: Shift+T switches the gallery between View and Tag (gallery context only).

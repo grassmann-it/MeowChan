@@ -39,6 +39,7 @@ public partial class MainWindow
         _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
         _gallery?.ConfigureZoomLimits(_config.GalleryMaxZoomPercent);
         _gallery?.ConfigureWheelMode(_config.GalleryWheelMode);
+        _gallery?.ConfigureBackground(_config.GalleryBackground);
         if (_gallery != null) _gallery.ControlsIdleHideMs = _config.ControlsIdleHideMs;
         if (_gallery != null) _gallery.VideoSeekStepSeconds = _config.GalleryVideoSeekStepSeconds;
         if (_gallery != null) _gallery.StatusDwellMs = _config.GalleryStatusDwellMs;
