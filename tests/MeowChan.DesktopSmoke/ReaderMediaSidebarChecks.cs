@@ -247,8 +247,9 @@ internal static class ReaderMediaSidebarChecks
             // RD-01: the sidebar stays shown, so pane and sidebar keep their one shared Tab cycle (the frame cycles, the pane continues into it).
             Require(KeyboardNavigation.GetTabNavigation(frame) == KeyboardNavigationMode.Cycle
                 && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue, "After Escape in the sidebar Tab no longer reaches the sidebar.");
-            // Only switching the sidebar off gives the pane its own Tab cycle back.
-            page.ToggleMediaSidebar();
+            // The live close control switches the sidebar off and gives the pane its own Tab cycle back.
+            using (MediaNativeInput native = new(window))
+                await native.ClickAsync(Find<Button>("ReaderMediaSidebarClose"));
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
             Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "The pane did not get its Tab cycle back when the sidebar was switched off.");
         }
@@ -362,7 +363,6 @@ internal static class ReaderMediaSidebarChecks
     {
         // Fable overlay spec §§1–2: the docked bar starts at the 8 DIP panel inset.
         // An overlay bar starts at the media frame. Both have 4 DIP of inner padding.
-        TopLevel? root = TopLevel.GetTopLevel(sidebar);
         Control? header = sidebar.GetVisualDescendants().OfType<Control>()
             .SingleOrDefault(control => AutomationProperties.GetAutomationId(control) == "ReaderMediaSidebarHeaderRow");
         Button? close = sidebar.GetVisualDescendants().OfType<Button>()
@@ -370,16 +370,16 @@ internal static class ReaderMediaSidebarChecks
         double? barTop = header != null && sidebar.FrameArea.IsVisualAncestorOf(header)
             ? sidebar.FrameArea.TranslatePoint(default, sidebar)?.Y : 8;
         double? headerTop = header?.TranslatePoint(default, sidebar)?.Y;
-        Point? closeCenter = root == null || close == null ? null
-            : close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), root);
-        Visual? hit = closeCenter.HasValue ? root!.InputHitTest(closeCenter.Value) as Visual : null;
+        Rect? closeBounds = close?.TranslatePoint(default, sidebar) is Point closeOrigin
+            ? new Rect(closeOrigin, close.Bounds.Size) : null;
         state = $"barTop={barTop}; headerTop={headerTop}; headerVisible={header?.IsEffectivelyVisible}; "
-            + $"close={close?.Bounds}; hit={(hit as Control)?.Name ?? hit?.GetType().Name}.";
+            + $"close={closeBounds}; sidebar={sidebar.Bounds.Size}.";
         return header is { IsEffectivelyVisible: true } && barTop.HasValue && headerTop.HasValue
             && Math.Abs(headerTop.Value - barTop.Value - 4) <= 1
             && close is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true, IsHitTestVisible: true }
-            && close.Bounds.Width > 0 && close.Bounds.Height > 0
-            && hit?.GetSelfAndVisualAncestors().Contains(close) == true;
+            && closeBounds is { Width: > 0, Height: > 0 } position
+            && new Rect(sidebar.Bounds.Size).Inflate(1).Contains(position)
+            && Math.Abs(position.Top - barTop.Value - 4) <= 1;
     }
 
     // The sidebar has no arrows and no counter over the medium (named controls of the old overlay).
