@@ -113,15 +113,19 @@ public sealed class BooruTagDraftTests
 
         ContextMenu popup = fixture.OpenMenu(solo);
         MenuItem stale = BooruResultActionsTests.Item(popup, BooruWorkbenchView.MenuTagRemove);
+        MenuItem staleWiki = WikiItem(popup);
         fixture.Select(fixture.View.SearchTabs.Ids[0]);
         Assert.Equal("other", fixture.Input.Text);
         Assert.False(popup.IsOpen);
         Assert.False(stale.Command!.CanExecute(null));
+        Assert.False(staleWiki.Command!.CanExecute(null));
+        Assert.Empty(fixture.Harness.Links.Opened);
         Assert.False(fixture.Note.IsVisible);
         Assert.Equal("-1Boy -solo", fixture.View.SearchTabs.ViewOf(origin)!.Input);
         fixture.Select(origin);
         Assert.Equal("-1Boy -solo", fixture.Input.Text);
         Assert.False(stale.Command.CanExecute(null));
+        Assert.False(staleWiki.Command.CanExecute(null));
         fixture.UseMenu(fixture.Chip("solo"), BooruWorkbenchView.MenuTagRemove);
         Assert.Equal("-1Boy", fixture.Input.Text);
 
@@ -146,6 +150,62 @@ public sealed class BooruTagDraftTests
         else fixture.Click(fixture.Find<Button>(BooruWorkbenchView.SubmitName));
         Assert.Equal("other", Assert.Single(fixture.Harness.Search.Searches).Query);
     });
+
+    [Theory]
+    [InlineData("en", "Open tag wiki in browser")]
+    [InlineData("de", "Tag-Wiki im Browser öffnen")]
+    public void ListTagOpensItsWikiOnlyWhenTheMenuEntryIsActivated(string language, string label) => Run(() =>
+    {
+        Texts.SetLanguage(language);
+        using Fixture fixture = new();
+        fixture.Seed(draft: "sky");
+        Button chip = fixture.Chip("name_(series)");
+        const string url = "https://danbooru.donmai.us/wiki_pages?title=name_%28series%29";
+
+        ContextMenu menu = fixture.OpenMenu(chip);
+        MenuItem wiki = WikiItem(menu);
+        Assert.Equal(label, AutomationProperties.GetName(wiki));
+        string tooltip = Assert.IsType<string>(ToolTip.GetTip(wiki));
+        Assert.Contains(url, tooltip, StringComparison.Ordinal);
+        Assert.Equal(tooltip, AutomationProperties.GetHelpText(wiki));
+        Assert.True(Assert.Single(MenuProbe.Entries(menu), entry => entry.Item == wiki).HasIcon("external-link"));
+        Assert.Null(wiki.InputGesture);
+        Assert.Empty(fixture.Harness.Links.Opened);
+
+        ContextGestures.KeyStroke(wiki, Avalonia.Input.Key.Enter, PhysicalKey.Enter);
+
+        Assert.False(menu.IsOpen);
+        Assert.Equal(url, Assert.Single(fixture.Harness.Links.Opened));
+        Assert.Equal("sky", fixture.Input.Text);
+        Assert.Equal(0, fixture.Harness.ProviderRequests);
+        Assert.Equal(0, fixture.Harness.Previews.Requests);
+    }, macOS: true);
+
+    [Fact]
+    public void SidebarTagWikiReportsLauncherFailureWithoutSearchingOrRetrying() =>
+        BooruMediaSidebarTests.InWindow((harness, model, view, window) =>
+        {
+            harness.Serve(pages: 1, perPage: 1);
+            BooruMediaSidebarTests.Search(model, view);
+            BooruMediaSidebarTests.Settle(window);
+            Button chip = SidePanelDesignTests.ById<Button>(view, "BooruPanelTag:blue_eyes");
+            TextBlock note = SidePanelDesignTests.ById<TextBlock>(view, BooruWorkbenchView.LinkNoteName);
+            int requests = harness.ProviderRequests;
+            harness.Links.OnOpen = _ => Task.FromException(new InvalidOperationException("browser unavailable"));
+            ContextGestures.MenuKey(chip);
+            ContextMenu menu = Assert.IsType<ContextMenu>(chip.ContextMenu);
+            Assert.Empty(harness.Links.Opened);
+
+            ContextGestures.Click(WikiItem(menu));
+
+            Assert.Equal("https://danbooru.donmai.us/wiki_pages?title=blue_eyes", Assert.Single(harness.Links.Opened));
+            Assert.Equal(Texts.T("booru.ui.tags.openWikiFailed"), note.Text);
+            Assert.Equal("cat", model.Search.View.Input);
+            Assert.Equal(requests, harness.ProviderRequests);
+        });
+
+    private static MenuItem WikiItem(ContextMenu menu) => Assert.Single(menu.Items.OfType<MenuItem>(),
+        item => AutomationProperties.GetAutomationId(item) == BooruWorkbenchView.MenuTagOpenWiki);
 
     [Fact]
     public void NamesThemeColorsAndMenuFollowTypingAndLanguageInTheArrangedPage() => Run(() =>
@@ -214,9 +274,9 @@ public sealed class BooruTagDraftTests
         Assert.False(BooruWorkbenchView.MatchesSearchShortcut(optionEnter, BooruWorkbenchView.AlternateSubmitCommand, mac));
     });
 
-    private static void Run(Action test) => BooruComponentDispatcher.Run(() =>
+    private static void Run(Action test, bool? macOS = null) => BooruComponentDispatcher.Run(() =>
     {
-        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using IDisposable platform = BooruReviewTestPlatform.Enter(macOS: macOS);
         Texts.Initialize();
         string previousLanguage = Texts.Language;
         Texts.SetLanguage("en");
@@ -233,8 +293,8 @@ public sealed class BooruTagDraftTests
         internal BooruUiHarness Harness { get; } = new();
         internal Window Window { get; }
         internal BooruWorkbenchView View { get; }
-        internal TextBox Input => Find<TextBox>(BooruWorkbenchView.InputName);
-        internal TextBlock Note => Find<TextBlock>(BooruWorkbenchView.LinkNoteName);
+        internal TextBox Input => SidePanelDesignTests.ById<TextBox>(View, BooruWorkbenchView.InputName);
+        internal TextBlock Note => SidePanelDesignTests.ById<TextBlock>(View, BooruWorkbenchView.LinkNoteName);
 
         internal Fixture(bool separate = false)
         {
@@ -286,7 +346,7 @@ public sealed class BooruTagDraftTests
         internal T Find<T>(string name) where T : Control =>
             Assert.Single(View.GetVisualDescendants().OfType<T>(), control => control.Name == name);
 
-        internal Button Chip(string tag) => Find<Button>(BooruWorkbenchView.ResultTagPrefix + "101:" + tag);
+        internal Button Chip(string tag) => SidePanelDesignTests.ById<Button>(View, BooruWorkbenchView.ResultTagPrefix + "101:" + tag);
 
         internal Rect Bounds(Control control) =>
             new(control.TranslatePoint(default, Window) ?? throw new InvalidOperationException(control.Name), control.Bounds.Size);

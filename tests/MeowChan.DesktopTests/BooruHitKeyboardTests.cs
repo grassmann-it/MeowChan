@@ -299,7 +299,8 @@ public sealed class BooruHitKeyboardTests
             model.Search.SetInput(string.Empty);
 
             ContextMenuModel menu = TagMenu(view, "cat");
-            Assert.Equal(new[] { BooruWorkbenchView.MenuTagAdd, BooruWorkbenchView.MenuTagExclude, BooruWorkbenchView.MenuTagRemove,
+            // UX §1 Z1: "direkt unter ‚Zur Suche hinzufügen‘ und ‚Aus der Suche ausschließen‘".
+            Assert.Equal(new[] { BooruWorkbenchView.MenuTagAdd, BooruWorkbenchView.MenuTagExclude, BooruWorkbenchView.MenuTagOpenWiki, BooruWorkbenchView.MenuTagRemove,
                 FilterChipMenu.CopyName }, menu.Entries.Select(entry => entry.Id));
             Assert.All(menu.Entries, entry => Assert.True(entry.Available));
             Assert.Equal("Add to search", Entries(menu)[0].Label);

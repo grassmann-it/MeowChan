@@ -328,6 +328,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildFooter()
     {
+        AutomationProperties.SetAutomationId(_linkNote, LinkNoteName);
         AutomationProperties.SetLiveSetting(_linkNote, AutomationLiveSetting.Polite);
         return new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { _linkNote } };
     }
@@ -893,7 +894,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private async Task OpenLinkAsync(string url, BooruResultTarget? target = null,
         string failureKey = "booru.ui.link.openFailed")
     {
-        // Canonical URLs are built from post ids or executed searches. Show launcher failures without logging the URL.
+        // Canonical URLs are built locally from post ids, tag names or executed searches. Show launcher failures without logging the URL.
         if (!TryBeginLinkAction(out long revision)) return;
         ResultLinkScope? scope = CaptureResultLink(target);
         try

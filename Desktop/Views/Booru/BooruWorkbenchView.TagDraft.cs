@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Styling;
+using MeowChan.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
@@ -15,6 +16,7 @@ namespace MeowChan.Desktop.Booru;
 internal sealed partial class BooruWorkbenchView
 {
     internal static readonly string MenuTagRemove = "booru.menu.tag-remove";
+    internal static readonly string MenuTagOpenWiki = "booru.menu.tag-open-wiki";
     private static readonly string DraftIncluded = "booru-draft-included";
     private static readonly string DraftExcluded = "booru-draft-excluded";
     private readonly List<ContextMenuHost> _resultTagMenus = new();
@@ -29,9 +31,18 @@ internal sealed partial class BooruWorkbenchView
             && (scope is not { } bound || IsCurrentResultLink(bound));
         if (!Available()) return null;
 
-        return new ContextMenuBuilder().Named(tag)
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(tag)
             .Item(MenuTagAdd, Texts.T("booru.ui.tags.menuAdd"), () => Edit(BooruTagDraftAction.Include), availableWhen: Available, icon: "plus")
-            .Item(MenuTagExclude, Texts.T("booru.ui.tags.menuExclude"), () => Edit(BooruTagDraftAction.Exclude), availableWhen: Available, icon: "minus")
+            .Item(MenuTagExclude, Texts.T("booru.ui.tags.menuExclude"), () => Edit(BooruTagDraftAction.Exclude), availableWhen: Available, icon: "minus");
+        if ((target?.Post.SourceId ?? _model.Search.View.ProviderId) == DanbooruPostReference.ProviderId && !string.IsNullOrWhiteSpace(tag))
+        {
+            string url = $"https://{DanbooruPostReference.MetadataHost}/wiki_pages?title={Uri.EscapeDataString(tag)}";
+            menu.Item(MenuTagOpenWiki, Texts.T("booru.ui.tags.openWiki"), () =>
+            {
+                if (Available()) OpenActions.Start(() => OpenLinkAsync(url, target, "booru.ui.tags.openWikiFailed"), MenuTagOpenWiki);
+            }, availableWhen: Available, icon: "external-link", tooltip: Texts.T("booru.ui.tags.openWikiTip", url));
+        }
+        return menu
             .Item(MenuTagRemove, Texts.T("action.remove"), () => Edit(BooruTagDraftAction.Remove), availableWhen: Available, icon: "x")
             .Section()
             .Command("tags.copy-name", () =>

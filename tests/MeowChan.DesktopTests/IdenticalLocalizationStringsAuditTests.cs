@@ -17,16 +17,16 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
             // Tom's B3/B4 selection keeps English where the pop culture references work best in the original.
             // Round 4 keeps the marked English lines, release puns and language-specific English fallbacks.
             // Tagline curation keeps the approved shared English texts in the Top 100, seasonal and release selections.
-            ["cs"] = (5753, 134, "ffa77d9c7f3289662bd6025f4a3f665234975201b70d9e70814bed8fe7071557"),
-            ["es"] = (5697, 123, "07fbb0e45f80756812edd5fc6fdcb30747fe1d28dbcbb8ad80402638145934e4"),
-            ["fr"] = (5697, 160, "b8501b96bbcd45b685a61033cfea567313cf49cf31f2ece76ed893cf212a4199"),
-            ["it"] = (5703, 174, "39059c62f0177b1f68271b85c51b40e4f1884d38f959f901d87c779768255e55"),
-            ["ja"] = (5587, 101, "49f4b6439fa244f1367c5d8456fe123b232b21d1d462cd3cf8f680b56097b798"),
-            ["ko"] = (5587, 97, "4fca56c66ab0f3cea7c6b318fa5461be90c53d0d59ef5fbe478b99750fa4ee52"),
-            ["pl"] = (5754, 138, "55964252f97b6167a450c6968d2f8093e27b34bff90f6728b69401a4eb2fd272"),
-            ["pt-BR"] = (5703, 184, "59d6702c52135de891262df6d37bb9328ffa6c18a72382ea2fdb42cdf7825d24"),
-            ["ru"] = (5731, 103, "ce08668ea1d7afa72d174f378378fc8a91c4c6868ae4ad7b6cec4016fb84d058"),
-            ["zh-Hans"] = (5587, 92, "9d6c1d9be94421cb3ceb889237ed8cefeacf681da4bced030d34f5788fbbd181"),
+            ["cs"] = (5756, 134, "ffa77d9c7f3289662bd6025f4a3f665234975201b70d9e70814bed8fe7071557"),
+            ["es"] = (5700, 123, "07fbb0e45f80756812edd5fc6fdcb30747fe1d28dbcbb8ad80402638145934e4"),
+            ["fr"] = (5700, 160, "b8501b96bbcd45b685a61033cfea567313cf49cf31f2ece76ed893cf212a4199"),
+            ["it"] = (5706, 174, "39059c62f0177b1f68271b85c51b40e4f1884d38f959f901d87c779768255e55"),
+            ["ja"] = (5590, 101, "49f4b6439fa244f1367c5d8456fe123b232b21d1d462cd3cf8f680b56097b798"),
+            ["ko"] = (5590, 97, "4fca56c66ab0f3cea7c6b318fa5461be90c53d0d59ef5fbe478b99750fa4ee52"),
+            ["pl"] = (5757, 138, "55964252f97b6167a450c6968d2f8093e27b34bff90f6728b69401a4eb2fd272"),
+            ["pt-BR"] = (5706, 184, "59d6702c52135de891262df6d37bb9328ffa6c18a72382ea2fdb42cdf7825d24"),
+            ["ru"] = (5734, 103, "ce08668ea1d7afa72d174f378378fc8a91c4c6868ae4ad7b6cec4016fb84d058"),
+            ["zh-Hans"] = (5590, 92, "9d6c1d9be94421cb3ceb889237ed8cefeacf681da4bced030d34f5788fbbd181"),
         };
 
     // The provider number, unit and precision retain the same punctuation in these packs.
@@ -65,8 +65,8 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
         // Tom’s 1.1.3 round 4 selection adds 94 taglines.
         // Fable 18 and 25 add the Stamp command label and remove three unused labels.
         // The Taglines Top 100 consensus reduces the General selection to 100 quips.
-        // Product verdict §1 Z3/Z4 adds both command labels, the four backgrounds and their two tooltips.
-        Assert.Equal(5699, BuiltInCatalog.English.Count);
+        // UX §1 Z1: "Tag-Wiki im Browser öffnen" with a tooltip following the post link pattern and a launcher failure message.
+        Assert.Equal(5702, BuiltInCatalog.English.Count);
         Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
         Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
     }
