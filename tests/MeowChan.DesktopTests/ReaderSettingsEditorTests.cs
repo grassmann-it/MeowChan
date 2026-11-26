@@ -57,6 +57,40 @@ public sealed class ReaderSettingsEditorTests : IDisposable
     public ReaderSettingsEditorTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
+    [Theory]
+    [InlineData("en", "Expand replies on post focus",
+        "Opens replies under the selected post and closes them when you move to another post. Replies you open or close yourself keep that state while the thread is open.")]
+    [InlineData("de", "Antworten bei Postfokus aufklappen",
+        "Öffnet Antworten unter dem markierten Post und klappt sie beim Wechsel zu einem anderen Post wieder ein. Von Hand geöffnete oder geschlossene Antworten behalten ihren Zustand, solange der Thread offen ist.")]
+    [InlineData("cs", "Rozbalit odpovědi při výběru příspěvku",
+        "Otevře odpovědi pod vybraným příspěvkem a při přechodu na jiný příspěvek je zavře. Ručně otevřené nebo zavřené odpovědi si zachovají svůj stav, dokud je vlákno otevřené.")]
+    [InlineData("es", "Expandir las respuestas al seleccionar una publicación",
+        "Abre las respuestas bajo la publicación seleccionada y las cierra al pasar a otra. Las respuestas que abras o cierres manualmente conservan su estado mientras el hilo siga abierto.")]
+    [InlineData("fr", "Développer les réponses à la sélection d’un message",
+        "Ouvre les réponses sous le message sélectionné et les referme au passage à un autre message. Les réponses ouvertes ou fermées manuellement conservent cet état tant que le fil est ouvert.")]
+    [InlineData("it", "Espandi le risposte del post selezionato",
+        "Apre le risposte sotto il post selezionato e le chiude quando passi a un altro post. Le risposte aperte o chiuse a mano mantengono il loro stato finché il thread è aperto.")]
+    [InlineData("ja", "選択した投稿の返信を展開",
+        "選択した投稿の下に返信を開き、別の投稿に移ると閉じます。手動で開閉した返信は、スレッドを開いている間その状態を保ちます。")]
+    [InlineData("ko", "선택한 게시물의 답글 펼치기",
+        "선택한 게시물 아래에 답글을 펼치고 다른 게시물로 이동하면 접습니다. 직접 펼치거나 접은 답글은 스레드가 열려 있는 동안 그 상태를 유지합니다.")]
+    [InlineData("pl", "Rozwijaj odpowiedzi po wybraniu wpisu",
+        "Otwiera odpowiedzi pod wybranym wpisem i zwija je po przejściu do innego wpisu. Odpowiedzi otwarte lub zamknięte ręcznie zachowują swój stan, dopóki wątek jest otwarty.")]
+    [InlineData("pt-BR", "Expandir respostas ao selecionar uma postagem",
+        "Abre as respostas abaixo da postagem selecionada e as fecha ao mudar de postagem. As respostas que você abrir ou fechar manualmente mantêm seu estado enquanto o tópico estiver aberto.")]
+    [InlineData("ru", "Раскрывать ответы при выборе сообщения",
+        "Открывает ответы под выбранным сообщением и сворачивает их при переходе к другому сообщению. Ответы, которые вы открыли или закрыли вручную, сохраняют своё состояние, пока открыт тред.")]
+    [InlineData("zh-Hans", "选中帖子时展开回复",
+        "展开选中帖子下的回复，切换到其他帖子时收起。手动展开或收起的回复会在主题打开期间保持该状态。")]
+    public void ReplyExpansionSettingDescribesSelectionAndManualChoices(string language, string label, string hint)
+    {
+        SettingsEditor editor = CreateEditor();
+        Texts.SetLanguage(language);
+        Assert.Equal(language, Texts.Language);
+        Assert.Equal(label, editor.ReaderExpandRepliesLabel);
+        Assert.Equal(hint, editor.ReaderExpandRepliesHint);
+    }
+
     [Fact]
     public void EveryNumericReaderFieldUsesComponentBoundRangesAndHasAccessibleMarkup()
     {
