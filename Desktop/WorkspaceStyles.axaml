@@ -31,6 +31,7 @@
                          Dark CardEdge (#5A636E) is computed at 3.03:1 on Background, 2.74:1 on Panel and 2.56:1 on Card
                          (WCAG relative luminance; not measured natively), so it clears 3:1 only against the page; adjust it here only. -->
                     <SolidColorBrush x:Key="Workspace.Card">#20242A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.MediaBarScrim">#E6181A1F</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#5A636E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#1B1E22</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #66000000</BoxShadows>
@@ -313,6 +314,7 @@
                     <SolidColorBrush x:Key="Workspace.SegmentPressed">#CAC2B6</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.MediaBarScrim">#E6FAF7F1</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#EFECE6</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #26000000</BoxShadows>
@@ -1580,20 +1582,14 @@
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <Style Selector="Border.media-sidebar-close.floating">
-        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" />
-    </Style>
-    <Style Selector="Border.media-sidebar-overlay TextBlock.workspace-panel-title">
-        <Setter Property="Foreground" Value="White" />
-    </Style>
-    <Style Selector="Border.media-sidebar-overlay TextBlock.workspace-meta">
-        <Setter Property="Foreground" Value="#CCFFFFFF" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaBarScrim}" />
     </Style>
     <Style Selector="Border.media-sidebar-overlay Button /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Border.media-sidebar-overlay Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#F0181A1F" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
     </Style>
 
     <!-- The one hairline of the quick tag popover and the gallery tag panel: between the decision row (favourite, rating) and the tag field. Its own 4 dip

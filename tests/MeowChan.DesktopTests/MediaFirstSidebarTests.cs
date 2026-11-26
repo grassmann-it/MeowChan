@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -315,6 +316,43 @@ public sealed class MediaFirstSidebarTests
             Click(window, Center(target, window));
             Assert.Equal(favorite ? new int?[] { 2, 4 } : [2, 3], ratings);
             Assert.Equal((false, !favorite), (favorites[0], favorites[1]));
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void AutoHideBarsFollowTheWindowTheme() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using RenderTargetBitmap picture = new(new PixelSize(400, 300));
+        ReaderMediaSidebar panel = new();
+        panel.Describe("No. 7", "sample.png", "", true);
+        panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
+        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarAutoHide = true, MediaSidebarPinned = false });
+        Window window = new() { Width = 420, Height = 720, Content = panel, RequestedThemeVariant = ThemeVariant.Light };
+        try
+        {
+            window.Show();
+            Settle(window);
+            var header = SidePanelDesignTests.ById<Control>(panel, "ReaderMediaSidebarHeaderRow");
+            var headBar = Assert.Single(panel.GetVisualDescendants().OfType<Border>(),
+                border => ControlAutomationPeer.CreatePeerForElement(border)?.GetAutomationId() == "ReaderMediaSidebarHeadOverlay");
+            var details = SidePanelDesignTests.ById<Border>(panel, "ReaderMediaSidebarOverlay");
+            var editTags = SidePanelDesignTests.ById<Button>(details, "ReaderMediaSidebarEditTags");
+            var close = SidePanelDesignTests.ById<Button>(panel, "ReaderMediaSidebarClose");
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+            {
+                window.RequestedThemeVariant = theme;
+                Settle(window);
+                Assert.Equal(theme, header.ActualThemeVariant);
+                Assert.Equal(theme, editTags.ActualThemeVariant);
+                Assert.Equal(theme, close.ActualThemeVariant);
+                object? scrim = window.FindResource(theme, "Workspace.MediaBarScrim");
+                Assert.Equal(Color.Parse(theme == ThemeVariant.Light ? "#E6FAF7F1" : "#E6181A1F"),
+                    Assert.IsAssignableFrom<ISolidColorBrush>(scrim).Color);
+                Assert.Equal(scrim, headBar.Background);
+                Assert.Equal(scrim, details.Background);
+            }
         }
         finally { window.Close(); }
     });

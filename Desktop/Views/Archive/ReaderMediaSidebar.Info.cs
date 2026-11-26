@@ -106,7 +106,7 @@ internal sealed partial class ReaderMediaSidebar
     private static Border OverlayBar(string name, VerticalAlignment alignment, CornerRadius corners) => new()
     {
         Name = name, VerticalAlignment = alignment, CornerRadius = corners, Classes = { "media-sidebar-overlay" },
-        [!BackgroundProperty] = new DynamicResourceExtension("Workspace.MediaScrim")
+        [!BackgroundProperty] = new DynamicResourceExtension("Workspace.MediaBarScrim")
     };
 
     internal void ConfigureInfo(ReaderMediaPreferences preferences)
@@ -250,12 +250,12 @@ internal sealed partial class ReaderMediaSidebar
 
     private static bool InBar(Visual bar, Visual source) => bar == source || bar.IsVisualAncestorOf(source);
 
-    private static ThemeVariantScope DarkScope(Control content) => new() { RequestedThemeVariant = ThemeVariant.Dark, Child = content };
+    private static ThemeVariantScope BarScope(Control content) => new() { RequestedThemeVariant = ThemeVariant.Default, Child = content };
 
     private void InitializeInfo()
     {
         InfoToggle.Click += (_, _) => ToggleDetails();
-        _headBar.Child = DarkScope(_header);
+        _headBar.Child = BarScope(_header);
         _info.Margin = new Thickness(8, 0);
         _factArea.Child = _info;
         foreach (Control control in new Control[] { _expandedRows, _infoBar.Expand, _extraGrid, _allTags })
@@ -263,7 +263,7 @@ internal sealed partial class ReaderMediaSidebar
         _extraFacts.Children.Insert(0, _extraGrid);
         _expandedRows.Content = new StackPanel { Margin = new Thickness(8), Spacing = 8, Children = { _allTags, _extraFacts } };
         _dockedExpansion.Child = _expandedRows;
-        _details.Child = DarkScope(new StackPanel { Children = { _dockedExpansion, _infoBar, _factArea, _decisionError } });
+        _details.Child = BarScope(new StackPanel { Children = { _dockedExpansion, _infoBar, _factArea, _decisionError } });
         _hoverPopup.PlacementTarget = _details;
         _hoverPopup.Child = _hoverSurface;
         _layout.Children.Add(_hoverPopup);
@@ -304,7 +304,7 @@ internal sealed partial class ReaderMediaSidebar
         _facts.SizeChanged += (_, _) => UpdateExpansion(refreshFacts: true);
         _details.SizeChanged += (_, _) => _hoverSurface.Width = _details.Bounds.Width;
         SizeChanged += (_, _) => UpdateExpansion();
-        _closeFace.Child = DarkScope(Close);
+        _closeFace.Child = BarScope(Close);
         _frame.Children.Add(_overlayLayer);
         _layout.Children.Add(_dockedHead);
         InitializeSettingsMenu();
@@ -459,11 +459,8 @@ internal sealed partial class ReaderMediaSidebar
             Grid.SetRow(_details, dockFoot ? 2 : 0);
             _headBar.Classes.Set("media-sidebar-overlay", overlay);
             _details.Classes.Set("media-sidebar-overlay", !dockFoot);
-            _headBar[!BackgroundProperty] = new DynamicResourceExtension(overlay ? "Workspace.MediaScrim" : "Workspace.Card");
-            _details[!BackgroundProperty] = new DynamicResourceExtension(dockFoot ? "Workspace.Card" : "Workspace.MediaScrim");
-            ((ThemeVariantScope)_headBar.Child!).RequestedThemeVariant = overlay ? ThemeVariant.Dark : ThemeVariant.Default;
-            ((ThemeVariantScope)_details.Child!).RequestedThemeVariant = dockFoot ? ThemeVariant.Default : ThemeVariant.Dark;
-            ((ThemeVariantScope)_closeFace.Child!).RequestedThemeVariant = overlay ? ThemeVariant.Dark : ThemeVariant.Default;
+            _headBar[!BackgroundProperty] = new DynamicResourceExtension(overlay ? "Workspace.MediaBarScrim" : "Workspace.Card");
+            _details[!BackgroundProperty] = new DynamicResourceExtension(dockFoot ? "Workspace.Card" : "Workspace.MediaBarScrim");
             _card.Margin = overlay ? default : new Thickness(0, 8, 0, 0);
             _details.Margin = dockFoot ? new Thickness(0, 8, 0, 0) : default;
         }
