@@ -106,7 +106,17 @@ internal sealed partial class BooruWorkbenchView
         {
             if (e.TryGetPosition(picture, out _) && _sidebarContextPress.TryConsume()) e.Handled = true;
         }, RoutingStrategies.Tunnel);
-        ContextMenuHost pictureMenu = _sidebarPictureMenu = new(picture, () =>
+        picture.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            _sidebarContextPress.BeginPress();
+            if (e.Handled || !ContextClick.IsPress(e, picture)) return;
+            _sidebarContextPress.MenuOpenedByPress(ContextClick.Button(e, picture));
+            e.Handled = true;
+            _sidebarPictureMenu?.Show(atPointer: true);
+        }, RoutingStrategies.Tunnel);
+        picture.AddHandler(PointerReleasedEvent, (_, e) => _sidebarContextPress.Released(e.InitialPressMouseButton),
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+        _sidebarPictureMenu = new ContextMenuHost(picture, () =>
         {
             if (CurrentSidebarResult() is not { } result || ComposeResultMenu(result) is not { } menu) return null;
             FocusSidebarHit(result.PostId);
@@ -115,16 +125,6 @@ internal sealed partial class BooruWorkbenchView
         {
             if (CurrentSidebarResult() is { } result) FocusSidebarHit(result.PostId);
         });
-        picture.AddHandler(PointerPressedEvent, (_, e) =>
-        {
-            _sidebarContextPress.BeginPress();
-            if (e.Handled || !ContextClick.IsPress(e, picture)) return;
-            _sidebarContextPress.MenuOpenedByPress(ContextClick.Button(e, picture));
-            e.Handled = true;
-            pictureMenu.Show(atPointer: true);
-        }, RoutingStrategies.Tunnel);
-        picture.AddHandler(PointerReleasedEvent, (_, e) => _sidebarContextPress.Released(e.InitialPressMouseButton),
-            RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     private ResultActions? CurrentSidebarResult()
