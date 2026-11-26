@@ -444,7 +444,7 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
         const int postCount = 9;
         const int tallPostIndex = 3;
         string longBody = string.Join("<br>", Enumerable.Repeat("A line in a tall post.", 48));
-        string mediaBody = string.Join("<br>", Enumerable.Repeat("A line in the media post.", 17));
+        string mediaBody = string.Join("<br>", Enumerable.Repeat("A line in the media post.", 12));
         CapturedAttachment attachment = new(0, "picture", Url: FixtureUrl + FileName, OriginalFileName: FileName);
         CapturedPost[] captured = Enumerable.Range(0, postCount).Select(index => new CapturedPost(
             (openingPost + index).ToString(), index, PostFieldPresence.All,
@@ -473,6 +473,11 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 window.PlatformImpl!.Activated?.Invoke();
                 BooruComponentDispatcher.Wait(page.LoadThreadAsync(thread));
                 ListBox posts = Posts(window);
+                ArchivePostRow lastRow = Assert.IsType<ArchivePostRow>(posts.Items[postCount - 1]);
+                ArchiveAttachmentRow lastAttachment = Assert.Single(lastRow.Attachments);
+                Assert.NotNull(MediaAttachmentResolver.Resolve(media, thread, lastRow.Id, lastAttachment.Attachment));
+                // Start with a wide reserved frame so the portrait's decoded aspect changes the card's height.
+                lastAttachment.KnownAspect = 4;
                 ScrollViewer scroll = Assert.IsType<ScrollViewer>(posts.Scroll);
                 ScrollContentPresenter viewport = Assert.Single(scroll.GetVisualDescendants().OfType<ScrollContentPresenter>());
                 double Bottom() => scroll.Extent.Height - scroll.Viewport.Height;
@@ -512,6 +517,12 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 Step(Key.Down, PhysicalKey.ArrowDown, postCount - 1);
                 Assert.Equal(Bottom(), scroll.Offset.Y);
                 Assert.Null(Picture(SelectedCard()));
+                Image preview = Assert.Single(SelectedCard().GetVisualDescendants().OfType<Image>(),
+                    image => AutomationProperties.GetAutomationId(image) == "ReaderAttachmentPreview");
+                ArchiveAttachmentView medium = Assert.IsType<ArchiveAttachmentView>(preview.FindAncestorOfType<ArchiveAttachmentView>());
+                Rect frameBeforeLoad = Assert.IsType<Rect>(medium.FrameBoundsIn(viewport));
+                Assert.True(frameBeforeLoad.Intersects(new Rect(scroll.Viewport)),
+                    $"The reserved frame {frameBeforeLoad} must intersect the viewport {scroll.Viewport} to load.");
                 double heightBeforeLoad = SelectedCard().Bounds.Height;
                 if (scrollBeforePictureLoads)
                 {
@@ -528,11 +539,19 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
 
                 inventory.SetResult(media);
                 BooruComponentDispatcher.Wait(page.MediaLoadTask);
-                BooruComponentDispatcher.WaitUntil(() =>
+                try
                 {
-                    Layout();
-                    return Picture(SelectedCard()) is { IsArrangeValid: true } && SelectedCard().Bounds.Height > heightBeforeLoad + 1;
-                }, "the last post's portrait to load and grow its card");
+                    BooruComponentDispatcher.WaitUntil(() =>
+                    {
+                        Layout();
+                        return Picture(SelectedCard()) is { IsArrangeValid: true } && SelectedCard().Bounds.Height > heightBeforeLoad + 1;
+                    }, "the last post's portrait to load and grow its card");
+                }
+                catch (TimeoutException error)
+                {
+                    throw new TimeoutException($"{error.Message}. Preview status: {medium.PreviewStatus}, aspect: {lastAttachment.KnownAspect}, "
+                        + $"frame {frameBeforeLoad} → {medium.FrameBoundsIn(viewport)}, card height {heightBeforeLoad} → {SelectedCard().Bounds.Height}.", error);
+                }
                 Assert.True(SelectedCard().Bounds.Height > scroll.Viewport.Height);
                 Assert.True(Bottom() > beforeLoad);
                 if (scrollBeforePictureLoads) Assert.True(scroll.Offset.Y < Bottom() - 1);
