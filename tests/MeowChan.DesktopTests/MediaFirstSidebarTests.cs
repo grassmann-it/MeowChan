@@ -31,7 +31,7 @@ public sealed class MediaFirstSidebarTests
     private static readonly string[] CompactFactKeys = ["media.fact.location", "media.fact.author", "media.fact.posted",
         "media.fact.file", "archive.size", "media.fact.dimensions"];
     private static readonly string[] ContrastBackdrops = ["#FFFFFF", "#000000"];
-    private static readonly string[] GearEntries = ["autoHide", "facts"];
+    private static readonly string[] GearEntries = ["autoHide", "facts", "videoAutoplay", "videoLoop", "videoMuted"];
 
     [Theory]
     [InlineData(SavedMediaKind.Image, "sample.jpg")]
@@ -386,7 +386,7 @@ public sealed class MediaFirstSidebarTests
     });
 
     [Fact]
-    public void GearOffersExactlyTheTwoSharedPreferencesAndReflectsShortcutChanges() => BooruComponentDispatcher.Run(() =>
+    public void GearOffersTheSharedSidebarAndVideoPreferencesAndReflectsShortcutChanges() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Config saved = new();
@@ -398,7 +398,7 @@ public sealed class MediaFirstSidebarTests
             window.Show();
             Settle(window);
             ToggleButton gear = SidePanelDesignTests.ById<ToggleButton>(sidebar, "ReaderMediaSidebarSettings");
-            // M7: the gear contains only auto-hide and facts in every host.
+            // Fable F10 (1.1.3): the shared gear holds auto-hide, facts and the video autoplay, loop and mute switches in every host.
             (MenuFlyout Menu, MenuItem[] Items) Open()
             {
                 Click(window, Center(gear, window));
