@@ -68,11 +68,13 @@ public sealed class ReaderJourneyIsolationTests
 
     // Owned navigation keeps the continuous-list assertion from 8be37b24a and the frozen query checks.
     // Per Tom's 1.1.2 FOK-3 decision (25 Nov, 17:55), arrows now start on the focused post card.
-    // The two gallery journeys still match ba1842af4 lines 249–425.
+    // cbd16be73 verifies that Down keeps navigating posts after a direct return to the reader.
+    // Release plan P2: at 1000 and 270 DIP the list round trip keeps search, page and selection,
+    // closes overflow and restores focus so Down selects the next result.
     [Theory]
     [InlineData("CheckOwnedNavigationAsync", "3B05815D54A3CC49B69A49D4B5700893C56E64B5842C904286BB816A7945C686")]
-    [InlineData("CheckGalleryRoundtripAsync", "D56D7315DB3A2C848CB94F63F856CEA96B48A1208130A002C93AD2CF64F97F7C")]
-    [InlineData("CheckListGalleryReturnAsync", "BDEFAB3078B96B9D0F39958B9C6B69A28F72E1C55EAF8E24690F5EF9FE483292")]
+    [InlineData("CheckGalleryRoundtripAsync", "A6D0340505005ACD4EE9BB3F54A5CBA1DC7FF72F44CC7A46C5609417090C3770")]
+    [InlineData("CheckListGalleryReturnAsync", "03A801A3562934E11A850FF1B15B14B440BA8FF30B67C131BF7C91734D27EAF3")]
     public void ExtractedJourneyRetainsEveryReviewedStatement(string method, string expected)
     {
         string source = Read("ReaderUxChecks.cs");
