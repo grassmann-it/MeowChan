@@ -62,7 +62,7 @@ internal static class VideoPlayMark
     internal static Color CurrentRatingColor => CurrentDark(Controls.RatingStar.Token, RatingColor);
 
     private static Color CurrentDark(string token, Color builtIn) =>
-        Theming.ThemeRuntime.Current(Avalonia.Styling.ThemeVariant.Dark) is { } palette && palette.Colors.TryGetValue(token, out Color color) ? color : builtIn;
+        Theming.ThemeRuntime.Current(Avalonia.Styling.ThemeVariant.Dark) is { Colors: var inUse } && inUse.TryGetValue(token, out Color color) ? color : builtIn;
 
     /// <summary>The triangle's bounding box for a circle of this diameter.</summary>
     internal static Size GlyphSize(double diameter) => new(diameter * GlyphWidthRatio, diameter * GlyphHeightRatio);
