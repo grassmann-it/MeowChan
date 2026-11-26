@@ -525,7 +525,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         _headerFavorite.TargetSaving = () => _pendingWrites.Contains(DecisionTarget);
         _decision.RatingRequested += value =>
         {
-            if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
+            if (_writeRating is { } write)
+                OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable, announceRating: true), "media.rating.edit");
         };
         _decision.AddHandler(KeyDownEvent, (_, e) =>
         {
@@ -1031,26 +1032,31 @@ internal sealed partial class ReaderMediaSidebar : Border
         if (_decisionError.IsVisible) RevealBars();
     }
 
-    private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available)
+    private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available, bool announceRating = false)
     {
         var target = DecisionTarget;
         if (write == null || available?.Invoke() != true || !_pendingWrites.Add(target)) return;
         int revision = _mediumRevision;
+        int? previousRating = _decision.View.Rating;
         _decisionFailure = null;
         try
         {
             RefreshDecisions();
-            if (await VerifyImageActionAsync() && revision == _mediumRevision && available()) await write();
+            if (!await VerifyImageActionAsync() || revision != _mediumRevision || !available()) return;
+            await write();
         }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             if (_mediumRevision == revision) _decisionFailure = error.Message;
+            return;
         }
         finally
         {
             _pendingWrites.Remove(target);
             RefreshDecisions();
         }
+        if (announceRating && revision == _mediumRevision && _decision.View.Rating != previousRating)
+            Announce(GalleryDecisionText.Rating(_decision.View));
     }
 
     /// <summary>The badges of the shown picture (smokes read it).</summary>
