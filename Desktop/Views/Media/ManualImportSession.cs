@@ -45,6 +45,7 @@ internal sealed class ManualImportSession
     }
 
     internal event Action? Updated;
+    internal event Action? ProgressUpdated;
 
     internal IReadOnlyList<string> Roots => _roots;
     internal IReadOnlyList<string> Tags => _tags;
@@ -162,7 +163,12 @@ internal sealed class ManualImportSession
     private async Task CheckAsync(int generation, CancellationTokenSource work)
     {
         ManualImportRequest request = new(_roots.ToArray(), _includeSubfolders, _includeOtherFiles);
-        Progress<ManualImportCheckProgress> progress = new(value => { if (generation == _generation) { CheckProgress = value; Changed(); } });
+        Progress<ManualImportCheckProgress> progress = new(value =>
+        {
+            if (generation != _generation || Stage != ManualImportStage.Checking) return;
+            CheckProgress = value;
+            ProgressUpdated?.Invoke();
+        });
         try
         {
             ManualImportPlan plan = await _plan(request, progress, work.Token);
@@ -214,7 +220,12 @@ internal sealed class ManualImportSession
 
     private async Task RunAsync(ManualImportPlan plan, int generation, CancellationTokenSource work)
     {
-        Progress<ManualImportCopyProgress> progress = new(value => { if (generation == _generation) { CopyProgress = value; Changed(); } });
+        Progress<ManualImportCopyProgress> progress = new(value =>
+        {
+            if (generation != _generation || Stage != ManualImportStage.Importing) return;
+            CopyProgress = value;
+            ProgressUpdated?.Invoke();
+        });
         try
         {
             Outcome = await _run(plan, new ManualImportOptions(BatchName.Trim(), _tags.ToArray()), progress, work.Token);
