@@ -59,8 +59,10 @@ public sealed class TaggingPageShellTests
         }
     });
 
-    [Fact]
-    public void SidebarShortcutsWorkWhileTheTaggingSidebarIsClosed() => WithTaggingPage(false, async (window, session, _) =>
+    [Theory]
+    [InlineData(Config.MediaPanelMinimumPageWidthMinimum, 886)] // 640 DIP for the list, 6 for the splitter, 240 for the sidebar.
+    [InlineData(Config.MediaPanelMinimumPageWidthDefault, Config.MediaPanelMinimumPageWidthDefault)]
+    public void SidebarShortcutsWorkWhileTheTaggingSidebarIsClosed(int minimumPageWidth, int effectiveMinimumWidth) => WithTaggingPage(false, async (window, session, _) =>
     {
         ToggleButton toggle = Find<ToggleButton>(window, "TaggingPanelToggle");
         Assert.False(toggle.IsChecked);
@@ -70,15 +72,15 @@ public sealed class TaggingPageShellTests
         await WaitAsync(window, () => session.Config.MediaSidebarAutoHide != autoHide, "autohide choice from Shift+A");
         Assert.False(toggle.IsChecked);
 
-        BooruReviewTestPlatform.Resize(window, 900);
+        BooruReviewTestPlatform.Resize(window, 850);
         Press(window, PhysicalKey.I, RawInputModifiers.Shift);
         await WaitAsync(window, () => session.Config.TaggingPagePanel && session.Config.SidebarFactsVisible, "sidebar and facts choice from Shift+I");
-        Assert.Equal(Texts.T("tagging.page.panel.narrow"), Find<TextBlock>(window, "TaggingStatus").Text);
+        Assert.Equal(Texts.T("media.layout.panel.collapsed", effectiveMinimumWidth), Find<TextBlock>(window, "TaggingStatus").Text);
         Assert.False(Find<Control>(window, "TaggingPanel").IsEffectivelyVisible);
 
         BooruReviewTestPlatform.Resize(window, 1440);
         await WaitAsync(window, () => Find<Control>(window, "ReaderMediaSidebarFacts").IsEffectivelyVisible, "sidebar facts after widening");
-    });
+    }, minimumPageWidth: minimumPageWidth);
 
     [Fact]
     public void ShutdownKeepsTheProfileUntilTheTaggingPlayerReleasesIt() => WithTaggingPage(true, async (window, session, _) =>
@@ -163,7 +165,7 @@ public sealed class TaggingPageShellTests
     }
 
     private static void WithTaggingPage(bool panelEnabled, Func<MainWindow, DesktopSessionHost, FavoriteAssetKey, Task> test,
-        Func<string>? waitingFor = null) =>
+        Func<string>? waitingFor = null, int minimumPageWidth = Config.MediaPanelMinimumPageWidthDefault) =>
         BooruComponentDispatcher.Run(() =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -178,7 +180,7 @@ public sealed class TaggingPageShellTests
                 {
                     DownloadPath = Path.Combine(profile.Path, "downloads"), FirstRunSetupVersion = 1, DownloadsPaused = true,
                     WorkspaceMode = "Advanced", Language = "en", TaggingPageView = "List", TaggingPagePanel = panelEnabled,
-                    MediaSidebarFacts = false, MediaSidebarAutoHide = false
+                    MediaSidebarFacts = false, MediaSidebarAutoHide = false, MediaPanelMinimumPageWidth = minimumPageWidth
                 }.SaveConfig(profile.Path);
                 await RateAndTagWindowFixture.SeedAsync(profile.Path, capture);
                 TagQueueItem item = Assert.IsType<TagQueueItem>(
