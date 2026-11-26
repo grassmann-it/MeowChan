@@ -18,21 +18,17 @@ namespace MeowChan.Desktop;
 /// </summary>
 internal sealed class TaggingQueueTileView : Border
 {
-    /// <summary>The cell height the grid's panel uses (the width is <see cref="MediaTilePanel.CellWidth"/>, shared with the media page).</summary>
-    internal const double TileHeight = 176;
-    internal const double PreviewHeight = 124;
-
     private readonly Func<TagQueueItem, int?>? _tagCount;
     private readonly MediaTileAppearance _appearance;
     private readonly Func<TagQueueItem, (bool Favorite, int? Rating, string? Description)>? _decisionOf;
     private readonly TaggingThumbnail _preview;
     private readonly TaggingTileBadges _badges = new();
     private readonly Border _selected = WorkspaceChips.CreateSelectionCheck("TaggingTileSelected");
-    private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = MediaTileMetrics.TaggingCaptionLineHeight };
     // The number is a caption (MB1b): "#3", bold and marked where "continue" starts.
-    private readonly TextBlock _number = new() { MaxLines = 1, Margin = new Thickness(0, 0, 4, 0), Classes = { "tnum" } };
+    private readonly TextBlock _number = new() { MaxLines = 1, LineHeight = MediaTileMetrics.TaggingCaptionLineHeight, Margin = new Thickness(0, 0, WorkspaceMetrics.Space4, 0), Classes = { "tnum" } };
     private readonly TaggingQueueNextMarker _next = new();
-    private readonly TextBlock _group = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "muted" } };
+    private readonly TextBlock _group = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = MediaTileMetrics.TaggingCaptionLineHeight, Classes = { "muted" } };
     /// <summary>The space the selection check keeps from the slot's right edge when no badge sits in that corner (dip).</summary>
     internal const double CheckInset = 4, CheckGap = 4;
     private IDisposable? _selection;
@@ -44,7 +40,7 @@ internal sealed class TaggingQueueTileView : Border
         AutomationProperties.SetAutomationId(_badges.View, "TaggingTileBadges");
         _decisionOf = decisionOf;
         _tagCount = tagCount;
-        _appearance = appearance.CellWidth > 0 ? appearance : MediaTileMetrics.Standard;
+        _appearance = appearance.CellWidth > 0 ? appearance : MediaTileMetrics.StandardTagging;
         MaxWidth = _appearance.CellWidth;
         Height = _appearance.CellHeight;
         Classes.Add("tagging-tile");
@@ -60,7 +56,7 @@ internal sealed class TaggingQueueTileView : Border
         _preview.PictureChanged += PlaceBadges;
         // The slot's size is known only after the first layout and changes with the column width: the badges follow it (they hang on the slot, not on the picture).
         _preview.SizeChanged += (_, _) => PlaceBadges();
-        Grid cell = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions(_appearance.PreviewHeight + ",Auto,Auto"), RowSpacing = 4 };
+        Grid cell = new() { Margin = new Thickness(WorkspaceMetrics.Space8), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = WorkspaceMetrics.Space4 };
         cell.Children.Add(picture);
         Grid caption = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         Grid.SetColumn(_name, 1);
@@ -69,6 +65,7 @@ internal sealed class TaggingQueueTileView : Border
         Grid.SetRow(caption, 1);
         cell.Children.Add(caption);
         Grid.SetRow(_group, 2);
+        AutomationProperties.SetAutomationId(_group, "TaggingTileGroup");
         cell.Children.Add(_group);
         Child = cell;
         AttachedToVisualTree += (_, _) => { _selection?.Dispose(); _selection = WorkspaceChips.ObserveSelection(this, _selected); };
