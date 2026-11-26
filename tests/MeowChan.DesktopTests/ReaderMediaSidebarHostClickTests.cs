@@ -12,11 +12,13 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
+using MeowChan.Transfer;
 
 namespace MeowChan.DesktopTests;
 
@@ -273,40 +275,57 @@ public sealed class ReaderMediaSidebarHostClickTests
     [InlineData(true, false)]
     [InlineData(true, true)]
     public void InfoClicksRecoverLegacyProfilesAndKeepBothHostActionRows(bool mediaPage, bool legacyOff) =>
-        BooruComponentDispatcher.Run(() =>
+        BooruComponentDispatcher.Run(async () =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
             using TempDirectory profile = new();
-            using var media = BooruComponentDispatcher.Wait(ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false));
+            using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
             var thread = RateAndTagWindowFixture.View(media);
-            BooruComponentDispatcher.Wait(RateAndTagWindowFixture.SeedAsync(profile.Path, thread));
+            await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
             Config settings = new() { MediaSidebarInfo = legacyOff ? "Off" : "Auto",
+                DownloadPath = Path.Combine(profile.Path, "downloads"), DownloadsPaused = true,
                 ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways, ReaderMediaSidebarMinimumWidth = 800 };
+            settings.SaveConfig(profile.Path);
+            string[] names = Enumerable.Range(1, 8).Select(index => "long_fixture_tag_" + index).ToArray();
+            Assert.True(PrivateMediaTagTarget.TryCreate(media.Binding!.Reference, media.Attachment.MediaId,
+                media.Attachment.Variant, TransferMediaRole.Original, media.Asset.Sha256, out var target, out _));
+            using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+            {
+                PrivateTagStore tags = new(profile.Path, lease);
+                foreach (string name in names) tags.SetMedia(tags.Define(name).Tag, target, true);
+            }
+            await using DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+            var snapshot = Assert.IsType<PrivateTagStoreSnapshot>(host.GetPrivateTagSnapshot().Snapshot);
             var preferences = ReaderMediaPreferences.From(settings);
             Window window = new() { Width = 1600, Height = 850 };
             Task<ArchiveReader> OpenReader(CancellationToken token) => ArchiveReader.OpenAsync(profile.Path, token);
             if (mediaPage)
             {
-                MediaPage page = new(OpenReader) { IsAvailable = true, SavePanelSetting = update => update(settings) };
+                MediaLibraryUserData data = new(snapshot, [], []);
+                MediaPage page = new(OpenReader)
+                {
+                    IsAvailable = true, SavePanelSetting = update => update(settings), ReadUserData = () => data
+                };
                 try
                 {
                     page.ConfigurePanelInfo(preferences);
                     window.Content = page;
                     window.Show();
-                    BooruComponentDispatcher.Wait(page.ActivateAsync());
+                    await page.ActivateAsync();
                     page.Grid.SelectedIndex = 0;
                     if (!page.PageLayout.Panel) Click(window, page.PanelToggleButton);
-                    BooruComponentDispatcher.WaitUntil(() => page.IsPanelShown && page.PanelRow != null, "selected Media tile");
-                    BooruComponentDispatcher.Wait(page.PanelTask);
+                    await BooruTestSupport.WaitAsync(() => page.IsPanelShown && page.PanelRow != null, "selected Media tile");
+                    await page.PanelTask;
                     var sidebar = Assert.IsType<ReaderMediaSidebar>(page.Panel);
                     CheckFacts(window, sidebar, legacyOff);
-                    CheckTagExpansion(window, sidebar, () => page.MediaMenu, settings);
+                    CheckTagExpansion(window, sidebar, () => (page.MediaMenu, page.MediaMenuSession), settings, names);
                 }
                 finally { window.Close(); page.EndLifetime(); }
             }
             else
             {
                 ArchivePage page = new(OpenReader, (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
+                page.AttachPrivateTags(host);
                 bool marked = false;
                 List<GalleryEntry> writes = [];
                 page.IsArchiveFavorite = _ => marked;
@@ -317,10 +336,10 @@ public sealed class ReaderMediaSidebarHostClickTests
                     page.ApplyReaderMediaPreferences(preferences);
                     window.Content = page;
                     window.Show();
-                    BooruComponentDispatcher.Wait(page.LoadThreadAsync(thread.Summary.Id));
+                    await page.LoadThreadAsync(thread.Summary.Id);
                     page.FindControl<ListBox>("ArchivePosts")!.SelectedIndex = 0;
-                    BooruComponentDispatcher.Wait(page.MediaLoadTask);
-                    BooruComponentDispatcher.Wait(page.MediaSidebarTask);
+                    await page.MediaLoadTask;
+                    await page.MediaSidebarTask;
                     ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
                     Assert.True(page.IsMediaSidebarShown);
                     CheckFacts(window, sidebar, legacyOff);
@@ -328,7 +347,7 @@ public sealed class ReaderMediaSidebarHostClickTests
                     Click(window, sidebar.FavoriteButton);
                     Assert.Equal(media.Asset.AssetId, Assert.Single(writes).Asset.AssetId);
                     Assert.True(sidebar.FavoriteButton.IsChecked);
-                    CheckTagExpansion(window, sidebar, () => page.ArchiveMediaMenu, settings);
+                    CheckTagExpansion(window, sidebar, () => (page.ArchiveMediaMenu, page.ArchiveMediaMenuSession), settings, names);
                 }
                 finally { window.Close(); page.EndLifetime(); }
             }
@@ -372,7 +391,7 @@ public sealed class ReaderMediaSidebarHostClickTests
     {
         window.UpdateLayout();
         var facts = SidePanelDesignTests.ById<MediaSidebarFacts>(sidebar, "ReaderMediaSidebarFacts");
-        var tags = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarTagsEmpty");
+        var tags = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarMoreTags");
         var edit = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarEditTags");
         void Expect(bool visible)
         {
@@ -406,10 +425,9 @@ public sealed class ReaderMediaSidebarHostClickTests
         window.UpdateLayout();
     }
 
-    private static void CheckTagExpansion(Window window, ReaderMediaSidebar sidebar, Func<ContextMenu?> openMenu, Config settings)
+    private static void CheckTagExpansion(Window window, ReaderMediaSidebar sidebar,
+        Func<(ContextMenu? Menu, MediaMenuSession? Session)> openMenu, Config settings, string[] names)
     {
-        string[] names = Enumerable.Range(1, 8).Select(index => "long_fixture_tag_" + index).ToArray();
-        sidebar.SetTags(names, null);
         window.UpdateLayout();
         var more = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarMoreTags");
         var frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
@@ -434,12 +452,25 @@ public sealed class ReaderMediaSidebarHostClickTests
             window.KeyPressQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
             window.KeyReleaseQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
             Dispatcher.UIThread.RunJobs();
-            ContextMenu menu = Assert.IsType<ContextMenu>(openMenu());
+            var (popup, menuSession) = openMenu();
+            ContextMenu menu = Assert.IsType<ContextMenu>(popup);
+            MediaMenuSession session = Assert.IsType<MediaMenuSession>(menuSession);
             Assert.True(menu.IsOpen);
             MenuItem action = Assert.Single(menu.Items.OfType<MenuItem>(),
                 item => AutomationProperties.GetAutomationId(item) == "media.sidebar.showAllTags");
             Assert.Equal(Texts.T(label), action.Header);
             Assert.True(action.Focus(NavigationMethod.Tab));
+            if (session.Surface == MediaMenuSurface.MediaPage)
+            {
+                var copy = SidePanelDesignTests.ById<MenuItem>(menu, MediaSourceMenu.CopyId);
+                Assert.True(copy.IsEffectivelyEnabled);
+                // Avalonia raises this hover event when layout moves a row under a stationary pointer.
+                copy.RaiseEvent(new RoutedEventArgs(MenuItem.PointerEnteredItemEvent));
+            }
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(action, menu.SelectedItem);
+            Assert.Same(action, window.FocusManager!.GetFocusedElement());
+            Assert.True(session.IsCurrent);
             window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             Dispatcher.UIThread.RunJobs();
