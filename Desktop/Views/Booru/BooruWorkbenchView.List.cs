@@ -50,9 +50,14 @@ internal sealed partial class BooruWorkbenchView
     {
         BooruPostView post = row.Post;
         string postId = post.PostId;
+        // The card supplies the shared side inset. Its panel sets the vertical inset for each width band.
+        Thickness listInset = this.TryFindResource("Workspace.Inset.ListCard", out object? value) && value is Thickness inset
+            ? inset
+            : new Thickness(WorkspaceTokens.Space(12));
         Border card = new()
         {
-            Name = "BooruResult:" + postId, Classes = { "workspace-card" }, Padding = new Thickness(12, 0)
+            Name = "BooruResult:" + postId, Classes = { "workspace-card" },
+            Padding = new Thickness(listInset.Left, 0, listInset.Right, 0)
         };
         Border frame = CreatePreview(row, 0, _renderedListDecodeEdge);
         if (frame.Child is Image image)
@@ -100,6 +105,7 @@ internal sealed partial class BooruWorkbenchView
         };
 
         StackPanel notices = new() { Spacing = 4 };
+        AutomationProperties.SetAutomationId(notices, "BooruResultNotices:" + postId);
         bool withdrawn = post.IsDeleted || post.IsBanned;
         if (withdrawn || post.OriginalAccess != BooruOriginalAccess.Available)
             notices.Children.Add(new TextBlock
@@ -207,6 +213,7 @@ internal sealed class BooruListFacts : Panel
     internal BooruListFacts(string postId, TextBlock title, TextBlock details)
     {
         Name = "BooruResultFacts:" + postId;
+        AutomationProperties.SetAutomationId(this, Name);
         _title = title;
         _details = details;
         Children.AddRange([title, details]);
@@ -247,12 +254,11 @@ internal sealed class BooruListFacts : Panel
 internal sealed class BooruListCardLayout : Panel
 {
     private const double Gap = 12;
-    private const double TextInset = 8;
     private const double StackedTextWidth = 224;
-    private const double TagTopInset = 36;
 
     private readonly Border _card;
     private readonly BooruListLayoutSettings _settings;
+    private readonly double _textInset = WorkspaceTokens.Space(8);
     private readonly Control _picture;
     private readonly Control _preview;
     private readonly Control _frame;
@@ -281,6 +287,7 @@ internal sealed class BooruListCardLayout : Panel
 
     protected override Size MeasureOverride(Size availableSize)
     {
+        double textInset = _textInset;
         double horizontalEdges = _card.Padding.Left + _card.Padding.Right + _card.BorderThickness.Left + _card.BorderThickness.Right;
         double verticalEdges = _card.Padding.Top + _card.Padding.Bottom + _card.BorderThickness.Top + _card.BorderThickness.Bottom;
         double width = double.IsFinite(availableSize.Width) ? availableSize.Width : _settings.MediumFrom;
@@ -292,35 +299,37 @@ internal sealed class BooruListCardLayout : Panel
         double textX = stacked ? 0 : pictureWidth + Gap;
         double textWidth = stacked ? width : remaining;
         double rowHeight = band.RowHeight - verticalEdges;
-        double factsY = stacked ? band.Height + TextInset : TextInset;
+        double factsY = stacked ? band.Height + textInset : textInset;
         _facts.Measure(new Size(textWidth, double.PositiveInfinity));
         _factsSlot = new Rect(textX, factsY, textWidth, _facts.DesiredSize.Height);
         _actions.Measure(new Size(textWidth, BooruListLayoutSettings.ActionHeight));
 
-        double minimumPicture = tagsAlongside ? Math.Max(band.Height, rowHeight) : band.Height + BooruListLayoutSettings.ActionHeight;
-        double actionsBottom = Math.Max(minimumPicture, _factsSlot.Bottom + TextInset + _actions.DesiredSize.Height);
+        // Side-by-side results share one bottom edge for the preview and actions, above the card inset.
+        double pictureInset = tagsAlongside ? textInset : 0;
+        double minimumActionsBottom = tagsAlongside ? Math.Max(pictureInset + band.Height, rowHeight - pictureInset)
+            : band.Height + BooruListLayoutSettings.ActionHeight;
+        double actionsBottom = Math.Max(minimumActionsBottom, _factsSlot.Bottom + textInset + _actions.DesiredSize.Height);
         double tagsX = tagsAlongside ? textX : 0;
-        double tagsY = tagsAlongside ? Math.Max(TagTopInset, _factsSlot.Bottom + TextInset)
-            : actionsBottom + TextInset;
+        double tagsY = tagsAlongside ? _factsSlot.Bottom + textInset : actionsBottom + textInset;
         double tagsWidth = tagsAlongside ? textWidth : width;
-        double reserveBelowTags = tagsAlongside ? TextInset + _actions.DesiredSize.Height : TextInset;
-        _tags.SetHeightBudget(rowHeight - tagsY - reserveBelowTags);
+        double reserveBelowTags = tagsAlongside ? textInset + _actions.DesiredSize.Height : textInset;
+        _tags.SetHeightBudget(rowHeight - tagsY - reserveBelowTags - pictureInset);
         _tags.Measure(new Size(tagsWidth, double.PositiveInfinity));
         _tagsSlot = new Rect(tagsX, tagsY, tagsWidth, _tags.DesiredSize.Height);
         if (tagsAlongside) actionsBottom = Math.Max(actionsBottom, _tagsSlot.Bottom + reserveBelowTags);
         _actionsSlot = new Rect(textX, actionsBottom - _actions.DesiredSize.Height, textWidth, _actions.DesiredSize.Height);
 
-        double pictureHeight = stacked ? band.Height : actionsBottom;
+        double pictureHeight = stacked ? band.Height : actionsBottom - pictureInset;
         _preview.Width = _frame.Width = pictureWidth;
         _preview.Height = _frame.Height = pictureHeight;
-        _pictureSlot = new Rect(0, 0, pictureWidth, pictureHeight);
+        _pictureSlot = new Rect(0, pictureInset, pictureWidth, pictureHeight);
         _picture.Measure(_pictureSlot.Size);
 
-        double height = tagsAlongside ? actionsBottom : Math.Max(rowHeight, _tagsSlot.Bottom + TextInset);
+        double height = tagsAlongside ? actionsBottom + pictureInset : Math.Max(rowHeight, _tagsSlot.Bottom + textInset);
         _notices.Measure(new Size(width, double.PositiveInfinity));
         _noticesSlot = new Rect(0, height, width, _notices.DesiredSize.Height);
         _selectionBar.Measure(new Size(BooruTileMetrics.SelectionBar, height));
-        return new Size(width, _noticesSlot.Bottom + (_notices.Children.Count > 0 ? TextInset : 0));
+        return new Size(width, _noticesSlot.Bottom + (_notices.Children.Count > 0 ? textInset : 0));
     }
 
     protected override Size ArrangeOverride(Size finalSize)

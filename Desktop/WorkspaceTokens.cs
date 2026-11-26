@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Layout;
@@ -18,6 +19,11 @@ internal static class WorkspaceTokens
     internal const string RadiusBadge = "Workspace.Radius.Badge";
     internal const string RadiusControl = "Workspace.Radius.Control";
     internal const string SizeControl = "Workspace.Size.Control";
+
+    internal static double Space(int dip) =>
+        Application.Current?.TryGetResource("Workspace.Space." + dip, null, out object? value) == true && value is double spacing
+            ? spacing
+            : dip;
 
     /// <summary>Caption size (Workspace.Text.Caption, 11) for a text block or a button.</summary>
     internal static T CaptionText<T>(this T control) where T : Control

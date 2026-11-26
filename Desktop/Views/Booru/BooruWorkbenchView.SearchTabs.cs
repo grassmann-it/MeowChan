@@ -171,6 +171,7 @@ internal sealed partial class BooruWorkbenchView
             if (wide != _wideViewToggle) { _wideViewToggle = wide; RenderViewToggleLabels(); }
         };
         _bottomBar.Children.AddRange([_bottomStatusHost, _pagerRow, _pageLimit]);
+        _bottomBar.Margin = new Thickness(0, WorkspaceTokens.Space(8), 0, 0);
         return _bottomBar;
     }
 
@@ -181,6 +182,7 @@ internal sealed partial class BooruWorkbenchView
         bool compact = below && view.Status == BooruSearchStatus.Results && _pager.IsVisible
             && _resultView == BooruResultView.Gallery;
         _bottomStatusHost.IsVisible = below && !compact;
+        _bottomBar.IsVisible = _bottomStatusHost.IsVisible || _pagerRow.IsVisible || _pageLimit.IsVisible;
         WorkViewElement.SetStateVisible(_statusHost, !below);
         string? executed = ExecutedSearchText(view);
         string? summary = compact ? string.Join(Environment.NewLine, _statusText.Text, executed) : executed;

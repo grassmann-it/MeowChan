@@ -10,11 +10,13 @@ using Avalonia.Controls.Notifications;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -286,10 +288,6 @@ internal sealed class FeedbackToastContent : Grid
     private Task? _actionRun;
     private readonly IReadOnlyList<FeedbackToastAction> _actions;
     private readonly Action<FeedbackToastContent> _dismiss;
-    private readonly MeowChan.Desktop.Controls.ContextMenuHost? _menu;
-
-    /// <summary>The card's menu host (null for a toast built without the window's copy and close-all actions); read by tests.</summary>
-    internal MeowChan.Desktop.Controls.ContextMenuHost? MenuHost => _menu;
 
     internal FeedbackToastContent(string title, string message, SessionFeedback? entry, Action<FeedbackToastContent> dismiss,
         IReadOnlyList<FeedbackToastAction>? actions = null, Func<string, Task>? copyText = null, Action? dismissAll = null)
@@ -315,7 +313,12 @@ internal sealed class FeedbackToastContent : Grid
         List<Button> buttons = new();
         if (_actions.Count > 0)
         {
-            WrapPanel row = new() { Orientation = Orientation.Horizontal, Margin = new Avalonia.Thickness(0, 4, 0, 0) };
+            WrapPanel row = new()
+            {
+                Margin = new Avalonia.Thickness(0, WorkspaceTokens.Space(4), 0, 0),
+                [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+                [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.4")
+            };
             for (int index = 0; index < _actions.Count; index++)
             {
                 int chosen = index;
@@ -323,10 +326,11 @@ internal sealed class FeedbackToastContent : Grid
                 {
                     Name = index == 0 ? "FeedbackToastActionButton" : "FeedbackToastActionButton" + (index + 1),
                     Content = _actions[index].Label, FontWeight = Avalonia.Media.FontWeight.SemiBold,
-                    MinHeight = 32, Padding = new Avalonia.Thickness(12, 2), Margin = new Avalonia.Thickness(0, 0, 8, 0),
+                    MinHeight = 32, Padding = new Avalonia.Thickness(12, 2),
                     Command = new DelegateCommand(() => _ = RunActionAsync(chosen))
                 };
                 button.Classes.Add("subtle");
+                AutomationProperties.SetAutomationId(button, button.Name);
                 AutomationProperties.SetName(button, _actions[index].Label);
                 if (_actions[index].Icon is { } icon) CommandBindings.ShowIconBeforeText(button, icon);
                 buttons.Add(button);
@@ -350,12 +354,12 @@ internal sealed class FeedbackToastContent : Grid
         LocalizeDismissButton();
         SetColumn(DismissButton, 1);
         Children.Add(DismissButton);
-        // Right-click, Menu key and Shift+F10 anywhere on the card: copy the text (the selection when there is one), dismiss, close all.
-        if (copyText != null && dismissAll != null)
-            _menu = new MeowChan.Desktop.Controls.ContextMenuHost(this, () => MeowChan.Desktop.NotificationMenu.Compose(title,
-                () => _ = copyText(string.IsNullOrEmpty(body.SelectedText) ? message : body.SelectedText), () => dismiss(this), dismissAll));
         AttachedToVisualTree += (_, _) =>
         {
+            // Install owns the menu until the toast detaches, including expiry and eviction.
+            if (copyText != null && dismissAll != null)
+                ContextMenuHost.Install(this, () => NotificationMenu.Compose(title,
+                    () => _ = copyText(string.IsNullOrEmpty(body.SelectedText) ? message : body.SelectedText), () => dismiss(this), dismissAll));
             _attached = true;
             Texts.Changed += OnLanguageChanged;
             LocalizeDismissButton();

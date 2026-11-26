@@ -50,7 +50,7 @@ public sealed class BooruListLayoutTests
         using Fixture fixture = new();
         foreach ((int width, double frameWidth, double frameHeight, double budget) in new[]
         {
-            (800, 160d, 128d, 248d), (1280, 192d, 198d, 200d), (1600, 224d, 166d, 168d), (1920, 224d, 166d, 168d)
+            (800, 160d, 128d, 248d), (1280, 192d, 182d, 200d), (1600, 224d, 150d, 168d), (1920, 224d, 150d, 168d)
         })
         {
             fixture.ResizeViewport(width);
@@ -68,13 +68,19 @@ public sealed class BooruListLayoutTests
         Rect first = Bounds(fixture.Card("101"), fixture.Results);
         Rect fourth = Bounds(fixture.Card("104"), fixture.Results);
         Assert.InRange(fourth.Bottom - first.Top, 0, 700);
+        ScrollViewer scroll = FindById<ScrollViewer>(fixture.Window, "BooruResultScroll");
+        Control footer = FindById<Control>(fixture.Window, "BooruResultsFooter");
+        Near(8, Bounds(footer, fixture.Window).Top - Bounds(scroll, fixture.Window).Bottom);
 
         fixture.ResizeViewport(1152);
         Border enlarged = fixture.Card("101");
         foreach (TextBlock text in enlarged.GetVisualDescendants().OfType<TextBlock>())
             text.FontSize = 20;
         fixture.Settle();
-        Assert.True(Bounds(Find<Control>(enlarged, "BooruListTags:101"), enlarged).Bottom <= enlarged.Bounds.Height);
+        Rect tags = Bounds(FindById<Control>(enlarged, "BooruListTags:101"), enlarged);
+        Rect actions = Bounds(FindById<Control>(enlarged, "BooruResultActions:101"), enlarged);
+        Assert.True(tags.Bottom + 7 <= actions.Top);
+        Near(8, enlarged.Bounds.Height - enlarged.BorderThickness.Bottom - actions.Bottom);
         Assert.All(ShownTags(enlarged), chip => Assert.True(Bounds(chip, enlarged).Right <= enlarged.Bounds.Width));
     });
 
@@ -84,8 +90,8 @@ public sealed class BooruListLayoutTests
         using Fixture fixture = new(separate: true);
         foreach ((int width, int expected, int height) in new[]
         {
-            (800, 160, 128), (899, 160, 128), (900, 192, 198), (1152, 192, 198),
-            (1400, 192, 198), (1401, 224, 166), (1840, 224, 166)
+            (800, 160, 128), (899, 160, 128), (900, 192, 182), (1152, 192, 182),
+            (1400, 192, 182), (1401, 224, 150), (1840, 224, 150)
         })
         {
             fixture.ResizeViewport(width);
@@ -121,6 +127,7 @@ public sealed class BooruListLayoutTests
         fixture.Settle();
         Assert.Equal(1.5, fixture.Window.RenderScaling);
         fixture.ResizeViewport(1840);
+        AssertBands(fixture, 224, 150, 168, tagsBelow: false);
         Image scaled = Assert.IsType<Image>(fixture.Frame("101").Child);
         Near(224, scaled.Bounds.Width);
         Assert.Equal(336, Assert.IsAssignableFrom<Bitmap>(scaled.Source).PixelSize.Width);
@@ -170,6 +177,12 @@ public sealed class BooruListLayoutTests
         Assert.Same(card, fixture.Window.FocusManager!.GetFocusedElement());
         Assert.Equal(Texts.T("booru.ui.tags.more", 200 - ShownTags(fixture.Card("102")).Length), Toggle(fixture.Card("102"), "102").Content);
         Assert.True(expanded.Bounds.Height > 248);
+        fixture.ResizeViewport(1600);
+        Rect expandedTags = Bounds(FindById<Control>(expanded, "BooruListTags:101"), expanded);
+        Rect expandedActions = Bounds(FindById<Control>(expanded, "BooruResultActions:101"), expanded);
+        Assert.True(expandedTags.Bottom + 7 <= expandedActions.Top);
+        Near(8, expanded.Bounds.Height - expanded.BorderThickness.Bottom - expandedActions.Bottom);
+        fixture.ResizeViewport(800);
 
         BooruResultActionsTests.Click(Toggle(expanded, "101"));
         fixture.Settle();
@@ -331,12 +344,16 @@ public sealed class BooruListLayoutTests
         Assert.True(select.IsChecked);
         Assert.Same(select, fixture.Window.FocusManager.GetFocusedElement());
         Assert.False(Find<CheckBox>(fixture.Card("102"), "BooruSelect:102").IsChecked);
+        fixture.ResizeViewport(400);
         foreach (TextBlock text in fixture.Card("101").GetVisualDescendants().OfType<TextBlock>())
             text.FontSize = 24;
         fixture.Settle();
         Border card = fixture.Card("101");
-        Control tags = Find<Control>(card, "BooruListTags:101");
-        Assert.True(Bounds(tags, card).Bottom <= card.Bounds.Height);
+        Rect tags = Bounds(FindById<Control>(card, "BooruListTags:101"), card);
+        Rect actions = Bounds(FindById<Control>(card, "BooruResultActions:101"), card);
+        Assert.True(actions.Top >= Bounds(fixture.Frame("101"), card).Bottom);
+        Assert.True(tags.Top > actions.Bottom);
+        Assert.True(card.Bounds.Height - card.BorderThickness.Bottom - tags.Bottom >= 7);
         Assert.Same(select, fixture.Window.FocusManager.GetFocusedElement());
         Assert.Empty(fixture.Harness.Queue.Loads);
     });
@@ -371,6 +388,10 @@ public sealed class BooruListLayoutTests
         Rect badge = Bounds(Find<Border>(withdrawn, "BooruResultWithdrawn:104"), withdrawn);
         Assert.True(Bounds(fixture.Frame("104"), withdrawn).Contains(badge));
         Assert.Contains(withdrawn.GetVisualDescendants().OfType<TextBlock>(), text => text.Classes.Contains("workspace-warning"));
+        Rect notice = Bounds(FindById<Control>(withdrawn, "BooruResultNotices:104"), withdrawn);
+        Rect withdrawnActions = Bounds(FindById<Control>(withdrawn, "BooruResultActions:104"), withdrawn);
+        Near(8, notice.Top - withdrawnActions.Bottom);
+        Near(8, withdrawn.Bounds.Height - withdrawn.BorderThickness.Bottom - notice.Bottom);
         Assert.True(local.Focus());
         Press(fixture.Window, PhysicalKey.Enter);
         Assert.Equal("101", Assert.Single(fixture.ShownLocally));
@@ -560,26 +581,31 @@ public sealed class BooruListLayoutTests
         Assert.InRange(second.Bounds.Height, height, budget + 1);
 
         Rect frame = Bounds(fixture.Frame("101"), first);
-        Rect actions = Bounds(Find<Panel>(first, "BooruResultActions:101"), first);
-        Rect facts = Bounds(Find<Control>(first, "BooruResultFacts:101"), first);
-        Rect details = Bounds(Find<TextBlock>(first, BooruWorkbenchView.DetailsPrefix + "101"), first);
-        Rect tags = Bounds(Find<Control>(first, "BooruListTags:101"), first);
+        Rect actions = Bounds(FindById<Panel>(first, "BooruResultActions:101"), first);
+        Rect facts = Bounds(FindById<Control>(first, "BooruResultFacts:101"), first);
+        Rect details = Bounds(FindById<TextBlock>(first, BooruWorkbenchView.DetailsPrefix + "101"), first);
+        Rect tags = Bounds(FindById<Control>(first, "BooruListTags:101"), first);
         Near(actions.Bottom, frame.Bottom);
         Near(facts.Left, actions.Left);
         Near(24, actions.Height);
-        Assert.True(frame.Contains(Bounds(Find<CheckBox>(first, "BooruSelect:101"), first)));
+        Assert.True(frame.Contains(Bounds(FindById<CheckBox>(first, "BooruSelect:101"), first)));
         Assert.True(details.Top >= facts.Top);
         if (!tagsBelow)
         {
             Assert.True(details.Left > Bounds(title, first).Right);
             Near(facts.Left, tags.Left);
             Near(facts.Right, tags.Right);
-            Assert.True(tags.Top >= facts.Bottom && tags.Bottom <= actions.Top);
+            // Astra's 8 DIP clearance and Opus' common action/preview edge both apply inside the frame.
+            Near(8, first.Bounds.Height - first.BorderThickness.Bottom - actions.Bottom);
+            Near(8, frame.Top - first.BorderThickness.Top);
+            Near(budget, first.Bounds.Height);
+            Assert.True(tags.Top >= facts.Bottom && tags.Bottom + 7 <= actions.Top);
         }
         else
         {
             Assert.True(tags.Top >= frame.Bottom && tags.Top >= facts.Bottom);
             Near(frame.Left, tags.Left);
+            Assert.True(first.Bounds.Height - first.BorderThickness.Bottom - tags.Bottom >= 7);
         }
         foreach (string prefix in ActionPrefixes) CheckAction(first, prefix + "101", "101");
         Assert.All(ShownTags(first), chip =>
@@ -596,8 +622,8 @@ public sealed class BooruListLayoutTests
 
     private static void CheckAction(Border card, string name, string postId)
     {
-        Panel row = Find<Panel>(card, "BooruResultActions:" + postId);
-        Button button = Find<Button>(row, name);
+        Panel row = FindById<Panel>(card, "BooruResultActions:" + postId);
+        Button button = FindById<Button>(row, name);
         Assert.True(button.IsEffectivelyVisible);
         Assert.False(button.Focusable);
         Assert.False(button.IsTabStop);
@@ -705,8 +731,10 @@ public sealed class BooruListLayoutTests
             Settle();
         }
 
-        internal Border Card(string id) => Find<Border>(Results, "BooruResult:" + id);
-        internal Border Frame(string id) => Find<Border>(Card(id), "BooruPreviewFrame:" + id);
+        internal Border Card(string id) => FindById<Border>(Results, "BooruResult:" + id);
+        internal Border Frame(string id) => View.ResultView == BooruResultView.List
+            ? FindById<Border>(Card(id), "BooruPreviewFrame:" + id)
+            : Find<Border>(Card(id), "BooruPreviewFrame:" + id);
 
         internal void Settle()
         {

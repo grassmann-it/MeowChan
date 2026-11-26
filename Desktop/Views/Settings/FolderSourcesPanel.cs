@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
@@ -190,7 +191,13 @@ internal sealed class FolderSourcesPanel : UserControl
             yes.Classes.Add("danger"); no.Classes.Add("subtle");
             yes.Click += async (_, _) => { _confirmRemove = null; await RunAsync(() => _services.Remove(root.Id)); };
             no.Click += (_, _) => TryDismissRemoveConfirmation();
-            StackPanel confirmation = new() { Spacing = 4, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { no, yes } } } };
+            WrapPanel choices = new()
+            {
+                [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+                [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.4"),
+                Children = { no, yes }
+            };
+            StackPanel confirmation = new() { Spacing = 4, Children = { ask, choices } };
             confirmation.KeyDown += (_, e) =>
             {
                 if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
