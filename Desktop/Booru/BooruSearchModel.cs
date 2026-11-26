@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.PluginHost.Http;
+using MeowChan.PluginHost.Sources.Booru;
+using MeowChan.PluginSdk;
 using MeowChan.Booru;
 
 namespace MeowChan.Desktop.Booru;
@@ -17,6 +19,12 @@ internal enum BooruSearchStatus
 internal readonly record struct BooruPagerLimits(int Pages, int PostsPerPage)
 {
     internal static BooruPagerLimits Default => new(Config.BooruSearchPagesDefault, Config.BooruSearchPostsPerPageDefault);
+
+    internal BooruPagerLimits ForSource(SourceDescription? source) =>
+        source is not null && BooruEndpointPolicy.Resolve(source) is { } profile
+            ? new(Math.Min(Pages, BooruEndpointPolicy.MaximumPage(profile)),
+                Math.Min(PostsPerPage, BooruEndpointPolicy.MaximumLimit(profile)))
+            : this;
 }
 
 /// <summary>Immutable snapshot of the search tab. Views render it; tests assert on it.</summary>
@@ -74,7 +82,7 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     private readonly object _gate = new();
     internal sealed record Binding(IBooruSearchPort Search, IBooruQueuePort Queue, IBooruPreviewPort Previews,
-        MeowChan.PluginSdk.SourceDescription? Source = null);
+        SourceDescription? Source = null);
 
     private readonly IReadOnlyList<Binding> _bindings;
     private readonly Binding _defaultBinding;
@@ -252,9 +260,10 @@ internal sealed partial class BooruSearchModel : IDisposable
         RaiseChanged();
     }
 
-    private async Task RunSearchAsync(string query, int page, BooruPagerLimits limits, bool newSearch = false)
+    private async Task RunSearchAsync(string query, int page, BooruPagerLimits requestedLimits, bool newSearch = false)
     {
-        (long id, RequestLifetime? lifetime, Binding? binding) = Begin(BooruSearchStatus.Searching, query, null, page, limits, newSearch);
+        (long id, RequestLifetime? lifetime, Binding? binding, BooruPagerLimits limits) =
+            Begin(BooruSearchStatus.Searching, query, null, page, requestedLimits, newSearch);
         using RequestLifetime? request = lifetime;
         if (request is null || binding is null) return;
         CancellationToken token = request.Token;
@@ -307,7 +316,7 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     private async Task RunPostAsync(string postId)
     {
-        (long id, RequestLifetime? lifetime, Binding? binding) = Begin(BooruSearchStatus.Searching, null, postId, 1);
+        (long id, RequestLifetime? lifetime, Binding? binding, BooruPagerLimits _) = Begin(BooruSearchStatus.Searching, null, postId, 1);
         using RequestLifetime? request = lifetime;
         if (request is null || binding is null) return;
         CancellationToken token = request.Token;
@@ -346,21 +355,23 @@ internal sealed partial class BooruSearchModel : IDisposable
         if (follow) StartFollowUps(id, request);
     }
 
-    private (long Id, RequestLifetime? Lifetime, Binding? Ports) Begin(BooruSearchStatus status, string? query, string? postId, int page,
-        BooruPagerLimits? limits = null, bool newSearch = false)
+    private (long Id, RequestLifetime? Lifetime, Binding? Ports, BooruPagerLimits Limits) Begin(
+        BooruSearchStatus status, string? query, string? postId, int page, BooruPagerLimits? limits = null, bool newSearch = false)
     {
         lock (_gate)
         {
             if (_disposed || BindingFor(_view) is not { } binding) return default;
             RequestLifetime request = ReplaceRequest(needsRequest: true)!;
+            BooruPagerLimits pagerLimits = limits ?? BooruPagerLimits.Default;
+            if (newSearch) pagerLimits = pagerLimits.ForSource(binding.Source);
             _view = _view with
             {
                 Status = status, ExecutedQuery = query, ExecutedPostId = postId, Page = page,
                 Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null,
                 LastResultPage = newSearch || postId != null ? null : _view.LastResultPage,
-                Restored = false, NeedsLoad = false, PagerLimits = limits ?? BooruPagerLimits.Default, ResultId = _requestId
+                Restored = false, NeedsLoad = false, PagerLimits = pagerLimits, ResultId = _requestId
             };
-            return (_requestId, request.Acquire(), binding);
+            return (_requestId, request.Acquire(), binding, pagerLimits);
         }
     }
 

@@ -52,6 +52,13 @@ internal sealed partial class BooruSearchModel
         Binding? binding = BindingFor(target.Source, target.Instance);
         bool bound = binding is not null;
         source = binding?.Source ?? (source?.SourceId == target.Source ? source : null);
+        BooruPagerLimits limits = new(target.MaximumPage, target.PostsPerPage);
+        if (target.Query is not null)
+        {
+            limits = limits.ForSource(binding?.Source);
+            if (target.Page > limits.Pages || target.Rows?.Length > limits.PostsPerPage)
+                target = target with { Page = 1, Rows = null, IsEnd = true, Empty = false };
+        }
         BooruInputMode mode = target.Mode ?? (target.PostId is null ? BooruInputMode.Tags : BooruInputMode.Post);
         string input = target.Input ?? target.PostId ?? target.Query ?? string.Empty;
         ImmutableArray<BooruResultRowView> rows = bound && target.Rows is { } cached
@@ -70,7 +77,7 @@ internal sealed partial class BooruSearchModel
             null, bound ? null : BooruCodes.SourceUnavailable, null, InstanceId: target.Instance,
             NeedsLoad: status == BooruSearchStatus.Idle
                 && (!string.IsNullOrWhiteSpace(input) || target.Query is not null || target.PostId is not null))
-        { PagerLimits = new(target.MaximumPage, target.PostsPerPage) };
+        { PagerLimits = limits };
     }
 
     private static bool IsValidCachedPost(BooruPost post, BooruSearchTabTarget target, SourceDescription? source)

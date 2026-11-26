@@ -11,6 +11,8 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.PluginHost.Sources.Booru;
+using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
@@ -103,6 +105,99 @@ public sealed class BooruPaginationTests
             }
         }
         finally { window.Close(); }
+    });
+
+    [Fact]
+    public void TheSelectedSourceBoundsThePagerAndRequestsForTheWholeSearch() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = new();
+        const string sourceId = "test-source";
+        SourceDescription source = new(sourceId, "Fixture", new("https://booru.test/"),
+            SourceCapabilities.PostSearch, [], [new("booru.test", HttpHostPurpose.Metadata)], new("1", []))
+        {
+            BooruProfile = BooruEndpointPolicy.Danbooru with { MaximumPage = 2, MaximumLimit = 10 }
+        };
+        BooruPostView post = BooruPostView.From(BooruUiFixtures.Post("42", tags: [], preview: false).Post with
+        {
+            Id = new(sourceId, "42"), PostUrl = new("https://booru.test/posts/42"), Media = []
+        });
+        FakeBooruSearchPort bounded = new() { ProviderId = sourceId, ProviderName = source.Name };
+        bounded.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, isEnd: false, post)));
+        BooruWorkbenchServices services = new(bounded, harness.Queue, harness.Watchers, harness.Previews, harness.Clock)
+        { Source = source };
+        using BooruPage booru = new(harness.Services, [harness.Services, services]);
+        Config profile = new() { BooruSearchPages = 5, BooruSearchPostsPerPage = 20 };
+        booru.Model.Search.ReadPagerLimits = () => new(profile.BooruSearchPages, profile.BooruSearchPostsPerPage);
+        Window window = new() { Content = booru, Width = 960, Height = 720 };
+        try
+        {
+            window.Show();
+            ComboBox picker = Find<ComboBox>("BooruSourcePicker");
+            picker.SelectedItem = picker.Items.OfType<ComboBoxItem>().Single(item => ReferenceEquals(item.Tag, bounded));
+            booru.ShowQuery("cat");
+            BooruComponentDispatcher.Wait(booru.Model.Search.SubmitAsync());
+            Layout();
+
+            TextBox number = Find<TextBox>("BooruPageNumber");
+            Button jump = Find<Button>("BooruPageJump");
+            TextBlock info = Find<TextBlock>("BooruPageInfo");
+            Assert.Equal(Texts.T("booru.ui.page.current", "1+", 10), info.Text);
+            number.Text = "3";
+            Layout();
+            Assert.False(jump.IsEnabled);
+            number.RaiseEvent(new KeyEventArgs { Key = Key.Enter, RoutedEvent = InputElement.KeyDownEvent });
+            BooruComponentDispatcher.Wait(booru.Model.Search.GoToPageAsync(3));
+            Assert.Equal(("cat", 1), Assert.Single(bounded.Searches));
+
+            profile.BooruSearchPages = 1;
+            profile.BooruSearchPostsPerPage = 8;
+            number.Text = "2";
+            Layout();
+            Assert.True(jump.IsEnabled);
+            jump.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Layout();
+            Assert.Equal(new[] { ("cat", 1), ("cat", 2) }, bounded.Searches);
+            Assert.Equal(new[] { 10, 10 }, bounded.SearchLimits);
+            Assert.False(Find<Button>(BooruWorkbenchView.NextName).IsEnabled);
+            Assert.Equal(Texts.T("booru.ui.page.current", "2+", 10), info.Text);
+
+            booru.ShowQuery("dog");
+            BooruComponentDispatcher.Wait(booru.Model.Search.SubmitAsync());
+            Layout();
+            Assert.Equal(("dog", 1), bounded.Searches.Last());
+            Assert.Equal(8, bounded.SearchLimits.Last());
+            Assert.Equal(Texts.T("booru.ui.page.current", "1+", 8), info.Text);
+            Assert.False(Find<Button>(BooruWorkbenchView.NextName).IsEnabled);
+            Assert.Empty(harness.Search.Searches);
+
+            BooruSearchTabTarget saved = new(sourceId, null, null, "cat", IsEnd: false,
+                Rows: [new(post.Post, null)], MaximumPage: 5, PostsPerPage: 20);
+            booru.View.SearchTabs.RestoreTargets(new(0, [saved]));
+            Layout();
+            Assert.Equal(Texts.T("booru.ui.page.current", "1+", 10), info.Text);
+            number.Text = "3";
+            Layout();
+            Assert.False(jump.IsEnabled);
+            Assert.Equal(3, bounded.Searches.Count);
+
+            booru.View.SearchTabs.RestoreTargets(new(0, [saved with { Page = 3 }]));
+            Layout();
+            Assert.Empty(booru.Model.Search.View.Rows);
+            Assert.Equal(1, booru.Model.Search.View.Page);
+            BooruComponentDispatcher.Wait(booru.Model.Search.RetryAsync());
+            Assert.Equal(("cat", 1), bounded.Searches.Last());
+            Assert.Equal(10, bounded.SearchLimits.Last());
+        }
+        finally { window.Close(); }
+
+        T Find<T>(string id) where T : Control => SidePanelDesignTests.ById<T>(booru, id);
+        void Layout()
+        {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
     });
 
     [Theory]

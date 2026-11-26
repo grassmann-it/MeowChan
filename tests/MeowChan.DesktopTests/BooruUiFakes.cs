@@ -81,6 +81,7 @@ internal sealed class FakeBooruSearchPort : IBooruSearchPort
     internal Func<string, int, CancellationToken, Task<BooruCallResult<BooruResultPage>>>? OnSearch { get; set; }
     internal Func<string, CancellationToken, Task<BooruCallResult<BooruPostView>>>? OnPost { get; set; }
     internal List<(string Query, int Page)> Searches { get; } = new();
+    internal List<int> SearchLimits { get; } = new();
     internal List<string> PostReads { get; } = new();
 
     public string ProviderId { get; init; } = BooruUiFixtures.Source;
@@ -90,7 +91,11 @@ internal sealed class FakeBooruSearchPort : IBooruSearchPort
 
     public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, int limit, CancellationToken cancellationToken)
     {
-        lock (_gate) Searches.Add((canonicalQuery, page));
+        lock (_gate)
+        {
+            Searches.Add((canonicalQuery, page));
+            SearchLimits.Add(limit);
+        }
         return OnSearch?.Invoke(canonicalQuery, page, cancellationToken)
             ?? Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(canonicalQuery, page, true)));
     }
