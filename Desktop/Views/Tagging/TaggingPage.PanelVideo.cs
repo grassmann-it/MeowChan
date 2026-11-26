@@ -114,7 +114,8 @@ public sealed partial class TaggingPage
     {
         CancelPanelAutoplay();
         if (key == null) { _panelAutoplayDone = null; return; }
-        if (key == _panelAutoplayDone || _panelVideo is not { IsOffered: true, IsLive: false }
+        if (_panelWindow?.WindowState == WindowState.Minimized
+            || key == _panelAutoplayDone || _panelVideo is not { IsOffered: true, IsLive: false }
             || !ReaderInlineVideoRules.ShouldAutoplayViewer(_panelVideoController.Options, IsPanelShown)) return;
         CancellationTokenSource autoplay = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _panelAutoplay = autoplay;
@@ -151,8 +152,14 @@ public sealed partial class TaggingPage
         autoplay?.Dispose();
     }
 
-    /// <summary>The sidebar's player pauses (the window is minimised); it stays to continue later.</summary>
-    internal Task PausePanelVideo() => _panelVideoController.PauseAllAsync();
+    /// <summary>Minimizing cancels pending starts and pauses a player that has already started.</summary>
+    internal Task PausePanelVideo()
+    {
+        CancelPanelAutoplay();
+        return _panelVideo is { ActivationTask.IsCompleted: false } starting
+            ? starting.ReleaseAsync()
+            : _panelVideoController.PauseAllAsync();
+    }
 
     /// <summary>The sidebar's players are given back (the sidebar hides, the page ends, the gallery opens).</summary>
     internal Task ReleasePanelVideos()

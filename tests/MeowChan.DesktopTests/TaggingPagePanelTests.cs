@@ -608,16 +608,24 @@ public sealed class TaggingPagePanelTests
         {
             await ShowVideoAsync(fixture);
             ReaderInlineVideoSlot video = Assert.IsType<ReaderInlineVideoSlot>(fixture.Page.PanelVideo);
-            clock.Advance(ReaderInlineVideoRules.AutoplayDelayMs);
-            await manifestRequested.Task.WaitAsync(Deadline);
-            Task activation = video.ActivationTask;
+            try
+            {
+                clock.Advance(ReaderInlineVideoRules.AutoplayDelayMs);
+                await manifestRequested.Task.WaitAsync(Deadline);
+                Task activation = video.ActivationTask;
 
-            fixture.Window.WindowState = WindowState.Minimized;
-            releaseManifest.SetResult();
-            await activation.WaitAsync(Deadline);
+                fixture.Window.WindowState = WindowState.Minimized;
+                releaseManifest.SetResult();
+                await activation.WaitAsync(Deadline);
 
-            Assert.Equal(0, fixture.Page.PanelVideoController.Created);
-            Assert.True(video.IsOffered);
+                Assert.Equal(0, fixture.Page.PanelVideoController.Created);
+                Assert.True(video.IsOffered);
+            }
+            finally
+            {
+                releaseManifest.TrySetResult();
+                await fixture.Page.ReleasePanelVideosForShutdown();
+            }
         }, clock: clock, video: 2, openVideoManifest: OpenDelayedManifestAsync, configure: config =>
         {
             config.ReaderSidebarVideoAutoplay = true;
