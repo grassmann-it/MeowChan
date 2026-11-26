@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.1.3 — 2026-11-29 (planned)
+
+- Read text-only posts and their saved replies in the Reader sidebar. Automatic
+  reply expansion follows the selected post and keeps your reading position.
+  Returning to Archive results preserves the search, page and selection.
+- Preserve hidden Booru tabs and drafts when restoring with a lower opening
+  limit, within the separate saved-tab limit. Remember the last known result
+  page across restarts.
+- Share the sidebar facts setting with Booru and reach video playback options
+  from the Reader, Media and Tagging sidebar gear. Right-click the preview
+  for actions on the displayed Booru result or Tagging queue entry.
+- Keep quick-tag chips clickable while new-tag suggestions are open. Cancel
+  a pending Tagging video start when the window is minimized.
+- Keep the Downloads selection when a right-click on blank space dismisses the
+  row menu. Reach the Columns menu by keyboard even in a narrow window.
+- Edit the sidebar preview limit in MP and preserve existing pixel values until
+  edited. Reset the limit, Reader top spacing and sidebar facts individually.
+- Use consistent menu icons, separate keyboard stops for sidebar switches and
+  whole-row focus in Archive, Diagnostics and the work views overview. Announce
+  a changed sidebar rating after it is saved.
+- Clarify the first-run deferral, new-board watch interval, Booru tag limits and
+  F9 stamp action across languages. Use installed languages for settings recovery.
+- Curate the header taglines from 354 to around 300, with more cats, South Park
+  and Dorohedoro. A removed fixed choice quietly falls back to `cats`.
+- See the [1.1.3 release notes](docs/releases/v1.1.3.md) for upgrade details and downloads.
+
 ## 1.1.2
 
 - Use a heart for favorites and five stars for ratings in the gallery. Click the
