@@ -36,6 +36,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     private readonly MediaPositionPill _position = new("BooruMediaPosition");
     // Required by the shared header, but a local favorite has no meaning for a provider hit in 1.1.2 (Tom, 25.11. 14:48).
     private readonly ArchiveFavoriteButton _favorite = new() { Name = "BooruMediaFavorite", IsVisible = false };
+    private readonly Button _settingsButton = new() { Name = "BooruMediaSettings" };
     private readonly MediaCompactHeader _header;
     private readonly TextBlock _ratingStat = StatText("BooruMediaStatRating");
     private readonly TextBlock _scoreStat = StatText("BooruMediaStatScore");
@@ -69,6 +70,8 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     internal PanelCloseButton Close { get; } = new("BooruMediaClose") { Focusable = false, IsTabStop = false };
     internal ToggleButton Info { get; } = new() { Name = "BooruMediaInfo", IsChecked = true };
+    internal Action? FactsToggled { get; set; }
+    internal Action? FactsRefreshRequested { get; set; }
     internal Button OpenGallery { get; } = new()
     {
         Name = "BooruMediaOpenGallery", Focusable = false, IsTabStop = false, Classes = { "ghost" },
@@ -91,14 +94,37 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*,Auto");
         RowSpacing = Inset;
         ClipToBounds = true;
-        _header = new MediaCompactHeader(_title, _position, _favorite, Info, open: null, settings: null, close: Close)
+        _header = new MediaCompactHeader(_title, _position, _favorite, Info, open: null, settings: _settingsButton, close: Close)
         {
             Margin = new Thickness(Inset, 4), FileNameReserve = 40
         };
         _header.Meta.Name = "BooruMediaSummary";
         _tagStat.Children.AddRange([CommandBindings.FollowLabel(CommandBindings.IconFromKey("tag", 16), _tagCount), _tagCount]);
         _stats.Children.AddRange([_ratingStat, _scoreStat, _tagStat]);
-        Info.Click += (_, _) => ShowFacts(Info.IsChecked == true);
+        Info.Click += (_, _) => ToggleFacts();
+        MenuItem showFacts = new() { ToggleType = MenuItemToggleType.CheckBox };
+        AutomationProperties.SetAutomationId(showFacts, "BooruMediaSettingsFacts");
+        showFacts.Click += (_, _) => ToggleFacts();
+        MenuFlyout menu = new() { Placement = PlacementMode.BottomEdgeAlignedRight, OverlayInputPassThroughElement = _settingsButton };
+        menu.Items.Add(showFacts);
+        PopupToggle.BindFlyout(_settingsButton, menu);
+        menu.Opening += (_, _) =>
+        {
+            FactsRefreshRequested?.Invoke();
+            const string command = "media.sidebar.info";
+            string label = CommandCatalog.Label(command);
+            EffectiveShortcutBindings bindings = ShortcutService.Current;
+            showFacts.Header = label;
+            showFacts.Icon ??= CommandBindings.Icon(command);
+            showFacts.IsChecked = _facts.IsVisible;
+            showFacts.InputGesture = bindings.For(command)
+                .FirstOrDefault(gesture => ShortcutHelp.ActsHere(command, gesture, "booru", bindings))?.Resolve(bindings.Platform);
+            AutomationProperties.SetName(showFacts, label);
+            string tip = CommandBindings.Tooltip(command, visibleLabel: label, keyContext: "booru");
+            AutomationProperties.SetHelpText(showFacts, tip);
+            ToolTip.SetTip(showFacts, tip);
+        };
+        _settingsButton.Content = CommandBindings.IconFromKey("settings", 16);
         _kind.Margin = new Thickness(0, 4, 4, 0);
         OpenGallery.Content = new Panel { Children = { _image, _placeholder, _kind } };
         AutomationProperties.SetAccessibilityView(_image, AccessibilityView.Raw);
@@ -148,6 +174,9 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         BooruPostView post = row.Post;
         _title.Text = Texts.T("booru.ui.post.title", post.PostId);
         _header.Localize();
+        string settingsLabel = Texts.T("media.sidebar.settings");
+        AutomationProperties.SetName(_settingsButton, settingsLabel);
+        ToolTip.SetTip(_settingsButton, settingsLabel);
         AutomationProperties.SetName(this, Texts.T("media.layout.panel"));
         AutomationProperties.SetName(Tags, Texts.T("booru.tags.sourceLabel"));
         AutomationProperties.SetName(OpenGallery, CommandCatalog.Label("gallery.open") + " · " + _title.Text);
@@ -240,9 +269,13 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         Name = name, Classes = { "workspace-meta", "tnum" }, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center
     };
 
-    internal void ToggleFacts() => ShowFacts(!_facts.IsVisible);
+    internal void ToggleFacts()
+    {
+        ShowFacts(!_facts.IsVisible);
+        FactsToggled?.Invoke();
+    }
 
-    private void ShowFacts(bool visible)
+    internal void ShowFacts(bool visible)
     {
         _facts.IsVisible = visible;
         Info.IsChecked = visible;
@@ -336,7 +369,9 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     private void AncestorVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == IsVisibleProperty && !e.GetNewValue<bool>()) _sample.Pause();
+        if (e.Property != IsVisibleProperty) return;
+        if (!e.GetNewValue<bool>()) _sample.Pause();
+        else if (IsEffectivelyVisible) FactsRefreshRequested?.Invoke();
     }
 
     internal void Release()

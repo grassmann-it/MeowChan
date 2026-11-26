@@ -32,8 +32,10 @@ internal sealed partial class BooruWorkbenchView
     private (BooruInputMode Mode, string Input)? _sidebarTagDraft;
     private bool _mediaSidebarOpen;
     private double _mediaSidebarPageWidth;
+    private int _savingSidebarFacts;
 
     internal Action<bool>? SaveMediaSidebar { get; set; }
+    internal QuickSettingsHost? MediaSidebarSettings { get; set; }
 
     internal void RestoreMediaSidebar(bool open)
     {
@@ -48,6 +50,26 @@ internal sealed partial class BooruWorkbenchView
         Grid.SetRow(_mediaSidebar, 1);
         _mediaSidebar.Width = Config.MediaPanelWidthDefault;
         AutomationProperties.SetAutomationId(_mediaToggle, _mediaToggle.Name);
+        _mediaSidebar.FactsRefreshRequested = RefreshSidebarFacts;
+        _mediaSidebar.FactsToggled = () =>
+        {
+            if (MediaSidebarSettings is not { } host) return;
+            bool visible = _mediaSidebar.Info.IsChecked == true;
+            _savingSidebarFacts++;
+            OpenActions.Start(async () =>
+            {
+                try
+                {
+                    await host.SaveAsync(config => config.SetSidebarFacts(visible));
+                    host.Applied?.Invoke([SettingsFieldId.MediaSidebarInfo]);
+                }
+                finally
+                {
+                    _savingSidebarFacts--;
+                    RefreshSidebarFacts();
+                }
+            }, "booru.saveSidebarFacts");
+        };
         layout.Children.Add(_mediaSidebar);
         layout.SizeChanged += (_, e) =>
         {
@@ -81,6 +103,12 @@ internal sealed partial class BooruWorkbenchView
             ResultActions result = new(this, BooruResultTarget.From(view, content.Row));
             if (SidebarResultIsCurrent(result)) OpenGallery(result.PostId);
         };
+    }
+
+    private void RefreshSidebarFacts()
+    {
+        if (!_closed && _savingSidebarFacts == 0 && (MediaSidebarSettings?.CurrentConfig() ?? _listProfile) is { } config)
+            _mediaSidebar.ShowFacts(config.SidebarFactsVisible);
     }
 
     private void OnMediaSidebarKeyDown(object? sender, KeyEventArgs e)
@@ -146,6 +174,7 @@ internal sealed partial class BooruWorkbenchView
             return;
         }
 
+        RefreshSidebarFacts();
         int cursor = view.Rows.IndexWhere(row => row.Post.PostId == _cursorPostId);
         int index = Math.Max(cursor, 0);
         BooruResultRowView row = view.Rows[index];
