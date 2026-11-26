@@ -35,25 +35,25 @@ MeowChan is a desktop app that watches imageboard threads and boards and saves o
 
 [Full 1.1.3 release notes](docs/releases/v1.1.3.md)
 
-## Take a look around · 1.1.2
+## Take a look around · 1.1.3
 
-In the **Gallery**, the heart marks a favourite and the stars record its rating. The filmstrip keeps the next photo within reach. [All 12 screenshots and capture notes](docs/screenshots/1.1.2/README.md)
+In the **Gallery**, the heart and five stars mark this cat portrait as a favourite. Choose another photo from the filmstrip below. [All 12 screenshots and capture notes](docs/screenshots/1.1.3/README.md)
 
-[![Cat beneath a flower planter with the favourite heart and five filled stars above the photo](docs/screenshots/1.1.2/gallery-heart-stars-dark.png)](docs/screenshots/1.1.2/gallery-heart-stars-dark.png)
+[![Five-star favourite beneath pink flowers, with a filmstrip of saved photos below](docs/screenshots/1.1.3/gallery-overview.png)](docs/screenshots/1.1.3/gallery-overview.png)
 
-| Reader · post 158 of 379 | Media · sort by rating |
+| Reader · meet Pirate | Media · sort by rating |
 | --- | --- |
-| [![Cat General at post 158 of 379, with Pirate’s photo and four-star rating in the sidebar](docs/screenshots/1.1.2/reader-long-thread-dark.png)](docs/screenshots/1.1.2/reader-long-thread-dark.png) | [![Saved cat photos sorted by rating, with a five-star favourite selected](docs/screenshots/1.1.2/media-rating-sort-light.png)](docs/screenshots/1.1.2/media-rating-sort-light.png) |
+| [![Pirate curled up in a blanket, with the original post beside the photo](docs/screenshots/1.1.3/reader-pirate.png)](docs/screenshots/1.1.3/reader-pirate.png) | [![Cat photos sorted by rating with the selected portrait in the light sidebar](docs/screenshots/1.1.3/media-rating-sort-de.png)](docs/screenshots/1.1.3/media-rating-sort-de.png) |
 
-| Booru · search tabs | Tagging · quick tags |
+| Booru · resize the sidebar | Tagging · queue and ratings |
 | --- | --- |
-| [![Three Danbooru tabs above a scrolled grid with the page controls still visible](docs/screenshots/1.1.2/booru-search-tabs-dark.png)](docs/screenshots/1.1.2/booru-search-tabs-dark.png) | [![Quick-tag popover with cat, kot and orange tags for the selected clip](docs/screenshots/1.1.2/tagging-quick-tags-dark.png)](docs/screenshots/1.1.2/tagging-quick-tags-dark.png) |
+| [![A widened Danbooru preview beside the search results, with a tooltip on the divider](docs/screenshots/1.1.3/booru-sidebar-divider.png)](docs/screenshots/1.1.3/booru-sidebar-divider.png) | [![A five-star favourite selected in a grid of cat photos queued for tagging](docs/screenshots/1.1.3/tagging-grid.png)](docs/screenshots/1.1.3/tagging-grid.png) |
 
-| Tagging walk · undo | Downloads · board archive |
+| Archive · favourite threads | Gallery · transparency |
 | --- | --- |
-| [![A cat portrait in the tagging walk with a tooltip explaining the Back action](docs/screenshots/1.1.2/tagging-walk-undo-dark.png)](docs/screenshots/1.1.2/tagging-walk-undo-dark.png) | [![The opening post about a cormorant beside the Watch thread action](docs/screenshots/1.1.2/board-archive-preview-light.png)](docs/screenshots/1.1.2/board-archive-preview-light.png) |
+| [![Hearts beside saved threads with Pirate’s post open in the Reader](docs/screenshots/1.1.3/archive-favourite-hearts.png)](docs/screenshots/1.1.3/archive-favourite-hearts.png) | [![A checkerboard behind the cat’s ears and whiskers with the background menu open](docs/screenshots/1.1.3/gallery-checkerboard.png)](docs/screenshots/1.1.3/gallery-checkerboard.png) |
 
-[Earlier captures](docs/screenshots/) · [1.1.1](docs/screenshots/1.1.1/README.md) · [1.1.0](docs/screenshots/v1.1.0/README.md) · [1.0.1](docs/screenshots/v1.0.1/README.md) · [1.0.0](docs/screenshots/v1.0.0/README.md) · [0.9.0 layout and screenshots](docs/history/0.9.0-layout.md)
+[Earlier captures](docs/screenshots/) · [1.1.2](docs/screenshots/1.1.2/README.md) · [1.1.1](docs/screenshots/1.1.1/README.md) · [1.1.0](docs/screenshots/v1.1.0/README.md) · [1.0.1](docs/screenshots/v1.0.1/README.md) · [1.0.0](docs/screenshots/v1.0.0/README.md) · [0.9.0 layout and screenshots](docs/history/0.9.0-layout.md)
 
 ## Quick start
 
