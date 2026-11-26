@@ -123,7 +123,9 @@ public partial class ArchivePage
     internal async Task SetRepliesExpandedAsync(ArchivePostRow row, bool open)
     {
         if (_ended || ArchivePosts.ItemsSource is not ReaderPostRows rows || rows.IndexOf(row) < 0) return;
-        Func<Task>? restore = ReaderJumpOwnsScroll ? null : CaptureReaderCountLayoutCorrection();
+        // A neighboring card's expansion must preserve the reading anchor, which can differ from selection.
+        Func<Task>? restore = !ReaderJumpOwnsScroll && ReferenceEquals(ArchivePosts.SelectedItem, row)
+            ? CaptureReaderCountLayoutCorrection() : null;
         _replyAutoExpand.RememberChoice(row, open);
         if (restore != null) await restore();
         if (open && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
@@ -159,7 +161,7 @@ public partial class ArchivePage
             // A history restore may have put loaded pages on the row while this one was on its way; its offset is then stale.
             if (!Current() || row.Replies.Count != loadedBefore) return;
             bool selected = ReferenceEquals(ArchivePosts.SelectedItem, row);
-            if (!ReaderJumpOwnsScroll && (row.RepliesExpanded || (selected && _replyAutoExpand.Enabled)))
+            if (!ReaderJumpOwnsScroll && selected && (row.RepliesExpanded || _replyAutoExpand.Enabled))
                 restore = CaptureReaderCountLayoutCorrection();
             row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => ReplyCard(quote, thread))).ToArray()),
                 page.TotalCount, page.Offset);
@@ -170,7 +172,7 @@ public partial class ArchivePage
         {
             if (Current())
             {
-                if (!ReaderJumpOwnsScroll && ArchivePosts.ContainerFromItem(row) != null)
+                if (!ReaderJumpOwnsScroll && row.RepliesExpanded && ReferenceEquals(ArchivePosts.SelectedItem, row))
                     restore = CaptureReaderCountLayoutCorrection();
                 row.SetRepliesError(exception.Message);
             }

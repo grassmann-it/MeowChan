@@ -696,9 +696,10 @@ public partial class ArchivePage
             CancelMediaSidebarLoad();
             CancelSidebarStripLoad();
             _sidebarAnnounceTimer?.Stop();
-            if (!ArchiveMediaTab.IsSelected && ArchivePosts.SelectedItem is ArchivePostRow selected && ShowsSidebarPostDetail(selected))
+            if (!ArchiveMediaTab.IsSelected && ArchivePosts.SelectedItem is ArchivePostRow selected
+                && (selected.IsStub || !selected.ShowsMedia))
             {
-                // Text has no decode to throttle. Its actions should follow the selected post immediately.
+                // Text and hidden posts have no decode to throttle. Keep the sidebar in step with selection.
                 _sidebarFollowTimer?.Stop();
                 _sidebarThrottle.Reset();
                 RefreshMediaSidebar();
