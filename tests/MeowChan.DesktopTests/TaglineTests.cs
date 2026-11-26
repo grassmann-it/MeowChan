@@ -223,26 +223,40 @@ public sealed class TaglineTests : IDisposable
     public void OnlyReleaseQuipsCanHighlightAnUpdateInAnyLanguage()
     {
         Version baseline = new(1, 0, 0), previous = new(1, 1, 1), current = new(1, 1, 2);
+        // Tom's final selection, B1: remove tagquickfix and add seven release taglines for 1.1.2.
+        string[] currentRelease = ["favefinal", "firstclick", "fivestars", "heartedstarred", "heartsandstars", "polishrelease", "roughhearts"];
+        // Tom's final selection, B2: the Seasonal rows of the approved language matrix run in their date windows.
+        string[] seasonal = ["adalovelace", "archivebewithyou", "baselwheels", "bikeride", "blackcat", "blazingfast",
+            "breadroses", "breathingthumbs", "catday", "catdaysearch", "catnipresearch", "catsnacks", "catsvote",
+            "cloudindependence", "dontpanic", "eighthours", "fireworksgif", "forgottowel", "giftbox", "goodfolder", "inmyfavorites",
+            "lastyeardownload", "linuxbirthday", "mediaforall", "mirrorghost", "newyearbacklog", "nocloud", "notthethreads",
+            "pirateparrot", "pistars", "pithreads", "plunderboards", "pueblacover", "queueovertime", "redheart", "ribbon", "roseswilt",
+            "smallmoon", "snowed", "treasuremisc", "treefell", "trickorthread", "underbed", "unodostres", "unpaidmods",
+            "vacuumindependence", "worldbackup"];
         foreach (string language in AllLanguages)
         {
             Texts.SetLanguage(language);
             IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
             Assert.Equal(["booru", "flashbang", "pink", "tags", "vibetested", "workflow", "workviews"],
                 TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 0), baseline).Select(entry => entry.Id));
-            Assert.Equal(["boorutabs", "downloadall", "taglinesfeature", "tagquickfix", "threadswitch"],
+            Assert.Equal(["boorutabs", "downloadall", "taglinesfeature", "threadswitch"],
                 TaglinePicker.ReleaseCandidates(pool, previous, baseline).Select(entry => entry.Id));
-            Assert.Empty(TaglinePicker.ReleaseCandidates(pool, current, previous));
+            Assert.Equal(currentRelease, TaglinePicker.ReleaseCandidates(pool, current, previous).Select(entry => entry.Id));
             foreach (string mode in new[] { TaglinePicker.ModeDaily, TaglinePicker.ModePerStart, TaglinePicker.ModeInterval })
             {
                 TaglinePick first = TaglinePicker.Pick(mode, "cats", pool, Day, current, previous, true, new Random(3));
                 TaglinePick normal = TaglinePicker.Pick(mode, "cats", pool, Day, current, current, true, new Random(3));
                 Assert.NotNull(first.Entry);
-                Assert.False(first.ReleaseHighlight);
-                Assert.Equal(normal.Entry, first.Entry);
+                Assert.True(first.ReleaseHighlight);
+                Assert.Contains(first.Entry!.Id, currentRelease);
+                Assert.NotNull(normal.Entry);
+                Assert.False(normal.ReleaseHighlight);
             }
             Assert.Empty(TaglinePicker.ReleaseCandidates(pool, baseline, null));
             Assert.Equal(TaglineCategory.General, pool.Single(entry => entry.Id == "tabsbreed").Category);
-            Assert.Equal(["snowed", "trickorthread"], pool.Where(entry => entry.Category == TaglineCategory.Seasonal).Select(entry => entry.Id));
+            TaglineEntry[] seasonEntries = pool.Where(entry => entry.Category == TaglineCategory.Seasonal).ToArray();
+            Assert.Equal(seasonal, seasonEntries.Select(entry => entry.Id));
+            Assert.All(seasonEntries, entry => Assert.Equal(current, entry.Since));
         }
     }
 
@@ -381,25 +395,31 @@ public sealed class TaglineTests : IDisposable
     }
 
     [Fact]
-    public void AllTwelveLanguagesTranslateTheQuipsFreelyNotLeftInEnglish()
+    public void AllTwelveLanguagesLocalizeTheQuipsExceptForTheApprovedSharedEnglish()
     {
+        // Tom's final selection distinguishes "EN überall" from the individual "EN" cells in the approved B2 matrix.
+        // The pack inventory audit also checks the exact set per bundled language.
+        string[] sharedEnglish = ["ninjaway", "threadcowboy", "threadlightly", "trickorthread"];
+        HashSet<string> regionalEnglish = ["archiveemall", "blazingfast", "boardlostthread", "chevronseven", "curiosity",
+            "hangingthread", "heartedstarred", "ifitfits", "jacktheripper", "lostthread", "mirrorghost", "notnative",
+            "polishrelease", "pullthread", "ribbon", "threadbare", "threadripper", "unodostres"];
         Texts.SetLanguage("en");
         Dictionary<string, string> english = TaglineCatalog.Available().ToDictionary(entry => entry.Id, entry => entry.Text);
         foreach (string language in AllLanguages.Where(code => code != "en"))
         {
             Texts.SetLanguage(language);
-            // Tokens like "booru", "KiB" or "404" may stay; a text identical to the English one may not (cats and the others all change).
-            foreach (TaglineEntry entry in TaglineCatalog.Available())
-                Assert.NotEqual(english[entry.Id], entry.Text);
+            IEnumerable<string> exactEnglish = TaglineCatalog.Available().Where(entry => entry.Text == english[entry.Id]).Select(entry => entry.Id);
+            Assert.Equal(sharedEnglish, exactEnglish.Where(id => language == "de" || !regionalEnglish.Contains(id)));
         }
     }
 
     [Fact]
-    public void TheCatalogShipsBetweenEightAndSixtyQuipsAndTheReleaseOnesAreThere()
+    public void TheCatalogShipsTheFullSelectionAndTheReleaseOnesAreThere()
     {
         Texts.SetLanguage("en");
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        Assert.InRange(pool.Count, 8, 60);
+        // Tom's final selection: B1 adds 42 and removes four, and the B2 matrix adds 51 distinct quips.
+        Assert.Equal(135, pool.Count);
         Assert.Contains(pool, entry => entry.Id == TaglineCatalog.DefaultId);
         Assert.Equal("now with 100% more cats", pool.Single(entry => entry.Id == "cats").Text);
         Assert.Equal("now with booru support", pool.Single(entry => entry.Id == "booru").Text);

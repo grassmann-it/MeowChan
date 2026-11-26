@@ -13,16 +13,17 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
         {
             // Bundle D review blocker 3 calls for two Booru search actions in the command catalog, with labels in every pack.
             // 73-2 review #4 makes the sidebar preview pixel limit a setting (label and hint in every pack).
-            ["cs"] = (5615, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),
-            ["es"] = (5559, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),
-            ["fr"] = (5559, 121, "b52261bed3c44d31cc4ff4bbb101ee708b1391a87dd7888b78b5fa7f18441d7d"),
-            ["it"] = (5565, 130, "b1199c5a40e2be457f6a08a7b9653fc82e348ade3bd6155600b1b2c5391c68ad"),
-            ["ja"] = (5449, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),
-            ["ko"] = (5449, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),
-            ["pl"] = (5616, 95, "29ab906199d618762d3af868c893a4adf786c3d460be5a096f2e71ebccbdcfdf"),
-            ["pt-BR"] = (5565, 143, "a21be79decfd7566b0ee5cc93b958d6ed69282dd547064012f8b1a488bd54557"),
-            ["ru"] = (5593, 60, "6c6ec2607287bb12ae697b7c09f5b1cd150a05077e80d3578496280fe196b6d0"),
-            ["zh-Hans"] = (5449, 48, "c9ec9a93a852abae49941e4bfc105328d0f04cafd9de3fa51bf17718cc74d0ff"),
+            // Tom's B1/B2 selection adds the shared English quips and the per-language "EN" cells from the approved matrix.
+            ["cs"] = (5704, 110, "bcbe32d7d9424ace915616821cdccc2de755120f5c18d0a9727c0c8ae553c27a"),
+            ["es"] = (5648, 96, "be2197658a227ee0a945c05ce6951f6099702338c859e3391f65b0555a30ef03"),
+            ["fr"] = (5648, 132, "b4b95867895ecef52f201de787a22149d5de6d83c952b80a05002ef0baee5746"),
+            ["it"] = (5654, 147, "ff034527957c2b6571680ea842dbad3e59e02f9985599ddeded53466d99c6aeb"),
+            ["ja"] = (5538, 77, "8610eb6cb46414e0d6f200989b1f440b220e5cc859f00610b1d075a4d37af4fc"),
+            ["ko"] = (5538, 73, "5118fb762b6f27486ab6e54eebd7631076afa6b8858020dad221c73048d500a7"),
+            ["pl"] = (5705, 112, "34eaba2fb6b882ae23e67afa0a1eaf1819d7e536c7ce9ca281a3bda3a4bc72c7"),
+            ["pt-BR"] = (5654, 158, "8d4249beb4a0a53c5998a5cd2b2b218c1c9e8ee67f2ec931c65752480e8e709e"),
+            ["ru"] = (5682, 78, "7c131bec440908d6bb408db86eb0399f63cac357159d54a33fe4d6afb566b673"),
+            ["zh-Hans"] = (5538, 69, "c7355ce0a1f5c4768e17619ff533c77dbef4070a66458a00a7220361ed17eaa6"),
         };
 
     // The provider number, unit and precision retain the same punctuation in these packs.
@@ -56,7 +57,8 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
         // Bundle D review blocker 3 adds the Watch and Download/Stop command labels.
         // 73-2 review #4 adds the label and hint of the sidebar preview pixel limit.
         // Tom, 26.11.2026 (icons): the rating stars get a theme colour of their own; its name is new in English and the ten packs.
-        Assert.Equal(5561, BuiltInCatalog.English.Count);
+        // Tom's B1/B2 selection adds 93 taglines and removes four that were still in the catalog.
+        Assert.Equal(5650, BuiltInCatalog.English.Count);
         Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
         Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
     }
