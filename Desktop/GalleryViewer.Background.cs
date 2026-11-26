@@ -95,30 +95,16 @@ internal sealed partial class GalleryViewer
         _backgroundPicker.IsEnabled = CanChooseBackground;
         string visible = CanChooseBackground ? _galleryBackground : Config.GalleryBackgroundBlack;
         _themeBackdrop.IsVisible = visible == Config.GalleryBackgroundTheme;
-        _viewport.Background = visible switch
+        string? resourceKey = visible switch
         {
-            Config.GalleryBackgroundWhite => Brushes.White,
-            Config.GalleryBackgroundCheckerboard => CheckerboardBrush,
-            _ => Brushes.Black
+            Config.GalleryBackgroundWhite => "Workspace.GalleryBackground.White",
+            Config.GalleryBackgroundCheckerboard => "Workspace.GalleryBackground.Checkerboard",
+            _ => null
         };
-    }
-
-    private static readonly DrawingBrush CheckerboardBrush = CreateCheckerboardBrush();
-
-    private static DrawingBrush CreateCheckerboardBrush()
-    {
-        const double square = 8;
-        Rect tile = new(0, 0, 2 * square, 2 * square);
-        var drawing = new DrawingGroup();
-        drawing.Children.Add(new GeometryDrawing { Brush = Brushes.LightGray, Geometry = new RectangleGeometry(tile) });
-        drawing.Children.Add(new GeometryDrawing { Brush = Brushes.Gray, Geometry = new RectangleGeometry(new Rect(0, 0, square, square)) });
-        drawing.Children.Add(new GeometryDrawing { Brush = Brushes.Gray, Geometry = new RectangleGeometry(new Rect(square, square, square, square)) });
-        return new DrawingBrush
-        {
-            Drawing = drawing,
-            SourceRect = new RelativeRect(tile, RelativeUnit.Absolute),
-            DestinationRect = new RelativeRect(tile, RelativeUnit.Absolute),
-            TileMode = TileMode.Tile
-        };
+        _viewport.Background = resourceKey is not null
+            && Application.Current?.TryGetResource(resourceKey, null, out object? resource) == true
+            && resource is IBrush backdrop
+            ? backdrop
+            : LetterboxBrush;
     }
 }

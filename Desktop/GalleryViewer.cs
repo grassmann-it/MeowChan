@@ -60,11 +60,12 @@ internal sealed record GalleryDiagnosticNotice(string Operation, GalleryEntry? E
 
 internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
 {
+    private static readonly IBrush LetterboxBrush = Brushes.Black;
     private readonly TranslateTransform _imageTranslation = new();
     private readonly RotateTransform _imageRotation = new();
     private readonly ScaleTransform _imageFlip = new();
     private readonly Image _image = new() { Name = "GalleryImage", Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = Brushes.Black };
+    private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = LetterboxBrush };
     private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), IsHitTestVisible = false };
     private readonly TextBlock _scope = new() { Name = "GalleryScope", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _provenance = new() { Name = "GalleryProvenance", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap, IsVisible = false };

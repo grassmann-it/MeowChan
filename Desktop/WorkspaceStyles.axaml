@@ -7,6 +7,30 @@
                 <ResourceInclude Source="avares://MeowChan/Desktop/MenuItemTemplate.axaml" />
             </ResourceDictionary.MergedDictionaries>
             <SolidColorBrush x:Key="Workspace.MediaScrim">#D2181A1F</SolidColorBrush>
+            <SolidColorBrush x:Key="Workspace.GalleryBackground.White">White</SolidColorBrush>
+            <DrawingBrush x:Key="Workspace.GalleryBackground.Checkerboard" SourceRect="0,0,16,16" DestinationRect="0,0,16,16" TileMode="Tile">
+                <DrawingBrush.Drawing>
+                    <DrawingGroup>
+                        <DrawingGroup.Children>
+                            <GeometryDrawing Brush="LightGray">
+                                <GeometryDrawing.Geometry>
+                                    <RectangleGeometry Rect="0,0,16,16" />
+                                </GeometryDrawing.Geometry>
+                            </GeometryDrawing>
+                            <GeometryDrawing Brush="Gray">
+                                <GeometryDrawing.Geometry>
+                                    <RectangleGeometry Rect="0,0,8,8" />
+                                </GeometryDrawing.Geometry>
+                            </GeometryDrawing>
+                            <GeometryDrawing Brush="Gray">
+                                <GeometryDrawing.Geometry>
+                                    <RectangleGeometry Rect="8,8,8,8" />
+                                </GeometryDrawing.Geometry>
+                            </GeometryDrawing>
+                        </DrawingGroup.Children>
+                    </DrawingGroup>
+                </DrawingBrush.Drawing>
+            </DrawingBrush>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="Workspace.Background">#121416</SolidColorBrush>
