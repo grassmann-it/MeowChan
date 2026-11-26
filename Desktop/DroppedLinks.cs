@@ -36,7 +36,8 @@ internal static class DroppedLinks
         ("UniformResourceLocatorW", Encoding.Unicode, false),
         ("UniformResourceLocator", Encoding.UTF8, false)
     ];
-    private static readonly char[] Separators = [',', '\r', '\n'];
+    private static readonly char[] LineSeparators = ['\r', '\n'];
+    private const StringSplitOptions EntryOptions = StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries;
 
     public static DroppedContent Read(IDataTransfer transfer)
     {
@@ -56,8 +57,10 @@ internal static class DroppedLinks
         Uri[] local = items.Where(uri => !uri.IsAbsoluteUri || uri.IsFile).ToArray();
         if (local.Length > 0)
             return new(DroppedContentKind.Files, FileCount: local.Length) { Paths = local.Select(LocalPath).Where(path => path != null).Select(path => path!).ToArray() };
-        string[] entries = (text ?? string.Empty).Split(Separators,
-            StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        // A comma can belong to an existing path rather than separate entries on the line.
+        string[] entries = (text ?? string.Empty).Split(LineSeparators, EntryOptions)
+            .SelectMany(line => line.Contains(',') && IsExistingPath(line) ? [line] : line.Split(',', EntryOptions))
+            .ToArray();
         if (entries.Length > 0 && entries.All(IsLocalPath))
             return new(DroppedContentKind.Files, FileCount: entries.Length)
             { Paths = entries.Select(entry => Uri.TryCreate(entry, UriKind.Absolute, out Uri? uri) ? LocalPath(uri) : null).Where(path => path != null).Select(path => path!).ToArray() };
@@ -81,8 +84,11 @@ internal static class DroppedLinks
         if (entry.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             return Uri.TryCreate(entry, UriKind.Absolute, out Uri? uri) && uri.IsFile;
         if (IsWindowsPath(entry)) return true;
-        return Path.IsPathRooted(entry) && (File.Exists(entry) || Directory.Exists(entry));
+        return IsExistingPath(entry);
     }
+
+    private static bool IsExistingPath(string entry) =>
+        Path.IsPathRooted(entry) && (File.Exists(entry) || Directory.Exists(entry));
 
     private static bool IsWindowsPath(string entry) =>
         entry.Length >= 3 && char.IsAsciiLetter(entry[0]) && entry[1] == ':' && (entry[2] == '\\' || entry[2] == '/')
