@@ -6,6 +6,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -39,7 +40,7 @@ internal sealed partial class BooruWorkbenchView
         card.AttachedToVisualTree += (_, _) => ContextMenuHost.Install(card, compose, fallbackFocus);
     }
 
-    private static ContextMenuBuilder? ComposeResultMenu(ResultActions result)
+    private static ContextMenuBuilder? ComposeResultMenu(ResultActions result, Func<bool>? current = null)
     {
         if (!result.IsCurrent() || result.CurrentRow() is not { } row) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("booru.ui.post.title", result.PostId));
@@ -55,6 +56,8 @@ internal sealed partial class BooruWorkbenchView
         menu.Section();
         foreach (ResultCommand link in commands.Where(command => command.Action is ResultAction.Open or ResultAction.Copy))
             AddResultItem(menu, result, link, link.Action == ResultAction.Open ? MenuOpenPost : MenuCopyLink);
+        MediaSourceMenu.AddTo(menu.Section(), result.SourceMenuData(row.Post), () => result.IsCurrent() && current?.Invoke() != false,
+            result.CopyTagTextAsync, result.OpenImageSearchAsync);
         return menu;
     }
 

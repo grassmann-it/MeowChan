@@ -30,7 +30,7 @@ internal static class MediaMenuBuilder
     internal static ContextMenu Build(MediaMenuSession session, MediaMenuModel model,
         IReadOnlyDictionary<MediaMenuAction, Func<Task>> handlers, Func<Func<Task>, Task> run,
         IReadOnlyList<Control>? contextItems = null, Action<string>? explain = null, IReadOnlyList<Control>? leadingItems = null,
-        Func<string?>? openExternalReason = null)
+        Func<string?>? openExternalReason = null, IReadOnlyList<Control>? sourceItems = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(model);
@@ -48,6 +48,11 @@ internal static class MediaMenuBuilder
             if (group >= 0 && entry.Group != group) items.Add(new Separator());
             group = entry.Group;
             items.Add(Item(session, entry, handlers, run, entry.Action == MediaMenuAction.OpenExternal ? openExternalReason : null));
+        }
+        if (sourceItems is { Count: > 0 })
+        {
+            if (items.Count > 0) items.Add(new Separator());
+            items.AddRange(sourceItems);
         }
         if (contextItems is { Count: > 0 })
         {

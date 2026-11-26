@@ -22,6 +22,7 @@ internal sealed class ContextMenuBuilder
     private readonly List<List<ContextMenuEntry>> _sections = [[]];
     private readonly HashSet<string> _ids = new(StringComparer.Ordinal);
     private readonly List<Control> _appended = [];
+    private Dictionary<string, Action<MenuItem>>? _submenuConfigurations;
     private string? _name;
 
     /// <summary>The accessible name of the menu (what a screen reader announces when it opens).</summary>
@@ -59,11 +60,12 @@ internal sealed class ContextMenuBuilder
     /// are commands with icons; the same action shows the same icon as its command elsewhere.
     /// </summary>
     internal ContextMenuBuilder Item(string id, string label, Action invoke, bool available = true, string? reason = null,
-        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null, bool dangerous = false)
+        Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null, string? icon = null, bool dangerous = false,
+        string? tooltip = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
         return Add(new(ContextMenuEntryKind.Command, id, label, null, null, false, available, reason, invoke, true,
-            availableWhen, reasonWhen, labelWhen, Icon: icon, Dangerous: dangerous));
+            availableWhen, reasonWhen, labelWhen, Icon: icon, Dangerous: dangerous, Tooltip: tooltip));
     }
 
     /// <summary>
@@ -99,11 +101,14 @@ internal sealed class ContextMenuBuilder
 
     /// <summary>A submenu whose children are composed with the same section and availability rules.</summary>
     internal ContextMenuBuilder Submenu(string id, string label, ContextMenuModel children, bool available = true, string? reason = null,
-        string? icon = null)
+        string? icon = null, string? tooltip = null, Action<MenuItem>? configure = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(children);
-        return Add(new(ContextMenuEntryKind.Submenu, id, label, null, null, false, available, reason, null, Children: children.Sections, Icon: icon));
+        Add(new(ContextMenuEntryKind.Submenu, id, label, null, null, false, available, reason, null,
+            Children: children.Sections, Icon: icon, Tooltip: tooltip));
+        if (configure != null) (_submenuConfigurations ??= new(StringComparer.Ordinal)).Add(id, configure);
+        return this;
     }
 
     /// <summary>A disabled explanatory sentence.</summary>
@@ -173,9 +178,12 @@ internal sealed class ContextMenuBuilder
         if (menu.ItemCount > 0) menu.Items.Clear();
     }
 
-    private IReadOnlyList<Control> ComposeItems()
+    internal IReadOnlyList<Control> ComposeItems()
     {
         List<Control> items = [.. BuildItems(ToModel())];
+        if (_submenuConfigurations != null)
+            foreach (MenuItem item in items.OfType<MenuItem>())
+                if (item.Tag is string id && _submenuConfigurations.TryGetValue(id, out Action<MenuItem>? configure)) configure(item);
         items.AddRange(_appended);
         return items;
     }
@@ -235,6 +243,11 @@ internal sealed class ContextMenuBuilder
                 AutomationProperties.SetHelpText(submenu, unavailable);
             }
             if (entry.Icon != null) submenu.Icon = CommandBindings.IconFromKey(entry.Icon, deferMask: true);
+            if (entry.Available && entry.Tooltip != null)
+            {
+                ToolTip.SetTip(submenu, entry.Tooltip);
+                AutomationProperties.SetHelpText(submenu, entry.Tooltip);
+            }
             submenu.Tag = entry.Id;
             return submenu;
         }
@@ -255,6 +268,11 @@ internal sealed class ContextMenuBuilder
                 AutomationProperties.SetHelpText(item, Reason());
                 ToolTip.SetTip(item, Label() + " · " + Reason());
                 ToolTip.SetShowOnDisabled(item, true);
+            }
+            else if (entry.Tooltip != null)
+            {
+                ToolTip.SetTip(item, entry.Tooltip);
+                AutomationProperties.SetHelpText(item, entry.Tooltip);
             }
         }
         item.Tag = entry.Id;

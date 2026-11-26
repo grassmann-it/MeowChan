@@ -878,7 +878,12 @@ public partial class ArchivePage
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.clear", () => { ClearMediaSelection(); return Task.CompletedTask; },
                 () => true, Run, icon: "x"));
         }
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text), PlaybackMenuItems(playback, session, Run));
+        string? original = MediaSourceMenu.Original(target?.Asset ?? asset?.Asset)
+            ?? MediaSourceMenu.Original(attachment?.Attachment ?? (severalPosts ? null : target?.Attachment));
+        MediaSourceMenuData source = new(original, MediaSourceMenu.OwnTags(_privateTags, tagEntry == null ? null : MediaTagSubjects.Of(tagEntry)));
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text), PlaybackMenuItems(playback, session, Run),
+            sourceItems: MediaSourceMenu.Build(source, () => session.IsCurrent, origin, reportError,
+                blocked: selection is { Length: > 1 } ? MediaMenuReasons.SeveralSelected : null));
         return (menu, session);
     }
 

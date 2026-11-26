@@ -15,6 +15,7 @@ using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
@@ -91,6 +92,41 @@ public sealed class BooruMediaSidebarTests
         }
         finally { ContextClick.MacOSForTests = null; }
     });
+
+    [Fact]
+    public void HitAndSidebarMenusUseProviderTagsAndFallBackFromTheOriginalToThePost() => InWindow((harness, model, view, window) =>
+    {
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true,
+                BooruUiFixtures.Post("101", tags: ["zebra", "blue_eyes"]),
+                BooruUiFixtures.Post("102", original: BooruOriginalAccess.Restricted, sample: true, tags: ["sky", "alice"]))));
+        Search(model, view);
+        Border hit = Hit(view, "101");
+        Focus(hit);
+        ContextGestures.ShiftF10(hit);
+        ContextMenu card = Assert.IsType<ContextMenu>(hit.ContextMenu);
+        MenuItem cardSearch = MenuItemById(card, MediaSourceMenu.SearchId);
+        Assert.Empty(harness.Links.Opened);
+        MenuItemById(cardSearch, MediaSourceMenu.SearchId + ".saucenao").Command!.Execute(null);
+        MenuItemById(card, MediaSourceMenu.CopyId).Command!.Execute(null);
+        Assert.Equal("https://saucenao.com/search.php?url=https%3A%2F%2Fcdn.donmai.us%2Foriginal%2F101.png", Assert.Single(harness.Links.Opened));
+        Assert.Equal("zebra blue_eyes", Assert.Single(harness.Links.Copied));
+        card.Close();
+
+        Focus(Hit(view, "102"));
+        Settle(window);
+        Button picture = ById<Button>(Sidebar(view), "BooruMediaOpenGallery");
+        ContextGestures.RightClick(picture);
+        ContextMenu sidebar = Assert.IsType<ContextMenu>(picture.ContextMenu);
+        MenuItem sidebarSearch = MenuItemById(sidebar, MediaSourceMenu.SearchId);
+        MenuItemById(sidebarSearch, MediaSourceMenu.SearchId + ".saucenao").Command!.Execute(null);
+        MenuItemById(sidebar, MediaSourceMenu.CopyId).Command!.Execute(null);
+        Assert.Equal("https://saucenao.com/search.php?url=https%3A%2F%2Fdanbooru.donmai.us%2Fposts%2F102", harness.Links.Opened.Last());
+        Assert.Equal("sky alice", harness.Links.Copied.Last());
+    });
+
+    private static MenuItem MenuItemById(ItemsControl menu, string id) =>
+        Assert.Single(menu.Items.OfType<MenuItem>(), item => AutomationProperties.GetAutomationId(item) == id);
 
     [Fact]
     public void SidebarFollowsTheCursorAndKeepsItsPictureAcrossAListRebuild() => InWindow((harness, model, view, window) =>
