@@ -731,7 +731,7 @@ public sealed class HelpDocumentationTests
         finally { Directory.Delete(unused, recursive: true); }
         Assert.Contains("named after the video and the playback position", frames, StringComparison.Ordinal);
         Assert.Contains("only while a video is shown and ready", frames, StringComparison.Ordinal);
-        Assert.Contains("if (CanUseVideoTransport && _videoReadyRequest == _request && _entry != null) SaveFrameRequested", Read("Desktop/GalleryViewer.cs"), StringComparison.Ordinal);
+        Assert.Contains("if (CanRequestSaveFrame && _entry is { } entry) SaveFrameRequested?.Invoke(entry, _request);", Read("Desktop/GalleryViewer.cs"), StringComparison.Ordinal);
         foreach (WorkView view in Enum.GetValues<WorkView>())
             Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("gallery.menu.save-frame", view));
         Assert.Contains("sits under More in every work view", frames, StringComparison.Ordinal);
