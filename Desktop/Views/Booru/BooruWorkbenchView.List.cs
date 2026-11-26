@@ -259,6 +259,7 @@ internal sealed class BooruListCardLayout : Panel
     private readonly Border _card;
     private readonly BooruListLayoutSettings _settings;
     private readonly double _textInset = WorkspaceTokens.Space(8);
+    private readonly double _factsTagGap = WorkspaceTokens.Space(4);
     private readonly Control _picture;
     private readonly Control _preview;
     private readonly Control _frame;
@@ -310,7 +311,7 @@ internal sealed class BooruListCardLayout : Panel
             : band.Height + BooruListLayoutSettings.ActionHeight;
         double actionsBottom = Math.Max(minimumActionsBottom, _factsSlot.Bottom + textInset + _actions.DesiredSize.Height);
         double tagsX = tagsAlongside ? textX : 0;
-        double tagsY = tagsAlongside ? _factsSlot.Bottom + textInset : actionsBottom + textInset;
+        double tagsY = tagsAlongside ? _factsSlot.Bottom + _factsTagGap : actionsBottom + textInset;
         double tagsWidth = tagsAlongside ? textWidth : width;
         double reserveBelowTags = tagsAlongside ? textInset + _actions.DesiredSize.Height : textInset;
         _tags.SetHeightBudget(rowHeight - tagsY - reserveBelowTags - pictureInset);
