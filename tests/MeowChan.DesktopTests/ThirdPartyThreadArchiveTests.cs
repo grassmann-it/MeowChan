@@ -148,9 +148,10 @@ public sealed class ThirdPartyThreadArchiveTests
     public void MacArchiveActionAddsNoShortcutToTheExistingMenuGestures()
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
+        // Paket X2, UX-Spezifikation Z2: "Kein Tastenkürzel."
         Assert.DoesNotContain(CommandCatalog.All, command => command.Id == ActionId);
-        Assert.Equal(new KeyGesture(Key.F10, KeyModifiers.Shift),
-            Assert.Single(bindings.For("menu.context-open")).Resolve(ShortcutPlatform.MacOS));
+        Assert.Equal(new[] { new KeyGesture(Key.F10, KeyModifiers.Shift), new KeyGesture(Key.Apps) },
+            bindings.For("menu.context-open").Select(gesture => gesture.Resolve(ShortcutPlatform.MacOS)));
         Assert.Equal(new KeyGesture(Key.J, KeyModifiers.Meta | KeyModifiers.Shift),
             Assert.Single(bindings.For("reader.thread-menu")).Resolve(ShortcutPlatform.MacOS));
     }
