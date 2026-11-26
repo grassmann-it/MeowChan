@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -500,6 +501,90 @@ public sealed class BooruSearchTabPersistenceTests
                 Assert.True(JsonElement.DeepEquals(property.Value, actual.GetProperty(property.Name)),
                     $"The target did not retain {property.Name}.");
         }
+    }
+
+    [Fact]
+    public void Legacy113WriterRestoresVisibleAndHiddenTabs()
+    {
+        // Gzip of the exact full snapshot emitted by WriterProducesMigrationFiles at fa1961e70.
+        const string snapshot = """
+            H4sIAAAAAAAC/+VYTW/bMAz9L7rObSylaVPftm6HHgYUXXcahkKxGEebLHmSnKQL8t9H2XGTbl32dSEwIDEgihQfKdFP9IYtwQft
+            LCt4xhrvllqBv1asYEramXO+ZRmTZdRLuLYK1qh3kbEoZ4EVHzasdgpYkWdM26aNaIXaX1rwD6ywrTG4pAsxLbcbyQo6Tzq8sSiN
+            voWMQd1ENJhLE3Dk3Sqt/TFjtVzruq1vOqNJv1a4Ad8LBHo1MsRbCK2JvSx52WbPwFJezuM9J41OkEY3Jo3ujDS6CWl056TRXZBG
+            NyWN7pL22zinDY82W3DadMFp8wWnTRicNmNw2pTBDzjjUPQcSPE7IDedKSs2TKv0DK71JXx/Sx6WZzznbJuxuQaj0HzCeT/53huc
+            XcTYhGI0GixPlbO11KdtGHWRj5J5xkoPMoJ6mcISuTg/4fwk53f5tMhz/L3onqjnZdS26rLt5ep2N2IVToXS+bQPGONcLp3XEa5c
+            a3HFcbrCV31oVtaoxEoZk1f0WbmUOJ4SvJubmRbu4QHCTzXC54cnc2KbNhaUlp0P70yf6/ZJCkplD6Ln03yN/xT/6acmBQDrCLbv
+            TtijqIES8/JOf4VhJ1daxQXimeJJWICuFnE3GJTfqsn+0PRY8uNYMFmVttJ0YBr7A5hBdAiGi/HZ5Pxij+dSHALKf4GIH0cUZN0Y
+            eD45fRqOpKYfDFCequ+h4Jb1J/vKSF0Pejq8BgOo+FgVOryS1j4KtqlxhKWG1T6kP6wX8W/1Iv7zehGU6kUQqxdBvl7+igPFMQKk
+            3ZZw2n2JoN2XCOJfsWj3JYJ2XyJo9yWCdl8iaPclgva3LEGbNQRt1hjTZo0xbdYYU2ANtJTG3MlZuDIuyFm6ZfaOOpA7rW/Z0hog
+            MxsAAA==
+            """;
+        using TempDirectory profile = new();
+        string path = Path.Combine(profile.Path, BooruSearchTabStore.FileName);
+        using (MemoryStream bytes = new(Convert.FromBase64String(snapshot)))
+        using (GZipStream original = new(bytes, CompressionMode.Decompress))
+        using (FileStream copy = File.Create(path))
+            original.CopyTo(copy);
+
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        BooruSearchTabState? restored = new BooruSearchTabStore(lease).Read();
+        Assert.False(File.Exists(path + ".bad"), "The 1.1.3 tabs were quarantined.");
+        Assert.NotNull(restored);
+
+        BooruUiHarness offline = new();
+        using BooruWorkbenchModel model = new(WithSource(offline));
+        int openLimit = Config.BooruSearchTabsMinimum;
+        BooruSearchTabs tabs = new(model.Search, () => openLimit);
+        tabs.RestoreTargets(restored, source: Source);
+        Assert.Equal(new[] { "", "draft_17" }, tabs.Ids.Select(id => tabs.ViewOf(id)!.Input));
+        Assert.Equal(tabs.Ids[1], tabs.ActiveId);
+        BooruSearchView active = model.Search.View;
+        Assert.Equal("draft_17", active.ExecutedQuery);
+        Assert.Equal(2, active.Page);
+        Assert.True(active.IsEnd);
+        Assert.False(active.HasNextPage);
+        Assert.Equal(new[] { "101", "102" }, active.Rows.Select(row => row.Post.PostId));
+
+        openLimit = Config.BooruSearchTabsMaximum;
+        BooruSearchTabState reopened = Assert.IsType<BooruSearchTabState>(new BooruSearchTabStore(lease).Read());
+        tabs.RestoreTargets(reopened, source: Source);
+        Assert.Equal(Config.BooruSavedTabsMaximum, tabs.Ids.Count);
+        Assert.Equal(tabs.Ids[17], tabs.ActiveId);
+        Assert.True(tabs.Select(tabs.Ids[1]));
+        Assert.Equal("draft_1", model.Search.View.Input);
+        Assert.Null(model.Search.View.ExecutedQuery);
+        Assert.Empty(model.Search.View.Rows);
+        Assert.Equal(0, offline.ProviderRequests);
+    }
+
+    [Fact]
+    public void Legacy113WriterRestoresStartDraftWithoutRewritingIt()
+    {
+        // The exact draft snapshot emitted by WriterProducesMigrationFiles at fa1961e70.
+        const string snapshot = """
+            {"version":1,"providerId":"danbooru","activeIndex":0,"tabs":[null],"allTabsClosable":true,"draft":{"mode":0,"input":"start_here","query":null,"postId":null,"page":1,"isEnd":true,"empty":false,"rows":[],"maximumPage":5,"postsPerPage":20,"lastResultPage":null}}
+            """;
+        using TempDirectory profile = new();
+        string path = Path.Combine(profile.Path, BooruSearchTabStore.FileName);
+        File.WriteAllText(path, snapshot);
+
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        BooruSearchTabState? restored = new BooruSearchTabStore(lease).Read(migrateLegacy: false);
+        Assert.False(File.Exists(path + ".bad"), "The 1.1.3 start draft was quarantined.");
+        Assert.NotNull(restored);
+        Assert.Equal(snapshot, File.ReadAllText(path));
+
+        BooruUiHarness offline = new();
+        using BooruWorkbenchModel model = new(WithSource(offline));
+        BooruSearchTabs tabs = new(model.Search);
+        tabs.RestoreTargets(restored, source: Source);
+        Assert.Empty(tabs.Ids);
+        Assert.Null(tabs.ActiveId);
+        Assert.Equal("start_here", model.Search.View.Input);
+        Assert.Equal(BooruInputMode.Tags, model.Search.View.Mode);
+        Assert.Equal(0, offline.ProviderRequests);
     }
 
     [Fact]
