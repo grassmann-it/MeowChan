@@ -11,51 +11,30 @@
 
 <p align="center">Original media. Better viewing. Your archive, offline.</p>
 
-Save the threads you care about—and make them worth coming back to. **MeowChan** watches imageboard threads and boards, saves original media and captured posts, and turns your collection into a searchable offline reading workspace. Browse images and video, pick up where you left off, or take saved posts and verified originals with you as portable HTML.
+MeowChan is a desktop app that watches imageboard threads and boards and saves original media and posts on your computer. You can search and read captured threads offline, browse your media, or export a thread as a portable HTML folder.
 
-[**Get MeowChan 1.1.2 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.2) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.2.md) · [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
+[**Get MeowChan 1.1.2 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.2) · [Quick start](#quick-start) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.2.md)
 
-## Features introduced in 1.1.2
+## What you can do with MeowChan
 
-- **A heart and five stars in the gallery.** Mark a favourite or rate a photo beside **Back to thread**, then use the arrow keys to keep browsing.
-- **One scroll through a long thread.** The Reader loads posts around your reading position, even when you follow a quote beyond post 50.
-- **Set video playback once.** Your autoplay, repeat and mute choices carry across the Reader, Media and Tagging sidebars.
-- **Booru page controls stay in reach.** Jump to a page by number or scroll through results with the navigation still in view. In a narrow window, open **⋯** for search actions.
-- **Resume a tagging round.** List and Grid mark the next open file. Choose **Continue tagging** to return to it, or revisit skipped files at the end of the round.
-- **Preview a thread before watching it.** Open a supported 4chan board’s archive in Downloads and read the opening post before adding the thread to your watches.
+- **Watch threads and boards.** Follow a thread on a supported source such as 4chan or 8kun, or watch a board to discover new threads automatically. Preview the board’s threads and filter by title or opening post to choose which ones to follow. [Board watches](docs/Help.md#board-admission-and-exclusions)
+- **Control your downloads.** Choose media types and size limits for all downloads or for a particular source, board or thread. Set a bandwidth limit, give a thread priority, or pause and resume unfinished transfers. [Rules](docs/Help.md#rule-templates) · [Download scheduling](docs/Help.md#download-scheduling)
+- **Read and search your archive.** Search captured posts, save a search, and follow quotes and replies in the Reader. Resume at a saved reading position, bookmark a post with a note, or arrange threads into a reading group. Export selected threads and their saved media as one offline HTML collection. [Archive searches](docs/Help.md#archive-filters-and-saved-searches) · [HTML export](docs/Help.md#portable-html-export)
+- **Browse the Gallery and Media page.** Zoom in on a photo or play a saved clip in the Gallery. On the Media page, filter your collection by tag, type or rating, see which threads share an identical file, and export matching originals. You can also import your own files or browse read-only media folders. [Media filters](docs/Help.md#media-filters-and-focus-mode) · [Importing files](docs/Help.md#importing-your-own-files)
+- **Tag and rate what you save.** Give a thread or an exact media revision private tags. Work through untagged files in the tagging queue, apply a set of tags with a stamp, mark favourites with a heart and rate media from one to five stars. [Tagging queue](docs/Help.md#tagging-queue-and-settings) · [Media ratings](docs/Help.md#media-ratings)
+- **Search Danbooru.** Open tag searches in Booru tabs and browse results as a list, grid or gallery. Download individual originals, restore saved search tabs at startup, or watch a query for new matches. [Danbooru searches and watchers](docs/Help.md#danbooru-search-and-watchers)
+- **Manage plugins and sources.** Open **Plugins** to see what each source supports and enable the ones you want. Experimental sources start disabled. Five local filters cover dimensions, file size and names, SHA-256 blocklists, animation and file formats, and PNG metadata. [Plugin guide and inventory](docs/plugins/README.md)
+- **Make the interface yours.** New profiles start in Simple view. Choose Barebones for a compact layout or Advanced for more controls. Pick a light or dark theme, choose one of six colour presets (each with its own heart and star colours), and customise keyboard shortcuts. The interface offers 12 languages, including ten preview translations. [Desktop views](docs/Help.md#desktop-view-defaults) · [Language packs](docs/Help.md#language-packs) · [Keyboard shortcuts](docs/Help.md#customizing-shortcuts)
 
-## Features introduced in 1.1.1
+## New in 1.1.2
 
-- **Danbooru searches you can return to.** Booru is in the default navigation. Searches open in tabs and can be restored at startup. The **Watchers** button opens the watcher overview from beside the search tabs.
-- **A gallery for search results.** Switch between List, Grid and Gallery on the same page of results. The inline gallery and separate viewer share controls, shortcuts and tag tools.
-- **A compact Tagging page.** Start or continue a walk beside the stamp editor and a progress count such as **0 of N results**. The filter row shows how many entries match.
-- **More room to read and browse.** The Reader hides the title bar in full screen and reveals it at the top edge. Reader, Archive and Media share the same media-sidebar layout, with consistent icons for sidebar switches and recurring actions.
-- **A clearer Downloads table.** Search and URL copying sit with the Threads and Boards tabs. Keyboard navigation highlights the whole focused row.
+- Rate a photo beside the Gallery’s favourite heart, then use the arrow keys to keep browsing. Press **Shift+I** for file facts or **Shift+Z** for the info line.
+- Scroll through a long thread without paging, or follow a quote straight to a distant post.
+- Set autoplay, repeat and mute once for the Reader, Media and Tagging sidebars.
+- Choose **Continue tagging** to return to the next open file in your group or filter. At the end of the round, you can revisit skipped files.
+- Preview the opening post in a supported 4chan board’s archive before choosing **Watch thread**.
 
-**Upgrading from 1.1.0.** Back up your profile first. Eligible profiles reconnect the bundled Danbooru plugin to the verified 1.1.1 build when you install into a new directory. If the build needs review, the startup notice opens the repair dialog. To change Booru visibility, use **Show Booru actions** in Settings → Interface → Footer. [Upgrade details and limits](docs/releases/v1.1.1.md#upgrading-from-110)
-
-## Features introduced in 1.1.0
-
-- **12 interface languages.** English, Deutsch, Español, Français, Русский, 简体中文, 日本語, 한국어, Português (Brasil), Čeština, Italiano and Polski. The ten new packs are AI-authored previews with language and plural reviews but no native-speaker acceptance yet; corrections are welcome. Chinese, Japanese and Korean need Noto Sans CJK on Linux.
-- **A Media page for everything you saved.** All saved files in one tile grid with nine sort orders, removable filter chips, SHA-256 duplicate grouping, a Media sidebar and multi-select actions including **Export all matches…**.
-- **Private tags and fast tagging.** Tag threads and the exact media version you see, manage tags, and use the quick tagging panel in the gallery, the tagging queue and walks. Tagged items are protected from archive cleanup.
-- **Bring your own files.** Import files or drag and drop them with a SHA-256 duplicate check, add read-only media folders, run several profiles in separate windows and import transfer packages.
-- **Danbooru and more sources.** A read-only, anonymous Danbooru source with search, watchers and a Booru workbench, five more experimental chan sources that start disabled, one redesigned **Plugins** page and plugin SDK 1.1.0 (1.0.0 plugins keep working).
-- **A new look and feel.** MeowChan's own title bar on every window, reworked keyboard shortcuts, one search field with a scope, one shared export dialog, a Reader with cards, a settings page and a conversation view, a header graph for transfers and disk activity, a new **Animations** setting and most size and count limits as settings.
-
-See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and known limitations. **Upgrading from 1.0.2:** several profile files are migrated on first start and 1.0.2 cannot open the migrated archive, so make a full backup of your profile first.
-
-## Features introduced in 1.0.0
-
-- **A fresh desktop.** The Semi + Ursa UI rework brings clearer layouts and consistent controls. Choose compact **Barebones**, **Simple** or **Advanced**, with Light/Dark themes, English/German and configurable shortcuts. Settings are organized into eight focused pages.
-- **More chans, one collection.** **11 supplied sources** cover 4chan, 8kun, Lainchan, Kohlchan, Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Experimental sources are marked and start disabled; registration does not guarantee live availability.
-- **Keep the media you want.** **5 local media filters** cover dimensions, file size/original names, SHA-256 blocklists, animation/actual format and PNG metadata fields. The supplied inventory totals **16 plugins**, with **14 editable C# examples** and a bundled compiler. See the [plugin guide](docs/plugins/README.md) for installation, permissions and limits.
-- **Settle in and read.** Save named reader groups, use optional Continue reading to return to your saved place, and keep post bookmarks and notes.
-- **Find your favorites again.** Save archive searches, mark threads and media with a heart, and rate media with stars. Search captured posts and browse your collection without contacting the source.
-- **Clear out the clutter.** Archive cleanup previews threads with **0–2 saved media versions**, protects favorites and other retained reading information, and lets you review losses before deletion.
-- **Enjoy the originals.** Give images and video more room with the gallery’s optional **media focus** view; video has compact Play/Pause, seek, audio and repeat controls. Export verified originals or portable offline HTML collections.
-
-The [1.0.0 release notes](docs/releases/v1.0.0.md) cover the original feature release and upgrade considerations; the [changelog](CHANGELOG.md) records the details. Back up your profile and media before upgrading. If you run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new); use [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) only with an untouched profile or pre-upgrade backup.
+[Full 1.1.2 release notes](docs/releases/v1.1.2.md)
 
 ## Take a look around · 1.1.2
 
@@ -75,28 +54,17 @@ In the **Gallery**, the heart marks a favourite and the stars record its rating.
 | --- | --- |
 | [![A cat portrait in the tagging walk with a tooltip explaining the Back action](docs/screenshots/1.1.2/tagging-walk-undo-dark.png)](docs/screenshots/1.1.2/tagging-walk-undo-dark.png) | [![The opening post about a cormorant beside the Watch thread action](docs/screenshots/1.1.2/board-archive-preview-light.png)](docs/screenshots/1.1.2/board-archive-preview-light.png) |
 
-<details>
-<summary>Before and after · 1.0.1 vs 1.1.0</summary>
-
-Same offline demonstration data, old interface left, new interface right.
-
-| View | 1.0.1 | 1.1.0 |
-| --- | --- | --- |
-| Downloads | [![1.0.1 Downloads](docs/screenshots/v1.0.1/downloads.png)](docs/screenshots/v1.0.1/downloads.png) | [![1.1.0 Downloads](docs/screenshots/v1.1.0/downloads.png)](docs/screenshots/v1.1.0/downloads.png) |
-| Archive | [![1.0.1 Archive](docs/screenshots/v1.0.1/archive.png)](docs/screenshots/v1.0.1/archive.png) | [![1.1.0 Archive](docs/screenshots/v1.1.0/archive.png)](docs/screenshots/v1.1.0/archive.png) |
-| Archive table | [![1.0.1 Archive table](docs/screenshots/v1.0.1/archive-table.png)](docs/screenshots/v1.0.1/archive-table.png) | [![1.1.0 Archive table](docs/screenshots/v1.1.0/archive-table.png)](docs/screenshots/v1.1.0/archive-table.png) |
-| Reader | [![1.0.1 Reader](docs/screenshots/v1.0.1/reader.png)](docs/screenshots/v1.0.1/reader.png) | [![1.1.0 Reader](docs/screenshots/v1.1.0/reader.png)](docs/screenshots/v1.1.0/reader.png) |
-| Gallery | [![1.0.1 Gallery](docs/screenshots/v1.0.1/gallery.png)](docs/screenshots/v1.0.1/gallery.png) | [![1.1.0 Gallery](docs/screenshots/v1.1.0/gallery.png)](docs/screenshots/v1.1.0/gallery.png) |
-| Media focus | [![1.0.1 Media focus](docs/screenshots/v1.0.1/gallery-focus.png)](docs/screenshots/v1.0.1/gallery-focus.png) | [![1.1.0 Media focus](docs/screenshots/v1.1.0/gallery-focus.png)](docs/screenshots/v1.1.0/gallery-focus.png) |
-| Settings | [![1.0.1 Settings](docs/screenshots/v1.0.1/settings.png)](docs/screenshots/v1.0.1/settings.png) | [![1.1.0 Settings](docs/screenshots/v1.1.0/settings.png)](docs/screenshots/v1.1.0/settings.png) |
-
-</details>
-
-Earlier captures and their provenance are available for [1.1.1](docs/screenshots/1.1.1/README.md), [1.1.0](docs/screenshots/v1.1.0/README.md), [1.0.1](docs/screenshots/v1.0.1/README.md), [1.0.0](docs/screenshots/v1.0.0/README.md) and [0.9.0](docs/screenshots/README.md).
+[Earlier captures](docs/screenshots/) · [1.1.1](docs/screenshots/1.1.1/README.md) · [1.1.0](docs/screenshots/v1.1.0/README.md) · [1.0.1](docs/screenshots/v1.0.1/README.md) · [1.0.0](docs/screenshots/v1.0.0/README.md) · [0.9.0 layout and screenshots](docs/history/0.9.0-layout.md)
 
 ## Quick start
 
-Desktop packages cover **Windows x64, Linux x64/ARM64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs. It requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
+1. Choose your package below. On Windows, extract the whole ZIP and run `MeowChan.exe`. On macOS, open the DMG and drag `MeowChan.app` to Applications. On Linux, make the AppImage executable and run it, or extract a Linux archive and run `./MeowChan`.
+2. Open **Settings**, choose a download folder and save. In **Downloads**, paste a supported thread or board URL and choose **Add**. For a board, review the threads you want to watch.
+3. Open **Archive** after posts and media have been saved. Double-click a thread to read it, or right-click and choose **Open in gallery** or **Export as HTML**.
+
+Moving from GChan? [Import your watches and saved files](docs/Help.md#moving-from-gchan) · [Deutsche Anleitung](docs/user-guide/gchan-umstieg.md)
+
+## Downloads
 
 | Platform | Download 1.1.2 |
 | --- | --- |
@@ -106,66 +74,17 @@ Desktop packages cover **Windows x64, Linux x64/ARM64 and macOS Intel/Apple Sili
 | Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/04-MeowChan-1.1.2-linux-x64.AppImage) |
 | Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/05-MeowChan-1.1.2-linux-arm64.AppImage) |
 
-[1.1.2 validation status](docs/releases/v1.1.2.md#validation-status)
+[All 1.1.2 packages, including Linux archives](docs/releases/v1.1.2.md#downloads-2) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/SHA256SUMS) · [Package validation](docs/releases/v1.1.2.md#validation-status)
 
-1. Download the package for your platform. Extract the **whole archive** and start `MeowChan.exe` or `./MeowChan`, make the AppImage executable and run it, or open the DMG and drag `MeowChan.app` to Applications before launching it. [macOS first-launch guidance](docs/macos-signing.md)
-2. Set your download folder and media rules in Settings, then Save.
-3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
-4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
+### Platform requirements and upgrades
 
-### Choosing a Linux package
+All desktop packages include .NET. Linux requires glibc, an X11 or XWayland session and native graphics and font libraries. AppImages and bundled-VLC archives include VLC. For a system-VLC archive, install LibVLC 3 (3.0.20 or newer) and its media and output plugins. The macOS app is ad-hoc signed and may need approval in Privacy & Security on first launch. [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10) · [Linux startup](docs/Help.md#linux-packages-and-startup) · [macOS first launch](docs/macos-signing.md)
 
-Both `linux-x64` and `linux-arm64` have an AppImage and two archive variants. [All 1.1.2 packages](docs/releases/v1.1.2.md#downloads) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.2/SHA256SUMS)
-
-| Filename suffix | VLC requirement |
-| --- | --- |
-| `MeowChan-1.1.2-<RID>.AppImage` | Includes VLC. Make it executable and run it. |
-| `MeowChan-1.1.2-<RID>-bundled-vlc.tar.gz` | Includes VLC. Extract the whole archive and run `./MeowChan`. |
-| `MeowChan-1.1.2-<RID>-system-vlc.tar.gz` | Install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
-
-Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
-
-Downloads contain the application, runtime, icon and required legal notices only. The user guide, release notes, screenshots and developer documentation remain on GitHub; SDK samples, debug symbols and XML documentation are not shipped in the desktop archives.
-
-The [practical user guide](docs/Help.md) explains gallery controls, missing media, repeat exports and safe upgrades. Source users can [build and run](#build-and-run) with the pinned .NET 10 SDK.
-
-## Previous release: 0.9.0
-
-- A redesigned Avalonia interface with Barebones as the default, plus Simple and Advanced views of the same running session. Each view remembers its own layout and table columns.
-- Downloads, Sources, Archive, Rules, Diagnostics and Settings in a shared workspace; drafts and running downloads survive navigation.
-- Dark, Light and System theme preferences, normal or compact density, English and German, and optional JSON language packs.
-- Comma- and newline-separated URL lists, with an individual result for every entry and a summary of the latest import.
-- Thread and board details with their assigned folders, source state, current errors and media progress.
-- Single-URL and whole-session copying in a format that can be imported again.
-- An offline archive with saved List/Table layouts, a resizable reader split, local search and a shared gallery with zoom/pan and captured post context.
-- Persistent favorites for exact saved-media revisions, scoped favorite browsing and verified original-file export.
-- Shared context commands and keyboard help, with F11 fullscreen across the workspace, reader and gallery.
-- Portable HTML export to a new folder or an explicit update of a recognized previous result, with backup protection.
-- Durable missing-media retries and a bounded source-end follow-up, with a separate manual repair action.
-- Media-type and maximum-size rules with Global → Source → Board → Thread inheritance and durable decisions for newly evaluated media.
-- Diagnostics for current request cooldowns, download/storage errors and session warnings.
-
-The 4chan/8kun providers, shared download queue, verified storage and durable sessions remain the foundation. `libmeowchan` continues to work independently of the UI.
-
-## Desktop views
-
-The following layout reference describes the historical 0.9.0 interface. For the current workflow, see the [user guide](docs/Help.md).
-
-MeowChan 0.9.0 uses **Barebones** for new profiles and missing or invalid view preferences, with **Dark**, **English** and normal density as the other appearance defaults. Saved Barebones, Simple and Advanced choices are retained. Switch views without restarting downloads or losing the current selection and URL input:
-
-| View | Presentation |
-| --- | --- |
-| **Barebones** | The default: a smaller window with dense title/media rows, inline thread IDs and fewer decorative elements. |
-| **Simple** | Combined source/board, title with inline thread ID, and status with media progress. |
-| **Advanced** | Adds separate sortable columns for thread ID, status, queued media and active media downloads. |
-
-Every view keeps thread/board tabs, URL admission, sorting, adjustable columns, details, context actions and settings. Advanced changes the information shown; it uses the same downloader. Theme and language are shared preferences. Each view retains its own density, reading size, archive layout and table column visibility, widths and order. Use **Columns** above a table to choose the fields or reset that table for the current view. Window geometry is also retained.
-
-Use the bottom navigation to switch pages. Simple includes Downloads, Archive and Settings; Wide Advanced windows also expose Rules and Diagnostics directly; narrower windows keep them under Tools. The application menu makes the implemented pages available in every view, including Barebones. Click the cat in the upper-left header to open About; it is also available in the menu. The view selector is at the bottom right. Details start closed, and the latest import summary expands to show individual results. Action icons follow the menu's theme.
+Before upgrading, close MeowChan and any other writers, then back up the complete profile and media folders. Keep that copy separate so you can restore it if you need to go back. [Backup guide](docs/Help.md#upgrading-and-backups) · [1.1.1 upgrade notes](docs/releases/v1.1.1.md#upgrading-from-110) · [1.1.0 upgrade notes](docs/releases/v1.1.0.md#upgrading-from-102)
 
 ## Build and run
 
-Use the exact .NET 10 SDK selected by `global.json` from a source checkout. Release builds use reviewed dependency lockfiles; [updating them](docs/platform-support.md#dependency-restores-and-updates) is an explicit maintainer step:
+From a source checkout, use the .NET 10 SDK specified in [global.json](global.json). Restore the locked dependencies, build the solution and start the desktop app.
 
 ```sh
 dotnet restore MeowChan.sln -p:Configuration=Release --locked-mode
@@ -173,139 +92,22 @@ dotnet build MeowChan.sln -c Release --no-restore
 dotnet run --project MeowChan.csproj -c Release --no-build --no-restore
 ```
 
-Desktop builds target Windows, macOS and Linux. Self-contained archives include the .NET runtime, so users do not need to install the SDK. Extract the complete archive: native libraries and license files beside the executable are required. On macOS, open the DMG and drag the ad-hoc-signed `MeowChan.app` to Applications; see [macOS first-launch guidance](docs/macos-signing.md) for manual approval in Privacy & Security. See [platform requirements and package checks](docs/platform-support.md) for the recorded evidence and its limits.
+To use the downloader in your own .NET application, build the library package locally with `dotnet pack libmeowchan/libmeowchan.csproj -c Release -o artifacts/packages`. [Library guide](libmeowchan/README.md) · [Package consumer sample](samples/LibMeowChan.Consumer/README.md)
 
-## Downloading
+## Contributing
 
-Moving from GChan? Follow the [GChan migration guide](docs/Help.md#moving-from-gchan)
-to bring over watch URLs and use your saved files. [Deutsche Anleitung](docs/user-guide/gchan-umstieg.md).
+To report a problem, include your MeowChan version, operating system, package and the steps that reproduce it. Corrections to the preview translations are welcome. [Open an issue](https://github.com/grassmann-it/MeowChan/issues/new) · [Language pack guide](Desktop/Localization/Packs/README.md)
 
-Enter one or more thread or board URLs and select **Add**, or press **Enter** in the URL field. Separate URLs with commas or newlines; **Shift+Enter** inserts a newline. A board watch discovers its threads automatically. Each entry receives a result, and invalid or failed entries do not prevent later entries from being processed. If any entry fails, the complete input list remains available for correction. Successful input is cleared only if it has not been edited during the import.
+For code changes, run `dotnet test MeowChan.sln -c Release`. For desktop changes, the smoke harness also exercises the interface with local fixtures. [Desktop smoke instructions](tests/MeowChan.DesktopSmoke/README.md) · [Dependency updates](docs/platform-support.md#dependency-restores-and-updates)
 
-Selecting **Add** with an empty field reads the clipboard once. Explicit input uses only the entered text. **Ctrl+L** (**Cmd+L** on macOS) returns to Downloads and focuses the retained URL field. **Ctrl+V/Cmd+V** in Downloads outside native controls imports the clipboard; inside text fields it pastes normally. The tray also offers clipboard import. These manual actions remain user-triggered and do not require clipboard-monitor opt-in.
-
-Separately, **Scan clipboard for URLs** is an optional setting under Settings → Behavior and is off by default. After it is enabled and saved, MeowChan passively checks while open and ready, including when hidden or in the tray; the suggestion itself is shown only when the main window can display it. Texts longer than 65,536 UTF-16 code units (64 Ki characters, not bytes) are not evaluated; for shorter texts, only the first 32 HTTP(S) URL candidates are visited, including invalid or unsupported candidates. A passive banner offers the frozen URL list without starting downloads. Click **Add URLs (Enter)** to submit it through the normal Add flow, or focus that button and press **Enter**; Enter elsewhere does not accept the suggestion. Optional performance diagnostics may retain classified URL targets in their bounded in-memory run, even before confirmation; there is no blanket no-logging guarantee. See the [clipboard and download limits guide (German)](docs/user-guide/clipboard-and-download-limits.md) for polling, visibility and privacy boundaries, and [download scheduling](docs/Help.md#download-scheduling) for the effective transfer-slot limit `min(desired parallelism, safety cap)`, not a hard byte/RAM budget.
-
-Use **Copy URL** for a single row or **Copy session URLs (n)** for every watched thread and board, including entries hidden by the filter. The copied list contains one URL per line and can be imported again.
-
-Double-click a thread row to open the Reader. Shift+Enter or the context menu opens its gallery. Board rows open details; a double-click on a saved-media row or tile in Archive or on a tile of the Media page opens the gallery at that item. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
-
-The header shows download speed from received media bytes, with a compact history graph in wider windows.
-
-Progress measures saved media against currently selected media, with rule exclusions shown separately; it does not measure transferred bytes. The known count can grow, and reaching 100% does not stop monitoring. Queued and active counts describe media jobs, not watched threads. An archived source does not imply that a local HTML archive exists. Rate limits and temporary HTTP failures are retried within bounded limits; cancellation waits for active work to stop.
-
-Missing-media 404s wait 15/30/60/120/240 minutes, then at least 240; Check now respects those pauses. Retry missing media grants one attempt through the normal queue without clearing failure history. Automatic 404 follow-up ends 12 hours after the first durably recorded source end. A finished thread can retain missing 404 media; other exhausted failures require intervention. See the [retry guide](docs/Help.md#missing-media-and-finished-threads).
-
-Media is stored under:
-
-```text
-<download root>/<source>/<board>/<thread>/<media ID>.<extension>
-```
-
-Completed media is verified and recorded in a manifest. Files are published atomically; unrelated files are preserved. Interrupted transfers restart from the beginning. Removing a board stops discovery while its existing threads continue. Removing a thread also suppresses its automatic rediscovery; explicitly adding its URL allows it again.
-
-### Selection, board intake and full pause
-
-Use Shift/Ctrl (Command on macOS) multi-selection and
-context actions for selected watches/exports. Delete removes the selection. Enter
-and **Read posts** require exactly one selected thread. Shift+Enter opens the
-focused lead thread’s gallery. Inputs retain their own keys. In the Board list only,
-Ctrl/Cmd+Shift+F opens **Thread filters…** for the focused board.
-Board intake previews catalog threads by default, with literal title/opening-post
-filters, reasons and per-thread choices. Cancel leaves the whole pasted batch
-unadded. Removed board threads stay durably excluded until reactivated; filter
-changes affect future admissions while existing watches continue.
-
-Full Pause cancels active source checks and transfers, showing Pausing until they
-quiesce. Resume retries unfinished work while keeping verified files and existing
-retry/deadline history. See the [user guide](docs/Help.md#board-admission-and-exclusions).
-
-## Archive, rules and diagnostics
-
-The Archive page lists locally registered threads and reads captured posts and manifest-recorded original media. New threads capture posts by default; older restored watches start media-only unless capture was already enabled. Use the archive's capture action to change that preference explicitly. Removing a watch or disabling capture preserves the existing archive. The reader retains observed posts even when they disappear from later source responses; it cannot recover posts that were never captured.
-
-### Gallery and local search
-
-Choose List or Table for Archive threads; the layout and list/reader split are saved, with a separate-pane view in narrow windows. **Read posts** and Enter require exactly one selected thread in Downloads or Archive; Shift+Enter opens the lead thread’s gallery. Local posts remain readable without contacting the source. Search retained titles, text and identities, filter by source/board/state, and follow captured quotes or local backlinks. **Media from matching threads** takes a sequence from all matching threads across all pages in the current order; filters changed later do not replace that open sequence. Double-click a saved-media row/tile, or press Enter while it has focus, to start with that exact item and preserve the current media sort/version filter.
-
-The Reader fills the work area with readable posts and embedded media; Up/Down moves exactly one post. Left/Right moves to the previous/next thread in the frozen current list or search order, including across result pages, without wrapping. A thread opened without a list scope does not gain a global thread sequence. Text fields retain their normal arrow keys. F11 enters/exits fullscreen while preserving the active workspace; Escape dismisses active overlays before leaving fullscreen. F1 shows keyboard help. See the [shortcut guide](docs/Help.md#selection-and-shortcuts).
-
-In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpad gestures control zoom; fractional touchpad deltas produce finer changes. Zooming out stops at Fit, where the image is centered and pan resets. Drag a zoomed image to pan. Double-click toggles fullscreen, and Escape closes the gallery. Open from reader post A, navigate to media associated with saved post D, and close to return to the Reader at D. Without a saved post association, retain the prior reader anchor. Search/media-list origins instead restore their query, filters, page, scroll and focus.
-
-**Ctrl/⌘+0** fits the current medium and **Z** shows it at 1:1. **1** through **5** set a rating and **0** clears it. **Shift+I** toggles facts, **Shift+Z** toggles the info line, **Shift+P** toggles post context, and **Shift+A** docks that panel or shows it over the picture. The favorite heart and rating stars sit beside **Back to …** when space permits. **M** adds the favorite, **U** removes it and **F** toggles it. Reader attachments and saved-media items also use hearts. **Show favorites** offers current-thread, selected-thread, matching-thread and all-favorite scopes. **Export favorite originals…** copies verified originals by source/board/thread without overwriting existing files or fetching remote content; **Export original…** copies one item. Marks persist for the exact saved revision. See [favorites and original export](docs/Help.md#favorites-and-original-file-export).
-
-PNG, JPEG, GIF, WebP and BMP depend on decoder support. The gallery animates supported GIFs from verified originals, with pause/resume and zoom; other animated image formats use a still first-frame preview. GIF playback is limited to 64 MiB, 16 million source pixels and 1024 frames; damaged or over-limit GIFs are unavailable rather than silently played as stills. Other image previews are limited to 64 MiB and 80 million source pixels, with Fit buffers bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
-
-Video attachments in captured posts can reuse persistent still previews offline, generated from verified saved originals. If a preview is unavailable, open the original in the gallery for playback.
-
-MeowChan includes a bounded LibVLC player for local media. Linux uses the chosen bundled or system VLC backend and checks it before session startup; Windows/macOS use official VideoLAN native assets. All desktop variants include .NET; only the Linux system-VLC variant needs a separate VLC installation. See the [platform record](docs/platform-support.md) for native playback and audio/OS coverage.
-
-### Portable HTML export
-
-A multi-selection can also create one combined folder with a landing page,
-individual thread pages and shared verified media. Smart repeat export recognizes
-the same ordered selection for explicit update or a new folder; a changed
-selection starts a new export. Member read times remain separate, rather than
-claiming one simultaneous capture. See [combined exports](docs/Help.md#combined-export-of-selected-threads).
-
-Export a thread from Archive or its reader. Only captured posts and matching verified saved originals are included; export never fetches remote content. Media-only threads export as a gallery. Copy the **entire folder** and open its `index.html` for portable offline reading.
-
-For a recognized earlier result, **New folder** keeps the previous copy and remains the default. **Update existing export** explicitly rebuilds that result; changed/extra files, associated legacy exports or reduced output require confirmation to retain the old folder as a backup. Open previous export and the successful current result’s Open folder are separate actions. See the [export guide](docs/Help.md#portable-html-export) for association, backup and space requirements.
-
-The SQLite catalog (`archive.db`) stays in the local profile; media folders may live on a NAS. Back up the complete profile and referenced media with the writer stopped. Current writers migrate archive schemas 1–3 to schema 4; passive readers can read schemas 1–4 without migration. V1 and V2 media manifests remain readable; new writes use V3, which binds attachment revisions to saved media and records provider metadata, local integrity values and acceptance evidence. Older binaries may not understand these formats. No downgrade path is promised; keep backups before upgrading.
-
-Rules select allowed filename extensions and a maximum file size. Each field inherits through Global → Source → Board → Thread, and the editor shows where its effective value comes from. Disabling an override restores inheritance. Sizes are entered in MiB (1 MiB = 1,048,576 bytes); a saved rule keeps its exact byte count, so an older 10 MB rule shows as 9.537 MiB. Provider sizes guide preselection; media with unknown size are initially eligible. Downloaded bytes must also stay within the effective limit for that medium. Saving rules affects newly evaluated media; it does not automatically reconsider recorded selections/exclusions or alter existing files, including after restart.
-
-Diagnostics shows current session warnings, request cooldowns and watch/media/storage failures. You can copy details and navigate to the affected watch. It reflects current snapshots, not a complete event history or a source-wide online test. The next-release passive evidence view explains observed failure facts and separates waiting from errors without adding network probes. See the [preview guide](docs/user-guide/passive-diagnostics.en.md) ([Deutsch](docs/user-guide/passive-diagnostics.md)), including the privacy limits of copied details.
-
-## Settings and saved sessions
-
-Settings control the output path, polling interval, global parallel downloads and bandwidth. Existing watches retain their assigned destinations when the output root changes. Threads added directly use the current root; threads discovered from an existing board keep that board's assigned root.
-
-Settings also control theme, language, view and compact density. **Close to tray** and **Minimize to tray** are separate preferences: the first controls X, the second the minimize button. Both default to off. With a reachable tray, enabled actions hide the window and remove its taskbar entry; the tray icon or its Open action restores it. On Linux, a registered StatusNotifier host is checked before hiding; if the host disappears, the window returns. An unavailable tray keeps the window reachable in the taskbar. Existing profiles keep the old close behavior; their previous Minimize to tray value migrates to Close to tray, while the new minimize preference starts off. **Save** validates and saves changes while staying on Settings; **Cancel** reloads the confirmed values without leaving the page. Navigation preserves pending edits, including invalid number text. Theme and view changes made in the footer save immediately and update only that field in a pending Settings draft. Existing settings files receive defaults for the new appearance preferences while retaining their download and session settings.
-
-When session saving is enabled, confirmed changes to watched URLs are saved as they happen. The application restores saved watches at startup. Disabling **Save URLs on exit** prevents automatic watch restoration from the URL list and durable work state; it does not erase the archive. Settings/session failures are shown rather than silently replacing saved state. Only one running application can own a profile.
-
-Fresh profiles use `%APPDATA%/.MeowChan` on Windows and `$HOME/.MeowChan` on macOS/Linux, with `settings.json` in that directory and a `Downloads/MeowChan` default media root. An existing installation’s profile remains in place when it is the only profile, preserving its configured or implicit media destination. Set `MEOWCHAN_PROFILE` to select a profile explicitly; the older environment-variable alias is also accepted. If both profile directories exist, select one explicitly. If both override variables are set, they must resolve to the same directory. Stop older applications before upgrading an existing profile or media store. Concurrent old/new applications on the same data and downgrading migrated data are unsupported.
-
-English and German are built in. To add another language, place a plain JSON pack in `<active profile>/LanguagePacks`, restart, then select it in Settings. Missing translations fall back to English; an invalid or unavailable selected pack produces a warning and an English fallback. See the [language-pack format](Desktop/Localization/README.md). Technical provider and exception messages can remain untranslated.
-
-## Library
-
-The library project, assembly and new package ID are `libmeowchan`; current source uses `MeowChan.*` namespaces. Package consumers must update their PackageReference, using directives and any assembly references from earlier releases. The historical package is not automatically redirected, and the new package has not been published to NuGet. The desktop configuration, windows and Avalonia dependencies belong to the reference client.
-
-```sh
-dotnet pack libmeowchan/libmeowchan.csproj -c Release -o artifacts/packages
-```
-
-The [library guide](libmeowchan/README.md) covers sessions, persistent media rules, post capture and the passive offline reader. The [package consumer sample](samples/LibMeowChan.Consumer/README.md) shows how to restore the local package into a fresh cache and run a custom provider without the desktop app. The [session API](docs/Registry.md) describes lifetime and persistence ownership; the [download pipeline](docs/Downloader.md) explains completion and cancellation.
-
-Provider registration is explicit. Sources shows registered adapter capabilities and actual watch observations. Provider descriptions are passive and optional. MeowChan 1.0 includes SDK-only C# source/image-filter plugins and an optional process host; see the [plugin author and installation guide](docs/plugins/README.md) for examples, activation and current validation limits. The core library does not require the plugin host or compiler. A daemon, TUI and terminal browser remain later work. The library already exposes local search, quotes/backlinks and portable single-thread HTML export. Provider registration is independent of whether its website is currently reachable.
-
-## Verification
-
-```sh
-dotnet test MeowChan.sln -c Release
-dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Release
-python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --output artifacts/desktop-smoke
-```
-
-On Linux, the runner requires Xvfb, Openbox and a private session bus; missing tools fail without falling back to your desktop. Windows/macOS require a dedicated test desktop and `--allow-native-desktop`. Standard scenarios run serially and stop at the first failure. Rapid tray/window stress is a separate opt-in; do not run it on a personal workstation. See the [harness instructions](tests/MeowChan.DesktopSmoke/README.md) for prerequisites and targeted visual checks.
-
-The harness covers page navigation/drafts, presentation/settings, profile conflicts, tray fallback and a download/restore session backed by local HTTP fixtures. It makes no public imageboard requests and does not replace testing freshly extracted release packages. See the [platform validation record](docs/platform-support.md) for package evidence and its limits.
-
-## Support MeowChan
-
-If MeowChan helps you, you can voluntarily [support its development via PayPal](https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ). The same link is available in the app's About window.
+You can also support development through the About window or [donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ).
 
 ## Use and sources
 
-MeowChan retrieves posts and media from the sources you choose and saves them in your local archive. Access rules and adapter request limits vary by source. You are responsible for respecting those rules and obtaining any permissions you need to download, store or share content. This information is not legal advice.
+When downloading, storing or sharing content, respect the source’s access rules and the permissions for that content.
 
 ## License
 
-The project uses Artistic License 2.0; see [LICENSE](LICENSE). Desktop dependency and asset notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-Bundled fonts: Inter (via `Avalonia.Fonts.Inter`) for the interface and a Latin/Greek/Cyrillic subset of Noto Sans for post bodies; both are licensed under the SIL Open Font License 1.1, with the full text in the same file.
+MeowChan uses the Artistic License 2.0. The bundled Inter and Noto Sans fonts use the SIL Open Font License 1.1. [License](LICENSE) · [Third-party notices](THIRD-PARTY-NOTICES.md)
 
-Cat photos (Mila, grey; Simba, orange): [Alexander Huxel · Webentwicklung Huxel](https://webentwicklung-huxel.de/)
-([Flickr](https://flickr.com/people/204852984@N05/)).
+Cat photos of Mila (grey) and Simba (orange) by Alexander Huxel. [Webentwicklung Huxel](https://webentwicklung-huxel.de/) · [Flickr](https://flickr.com/people/204852984@N05/)
