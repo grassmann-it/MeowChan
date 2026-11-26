@@ -1,7 +1,14 @@
 using System.Runtime.CompilerServices;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -14,8 +21,7 @@ using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
 
-// TP3: the quick tag popover. Flyouts cannot be shown without an application, so these tests cover everything that does not
-// need a visible window: construction, ownership, close reasons, the guard, the blocked variant and the command routing.
+// TP3: the quick tag popover's lifetime, command routing and interaction in a hosted flyout.
 [Collection("Localization")]
 public sealed class QuickTagPopoverTests : IDisposable
 {
@@ -150,6 +156,96 @@ public sealed class QuickTagPopoverTests : IDisposable
         Assert.InRange(QuickTagPopover.WidthFor(host), QuickTagPopover.MinimumWidth, QuickTagPopover.Width);
         Assert.Equal(16, QuickTagPopover.HostMargin);
     }
+
+    [Theory]
+    [InlineData(320)]
+    [InlineData(900)]
+    public void OpenNewTagSuggestionsLeaveBothChipGroupsClickable(int width) => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using Fixture fixture = new();
+        QuickTagSuggestion offered = Suggestion(fixture.Store, "offered");
+        using QuickTagSession session = fixture.Session();
+        await session.AddAsync("existing");
+        Button anchor = new() { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+        Window window = new() { Width = width, Height = 700, Content = anchor };
+        window.Show();
+        try
+        {
+            QuickTagPopover popover = QuickTagPopover.Open(anchor, session, "photo", new QuickTagPopoverOptions
+            {
+                Name = "TestQuickTag",
+                RestoreFocus = false,
+                Suggestions = new DelegateQuickTagSuggestions(_ => [offered])
+            });
+            try
+            {
+                Pump();
+                IdentitySuggestionBox input = Find<IdentitySuggestionBox>("TestQuickTagInput");
+                TextBox editor = Find<TextBox>("TestQuickTagInputEditor");
+                ListBox matches = Find<ListBox>("TestQuickTagInputSuggestions");
+                TopLevel root = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(editor));
+
+                await OpenListAsync();
+                ClickChip("TestQuickTagAssigned1Remove");
+                await BooruTestSupport.WaitAsync(() => NamesOn(fixture.Store, fixture.Entry).Count == 0, "the assigned tag removed");
+
+                await OpenListAsync();
+                ClickChip("TestQuickTagSuggestion1");
+                await BooruTestSupport.WaitAsync(() => NamesOn(fixture.Store, fixture.Entry).Contains("offered"), "the offered tag added");
+
+                await OpenListAsync();
+                root.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+                root.KeyReleaseQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+                Assert.NotNull(input.HighlightedCandidate);
+                root.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                root.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+                await BooruTestSupport.WaitAsync(() => NamesOn(fixture.Store, fixture.Entry).Contains("ora"), "the new tag added with Enter");
+                Assert.True(popover.IsOpen);
+
+                async Task OpenListAsync()
+                {
+                    Assert.True(editor.Focus());
+                    editor.SelectAll();
+                    root.KeyTextInput("ora");
+                    await BooruTestSupport.WaitAsync(() =>
+                    {
+                        Pump();
+                        return input.IsDropDownOpen && matches.IsEffectivelyVisible && matches.Bounds.Height > 0;
+                    }, "the New tag suggestion");
+                    Assert.Equal("ora", input.Text);
+                }
+
+                void ClickChip(string id)
+                {
+                    Button chip = Find<Button>(id);
+                    Assert.True(chip.IsEffectivelyVisible);
+                    Rect listBounds = new(matches.TranslatePoint(default, root)!.Value, matches.Bounds.Size);
+                    Rect chipBounds = new(chip.TranslatePoint(default, root)!.Value, chip.Bounds.Size);
+                    Assert.True(listBounds.Bottom <= chipBounds.Top);
+                    Point hit = chipBounds.Center;
+                    root.MouseMove(hit);
+                    Assert.Contains(chip, Assert.IsAssignableFrom<Visual>(root.InputHitTest(hit)).GetSelfAndVisualAncestors());
+                    root.MouseDown(hit, MouseButton.Left);
+                    Pump();
+                    Assert.Contains(chip, Assert.IsAssignableFrom<Visual>(root.InputHitTest(hit)).GetSelfAndVisualAncestors());
+                    root.MouseUp(hit, MouseButton.Left);
+                    Pump();
+                }
+
+                T Find<T>(string id) where T : Control => Assert.Single(popover.Frame.GetVisualDescendants().OfType<T>(),
+                    control => AutomationProperties.GetAutomationId(control) == id);
+            }
+            finally { popover.Close(); }
+        }
+        finally { window.Close(); }
+
+        void Pump()
+        {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
+    });
 
     [Fact]
     public void TheFrameIsFittedToTheWindowWhenTheFlyoutOpensAndTheSurfaceHostsAreNotTouched()
