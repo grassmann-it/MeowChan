@@ -1353,7 +1353,7 @@ public sealed partial class MediaPage : UserControl
             Posts = entry.PostId != null ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
             ShowInThreadWired = ShowInThread != null,
             ProviderMedia = entry.BooruPostId != null,
-            ProviderPostKnown = providerId != null && BooruMediaIdentity.PostUrl(providerId, providerClaim?.PostUrl) != null
+            ProviderPostKnown = provider is { } providerPost && BooruMediaIdentity.PostUrl(providerPost, providerClaim?.PostUrl) != null
         };
         MediaMenuModel model = MediaMenuComposition.Compose(facts);
         MediaMenuSession session = new(MediaMenuSurface.MediaPage, model.Target, Current);
