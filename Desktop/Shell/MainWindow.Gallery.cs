@@ -178,7 +178,8 @@ public partial class MainWindow
         _galleryMediaReturn = CaptureGalleryMediaReturn(GalleryReturnTargetFor(origin, readerOrigin, originPage));
         _galleryReaderOrigin = readerOrigin;
         _galleryLargeReaderOrigin = largeReaderOrigin;
-        _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin();
+        // A results gallery returns keyboard focus to the list, even with an embedded reader beside it.
+        _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin(restoreReaderFocus: selectThreads == null);
         _galleryVisitedReader = false;
         _galleryThreads = ids;
         _galleryResultsScope = selectThreads != null;
