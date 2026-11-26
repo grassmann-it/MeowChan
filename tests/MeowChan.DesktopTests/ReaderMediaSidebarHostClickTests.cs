@@ -24,6 +24,74 @@ namespace MeowChan.DesktopTests;
 public sealed class ReaderMediaSidebarHostClickTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PostDetailLoadsOnlyTheCurrentReplyPageWhenTheLargeReaderAppears(bool attachWhileHidden)
+    {
+        using ReaderArchiveTestFixture fixture = new();
+        ArchivedThreadView thread = await fixture.CaptureAsync(new("4chan", "g", "100"), "Sidebar replies",
+        [
+            new("100", 0, PostFieldPresence.All, Html: "First post"),
+            new("101", 1, PostFieldPresence.All, Html: "Second post"),
+            new("102", 2, PostFieldPresence.All, Html: "<a href=\"#p100\" class=\"quotelink\">&gt;&gt;100</a> First reply"),
+            new("103", 3, PostFieldPresence.All, Html: "<a href=\"#p101\" class=\"quotelink\">&gt;&gt;101</a> Second reply")
+        ]);
+        fixture.Run(page =>
+        {
+            Grid host = new() { IsVisible = !attachWhileHidden };
+            Window window = new() { Width = 1920, Height = 900, Content = new Grid { Children = { page, host } } };
+            try
+            {
+                page.ApplyReaderMediaPreferences(ReaderMediaPreferences.Default);
+                window.Show();
+                ReaderArchiveTestFixture.Load(page, thread);
+                BooruComponentDispatcher.Wait(page.WaitForReaderViewAsync());
+                window.UpdateLayout();
+                Assert.False(page.IsMediaSidebarShown);
+
+                Control frame = page.DetachReader();
+                ListBox posts = SidePanelDesignTests.ById<ListBox>(frame, "ArchivePosts");
+                ScrollViewer detail = SidePanelDesignTests.ById<ScrollViewer>(frame, "ReaderSidebarPostDetail");
+                var first = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "100");
+                var second = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "101");
+                Assert.Same(first, posts.SelectedItem);
+                Assert.True(detail.IsVisible);
+                Assert.False(detail.IsAttachedToVisualTree());
+                Assert.False(first.RepliesLoading);
+                Assert.False(first.RepliesLoaded);
+
+                List<string> requests = [];
+                second.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(ArchivePostRow.RepliesLoading) && second.RepliesLoading)
+                        requests.Add(second.Id);
+                };
+                posts.SelectedItem = second;
+                Assert.Empty(requests);
+
+                host.Children.Add(frame);
+                Assert.True(detail.IsAttachedToVisualTree());
+                if (attachWhileHidden)
+                {
+                    Assert.False(detail.IsEffectivelyVisible);
+                    Assert.Empty(requests);
+                    host.IsVisible = true;
+                }
+                window.UpdateLayout();
+                Assert.True(detail.IsEffectivelyVisible);
+                BooruComponentDispatcher.WaitUntil(() => second.RepliesLoaded && !second.RepliesLoading, "replies for the visible sidebar post");
+                window.UpdateLayout();
+                Assert.Equal(second.Id, Assert.Single(requests));
+                Assert.False(first.RepliesLoaded);
+                Button reply = SidePanelDesignTests.ById<Button>(detail, "ReaderSidebarReply");
+                Assert.True(reply.IsEffectivelyVisible);
+                Assert.Contains("Second reply", Assert.IsType<ArchiveQuoteRow>(reply.DataContext).ReplyExcerpt);
+            }
+            finally { window.Close(); }
+        }, hosted: true);
+    }
+
+    [Theory]
     [InlineData("ReaderMediaSidebarDecisionRating3")]
     [InlineData("ReaderMediaSidebarEditTags")]
     public void FreshSidebarClickWaitsForTheSelectedPost(string actionId) =>
