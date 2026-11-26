@@ -823,7 +823,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             sizeDescription = Texts.T("media.fact.saved") + " · " + MediaProvenanceText.FactSize(savedSize) +
                 Environment.NewLine + Texts.T("media.fact.source") + " · " + MediaProvenanceText.FactSize(sourceSize);
         }
-        string dimensions = _videoSize is { } video ? $"{video.Width} × {video.Height}" : _detail;
+        string dimensions = _videoSize is { } video ? MediaFactGrid.FormatDimensions(video.Width, video.Height) : _detail;
         if (_videoDuration is { } duration)
             dimensions = ReaderMediaSidebarRules.HeaderText("", dimensions, GalleryVideoPlayer.FormatVideoTime((long)duration.TotalMilliseconds));
         _facts.Show(_location ?? "", _author, _posted, _fileName, compactSize, dimensions, sizeDescription);

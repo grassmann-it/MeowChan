@@ -1106,7 +1106,7 @@ public partial class ArchivePage
         }, picture =>
         {
             _sidebarShownDetail = picture.Source is { } source
-                ? $"{source.Width}×{source.Height}" : string.Empty;
+                ? MediaFactGrid.FormatDimensions(source.Width, source.Height) : string.Empty;
             sidebar.SetDetail(_sidebarShownDetail);
         }, () => PreloadMediaSidebarNeighboursAsync(post, target, token));
     }

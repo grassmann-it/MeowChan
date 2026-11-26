@@ -17,12 +17,13 @@ internal sealed class MediaSidebarFacts : Grid
         private readonly SelectableTextBlock _value = new() { Classes = { "media-fact-value" }, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
         private readonly MenuItem _copy = new() { Name = "MediaFactCopy" };
 
-        internal Field()
+        internal Field(string id)
         {
             ColumnDefinitions = new ColumnDefinitions("Auto,*");
             ColumnSpacing = 4;
             Children.Add(Label);
             SetColumn(_value, 1);
+            AutomationProperties.SetAutomationId(_value, "ReaderMediaSidebarFact" + id);
             Children.Add(_value);
             _value.ContextMenu = new ContextMenu { Items = { _copy } };
             _copy.Click += (_, _) => OpenActions.Start(async () =>
@@ -38,7 +39,7 @@ internal sealed class MediaSidebarFacts : Grid
         {
             Value = value;
             Label.Text = label;
-            _value.Text = string.IsNullOrWhiteSpace(value) ? "—" : value;
+            _value.Text = value;
             _copy.Header = Texts.T("diagnostics.copy");
             _copy.IsEnabled = !string.IsNullOrWhiteSpace(value);
             string full = description ?? label + " · " + _value.Text;
@@ -47,7 +48,7 @@ internal sealed class MediaSidebarFacts : Grid
         }
     }
 
-    private readonly Field[] _fields = [new(), new(), new(), new(), new(), new()];
+    private readonly Field[] _fields = [new("Location"), new("Author"), new("Posted"), new("File"), new("Size"), new("Dimensions")];
     private readonly TextBlock[] _separators = [new(), new()];
     private int _columns;
 
@@ -77,6 +78,7 @@ internal sealed class MediaSidebarFacts : Grid
         _fields[3].Show(Texts.T("media.fact.file"), file);
         _fields[4].Show(Texts.T("archive.size"), size, sizeDescription);
         _fields[5].Show(Texts.T("media.fact.dimensions"), dimensions);
+        UpdateVisibleFields();
     }
 
     internal bool ShowsFileAndSize => _columns > 1;
@@ -100,28 +102,32 @@ internal sealed class MediaSidebarFacts : Grid
             ColumnDefinitions = columns switch { 3 => new("*,*,*"), 2 => new("*,*"), _ => new("Auto,Auto,*") };
             RowDefinitions = columns == 2 ? new("Auto,Auto,Auto") : new("Auto,Auto");
             ColumnSpacing = columns == 1 ? 4 : 12;
-            foreach (var dot in _separators) dot.IsVisible = columns == 1;
             for (int i = 0; i < _fields.Length; ++i)
             {
                 var field = _fields[i];
                 bool narrow = columns == 1;
                 field.Label.IsVisible = !narrow;
-                field.IsVisible = !narrow || i is 0 or 1 or 2 or 5;
                 field.ColumnSpacing = narrow ? 0 : 4;
                 if (narrow) field.ColumnDefinitions[0].Width = new GridLength(0);
-                SetColumn(field, narrow ? i % 2 * 2 : i % columns);
                 SetRow(field, narrow ? i < 2 ? 0 : 1 : i / columns);
             }
+            UpdateVisibleFields();
         }
 
         if (columns == 1)
         {
             // Give location and date their natural width while leaving room for the author and dimensions.
-            _fields[1].Measure(Size.Infinity);
-            _fields[5].Measure(Size.Infinity);
-            _separators[0].Measure(Size.Infinity);
-            double valuesWidth = Math.Max(0, availableSize.Width - 2 * ColumnSpacing - _separators[0].DesiredSize.Width);
-            double trailing = Math.Max(_fields[1].DesiredSize.Width, _fields[5].DesiredSize.Width);
+            double trailing = 0, separator = 0;
+            for (int row = 0; row < _separators.Length; row++)
+            {
+                if (!_separators[row].IsVisible) continue;
+                Field right = _fields[row == 0 ? 1 : 5];
+                right.Measure(Size.Infinity);
+                _separators[row].Measure(Size.Infinity);
+                trailing = Math.Max(trailing, right.DesiredSize.Width);
+                separator = Math.Max(separator, _separators[row].DesiredSize.Width);
+            }
+            double valuesWidth = Math.Max(0, availableSize.Width - 2 * ColumnSpacing - separator);
             ColumnDefinitions[0].MaxWidth = valuesWidth - Math.Min(trailing, valuesWidth / 2);
         }
         else
@@ -132,6 +138,7 @@ internal sealed class MediaSidebarFacts : Grid
                 double labelWidth = 0;
                 for (int i = column; i < _fields.Length; i += columns)
                 {
+                    if (!_fields[i].IsVisible) continue;
                     _fields[i].Label.Measure(Size.Infinity);
                     labelWidth = Math.Max(labelWidth, _fields[i].Label.DesiredSize.Width);
                 }
@@ -140,5 +147,35 @@ internal sealed class MediaSidebarFacts : Grid
             }
         }
         return base.MeasureOverride(availableSize);
+    }
+
+    private void UpdateVisibleFields()
+    {
+        if (_columns == 0) return;
+        bool narrow = _columns == 1;
+        for (int i = 0; i < _fields.Length; i++)
+        {
+            Field field = _fields[i];
+            field.IsVisible = (!narrow || i is 0 or 1 or 2 or 5) && !string.IsNullOrWhiteSpace(field.Value);
+            if (!narrow)
+            {
+                SetColumn(field, i % _columns);
+                SetColumnSpan(field, 1);
+            }
+        }
+        SetPair(0, 0, 1);
+        SetPair(1, 2, 5);
+
+        void SetPair(int row, int leftIndex, int rightIndex)
+        {
+            Field left = _fields[leftIndex], right = _fields[rightIndex];
+            bool paired = narrow && left.IsVisible && right.IsVisible;
+            _separators[row].IsVisible = paired;
+            if (!narrow) return;
+            SetColumn(left, 0);
+            SetColumnSpan(left, paired ? 1 : 3);
+            SetColumn(right, paired ? 2 : 0);
+            SetColumnSpan(right, paired ? 1 : 3);
+        }
     }
 }

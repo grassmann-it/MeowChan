@@ -181,7 +181,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         AutomationProperties.SetName(Tags, Texts.T("booru.tags.sourceLabel"));
         AutomationProperties.SetName(OpenGallery, CommandCatalog.Label("gallery.open") + " · " + _title.Text);
         ToolTip.SetTip(OpenGallery, AutomationProperties.GetName(OpenGallery));
-        Close.Localize(Texts.T("action.close") + " · " + Texts.T("media.layout.panel"));
+        Close.Localize(Texts.T("media.panel.close"));
         _placeholder.Text = Texts.T(row.Preview switch
         {
             BooruPreviewState.Loading => "booru.ui.post.previewLoading",
@@ -201,7 +201,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         int? width = post.Original?.Width;
         int? height = post.Original?.Height;
         _aspect = width is > 0 && height is > 0 ? (double)width.Value / height.Value : 1;
-        string? dimensions = width is > 0 && height is > 0 ? $"{width} × {height}" : null;
+        string? dimensions = width is > 0 && height is > 0 ? MediaFactGrid.FormatDimensions(width.Value, height.Value) : null;
         string? bytesText = post.Original?.ExpectedSize is { } size ? SizeText.Format(size) : null;
         string? rating = post.Rating != BooruRating.Unknown ? BooruText.Rating(post.Rating)
             : string.IsNullOrWhiteSpace(post.RawRating) ? null : BooruText.Rating(post.Rating) + " (" + post.RawRating + ")";

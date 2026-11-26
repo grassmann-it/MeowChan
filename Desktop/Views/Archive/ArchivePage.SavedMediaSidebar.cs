@@ -165,7 +165,7 @@ public partial class ArchivePage
                 return new ReaderMediaSidebarContent.Unavailable("reader.sidebar.unavailable");
             }, picture =>
             {
-                _sidebarShownDetail = picture.Source is { } source ? $"{source.Width}×{source.Height}" : string.Empty;
+                _sidebarShownDetail = picture.Source is { } source ? MediaFactGrid.FormatDimensions(source.Width, source.Height) : string.Empty;
                 sidebar.SetDetail(_sidebarShownDetail);
             });
         });
