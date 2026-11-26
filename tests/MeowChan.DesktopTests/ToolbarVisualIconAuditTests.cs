@@ -333,9 +333,15 @@ public sealed class ToolbarVisualIconAuditTests
         Assert.True(expected.All(names.Contains), $"{bar.Name}: expected {string.Join(", ", expected)}, found {string.Join(", ", names)}");
         string[] missing = actions.Where(action =>
             !(action.Name is string name && TextExceptions.TryGetValue(name, out string? reason) && !string.IsNullOrWhiteSpace(reason))
+            && !IsBooruRatingTextSwitch(action)
             && !HasRenderedIcon(action)).Select(action => action.Name ?? action.GetType().Name).ToArray();
         Assert.True(missing.Length == 0, $"{bar.Name}: missing icons on {string.Join(", ", missing)}");
     }
+
+    // I1 specifies rating switches g/s/q/e. Each chip uses the rating letter as its visible label.
+    private static bool IsBooruRatingTextSwitch(Control action) =>
+        action is ToggleButton { Content: string rating } && rating is "g" or "s" or "q" or "e"
+        && AutomationProperties.GetAutomationId(action) == BooruWorkbenchView.RatingSwitchPrefix + rating;
 
     private static bool IsAction(Control control) => control switch
     {
