@@ -100,9 +100,11 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
         string? Query = null, int Page = 1);
     private sealed record LegacyFile(int Version, string ProviderId, int ActiveIndex, LegacyTab?[] Tabs,
         bool AllTabsClosable = false, LegacyTab? Draft = null);
+    // The 1.1.3 writer includes LastResultPage on saved tabs and start drafts.
     private sealed record LegacyTab(BooruInputMode Mode, string Input, string? Query, string? PostId,
         int Page, bool IsEnd, bool Empty, BooruSearchTabRow[] Rows,
-        int MaximumPage = Config.BooruSearchPagesDefault, int PostsPerPage = Config.BooruSearchPostsPerPageDefault);
+        int MaximumPage = Config.BooruSearchPagesDefault, int PostsPerPage = Config.BooruSearchPostsPerPageDefault,
+        int? LastResultPage = null);
 
     private readonly string _path = Path.Combine(lease.ProfileDirectory, FileName);
     private readonly ILogger _logger = logger ?? Log.Logger;
