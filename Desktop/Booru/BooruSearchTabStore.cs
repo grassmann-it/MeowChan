@@ -19,7 +19,8 @@ internal sealed record BooruSearchTabRow(BooruPost Post, byte[]? Preview);
 
 internal sealed record BooruSearchTabTarget(string? SourceId, string? InstanceId, string? PostId, string? Query,
     int Page = 1, BooruInputMode? Mode = null, string? Input = null, bool IsEnd = true, bool Empty = false,
-    BooruSearchTabRow[]? Rows = null, int MaximumPage = Config.BooruSearchPagesDefault, int PostsPerPage = Config.BooruSearchPostsPerPageDefault)
+    BooruSearchTabRow[]? Rows = null, int MaximumPage = Config.BooruSearchPagesDefault, int PostsPerPage = Config.BooruSearchPostsPerPageDefault,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? LastResultPage = null)
 {
     internal const int MaximumDraftLength = 4096;
     internal string Source => SourceId ?? DanbooruPostReference.ProviderId;
@@ -37,6 +38,10 @@ internal sealed record BooruSearchTabTarget(string? SourceId, string? InstanceId
         && (Query is null || BooruInput.Parse(BooruInputMode.Tags, Query) is { Kind: BooruInputKind.Tags, Canonical: var canonical }
             && canonical == Query)
         && RowsAreValid();
+
+    internal int? KnownLastResultPage(int maximumPage) =>
+        Query is not null && !Empty && LastResultPage is int last
+            && last >= Page && last <= maximumPage && (!IsEnd || last == Page) ? last : null;
 
     private bool RowsAreValid()
     {
@@ -59,8 +64,9 @@ internal sealed record BooruSearchTabTarget(string? SourceId, string? InstanceId
 internal sealed record BooruSearchTabState(int ActiveIndex, BooruSearchTabTarget?[] Tabs,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BooruSearchTabTarget? StartDraft = null)
 {
-    internal bool HasSameContent(BooruSearchTabState other) => ActiveIndex == other.ActiveIndex
-        && SameTarget(StartDraft, other.StartDraft)
+    internal bool HasSameContent(BooruSearchTabState other) => ActiveIndex == other.ActiveIndex && HasSameTabs(other);
+
+    internal bool HasSameTabs(BooruSearchTabState other) => SameTarget(StartDraft, other.StartDraft)
         && Tabs.Length == other.Tabs.Length && Tabs.Zip(other.Tabs).All(pair => SameTarget(pair.First, pair.Second));
 
     private static bool SameTarget(BooruSearchTabTarget? left, BooruSearchTabTarget? right) =>
@@ -266,7 +272,8 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
             });
             JsonElement root = document.RootElement;
             if (root.ValueKind == JsonValueKind.Object
-                && (HasNewerVersion(root, "version", Version) || HasNewerVersion(root, "Version", LegacyVersion)))
+                && (HasNewerVersion(root, "version", Version) || HasNewerVersion(root, "Version", LegacyVersion)
+                    || IsUnscopedOtherProvider(root)))
                 return null;
             (state, migrate) = Decode(root);
             Validate(state);
@@ -321,8 +328,13 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
             || (legacy.Tabs.Length == 0 ? active != -1 : active < 0 || active >= legacy.Tabs.Length))
             throw new InvalidDataException("The saved Booru active tab is invalid.");
 
-        BooruSearchTabTarget ConvertTab(LegacyTab tab) => new(legacy.ProviderId, BooruPostKey.DefaultInstance,
-            tab.PostId, tab.Query, tab.Page, tab.Mode, tab.Input, tab.IsEnd, tab.Empty, tab.Rows, tab.MaximumPage, tab.PostsPerPage);
+        BooruSearchTabTarget ConvertTab(LegacyTab tab)
+        {
+            BooruSearchTabTarget target = new(legacy.ProviderId, BooruPostKey.DefaultInstance,
+                tab.PostId, tab.Query, tab.Page, tab.Mode, tab.Input, tab.IsEnd, tab.Empty, tab.Rows,
+                tab.MaximumPage, tab.PostsPerPage, tab.LastResultPage);
+            return target with { LastResultPage = target.KnownLastResultPage(target.MaximumPage) };
+        }
 
         if (legacy.Tabs.Length == 0 || legacy.AllTabsClosable && legacy.Tabs is [null])
             return new(0, [null], legacy.Draft is { } draft ? ConvertTab(draft) : BlankStart(legacy.ProviderId));
@@ -345,6 +357,12 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
     private static bool HasVersion(JsonElement root, string name, int version) =>
         root.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number
             && value.TryGetInt32(out int number) && number == version;
+
+    // The unscoped V1 writer only knew the canonical Danbooru source.
+    private static bool IsUnscopedOtherProvider(JsonElement root) =>
+        HasVersion(root, "version", LegacyVersion) && root.TryGetProperty("providerId", out JsonElement provider)
+            && provider.ValueKind == JsonValueKind.String && provider.GetString() is { } id
+            && BooruPostKey.IsToken(id) && id != DanbooruPostReference.ProviderId;
 
     private static bool HasNewerVersion(JsonElement root, string name, int version) =>
         root.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number

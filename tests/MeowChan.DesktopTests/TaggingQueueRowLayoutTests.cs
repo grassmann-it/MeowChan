@@ -23,6 +23,7 @@ public sealed class TaggingQueueRowLayoutTests
         using TempDirectory profile = new();
         DesktopSessionHost host = new(profile.Path, []);
         TaggingPage page = new(host);
+        page.ChooseMediaTileSize = _ => true;
         Window window = new() { Width = 1100, Height = 550, Content = page };
         try
         {
@@ -58,14 +59,37 @@ public sealed class TaggingQueueRowLayoutTests
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
             ListBoxItem tileItem = ScrollTo(page.TileGrid, 0);
-            TaggingQueueTileView tile = Assert.Single(tileItem.GetVisualDescendants().OfType<TaggingQueueTileView>());
+            TaggingQueueTileView tile = ById<TaggingQueueTileView>(tileItem, "TaggingQueueTile");
             Assert.Equal("#1", tile.NumberText.Text);
             TaggingQueueNextMarker tileMarker = Assert.Single(tile.GetVisualDescendants().OfType<TaggingQueueNextMarker>());
             Assert.Same(chevron, MarkerMask(tileMarker));
             Assert.Equal(Texts.T("tagging.page.next"), ToolTip.GetTip(tileMarker));
             Assert.StartsWith(tile.Row!.AccessibleName, AutomationProperties.GetName(tile));
-            TextBlock groupLine = Assert.Single(tile.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == group.Name);
+            TextBlock groupLine = ById<TextBlock>(tile, "TaggingTileGroup");
+            Assert.Equal(group.Name, groupLine.Text);
             Assert.True(new Rect(tile.Bounds.Size).Contains(BoundsIn(groupLine, tile)));
+
+            // Padding audit (Opus, items 2–4): both caption gaps are 4 DIP, with 8 DIP around the content and below the list.
+            Assert.Equal(8, page.Bounds.Height - BoundsIn(ById<Border>(page, "TaggingListSurface"), page).Bottom, 1);
+            Assert.True(page.MediaTileSizeInput!.StepBy(-1));
+            foreach (MediaTileSize size in Enum.GetValues<MediaTileSize>())
+            {
+                tileItem = ScrollTo(page.TileGrid, 0);
+                tile = ById<TaggingQueueTileView>(tileItem, "TaggingQueueTile");
+                groupLine = ById<TextBlock>(tile, "TaggingTileGroup");
+                Rect preview = BoundsIn(tile.Preview, tile);
+                Rect name = BoundsIn(tile.NameText, tile);
+                Rect groupBounds = BoundsIn(groupLine, tile);
+                MediaTileAppearance media = MediaTileMetrics.For(size, MediaTileCaption.All);
+                Assert.Equal(media.PreviewHeight, preview.Height);
+                Assert.Equal(media.CellWidth, tileItem.Bounds.Width);
+                Assert.Equal(tileItem.Bounds.Height, tile.Bounds.Height);
+                Assert.Equal(8, preview.Top, 1);
+                Assert.Equal(4, name.Top - preview.Bottom, 1);
+                Assert.Equal(4, groupBounds.Top - name.Bottom, 1);
+                Assert.Equal(8, tile.Bounds.Height - groupBounds.Bottom, 1);
+                if (size != MediaTileSize.Large) Assert.True(page.MediaTileSizeInput.StepBy(1));
+            }
         }
         finally
         {
@@ -112,6 +136,9 @@ public sealed class TaggingQueueRowLayoutTests
 
     private static Rect BoundsIn(Control control, Control ancestor) =>
         new(control.TranslatePoint(default, ancestor)!.Value, control.Bounds.Size);
+
+    private static T ById<T>(Visual root, string id) where T : Control =>
+        Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
     private static object? MarkerMask(TaggingQueueNextMarker marker) =>
         Assert.IsType<ImageBrush>(Assert.IsType<Border>(marker.Child).OpacityMask).Source;

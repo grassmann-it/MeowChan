@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
@@ -9,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tests.Shared;
 
@@ -19,6 +21,7 @@ public sealed class BooruSearchOverflowTests
 {
     private static readonly string[] OptionalIds =
         [BooruWorkbenchView.AlternateSubmitName, BooruWorkbenchView.CreateWatcherName, BooruWorkbenchView.DownloadAllName];
+    private static readonly char[] Ratings = ['g', 's', 'q', 'e'];
 
     [Fact]
     public void SearchActionsStayOnOneLineAndOverflowFromTheRight() => WithPage(1920, (window, page, _) =>
@@ -44,7 +47,7 @@ public sealed class BooruSearchOverflowTests
             Assert.Equal(inlineCount < actions.Length, overflow.IsEffectivelyVisible);
 
             Rect prior = InWindow(input);
-            foreach (Button button in new[] { submit, overflow }.Concat(actions).Where(button => button.IsEffectivelyVisible))
+            foreach (Button button in new[] { submit }.Concat(actions).Append(overflow).Where(button => button.IsEffectivelyVisible))
             {
                 Rect bounds = InWindow(button);
                 Assert.True(toolbar.Contains(bounds), $"{width} DIP: {AutomationProperties.GetAutomationId(button)} {bounds} outside {toolbar}");
@@ -56,17 +59,148 @@ public sealed class BooruSearchOverflowTests
             }
 
             if (!overflow.IsEffectivelyVisible) return;
-            Assert.Equal(8, InWindow(overflow).Left - InWindow(submit).Right, 0);
-            Assert.Equal(Texts.T("booru.tabs.moreActions"), ToolTip.GetTip(overflow));
+            Button lastInline = inlineCount == 0 ? submit : actions[inlineCount - 1];
+            Assert.Equal(8, InWindow(overflow).Left - InWindow(lastInline).Right, 0);
+            Assert.Equal(Texts.T("workview.more"), ToolTip.GetTip(overflow));
             MenuFlyout menu = Open(window, overflow);
-            Assert.Equal(OptionalIds.Skip(inlineCount).Select(id => id + "Overflow"),
-                menu.Items.OfType<MenuItem>().Where(item => item.IsEffectivelyVisible).Select(AutomationProperties.GetAutomationId));
-            menu.Hide();
-            Settle(window);
+            Assert.Contains("popup-open", overflow.Classes);
+            Assert.Equal(Texts.T("shortcuts.group.expanded"), AutomationProperties.GetItemStatus(overflow));
+            MenuItem[] entries = menu.Items.OfType<MenuItem>().Where(item => item.IsEffectivelyVisible).ToArray();
+            // Paket I1: "Im schmalen Fenster in den ⋯-Überlauf" and "In der Suchleiste bzw. im ⋯-Menü".
+            Assert.Equal(OptionalIds.Skip(inlineCount).Append(BooruWorkbenchView.OpenSearchName)
+                    .Concat(Ratings.Select(RatingId)).Select(id => id + "Overflow"),
+                entries.Select(AutomationProperties.GetAutomationId));
+            Assert.Equal(new[] { "search", "plus", "download" }.Skip(inlineCount).Append("external-link"),
+                entries.Where(item => item.ToggleType == MenuItemToggleType.None)
+                    .Select(item => MenuIcons.KeyOf(Assert.IsType<Border>(item.Icon))));
+            PointerClick(overflow, window);
+            Assert.False(menu.IsOpen);
+            Assert.DoesNotContain("popup-open", overflow.Classes);
+            Assert.Equal(Texts.T("shortcuts.group.collapsed"), AutomationProperties.GetItemStatus(overflow));
+            Assert.Same(input, window.FocusManager?.GetFocusedElement());
         }
 
         Rect InWindow(Control control) => new(control.TranslatePoint(default, window)!.Value, control.Bounds.Size);
     });
+
+    [Theory]
+    [InlineData(640, true)]
+    [InlineData(1920, false)]
+    public void RatingSwitchesFollowAndEditOnlyTheDraft(int width, bool inMenu) => WithPage(width, (window, page, harness) =>
+    {
+        TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+        Button submit = Find<Button>(page, BooruWorkbenchView.SubmitName);
+        Button overflow = Find<Button>(page, BooruWorkbenchView.SearchOverflowName);
+        input.Text = "cat";
+        Settle(window);
+        PointerClick(submit, window);
+        Assert.Equal("cat", page.Model.Search.View.ExecutedQuery);
+
+        input.Text = "cat  rating:sensitive,explicit  -dog";
+        Settle(window);
+        MenuFlyout? menu = inMenu ? Open(window, overflow) : null;
+        foreach (char code in Ratings)
+        {
+            ToggleButton button = Find<ToggleButton>(page, RatingId(code));
+            Assert.Equal(!inMenu, button.IsEffectivelyVisible);
+            bool selected = code is 's' or 'e';
+            string label = Texts.T("booru.tabs.rating." + code);
+            Assert.Equal(selected, button.IsChecked);
+            Assert.Equal(label, AutomationProperties.GetName(button));
+            Assert.Equal(label, ToolTip.GetTip(button));
+            if (menu is null) continue;
+            MenuItem item = FindMenuItem(menu, RatingId(code));
+            Assert.True(item.IsEffectivelyVisible);
+            Assert.Equal(MenuItemToggleType.CheckBox, item.ToggleType);
+            Assert.Equal(selected, item.IsChecked);
+            Assert.Equal(label, item.Header);
+            Assert.Equal(label, ToolTip.GetTip(item));
+        }
+
+        Toggle('g', "cat  rating:g,s,e  -dog");
+        Toggle('s', "cat  rating:g,e  -dog");
+        Toggle('e', "cat  rating:g  -dog");
+        Toggle('g', "cat  -dog");
+        Assert.Equal(("cat", 1), Assert.Single(harness.Search.Searches));
+        Assert.Equal("cat", page.Model.Search.View.ExecutedQuery);
+        Assert.Empty(harness.Links.Opened);
+
+        input.Text = "cat -dog";
+        Settle(window);
+        Toggle('q', "cat -dog rating:q");
+        PointerClick(submit, window);
+        Assert.Equal(("cat -dog rating:q", 1), harness.Search.Searches.Last());
+
+        input.Text = "-rating:questionable cat";
+        Settle(window);
+        Assert.False(Find<ToggleButton>(page, RatingId('q')).IsChecked);
+        Assert.True(Find<ToggleButton>(page, RatingId('g')).IsChecked);
+        Toggle('q', "rating:g,s,q,e cat");
+        Assert.Equal(2, harness.Search.Searches.Count);
+
+        void Toggle(char code, string expected)
+        {
+            if (inMenu)
+            {
+                menu = menu?.IsOpen == true ? menu : Open(window, overflow);
+                PointerClick(FindMenuItem(menu, RatingId(code)), window);
+                Assert.False(menu.IsOpen);
+            }
+            else PointerClick(Find<ToggleButton>(page, RatingId(code)), window);
+            Assert.Equal(expected, input.Text);
+        }
+    });
+
+    [Theory]
+    [InlineData(640, true)]
+    [InlineData(1920, false)]
+    public void BrowserActionOpensTheSubmittedQueryAndCurrentPageOnClick(int width, bool inMenu) =>
+        WithPage(width, (window, page, harness) =>
+        {
+            harness.Search.OnSearch = (query, number, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+                BooruUiFixtures.Page(query, number, false, BooruUiFixtures.Post("101", tags: [], preview: false))));
+            TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+            Button submit = Find<Button>(page, BooruWorkbenchView.SubmitName);
+            Button browser = Find<Button>(page, BooruWorkbenchView.OpenSearchName);
+            Button overflow = Find<Button>(page, BooruWorkbenchView.SearchOverflowName);
+            Assert.Equal(!inMenu, browser.IsEffectivelyVisible);
+            Assert.Equal("external-link", IconButtons.KeyOf(browser));
+            Assert.False(browser.IsEffectivelyEnabled);
+            input.Text = "café -chat rating:g,s";
+            Settle(window);
+            Assert.False(browser.IsEffectivelyEnabled);
+            Assert.Empty(harness.Links.Opened);
+
+            PointerClick(submit, window);
+            BooruComponentDispatcher.Wait(page.Model.Search.GoToPageAsync(2));
+            input.Text = "unsent rating:e";
+            Settle(window);
+            Assert.Empty(harness.Links.Opened);
+            Assert.True(browser.IsEffectivelyEnabled);
+            Assert.Equal("Open search in browser", ToolTip.GetTip(browser));
+            if (inMenu)
+            {
+                MenuFlyout menu = Open(window, overflow);
+                MenuItem item = FindMenuItem(menu, BooruWorkbenchView.OpenSearchName);
+                Assert.True(item.IsEffectivelyVisible && item.IsEffectivelyEnabled);
+                Assert.Equal("Open search in browser", item.Header);
+                Assert.Null(item.InputGesture);
+                PointerClick(item, window);
+                Assert.False(menu.IsOpen);
+            }
+            else PointerClick(browser, window);
+
+            Assert.Equal("https://danbooru.donmai.us/posts?tags=caf%C3%A9%20-chat%20rating%3Ag%2Cs&page=2",
+                Assert.Single(harness.Links.Opened));
+            Assert.Equal(new[] { ("café -chat rating:g,s", 1), ("café -chat rating:g,s", 2) }, harness.Search.Searches);
+            Assert.Equal("unsent rating:e", input.Text);
+
+            Assert.True(page.View.TryShowQueryInNewTab("another_draft"));
+            Settle(window);
+            Assert.False(browser.IsEffectivelyEnabled);
+            Assert.Single(harness.Links.Opened);
+            Assert.Equal(2, harness.ProviderRequests);
+        });
 
     [Theory]
     [InlineData(false)]
@@ -78,7 +212,10 @@ public sealed class BooruSearchOverflowTests
         if (inMenu)
         {
             MenuFlyout menu = Open(window, overflow);
-            Assert.All(menu.Items.OfType<MenuItem>(), item => Assert.False(item.IsEffectivelyEnabled));
+            Assert.All(OptionalIds.Append(BooruWorkbenchView.OpenSearchName), id =>
+                Assert.False(FindMenuItem(menu, id).IsEffectivelyEnabled));
+            // Paket I1: "Umschalten ändert NUR den Suchtext". "Suchtext bleibt Entwurf bis Absenden".
+            Assert.All(Ratings, code => Assert.True(FindMenuItem(menu, RatingId(code)).IsEffectivelyEnabled));
             menu.Hide();
             Settle(window);
             Assert.Same(input, window.FocusManager?.GetFocusedElement());
@@ -295,6 +432,11 @@ public sealed class BooruSearchOverflowTests
         Assert.True(menu.IsOpen);
         return menu;
     }
+
+    private static string RatingId(char code) => BooruWorkbenchView.RatingSwitchPrefix + code;
+
+    private static MenuItem FindMenuItem(MenuFlyout menu, string buttonId) =>
+        Assert.Single(menu.Items.OfType<MenuItem>(), item => AutomationProperties.GetAutomationId(item) == buttonId + "Overflow");
 
     private static void PointerClick(Control control, Window window)
     {

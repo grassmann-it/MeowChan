@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -16,9 +15,11 @@ namespace MeowChan.Boards.EightKun;
 
 public class EightKunBoard : BaseBoard
 {
-    private readonly SemaphoreSlim _metadataGate = new(1, 1);
+    private readonly BoardRequestGate _requestGate = new();
     private bool _metadataLoaded;
     private string _name = string.Empty;
+    private DateTimeOffset? _catalogLastModified;
+    private IReadOnlyList<IThread>? _lastCatalog;
 
     public override IImageBoard ImageBoard { get; }
     public override string BoardCode { get; }
@@ -49,7 +50,7 @@ public class EightKunBoard : BaseBoard
 
     internal async Task EnsureMetadataAsync(CancellationToken cancellationToken = default)
     {
-        await _metadataGate.WaitAsync(cancellationToken);
+        await _requestGate.EnterAsync(cancellationToken);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -57,7 +58,7 @@ public class EightKunBoard : BaseBoard
             const string endpoint = "https://8kun.top/boards.json";
             IReadOnlyDictionary<string, string> names = ImageBoard is BaseImageBoard provider
                 ? await provider.GetBoardNamesAsync(endpoint, "uri", cancellationToken: cancellationToken)
-                : await BaseImageBoard.FetchBoardNamesAsync(ImageBoard.GetHttpClient(), endpoint, "uri", cancellationToken: cancellationToken);
+                : (await BaseImageBoard.FetchBoardNamesAsync(ImageBoard.GetHttpClient(), endpoint, "uri", cancellationToken: cancellationToken)).Names;
             cancellationToken.ThrowIfCancellationRequested();
             if (names.TryGetValue(BoardCode, out string? name)) Name = WebUtility.HtmlDecode(name);
             _metadataLoaded = true;
@@ -70,20 +71,27 @@ public class EightKunBoard : BaseBoard
         }
         finally
         {
-            _metadataGate.Release();
+            _requestGate.Exit();
         }
     }
 
     public override async Task<IEnumerable<IThread>> GetThreadsAsync(CancellationToken cancellationToken = default)
     {
         await EnsureMetadataAsync(cancellationToken);
-        using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://8kun.top/{BoardCode}/catalog.json");
-        request.Options.Set(RequestPolicyHandler.ObserverKey, SetRequestProgress);
+        await _requestGate.EnterAsync(cancellationToken);
         try
         {
+            using HttpRequestMessage request = new(HttpMethod.Get, $"https://8kun.top/{BoardCode}/catalog.json");
+            request.Options.Set(RequestPolicyHandler.ObserverKey, SetRequestProgress);
+            request.Headers.IfModifiedSince = _catalogLastModified;
             using HttpResponseMessage response = await ImageBoard.GetHttpClient()
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (response.StatusCode == HttpStatusCode.NotModified)
+                return _lastCatalog ?? throw new InvalidDataException("A catalog returned 304 before a successful snapshot was available.");
             response.EnsureSuccessStatusCode();
+            if (response.StatusCode != HttpStatusCode.OK)
+                throw new InvalidDataException("A catalog snapshot requires a complete HTTP 200 response.");
             IReadOnlyList<EightKunParser.CatalogEntry> catalog;
             try
             {
@@ -104,11 +112,14 @@ public class EightKunBoard : BaseBoard
                 threads.Add(thread);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            return threads;
+            _catalogLastModified = response.Content.Headers.LastModified;
+            _lastCatalog = threads.AsReadOnly();
+            return _lastCatalog;
         }
         finally
         {
             SetRequestProgress(null);
+            _requestGate.Exit();
         }
     }
 }

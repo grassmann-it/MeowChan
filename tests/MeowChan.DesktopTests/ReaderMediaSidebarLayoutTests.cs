@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Layout;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -20,6 +21,75 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class ReaderMediaSidebarLayoutTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void VideoRowKeepsEightDipAboveAndBelowTheTransport(bool dark) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ReaderMediaSidebar sidebar = new();
+        sidebar.VideoRow.Children.Add(new TextBlock { Text = "Transport" });
+        Window window = new() { Width = 360, Height = 720, Content = sidebar, RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            Control card = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarCard");
+            Control frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
+            Control video = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarVideoRow");
+            Control strip = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarStripRow");
+            double Top(Control control) => control.TranslatePoint(default, card)!.Value.Y;
+            double Bottom(Control control) => Top(control) + control.Bounds.Height;
+
+            // Padding audit §2, rank 8: the space between video and strip is shared, and the last row keeps 8 dip at the card edge.
+            Assert.True(video.IsEffectivelyVisible);
+            Assert.Equal(8, Top(video) - Bottom(frame) - frame.Margin.Bottom);
+            Assert.Equal(8, card.Bounds.Height - Bottom(video));
+
+            sidebar.ShowStrip(3, 0, 3, index => "file" + index, samePost: false);
+            window.UpdateLayout();
+            Assert.True(strip.IsEffectivelyVisible);
+            Assert.Equal(8, Top(video) - Bottom(frame) - frame.Margin.Bottom);
+            Assert.Equal(8, Top(strip) - Bottom(video));
+            Assert.Equal(8, card.Bounds.Height - Bottom(strip));
+
+            sidebar.ClearStrip();
+            window.UpdateLayout();
+            Assert.Equal(8, card.Bounds.Height - Bottom(video));
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DecisionErrorKeepsClearOfTheInfoBarEdges(bool dark) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ReaderMediaSidebar sidebar = new();
+        sidebar.Describe("No. 42", "picture.png", "640×480", true);
+        const string message = "Could not save the favorite.";
+        sidebar.ConfigureFavorite(() => true, () => false, () => Task.CompletedTask, error: () => message);
+        Window window = new() { Width = 360, Height = 720, Content = sidebar, RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+
+            // Padding audit §2, rank 7: the error row keeps 8 dip at both sides and below, with 4 dip above.
+            var error = SidePanelDesignTests.ById<TextBlock>(sidebar, "ReaderMediaSidebarDecisionError");
+            var details = SidePanelDesignTests.ById<Border>(sidebar, "ReaderMediaSidebarOverlay");
+            Assert.True(error.IsEffectivelyVisible);
+            Assert.Equal(message, error.Text);
+            Point topLeft = error.TranslatePoint(default, details)!.Value;
+            Assert.Equal(8, topLeft.X);
+            Assert.Equal(8, details.Bounds.Width - topLeft.X - error.Bounds.Width);
+            Assert.Equal(8, details.Bounds.Height - topLeft.Y - error.Bounds.Height);
+            Assert.Equal(4, error.Margin.Top);
+        }
+        finally { window.Close(); }
+    });
+
     internal static void OnDispatcher(Action test)
     {
         using IDisposable platform = AvaloniaTestPlatform.EnterSkia();

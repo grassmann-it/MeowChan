@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -46,10 +47,20 @@ internal sealed class SettingsRecoveryRequiredException : InvalidOperationExcept
     /// <summary>The language of the startup window: a readable backup's saved language, else the operating system's.</summary>
     internal static string StartupLanguage(string? savedLanguage, CultureInfo operatingSystem)
     {
-        string code = savedLanguage ?? operatingSystem.TwoLetterISOLanguageName;
-        foreach (string known in new[] { "en", "de", "es", "fr", "ru" })
-            if (string.Equals(code, known, StringComparison.OrdinalIgnoreCase) || code.StartsWith(known + "-", StringComparison.OrdinalIgnoreCase))
-                return known;
+        CultureInfo culture = operatingSystem;
+        if (savedLanguage is not null)
+        {
+            if (!Texts.IsValidLanguageCode(savedLanguage)) return "en";
+            try { culture = CultureInfo.GetCultureInfo(savedLanguage); }
+            catch (CultureNotFoundException) { return "en"; }
+        }
+
+        var languages = Texts.Languages;
+        for (CultureInfo current = culture; current.Name.Length != 0; current = current.Parent)
+        {
+            LanguageInfo? language = languages.FirstOrDefault(info => string.Equals(info.Code, current.Name, StringComparison.OrdinalIgnoreCase));
+            if (language is not null) return language.Code;
+        }
         return "en";
     }
 }

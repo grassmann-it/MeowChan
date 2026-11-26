@@ -54,9 +54,9 @@ internal static class PopupToggle
     /// True once when the pointer press that light-dismissed the button's menu landed on the button itself: the click that
     /// follows closes, it must not open the menu again. For owners that decide themselves whether an open menu closes.
     /// </summary>
-    internal static bool ConsumeAnchorPress(Button button)
+    internal static bool ConsumeAnchorPress(Button button, object? target = null)
     {
-        if (!Menus.TryGetValue(button, out ButtonMenu? state) || !state.AnchorPress) return false;
+        if (!Menus.TryGetValue(button, out ButtonMenu? state) || !state.AnchorPress || !Equals(state.Target, target)) return false;
         state.AnchorPress = false;
         return true;
     }
@@ -64,9 +64,11 @@ internal static class PopupToggle
     internal static bool CanToggleMenuFromKey(ContextMenu menu, KeyEventArgs e) => !e.Handled && !ShortcutService.IsCapturing
         && !menu.Items.OfType<MenuItem>().Any(item => item.IsSubMenuOpen);
 
-    internal static void Track(Button button, ContextMenu menu)
+    internal static void Track(Button button, ContextMenu menu, object? target = null)
     {
         ButtonMenu state = Menus.GetValue(button, static anchor => new ButtonMenu(anchor));
+        state.AnchorPress = false;
+        state.Target = target;
         state.Menu = menu;
         TopLevel? root = TopLevel.GetTopLevel(button);
         menu.Opened += (_, _) => root?.AddHandler(InputElement.PointerPressedEvent,
@@ -113,6 +115,7 @@ internal static class PopupToggle
 
     private sealed class ButtonMenu
     {
+        internal object? Target { get; set; }
         internal ContextMenu? Menu { get; set; }
         internal bool AnchorPress { get; set; }
 

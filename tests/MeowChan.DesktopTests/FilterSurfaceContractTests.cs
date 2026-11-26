@@ -43,27 +43,22 @@ public sealed class FilterSurfaceContractTests
     }
 
     [Fact]
-    public void MediaRefreshIsAnIconButtonAndTheTagComboAndItsTwoButtonsAreGone()
+    public void TheTagComboAndItsTwoButtonsAreGone()
     {
-        string page = Source("Desktop/Views/Media/MediaPage.cs"), filters = Source("Desktop/Views/Media/MediaPage.Filters.cs");
-        Assert.Contains("WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T(\"media.refresh\"));", page);
-        Assert.Contains("Name = \"MediaRefresh\"", page);
+        string filters = Source("Desktop/Views/Media/MediaPage.Filters.cs");
         Assert.Contains("new() { Name = \"MediaTagAdd\" }", filters);
         foreach (string gone in new[] { "MediaTagChoice", "MediaTagInclude", "MediaTagExclude" })
             Assert.DoesNotContain(gone, filters);
     }
 
     [Fact]
-    public void TheMediaHeadFollowsThePageGridAndShuffleAndRefreshAreSquareIcons()
+    public void TheMediaHeadFollowsThePageGrid()
     {
         string page = Source("Desktop/Views/Media/MediaPage.cs");
         Assert.Contains("Margin = new Thickness(MediaToolbarLayout.HorizontalMargin, PageHeader.PageTopOffset, MediaToolbarLayout.HorizontalMargin, 8)", page);
         Assert.Equal(12d, MediaToolbarLayout.HorizontalMargin);
         Assert.Contains("Classes = { \"workspace-page-header\" }", page);
         Assert.Contains("_headerBody = new() { Spacing = 8 }", page);
-        Assert.Contains("WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T(\"media.shuffle\"));", page);
-        Assert.DoesNotContain("_shuffle.Content = Texts.T", page);
-        Assert.DoesNotContain("refresh-cw", page);
     }
 
     [Fact]

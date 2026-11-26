@@ -136,8 +136,8 @@ public partial class MainWindow
     private void OnTaglineRotationTick(object? sender, EventArgs e)
     {
         if (!_taglineStarted || _config.HeaderTagline != TaglinePicker.ModeInterval || WindowState == WindowState.Minimized) return;
-        TaglineEntry? next = TaglinePicker.PickAnother(_taglinePool, _tagline?.Id, Random.Shared);
-        if (next == null || next.Id == _tagline?.Id) return;
+        TaglineEntry? next = TaglinePicker.Rotate(_taglinePool, _tagline?.Id, DateOnly.FromDateTime(DateTime.Today), Random.Shared);
+        if (next?.Id == _tagline?.Id) return;
         _tagline = next;
         UpdateHeaderTagline();
     }
@@ -164,7 +164,7 @@ public partial class MainWindow
         _appliedTaglineFixedId = _config.HeaderTaglineFixedId;
         // Off costs nothing: no pool, no measurement.
         _taglinePool = mode == TaglinePicker.ModeOff ? [] : TaglineCatalog.Available();
-        TaglinePick pick = TaglinePicker.Pick(mode, _config.HeaderTaglineFixedId, _taglinePool, DateOnly.FromDateTime(DateTime.Now),
+        TaglinePick pick = TaglinePicker.Pick(mode, _config.HeaderTaglineFixedId, _taglinePool, DateOnly.FromDateTime(DateTime.Today),
             ApplicationVersion, TaglineCatalog.ParseVersion(_config.LastTaglineVersion), atStart, Random.Shared);
         _tagline = pick.Entry;
         // The release quip is shown once: from now on this version counts as seen (Off does not use up the chance).
@@ -219,14 +219,15 @@ public partial class MainWindow
 
     private ContextMenuBuilder ComposeTaglineMenu() => new ContextMenuBuilder()
         .Item("tagline.another", Texts.T("shell.tagline.menuAnother"), () => OnTaglineAnotherClick(null, new RoutedEventArgs()),
-            available: _taglinePool.Count > 1, icon: "refresh-cw")
+            available: _taglinePool.Count > 1, icon: "shuffle")
         .Item("tagline.hide", Texts.T("shell.tagline.menuHide"), () => OnTaglineHideClick(null, new RoutedEventArgs()), icon: "eye-off")
-        .Section().Command("navigation.settings", () => NavigateWorkspace(WorkspacePage.Settings), entryId: "tagline.settings", showShortcut: false);
+        .Section().Command("navigation.settings", () => NavigateWorkspace(WorkspacePage.Settings), entryId: "tagline.settings",
+            showShortcut: false, labelWhen: () => CommandCatalog.Label("navigation.settings"));
 
     // Only for this session: the setting and the stored quip stay as they are.
     private void OnTaglineAnotherClick(object? sender, RoutedEventArgs e)
     {
-        _tagline = TaglinePicker.PickAnother(_taglinePool, _tagline?.Id, Random.Shared) ?? _tagline;
+        _tagline = TaglinePicker.PickAnother(_taglinePool, _tagline?.Id, DateOnly.FromDateTime(DateTime.Today), Random.Shared) ?? _tagline;
         UpdateHeaderTagline();
         // A fresh quip by hand also gives the rotation a fresh start, so it is not replaced a moment later.
         if (_taglineRotationTimer is { IsEnabled: true }) { _taglineRotationTimer.Stop(); _taglineRotationTimer.Start(); }

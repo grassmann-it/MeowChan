@@ -61,6 +61,7 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_shuffle, "media.toolbar.shuffle");
         WorkViewElement.SetId(_missing, "media.filter.missing"); // a filter since S3: a field of the section and a chip of the active filters
         WorkViewElement.SetId(_exportAll, "media.toolbar.export-all");
+        IconButtons.Record(_exportAll, CommandCatalog.Get("media.export-original").Icon);
         WorkViewElement.SetId(_manageRatings, "media.toolbar.manage-ratings");
         WorkViewElement.SetId(_booruOpen, "media.toolbar.booru");
         _booruOpen.Click += (_, _) => InvokeBooruOverflow();
@@ -248,6 +249,7 @@ public sealed partial class MediaPage
             MenuItem item = new()
             {
                 Header = control is ContentControl { Content: string text } ? text : AutomationProperties.GetName(control),
+                Tag = id,
                 IsEnabled = control.IsEnabled,
                 Command = new DelegateCommand(() => CommandBindings.InvokeAction(control), () => control.IsEnabled)
             };
@@ -264,10 +266,17 @@ public sealed partial class MediaPage
                 AutomationProperties.SetHelpText(item, tip);
             }
             if (ReferenceEquals(control, _booruOpen)) item.Name = "MediaBooruOpen";
-            if (control is Button tool && IconButtons.KeyOf(tool) is { } icon)
+            if (control is Button tool && OverflowIconOf(tool) is { } icon)
                 item.Icon = CommandBindings.NamedIcon(icon);
+            AutomationProperties.SetName(item, item.Header as string);
             flyout.Items.Add(item);
         }
+    }
+
+    private static string? OverflowIconOf(Button button)
+    {
+        object? icon = button.Content is MediaToolbarLabels.SidebarContent content ? content.Icon : button.Content;
+        return IconButtons.KeyOf(button) ?? MenuIcons.KeyOf(icon as Control) ?? WorkspaceIcons.FeatherKeyOf(icon);
     }
 
     /// <summary>The overflow entries the header's More holds right now (tests and smokes).</summary>

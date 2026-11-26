@@ -13,6 +13,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -68,7 +69,7 @@ public sealed partial class MediaPage
     /// <summary>What the tiles look like now.</summary>
     internal MediaTileAppearance TileAppearance => _tileAppearance;
 
-    // Called once by the constructor, before the toolbar is built: the button is a text button with a drawn chevron and the layout menu as its flyout.
+    // Called once by the constructor, before the toolbar is built.
     private void InitializeLayoutButton()
     {
         Avalonia.Controls.Shapes.Path chevron = new() { Width = 10, Height = 6, Stretch = Stretch.None, StrokeThickness = 1.5, StrokeLineCap = PenLineCap.Round,
@@ -77,7 +78,11 @@ public sealed partial class MediaPage
         // The geometry needs the render platform: it is made once the button is shown.
         chevron.AttachedToVisualTree += (_, _) => chevron.Data ??= Geometry.Parse("M 1,1 L 5,5 L 9,1");
         AutomationProperties.SetAccessibilityView(chevron, AccessibilityView.Raw);
-        _layoutButton.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _layoutLabel, chevron } };
+        _layoutButton.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 8,
+            Children = { CommandBindings.ButtonIcon(GalleryLayoutMenu.OpenCommandId, 16, _layoutLabel), _layoutLabel, chevron }
+        };
         _layoutPanel = new LayoutMenuPanel("MediaLayoutMenu", () => MediaLayoutMenu.Rows(_layout, PanelHint()), ApplyLayoutRow);
         _layoutPanel.CloseRequested += () => _layoutFlyout.Hide();
         _layoutFlyout.FlyoutPresenterClasses.Add("gallery-overflow");
@@ -124,7 +129,11 @@ public sealed partial class MediaPage
     // The entries of the layout menu as a submenu of the toolbar's More ("Layout" while the view or the width keeps the button under it).
     private MenuItem LayoutSubmenu()
     {
-        MenuItem item = new() { Header = Texts.T("media.layout.name"), Name = "MediaLayoutSubmenu", ItemsSource = LayoutMenuItems() };
+        MenuItem item = new()
+        {
+            Header = Texts.T("media.layout.name"), Name = "MediaLayoutSubmenu", ItemsSource = LayoutMenuItems(),
+            Icon = CommandBindings.Icon(GalleryLayoutMenu.OpenCommandId)
+        };
         AutomationProperties.SetName(item, Texts.T("media.layout.name"));
         if (ToolTip.GetTip(_layoutButton) is string tip) ToolTip.SetTip(item, tip);
         return item;

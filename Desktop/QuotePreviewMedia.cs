@@ -403,15 +403,30 @@ internal sealed class QuotePreviewMedia : IReaderInlineVideoOwner
     {
         GalleryGifPlayback? gif = await GalleryGifPlayback.OpenAsync(entry, _picture, loading.Token);
         if (gif == null) return; // not a GIF after all: the still picture stays
-        if (!IsCurrent(request, loading)) { OpenActions.Start(() => RetireGifAsync(gif), "reader.quotePreview.gif.retire"); return; }
-        _gif = gif;
-        gif.Adopt();
-        gif.SetActive(true);
-        // The animation shows its own frames: the still decode goes back.
-        Bitmap? still = _bitmap;
-        _bitmap = null;
-        if (still != null) MediaTileThumbnails.Release(still);
-        SetFrame(QuotePreviewMediaRules.Fit(gif.Info.Width, gif.Info.Height, _box));
+        try
+        {
+            if (!IsCurrent(request, loading))
+            {
+                await gif.DisposeAsync();
+                return;
+            }
+            _gif = gif;
+            gif.Adopt();
+            gif.SetActive(true);
+            // The animation shows its own frames: the still decode goes back.
+            Bitmap? still = _bitmap;
+            _bitmap = null;
+            if (still != null) MediaTileThumbnails.Release(still);
+            SetFrame(QuotePreviewMediaRules.Fit(gif.Info.Width, gif.Info.Height, _box));
+        }
+        catch (Exception adoptionError)
+        {
+            if (!ReferenceEquals(_gif, gif))
+                try { await gif.DisposeAsync(); }
+                catch (Exception cleanup)
+                { throw new GifRetirementException(gif, new AggregateException(adoptionError, cleanup)); }
+            throw;
+        }
     }
 
     private static async Task RetireGifAsync(GalleryGifPlayback gif)

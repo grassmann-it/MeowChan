@@ -162,7 +162,7 @@ public partial class ArchivePage
     private void HoldFocusedCard()
     {
         ListBox list = ArchivePosts;
-        if (_ended || list.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || list.SelectedItem is not { } item
+        if (_ended || KeyboardPostAtEdge || list.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || list.SelectedItem is not { } item
             || list.ContainerFromItem(item) is not Control container) return;
         list.UpdateLayout();
         // Use the same target after a late frame size change.
@@ -196,7 +196,7 @@ public partial class ArchivePage
             if (list.ContainerFromItem(item) is Control current) container = current;
             if (container.TranslatePoint(default, scroll) is not Point top) return;
             double target = ReaderMediaFit.JumpOffset(scroll.Offset.Y, top.Y, container.Bounds.Height, scroll.Viewport.Height,
-                scroll.Extent.Height, lead, true, ReaderMedia.FocusedPostTopPaddingPercent);
+                scroll.Extent.Height, lead, true, ReaderMedia.FocusedPostTopPaddingPercent, keepCardVisible: KeyboardPostAlignmentIsCurrent);
             double wanted = target - scroll.Offset.Y;
             if (Math.Abs(wanted) < 1) break;
             if (iteration > 0 && Math.Abs(previousWrite) >= 1) gain = Math.Clamp((previousWanted - wanted) / previousWrite, 0.25, 4);
@@ -242,7 +242,7 @@ public partial class ArchivePage
     // offset from the virtualizer. A reader jump owns its own alignment. If the card is still realizing, retry after layout.
     private void AnchorFocusedCard(bool centre)
     {
-        if (ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || ArchivePosts.SelectedItem is not { } item) return;
+        if (KeyboardPostAtEdge || ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || ArchivePosts.SelectedItem is not { } item) return;
         ListBox list = ArchivePosts;
         _readerScrollOwner.OpenFitWindow(Environment.TickCount64, _readerInteractionRevision, FocusFitWindowMilliseconds);
         if (ReaderJumpOwnsScroll) return;

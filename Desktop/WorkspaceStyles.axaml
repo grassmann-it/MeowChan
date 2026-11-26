@@ -7,6 +7,30 @@
                 <ResourceInclude Source="avares://MeowChan/Desktop/MenuItemTemplate.axaml" />
             </ResourceDictionary.MergedDictionaries>
             <SolidColorBrush x:Key="Workspace.MediaScrim">#D2181A1F</SolidColorBrush>
+            <SolidColorBrush x:Key="Workspace.GalleryBackground.White">White</SolidColorBrush>
+            <DrawingBrush x:Key="Workspace.GalleryBackground.Checkerboard" SourceRect="0,0,16,16" DestinationRect="0,0,16,16" TileMode="Tile">
+                <DrawingBrush.Drawing>
+                    <DrawingGroup>
+                        <DrawingGroup.Children>
+                            <GeometryDrawing Brush="LightGray">
+                                <GeometryDrawing.Geometry>
+                                    <RectangleGeometry Rect="0,0,16,16" />
+                                </GeometryDrawing.Geometry>
+                            </GeometryDrawing>
+                            <GeometryDrawing Brush="Gray">
+                                <GeometryDrawing.Geometry>
+                                    <RectangleGeometry Rect="0,0,8,8" />
+                                </GeometryDrawing.Geometry>
+                            </GeometryDrawing>
+                            <GeometryDrawing Brush="Gray">
+                                <GeometryDrawing.Geometry>
+                                    <RectangleGeometry Rect="8,8,8,8" />
+                                </GeometryDrawing.Geometry>
+                            </GeometryDrawing>
+                        </DrawingGroup.Children>
+                    </DrawingGroup>
+                </DrawingBrush.Drawing>
+            </DrawingBrush>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="Workspace.Background">#121416</SolidColorBrush>
@@ -31,6 +55,7 @@
                          Dark CardEdge (#5A636E) is computed at 3.03:1 on Background, 2.74:1 on Panel and 2.56:1 on Card
                          (WCAG relative luminance; not measured natively), so it clears 3:1 only against the page; adjust it here only. -->
                     <SolidColorBrush x:Key="Workspace.Card">#20242A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.MediaBarScrim">#E6181A1F</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#5A636E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#1B1E22</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #66000000</BoxShadows>
@@ -197,8 +222,9 @@
                     <SolidColorBrush x:Key="ComboBoxSelectorPressedBorderBrush">#6AA7FF</SolidColorBrush>
                     <!-- The caption close button's red hover (#C42B1C) is 2.95:1 on the Dark Panel: a 1-px Text edge (10.75:1) carries the boundary. -->
                     <SolidColorBrush x:Key="Workspace.CaptionCloseEdge">#EEF1F4</SolidColorBrush>
-                    <!-- QW-20: marked-favorite tint; Gold is 10.6-13.2:1 on the dark surfaces. -->
-                    <SolidColorBrush x:Key="Workspace.Favorite">#FFD700</SolidColorBrush>
+                    <!-- The favourite heart is red, the rating star gold (Tom, 26.11.2026): two tokens. Red is 5.5:1 on the Dark Panel (3.4:1 on the media scrim over a white picture), Gold 10.6-13.2:1 on the dark surfaces. -->
+                    <SolidColorBrush x:Key="Workspace.Favorite">#FF5C6C</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Rating">#FFD700</SolidColorBrush>
                     <!-- Semi blue leftovers (2026-11-14): text box and combo box focus, selection, check box and radio button checked states, slider, progress, pagination, line tabs, info banner/toast, loading icon, badge. Each key is an accent/palette token; the glyph on an accent fill is OnAccent. -->
                     <!-- Field focus and text selection (selection pair is opaque accent with OnAccent, as the TextBox style sets it). -->
                     <SolidColorBrush x:Key="TextBoxFocusBorderBrush">#6AA7FF</SolidColorBrush>
@@ -312,6 +338,7 @@
                     <SolidColorBrush x:Key="Workspace.SegmentPressed">#CAC2B6</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.MediaBarScrim">#E6FAF7F1</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#EFECE6</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #26000000</BoxShadows>
@@ -529,8 +556,10 @@
                     <SolidColorBrush x:Key="HyperlinkButtonForeground">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="HyperlinkButtonPointeroverForeground">#6E3305</SolidColorBrush>
                     <SolidColorBrush x:Key="HyperlinkButtonPressedForeground">#662F05</SolidColorBrush>
-                    <!-- QW-20: marked-favorite tint; Gold is 1.2:1 here. Dark amber is 4.8:1 on Workspace.Panel, 4.3:1 on Background, 3.9:1 on Raised. -->
-                    <SolidColorBrush x:Key="Workspace.Favorite">#8A5F00</SolidColorBrush>
+                    <!-- The favourite heart is red (4.7:1 on Workspace.Panel), the rating star dark amber: Gold is 1.2:1 here, dark amber is 4.8:1 on
+                         Workspace.Panel, 4.3:1 on Background, 3.9:1 on Raised. -->
+                    <SolidColorBrush x:Key="Workspace.Favorite">#C62838</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.Rating">#8A5F00</SolidColorBrush>
                     <!-- Semi blue leftovers (2026-11-14): text box and combo box focus, selection, check box and radio button checked states, slider, progress, pagination, line tabs, info banner/toast, loading icon, badge. Each key is an accent/palette token; the glyph on an accent fill is OnAccent. -->
                     <!-- Field focus and text selection (selection pair is opaque accent with OnAccent, as the TextBox style sets it). -->
                     <SolidColorBrush x:Key="TextBoxBorderedPointeroverBorderBrush">#726858</SolidColorBrush>
@@ -723,6 +752,7 @@
         <x:Double x:Key="Workspace.Size.Card">48</x:Double>
         <x:Double x:Key="Workspace.Size.CardWidth">120</x:Double>
         <Thickness x:Key="Workspace.Inset.Section">16</Thickness>
+        <Thickness x:Key="Workspace.Inset.DialogBody">16,0,16,16</Thickness>
         <Thickness x:Key="Workspace.Inset.Message">12</Thickness>
         <Thickness x:Key="Workspace.Inset.EmptyState">28</Thickness>
         <!-- Typography pass: the reading width (400, about 60 to 65 characters) instead of 360, which left one-word last lines. -->
@@ -730,6 +760,8 @@
         <Thickness x:Key="Workspace.Inset.Footer">16,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Chip">8,4</Thickness>
         <Thickness x:Key="Workspace.Inset.MediaTools">8,6</Thickness>
+        <Thickness x:Key="Workspace.Inset.MediaDecisionError">8,4,8,8</Thickness>
+        <Thickness x:Key="Workspace.Inset.MediaTab">8</Thickness>
         <Thickness x:Key="Workspace.Inset.ChipCompact">6,1</Thickness>
         <Thickness x:Key="Workspace.Inset.TagPill">12,0</Thickness>
         <Thickness x:Key="Workspace.Inset.TagPillKeyed">8,0,12,0</Thickness>
@@ -1215,7 +1247,7 @@
     <Style Selector="Border.workspace-status-warning TextBlock, Border.workspace-status-warning SelectableTextBlock, TextBlock.workspace-status-warning, SelectableTextBlock.workspace-status-warning"><Setter Property="Foreground" Value="{DynamicResource Workspace.Warning}" /></Style>
     <Style Selector="Border.workspace-status-error TextBlock, Border.workspace-status-error SelectableTextBlock, TextBlock.workspace-status-error, SelectableTextBlock.workspace-status-error"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
     <Style Selector="Border.workspace-status-success TextBlock, Border.workspace-status-success SelectableTextBlock, TextBlock.workspace-status-success, SelectableTextBlock.workspace-status-success"><Setter Property="Foreground" Value="{DynamicResource Workspace.Success}" /></Style>
-    <Style Selector="Border.workspace-dialog-body"><Setter Property="Padding" Value="{StaticResource Workspace.Inset.Section}" /></Style>
+    <Style Selector="Border.workspace-dialog-body"><Setter Property="Padding" Value="{StaticResource Workspace.Inset.DialogBody}" /></Style>
     <Style Selector="Border.workspace-dialog-footer">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" /><Setter Property="Padding" Value="{StaticResource Workspace.Inset.Footer}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" />
@@ -1577,20 +1609,14 @@
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <Style Selector="Border.media-sidebar-close.floating">
-        <Setter Property="Background" Value="{DynamicResource Workspace.MediaScrim}" />
-    </Style>
-    <Style Selector="Border.media-sidebar-overlay TextBlock.workspace-panel-title">
-        <Setter Property="Foreground" Value="White" />
-    </Style>
-    <Style Selector="Border.media-sidebar-overlay TextBlock.workspace-meta">
-        <Setter Property="Foreground" Value="#CCFFFFFF" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.MediaBarScrim}" />
     </Style>
     <Style Selector="Border.media-sidebar-overlay Button /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Border.media-sidebar-overlay Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, Border.media-sidebar-overlay ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#F0181A1F" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
     </Style>
 
     <!-- The one hairline of the quick tag popover and the gallery tag panel: between the decision row (favourite, rating) and the tag field. Its own 4 dip
@@ -2334,6 +2360,40 @@
     <Style Selector="ToggleButton.favorite-star:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.favorite-star:checked:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Opacity" Value="0.6" />
+    </Style>
+
+    <Style Selector="Button.media-header-action, ToggleButton.media-header-action">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" /><Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="ToggleButton.media-header-action:checked">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+    </Style>
+    <Style Selector="ToggleButton.media-header-action.favorite-star:checked">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.media-header-action:pointerover, ToggleButton.media-header-action:pointerover">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="Button.media-header-action:pressed, ToggleButton.media-header-action:pressed">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="Button.media-header-action:disabled, ToggleButton.media-header-action:disabled">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <!-- Use the button's resolved edge so a favourite's local error outline survives every presenter state. -->
+    <Style Selector="Button.media-header-action /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-header-action /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{ReflectionBinding Background, RelativeSource={RelativeSource TemplatedParent}}" />
+        <Setter Property="BorderBrush" Value="{ReflectionBinding BorderBrush, RelativeSource={RelativeSource TemplatedParent}}" />
+        <Setter Property="BorderThickness" Value="{ReflectionBinding BorderThickness, RelativeSource={RelativeSource TemplatedParent}}" />
+        <Setter Property="Foreground" Value="{ReflectionBinding Foreground, RelativeSource={RelativeSource TemplatedParent}}" />
     </Style>
     <!-- I7 tile corners: static chip badges and marks; the favourite star appears by opacity only (set, hover, keyboard focus),
          so nothing moves and the tile keeps its height. -->

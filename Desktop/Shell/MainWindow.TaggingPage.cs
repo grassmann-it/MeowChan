@@ -75,17 +75,13 @@ public partial class MainWindow
             CopyPath = CopyTaggingEntryPathAsync,
             SaveViewMode = mode => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPageView = mode.ToString()),
             SavePreviewColumn = visible => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPreviewColumn = visible),
-            ReadMediaTileAppearance = () =>
-            {
-                MediaPageLayout layout = CurrentMediaLayout();
-                return MediaTileMetrics.For(layout.TileSize, layout.Caption);
-            },
             ReadMediaTileSize = () => CurrentMediaLayout().TileSize,
             ChooseMediaTileSize = ChooseSharedTileSize,
             ReadPanelLayout = CurrentMediaLayout,
             SavePanelWidth = ChooseSharedPanelWidth,
             SavePanelEnabled = enabled => OpenActions.Start(
                 () => _session.SaveViewPreferencesAsync(config => config.TaggingPagePanel = enabled), "tagging.panel"),
+            SidebarVideoSettings = CreateQuickSettingsHost(),
             SavePanelSetting = update => OpenActions.Start(async () =>
             {
                 bool previous = _config.SidebarFactsVisible;

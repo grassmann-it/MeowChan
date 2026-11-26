@@ -92,11 +92,8 @@ public partial class App : Application
                 using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.app.video-preflight")) video = LinuxVideoPreflight.CheckBegun();
                 if (!video.Success)
                 {
-                    // No session or watches exist yet. Bootstrap messages use the OS
-                    // language because opening the profile is deliberately deferred.
-                    Texts.SetLanguage(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? "de" : "en");
                     Log.Error("Video runtime startup check failed: {Kind}: {Diagnostic}", video.Kind, video.Diagnostic);
-                    ShowStartupFailure(desktop, Texts.T(video.MessageKey));
+                    ShowStartupFailure(desktop, CreateVideoStartupError(video));
                 }
                 else if (ProfileStartup.FolderSession is { } folderSession)
                 {
@@ -113,19 +110,19 @@ public partial class App : Application
                 Log.Error(recovery, "Desktop startup stopped: the settings of the profile need a recovery decision.");
                 Texts.Initialize();
                 Texts.SetLanguage(SettingsRecoveryRequiredException.StartupLanguage(recovery.SavedLanguage, CultureInfo.CurrentUICulture));
-                ShowStartupFailure(desktop, recovery.LocalizedMessage());
+                ShowStartupFailure(desktop, new(recovery.LocalizedMessage()));
             }
             catch (BoardAdmissionStartupException recovery)
             {
                 Log.Error(recovery, "Desktop startup stopped because the board admission rules could not be loaded.");
                 Texts.Initialize();
                 Texts.SetLanguage(recovery.SavedLanguage);
-                ShowStartupFailure(desktop, recovery.LocalizedMessage());
+                ShowStartupFailure(desktop, new(recovery.LocalizedMessage()));
             }
             catch (Exception exception)
             {
                 Log.Error(exception, "Desktop startup failed.");
-                ShowStartupFailure(desktop, exception.Message);
+                ShowStartupFailure(desktop, new(exception.Message));
             }
             if (desktop.MainWindow is Window window)
                 StartupWindowReady?.Invoke(desktop, window, video);
@@ -170,10 +167,17 @@ public partial class App : Application
         main.Closed += (_, _) => UnhandledErrors.Presenter = null;
     }
 
-    private static void ShowStartupFailure(IClassicDesktopStyleApplicationLifetime desktop, string message)
+    internal static StartupErrorWindow CreateVideoStartupError(LinuxVideoPreflightResult video)
+    {
+        // Video preflight runs before the profile opens, so only bundled languages and the OS culture are available.
+        Texts.Initialize();
+        Texts.SetLanguage(SettingsRecoveryRequiredException.StartupLanguage(null, CultureInfo.CurrentUICulture));
+        return new(Texts.T(video.MessageKey));
+    }
+
+    private static void ShowStartupFailure(IClassicDesktopStyleApplicationLifetime desktop, StartupErrorWindow error)
     {
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        StartupErrorWindow error = new(message);
         error.Closed += (_, _) => desktop.Shutdown(2);
         desktop.MainWindow = error;
     }

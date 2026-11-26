@@ -8,6 +8,7 @@ internal static class CommandLabelCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("command.tagging.stamp", "Stamp", "Stempel"),
         ("command.media.sidebar.info", "Show sidebar facts", "Fakten anzeigen"),
         ("command.media.sidebar.autohide", "Auto-hide sidebar controls", "Leisten automatisch ausblenden"),
         ("command.sections.open-navigation", "Navigate sections", "Abschnitte öffnen"),
@@ -120,6 +121,8 @@ internal static class CommandLabelCatalog
         ("command.gallery.actual-size", "1:1", "1:1"),
         ("command.gallery.zoom-in", "Zoom in", "Vergrößern"),
         ("command.gallery.rotate", "Rotate 90°", "90° drehen"),
+        ("command.gallery.flip-horizontal", "Flip horizontally", "Horizontal spiegeln"),
+        ("command.gallery.background", "Background", "Hintergrund"),
         ("command.gallery.mode-toggle", "Gallery mode: view / tag", "Galeriemodus: Ansehen / Taggen"),
         ("command.gallery.zoom-out", "Zoom out", "Verkleinern"),
         ("command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden"),
@@ -204,6 +207,7 @@ internal static class CommandLabelCatalog
         ("command.media.details", "Show media details", "Mediendetails anzeigen"),
         ("command.media.next-untagged", "Next untagged medium", "Nächstes Medium ohne Tags"),
         ("command.media.copy-path", "Copy file path", "Dateipfad kopieren"),
+        ("command.media.copy-booru-tags", "Copy tags as Booru text", "Tags als Booru-Text kopieren"),
         ("command.media.open-external", "Open with default program", "Mit Standardprogramm öffnen"),
         ("command.media.copy-file-name", "Copy file names", "Dateinamen kopieren"),
         ("command.post.copy-link", "Copy post link", "Post-Link kopieren"),

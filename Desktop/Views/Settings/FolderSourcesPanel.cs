@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
@@ -116,8 +117,13 @@ internal sealed class FolderSourcesPanel : UserControl
         finally { _refreshing = false; }
     }
 
-    private void Render(Guid? restoreRemoveFocus = null)
+    private void Render(string? focusAction = null)
     {
+        var focusManager = TopLevel.GetTopLevel(this)?.FocusManager;
+        var previousFocus = focusManager?.GetFocusedElement();
+        if (focusAction == null && previousFocus is Button button && _rows.IsVisualAncestorOf(button))
+            focusAction = button.Name;
+
         _add.Content = Texts.T("folderSource.section.add");
         AutomationProperties.SetName(_add, Texts.T("folderSource.section.add"));
         _blocked.IsVisible = _blockedError != FolderSourceError.None;
@@ -135,7 +141,17 @@ internal sealed class FolderSourcesPanel : UserControl
         _empty.Text = Texts.T("folderSource.section.empty");
         _empty.IsVisible = _views.Count == 0 && _blockedError == FolderSourceError.None;
         _rows.Children.Clear();
-        foreach (FolderSourceView view in _views) _rows.Children.Add(Row(view, view.Root.Id == restoreRemoveFocus));
+        foreach (FolderSourceView view in _views) _rows.Children.Add(Row(view));
+        if (focusAction == null) return;
+
+        Button? target = _rows.GetVisualDescendants().OfType<Button>().FirstOrDefault(action => action.Name == focusAction);
+        if (target == null || target.Focus()) return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            var currentFocus = focusManager?.GetFocusedElement();
+            if (target.IsAttachedToVisualTree() && (currentFocus == null || ReferenceEquals(currentFocus, previousFocus)))
+                target.Focus();
+        }, DispatcherPriority.Loaded);
     }
 
     /// <summary>"Scanning …" while a scan runs, else "Hashing 12,340 of 100,000" while files are unhashed, else nothing.</summary>
@@ -149,7 +165,7 @@ internal sealed class FolderSourcesPanel : UserControl
         return paused ? counts + " · " + Texts.T("folderSource.status.paused") : counts;
     }
 
-    private Control Row(FolderSourceView view, bool restoreRemoveFocus)
+    private Control Row(FolderSourceView view)
     {
         FolderSourceRoot root = view.Root;
         string id = FolderSourceIdentity.Format(root.Id);
@@ -164,7 +180,8 @@ internal sealed class FolderSourcesPanel : UserControl
         TextBlock scan = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, Text = view.Scanning ? Texts.T("folderSource.row.scanning") : ScanText(root) };
         Button rescan = new() { Name = "FolderSourceRescan_" + id, Content = Texts.T("folderSource.row.rescan"), IsEnabled = !_busy && !view.Scanning };
         Button rename = new() { Name = "FolderSourceRename_" + id, Content = Texts.T("folderSource.row.rename"), IsEnabled = !_busy };
-        Button remove = new() { Name = "FolderSourceRemove_" + id, Content = Texts.T("folderSource.row.remove"), IsEnabled = !_busy && !view.Scanning };
+        // The host serializes removal with scans. Opening the question can happen while a scan is still running.
+        Button remove = new() { Name = "FolderSourceRemove_" + id, Content = Texts.T("folderSource.row.remove"), IsEnabled = !_busy };
         AutomationProperties.SetAutomationId(remove, remove.Name);
         CommandBindings.ShowIconBeforeText(rescan, "refresh-cw");
         CommandBindings.ShowIconBeforeText(rename, "edit-2");
@@ -173,7 +190,7 @@ internal sealed class FolderSourcesPanel : UserControl
         foreach (Button button in new[] { rescan, rename, remove }) AutomationProperties.SetName(button, (string)button.Content! + " · " + root.Name);
         rescan.Click += async (_, _) => await RunAsync(() => _services.Rescan(root.Id));
         rename.Click += async (_, _) => await RenameAsync(root);
-        remove.Click += (_, _) => { _confirmRemove = root.Id; Render(); };
+        remove.Click += (_, _) => { _confirmRemove = root.Id; Render(focusAction: "FolderSourceRemoveKeep"); };
         StackPanel row = new()
         {
             Name = "FolderSourceRow_" + id, Spacing = 4,
@@ -190,21 +207,19 @@ internal sealed class FolderSourcesPanel : UserControl
             yes.Classes.Add("danger"); no.Classes.Add("subtle");
             yes.Click += async (_, _) => { _confirmRemove = null; await RunAsync(() => _services.Remove(root.Id)); };
             no.Click += (_, _) => TryDismissRemoveConfirmation();
-            StackPanel confirmation = new() { Spacing = 4, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { no, yes } } } };
+            WrapPanel choices = new()
+            {
+                [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+                [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.4"),
+                Children = { no, yes }
+            };
+            StackPanel confirmation = new() { Spacing = 4, Children = { ask, choices } };
             confirmation.KeyDown += (_, e) =>
             {
                 if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
                     e.Handled = TryDismissRemoveConfirmation();
             };
             row.Children.Add(confirmation);
-            Dispatcher.UIThread.Post(() => no.Focus());
-        }
-        else if (restoreRemoveFocus)
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (_confirmRemove == null && remove.IsAttachedToVisualTree()) remove.Focus();
-            });
         }
         Border card = new() { Child = row, Padding = new Thickness(12), CornerRadius = new CornerRadius(5) };
         card.Classes.Add("workspace-card");
@@ -215,7 +230,7 @@ internal sealed class FolderSourcesPanel : UserControl
     {
         if (!IsEffectivelyVisible || _confirmRemove is not { } id || !_views.Any(view => view.Root.Id == id)) return false;
         _confirmRemove = null;
-        Render(restoreRemoveFocus: id);
+        Render(focusAction: "FolderSourceRemove_" + FolderSourceIdentity.Format(id));
         return true;
     }
 

@@ -24,6 +24,7 @@ namespace MeowChan.Desktop.Booru;
 internal sealed class BooruMediaSidebar : Grid, IDisposable
 {
     private const double Inset = 8;
+    internal const double HandleMargin = 2;
     private const double TagRoom = 96;
     private const double FactsHeight = 112;
     private const int PreviewEdge = 512;
@@ -36,6 +37,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     private readonly MediaPositionPill _position = new("BooruMediaPosition");
     // Required by the shared header, but a local favorite has no meaning for a provider hit in 1.1.2 (Tom, 25.11. 14:48).
     private readonly ArchiveFavoriteButton _favorite = new() { Name = "BooruMediaFavorite", IsVisible = false };
+    private readonly Button _settingsButton = new() { Name = "BooruMediaSettings" };
     private readonly MediaCompactHeader _header;
     private readonly TextBlock _ratingStat = StatText("BooruMediaStatRating");
     private readonly TextBlock _scoreStat = StatText("BooruMediaStatScore");
@@ -43,6 +45,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     private readonly StackPanel _tagStat = new() { Name = "BooruMediaStatTags", Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly WrapPanel _stats = new() { Name = "BooruMediaStats", ItemSpacing = 16, LineSpacing = 4, Margin = new Thickness(Inset, 0) };
     private readonly Image _image = new() { Name = "BooruMediaPreview", Stretch = Stretch.Uniform };
+    private readonly SidebarGifPlayback _gif;
     private readonly TextBlock _placeholder = new()
     {
         Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(Inset),
@@ -59,6 +62,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
     private BooruResultTarget? _target;
     private byte[]? _previewBytes;
     private int _previewMaximumPixels;
+    private bool _previewAnimated;
     private IDisposable? _bitmap;
     private BooruGalleryPicture _picture;
     private double _aspect = 1;
@@ -69,6 +73,8 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     internal PanelCloseButton Close { get; } = new("BooruMediaClose") { Focusable = false, IsTabStop = false };
     internal ToggleButton Info { get; } = new() { Name = "BooruMediaInfo", IsChecked = true };
+    internal Action? FactsToggled { get; set; }
+    internal Action? FactsRefreshRequested { get; set; }
     internal Button OpenGallery { get; } = new()
     {
         Name = "BooruMediaOpenGallery", Focusable = false, IsTabStop = false, Classes = { "ghost" },
@@ -85,20 +91,44 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     internal BooruMediaSidebar()
     {
+        _gif = new(_image);
         Name = "BooruMediaSidebar";
         IsVisible = false;
-        Margin = new Thickness(Inset, 0, 0, 0);
+        Margin = new Thickness(HandleMargin, 0, 0, 0); // the 6 DIP handle and this margin keep the former 8 DIP gap to the hits
         RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*,Auto");
         RowSpacing = Inset;
         ClipToBounds = true;
-        _header = new MediaCompactHeader(_title, _position, _favorite, Info, open: null, settings: null, close: Close)
+        _header = new MediaCompactHeader(_title, _position, _favorite, Info, open: null, settings: _settingsButton, close: Close)
         {
             Margin = new Thickness(Inset, 4), FileNameReserve = 40
         };
         _header.Meta.Name = "BooruMediaSummary";
-        _tagStat.Children.AddRange([CommandBindings.IconFromKey("tag", 16), _tagCount]);
+        _tagStat.Children.AddRange([CommandBindings.FollowLabel(CommandBindings.IconFromKey("tag", 16), _tagCount), _tagCount]);
         _stats.Children.AddRange([_ratingStat, _scoreStat, _tagStat]);
-        Info.Click += (_, _) => ShowFacts(Info.IsChecked == true);
+        Info.Click += (_, _) => ToggleFacts();
+        MenuItem showFacts = new() { ToggleType = MenuItemToggleType.CheckBox };
+        AutomationProperties.SetAutomationId(showFacts, "BooruMediaSettingsFacts");
+        showFacts.Click += (_, _) => ToggleFacts();
+        MenuFlyout menu = new() { Placement = PlacementMode.BottomEdgeAlignedRight, OverlayInputPassThroughElement = _settingsButton };
+        menu.Items.Add(showFacts);
+        PopupToggle.BindFlyout(_settingsButton, menu);
+        menu.Opening += (_, _) =>
+        {
+            FactsRefreshRequested?.Invoke();
+            const string command = "media.sidebar.info";
+            string label = CommandCatalog.Label(command);
+            EffectiveShortcutBindings bindings = ShortcutService.Current;
+            showFacts.Header = label;
+            showFacts.Icon ??= CommandBindings.Icon(command);
+            showFacts.IsChecked = _facts.IsVisible;
+            showFacts.InputGesture = bindings.For(command)
+                .FirstOrDefault(gesture => ShortcutHelp.ActsHere(command, gesture, "booru", bindings))?.Resolve(bindings.Platform);
+            AutomationProperties.SetName(showFacts, label);
+            string tip = CommandBindings.Tooltip(command, visibleLabel: label, keyContext: "booru");
+            AutomationProperties.SetHelpText(showFacts, tip);
+            ToolTip.SetTip(showFacts, tip);
+        };
+        _settingsButton.Content = CommandBindings.IconFromKey("settings", 16);
         _kind.Margin = new Thickness(0, 4, 4, 0);
         OpenGallery.Content = new Panel { Children = { _image, _placeholder, _kind } };
         AutomationProperties.SetAccessibilityView(_image, AccessibilityView.Raw);
@@ -140,19 +170,24 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         {
             _previewBytes = row.PreviewBytes;
             _previewMaximumPixels = maximumPixels;
+            _previewAnimated = false;
             Bitmap? preview = row.Preview == BooruPreviewState.Ready && _previewBytes is { Length: > 0 } bytes
-                ? DecodePreview(bytes, maximumPixels) : null;
-            ReplacePicture(preview, preview is null ? BooruGalleryPicture.None : BooruGalleryPicture.Preview);
+                ? DecodePreview(bytes, maximumPixels, out _previewAnimated) : null;
+            ReplacePicture(preview, preview is null ? BooruGalleryPicture.None : BooruGalleryPicture.Preview,
+                _previewAnimated ? _previewBytes : null, maximumPixels);
         }
 
         BooruPostView post = row.Post;
         _title.Text = Texts.T("booru.ui.post.title", post.PostId);
         _header.Localize();
+        string settingsLabel = Texts.T("media.sidebar.settings");
+        AutomationProperties.SetName(_settingsButton, settingsLabel);
+        ToolTip.SetTip(_settingsButton, settingsLabel);
         AutomationProperties.SetName(this, Texts.T("media.layout.panel"));
         AutomationProperties.SetName(Tags, Texts.T("booru.tags.sourceLabel"));
         AutomationProperties.SetName(OpenGallery, CommandCatalog.Label("gallery.open") + " · " + _title.Text);
         ToolTip.SetTip(OpenGallery, AutomationProperties.GetName(OpenGallery));
-        Close.Localize(Texts.T("action.close") + " · " + Texts.T("media.layout.panel"));
+        Close.Localize(Texts.T("media.panel.close"));
         _placeholder.Text = Texts.T(row.Preview switch
         {
             BooruPreviewState.Loading => "booru.ui.post.previewLoading",
@@ -172,7 +207,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         int? width = post.Original?.Width;
         int? height = post.Original?.Height;
         _aspect = width is > 0 && height is > 0 ? (double)width.Value / height.Value : 1;
-        string? dimensions = width is > 0 && height is > 0 ? $"{width} × {height}" : null;
+        string? dimensions = width is > 0 && height is > 0 ? MediaFactGrid.FormatDimensions(width.Value, height.Value) : null;
         string? bytesText = post.Original?.ExpectedSize is { } size ? SizeText.Format(size) : null;
         string? rating = post.Rating != BooruRating.Unknown ? BooruText.Rating(post.Rating)
             : string.IsNullOrWhiteSpace(post.RawRating) ? null : BooruText.Rating(post.Rating) + " (" + post.RawRating + ")";
@@ -240,9 +275,13 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         Name = name, Classes = { "workspace-meta", "tnum" }, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center
     };
 
-    internal void ToggleFacts() => ShowFacts(!_facts.IsVisible);
+    internal void ToggleFacts()
+    {
+        ShowFacts(!_facts.IsVisible);
+        FactsToggled?.Invoke();
+    }
 
-    private void ShowFacts(bool visible)
+    internal void ShowFacts(bool visible)
     {
         _facts.IsVisible = visible;
         Info.IsChecked = visible;
@@ -262,16 +301,24 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         if (_disposed || _target != target || !this.IsAttachedToVisualTree() || !IsEffectivelyVisible) return;
         SampleLoad = _sample.Start(port, target.Post, limits, BooruGallerySampleLoader.DefaultDelay,
             static (bytes, width, pixels) => BooruGalleryPanel.DecodeBitmap(bytes, width, pixels),
-            image =>
+            (image, bytes) =>
             {
                 if (_disposed || _target != target || !IsEffectivelyVisible || !current()) return false;
-                ReplacePicture(image, BooruGalleryPicture.Sample);
+                bool gif = GifFrameDecoder.HasGifHeader(bytes);
+                if (!gif && _previewAnimated && _picture == BooruGalleryPicture.Preview)
+                {
+                    // Keep the available animation when the provider's larger sample is a still.
+                    (image as IDisposable)?.Dispose();
+                    return true;
+                }
+                ReplacePicture(image, BooruGalleryPicture.Sample, gif ? bytes : null, _sample.Limits.MaximumPixels);
                 return true;
             }, changed, SampleDelayAsync) ?? SampleLoad;
     }
 
-    private static Bitmap? DecodePreview(byte[] bytes, int maximumPixels)
+    private static Bitmap? DecodePreview(byte[] bytes, int maximumPixels, out bool animated)
     {
+        animated = false;
         try
         {
             using MemoryStream stream = new(bytes, writable: false);
@@ -283,18 +330,26 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
             double scale = Math.Min(1, (double)PreviewEdge / Math.Max(display.Width, display.Height));
             PixelSize scaled = new(Math.Max(1, (int)Math.Floor(display.Width * scale)),
                 Math.Max(1, (int)Math.Floor(display.Height * scale)));
+            animated = codec.EncodedFormat == SKEncodedImageFormat.Gif && (long)display.Width * display.Height <= GifFrameDecoder.MaximumPixels
+                && codec.FrameCount is > 1 and <= GifFrameDecoder.MaximumFrames;
             return ImageOrientation.DecodeScaled(codec, scaled);
         }
         catch (Exception error) when (error is not OutOfMemoryException) { return null; }
     }
 
-    private void ReplacePicture(IImage? image, BooruGalleryPicture picture)
+    private void ReplacePicture(IImage? image, BooruGalleryPicture picture, byte[]? gif = null, int maximumPixels = 0)
     {
+        _gif.Clear();
         _image.Source = image;
         _placeholder.IsVisible = image is null;
         _bitmap?.Dispose();
         _bitmap = image as IDisposable;
         _picture = picture;
+        if (image is Bitmap poster && gif is not null)
+        {
+            PixelSize viewport = poster.PixelSize;
+            _gif.Show(poster, async token => await GifFrameDecoder.OpenPreviewAsync(gif, maximumPixels, viewport, token));
+        }
     }
 
     internal void ClearActions() => Actions.Clear();
@@ -305,7 +360,8 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        double width = Math.Min(Width, availableSize.Width);
+        // The column gives the width now (the handle drags it), so an unset Width must not fall back to the default size.
+        double width = double.IsFinite(Width) ? Math.Min(Width, availableSize.Width) : availableSize.Width;
         if (!double.IsFinite(width)) width = Config.MediaPanelWidthDefault;
         Size row = new(width, double.PositiveInfinity);
         _header.Measure(row);
@@ -336,7 +392,9 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     private void AncestorVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == IsVisibleProperty && !e.GetNewValue<bool>()) _sample.Pause();
+        if (e.Property != IsVisibleProperty) return;
+        if (!e.GetNewValue<bool>()) _sample.Pause();
+        else if (IsEffectivelyVisible) FactsRefreshRequested?.Invoke();
     }
 
     internal void Release()
@@ -347,6 +405,7 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         _facts.Content = null;
         _target = null;
         _previewBytes = null;
+        _previewAnimated = false;
         ReplacePicture(null, BooruGalleryPicture.None);
     }
 

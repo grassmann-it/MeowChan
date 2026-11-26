@@ -28,7 +28,10 @@ using MeowChan.Diagnostics;
 namespace MeowChan.Desktop;
 
 internal sealed record GalleryViewerState(GalleryAssetKey? Key, string? PostId, int? AttachmentPosition,
-    bool ManualZoom, double PhysicalZoom, double PanX, double PanY, bool ContextOpen, bool ActualZoom, int Rotation = 0);
+    bool ManualZoom, double PhysicalZoom, double PanX, double PanY, bool ContextOpen, bool ActualZoom, int Rotation = 0)
+{
+    internal bool Flipped { get; init; }
+}
 
 // A frozen mapping revision owns only data, never controls. Navigation uses an O(1) asset lookup;
 // the existing post/attachment-position identity and first-occurrence order remain unchanged.
@@ -57,10 +60,12 @@ internal sealed record GalleryDiagnosticNotice(string Operation, GalleryEntry? E
 
 internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
 {
+    private static readonly IBrush LetterboxBrush = Brushes.Black;
     private readonly TranslateTransform _imageTranslation = new();
     private readonly RotateTransform _imageRotation = new();
+    private readonly ScaleTransform _imageFlip = new();
     private readonly Image _image = new() { Name = "GalleryImage", Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = Brushes.Black };
+    private readonly Grid _viewport = new() { Name = "GalleryViewport", ClipToBounds = true, Background = LetterboxBrush };
     private readonly TextBlock _status = new() { Name = "GalleryStatus", TextWrapping = TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), IsHitTestVisible = false };
     private readonly TextBlock _scope = new() { Name = "GalleryScope", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _provenance = new() { Name = "GalleryProvenance", [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap, IsVisible = false };
@@ -365,8 +370,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             _ratingRouter = CreateRatingRouter(this); _nativeRatingRouter = CreateRatingRouter(_nativeVideoOverlay);
         };
         DetachedFromVisualTree += (_, _) => { _ratingRouter?.Dispose(); _nativeRatingRouter?.Dispose(); };
-        // Rotation first, then the pan: the pan stays in screen space whatever the medium's orientation.
-        _image.RenderTransform = new TransformGroup { Children = { _imageRotation, _imageTranslation } };
+        // Reflection follows rotation, so its axis is horizontal on screen. Pan is applied last.
+        _image.RenderTransform = new TransformGroup { Children = { _imageRotation, _imageFlip, _imageTranslation } };
         Focusable = true;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
@@ -432,6 +437,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _actualRow = Command(_overflowPanel, "GalleryActualMenu", "1:1", ActualPixels, overflow: true, keepOpen: true);
         _actualRow.IsVisible = false;
         _rotate = Command(_overflowPanel, "GalleryRotate", CommandCatalog.Label("gallery.rotate"), () => RotateView(), overflow: true, keepOpen: true);
+        InitializeAppearanceMenu();
         AddOverflowSeparator();
         CommandBindings.Apply(_manageRatingsButton, "media.rating.manage");
         _manageRatingsButton.Click += (_, _) => { PauseSlideshow(); ManageRatingsRequested?.Invoke(); };
@@ -489,6 +495,9 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _helpPanel.Margin = new Thickness(12, TopRowClearance, 12, 12); // below the top row of the way back and the star (kept below it: the help is also centred over the picture in narrow viewers)
         _helpPanel.MaxWidth = 390;
         _helpPanel.MaxHeight = 350;
+        AutomationProperties.SetAutomationId(_viewport, "GalleryViewport");
+        AutomationProperties.SetAutomationId(_image, "GalleryImage");
+        _viewport.Children.Add(_themeBackdrop);
         _viewport.Children.Add(_image);
         _statusPlate.Child = _status;
         _viewport.Children.Add(_statusPlate);
@@ -600,6 +609,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         UpdateHelp();
         UpdateHelpButtonTooltip();
         SetImageCommands(false);
+        UpdatePictureBackground();
         ApplyCloseLabel();
     }
 
@@ -620,6 +630,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         RefreshPlaybackControls();
         RefreshOverflowItems();
         RefreshGifTransport();
+        RefreshAppearanceMenuText();
         RefreshTaggingTexts();
         PresentModeSwitch();
     }
@@ -965,6 +976,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         int failureRequest = ++_request;
         CancelLoads(); UnbindVideoPlaybackSignals();
         _mediaFailed = true; _navigationPending = false; _browseQueue.Clear();
+        UpdatePictureBackground();
         _imageReadyRequest = _videoReadyRequest = -1;
         SetImageCommands(false); _exportOriginal.IsEnabled = false; _saveFrame.IsEnabled = false;
         _info = null; ClearBitmaps();
@@ -997,7 +1009,11 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         string bounded = message.Length <= 2048 ? message : message[..2048];
         DiagnosticNotice?.Invoke(new(operation, _entry, AssociationRevision, bounded, mediaUnavailable));
     }
-    private void SetImageCommands(bool enabled) => _fit.IsEnabled = _actual.IsEnabled = _actualRow.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = _rotate.IsEnabled = enabled;
+    private void SetImageCommands(bool enabled)
+    {
+        _fit.IsEnabled = _actual.IsEnabled = _actualRow.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = _rotate.IsEnabled = enabled;
+        _flipHorizontal.IsEnabled = enabled && CanFlipView;
+    }
 
     private void SetMediaFocus(bool enabled, bool notify = true)
     {
@@ -1190,7 +1206,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     }
 
     internal GalleryViewerState CaptureState() => new(_entry?.Key, _entry?.Post?.PostId, _entry?.Attachment?.Position,
-        _manualZoom, _zoom, _panX, _panY, _contextOpen, _actualZoom, _rotation);
+        _manualZoom, _zoom, _panX, _panY, _contextOpen, _actualZoom, _rotation) { Flipped = _flipped };
     internal void RestoreState(GalleryViewerState state)
     {
         _restore = state;
@@ -1206,6 +1222,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         UpdateLayout(); // Restored zoom uses the viewport after the context panel has been measured.
         _manualZoom = state.ManualZoom; _actualZoom = state.ActualZoom;
         _rotation = GalleryRotation.Normalize(state.Rotation);
+        SetFlipped(state.Flipped);
         double fit = CurrentFit, maxZoom = CurrentGeometry?.MaxZoom ?? Math.Max(16, fit);
         _zoom = _actualZoom && state.PhysicalZoom < fit
             ? Math.Clamp(state.PhysicalZoom, 1, maxZoom)
@@ -1283,6 +1300,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ResetViewForMedium(entry);
         ReleaseTransientOverlays();
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
+        UpdatePictureBackground();
         RefreshPanelCounter();
         _exportOriginal.IsEnabled = true;
         _saveFrame.IsEnabled = false; // a frame can be saved once the video is ready (RefreshFrameCommands)
@@ -1349,7 +1367,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
                 Dispatcher.UIThread.Post(() => _nativeOverlayWindow?.Hide(), DispatcherPriority.Loaded);
             if (_nativeOverlayActive)
                 Dispatcher.UIThread.Post(CheckNativeOverlayTransparency, DispatcherPriority.Loaded);
-            _video.PrepareRotation(_rotation);
+            _video.PrepareRotation(_rotation, _flipped);
             await _video.ShowAsync(entry, cancellationToken);
             if (request != _request || cancellationToken.IsCancellationRequested) return;
             _videoReadyRequest = request;
@@ -1648,9 +1666,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         Button button = new() { Name = name, Classes = { "command-icon" }, Width = 32, Height = 32, MinWidth = 32,
             Padding = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
             HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
-        Border icon = (Border)CommandBindings.Icon("gallery.close", 14); // the "x" glyph
-        icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
-        button.Content = icon;
+        button.Content = CommandBindings.ButtonIcon("gallery.close", 16);
         button.Click += (_, _) => close();
         return button;
     }
@@ -1810,6 +1826,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         else if (CommandBindings.Matches(e, "gallery.zoom-in")) Zoom(1.1);
         else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
         else if (CommandBindings.Matches(e, "gallery.rotate")) RotateView();
+        else if (CanFlipView && CommandBindings.Matches(e, FlipCommandId)) FlipView();
+        else if (CanChooseBackground && CommandBindings.Matches(e, BackgroundCommandId)) CycleBackground();
         else if (CommandBindings.Matches(e, "gallery.close")) CloseRequested?.Invoke();
         else if (CommandBindings.Matches(e, "media.tags.edit")) RequestTagsByKey();
         else if (CommandBindings.Matches(e, "media.queue.add")) { if (_entry != null && QueueRequested != null) QueueRequested.Invoke(_entry); }
@@ -1851,30 +1869,35 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     /// Raised for "Save frame as image". The owner decides the folder: the dedicated frames folder the person chose
     /// (asked for on first use, never an export folder) and then calls <see cref="SaveVideoFrameAsync"/>.
     /// </summary>
-    internal event Action<GalleryEntry>? SaveFrameRequested;
+    internal event Action<GalleryEntry, int>? SaveFrameRequested;
+
+    internal Func<GalleryEntry, string, Task<bool>>? CaptureVideoFrameForTests { get; set; }
 
     private void RequestSaveFrame()
     {
-        if (CanUseVideoTransport && _videoReadyRequest == _request && _entry != null) SaveFrameRequested?.Invoke(_entry);
+        if (CanRequestSaveFrame && _entry is { } entry) SaveFrameRequested?.Invoke(entry, _request);
     }
 
     /// <summary>
-    /// Saves the shown frame of the current video into <paramref name="directory"/> as "{file name}-{m-ss-mmm}.png" (a free
-    /// name, never an existing file) and returns its path, or null when no frame could be saved.
+    /// Saves the shown frame into <paramref name="directory"/> as "{file name}-{m-ss-mmm}.png" (a free name) if the
+    /// video selection from the save request is still current. Returns the path, or null when no frame could be saved.
     /// </summary>
-    internal async Task<string?> SaveVideoFrameAsync(string directory)
+    internal async Task<string?> SaveVideoFrameAsync(GalleryEntry entry, int request, string directory)
     {
-        if (!CanUseVideoTransport || _entry is not { } entry || _video is not { } video) return null;
+        if (_video is not { } video || !CanRequestSaveFrame || !IsRequestedVideoCurrent()) return null;
         if (!await Task.Run(() => System.IO.Directory.Exists(directory)).ConfigureAwait(true)) return null;
-        if (!CanUseVideoTransport || !ReferenceEquals(entry, _entry) || !ReferenceEquals(video, _video)) return null;
+        if (!CanRequestSaveFrame || !IsRequestedVideoCurrent()) return null;
         string fileName = entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName ?? string.Empty;
         long position = video.PositionMs;
         // Written under a temporary name and moved into place without replacing a file (a frame is never overwritten).
         string temporary = GalleryFrameFile.TemporaryPath(directory);
-        bool saved = await video.SaveFrameAsync(temporary).ConfigureAwait(true) && ReferenceEquals(entry, _entry);
+        bool saved = await (CaptureVideoFrameForTests?.Invoke(entry, temporary) ?? video.SaveFrameAsync(temporary))
+            .ConfigureAwait(true) && IsRequestedVideoCurrent();
         string? path = saved ? await Task.Run(() => GalleryFrameFile.Commit(temporary, directory, fileName, position)).ConfigureAwait(true) : null;
         if (!saved) await Task.Run(() => GalleryFrameFile.Discard(temporary)).ConfigureAwait(true);
         return path;
+
+        bool IsRequestedVideoCurrent() => request == _request && ReferenceEquals(entry, _entry) && ReferenceEquals(video, _video);
     }
 
     private void AdjustVideoVolume(int direction)

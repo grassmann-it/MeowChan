@@ -82,9 +82,12 @@ public partial class MainWindow
         if (!CanChangeFooterDisplays) return null;
         bool network = _config.ShowFooterNetwork, disk = _config.ShowFooterDisk, status = _config.ShowFooterStatus;
         return new ContextMenuBuilder().Named(Texts.T(FooterDisplaysKey))
-            .Check("footer.network", IoStatsDisplay.NetworkTitle(), network, () => SaveFooterDisplay(config => config.ShowFooterNetwork = !network))
-            .Check("footer.disk", IoStatsDisplay.DiskTitle(), disk, () => SaveFooterDisplay(config => config.ShowFooterDisk = !disk))
-            .Check("footer.status", Texts.T("settings.footer.statusLines"), status, () => SaveFooterDisplay(config => config.ShowFooterStatus = !status));
+            .Check("footer.network", IoStatsDisplay.NetworkTitle(), network,
+                () => SaveFooterDisplay(config => config.ShowFooterNetwork = !network), icon: "activity")
+            .Check("footer.disk", IoStatsDisplay.DiskTitle(), disk,
+                () => SaveFooterDisplay(config => config.ShowFooterDisk = !disk), icon: "hard-drive")
+            .Check("footer.status", Texts.T("settings.footer.statusLines"), status,
+                () => SaveFooterDisplay(config => config.ShowFooterStatus = !status), icon: "info");
     }
 
     private async void SaveFooterDisplay(Action<Config> change)

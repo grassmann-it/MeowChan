@@ -248,12 +248,13 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         Grid.SetRow(body, 1);
         table.Children.Add(body);
         Border surface = new() { Name = "TaggingListSurface", Child = table, Classes = { "workspace-section-flush" } };
+        AutomationProperties.SetAutomationId(surface, "TaggingListSurface");
         Grid.SetRow(surface, 1);
         listArea.Children.Add(surface);
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
-        Border list = new() { Child = listArea, Margin = new Thickness(12, 0, 12, 4), ClipToBounds = true };
+        Border list = new() { Child = listArea, Margin = new Thickness(WorkspaceMetrics.Space12, 0, WorkspaceMetrics.Space12, WorkspaceMetrics.Space8), ClipToBounds = true };
         list.SizeChanged += (_, e) => UpdateTableLayout(e.NewSize.Width + list.Margin.Left + list.Margin.Right);
         _panelBody.Children.Add(list);
         _panelBody.Children.Add(_panelHandle);
@@ -344,7 +345,10 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         if (_queueWork.Ended) return;
         if (first) ShowStatus(null);
         Show();
-        Dispatcher.UIThread.Post(FocusOnOpen, DispatcherPriority.Input);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_clearConfirm.IsEffectivelyVisible) FocusOnOpen();
+        }, DispatcherPriority.Input);
     }
 
     /// <summary>Retries the queue read without presenting a failed read as an empty queue.</summary>

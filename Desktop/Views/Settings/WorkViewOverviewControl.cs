@@ -15,6 +15,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 
@@ -87,7 +88,7 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
         _clearFilters.Click += OnClearFilters;
         Grid.SetColumn(_clearFilters, 2); fields.Children.Add(_clearFilters);
 
-        _table = new DataGrid
+        _table = new RowFocusDataGrid
         {
             Name = "WorkViewOverviewTable", AutoGenerateColumns = false, IsReadOnly = true,
             CanUserReorderColumns = false, CanUserResizeColumns = false, CanUserSortColumns = false,
@@ -96,6 +97,8 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             SelectionMode = DataGridSelectionMode.Single, GridLinesVisibility = DataGridGridLinesVisibility.Horizontal
         };
+        _table.Classes.Add("row-focus");
+        AutomationProperties.SetAutomationId(_table, "WorkViewOverviewTable");
         // Row names follow recycled rows through bindings, not only a one-time LoadingRow callback.
         _table.Styles.Add(new Style(selector => selector.OfType<DataGridRow>())
         {

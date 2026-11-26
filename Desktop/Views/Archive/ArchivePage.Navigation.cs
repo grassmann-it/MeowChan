@@ -46,6 +46,7 @@ public partial class ArchivePage
 
     private void BeginPostInteraction(ResourceId? threadId, InlineRepliesSnapshot? restored)
     {
+        _replyAutoExpand.Focus(null);
         _replyAutoExpand.SwitchThread(threadId);
         bool sameSnapshot = ReferenceEquals(_postInteractionThread, _thread);
         if (restored == null && sameSnapshot && ArchivePosts.ItemsSource is ReaderPostRows)
@@ -61,7 +62,7 @@ public partial class ArchivePage
 
     private void RestorePostInteraction(ArchivePostRow row, PostInteraction interaction, ResourceId thread)
     {
-        if (row.IsStub || row.SuppressReplyToggle) return;
+        if (row.IsStub) return;
         // Rebuild the displayed reply cards against the current filter before expanding the saved pages.
         if (interaction.Replies.Remove(row.Id, out InlineReplyState? state))
         {
@@ -73,7 +74,8 @@ public partial class ArchivePage
             else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
             row.SetRepliesError(state.Error);
         }
-        _replyAutoExpand.RestoreChoice(row);
+        if (ReferenceEquals(interaction, _postInteraction) && !row.SuppressReplyToggle)
+            _replyAutoExpand.RestoreChoice(row);
     }
     private readonly LinkedList<ReaderHistoryEntry> _history = new();
     private ReaderAnchor? _backlinkOriginAnchor;

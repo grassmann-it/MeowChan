@@ -13,7 +13,6 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Layout;
-using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -147,15 +146,18 @@ public static class CommandBindings
         bool showShortcut = true) =>
         Apply(item, id, unavailableReason, label, showShortcut, null);
 
+    internal static void ApplyStateful(MenuItem item, string id, Func<string> state, Func<string> label) =>
+        Apply(item, id, null, label, true, null, state);
+
     private static void Apply(MenuItem item, string id, Func<string?>? unavailableReason, Func<string>? label,
-        bool showShortcut, string? keyContext)
+        bool showShortcut, string? keyContext, Func<string>? state = null)
     {
         Track(item, id);
-        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut, keyContext));
+        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut, keyContext, state));
         var definition = CommandCatalog.Get(id);
         string visibleLabel = label?.Invoke() ?? CommandCatalog.Label(id);
         item.Header = visibleLabel;
-        item.Icon = Icon(id);
+        item.Icon = Icon(id, state: state?.Invoke());
         EffectiveShortcutBindings bindings = ShortcutService.Current;
         item.InputGesture = showShortcut
             ? bindings.For(definition.Id).FirstOrDefault(gesture => keyContext == null || ShortcutHelp.ActsHere(id, gesture, keyContext, bindings))?.Resolve(bindings.Platform)
@@ -340,14 +342,14 @@ public static class CommandBindings
     /// A catalog icon by its file name (<c>sliders</c>, <c>refresh-cw</c>) for a control that has no command of its own. Needs the
     /// platform's asset loader, so owners create it when they are shown. It follows the foreground of the control that holds it.
     /// </summary>
-    public static Control NamedIcon(string icon, int size = 16)
-    {
-        Border border = (Border)IconFromKey(icon, size);
-        border.Bind(Border.BackgroundProperty, border.GetObservable(TextElement.ForegroundProperty));
-        return border;
-    }
+    public static Control NamedIcon(string icon, int size = 16) => IconFromKey(icon, size);
 
-    /// <summary>The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon.</summary>
+    /// <summary>
+    /// The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon. This is the one
+    /// place that colours a catalog icon: it is drawn in the text colour of the surface that holds it (the inherited foreground), so an icon
+    /// on an accent surface, in a badge, a checked toggle or a disabled button has the colour of the text beside it in Light and Dark. It was
+    /// the fixed Workspace.Text, which left a dark icon beside white text on the accent (Tom, 26.11.2026).
+    /// </summary>
     internal static Control IconFromKey(string icon, int size = 16, bool deferMask = false)
     {
         var mask = new ImageBrush { Stretch = Stretch.Uniform };
@@ -355,9 +357,9 @@ public static class CommandBindings
         {
             Width = size,
             Height = size,
-            [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Text"),
             OpacityMask = mask
         };
+        visual.Bind(Border.BackgroundProperty, visual.GetObservable(TextElement.ForegroundProperty));
         if (deferMask)
         {
             // Menu items can reserve the icon column before the rendering platform is available.
@@ -419,10 +421,8 @@ public static class CommandBindings
             // F17: a toggle tool shows a small x inside its own button while it is on (the bar it opened closes with it).
             if (closeWhenChecked)
             {
-                Avalonia.Controls.Shapes.Path close = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Close);
-                close.Width = 10;
-                close.Height = 10;
-                close.Stretch = Stretch.Uniform;
+                Avalonia.Controls.Shapes.Path close = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.CloseSmall);
+                close.Margin = new Thickness(4, 0, 0, 0);
                 close.VerticalAlignment = VerticalAlignment.Center;
                 close.Name = "ToolActiveClose";
                 // Follows the owner's IsChecked through the captured button (no ancestor lookup, which is not resolvable while the template
@@ -457,8 +457,25 @@ public static class CommandBindings
         Border icon = (Border)(byKey ? IconFromKey(id, size) : Icon(id, size));
         // Follow the rendered label, including Semi's TextBlock-specific disabled
         // opacity. Icon-only content inherits the presenter's state foreground.
-        icon.Bind(Border.BackgroundProperty, label is null
-            ? icon.GetObservable(TextElement.ForegroundProperty) : label.GetObservable(TextBlock.ForegroundProperty));
+        if (label != null) FollowLabel(icon, label);
+        return icon;
+    }
+
+    /// <summary>
+    /// A catalog icon in a theme colour of its own instead of the text colour: the favourite heart (<c>Workspace.Favorite</c>) and the rating
+    /// star (<c>Workspace.Rating</c>) where they are catalog masks.
+    /// </summary>
+    internal static Control TintedIcon(string icon, int size, string token)
+    {
+        Control visual = IconFromKey(icon, size);
+        visual[!Border.BackgroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension(token);
+        return visual;
+    }
+
+    /// <summary>Draws <paramref name="icon"/> in the colour of the text it stands beside, when that text has a colour of its own (muted, a state style).</summary>
+    internal static Control FollowLabel(Control icon, TextBlock label)
+    {
+        icon.Bind(Border.BackgroundProperty, label.GetObservable(TextBlock.ForegroundProperty));
         return icon;
     }
 

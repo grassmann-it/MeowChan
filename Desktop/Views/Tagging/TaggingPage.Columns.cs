@@ -43,7 +43,7 @@ public sealed partial class TaggingPage
     {
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("command.table.choose-columns"));
         menu.Check("tagging.columns.preview", CommandCatalog.Label("tagging.preview-column"), _showPreviewColumn,
-            () => SetPreviewColumnVisible(!_showPreviewColumn));
+            () => SetPreviewColumnVisible(!_showPreviewColumn), icon: CommandCatalog.Get("tagging.preview-column").Icon);
         return menu;
     }
 

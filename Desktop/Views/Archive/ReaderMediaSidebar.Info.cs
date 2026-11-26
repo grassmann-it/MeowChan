@@ -90,12 +90,23 @@ internal sealed partial class ReaderMediaSidebar
     private readonly Grid _dockedHead = new();
     internal ToggleButton SettingsButton { get; } = new() { Name = "ReaderMediaSidebarSettings" };
     internal Action<Action<Config>>? SaveSidebarSetting { get; set; }
+    internal QuickSettingsHost? SidebarVideoSettings { get; set; }
     private bool _barsHidden;
+    private bool _postWithoutMedia;
+
+    internal void SetPostWithoutMedia(bool withoutMedia)
+    {
+        if (_postWithoutMedia == withoutMedia) return;
+        _postWithoutMedia = withoutMedia;
+        InfoToggle.IsVisible = _headerFavorite.IsVisible = Open.IsVisible = !withoutMedia;
+        PositionBars();
+        RevealBars();
+    }
 
     private static Border OverlayBar(string name, VerticalAlignment alignment, CornerRadius corners) => new()
     {
         Name = name, VerticalAlignment = alignment, CornerRadius = corners, Classes = { "media-sidebar-overlay" },
-        [!BackgroundProperty] = new DynamicResourceExtension("Workspace.MediaScrim")
+        [!BackgroundProperty] = new DynamicResourceExtension("Workspace.MediaBarScrim")
     };
 
     internal void ConfigureInfo(ReaderMediaPreferences preferences)
@@ -152,11 +163,17 @@ internal sealed partial class ReaderMediaSidebar
         // MenuFlyout's presenter takes the backing collection before Opening.
         MenuItem autoHide = AddCheck("autoHide", "ReaderMediaSidebarSettingsAutoHide", ToggleAutoHide);
         MenuItem facts = AddCheck("facts", "ReaderMediaSidebarSettingsFacts", ToggleDetails);
+        AddVideoCheck("videoAutoplay", SettingsFieldId.ReaderSidebarVideoAutoplay, "settings.reader.sidebarVideoAutoplay", "play",
+            config => config.ReaderSidebarVideoAutoplay, (config, value) => config.ReaderSidebarVideoAutoplay = value);
+        AddVideoCheck("videoLoop", SettingsFieldId.ReaderSidebarVideoLoop, "settings.reader.sidebarVideoLoop", "repeat",
+            config => config.ReaderSidebarVideoLoop, (config, value) => config.ReaderSidebarVideoLoop = value);
+        AddVideoCheck("videoMuted", SettingsFieldId.ReaderSidebarVideoStartMuted, "settings.reader.sidebarVideoMuted", "volume-x",
+            config => config.ReaderSidebarVideoStartMuted, (config, value) => config.ReaderSidebarVideoStartMuted = value);
         SettingsButton.Flyout = _settingsMenu;
         _settingsMenu.OverlayInputPassThroughElement = SettingsButton;
         _settingsMenu.Opening += (_, _) =>
         {
-            RefreshCheck(autoHide, "media.sidebar.autohide", Texts.T("viewer.playback.autoHide"), _infoPreferences.MediaSidebarAutoHide);
+            RefreshCheck(autoHide, "media.sidebar.autohide", CommandCatalog.Label("media.sidebar.autohide"), _infoPreferences.MediaSidebarAutoHide);
             RefreshCheck(facts, "media.sidebar.info", CommandCatalog.Label("media.sidebar.info"), FactsVisible);
         };
         _settingsMenu.Opened += (_, _) => SettingsButton.IsChecked = true;
@@ -168,6 +185,33 @@ internal sealed partial class ReaderMediaSidebar
             AutomationProperties.SetAutomationId(item, automationId);
             _settingsMenu.Items.Add(item);
             return item;
+        }
+
+        void AddVideoCheck(string tag, string field, string labelKey, string icon,
+            Func<Config, bool> read, Action<Config, bool> write)
+        {
+            MenuItem item = AddCheck(tag, "ReaderMediaSidebarSettings" + field, () =>
+            {
+                if (SidebarVideoSettings is not { } host) return;
+                OpenActions.Start(async () =>
+                {
+                    await host.SaveAsync(config => write(config, !read(config)));
+                    host.Applied?.Invoke([field]);
+                }, "media.sidebar.video");
+            });
+            _settingsMenu.Opening += (_, _) =>
+            {
+                Config? config = SidebarVideoSettings?.CurrentConfig();
+                item.IsVisible = config != null;
+                if (config == null) return;
+                string label = Texts.T(labelKey);
+                item.Header = label;
+                item.Icon ??= CommandBindings.IconFromKey(icon, 16);
+                item.IsChecked = read(config);
+                ToolTip.SetTip(item, Texts.T(labelKey + ".hint"));
+                AutomationProperties.SetName(item, label);
+                AutomationProperties.SetHelpText(item, Texts.T(labelKey + ".hint"));
+            };
         }
 
         void RefreshCheck(MenuItem item, string commandId, string label, bool isChecked)
@@ -206,12 +250,12 @@ internal sealed partial class ReaderMediaSidebar
 
     private static bool InBar(Visual bar, Visual source) => bar == source || bar.IsVisualAncestorOf(source);
 
-    private static ThemeVariantScope DarkScope(Control content) => new() { RequestedThemeVariant = ThemeVariant.Dark, Child = content };
+    private static ThemeVariantScope BarScope(Control content) => new() { RequestedThemeVariant = ThemeVariant.Default, Child = content };
 
     private void InitializeInfo()
     {
         InfoToggle.Click += (_, _) => ToggleDetails();
-        _headBar.Child = DarkScope(_header);
+        _headBar.Child = BarScope(_header);
         _info.Margin = new Thickness(8, 0);
         _factArea.Child = _info;
         foreach (Control control in new Control[] { _expandedRows, _infoBar.Expand, _extraGrid, _allTags })
@@ -219,7 +263,7 @@ internal sealed partial class ReaderMediaSidebar
         _extraFacts.Children.Insert(0, _extraGrid);
         _expandedRows.Content = new StackPanel { Margin = new Thickness(8), Spacing = 8, Children = { _allTags, _extraFacts } };
         _dockedExpansion.Child = _expandedRows;
-        _details.Child = DarkScope(new StackPanel { Children = { _dockedExpansion, _infoBar, _factArea, _decisionError } });
+        _details.Child = BarScope(new StackPanel { Children = { _dockedExpansion, _infoBar, _factArea, _decisionError } });
         _hoverPopup.PlacementTarget = _details;
         _hoverPopup.Child = _hoverSurface;
         _layout.Children.Add(_hoverPopup);
@@ -260,7 +304,7 @@ internal sealed partial class ReaderMediaSidebar
         _facts.SizeChanged += (_, _) => UpdateExpansion(refreshFacts: true);
         _details.SizeChanged += (_, _) => _hoverSurface.Width = _details.Bounds.Width;
         SizeChanged += (_, _) => UpdateExpansion();
-        _closeFace.Child = DarkScope(Close);
+        _closeFace.Child = BarScope(Close);
         _frame.Children.Add(_overlayLayer);
         _layout.Children.Add(_dockedHead);
         InitializeSettingsMenu();
@@ -396,7 +440,8 @@ internal sealed partial class ReaderMediaSidebar
         (InBar(this, anchor) || InBar(_hoverSurface, anchor))) == true;
 
     // A native Windows video draws over sibling controls. Keep them reachable while that player owns the frame.
-    private bool UseOverlayBars => _infoPreferences.MediaSidebarAutoHide && !(OperatingSystem.IsWindows() && _factPlayer != null);
+    private bool UseOverlayBars => !_postWithoutMedia && _infoPreferences.MediaSidebarAutoHide
+        && !(OperatingSystem.IsWindows() && _factPlayer != null);
 
     private void PositionBars()
     {
@@ -414,11 +459,8 @@ internal sealed partial class ReaderMediaSidebar
             Grid.SetRow(_details, dockFoot ? 2 : 0);
             _headBar.Classes.Set("media-sidebar-overlay", overlay);
             _details.Classes.Set("media-sidebar-overlay", !dockFoot);
-            _headBar[!BackgroundProperty] = new DynamicResourceExtension(overlay ? "Workspace.MediaScrim" : "Workspace.Card");
-            _details[!BackgroundProperty] = new DynamicResourceExtension(dockFoot ? "Workspace.Card" : "Workspace.MediaScrim");
-            ((ThemeVariantScope)_headBar.Child!).RequestedThemeVariant = overlay ? ThemeVariant.Dark : ThemeVariant.Default;
-            ((ThemeVariantScope)_details.Child!).RequestedThemeVariant = dockFoot ? ThemeVariant.Default : ThemeVariant.Dark;
-            ((ThemeVariantScope)_closeFace.Child!).RequestedThemeVariant = overlay ? ThemeVariant.Dark : ThemeVariant.Default;
+            _headBar[!BackgroundProperty] = new DynamicResourceExtension(overlay ? "Workspace.MediaBarScrim" : "Workspace.Card");
+            _details[!BackgroundProperty] = new DynamicResourceExtension(dockFoot ? "Workspace.Card" : "Workspace.MediaBarScrim");
             _card.Margin = overlay ? default : new Thickness(0, 8, 0, 0);
             _details.Margin = dockFoot ? new Thickness(0, 8, 0, 0) : default;
         }

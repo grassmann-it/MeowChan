@@ -54,6 +54,11 @@ public sealed class GalleryVideoPlayerMenuTests
                 Settle(rows[0]);
                 Assert.Equal(scale, popup.RenderScaling);
                 string[] commands = ["video.speed-choose", "video.audio-track", "video.snapshot", "gallery.rotate", "video.loop"];
+                MenuIconAudit.Verify("video-player", rows, VideoRates.Choices.Select((_, index) =>
+                    new MenuIconAudit.Exception("video-player", "GalleryVideoMenuSpeed/GalleryVideoMenuSpeedChoices." + index,
+                        "Playback rate value.")).Concat(Enumerable.Range(0, 2).Select(index =>
+                    new MenuIconAudit.Exception("video-player", "GalleryVideoMenuAudio/GalleryVideoAudioTracks." + index,
+                        "Audio track value."))).ToArray());
                 Assert.Equal(commands.Select(id => CommandCatalog.Get(id).Icon), rows.Select(MenuIcons.KeyOf));
                 Assert.Equal(overflowRepeat.IconKey, MenuIcons.KeyOf(rows[4]));
                 Assert.Equal(MenuItemToggleType.CheckBox, rows[4].ToggleType);

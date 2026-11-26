@@ -221,6 +221,7 @@ public sealed partial class TaggingPage
         string names = SelectionFileNames(context.Selected);
         TagQueueKey[] keys = context.Selected.Select(row => row.Key).ToArray();
         TagQueueKey lead = leadRow.Key;
+        bool Current() => !_queueWork.Ended && Lead?.Key == lead && keys.SequenceEqual(Selected.Select(row => row.Key));
         return TaggingQueueMenu.Compose(context, id => () => OpenActions.Start(() =>
         {
             if (_queueWork.Ended) return Task.CompletedTask;
@@ -228,9 +229,20 @@ public sealed partial class TaggingPage
             if (id == TaggingCommands.Remove)
                 return CanChange && keys.All(Queue.Contains)
                     ? AfterAsync(_queueWork.RemoveAsync(keys), select: RowAfter(context.Selected)?.Key) : Task.CompletedTask;
-            if (Lead?.Key != lead || !keys.SequenceEqual(Selected.Select(row => row.Key))) return Task.CompletedTask;
+            if (!Current()) return Task.CompletedTask;
             return ExecuteRowCommandAsync(id);
-        }, "tagging.menu"), () => OpenActions.Start(() => ShowTagSuggestionsAsync(leadRow.Item), "tagging.suggestions"));
+        }, "tagging.menu"), () => OpenActions.Start(() => ShowTagSuggestionsAsync(leadRow.Item), "tagging.suggestions"), mediaSource: menu =>
+        {
+            MediaLibraryEntry entry = EntryOf(leadRow.Item);
+            bool several = keys.Length > 1;
+            var provider = entry.BooruIdentity;
+            MediaSourceMenuData source = provider is null
+                ? new(null, MediaSourceMenu.OwnTags(_userData?.TagSnapshot, MediaTagSubjects.Of(entry)))
+                : MediaSourceMenuData.ForProvider(provider.Value, several ? null : MediaSourceMenu.ReadProvider(provider.Value, ReadBooruCatalog));
+            MediaSourceMenu.AddTo(menu, source, Current, text => MenuClipboard.CopyAsync(this, text, ShowStatus),
+                readOriginal: provider is null ? () => MediaSourceMenu.ReadOriginalAsync(entry, OpenPanelManifestAsync, _lifetime.Token) : null,
+                blocked: several ? MediaMenuReasons.SeveralSelected : null);
+        });
     }
 
     private static string SelectionFileNames(IReadOnlyList<TaggingQueueRow> selected) =>
@@ -255,7 +267,7 @@ public sealed partial class TaggingPage
         AutomationProperties.SetAutomationId(_clearQuestion, "tagging.clear-question");
         AutomationProperties.SetAutomationId(_clearNo, "tagging.clear-cancel");
         AutomationProperties.SetAutomationId(_clearYes, "tagging.clear-confirm-action");
-        StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _clearNo, _clearYes } };
+        WrapPanel buttons = new() { ItemSpacing = WorkspaceMetrics.Space8, LineSpacing = WorkspaceMetrics.Space4, Children = { _clearNo, _clearYes } };
         _clearConfirm.Child = new StackPanel { Spacing = 8, Children = { _clearQuestion, buttons } };
         return _clearConfirm;
     }
@@ -594,7 +606,12 @@ public sealed partial class TaggingPage
         _clearResetsDamagedQueue = _queueWork.LoadError != null;
         RefreshClearQuestionText();
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: true);
-        _clearNo.Focus();
+        if (!_clearNo.Focus())
+        {
+            // The host may still be laying out the newly opened page.
+            UpdateLayout();
+            _clearNo.Focus();
+        }
     }
 
     private void RefreshClearQuestionText()

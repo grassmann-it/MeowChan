@@ -51,7 +51,9 @@ internal sealed class MediaCompactHeader : Grid
             if (button == null) continue;
             button.Width = button.Height = WorkspaceMetrics.InputHeight;
             button.MinWidth = 0;
+            button.Padding = default;
             button.Classes.Add(WorkspaceIcons.SquareClass);
+            button.Classes.Add("media-header-action");
             button.Focusable = button.IsTabStop = false;
             _actions.Children.Add(button);
         }
@@ -117,7 +119,7 @@ internal sealed class MediaCompactHeader : Grid
         foreach (int i in LabelPriority)
         {
             if (_labeled[i] is not { IsVisible: true } button) continue;
-            double extra = Math.Ceiling(MeasureText(Meta, _captions[i])) + 16;
+            double extra = Math.Ceiling(MeasureCaption(button, _captions[i])) + 8;
             fits = fits && free >= extra;
             if (_visibleLabels[i] != fits)
             {
@@ -134,7 +136,7 @@ internal sealed class MediaCompactHeader : Grid
             }
             button.Width = 32 + (fits ? extra : 0);
             button.Classes.Set(WorkspaceIcons.SquareClass, !fits);
-            button.Padding = new Thickness(fits ? 4 : 0, 0);
+            button.Padding = new Thickness(fits ? 8 : 0, 0);
             if (fits) free -= extra;
         }
         _actions.Measure(Size.Infinity);
@@ -163,4 +165,8 @@ internal sealed class MediaCompactHeader : Grid
     private static double MeasureText(TextBlock block, string? text) => new FormattedText(text ?? "", Texts.Culture,
         block.FlowDirection, new Typeface(block.FontFamily, block.FontStyle, block.FontWeight, block.FontStretch),
         block.FontSize, block.Foreground).Width;
+
+    private static double MeasureCaption(Button button, string text) => new FormattedText(text, Texts.Culture,
+        button.FlowDirection, new Typeface(button.FontFamily, button.FontStyle, button.FontWeight, button.FontStretch),
+        button.FontSize, button.Foreground).Width;
 }

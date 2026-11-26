@@ -54,6 +54,7 @@ public sealed class ReaderReplyCountWindowTests
                 Assert.NotNull(list.ContainerFromItem(parent));
                 // The preference applies to the selected post (F11b).
                 list.SelectedItem = parent;
+                Assert.Same(parent, list.SelectedItem);
                 Assert.Null(parent.BacklinkCount);
                 capture = page.ToggleThreadCaptureAsync();
                 Assert.True(writing);

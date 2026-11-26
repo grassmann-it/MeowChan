@@ -333,8 +333,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
             }
         }
         catch (OperationCanceledException) when (parent.Token.IsCancellationRequested) { }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _log.Add(exception.ToString());
             try { await _codec.WriteAsync(request with { Direction = "error", Payload = WireJson.Element(new WireFailure("host-service", "The host rejected the service request.")) }, _lifetime.Token).ConfigureAwait(false); }
             catch (Exception) when (_lifetime.IsCancellationRequested) { }
         }

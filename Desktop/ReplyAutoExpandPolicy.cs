@@ -48,7 +48,7 @@ internal sealed class ReplyAutoExpandPolicy
     internal void RestoreManualChoices(IEnumerable<KeyValuePair<string, bool>> choices)
     {
         _manualChoices.Clear();
-        foreach ((string id, bool open) in choices) _manualChoices.Add(id, open);
+        foreach ((string id, bool open) in choices) _manualChoices[id] = open;
     }
 
     internal void RestoreChoice(ArchivePostRow row)

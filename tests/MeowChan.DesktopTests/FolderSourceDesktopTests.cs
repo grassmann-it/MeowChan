@@ -88,6 +88,11 @@ public sealed class FolderSourceDesktopTests : IDisposable
                 Assert.NotNull(confirm);
                 Point endOfKeep = keep.TranslatePoint(new Point(keep.Bounds.Width, 0), confirm)!.Value;
                 Assert.InRange(-endOfKeep.X, 7, 9);
+                // Force the same wrap that long labels produce in a constrained settings pane.
+                keep.MinWidth = confirm.MinWidth = 400;
+                window.UpdateLayout();
+                Point bottomOfKeep = keep.TranslatePoint(new Point(0, keep.Bounds.Height), confirm)!.Value;
+                Assert.InRange(-bottomOfKeep.Y, 3, 5);
                 Assert.Same(keep, window.FocusManager!.GetFocusedElement());
                 Assert.Contains("Second", panel.GetVisualDescendants().OfType<TextBlock>()
                     .Single(block => AutomationProperties.GetAutomationId(block) == "FolderSourceRemoveAsk").Text);

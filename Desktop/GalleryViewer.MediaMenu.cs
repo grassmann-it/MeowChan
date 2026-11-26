@@ -7,6 +7,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
@@ -26,6 +28,8 @@ internal sealed partial class GalleryViewer
     internal MediaMenuSession? MediaMenuSession => _mediaMenuPresenter.Session;
     /// <summary>The post address of a downloaded provider medium, or null when it has none; supplied by the shell.</summary>
     internal Func<GalleryEntry, Uri?>? ProviderPostUrl { get; set; }
+    internal Func<BooruCatalogSnapshot?>? ReadMediaMenuBooruCatalog { get; init; }
+    internal Func<GalleryEntry, IEnumerable<string>?>? ReadMediaMenuOwnTags { get; init; }
     internal event Action<GalleryEntry>? ProviderPostOpenRequested;
     internal event Action<GalleryEntry>? ProviderPostCopyRequested;
     /// <summary>The summary of actions the menu could not offer, shown by the shell when the menu's summary item is chosen.</summary>
@@ -136,8 +140,13 @@ internal sealed partial class GalleryViewer
             AutomationProperties.SetAutomationId(more, "gallery.overflow.label");
             context.Add(more);
         }
+        string? original = MediaSourceMenu.Original(entry.Asset) ?? MediaSourceMenu.Original(entry.Attachment);
+        MediaSourceMenuData source = BooruMediaIdentity.TryGetPostKey(entry.Key.Thread, out BooruPostKey provider)
+            ? MediaSourceMenuData.ForProvider(provider, MediaSourceMenu.ReadProvider(provider, ReadMediaMenuBooruCatalog), original)
+            : new(original, shown ? _tagNames : ReadMediaMenuOwnTags?.Invoke(entry));
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
-            text => MenuExplanationRequested?.Invoke(text), playback);
+            text => MenuExplanationRequested?.Invoke(text), playback,
+            sourceItems: MediaSourceMenu.Build(source, () => session.IsCurrent, owner, text => MenuExplanationRequested?.Invoke(text)));
         if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();

@@ -16,6 +16,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -824,14 +825,34 @@ public sealed partial class MediaPage : UserControl
     internal Uri? ProviderPostUrl(MediaLibraryEntry entry)
     {
         if (entry.BooruIdentity is not { } identity) return null;
-        BooruPostRecord? record = null;
-        // The first read of a large catalog (tens of MiB) is slow: it never happens here, on the UI thread of a menu. Until the
-        // background read has finished, the canonical address of the post is used; the catalog only refines it.
-        if (_booruCatalogWarm)
-            try { record = ReadBooruCatalog?.Invoke()?.TryGetPost(identity); }
-            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
-        else WarmBooruCatalog();
-        return BooruMediaIdentity.PostUrl(identity, record?.Post.PostUrl);
+        return BooruMediaIdentity.PostUrl(identity, ProviderClaim(identity)?.PostUrl);
+    }
+
+    private BooruPostClaim? ProviderClaim(BooruPostKey identity)
+    {
+        // Read a large catalog on the background warm-up path before resolving menus on the UI thread.
+        if (_booruCatalogWarm) return MediaSourceMenu.ReadProvider(identity, ReadBooruCatalog);
+        WarmBooruCatalog();
+        return null;
+    }
+
+    private async Task<string?> ReadMediaSearchUrlAsync(MediaLibraryEntry entry)
+    {
+        CancellationToken token = _lifetime.Token;
+        if (entry.AssetId != null) return await MediaSourceMenu.ReadOriginalAsync(entry, OpenManifestAsync, token);
+        if (entry is not { PostId: { } postId, Position: { } position, Variant: "original" }) return null;
+        try
+        {
+            await using ArchiveReader reader = await _openReader(token);
+            ArchivedThreadView? thread = await reader.ReadThreadAsync(entry.Thread, token);
+            if (thread == null || thread.Summary.Revision != entry.ThreadRevision) return null;
+            int index = thread.FindPostIndex(postId);
+            CapturedAttachment? attachment = index < 0 ? null : thread.Posts[index].Attachments?.FirstOrDefault(item =>
+                item.Position == position && item.MediaId == entry.MediaId && item.AttachmentRevisionKey == entry.AttachmentRevisionKey);
+            return MediaSourceMenu.Original(attachment);
+        }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
+            or ObjectDisposedException or Microsoft.Data.Sqlite.SqliteException) { return null; }
     }
 
     private volatile bool _booruCatalogWarm;
@@ -1291,6 +1312,8 @@ public sealed partial class MediaPage : UserControl
         // Several: the clicked tile is one of several selected (a tile outside the selection was made the selection, TargetForMenu); every entry then
         // acts on the selection frozen now, and the one-file entries (details, folder, path, gallery, thread) say why they are off.
         bool several = !panel && selectedCount > 1 && _grid.Selection.IsSelected(row.Index);
+        BooruPostKey? provider = entry.BooruIdentity;
+        BooruPostClaim? providerClaim = !several && provider is { } identity ? ProviderClaim(identity) : null;
         bool hostActions = ExecuteMediaMenuActionAsync != null;
         IReadOnlyList<MediaLibraryTile>? queueTiles = several ? SelectedTiles : null;
         string?[] fileNames = queueTiles == null ? [MediaFileActions.FileName(entry.Name)]
@@ -1330,7 +1353,7 @@ public sealed partial class MediaPage : UserControl
             Posts = entry.PostId != null ? MediaMenuPostScope.Single : MediaMenuPostScope.None,
             ShowInThreadWired = ShowInThread != null,
             ProviderMedia = entry.BooruPostId != null,
-            ProviderPostKnown = ProviderPostUrl(entry) != null
+            ProviderPostKnown = providerId != null && BooruMediaIdentity.PostUrl(providerId, providerClaim?.PostUrl) != null
         };
         MediaMenuModel model = MediaMenuComposition.Compose(facts);
         MediaMenuSession session = new(MediaMenuSurface.MediaPage, model.Target, Current);
@@ -1417,8 +1440,14 @@ public sealed partial class MediaPage : UserControl
         if (_building != null) (leading ??= new()).Insert(0, MediaMenuBuilder.Note(Texts.T("media.selection.reason.building")));
         bool checkExternal = hostActions && !several && entry.Presence == MediaLibraryPresence.Present && entry.Directory != null;
         string? externalReason = MediaMenuReasons.Unavailable;
+        MediaSourceMenuData source = provider is { } providerKey
+            ? MediaSourceMenuData.ForProvider(providerKey, providerClaim)
+            : new(null, state?.MediaTags);
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote, leading,
-            checkExternal ? () => externalReason : null);
+            checkExternal ? () => externalReason : null,
+            sourceItems: MediaSourceMenu.Build(source, () => session.IsCurrent, origin, ShowSelectionNote,
+                readOriginal: provider is null && entry.FolderItemId == null ? () => ReadMediaSearchUrlAsync(entry) : null,
+                blocked: several ? MediaMenuReasons.SeveralSelected : null), keyboard: keyboard && panel);
         if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
         if (checkExternal) OpenActions.Start(CheckExternalAsync, "media.menu.open-external");
@@ -1513,9 +1542,9 @@ public sealed partial class MediaPage : UserControl
         _title.Text = Texts.T("media.title");
         _subtitle.Text = Texts.T("media.subtitle");
         // The tools of the row beside the order are icons (M1); the name is the tooltip and the accessible name.
-        WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T("media.shuffle"));
+        IconButtons.Apply(_shuffle, "shuffle", Texts.T("media.shuffle"));
         _missing.Content = Texts.T("media.showMissing");
-        WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T("media.refresh"));
+        IconButtons.Apply(_refresh, "refresh-cw", Texts.T("media.refresh"));
         LocalizeFocus();
         LocalizeBooruMode();
         LocalizeLayout();

@@ -267,6 +267,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private readonly SidebarGifPlayback _gif;
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
     private readonly TextBlock _status = new TextBlock
     {
@@ -278,7 +279,8 @@ internal sealed partial class ReaderMediaSidebar : Border
     // The shared media badges over exactly the shown picture. The sidebar keeps its own play button (MediaPlayMarkMode.External) and draws no
     // favorite badge because the decision block supplies the favorite state and control.
     private readonly MediaBadgeView _badges = new() { Name = "ReaderMediaSidebarBadges", Options = MediaBadgeOptions.Sidebar };
-    private bool _badgesOn, _playable;
+    private bool _badgesOn;
+    private MediaBadgeKind _pictureKind;
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
     // R10: the row under the picture for an inline video's transport, error line and live region (empty unless a video plays here).
     private readonly Panel _videoRow = new() { Name = "ReaderMediaSidebarVideoRow", IsVisible = false };
@@ -289,7 +291,11 @@ internal sealed partial class ReaderMediaSidebar : Border
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Classes = { "workspace-meta" }, Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly GalleryDecisionRow _decision = new("ReaderMediaSidebarDecision", compact: true, favorite: false, sidebar: true);
-    private readonly TextBlock _decisionError = new() { Margin = new Thickness(0, 4, 0, 0), Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _decisionError = new()
+    {
+        Name = "ReaderMediaSidebarDecisionError", Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false,
+        [!MarginProperty] = new DynamicResourceExtension("Workspace.Inset.MediaDecisionError")
+    };
     private readonly Button _editTags = new() { Name = "ReaderMediaSidebarEditTags" };
     private Func<bool>? _favoriteAvailable;
     private Func<bool>? _isFavorite;
@@ -454,17 +460,19 @@ internal sealed partial class ReaderMediaSidebar : Border
     internal event EventHandler<int>? StripActivated;
     internal Func<StripTarget, bool>? StripTargetIsCurrent { get; set; }
 
-    // The rows under the medium: the video row shows while one of its parts does; each shown row keeps 8 dip from the medium and the edge.
+    // The video row shows while one of its parts does. The strip's top margin supplies the 8 dip gap when both rows are visible.
     private void UpdateCardRows()
     {
         _videoRow.IsVisible = _videoRow.Children.Any(child => child.IsVisible);
-        _stripRow.Margin = new Thickness(8);
-        _videoRow.Margin = new Thickness(8, 0);
+        const double inset = WorkspaceMetrics.MediaFirstInset;
+        _stripRow.Margin = new Thickness(inset);
+        _videoRow.Margin = new Thickness(inset, inset, inset, _stripRow.IsVisible ? 0 : inset);
         UpdateInfoLayout();
     }
 
     internal ReaderMediaSidebar()
     {
+        _gif = new(_image, () => !PictureIsStale);
         Name = "ReaderMediaSidebar";
         Padding = new Thickness(WorkspaceMetrics.MediaFirstInset);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
@@ -525,7 +533,8 @@ internal sealed partial class ReaderMediaSidebar : Border
         _headerFavorite.TargetSaving = () => _pendingWrites.Contains(DecisionTarget);
         _decision.RatingRequested += value =>
         {
-            if (_writeRating is { } write) OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable), "media.rating.edit");
+            if (_writeRating is { } write)
+                OpenActions.Start(() => WriteDecisionAsync(() => write(value), _ratingAvailable, announceRating: true), "media.rating.edit");
         };
         _decision.AddHandler(KeyDownEvent, (_, e) =>
         {
@@ -547,7 +556,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         _header = new MediaCompactHeader(_heading, _positionPill, _headerFavorite, InfoToggle, Open, SettingsButton, Close) { Name = "ReaderMediaSidebarHeaderRow" };
         _header.ReserveCloseSpace(Close);
         foreach (Control control in new Control[] { _header, _heading, _header.Meta, _headerFavorite, InfoToggle, Open, SettingsButton,
-            Close, _details, _decision, _facts, _infoBar, _card, _videoRow, _play, _badges })
+            Close, _details, _decision, _decisionError, _facts, _infoBar, _card, _videoRow, _stripRow, _play, _badges })
             AutomationProperties.SetAutomationId(control, control.Name);
         AutomationProperties.SetAutomationId(_frame, "ReaderMediaSidebarFrame");
         AutomationProperties.SetAutomationId(_image, "ReaderMediaSidebarPicture");
@@ -671,6 +680,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         {
             InvalidateDecisionTarget();
             _mediumKey = mediumKey;
+            _gif.Refresh();
             _videoSize = null;
             _videoDuration = null;
         }
@@ -822,7 +832,7 @@ internal sealed partial class ReaderMediaSidebar : Border
             sizeDescription = Texts.T("media.fact.saved") + " · " + MediaProvenanceText.FactSize(savedSize) +
                 Environment.NewLine + Texts.T("media.fact.source") + " · " + MediaProvenanceText.FactSize(sourceSize);
         }
-        string dimensions = _videoSize is { } video ? $"{video.Width} × {video.Height}" : _detail;
+        string dimensions = _videoSize is { } video ? MediaFactGrid.FormatDimensions(video.Width, video.Height) : _detail;
         if (_videoDuration is { } duration)
             dimensions = ReaderMediaSidebarRules.HeaderText("", dimensions, GalleryVideoPlayer.FormatVideoTime((long)duration.TotalMilliseconds));
         _facts.Show(_location ?? "", _author, _posted, _fileName, compactSize, dimensions, sizeDescription);
@@ -1031,26 +1041,31 @@ internal sealed partial class ReaderMediaSidebar : Border
         if (_decisionError.IsVisible) RevealBars();
     }
 
-    private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available)
+    private async Task WriteDecisionAsync(Func<Task>? write, Func<bool>? available, bool announceRating = false)
     {
         var target = DecisionTarget;
         if (write == null || available?.Invoke() != true || !_pendingWrites.Add(target)) return;
         int revision = _mediumRevision;
+        int? previousRating = _decision.View.Rating;
         _decisionFailure = null;
         try
         {
             RefreshDecisions();
-            if (await VerifyImageActionAsync() && revision == _mediumRevision && available()) await write();
+            if (!await VerifyImageActionAsync() || revision != _mediumRevision || !available()) return;
+            await write();
         }
         catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             if (_mediumRevision == revision) _decisionFailure = error.Message;
+            return;
         }
         finally
         {
             _pendingWrites.Remove(target);
             RefreshDecisions();
         }
+        if (announceRating && revision == _mediumRevision && _decision.View.Rating != previousRating)
+            Announce(GalleryDecisionText.Rating(_decision.View));
     }
 
     /// <summary>The badges of the shown picture (smokes read it).</summary>
@@ -1060,7 +1075,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         if (!_badgesOn || !_image.IsVisible || _headBar.IsVisible) { _badges.Clear(); return; }
         // No Favorite here: the header's star toggle shows and changes the favourite, a second filled star on the picture only duplicated it.
-        _badges.Apply(new MediaBadgeState(Rating: _decision.View.Rating, Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
+        _badges.Apply(new MediaBadgeState(Rating: _decision.View.Rating, Kind: _pictureKind), _image.Bounds.Size);
     }
 
     internal void SetDetail(string detailLine)
@@ -1075,7 +1090,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     /// decoded again while this picture still covers the frame); <paramref name="source"/> is its source size when known.
     /// </summary>
     internal void ShowPicture(Bitmap bitmap, Action<Bitmap> release, bool playable, double maximumWidth, double maximumHeight,
-        string? mediumKey = null, PixelSize? source = null)
+        string? mediumKey = null, PixelSize? source = null, GalleryEntry? gif = null)
     {
         ReleasePicture();
         _bitmap = bitmap;
@@ -1089,10 +1104,16 @@ internal sealed partial class ReaderMediaSidebar : Border
         _play.IsVisible = playable;
         _placeholder.IsVisible = false;
         _status.IsVisible = false;
-        _badgesOn = true; _playable = playable;
+        _badgesOn = true;
+        _pictureKind = gif != null ? MediaBadgeKind.Gif : playable ? MediaBadgeKind.Video : MediaBadgeKind.Image;
         UpdateBadges();
         UpdateFrameCursor();
         Load.Showed(mediumKey, bitmap.PixelSize, source);
+        if (gif != null)
+        {
+            PixelSize viewport = bitmap.PixelSize;
+            _gif.Show(bitmap, async token => await GifFrameDecoder.OpenAsync(gif, token, viewport));
+        }
         UpdateInfoLayout();
     }
 
@@ -1161,6 +1182,7 @@ internal sealed partial class ReaderMediaSidebar : Border
         UpdateFrameCursor();
         UpdateInfoLayout();
         Load.Dimmed();
+        _gif.Refresh();
     }
 
     /// <summary>No post is selected (or the reader closed): nothing kept.</summary>
@@ -1350,6 +1372,7 @@ internal sealed partial class ReaderMediaSidebar : Border
 
     private void ClearPicture(bool answered)
     {
+        _gif.Clear();
         Bitmap? bitmap = _bitmap;
         Action<Bitmap>? release = _release;
         _bitmap = null;

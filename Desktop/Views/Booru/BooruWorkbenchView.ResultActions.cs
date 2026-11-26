@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -33,6 +35,15 @@ internal sealed partial class BooruWorkbenchView
         internal BooruResultTarget Target => target;
         internal string PostId => target.Post.PostId;
         internal bool IsCurrent() => owner.IsSearchItem(owner._tabs.SelectedItem) && CurrentRow() != null;
+
+        internal MediaSourceMenuData SourceMenuData(BooruPostView post) =>
+            new(MediaSourceMenu.PublicUrl(post.OriginalAccess == BooruOriginalAccess.Available ? post.Original?.Url?.OriginalString : null)
+                ?? _url ?? post.PostUrl?.OriginalString, post.Tags.Select(tag => tag.Name));
+
+        internal Task CopyTagTextAsync(string text) => owner._model.Services.Links.Copy?.Invoke(text)
+            ?? MenuClipboard.CopyAsync(owner, text);
+
+        internal Task OpenImageSearchAsync(string address) => owner._model.Services.Links.Open(address);
 
         internal bool CanRun(ResultAction action) => CurrentRow() is { } row && IsAvailable(action, row);
 

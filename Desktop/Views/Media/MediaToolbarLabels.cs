@@ -32,6 +32,8 @@ internal static class MediaToolbarLabels
 
         internal void SetIcon(Control icon) => _icon.Content = icon;
 
+        internal Control? Icon => _icon.Content as Control;
+
         internal void Apply(string text, bool textFirst)
         {
             SetColumn(_icon, textFirst ? 1 : 0);

@@ -12,8 +12,10 @@ using Avalonia.VisualTree;
 using Avalonia.Input;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 using MeowChan.Tags;
@@ -178,7 +180,8 @@ public partial class MainWindow
         _galleryMediaReturn = CaptureGalleryMediaReturn(GalleryReturnTargetFor(origin, readerOrigin, originPage));
         _galleryReaderOrigin = readerOrigin;
         _galleryLargeReaderOrigin = largeReaderOrigin;
-        _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin();
+        // A results gallery returns keyboard focus to the list, even with an embedded reader beside it.
+        _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin(restoreReaderFocus: selectThreads == null);
         _galleryVisitedReader = false;
         _galleryThreads = ids;
         _galleryResultsScope = selectThreads != null;
@@ -203,6 +206,8 @@ public partial class MainWindow
         {
             ReturnTarget = GalleryReturnTargetFor(origin, readerOrigin, originPage),
             ProviderContext = BooruGalleryContext,
+            ReadMediaMenuBooruCatalog = _session.ReadBooruCatalog,
+            ReadMediaMenuOwnTags = entry => MediaSourceMenu.OwnTags(_session.GetPublishedPrivateTagSnapshot().Snapshot, MediaTagSubjects.Of(entry)),
             ThreadPositions = threadPositions
         };
         ConfigureGalleryScrubPreview();
@@ -235,6 +240,7 @@ public partial class MainWindow
         _gallery.PlaybackPreferencesChanged += preferences =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
         _gallery.WheelModeChanged += mode => OnGalleryWheelModeChanged(preferenceOwner, mode);
+        _gallery.BackgroundChanged += mode => OnGalleryBackgroundChanged(preferenceOwner, mode);
         _gallery.LayoutChoiceChanged += (mode, choice) => OnGalleryLayoutChoiceChanged(preferenceOwner, mode, choice);
         _gallery.LayoutResetPerformed += (mode, previous) => OnGalleryLayoutReset(preferenceOwner, mode, previous);
         _gallery.CloseRequested += () => CloseGallery();
@@ -698,6 +704,7 @@ public partial class MainWindow
     {
         if (_galleryCoversWorkspace == covers) return;
         _galleryCoversWorkspace = covers;
+        SidebarGifPlayback.SetSuspended(this, covers);
         if (covers)
         {
             LayoutUpdated += OnGalleryCoveredLayoutUpdated;

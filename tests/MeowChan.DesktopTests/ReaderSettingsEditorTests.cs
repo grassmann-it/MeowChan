@@ -164,17 +164,18 @@ public sealed class ReaderSettingsEditorTests : IDisposable
     public void ApplyReaderDraftUsesInclusiveBoundsAndRejectsUnavailableOrFractionalNumbers(string name, int fallback, int min, int max)
     {
         SettingsEditor editor = CreateValidDraft();
-        var draft = typeof(SettingsEditor).GetProperty(name)!;
+        var draft = NumberDraftProperty(name);
         var persisted = ReaderSettingsPersistenceTests.ConfigNumber(name);
-        Assert.Equal((decimal)fallback, draft.GetValue(editor));
+        int scale = PixelsPerEditorUnit(name);
+        Assert.Equal((decimal)(fallback / scale), draft.GetValue(editor));
         foreach (int number in new[] { min, max })
         {
-            draft.SetValue(editor, (decimal?)number);
+            draft.SetValue(editor, (decimal?)(number / scale));
             Config candidate = new();
             Invoke(editor, "ApplyReaderDraft", candidate);
             Assert.Equal(number, persisted.GetValue(candidate));
         }
-        foreach (decimal? number in new decimal?[] { null, min - 1, max + 1, min + 0.5m })
+        foreach (decimal? number in new decimal?[] { null, min / scale - 1, max / scale + 1, min / scale + 0.5m })
         {
             draft.SetValue(editor, number);
             var error = Assert.Throws<TargetInvocationException>(() => Invoke(editor, "ApplyReaderDraft", new Config()));
@@ -305,9 +306,9 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            ReaderSettingsPersistenceTests.ConfigNumber(name).SetValue(saved, (int)row[2] + 1);
+            ReaderSettingsPersistenceTests.ConfigNumber(name).SetValue(saved, (int)row[2] + PixelsPerEditorUnit(name));
             GetInput(editor, name).Text = "rejected draft";
-            typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, null);
+            NumberDraftProperty(name).SetValue(editor, null);
         }
         saved.ReaderDateStyle = "RelativeToNow";
         saved.ReaderSpoilers = "Always";
@@ -318,8 +319,8 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            decimal expected = (int)row[2] + 1;
-            Assert.Equal(expected, typeof(SettingsEditor).GetProperty(name)!.GetValue(editor));
+            decimal expected = (int)row[2] / PixelsPerEditorUnit(name) + 1;
+            Assert.Equal(expected, NumberDraftProperty(name).GetValue(editor));
             Assert.Equal(expected, GetInput(editor, name).Value);
             Assert.Equal(expected.ToString(CultureInfo.CurrentCulture), GetInput(editor, name).Text);
         }
@@ -527,8 +528,8 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            int value = (int)ReaderSettingsPersistenceTests.ConfigNumber(name).GetValue(desired)!;
-            typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)value);
+            int value = (int)ReaderSettingsPersistenceTests.ConfigNumber(name).GetValue(desired)! / PixelsPerEditorUnit(name);
+            NumberDraftProperty(name).SetValue(editor, (decimal?)value);
             GetInput(editor, name).Value = value;
             GetInput(editor, name).Text = value.ToString(CultureInfo.InvariantCulture);
         }
@@ -546,11 +547,12 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         foreach (object[] row in ReaderSettingsPersistenceTests.Numbers())
         {
             string name = (string)row[0];
-            int value = (int)ReaderSettingsPersistenceTests.ConfigNumber(name).GetValue(defaults)!;
-            typeof(SettingsEditor).GetProperty(name)!.SetValue(editor, (decimal?)value);
+            int scale = PixelsPerEditorUnit(name);
+            int value = (int)ReaderSettingsPersistenceTests.ConfigNumber(name).GetValue(defaults)! / scale;
+            NumberDraftProperty(name).SetValue(editor, (decimal?)value);
             Set(editor, name + "Input", new SettingsNumberInput
             {
-                Name = name + "Input", Minimum = (int)row[2], Maximum = (int)row[3],
+                Name = name + "Input", Minimum = (int)row[2] / scale, Maximum = (int)row[3] / scale,
                 NumberFormat = CultureInfo.InvariantCulture.NumberFormat, Value = value,
                 Text = value.ToString(CultureInfo.InvariantCulture)
             });
@@ -558,6 +560,13 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Invoke(editor, "RefreshReaderChoices", "SinceOp", "Hover", "Limited");
         return editor;
     }
+
+    private static int PixelsPerEditorUnit(string name) =>
+        name == nameof(Config.SidebarPreviewMaximumPixels) ? 1_000_000 : 1;
+
+    private static PropertyInfo NumberDraftProperty(string name) =>
+        typeof(SettingsEditor).GetProperty(name == nameof(Config.SidebarPreviewMaximumPixels)
+            ? nameof(SettingsEditor.SidebarPreviewMaximumMegapixels) : name)!;
 
     [Fact]
     public void AllReaderKeysAreUniqueAndTranslatedInEveryBundledPack()

@@ -31,6 +31,8 @@ internal sealed class ThemeColorPreviewCard : Border
     private readonly TextBlock _chipText = new();
     private readonly Path _star = WorkspaceIcons.Create(WorkspaceIcons.HeartFilled, inheritForeground: false);
     private readonly TextBlock _starText = new();
+    private readonly Path _rating = WorkspaceIcons.Create(WorkspaceIcons.StarFilled, inheritForeground: false);
+    private readonly TextBlock _ratingText = new();
     private readonly Border _errorSurface = new() { Name = "ThemeColorPreviewErrorSurface", Padding = new Thickness(8, 4) };
     private readonly TextBlock _error = new() { Name = "ThemeColorPreviewError", TextWrapping = TextWrapping.Wrap };
     private ThemePalette? _palette;
@@ -48,11 +50,15 @@ internal sealed class ThemeColorPreviewCard : Border
         _button[!CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
         _chip[!CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Chip");
         _errorSurface[!CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
-        _star.Stretch = Stretch.Uniform; _star.Width = 16; _star.Height = 16; _star.VerticalAlignment = VerticalAlignment.Center;
+        foreach (Path mark in new[] { _star, _rating })
+        {
+            mark.Stretch = Stretch.Uniform; mark.Width = 16; mark.Height = 16; mark.VerticalAlignment = VerticalAlignment.Center;
+        }
         _button.Child = _buttonText; _chip.Child = _chipText; _errorSurface.Child = _error;
         WrapPanel marks = new() { ItemSpacing = 8, LineSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
         marks.Children.Add(_button); marks.Children.Add(_chip);
         marks.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center, Children = { _star, _starText } });
+        marks.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center, Children = { _rating, _ratingText } });
         _card.Child = new StackPanel { Spacing = 8, Children = { _text, _muted, marks, _errorSurface } };
         Child = new StackPanel { Spacing = 8, Children = { _title, _card } };
         ApplyTexts();
@@ -65,6 +71,9 @@ internal sealed class ThemeColorPreviewCard : Border
     internal TextBlock AccentButtonText => _buttonText;
     internal Border ErrorSurface => _errorSurface;
     internal TextBlock ErrorText => _error;
+    /// <summary>The favourite heart and the rating star of the sample (each painted in its own colour).</summary>
+    internal Path FavoriteMark => _star;
+    internal Path RatingMark => _rating;
     /// <summary>The palette the card is painted with, or null before the first <see cref="Show"/>.</summary>
     internal ThemePalette? Palette => _palette;
 
@@ -88,9 +97,12 @@ internal sealed class ThemeColorPreviewCard : Border
         _chip.Background = Brush("Workspace.ChipSurface");
         _chip.BorderBrush = Brush("Workspace.ChipBorder");
         _chipText.Foreground = Brush("Workspace.Text");
-        _star.Stroke = Brush("Workspace.Favorite");
-        _star.Fill = Brush("Workspace.Favorite");
+        _star.Stroke = Brush(FavoriteStar.Token);
+        _star.Fill = Brush(FavoriteStar.Token);
+        _rating.Stroke = Brush(RatingStar.Token);
+        _rating.Fill = Brush(RatingStar.Token);
         _starText.Foreground = Brush("Workspace.Text");
+        _ratingText.Foreground = Brush("Workspace.Text");
         _errorSurface.Background = Brush("Workspace.ErrorSurface");
         _error.Foreground = Brush("Workspace.Error");
         ApplyTexts();
@@ -106,6 +118,7 @@ internal sealed class ThemeColorPreviewCard : Border
         _buttonText.Text = Texts.T("theme.colors.preview.button");
         _chipText.Text = Texts.T("theme.colors.preview.chip");
         _starText.Text = Texts.T("theme.color.favorite");
+        _ratingText.Text = Texts.T("theme.color.rating");
         _error.Text = Texts.T("theme.colors.preview.error");
     }
 }

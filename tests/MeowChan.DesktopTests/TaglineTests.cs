@@ -16,8 +16,8 @@ public sealed class TaglineTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
     private static TaglineEntry Quip(string id, string since = "1.0.0", string? text = null, TaglineTone tone = TaglineTone.Playful,
-        TaglineCategory category = TaglineCategory.General) =>
-        new(id, Version.Parse(since), tone, text ?? "text " + id, category);
+        TaglineCategory category = TaglineCategory.General, TaglineSeason? season = null) =>
+        new(id, Version.Parse(since), tone, text ?? "text " + id, category, season);
 
     private static TaglineEntry[] Pool(params (string Id, string Since)[] entries) =>
         entries.Select(e => Quip(e.Id, e.Since, category: TaglineCategory.Release)).ToArray();
@@ -92,6 +92,95 @@ public sealed class TaglineTests : IDisposable
         Assert.Equal(3, Enumerable.Range(0, 200).Select(n => TaglinePicker.Pick("PerStart", "a", pool, Day, null, null, false, new Random(n)).Entry!.Id).Distinct().Count());
     }
 
+    [Theory]
+    [InlineData("PerStart")]
+    [InlineData("Interval")]
+    public void TwoOfThreeDrawsPreferTheActiveSeasonAndCanChooseEitherQuip(string mode)
+    {
+        TaglineSeason season = new((11, 14), (11, 14));
+        TaglineEntry[] pool = [Quip("cats"), Quip("first", category: TaglineCategory.Seasonal, season: season),
+            Quip("second", category: TaglineCategory.Seasonal, season: season)];
+        for (int quip = 0; quip < 2; quip++)
+        {
+            string activeId = quip == 0 ? "first" : "second";
+            Assert.Equal("cats", TaglinePicker.Pick(mode, "", pool, Day, null, null, true, new SeasonDraw(0, quip)).Entry!.Id);
+            Assert.Equal(activeId, TaglinePicker.Pick(mode, "", pool, Day, null, null, true, new SeasonDraw(1, quip)).Entry!.Id);
+            Assert.Equal(activeId, TaglinePicker.Pick(mode, "", pool, Day, null, null, true, new SeasonDraw(2, quip)).Entry!.Id);
+            Assert.Equal("cats", TaglinePicker.Pick(mode, "", pool, Day.AddDays(1), null, null, true, new SeasonDraw(1, quip)).Entry!.Id);
+        }
+    }
+
+    [Fact]
+    public void DailyPrefersTheActiveSeasonAndKeepsItsPickForTheDay()
+    {
+        TaglineEntry snow = TaglineCatalog.Available().Single(entry => entry.Id == "snowed");
+        TaglineEntry[] pool = [Quip("cats"), snow];
+        DateOnly start = new(2026, 12, 1);
+        int seasonal = 0;
+        for (int offset = 0; offset < 37; offset++)
+        {
+            DateOnly date = start.AddDays(offset);
+            TaglinePick pick = TaglinePicker.Pick("Daily", "", pool, date, null, null, true, new Random(1));
+            Assert.Equal(pick, TaglinePicker.Pick("Daily", "", [snow, pool[0]], date, null, null, true, new Random(99)));
+            if (pick.Entry == snow) seasonal++;
+        }
+        Assert.InRange(seasonal, 25, 36);
+    }
+
+    [Theory]
+    [InlineData("snowed", 11, 30, false)]
+    [InlineData("snowed", 12, 1, true)]
+    [InlineData("snowed", 12, 31, true)]
+    [InlineData("snowed", 1, 1, true)]
+    [InlineData("snowed", 1, 6, true)]
+    [InlineData("snowed", 1, 7, false)]
+    [InlineData("trickorthread", 10, 23, false)]
+    [InlineData("trickorthread", 10, 24, true)]
+    [InlineData("trickorthread", 11, 1, true)]
+    [InlineData("trickorthread", 11, 2, false)]
+    public void BuiltInSeasonsIncludeBothEndsAndExcludeTheOtherDays(string id, int month, int day, bool inSeason)
+    {
+        TaglineEntry season = TaglineCatalog.Available().Single(entry => entry.Id == id);
+        DateOnly date = new(2026, month, day);
+        TaglineEntry? expected = inSeason ? season : null;
+        foreach (string mode in new[] { "Daily", "PerStart", "Interval" })
+            Assert.Equal(expected, TaglinePicker.Pick(mode, "", [season], date, null, null, true, new Random(1)).Entry);
+        Assert.Equal(expected, TaglinePicker.Rotate([season], season.Id, date, new Random(1)));
+        Assert.Equal(expected, TaglinePicker.PickAnother([season], season.Id, date, new Random(1)));
+    }
+
+    [Fact]
+    public void IntervalKeepsTheSeasonPriorityEvenWhenOnlyTheCurrentQuipIsSeasonal()
+    {
+        TaglineEntry snow = TaglineCatalog.Available().Single(entry => entry.Id == "snowed");
+        TaglineEntry regular = Quip("cats");
+        TaglineEntry[] pool = [regular, snow];
+        DateOnly lastDay = new(2027, 1, 6);
+        Assert.Equal(regular, TaglinePicker.Rotate(pool, snow.Id, lastDay, new SeasonDraw(0, 0)));
+        Assert.Equal(snow, TaglinePicker.Rotate(pool, snow.Id, lastDay, new SeasonDraw(1, 0)));
+        Assert.Equal(snow, TaglinePicker.Rotate(pool, snow.Id, lastDay, new SeasonDraw(2, 0)));
+        Assert.Equal(regular, TaglinePicker.Rotate(pool, snow.Id, lastDay.AddDays(1), new SeasonDraw(2, 0)));
+        Assert.Equal(snow, TaglinePicker.Pick("Fixed", snow.Id, pool, lastDay.AddDays(1), null, null, true, new Random(1)).Entry);
+    }
+
+    [Theory]
+    [InlineData("Daily")]
+    [InlineData("PerStart")]
+    [InlineData("Interval")]
+    public void AnUpdateHighlightsTheReleaseBeforeAnActiveSeason(string mode)
+    {
+        TaglineEntry snow = TaglineCatalog.Available().Single(entry => entry.Id == "snowed");
+        TaglineEntry release = Quip("release", "1.1.2", category: TaglineCategory.Release);
+        TaglinePick pick = TaglinePicker.Pick(mode, "", [snow, release], new DateOnly(2026, 12, 1),
+            release.Since, new Version(1, 1, 1), true, new SeasonDraw(1, 0));
+        Assert.Equal(new TaglinePick(release, true), pick);
+    }
+
+    private sealed class SeasonDraw(int group, int quip) : Random
+    {
+        public override int Next(int maxValue) => maxValue switch { 3 => group, 2 => quip, _ => 0 };
+    }
+
     [Fact]
     public void OffShowsNothingAndFixedShowsTheStoredOneWithFallbacks()
     {
@@ -134,18 +223,39 @@ public sealed class TaglineTests : IDisposable
     public void OnlyReleaseQuipsCanHighlightAnUpdateInAnyLanguage()
     {
         Version baseline = new(1, 0, 0), previous = new(1, 1, 1), current = new(1, 1, 2);
+        // TAGEDIT keeps 14 Release and 30 Seasonal quips across the catalog.
+        string[] currentRelease = ["favefinal", "firstclick", "fivestars", "heartsandstars", "polishontop"];
+        string[] seasonal = ["archivebewithyou", "baselwheels", "bikeride", "blackcat", "breathingthumbs", "catday",
+            "catsnacks", "catsvote", "cloudindependence", "dontpanic", "eighthours", "fireworksgif", "giftbox", "goodfolder",
+            "inmyfavorites", "lastyeardownload", "mirrorghost", "newyearbacklog", "nocloud", "pistars", "pithreads",
+            "queueovertime", "redheart", "smallmoon", "snowed", "treasuremisc", "trickorthread", "unodostres", "unpaidmods",
+            "worldbackup"];
         foreach (string language in AllLanguages)
         {
             Texts.SetLanguage(language);
             IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-            Assert.Equal(["booru", "flashbang", "pink", "tags", "vibetested", "workflow", "workviews"],
+            Assert.Equal(["booru", "flashbang", "pink", "tags", "workflow", "workviews"],
                 TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 0), baseline).Select(entry => entry.Id));
-            Assert.Equal(["boorutabs", "downloadall", "taglinesfeature", "tagquickfix", "threadswitch"],
+            Assert.Equal(["boorutabs", "downloadall", "taglinesfeature"],
                 TaglinePicker.ReleaseCandidates(pool, previous, baseline).Select(entry => entry.Id));
-            Assert.Equal("sortedquips", Assert.Single(TaglinePicker.ReleaseCandidates(pool, current, previous)).Id);
+            Assert.Equal(currentRelease, TaglinePicker.ReleaseCandidates(pool, current, previous).Select(entry => entry.Id));
+            // TAGEDIT removes all Release quips introduced in 1.1.3.
+            Assert.Empty(TaglinePicker.ReleaseCandidates(pool, new Version(1, 1, 3), current));
+            foreach (string mode in new[] { TaglinePicker.ModeDaily, TaglinePicker.ModePerStart, TaglinePicker.ModeInterval })
+            {
+                TaglinePick first = TaglinePicker.Pick(mode, "cats", pool, Day, current, previous, true, new Random(3));
+                TaglinePick normal = TaglinePicker.Pick(mode, "cats", pool, Day, current, current, true, new Random(3));
+                Assert.NotNull(first.Entry);
+                Assert.True(first.ReleaseHighlight);
+                Assert.Contains(first.Entry!.Id, currentRelease);
+                Assert.NotNull(normal.Entry);
+                Assert.False(normal.ReleaseHighlight);
+            }
             Assert.Empty(TaglinePicker.ReleaseCandidates(pool, baseline, null));
             Assert.Equal(TaglineCategory.General, pool.Single(entry => entry.Id == "tabsbreed").Category);
-            Assert.Equal(["snowed", "trickorthread"], pool.Where(entry => entry.Category == TaglineCategory.Seasonal).Select(entry => entry.Id));
+            TaglineEntry[] seasonEntries = pool.Where(entry => entry.Category == TaglineCategory.Seasonal).ToArray();
+            Assert.Equal(seasonal, seasonEntries.Select(entry => entry.Id));
+            Assert.All(seasonEntries, entry => Assert.Equal(current, entry.Since));
         }
     }
 
@@ -166,9 +276,9 @@ public sealed class TaglineTests : IDisposable
     {
         TaglineEntry[] pool = Pool(("a", "1.0.0"), ("b", "1.0.0"), ("c", "1.0.0"));
         for (int seed = 0; seed < 50; seed++)
-            Assert.NotEqual("b", TaglinePicker.PickAnother(pool, "b", new Random(seed))!.Id);
-        Assert.Equal("a", TaglinePicker.PickAnother(Pool(("a", "1.0.0")), "a", new Random(1))!.Id);
-        Assert.Null(TaglinePicker.PickAnother([], "a", new Random(1)));
+            Assert.NotEqual("b", TaglinePicker.PickAnother(pool, "b", Day, new Random(seed))!.Id);
+        Assert.Equal("a", TaglinePicker.PickAnother(Pool(("a", "1.0.0")), "a", Day, new Random(1))!.Id);
+        Assert.Null(TaglinePicker.PickAnother([], "a", Day, new Random(1)));
     }
 
     [Theory]
@@ -284,25 +394,36 @@ public sealed class TaglineTests : IDisposable
     }
 
     [Fact]
-    public void AllTwelveLanguagesTranslateTheQuipsFreelyNotLeftInEnglish()
+    public void AllTwelveLanguagesLocalizeTheQuipsExceptForTheApprovedSharedEnglish()
     {
+        // TAGEDIT retains the approved "EN überall" texts for the remaining quips.
+        string[] sharedEnglish = ["archivitah", "believebackup", "buttersthumbnail", "curiosity", "kakarot", "pinkyfinal",
+            "polishontop", "popofaster", "teafirst", "threadcowboy", "threadlightly", "trickorthread", "wholethreadjpeg"];
         Texts.SetLanguage("en");
         Dictionary<string, string> english = TaglineCatalog.Available().ToDictionary(entry => entry.Id, entry => entry.Text);
         foreach (string language in AllLanguages.Where(code => code != "en"))
         {
             Texts.SetLanguage(language);
-            // Tokens like "booru", "KiB" or "404" may stay; a text identical to the English one may not (cats and the others all change).
-            foreach (TaglineEntry entry in TaglineCatalog.Available())
-                Assert.NotEqual(english[entry.Id], entry.Text);
+            IEnumerable<string> exactEnglish = TaglineCatalog.Available().Where(entry => entry.Text == english[entry.Id]).Select(entry => entry.Id);
+            if (language == "de")
+                Assert.Equal(sharedEnglish, exactEnglish);
+            else
+                Assert.Equal(sharedEnglish, exactEnglish.Where(id => sharedEnglish.Contains(id, StringComparer.Ordinal)));
         }
     }
 
     [Fact]
-    public void TheCatalogShipsBetweenEightAndSixtyQuipsAndTheReleaseOnesAreThere()
+    public void TheCatalogShipsTheCuratedGeneralSeasonalAndReleaseQuips()
     {
         Texts.SetLanguage("en");
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        Assert.InRange(pool.Count, 8, 60);
+        // TAGEDIT keeps 95 quips across the three categories.
+        Assert.Equal(95, pool.Count);
+        Assert.Equal(51, pool.Count(entry => entry.Category == TaglineCategory.General));
+        Assert.Equal(30, pool.Count(entry => entry.Category == TaglineCategory.Seasonal));
+        Assert.Equal(14, pool.Count(entry => entry.Category == TaglineCategory.Release));
+        Version roundFour = new(1, 1, 3);
+        Assert.Equal(10, pool.Count(entry => entry.Since == roundFour && entry.Category == TaglineCategory.General));
         Assert.Contains(pool, entry => entry.Id == TaglineCatalog.DefaultId);
         Assert.Equal("now with 100% more cats", pool.Single(entry => entry.Id == "cats").Text);
         Assert.Equal("now with booru support", pool.Single(entry => entry.Id == "booru").Text);

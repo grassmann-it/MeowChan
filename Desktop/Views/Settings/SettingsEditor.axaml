@@ -230,8 +230,6 @@
                                 <TextBlock Text="{Binding HeaderTaglineFixedHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <ComboBox x:Name="HeaderTaglineFixedIdInput" VerticalAlignment="Center" AutomationProperties.AutomationId="HeaderTaglineFixedIdInput" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFixedFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineFixedLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineFixedHint}" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding HeaderTaglineFixedChoices}" SelectedItem="{Binding SelectedHeaderTaglineFixed, Mode=TwoWay}">
-                                <!-- The finite built-in list has variable-height headings and wrapped quips. Keep every choice addressable while the popup is open. -->
-                                <ComboBox.ItemsPanel><ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate></ComboBox.ItemsPanel>
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
                         </Grid>
@@ -522,7 +520,7 @@
                                         <TextBlock x:Name="MediaSidebarInfoFieldLabel" Text="{Binding MediaSidebarInfoLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding MediaSidebarInfoHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <ComboBox x:Name="MediaSidebarInfoInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding MediaSidebarInfoChoices}" SelectedItem="{Binding SelectedMediaSidebarInfo, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoHint}">
+                                    <ComboBox x:Name="MediaSidebarInfoInput" AutomationProperties.AutomationId="MediaSidebarInfoInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding MediaSidebarInfoChoices}" SelectedItem="{Binding SelectedMediaSidebarInfo, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=MediaSidebarInfoFieldLabel}" AutomationProperties.Name="{Binding MediaSidebarInfoLabel}" AutomationProperties.HelpText="{Binding MediaSidebarInfoHint}">
                                     <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                                 </ComboBox>
                                 </Grid>
@@ -667,7 +665,7 @@
                                         <TextBlock Text="{Binding SidebarPreviewMaximumPixelsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <desktop:SettingsNumberInput x:Name="SidebarPreviewMaximumPixelsInput" Value="{Binding SidebarPreviewMaximumPixels, Mode=TwoWay}" Minimum="{Binding SidebarPreviewMaximumPixelsMinimum}" Maximum="{Binding SidebarPreviewMaximumPixelsMaximum}" Increment="1000000" AutomationProperties.LabeledBy="{Binding ElementName=SidebarPreviewMaximumPixelsFieldLabel}" AutomationProperties.Name="{Binding SidebarPreviewMaximumPixelsLabel}" AutomationProperties.HelpText="{Binding SidebarPreviewMaximumPixelsHelp}" />
+                                        <desktop:SettingsNumberInput x:Name="SidebarPreviewMaximumPixelsInput" AutomationProperties.AutomationId="SidebarPreviewMaximumPixelsInput" Value="{Binding SidebarPreviewMaximumMegapixels, Mode=TwoWay}" Minimum="{Binding SidebarPreviewMaximumMegapixelsMinimum}" Maximum="{Binding SidebarPreviewMaximumMegapixelsMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SidebarPreviewMaximumPixelsFieldLabel}" AutomationProperties.Name="{Binding SidebarPreviewMaximumPixelsLabel}" AutomationProperties.HelpText="{Binding SidebarPreviewMaximumPixelsHelp}" />
                                         <TextBlock x:Name="SidebarPreviewMaximumPixelsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
@@ -910,6 +908,21 @@
                                 <TextBlock Text="{Binding ReaderNavigationShowPositionHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <ToggleSwitch x:Name="ReaderNavigationShowPositionInput" IsChecked="{Binding ReaderNavigationShowPosition, Mode=TwoWay}" AutomationProperties.Name="{Binding ReaderNavigationShowPositionLabel}" AutomationProperties.HelpText="{Binding ReaderNavigationShowPositionHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderNavigationShowPositionFieldLabel}" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                <TextBlock x:Name="GalleryBackgroundFieldLabel" Text="{Binding GalleryBackgroundLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding GalleryBackgroundHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ComboBox x:Name="GalleryBackgroundInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding GalleryBackgroundChoices}" SelectedItem="{Binding SelectedGalleryBackground, Mode=TwoWay}"
+                                      ToolTip.Tip="{Binding GalleryBackgroundHint}" AutomationProperties.AutomationId="GalleryBackgroundInput"
+                                      AutomationProperties.LabeledBy="{Binding ElementName=GalleryBackgroundFieldLabel}" AutomationProperties.Name="{Binding GalleryBackgroundLabel}"
+                                      AutomationProperties.HelpText="{Binding GalleryBackgroundHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
                         </Grid>
                     </Border>
                     <!-- Gallery mouse wheel: zoom (default) or browse to the next and previous medium; Ctrl does the other one. -->

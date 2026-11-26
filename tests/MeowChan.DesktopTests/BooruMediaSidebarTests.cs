@@ -7,13 +7,16 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
@@ -24,6 +27,108 @@ namespace MeowChan.DesktopTests;
 [Collection("Booru exact navigation")]
 public sealed class BooruMediaSidebarTests
 {
+    [Fact]
+    public void TheGearReadsAndWritesTheSameFactsChoiceAsTheReader() => InWindow((harness, model, view, window) =>
+    {
+        Config config = new() { MediaSidebarInfo = "Off", MediaSidebarFacts = true };
+        view.MediaSidebarSettings = new QuickSettingsHost
+        {
+            CurrentConfig = () => config,
+            SaveAsync = update => { update(config); return Task.CompletedTask; }
+        };
+        harness.Serve(pages: 1, perPage: 2);
+        Search(model, view);
+        BooruMediaSidebar sidebar = Sidebar(view);
+        Button gear = ById<Button>(sidebar, "BooruMediaSettings");
+        Control facts = ById<Control>(sidebar, "BooruMediaFacts");
+        Assert.False(facts.IsEffectivelyVisible);
+        MenuFlyout menu = Assert.IsType<MenuFlyout>(gear.Flyout);
+        ContextGestures.Click(gear);
+        Assert.True(menu.IsOpen);
+        MenuItem item = Assert.Single(menu.Items.OfType<MenuItem>(),
+            entry => AutomationProperties.GetAutomationId(entry) == "BooruMediaSettingsFacts");
+        Assert.False(item.IsChecked);
+        ContextGestures.Click(item);
+        Assert.True(facts.IsEffectivelyVisible);
+        Assert.True(config.SidebarFactsVisible);
+
+        ReaderMediaSidebar reader = new() { SaveSidebarSetting = change => change(config) };
+        reader.ConfigureInfo(ReaderMediaPreferences.From(config));
+        Assert.True(reader.InfoToggle.IsChecked);
+        reader.ToggleDetails();
+        Assert.False(config.SidebarFactsVisible);
+        view.IsVisible = false;
+        config = JsonSerializer.Deserialize(JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config), ConfigJsonContext.Default.Config)!;
+        view.IsVisible = true;
+        Settle(window);
+        Assert.False(facts.IsEffectivelyVisible);
+        Assert.False(ById<ToggleButton>(sidebar, "BooruMediaInfo").IsChecked);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreviewContextClickCopiesTheDisplayedHitAndReturnsFocus(bool mac) => InWindow((harness, model, view, window) =>
+    {
+        harness.Serve(pages: 1, perPage: 2);
+        Search(model, view);
+        Border hit = Hit(view, "102");
+        Focus(hit);
+        Focus(ById<TextBox>(view, BooruWorkbenchView.InputName));
+        Button picture = ById<Button>(Sidebar(view), "BooruMediaOpenGallery");
+        ContextClick.MacOSForTests = mac;
+        try
+        {
+            if (mac) ContextGestures.ControlClick(picture);
+            else ContextGestures.RightClick(picture);
+            ContextMenu menu = Assert.IsType<ContextMenu>(picture.ContextMenu);
+            Assert.True(menu.IsOpen);
+            Assert.Single(MenuProbe.Entries(menu), entry => entry.Id == BooruWorkbenchView.MenuCopyLink).Activate();
+            BooruComponentDispatcher.WaitUntil(() => harness.Links.Copied.Count > 0, "the link copy action");
+            Assert.Equal("https://danbooru.donmai.us/posts/102", Assert.Single(harness.Links.Copied));
+            Assert.False(menu.IsOpen);
+            Settle(window);
+            Assert.True(hit.IsFocused);
+            Assert.True(picture.IsEffectivelyVisible);
+        }
+        finally { ContextClick.MacOSForTests = null; }
+    });
+
+    [Fact]
+    public void HitAndSidebarMenusUseProviderTagsAndFallBackFromTheOriginalToThePost() => InWindow((harness, model, view, window) =>
+    {
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true,
+                BooruUiFixtures.Post("101", tags: ["zebra", "blue_eyes"]),
+                BooruUiFixtures.Post("102", original: BooruOriginalAccess.Restricted, sample: true, tags: ["sky", "alice"]))));
+        Search(model, view);
+        Border hit = Hit(view, "101");
+        Focus(hit);
+        ContextGestures.ShiftF10(hit);
+        ContextMenu card = Assert.IsType<ContextMenu>(hit.ContextMenu);
+        MenuItem cardSearch = MenuItemById(card, MediaSourceMenu.SearchId);
+        Assert.Empty(harness.Links.Opened);
+        MenuItemById(cardSearch, MediaSourceMenu.SearchId + ".saucenao").Command!.Execute(null);
+        MenuItemById(card, MediaSourceMenu.CopyId).Command!.Execute(null);
+        Assert.Equal("https://saucenao.com/search.php?url=https%3A%2F%2Fcdn.donmai.us%2Foriginal%2F101.png", Assert.Single(harness.Links.Opened));
+        Assert.Equal("zebra blue_eyes", Assert.Single(harness.Links.Copied));
+        card.Close();
+
+        Focus(Hit(view, "102"));
+        Settle(window);
+        Button picture = ById<Button>(Sidebar(view), "BooruMediaOpenGallery");
+        ContextGestures.RightClick(picture);
+        ContextMenu sidebar = Assert.IsType<ContextMenu>(picture.ContextMenu);
+        MenuItem sidebarSearch = MenuItemById(sidebar, MediaSourceMenu.SearchId);
+        MenuItemById(sidebarSearch, MediaSourceMenu.SearchId + ".saucenao").Command!.Execute(null);
+        MenuItemById(sidebar, MediaSourceMenu.CopyId).Command!.Execute(null);
+        Assert.Equal("https://saucenao.com/search.php?url=https%3A%2F%2Fdanbooru.donmai.us%2Fposts%2F102", harness.Links.Opened.Last());
+        Assert.Equal("sky alice", harness.Links.Copied.Last());
+    });
+
+    private static MenuItem MenuItemById(ItemsControl menu, string id) =>
+        Assert.Single(menu.Items.OfType<MenuItem>(), item => AutomationProperties.GetAutomationId(item) == id);
+
     [Fact]
     public void SidebarFollowsTheCursorAndKeepsItsPictureAcrossAListRebuild() => InWindow((harness, model, view, window) =>
     {
@@ -411,7 +516,8 @@ public sealed class BooruMediaSidebarTests
         foreach (BooruResultView mode in new[] { BooruResultView.List, BooruResultView.Grid })
         {
             view.SetResultView(mode, save: false);
-            // W112-74 (Tom): “feste Breite 360 DIP”.
+            // The default of the shared media panel width (360 DIP); Tom, 26.11.: “nicht draggable, also immer gleiche Größe … mehr wie
+            // die anderen”, so the width comes from the shared setting and the handle (see the handle tests below).
             foreach (int width in new[] { 900, 1152, 1840 })
             {
                 Resize(window, width);
@@ -438,12 +544,12 @@ public sealed class BooruMediaSidebarTests
                 // Tom, 25.11. 14:55: “das kleine Icon ‚Im Browser öffnen‘” stays an icon at any width.
                 if (width == 1840)
                 {
-                    sidebar.Width = 800;
+                    view.ApplyMediaSidebarWidthForTests(800);
                     Settle(window);
                     Assert.All(new[] { buttons[0], buttons[2] }, button => AssertActionLabelFits(button, requireLabel: true));
                     Assert.False(ById<TextBlock>(buttons[1], "BooruPanelBooruOpenPost:101:Label").IsEffectivelyVisible);
                     Assert.Equal(buttons[1].Bounds.Height, buttons[1].Bounds.Width);
-                    sidebar.Width = 360;
+                    view.ApplyMediaSidebarWidthForTests(360);
                     Settle(window);
                 }
             }
@@ -456,6 +562,151 @@ public sealed class BooruMediaSidebarTests
         Assert.False(Sidebar(view).IsVisible);
         Assert.False(ById<Button>(view, "BooruMediaToggle").IsVisible);
     });
+
+    // Tom, 26.11.: “Booru-Sidebar ist nicht draggable, also immer gleiche Größe”; it now shares the media panel width with Media and Tagging.
+    [Fact]
+    public void DraggingTheHandleResizesSavesAndSharesTheWidth() => InWindow((harness, model, view, window) =>
+    {
+        List<int> saved = new();
+        int shared = Config.MediaPanelWidthDefault;
+        view.ReadMediaSidebarWidth = () => shared;
+        view.SaveMediaSidebarWidth = width =>
+        {
+            saved.Add(width);
+            shared = width;
+        };
+        harness.Serve(pages: 1, perPage: 2);
+        Search(model, view);
+        BooruMediaSidebar sidebar = Sidebar(view);
+        Assert.Equal(360, sidebar.Bounds.Width);
+        string? title = ById<TextBlock>(sidebar, "BooruMediaTitle").Text;
+        int samples = harness.Previews.SampleRequests.Count;
+
+        DragHandle(window, view, -96);
+        Assert.Equal(456, sidebar.Bounds.Width);
+        Assert.Equal(new[] { 456 }, saved);
+        Assert.True(ById<ScrollViewer>(view, "BooruResultScroll").Viewport.Width >= 480);
+        Assert.Equal(title, ById<TextBlock>(sidebar, "BooruMediaTitle").Text);
+        Assert.Equal(samples, harness.Previews.SampleRequests.Count);
+
+        DragHandle(window, view, to: 10);
+        Assert.Equal(Config.MediaPanelWidthMaximum, sidebar.Bounds.Width);
+        Assert.Equal(Config.MediaPanelWidthMaximum, saved[^1]);
+        Assert.True(ById<ScrollViewer>(view, "BooruResultScroll").Viewport.Width >= 480);
+        DragHandle(window, view, to: window.Bounds.Width - 10);
+        Assert.Equal(Config.MediaPanelWidthMinimum, sidebar.Bounds.Width);
+        Assert.Equal(Config.MediaPanelWidthMinimum, saved[^1]);
+        Assert.Equal(3, saved.Count);
+
+        // A width chosen in Media, Tagging or the settings arrives when the page is shown again.
+        shared = 500;
+        view.IsVisible = false;
+        view.IsVisible = true;
+        Settle(window);
+        Assert.Equal(500, sidebar.Bounds.Width);
+        Assert.Equal(3, saved.Count);
+        Assert.Equal(samples, harness.Previews.SampleRequests.Count);
+    });
+
+    [Fact]
+    public void NarrowWindowShrinksThenHidesAndKeepsTheSavedWidth() => InWindow((harness, model, view, window) =>
+    {
+        List<int> saved = new();
+        view.ReadMediaSidebarWidth = () => 600;
+        view.SaveMediaSidebarWidth = saved.Add;
+        harness.Serve(pages: 1, perPage: 2);
+        Search(model, view);
+        BooruMediaSidebar sidebar = Sidebar(view);
+        Grid layout = Assert.IsType<Grid>(sidebar.Parent);
+        Resize(window, 1840);
+        Assert.Equal(600, sidebar.Bounds.Width);
+
+        Resize(window, 1000);
+        Assert.True(sidebar.IsVisible);
+        double room = layout.Bounds.Width - 480 - 8;
+        Assert.True(room < 600, $"room {room}");
+        Assert.InRange(sidebar.Bounds.Width, room - 0.5, room + 0.5);
+        Assert.True(ById<Control>(view, "BooruResultScroll").Bounds.Width >= 480 - 0.5);
+        GridSplitter handle = ById<GridSplitter>(view, "BooruMediaHandle");
+        Assert.True(handle.Focus());
+        handle.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Tab, Source = handle });
+        Settle(window);
+        Assert.Empty(saved);
+
+        Resize(window, 800);
+        Assert.False(sidebar.IsVisible);
+        Assert.False(handle.IsVisible);
+        Assert.True(Hit(view, "101").IsFocused);
+        Assert.True(ById<ToggleButton>(view, "BooruMediaToggle").IsChecked);
+
+        Resize(window, 1840);
+        Assert.True(sidebar.IsVisible);
+        Assert.True(handle.IsVisible);
+        Assert.Equal(600, sidebar.Bounds.Width);
+        Assert.Empty(saved);
+    });
+
+    [Fact]
+    public void HandleHasNameTipAndArrowKeys() => InWindow((harness, model, view, window) =>
+    {
+        List<int> saved = new();
+        view.SaveMediaSidebarWidth = saved.Add;
+        harness.Serve(pages: 1, perPage: 2);
+        Search(model, view);
+        BooruMediaSidebar sidebar = Sidebar(view);
+        GridSplitter handle = ById<GridSplitter>(view, "BooruMediaHandle");
+        string resize = Texts.T("media.panel.resize");
+        Assert.Equal(resize, AutomationProperties.GetName(handle));
+        Assert.Equal(resize, ToolTip.GetTip(handle));
+        Assert.True(handle.IsVisible);
+        Assert.True(handle.Focusable);
+        Assert.True(handle.Focus());
+
+        KeyEventArgs left = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Left, Source = handle };
+        handle.RaiseEvent(left);
+        Assert.True(left.Handled);
+        Settle(window);
+        Assert.True(sidebar.Bounds.Width > 360, $"width {sidebar.Bounds.Width}");
+        Assert.Empty(saved);
+        handle.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Left, Source = handle });
+        Settle(window);
+        Assert.Equal((int)Math.Round(sidebar.Bounds.Width), Assert.Single(saved));
+
+        view.SetResultView(BooruResultView.Gallery, save: false);
+        Settle(window);
+        Assert.False(handle.IsVisible);
+        view.SetResultView(BooruResultView.List, save: false);
+        Settle(window);
+        Assert.True(handle.IsVisible);
+        sidebar.Close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Settle(window);
+        Assert.False(sidebar.IsVisible);
+        Assert.False(handle.IsVisible);
+        Assert.Single(saved);
+    });
+
+    [Fact]
+    public void AViewWithoutAWindowCreatesNoHandle() => BooruComponentDispatcher.Run(() =>
+    {
+        BooruUiHarness harness = new();
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        view.RestoreMediaSidebar(open: true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Empty(view.GetLogicalDescendants().OfType<GridSplitter>());
+    });
+
+    private static void DragHandle(Window window, BooruWorkbenchView view, double by = 0, double? to = null)
+    {
+        Settle(window);
+        GridSplitter handle = ById<GridSplitter>(view, "BooruMediaHandle");
+        Point center = In(handle, window).Center;
+        Point end = new(to ?? center.X + by, center.Y);
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+        window.MouseUp(end, MouseButton.Left);
+        Settle(window);
+    }
 
     [Fact]
     public void SidebarLinkButtonsFollowTheWorkViewOverflowPolicy() => InWindow((harness, model, view, window) =>
@@ -615,7 +866,7 @@ public sealed class BooruMediaSidebarTests
 
         foreach (int width in new[] { 280, 320 })
         {
-            sidebar.Width = width;
+            view.ApplyMediaSidebarWidthForTests(width);
             Settle(window);
             Assert.True(close.IsEffectivelyVisible);
             Assert.InRange(In(close, sidebar).Right, 1, width);

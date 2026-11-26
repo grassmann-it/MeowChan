@@ -287,6 +287,7 @@ public sealed class FooterDisplayInteractionTests
         Assert.All(items, item => Assert.Equal(MenuItemToggleType.CheckBox, item.ToggleType));
         Assert.Equal(new[] { "footer.network", "footer.disk", "footer.status" }, items.Select(item => item.Tag as string));
         Assert.Equal(states, items.Select(item => item.IsChecked));
+        MenuIconAudit.Verify("footer-displays", items);
     }
 
     private static void Choose(Control anchor, string id)

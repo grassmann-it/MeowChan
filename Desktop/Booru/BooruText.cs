@@ -184,6 +184,7 @@ internal static class BooruText
             "booru.ui.post.field.file", "booru.ui.tags.addFor", "booru.ui.tags.addedToSearch", "booru.ui.tags.alreadyInSearch",
             "booru.ui.tags.searchFull", "booru.ui.tags.unusable", "booru.ui.tags.menuAdd", "booru.ui.tags.menuExclude",
             "booru.ui.tags.copied", "booru.ui.tags.showAll",
+            "booru.ui.tags.openWiki", "booru.ui.tags.openWikiTip", "booru.ui.tags.openWikiFailed",
             "booru.ui.load", "booru.ui.loadFor", "booru.ui.load.saveRefusal",
             "booru.ui.result.hitName", "booru.ui.result.localYes", "booru.ui.result.localNo",
             "booru.ui.view.listHint", "booru.ui.view.gridHint", "booru.ui.tile.sizeName", "booru.ui.tile.local", "booru.ui.tile.listName",

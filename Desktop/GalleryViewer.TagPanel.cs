@@ -24,7 +24,7 @@ internal sealed partial class GalleryViewer
     private GalleryTagPanelController? _tagController;
     private QuickTagSurface? _tagSurface;
     private GalleryThreadTagSection? _threadSection;
-    private Button? _threadSectionButton;
+    private DisclosureButton? _threadSectionButton;
     private StackPanel? _tagExtra;
     private TextBlock? _tagReason;
     // Favorite and rating of the panel's targets (PT6): the row above the field; null when the owner offers none.
@@ -79,8 +79,8 @@ internal sealed partial class GalleryViewer
         _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-meta" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
         _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };
         _tagExtra.Children.Add(_tagReason);
-        _threadSectionButton = new Button { Name = "GalleryThreadTagsToggle", Classes = { "subtle" } };
-        CommandBindings.ApplyLabeled(_threadSectionButton, QuickTagCommands.ThreadSection, CommandCatalog.Label(QuickTagCommands.ThreadSection));
+        _threadSectionButton = new DisclosureButton { Name = "GalleryThreadTagsToggle", Classes = { "subtle" } };
+        CommandBindings.Apply(_threadSectionButton, QuickTagCommands.ThreadSection, iconWithLabel: true);
         PopupToggle.Prepare(_threadSectionButton);
         _threadSectionButton.Click += (_, _) => OnTagThreadSectionRequested();
         _tagExtra.Children.Add(_threadSectionButton);
@@ -353,7 +353,11 @@ internal sealed partial class GalleryViewer
         if (section.IsVisible) { CloseThreadTagSection(section, surface); return; }
         section.Model = controller.UnavailableReason == null ? controller.OpenThreadTags() : null;
         section.IsVisible = true;
-        if (_threadSectionButton is { } button) PopupToggle.Present(button, true);
+        if (_threadSectionButton is { } button)
+        {
+            button.IsChecked = true;
+            PopupToggle.Present(button, true);
+        }
         section.BringIntoView();
         section.FocusInput();
     }
@@ -362,7 +366,11 @@ internal sealed partial class GalleryViewer
     {
         section.Input.Dismiss();
         section.IsVisible = false;
-        if (_threadSectionButton is { } button) PopupToggle.Present(button, false);
+        if (_threadSectionButton is { } button)
+        {
+            button.IsChecked = false;
+            PopupToggle.Present(button, false);
+        }
         surface.FocusField();
     }
 

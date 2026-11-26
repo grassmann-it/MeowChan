@@ -76,6 +76,7 @@ public sealed partial class MediaPage
 
     private ReaderMediaPreferences _panelPreferences = ReaderMediaPreferences.Default;
     internal Action<Action<Config>>? SavePanelSetting { get; set; }
+    internal QuickSettingsHost? SidebarVideoSettings { get; set; }
 
     internal void ConfigurePanelInfo(ReaderMediaPreferences preferences)
     {
@@ -118,7 +119,7 @@ public sealed partial class MediaPage
         if (_panel is { } existing) return existing;
         ReaderMediaSidebar panel = _panel = new ReaderMediaSidebar
         {
-            Name = "MediaPanel", IsVisible = false, UseGalleryCursor = true, TitleKey = "media.panel.title", EmptyKey = "media.panel.empty",
+            Name = "MediaPanel", IsVisible = false, UseGalleryCursor = true, TitleKey = "media.layout.panel", EmptyKey = "media.panel.empty",
             CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle", ShowEmptyTitle = true, DecisionKeyContext = "media",
             BuildTagMenu = BuildPanelTagMenu
         };
@@ -126,6 +127,7 @@ public sealed partial class MediaPage
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
         // The full-height panel owns the header and card, with a horizontal inset from both edges.
         panel.ConfigureInfo(_panelPreferences);
+        panel.SidebarVideoSettings = SidebarVideoSettings;
         panel.SaveSidebarSetting = update =>
         {
             _panelPreferences = panel.CopyBarSettingsTo(_panelPreferences);
@@ -385,7 +387,7 @@ public sealed partial class MediaPage
             if (panel.Load.ShownSource is { } source)
             {
                 panel.LimitPicture(ReaderMediaSidebarRules.MaximumDisplay(source.Width, _panelFit), ReaderMediaSidebarRules.MaximumDisplay(source.Height, _panelFit));
-                _panelDimensions = $"{source.Width}×{source.Height}";
+                _panelDimensions = MediaFactGrid.FormatDimensions(source.Width, source.Height);
                 panel.SetDetail(_panelDimensions);
             }
             return;
@@ -479,7 +481,7 @@ public sealed partial class MediaPage
             return new ReaderMediaSidebarContent.Unavailable("reader.sidebar.unavailable");
         }, picture =>
         {
-            _panelDimensions = picture.Source is { } source ? $"{source.Width}×{source.Height}" : string.Empty;
+            _panelDimensions = picture.Source is { } source ? MediaFactGrid.FormatDimensions(source.Width, source.Height) : string.Empty;
             panel.SetDetail(_panelDimensions);
         });
     }

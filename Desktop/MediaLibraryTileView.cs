@@ -184,7 +184,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
     }
 
     /// <summary>Taller than an archive cell: preview, name, thread, footer and the favorite/tag row plus margins. The page's panel uses it as cell height.</summary>
-    internal const double TileHeight = 226;
+    internal const double TileHeight = MediaTileMetrics.MediumPreviewHeight + MediaTileMetrics.BaseBelowPreview;
 
     public MediaLibraryTileView()
     {
@@ -197,8 +197,9 @@ internal sealed partial class MediaLibraryTileView : UserControl
         MediaTileView grid = _tile = new(_placeholder, _favoriteToggle, _badges, "MediaTileSelected",
             favoriteAtTopLeft: true)
         {
-            Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto"), RowSpacing = 2
+            Margin = new Thickness(WorkspaceMetrics.Space8), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto"), RowSpacing = 2
         };
+        AutomationProperties.SetAutomationId(grid, "MediaLibraryTileContent");
         grid.SetPreviewSize(_appearance.PictureWidth, _appearance.PreviewHeight);
         _favoriteToggle.Click += async (_, e) =>
         {

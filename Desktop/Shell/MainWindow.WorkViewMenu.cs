@@ -17,8 +17,10 @@ namespace MeowChan;
 // plus "Switch work view". Nothing here depends on which view is active except the radio's checked entry.
 public partial class MainWindow
 {
+    private const string ThemeCommandId = "appearance.theme";
     private MenuItem? _themeMenu, _fullscreenMenu, _viewCycleMenu, _workViewGroupMenu;
     private readonly Dictionary<WorkView, MenuItem> _workViewRadios = new();
+    private string? _lastThemeIconState;
 
     private void InitializeWorkViewMenu()
     {
@@ -53,9 +55,13 @@ public partial class MainWindow
         WorkspaceMenuItem.Items.Insert(at, _themeMenu);
         WorkspaceMenuItem.Items.Insert(at + 1, _fullscreenMenu);
         WorkspaceMenuItem.Items.Insert(at + 2, _workViewGroupMenu);
-        _shortcutRouter?.Register(new CommandRegistration("workspace.view-cycle", this, () => true, () => CanSwitchWorkView,
+        _shortcutRouter?.RegisterOwned(new CommandRegistration("workspace.view-cycle", this, () => true, () => CanSwitchWorkView,
             () => _ = CycleWorkViewAsync()));
-        ActualThemeVariantChanged += (_, _) => RefreshWorkViewMenu();
+        WorkspaceMenuItem.SubmenuOpened += (_, e) =>
+        {
+            if (ReferenceEquals(e.Source, WorkspaceMenuItem)) RefreshThemeAction();
+        };
+        RefreshThemeAction();
         RefreshWorkViewMenu();
     }
 
@@ -98,16 +104,33 @@ public partial class MainWindow
     internal static WorkView NextWorkView(WorkView view) =>
         WorkViewSetting.All[(WorkViewSetting.All.ToList().IndexOf(view) + 1) % WorkViewSetting.All.Count];
 
-    private string ThemeMenuLabel() => Texts.T(ActualThemeVariant == ThemeVariant.Dark ? "shell.switchToLight" : "shell.switchToDark");
+    private (string IconState, string LabelKey) ThemeActionTarget => ActualThemeVariant == ThemeVariant.Dark
+        ? ("choose_light", "shell.switchToLight") : ("choose_dark", "shell.switchToDark");
 
-    /// <summary>Labels, checked view and availability of the entries above; called when the language, theme, view or readiness changes.</summary>
+    private string ThemeActionLabel() => Texts.T(ThemeActionTarget.LabelKey);
+
+    private void RefreshThemeAction()
+    {
+        string state = ThemeActionTarget.IconState;
+        if (_lastThemeIconState != state)
+        {
+            ThemeToggleButton.Content = CommandBindings.Icon(ThemeCommandId, state: state);
+            _lastThemeIconState = state;
+        }
+        string label = ThemeActionLabel();
+        AutomationProperties.SetName(ThemeToggleButton, label);
+        ToolTip.SetTip(ThemeToggleButton, label);
+        if (_themeMenu is { } menu)
+            CommandBindings.ApplyStateful(menu, ThemeCommandId, () => ThemeActionTarget.IconState, ThemeActionLabel);
+    }
+
+    /// <summary>Labels, checked view and availability of the entries above; called when the language, view or readiness changes.</summary>
     private void RefreshWorkViewMenu()
     {
         RefreshWorkViewSwitchNoticeAvailability();
         RefreshBooruToolsPresentation();
         if (_workViewGroupMenu == null || _themeMenu == null || _fullscreenMenu == null || _viewCycleMenu == null) return;
         WorkView current = ConfiguredWorkView;
-        CommandBindings.Apply(_themeMenu, "appearance.theme", label: ThemeMenuLabel);
         CommandBindings.Apply(_fullscreenMenu, "window.fullscreen");
         CommandBindings.Apply(_viewCycleMenu, "workspace.view-cycle");
         _workViewGroupMenu.Header = Texts.T("shell.mode");

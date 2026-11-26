@@ -434,6 +434,142 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ArrowKeysAlignTheListEdgesWithAnEnlargedLastPicture(bool scrollBeforePictureLoads)
+    {
+        int openingPost = scrollBeforePictureLoads ? 200 : 300;
+        ResourceId thread = new("4chan", "g", openingPost.ToString());
+        const int postCount = 9;
+        const int tallPostIndex = 3;
+        string longBody = string.Join("<br>", Enumerable.Repeat("A line in a tall post.", 48));
+        string mediaBody = string.Join("<br>", Enumerable.Repeat("A line in the media post.", 12));
+        CapturedAttachment attachment = new(0, "picture", Url: FixtureUrl + FileName, OriginalFileName: FileName);
+        CapturedPost[] captured = Enumerable.Range(0, postCount).Select(index => new CapturedPost(
+            (openingPost + index).ToString(), index, PostFieldPresence.All,
+            Html: index == tallPostIndex ? longBody : index == postCount - 1 ? mediaBody : "A short post.",
+            Attachments: index == postCount - 1 ? [attachment] : [])).ToArray();
+        using TempDirectory profile = new();
+        MediaAssetSnapshot media = WritePicture(profile.Path, 360, 1200);
+        await CapturePostsAsync(profile.Path, thread, captured);
+
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            TaskCompletionSource<MediaAssetSnapshot> inventory = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token),
+                (_, _) => Task.CompletedTask, _ => { }, (_, token) => inventory.Task.WaitAsync(token)) { IsReadable = true };
+            Window window = new() { Width = 680, Height = 620 };
+            try
+            {
+                ReaderSettingsPreferences.Apply(page, new Config
+                {
+                    ReaderMediaSidebar = false, ReaderFocusedMediaEnlarge = true,
+                    ReaderFocusedMediaScalePercent = 200, ReaderFoldLines = 100
+                });
+                window.Content = page.DetachReader();
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                BooruComponentDispatcher.Wait(page.LoadThreadAsync(thread));
+                ListBox posts = Posts(window);
+                ArchivePostRow lastRow = Assert.IsType<ArchivePostRow>(posts.Items[postCount - 1]);
+                ArchiveAttachmentRow lastAttachment = Assert.Single(lastRow.Attachments);
+                Assert.NotNull(MediaAttachmentResolver.Resolve(media, thread, lastRow.Id, lastAttachment.Attachment));
+                // Start with a wide reserved frame so the portrait's decoded aspect changes the card's height.
+                lastAttachment.KnownAspect = 4;
+                ScrollViewer scroll = Assert.IsType<ScrollViewer>(posts.Scroll);
+                ScrollContentPresenter viewport = Assert.Single(scroll.GetVisualDescendants().OfType<ScrollContentPresenter>());
+                double Bottom() => scroll.Extent.Height - scroll.Viewport.Height;
+                ListBoxItem SelectedCard() => Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromIndex(posts.SelectedIndex));
+                void Layout()
+                {
+                    window.UpdateLayout();
+                    Dispatcher.UIThread.RunJobs();
+                    window.UpdateLayout();
+                }
+                void Step(Key key, PhysicalKey physicalKey, int index)
+                {
+                    window.KeyPress(key, RawInputModifiers.None, physicalKey, null);
+                    window.KeyRelease(key, RawInputModifiers.None, physicalKey, null);
+                    BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
+                    Layout();
+                    Assert.Equal(index, posts.SelectedIndex);
+                    Assert.True(SelectedCard().IsFocused);
+                }
+
+                Assert.Equal(0, posts.SelectedIndex);
+                Assert.True(SelectedCard().Focus());
+                for (int index = 1; index < postCount; index++)
+                {
+                    Step(Key.Down, PhysicalKey.ArrowDown, index);
+                    if (index == postCount - 1) break;
+                    ListBoxItem card = SelectedCard();
+                    Point top = Assert.IsType<Point>(card.TranslatePoint(default, viewport));
+                    Assert.InRange(top.Y, 0, scroll.Viewport.Height - 1);
+                    if (index == tallPostIndex) Assert.True(card.Bounds.Height > scroll.Viewport.Height);
+                    else Assert.True(top.Y + card.Bounds.Height <= scroll.Viewport.Height + 1);
+                }
+
+                double beforeLoad = Bottom();
+                Assert.True(beforeLoad > 0);
+                Assert.Equal(beforeLoad, scroll.Offset.Y);
+                Step(Key.Down, PhysicalKey.ArrowDown, postCount - 1);
+                Assert.Equal(Bottom(), scroll.Offset.Y);
+                Assert.Null(Picture(SelectedCard()));
+                Image preview = Assert.Single(SelectedCard().GetVisualDescendants().OfType<Image>(),
+                    image => AutomationProperties.GetAutomationId(image) == "ReaderAttachmentPreview");
+                ArchiveAttachmentView medium = Assert.IsType<ArchiveAttachmentView>(preview.FindAncestorOfType<ArchiveAttachmentView>());
+                Rect frameBeforeLoad = Assert.IsType<Rect>(medium.FrameBoundsIn(viewport));
+                Assert.True(frameBeforeLoad.Intersects(new Rect(scroll.Viewport)),
+                    $"The reserved frame {frameBeforeLoad} must intersect the viewport {scroll.Viewport} to load.");
+                double heightBeforeLoad = SelectedCard().Bounds.Height;
+                if (scrollBeforePictureLoads)
+                {
+                    Point wheel = Assert.IsType<Point>(viewport.TranslatePoint(new Point(24, scroll.Viewport.Height / 2), window));
+                    window.MouseWheel(wheel, new Vector(0, 1), RawInputModifiers.None);
+                    Layout();
+                    Assert.True(scroll.Offset.Y < Bottom() - 1);
+                }
+                else
+                {
+                    // The endpoint must still hold after the ordinary frame re-fit window has expired.
+                    BooruComponentDispatcher.Wait(Task.Delay(TimeSpan.FromSeconds(2), BooruComponentDispatcher.Cancellation));
+                }
+
+                inventory.SetResult(media);
+                BooruComponentDispatcher.Wait(page.MediaLoadTask);
+                try
+                {
+                    BooruComponentDispatcher.WaitUntil(() =>
+                    {
+                        Layout();
+                        return Picture(SelectedCard()) is { IsArrangeValid: true } && SelectedCard().Bounds.Height > heightBeforeLoad + 1;
+                    }, "the last post's portrait to load and grow its card");
+                }
+                catch (TimeoutException error)
+                {
+                    throw new TimeoutException($"{error.Message}. Preview status: {medium.PreviewStatus}, aspect: {lastAttachment.KnownAspect}, "
+                        + $"frame {frameBeforeLoad} → {medium.FrameBoundsIn(viewport)}, card height {heightBeforeLoad} → {SelectedCard().Bounds.Height}.", error);
+                }
+                Assert.True(SelectedCard().Bounds.Height > scroll.Viewport.Height);
+                Assert.True(Bottom() > beforeLoad);
+                if (scrollBeforePictureLoads) Assert.True(scroll.Offset.Y < Bottom() - 1);
+                else Assert.Equal(Bottom(), scroll.Offset.Y);
+
+                for (int index = postCount - 2; index >= 0; index--)
+                    Step(Key.Up, PhysicalKey.ArrowUp, index);
+                Assert.Equal(0, scroll.Offset.Y);
+            }
+            finally
+            {
+                page.EndLifetime();
+                BooruComponentDispatcher.Wait(page.MediaLoadTask);
+                window.Close();
+            }
+        });
+    }
+
     private static void ClickPicture(Window window, Image image, double horizontalPosition)
     {
         Point inside = new(image.Bounds.Width * horizontalPosition, image.Bounds.Height / 2);
@@ -475,9 +611,14 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
             else
                 posts.Add(new(number.ToString(), index, PostFieldPresence.All, Html: "Another post in the thread."));
         }
+        await CapturePostsAsync(directory, ThreadId, posts);
+    }
+
+    private static async Task CapturePostsAsync(string directory, ResourceId thread, IReadOnlyList<CapturedPost> posts)
+    {
         using ProfileLease lease = ProfileLease.Acquire(directory);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory, lease);
-        await catalog.CapturePreservingRevisionsAsync(new(ThreadId, "https://boards.4chan.org/g/thread/100", "Focused picture",
+        await catalog.CapturePreservingRevisionsAsync(new(thread, "https://boards.4chan.org/g/thread/" + thread.Thread, "Focused picture",
             ThreadSourceState.Archived, DateTimeOffset.UnixEpoch, directory, posts));
     }
 

@@ -67,6 +67,10 @@ internal static class ReaderMediaSidebarChecks
             Rect title = InHeader(Find<TextBlock>("ReaderMediaSidebarHeading")), positionBounds = InHeader(position), close = InHeader(closeButton);
             Rect file = InHeader(Find<TextBlock>("ReaderMediaSidebarMeta"));
             bool belowTitle = positionBounds.Top >= title.Bottom - 1;
+            // Fable overlay spec §2: a 32 DIP control row and a 16 DIP metadata
+            // line when wrapped. The bar padding is outside this control.
+            Require(Math.Abs(header.Bounds.Height - (belowTitle ? 48 : 32)) <= 1,
+                $"The reader header has the wrong height for its visible rows: {header.Bounds.Height} DIP.");
             Require(!requireSingleRow || !belowTitle, "The wide reader header did not fit in one row.");
             Require(position.IsEffectivelyVisible && !string.IsNullOrWhiteSpace(position.Text) && positionBounds.Width > 0
                 && Math.Abs(title.Left) <= 1 && Math.Abs(close.Right - header.Bounds.Width) <= 1
@@ -154,10 +158,16 @@ internal static class ReaderMediaSidebarChecks
             await page.MediaSidebarTask;
             ArchivePostRow last = (ArchivePostRow)posts.SelectedItem!;
             await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(last.Id, StringComparison.Ordinal));
-            if (!last.HasAttachments && !last.IsStub)
-                Require(sidebar.GetVisualDescendants().OfType<ReaderBodyTextBlock>()
-                    .Any(body => body.IsEffectivelyVisible && ReferenceEquals(body.Document, last.BodyDocument)),
-                    "A post without media did not show its text in the sidebar.");
+            if (last.IsStub || last.HasMediaHiddenLine)
+                Require(sidebar.StatusText == Texts.T("reader.sidebar.hidden", last.Id), "The hidden post shows no reason.");
+            else if (!last.HasAttachments)
+            {
+                ScrollViewer detail = Find<ScrollViewer>("ReaderSidebarPostDetail");
+                Require(detail.IsEffectivelyVisible && AutomationProperties.GetName(detail) == Texts.T("reader.sidebar.postDetail", last.Id),
+                    "The sidebar does not show the selected text post.");
+                Require(Find<ReaderBodyTextBlock>("ReaderSidebarPostBody") is { IsEffectivelyVisible: true } body
+                    && ReferenceEquals(body.Document, last.BodyDocument), "A post without media did not show its text in the sidebar.");
+            }
 
             // R11: several files in one post: the strip shows all of them (at most the configured number), the current one is marked and
             // counted, a click or Enter on a thumbnail shows that file, a single-file post has no strip.
@@ -243,8 +253,9 @@ internal static class ReaderMediaSidebarChecks
             // RD-01: the sidebar stays shown, so pane and sidebar keep their one shared Tab cycle (the frame cycles, the pane continues into it).
             Require(KeyboardNavigation.GetTabNavigation(frame) == KeyboardNavigationMode.Cycle
                 && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue, "After Escape in the sidebar Tab no longer reaches the sidebar.");
-            // Only switching the sidebar off gives the pane its own Tab cycle back.
-            page.ToggleMediaSidebar();
+            // The live close control switches the sidebar off and gives the pane its own Tab cycle back.
+            using (MediaNativeInput native = new(window))
+                await native.ClickAsync(Find<Button>("ReaderMediaSidebarClose"));
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
             Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "The pane did not get its Tab cycle back when the sidebar was switched off.");
         }
@@ -337,10 +348,14 @@ internal static class ReaderMediaSidebarChecks
     {
         await Program.WaitUntilAsync(() => host.Bounds.Height > 0 && sidebar.Frame.Bounds.Height > 0
             && Math.Abs(sidebar.Bounds.Height - host.Bounds.Height) <= 1);
+        // The overlay spec allows the header bars to hide while the pointer is away.
+        sidebar.RevealBars();
         await Flush();
         Require(sidebar.TranslatePoint(default, host) is { Y: >= -1 and <= 1 }, "The sidebar does not start at the host's top.");
-        Require(sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 7 and <= 9 }, "The sidebar header is missing its top inset.");
-        Require(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight, "The sidebar header is shorter than a control row.");
+        Require(HeaderControlsReachable(sidebar, out string headerState),
+            "The sidebar header controls are missing their top inset or are unreachable. " + headerState);
+        Require(sidebar.HeaderRow.Bounds.Height >= WorkspaceMetrics.InputHeight - 1,
+            $"The sidebar header is shorter than a control row: {sidebar.HeaderRow.Bounds.Height} DIP.");
         Require(sidebar.Padding == new Thickness(8), "The reader sidebar lost its four-sided inset.");
         Control details = sidebar.Details;
         Control last = details.IsVisible ? details : sidebar.Card;
@@ -349,6 +364,29 @@ internal static class ReaderMediaSidebarChecks
         Console.WriteLine($"SMOKE sidebar full-height: host={host.Name}, side={Grid.GetColumn(sidebar)}, hostHeight={host.Bounds.Height}, paneHeight={sidebar.Bounds.Height}, mediaHeight={sidebar.Frame.Bounds.Height}");
         if (TopLevel.GetTopLevel(sidebar) is Window window)
             Program.CaptureWindow(window, $"smoke-reader-full-height-{host.Name}-{Grid.GetColumn(sidebar)}.png");
+    }
+
+    internal static bool HeaderControlsReachable(ReaderMediaSidebar sidebar, out string state)
+    {
+        // Fable overlay spec §§1–2: the docked bar starts at the 8 DIP panel inset.
+        // An overlay bar starts at the media frame. Both have 4 DIP of inner padding.
+        Control? header = sidebar.GetVisualDescendants().OfType<Control>()
+            .SingleOrDefault(control => AutomationProperties.GetAutomationId(control) == "ReaderMediaSidebarHeaderRow");
+        Button? close = sidebar.GetVisualDescendants().OfType<Button>()
+            .SingleOrDefault(button => AutomationProperties.GetAutomationId(button) == "ReaderMediaSidebarClose");
+        double? barTop = header != null && sidebar.FrameArea.IsVisualAncestorOf(header)
+            ? sidebar.FrameArea.TranslatePoint(default, sidebar)?.Y : 8;
+        double? headerTop = header?.TranslatePoint(default, sidebar)?.Y;
+        Rect? closeBounds = close?.TranslatePoint(default, sidebar) is Point closeOrigin
+            ? new Rect(closeOrigin, close.Bounds.Size) : null;
+        state = $"barTop={barTop}; headerTop={headerTop}; headerVisible={header?.IsEffectivelyVisible}; "
+            + $"close={closeBounds}; sidebar={sidebar.Bounds.Size}.";
+        return header is { IsEffectivelyVisible: true } && barTop.HasValue && headerTop.HasValue
+            && Math.Abs(headerTop.Value - barTop.Value - 4) <= 1
+            && close is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true, IsHitTestVisible: true }
+            && closeBounds is { Width: > 0, Height: > 0 } position
+            && new Rect(sidebar.Bounds.Size).Inflate(1).Contains(position)
+            && Math.Abs(position.Top - barTop.Value - 4) <= 1;
     }
 
     // The sidebar has no arrows and no counter over the medium (named controls of the old overlay).

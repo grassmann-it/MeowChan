@@ -57,7 +57,8 @@ internal sealed partial class GalleryViewer
         StackPanel panel = (StackPanel)badge.Content!;
         Avalonia.Controls.Shapes.Path star = (Avalonia.Controls.Shapes.Path)panel.Children[0];
         star.Tag = saved ? WorkspaceIcons.HeartFilled : WorkspaceIcons.Heart;
-        IBrush ink = saved ? Brushes.Gold : Brushes.White;
+        // On the dark scrim of the viewer in both themes: the saved heart is the favourite colour of the tile badges (it was gold, the stars' colour).
+        IBrush ink = saved ? new Avalonia.Media.Immutable.ImmutableSolidColorBrush(VideoPlayMark.CurrentFavoriteColor) : Brushes.White;
         star.Stroke = ink;
         star.Fill = saved ? ink : Brushes.Transparent;
         panel.Children[1].IsVisible = pending;

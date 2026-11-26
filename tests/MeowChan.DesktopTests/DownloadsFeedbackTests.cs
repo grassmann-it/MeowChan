@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.VisualTree;
 using MeowChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -40,6 +42,36 @@ public sealed class DownloadsFeedbackTests
         Assert.Equal(1, closes);
         Assert.False(toast.ActionButton.IsEnabled);
     }
+
+    [Fact]
+    public void ToastActionsHaveSpaceBetweenButtonsAndWrappedRows() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        FeedbackToastContent toast = new("Title", "Choose an action", null, _ => { },
+            new[] { "Keep", "Review", "Remove" }.Select(label => new FeedbackToastAction(label, () => Task.CompletedTask)).ToArray());
+        Window window = new() { Width = 300, Height = 300, Content = toast };
+        try
+        {
+            window.Show();
+            Button first = Find("FeedbackToastActionButton");
+            Button second = Find("FeedbackToastActionButton2");
+            Button third = Find("FeedbackToastActionButton3");
+            first.MinWidth = second.MinWidth = third.MinWidth = 100;
+            window.UpdateLayout();
+
+            Rect firstBounds = Bounds(first);
+            Rect secondBounds = Bounds(second);
+            Rect thirdBounds = Bounds(third);
+            Assert.InRange(Math.Abs(secondBounds.Top - firstBounds.Top), 0, 1);
+            Assert.InRange(secondBounds.Left - firstBounds.Right, 7, 9);
+            Assert.InRange(thirdBounds.Top - Math.Max(firstBounds.Bottom, secondBounds.Bottom), 3, 5);
+        }
+        finally { window.Close(); }
+
+        Button Find(string id) => Assert.Single(toast.GetVisualDescendants().OfType<Button>(),
+            button => AutomationProperties.GetAutomationId(button) == id);
+        Rect Bounds(Button button) => new(button.TranslatePoint(default, toast)!.Value, button.Bounds.Size);
+    });
 
     [Fact]
     public async Task ToastActionThatThrowsStillClosesTheToast()
@@ -254,9 +286,10 @@ public sealed class DownloadsFeedbackTests
     // ---- tray (D-05) --------------------------------------------------------------------------------------
 
     [Theory]
-    [InlineData("en", false, "Pause downloads and checks", "pause", "MeowChan · Image Downloader")]
+    // Fable 23: the idle tooltip only shows the app name in every language.
+    [InlineData("en", false, "Pause downloads and checks", "pause", "MeowChan")]
     [InlineData("en", true, "Resume downloads and checks", "play", "MeowChan · paused")]
-    [InlineData("de", false, "Downloads und Prüfungen pausieren", "pause", "MeowChan · Image Downloader")]
+    [InlineData("de", false, "Downloads und Prüfungen pausieren", "pause", "MeowChan")]
     [InlineData("de", true, "Downloads und Prüfungen fortsetzen", "play", "MeowChan · pausiert")]
     public void TrayPauseEntryNamesTheActionItWillPerformAndTheTooltipSaysWhenPaused(string language, bool paused, string header, string icon, string tooltip)
     {

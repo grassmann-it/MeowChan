@@ -29,6 +29,7 @@ internal static class ThemeColorsCatalog
         ("theme.color.muted", "Muted text", "Gedämpfter Text"),
         ("theme.color.border", "Border", "Rand"),
         ("theme.color.favorite", "Favorite", "Favorit"),
+        ("theme.color.rating", "Rating stars", "Bewertungssterne"),
         ("theme.color.error", "Error", "Fehler"),
         ("theme.colors.choose", "Choose color for {0} (now {1})", "Farbe für {0} wählen (jetzt {1})"),
         ("theme.colors.hex", "Color code for {0}", "Farbwert für {0}"),

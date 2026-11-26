@@ -7,7 +7,7 @@ namespace MeowChan.Desktop;
 internal static class TrayMenuModel
 {
     private const string Separator = " · ";
-    internal const string BaseTooltip = "MeowChan" + Separator + "Image Downloader";
+    internal const string BaseTooltip = "MeowChan";
 
     /// <summary>The entry names the action it will perform, not the current state.</summary>
     internal static string PauseHeader(bool paused, string? shortcut = null)
@@ -17,6 +17,10 @@ internal static class TrayMenuModel
     }
 
     internal static string PauseIcon(bool paused) => CommandCatalog.IconForState("session.pause", paused ? "paused" : "running");
+
+    internal static string UpdateIcon => CommandCatalog.Get("updates.check").Icon;
+
+    internal static string UpdateHeader(string? version) => version == null ? string.Empty : Texts.T("updates.available", version);
 
     /// <summary>The tooltip says whether MeowChan is paused or how many downloads are running; otherwise it keeps its name.</summary>
     internal static string Tooltip(bool paused, int activeDownloads) =>

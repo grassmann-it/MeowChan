@@ -9,6 +9,7 @@ using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Platform;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -75,8 +76,13 @@ public sealed class ArchiveListAuditTests
         // The thread table's selection handler is the first one on the grid; it used to mark the request handled, so the header's own handler
         // (registered after it) never ran and the right-click on a header did nothing at all.
         ContextMenu menu = Assert.Single(shown);
-        Assert.Contains(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "archive.columnsFitAll"));
-        Assert.Contains(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "archive.columnsReset"));
+        MenuItem fit = Assert.Single(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "archive.columnsFitAll"));
+        MenuItem reset = Assert.Single(menu.Items.OfType<MenuItem>(), item => Equals(item.Tag, "archive.columnsReset"));
+        Assert.Equal("columns", MenuIcons.KeyOf(fit));
+        Assert.Equal("rotate-ccw", MenuIcons.KeyOf(reset));
+        MenuIconAudit.Verify("archive-columns", menu.Items.OfType<Control>(),
+            new[] { "identity", "title", "posts", "media", "source", "work", "lastCapture", "tags", "favorite", "foundIn" }
+                .Select(key => new MenuIconAudit.Exception("archive-columns", "archive.column." + key, "Column visibility choice.")).ToArray());
     });
 
     [Fact]

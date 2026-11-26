@@ -15,15 +15,13 @@ public sealed class ThemeRuntimeCollection;
 [Collection("Theme runtime")]
 public sealed class ThemePaletteTests
 {
-    private static readonly XNamespace A = "https://github.com/avaloniaui";
-    private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly Color Green = Color.Parse("#2E7D32");
 
     [Theory, InlineData("Dark"), InlineData("Light")]
     public void WithoutOverridesEveryKeyOfTheXamlDictionaryIsReproducedExactly(string themeName)
     {
         ThemeTokenTheme theme = Enum.Parse<ThemeTokenTheme>(themeName);
-        Dictionary<string, XElement> xaml = Xaml(theme);
+        Dictionary<string, XElement> xaml = ThemeTokenMapTests.Resources(theme);
         ThemePalette palette = ThemePalette.Build(Base(theme));
 
         Assert.Equal(xaml.Keys.Order(StringComparer.Ordinal), palette.Colors.Keys.Concat(palette.Shadows.Keys).Order(StringComparer.Ordinal));
@@ -264,19 +262,12 @@ public sealed class ThemePaletteTests
         ThemeTokenMap map = ThemeTokens.ForTheme(theme);
         var colors = new Dictionary<string, Color>(StringComparer.Ordinal);
         var shadows = new Dictionary<string, BoxShadows>(StringComparer.Ordinal);
-        foreach (var (key, element) in Xaml(theme))
+        foreach (var (key, element) in ThemeTokenMapTests.Resources(theme))
         {
             if (map.Classify(key) == ThemeTokenClassification.Shadow) shadows[key] = BoxShadows.Parse(element.Value.Trim());
             else colors[key] = Color.Parse(element.Value.Trim());
         }
         return new ThemePaletteBase(theme, colors, shadows);
-    }
-
-    private static Dictionary<string, XElement> Xaml(ThemeTokenTheme theme)
-    {
-        XElement dictionary = Assert.Single(XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Descendants(A + "ResourceDictionary"),
-            element => (string?)element.Attribute(X + "Key") == theme.ToString());
-        return dictionary.Elements().ToDictionary(element => (string)element.Attribute(X + "Key")!, StringComparer.Ordinal);
     }
 
     internal static string Root(string relative, [CallerFilePath] string sourcePath = "") =>

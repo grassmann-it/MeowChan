@@ -17,6 +17,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Favorites;
@@ -199,8 +200,9 @@ public partial class ArchivePage
         Avalonia.Automation.AutomationProperties.SetName(splitter, Texts.T("reader.sidebar.splitter"));
         splitter.DragCompleted += (_, _) => SaveMediaSidebarWidth();
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
-        sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
+        sidebar.Frame.SizeChanged += (_, e) => OnMediaSidebarFrameResized(e);
         sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
+        sidebar.SidebarVideoSettings = QuickSettingsHost;
         sidebar.SaveSidebarSetting = update =>
         {
             var next = sidebar.CopyBarSettingsTo(ReaderMedia);
@@ -733,10 +735,12 @@ public partial class ArchivePage
 
     // A wider or taller picture frame than the shown decode covers asks for one larger decode (through the same throttle).
     // Within NeedsLargerDecode's margin (the alignment's inset corrections, sub-dip layout jitter) nothing is decoded; the larger decode swaps in place.
-    private void OnMediaSidebarFrameResized()
+    private void OnMediaSidebarFrameResized(SizeChangedEventArgs e)
     {
+        // Opening the video row takes space from the poster. Only frame growth can call for more pixels.
+        if (e.NewSize.Width <= e.PreviousSize.Width && e.NewSize.Height <= e.PreviousSize.Height) return;
         if (!_mediaSidebarShown || _mediaSidebar is not { Shown: { } shown } sidebar) return;
-        (double Width, double Height) needed = ReaderMediaSidebarRules.PhysicalTarget(sidebar.Frame.Bounds.Size,
+        (double Width, double Height) needed = ReaderMediaSidebarRules.PhysicalTarget(e.NewSize,
             TopLevel.GetTopLevel(sidebar)?.RenderScaling ?? 1);
         if (!ReaderMediaSidebarRules.NeedsLargerDecode(shown.PixelSize, needed, sidebar.Load.ShownSource)) return;
         OnMediaSidebarSelectionChanged(selectionChanged: false);
@@ -817,6 +821,7 @@ public partial class ArchivePage
         if (ArchiveMediaTab.IsSelected)
         {
             ClearSidebarPostDetail();
+            sidebar.SetPostWithoutMedia(false);
             RefreshSavedMediaSidebar(sidebar);
             return;
         }
@@ -828,6 +833,7 @@ public partial class ArchivePage
         if (post == null)
         {
             ClearSidebarPostDetail();
+            sidebar.SetPostWithoutMedia(false);
             SetDisplayedSidebarMedium(null);
             CancelSidebarStripLoad();
             OfferSidebarVideo(null, null);
@@ -851,9 +857,9 @@ public partial class ArchivePage
             OfferSidebarVideo(null, null);
             sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false);
             sidebar.ConfigureFavorite(null);
+            sidebar.SetPostWithoutMedia(true);
             if (ShowsSidebarPostDetail(post))
             {
-                sidebar.Open.IsVisible = false;
                 sidebar.ShowNoMedia(string.Empty);
                 ShowSidebarPostDetail(post, samePost);
             }
@@ -867,6 +873,7 @@ public partial class ArchivePage
             return;
         }
         ClearSidebarPostDetail();
+        sidebar.SetPostWithoutMedia(false);
         int count = post.Attachments.Count;
         _sidebarIndex = ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, count);
         ArchiveAttachmentRow row = post.Attachments[_sidebarIndex];
@@ -939,6 +946,8 @@ public partial class ArchivePage
         };
         AutomationProperties.SetAutomationId(detail, "ReaderSidebarPostDetail");
         detail.AttachedToVisualTree += (_, _) => LoadSidebarPostReplies(detail, content);
+        // The frame can attach while the shell's reader host is still hidden.
+        detail.LayoutUpdated += (_, _) => LoadSidebarPostReplies(detail, content);
         return detail;
     }
 
@@ -959,9 +968,10 @@ public partial class ArchivePage
 
     private void LoadSidebarPostReplies(ScrollViewer detail, ContentControl content)
     {
-        // The detached reader can prepare its sidebar before it has a visual root.
+        // The large reader can prepare its sidebar before its host attaches or becomes visible.
         if (_mediaSidebarShown && !_obscuredByGallery && detail.IsAttachedToVisualTree() && detail.IsEffectivelyVisible
-            && content.Content is ArchivePostRow { BacklinkCount: not 0, RepliesLoaded: false, RepliesLoading: false, HasRepliesError: false } post)
+            && content.Content is ArchivePostRow { BacklinkCount: not 0, RepliesLoaded: false, RepliesLoading: false, HasRepliesError: false } post
+            && ReferenceEquals(ArchivePosts.SelectedItem, post))
             OpenActions.Start(() => LoadInlineRepliesAsync(post), "archive.sidebar.replies");
     }
 
@@ -970,7 +980,6 @@ public partial class ArchivePage
         if (_sidebarPostDetail is not { IsVisible: true, Content: ContentControl content } detail) return;
         detail.IsVisible = false;
         content.Content = null;
-        if (_mediaSidebar != null) _mediaSidebar.Open.IsVisible = true;
     }
 
     private void SetDisplayedSidebarMedium(ArchivedThreadView? thread, ArchivePostRow? post = null, ArchiveAttachmentRow? attachment = null)
@@ -1115,7 +1124,7 @@ public partial class ArchivePage
         }, picture =>
         {
             _sidebarShownDetail = picture.Source is { } source
-                ? $"{source.Width}×{source.Height}" : string.Empty;
+                ? MediaFactGrid.FormatDimensions(source.Width, source.Height) : string.Empty;
             sidebar.SetDetail(_sidebarShownDetail);
         }, () => PreloadMediaSidebarNeighboursAsync(post, target, token));
     }

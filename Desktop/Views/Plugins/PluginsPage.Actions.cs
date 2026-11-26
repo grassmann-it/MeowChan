@@ -291,7 +291,7 @@ public partial class PluginsPage
     {
         if (_ended || IsDiscardConfirmationOpen || !IsEffectivelyVisible || _catalog == null
             || _catalog.Entries.FirstOrDefault(entry => entry.Key == key) is not { } entry || !Included(entry)) return;
-        if (anchor == null && (TryClosePluginMenu(origin, key, openerCommand) || DismissedByOwnOpener(origin))) return;
+        if (anchor == null && TryClosePluginMenu(origin, key, openerCommand)) return;
         ClosePluginActionMenu();
         // Inspecting another row while busy must not call SelectCore, which cancels the operation.
         if (!_busy && _selectedKey != key) SelectCore(key, openDetails: false);
@@ -326,11 +326,7 @@ public partial class PluginsPage
         if (sources.Count > 1 && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "plugins.watches")) is { } watches)
         {
             watches.Command = null;
-            foreach (SourceDescription source in sources)
-            {
-                PluginActionInvocation action = CapturePluginActionInvocation("plugins.watches", target, source.SourceId);
-                watches.Items.Add(CreatePluginSourceMenuItem(action, origin, source.Name + " · " + source.SourceId));
-            }
+            watches.ItemsSource = ContextMenuBuilder.BuildItems(BuildPluginSourcesMenu(target, origin, sources).ToModel());
         }
         OpenPreparedPluginMenu(menu, target, origin, openerCommand, anchor);
 
@@ -353,39 +349,31 @@ public partial class PluginsPage
         }
     }
 
-    private MenuItem CreatePluginSourceMenuItem(PluginActionInvocation action, Control origin, string label)
+    private ContextMenuBuilder BuildPluginSourcesMenu(PluginActionTarget target, Control origin, IReadOnlyList<SourceDescription> sources)
     {
-        // The general Watches shortcut opens this chooser; individual sources have no separate gesture.
-        var item = new MenuItem
+        ContextMenuBuilder builder = new ContextMenuBuilder();
+        for (int index = 0; index < sources.Count; index++)
         {
-            Header = label, Icon = CommandBindings.Icon("plugins.watches"), Tag = action.CommandId,
-            Command = new DelegateCommand(() => _ = ExecutePluginActionAsync(action, origin),
-                () => PluginActionUnavailableReason(action) == null),
-            IsEnabled = PluginActionUnavailableReason(action) == null
-        };
-        AutomationProperties.SetName(item, label);
-        AutomationProperties.SetHelpText(item, PluginActionUnavailableReason(action) ?? label);
-        return item;
+            SourceDescription source = sources[index];
+            PluginActionInvocation action = CapturePluginActionInvocation("plugins.watches", target, source.SourceId);
+            bool CanExecute() => PluginActionUnavailableReason(action) == null;
+            // The general Watches shortcut opens the chooser. A particular source has no separate gesture.
+            builder.Command("plugins.watches",
+                () => _ = ExecutePluginActionAsync(action, origin),
+                label: source.Name + " · " + source.SourceId, entryId: "plugins.watches." + index,
+                showShortcut: false, availableWhen: CanExecute,
+                reasonWhen: () => PluginActionUnavailableReason(action));
+        }
+        return builder;
     }
 
     private void OpenPluginSourcesMenu(PluginActionTarget target, Control origin)
     {
-        if (TryClosePluginMenu(origin, target.Key, "plugins.watches") || DismissedByOwnOpener(origin)) return;
+        if (TryClosePluginMenu(origin, target.Key, "plugins.watches")) return;
         ClosePluginActionMenu();
-        ContextMenuBuilder builder = new ContextMenuBuilder();
-        int index = 0;
-        foreach (SourceDescription source in PluginEntryPresentation.Create(PluginActionEntry(target)!).Sources)
-        {
-            PluginActionInvocation action = CapturePluginActionInvocation("plugins.watches", target, source.SourceId);
-            bool CanExecute() => PluginActionUnavailableReason(action) == null;
-            builder.Item("plugins.watches." + index++, source.Name + " · " + source.SourceId,
-                () => _ = ExecutePluginActionAsync(action, origin),
-                available: CanExecute(), reason: PluginActionUnavailableReason(action), availableWhen: CanExecute,
-                reasonWhen: () => PluginActionUnavailableReason(action));
-        }
-        ContextMenu menu = builder.Build()!;
-        foreach (MenuItem item in menu.Items.OfType<MenuItem>()) item.Icon = CommandBindings.Icon("plugins.watches");
-        OpenPreparedPluginMenu(menu, target, origin, "plugins.watches");
+        IReadOnlyList<SourceDescription> sources = PluginEntryPresentation.Create(PluginActionEntry(target)!).Sources;
+        if (BuildPluginSourcesMenu(target, origin, sources).Build() is { } menu)
+            OpenPreparedPluginMenu(menu, target, origin, "plugins.watches");
     }
 
     private static Control PluginMenuInformation(string text)
@@ -414,14 +402,14 @@ public partial class PluginsPage
     private bool TryClosePluginMenu(Control origin, string key, string command)
     {
         if (PluginActionMenu is not { IsOpen: true } menu || !ReferenceEquals(menu.PlacementTarget, origin)
-            || _pluginMenuTarget?.Key != key || (_pluginMenuCommand == "plugins.watches") != (command == "plugins.watches")) return false;
+            || _pluginMenuTarget?.Key != key || (_pluginMenuCommand == "plugins.watches") != (command == "plugins.watches"))
+        {
+            // A click can follow the light-dismiss press after the shared button has another target.
+            return origin is Button button && PopupToggle.ConsumeAnchorPress(button, (key, command));
+        }
         ClosePluginActionMenu(restoreFocus: true);
         return true;
     }
-
-    // The press on the opener already light-dismissed its menu (Closed forgot it): the click of the same press only closes.
-    // Only that button's own menu records the press, so another plugin, row or command still opens its menu.
-    private static bool DismissedByOwnOpener(Control origin) => origin is Button opener && PopupToggle.ConsumeAnchorPress(opener);
 
     private void OpenPreparedPluginMenu(ContextMenu menu, PluginActionTarget target, Control origin, string command, Point? anchor = null)
     {
@@ -479,7 +467,7 @@ public partial class PluginsPage
             if (restore) RestorePluginMenuFocus(returnKey, returnOrigin);
         };
         // Explicit Open bypasses Opening in Avalonia 12: all items and targets are ready now.
-        if (origin is Button button) PopupToggle.Track(button, menu);
+        if (origin is Button button) PopupToggle.Track(button, menu, (target.Key, command));
         menu.Open(origin);
     }
 

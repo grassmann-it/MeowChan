@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia.Controls;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
@@ -115,6 +117,51 @@ public sealed class ReaderExpandRepliesTests : IDisposable
         Assert.True(third.RepliesExpanded);
         policy.Focus(null);
         Assert.False(third.RepliesExpanded);
+    }
+
+    [Fact]
+    public async Task ReaderSelectionClosesAutomaticRepliesAndKeepsManualChoices()
+    {
+        using ReaderArchiveTestFixture fixture = new();
+        ArchivedThreadView view = await fixture.CaptureAsync(ThreadA, "Selection and replies",
+        [
+            new("100", 0, PostFieldPresence.All, Html: "<a href=\"#p102\" class=\"quotelink\">&gt;&gt;102</a> First"),
+            new("101", 1, PostFieldPresence.All, Html: "<a href=\"#p100\" class=\"quotelink\">&gt;&gt;100</a> Second"),
+            new("102", 2, PostFieldPresence.All, Html: "<a href=\"#p101\" class=\"quotelink\">&gt;&gt;101</a> Third")
+        ]);
+        fixture.Run(page =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Window window = new() { Content = page, Width = 1320, Height = 760 };
+            try
+            {
+                page.IsAvailable = true;
+                window.Show();
+                ReaderArchiveTestFixture.Load(page, view);
+                window.UpdateLayout();
+                ListBox posts = SidePanelDesignTests.ById<ListBox>(window, "ArchivePosts");
+                ArchivePostRow[] rows = posts.Items.OfType<ArchivePostRow>().ToArray();
+                BooruComponentDispatcher.WaitUntil(() =>
+                {
+                    window.UpdateLayout();
+                    return rows.All(row => row.HasBacklinks);
+                }, "reply counts for all three posts");
+
+                posts.SelectedItem = rows[0];
+                page.ReaderExpandRepliesPreference = true;
+                Assert.Equal(new[] { rows[0] }, rows.Where(row => row.RepliesExpanded));
+                posts.SelectedItem = rows[1];
+                Assert.Equal(new[] { rows[1] }, rows.Where(row => row.RepliesExpanded));
+
+                BooruComponentDispatcher.Wait(page.SetRepliesExpandedAsync(rows[0], true));
+                BooruComponentDispatcher.Wait(page.SetRepliesExpandedAsync(rows[1], false));
+                posts.SelectedItem = rows[2];
+                Assert.Equal(new[] { rows[0], rows[2] }, rows.Where(row => row.RepliesExpanded));
+                posts.SelectedItem = rows[1];
+                Assert.Equal(new[] { rows[0] }, rows.Where(row => row.RepliesExpanded));
+            }
+            finally { window.Close(); }
+        });
     }
 
     [Fact]

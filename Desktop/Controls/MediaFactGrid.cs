@@ -15,6 +15,8 @@ internal sealed class MediaFactGrid : Grid
 {
     protected override Type StyleKeyOverride => typeof(Grid);
 
+    internal static string FormatDimensions(int width, int height) => $"{width} × {height}";
+
     internal MediaFactGrid(string name)
     {
         Name = name;

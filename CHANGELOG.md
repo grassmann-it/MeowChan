@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.1.3 — 2026-11-29 (planned)
+
+- Play selected GIFs in the Reader, Media and Tagging sidebars when interface
+  animations are enabled. Booru plays animated previews and samples from the source.
+- Look up a public media URL with SauceNAO, IQDB or Google Lens from the media
+  context menu. Use **Copy tags as Booru text** to copy the item’s tags in one line.
+- Combine **g**, **s**, **q** and **e** ratings in a Danbooru search draft, open
+  the last submitted search at its current page in the browser, or open a source
+  tag’s wiki page. Hidden Booru tabs and drafts survive a lower opening limit,
+  within the saved-tab limit. Restored searches remember the last known result page.
+- Press **B** in the gallery to cycle picture backgrounds through Black, Theme,
+  White and Checkerboard. Flip the current image or video horizontally from the
+  gallery menu. Saving a video frame cancels if you change videos during folder selection.
+- Read text-only posts and their saved replies in the Reader sidebar. Replies load
+  when the post details become visible. Automatic expansion follows the selected
+  post and keeps your reading position. Returning from the gallery restores keyboard
+  focus to the Archive results, with the search, page and selected thread intact.
+- Open a supported 4chan thread in a third-party archive via a browser link in
+  Archive, Reader or Downloads. Repeat checks of 4chan and 8kun catalogs can use
+  `If-Modified-Since` to save bandwidth, as can the 4chan board list and board archive.
+- Follow the light theme in the media sidebar, give sidebar header buttons a
+  consistent appearance and slim down the thread favourite hearts in Archive
+  lists and the toolbar. Show a smaller close icon on the active Reader **Find**
+  and **Tags** buttons and the destination theme’s icon in the main **⋯** menu.
+- Give Media and Tagging tile contents and the reading history dialog more room.
+  Update progress more smoothly while checking and copying files on import,
+  and preserve commas in existing file and folder paths dropped as text.
+- Share sidebar facts with Booru and reach video playback settings from the
+  Reader, Media and Tagging sidebar gear. The sidebar preview menu acts on the
+  displayed Booru result or Tagging queue entry. Keep quick-tag chips clickable
+  during suggestions and cancel pending Tagging playback when minimized.
+- Keep the Downloads selection when a right-click on blank space dismisses the
+  row menu. An assigned **Choose columns…** shortcut works in narrow windows too.
+- Edit the sidebar preview limit in MP and preserve existing pixel values until
+  edited. Reset the limit, Reader top spacing and sidebar facts individually.
+  Tab through sidebar switches separately, see row focus in Archive, Diagnostics
+  and the work views overview, and hear a changed sidebar rating after it is saved.
+- Clarify first-run deferral, new-board watch intervals, Booru tag limits and the
+  **Stamp** action. Use installed languages for settings recovery and the system
+  language, when available, for a failed Linux video startup check.
+- Give the Booru media sidebar a drag handle and the shared media panel width.
+- Refresh the header taglines.
+  A removed fixed choice falls back to `cats`.
+- See the [1.1.3 release notes](docs/releases/v1.1.3.md) for upgrade details and downloads.
+
 ## 1.1.2
 
 - Use a heart for favorites and five stars for ratings in the gallery. Click the

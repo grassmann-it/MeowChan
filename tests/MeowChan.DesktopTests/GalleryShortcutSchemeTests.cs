@@ -105,8 +105,9 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         Assert.Equal(new Dictionary<string, string>
         {
             // Revision 14: X slower and C faster (next to [ and ], which need AltGr on DE/FR), plain letters like the other playback keys.
-            // Revision 20: M adds a favourite, U removes, F toggles (revision 21: B is free again).
-            ["A"] = "video.ab-loop", ["C"] = "video.speed-up", ["F"] = "favorites.toggle", ["I"] = "media.details",
+            // Revision 20: M adds a favourite, U removes, F toggles.
+            // Product verdict §1 Z3: "Die Taste B schaltet weiter".
+            ["A"] = "video.ab-loop", ["B"] = "gallery.background", ["C"] = "video.speed-up", ["F"] = "favorites.toggle", ["I"] = "media.details",
             ["L"] = "video.loop", ["M"] = "favorites.add", ["Q"] = "media.queue.add", ["R"] = "media.rating.edit", ["S"] = "tags.queue.skip",
             ["T"] = "gallery.show-in-thread", ["U"] = "favorites.remove", ["X"] = "video.speed-down", ["Z"] = "gallery.actual-size"
         }.OrderBy(pair => pair.Key), letters.ToDictionary(pair => pair.Key, pair => pair.Value[0]).OrderBy(pair => pair.Key));
@@ -149,10 +150,11 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
             Assert.Equal(id == "favorites.toggle" ? new[] { "archive", "gallery", "media", "reader", "tagging" } : new[] { "archive", "gallery", "media", "reader" },
                 CommandCatalog.Get(id).ExecutionContexts.Order(StringComparer.Ordinal));
         Assert.Equal(new[] { "gallery", "media", "reader" }, CommandCatalog.Get("video.mute").ExecutionContexts.Order(StringComparer.Ordinal));
-        // No other command of any context has plain M or U, nor Shift+M; B belongs to nobody (revision 21).
+        // No other command of any context has plain M or U, nor Shift+M.
+        // Product verdict §1 Z3: "Die Taste B schaltet weiter".
         foreach ((string key, string[] modifiers, string[] owners) in new[]
         {
-            ("M", Array.Empty<string>(), new[] { "favorites.add" }), ("B", Array.Empty<string>(), Array.Empty<string>()),
+            ("M", Array.Empty<string>(), new[] { "favorites.add" }), ("B", Array.Empty<string>(), new[] { "gallery.background" }),
             ("U", Array.Empty<string>(), new[] { "favorites.remove" }), ("M", new[] { "Shift" }, new[] { "video.mute" }),
         })
             Assert.Equal(owners, CommandCatalog.All.Where(command => bindings.For(command.Id)

@@ -962,7 +962,7 @@ public partial class MainWindow
             if (CanFocusDownloadSearch && DownloadsColumnsButton.IsVisible && DownloadsMatches(e, "table.choose-columns"))
             {
                 e.Handled = true;
-                ToggleDownloadColumns();
+                ToggleDownloadColumnsFromShortcut();
                 return;
             }
             if (TryRunUnroutedShellCommand(e)) return;

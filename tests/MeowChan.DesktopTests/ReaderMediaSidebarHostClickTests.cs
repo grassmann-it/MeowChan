@@ -12,16 +12,87 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
+using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
+using MeowChan.Transfer;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Localization")]
 public sealed class ReaderMediaSidebarHostClickTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PostDetailLoadsOnlyTheCurrentReplyPageWhenTheLargeReaderAppears(bool attachWhileHidden)
+    {
+        using ReaderArchiveTestFixture fixture = new();
+        ArchivedThreadView thread = await fixture.CaptureAsync(new("4chan", "g", "100"), "Sidebar replies",
+        [
+            new("100", 0, PostFieldPresence.All, Html: "First post"),
+            new("101", 1, PostFieldPresence.All, Html: "Second post"),
+            new("102", 2, PostFieldPresence.All, Html: "<a href=\"#p100\" class=\"quotelink\">&gt;&gt;100</a> First reply"),
+            new("103", 3, PostFieldPresence.All, Html: "<a href=\"#p101\" class=\"quotelink\">&gt;&gt;101</a> Second reply")
+        ]);
+        fixture.Run(page =>
+        {
+            Grid host = new() { IsVisible = !attachWhileHidden };
+            Window window = new() { Width = 1920, Height = 900, Content = new Grid { Children = { page, host } } };
+            try
+            {
+                page.ApplyReaderMediaPreferences(ReaderMediaPreferences.Default);
+                window.Show();
+                ReaderArchiveTestFixture.Load(page, thread);
+                BooruComponentDispatcher.Wait(page.WaitForReaderViewAsync());
+                window.UpdateLayout();
+                Assert.False(page.IsMediaSidebarShown);
+
+                Control frame = page.DetachReader();
+                ListBox posts = SidePanelDesignTests.ById<ListBox>(frame, "ArchivePosts");
+                ScrollViewer detail = SidePanelDesignTests.ById<ScrollViewer>(frame, "ReaderSidebarPostDetail");
+                var first = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "100");
+                var second = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "101");
+                Assert.Same(first, posts.SelectedItem);
+                Assert.True(detail.IsVisible);
+                Assert.False(detail.IsAttachedToVisualTree());
+                Assert.False(first.RepliesLoading);
+                Assert.False(first.RepliesLoaded);
+
+                List<string> requests = [];
+                second.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(ArchivePostRow.RepliesLoading) && second.RepliesLoading)
+                        requests.Add(second.Id);
+                };
+                posts.SelectedItem = second;
+                Assert.Empty(requests);
+
+                host.Children.Add(frame);
+                Assert.True(detail.IsAttachedToVisualTree());
+                if (attachWhileHidden)
+                {
+                    Assert.False(detail.IsEffectivelyVisible);
+                    Assert.Empty(requests);
+                    host.IsVisible = true;
+                }
+                window.UpdateLayout();
+                Assert.True(detail.IsEffectivelyVisible);
+                BooruComponentDispatcher.WaitUntil(() => second.RepliesLoaded && !second.RepliesLoading, "replies for the visible sidebar post");
+                window.UpdateLayout();
+                Assert.Equal(second.Id, Assert.Single(requests));
+                Assert.False(first.RepliesLoaded);
+                Button reply = SidePanelDesignTests.ById<Button>(detail, "ReaderSidebarReply");
+                Assert.True(reply.IsEffectivelyVisible);
+                Assert.Contains("Second reply", Assert.IsType<ArchiveQuoteRow>(reply.DataContext).ReplyExcerpt);
+            }
+            finally { window.Close(); }
+        }, hosted: true);
+    }
+
     [Theory]
     [InlineData("ReaderMediaSidebarDecisionRating3")]
     [InlineData("ReaderMediaSidebarEditTags")]
@@ -97,7 +168,11 @@ public sealed class ReaderMediaSidebarHostClickTests
         TransientPopupPolicy.Install();
         using TempDirectory profile = new();
         using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
-        ArchivedThreadView thread = RateAndTagWindowFixture.View(media);
+        ArchivedThreadView baseThread = RateAndTagWindowFixture.View(media);
+        ArchivedThreadView thread = new(baseThread.Summary with { PostCount = 3 },
+            [.. baseThread.GetPosts(), new("45", 2, PostFieldPresence.All,
+                Html: "<a href=\"#44\" class=\"quotelink\">&gt;&gt;44</a> Sidebar reply")],
+            baseThread.MediaDirectories, decimalPostOrder: true);
         await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
         PrivateTagStore tags = new(profile.Path, lease);
@@ -131,15 +206,31 @@ public sealed class ReaderMediaSidebarHostClickTests
             await BooruTestSupport.WaitAsync(() => page.IsMediaSidebarShown, "the reader media sidebar");
             ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
 
-            posts.SelectedItem = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "44");
+            ArchivePostRow text = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "44");
+            posts.SelectedItem = text;
             await BooruTestSupport.WaitAsync(() => sidebar.HeaderLine.Contains("44", StringComparison.Ordinal), "the selected text-only post in the sidebar");
             Assert.Null(sidebar.Shown);
+            ScrollViewer detail = SidePanelDesignTests.ById<ScrollViewer>(sidebar, "ReaderSidebarPostDetail");
+            Assert.True(detail.IsEffectivelyVisible);
+            Assert.Equal(Texts.T("reader.sidebar.postDetail", text.Id), AutomationProperties.GetName(detail));
+            Assert.False(sidebar.Open.IsEffectivelyVisible);
+            Assert.False(sidebar.InfoToggle.IsEffectivelyVisible);
+            Assert.False(SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarFavorite").IsEffectivelyVisible);
+            await BooruTestSupport.WaitAsync(() => detail.GetVisualDescendants().OfType<Button>().Any(button =>
+                AutomationProperties.GetAutomationId(button) == "ReaderSidebarReply" && button.IsEffectivelyVisible), "the text post's reply in the sidebar");
+            ReaderBodyTextBlock body = SidePanelDesignTests.ById<ReaderBodyTextBlock>(detail, "ReaderSidebarPostBody");
+            Assert.Equal("Text only", body.Document?.Text);
+            Button reply = SidePanelDesignTests.ById<Button>(detail, "ReaderSidebarReply");
+            Assert.Contains("Sidebar reply", Assert.IsType<ArchiveQuoteRow>(reply.DataContext).ReplyExcerpt);
+            Assert.False(text.RepliesExpanded);
 
             ArchivePostRow picture = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == "43");
             posts.SelectedItem = picture;
             posts.ScrollIntoView(picture);
             await BooruTestSupport.WaitAsync(() => sidebar.HeaderLine.Contains(media.Asset.OriginalFileName!, StringComparison.Ordinal),
                 "the selected picture in the sidebar");
+            Assert.False(detail.IsEffectivelyVisible);
+            Assert.True(sidebar.Open.IsEffectivelyVisible);
             window.UpdateLayout();
             var card = Assert.IsType<ReaderPostItem>(posts.ContainerFromItem(picture));
             Assert.True(card.Focus());
@@ -158,6 +249,22 @@ public sealed class ReaderMediaSidebarHostClickTests
             RateAndTagWindowFixture.Escape(window);
             Assert.Equal(QuickTagPopoverCloseReason.Closed, editor.Reason);
             Assert.True(card.IsFocused);
+
+            Assert.True(page.ToggleReaderViewOption("reader.view.hide-media"));
+            await page.WaitForReaderViewAsync();
+            posts.SelectedItem = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == picture.Id && row.HasMediaHiddenLine);
+            Assert.Equal(Texts.T("reader.sidebar.hidden", picture.Id), sidebar.StatusText);
+            Assert.False(detail.IsEffectivelyVisible);
+            Assert.False(sidebar.Open.IsEffectivelyVisible);
+
+            PostFilterRule rule = new(Guid.NewGuid(), true, PostFilterField.Text, PostFilterMatch.Contains,
+                "Text only", PostFilterAction.Stub, false, null, null);
+            page.PostFilter.Update(new(1, HiddenPostsAction.Stub, [rule], [], PostFilterStoreState.Ready));
+            page.RequestProjectionRebuild();
+            await page.WaitForReaderViewAsync();
+            posts.SelectedItem = Assert.Single(posts.Items.OfType<ArchivePostRow>(), row => row.Id == text.Id && row.IsStub);
+            Assert.Equal(Texts.T("reader.sidebar.hidden", text.Id), sidebar.StatusText);
+            Assert.False(detail.IsEffectivelyVisible);
         }
         finally { QuickTagPopover.Current?.Close(); window.Close(); page.EndLifetime(); }
     });
@@ -168,40 +275,57 @@ public sealed class ReaderMediaSidebarHostClickTests
     [InlineData(true, false)]
     [InlineData(true, true)]
     public void InfoClicksRecoverLegacyProfilesAndKeepBothHostActionRows(bool mediaPage, bool legacyOff) =>
-        BooruComponentDispatcher.Run(() =>
+        BooruComponentDispatcher.Run(async () =>
         {
             using IDisposable platform = BooruReviewTestPlatform.Enter();
             using TempDirectory profile = new();
-            using var media = BooruComponentDispatcher.Wait(ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false));
+            using var media = await ArchiveAttachmentMatchingTests.Fixture.CreateAsync(mismatch: false);
             var thread = RateAndTagWindowFixture.View(media);
-            BooruComponentDispatcher.Wait(RateAndTagWindowFixture.SeedAsync(profile.Path, thread));
             Config settings = new() { MediaSidebarInfo = legacyOff ? "Off" : "Auto",
+                DownloadPath = Path.Combine(profile.Path, "downloads"), DownloadsPaused = true, FirstRunSetupVersion = 1,
                 ReaderMediaSidebarScope = Config.ReaderMediaSidebarScopeAlways, ReaderMediaSidebarMinimumWidth = 800 };
+            settings.SaveConfig(profile.Path);
+            await RateAndTagWindowFixture.SeedAsync(profile.Path, thread);
+            string[] names = Enumerable.Range(1, 8).Select(index => "long_fixture_tag_" + index).ToArray();
+            Assert.True(PrivateMediaTagTarget.TryCreate(media.Binding!.Reference, media.Attachment.MediaId,
+                media.Attachment.Variant, TransferMediaRole.Original, media.Asset.Sha256, out var target, out _));
+            using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+            {
+                PrivateTagStore tags = new(profile.Path, lease);
+                foreach (string name in names) tags.SetMedia(tags.Define(name).Tag, target, true);
+            }
+            await using DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>());
+            var snapshot = Assert.IsType<PrivateTagStoreSnapshot>(host.GetPrivateTagSnapshot().Snapshot);
             var preferences = ReaderMediaPreferences.From(settings);
             Window window = new() { Width = 1600, Height = 850 };
             Task<ArchiveReader> OpenReader(CancellationToken token) => ArchiveReader.OpenAsync(profile.Path, token);
             if (mediaPage)
             {
-                MediaPage page = new(OpenReader) { IsAvailable = true, SavePanelSetting = update => update(settings) };
+                MediaLibraryUserData data = new(snapshot, [], []);
+                MediaPage page = new(OpenReader)
+                {
+                    IsAvailable = true, SavePanelSetting = update => update(settings), ReadUserData = () => data
+                };
                 try
                 {
                     page.ConfigurePanelInfo(preferences);
                     window.Content = page;
                     window.Show();
-                    BooruComponentDispatcher.Wait(page.ActivateAsync());
+                    await page.ActivateAsync();
                     page.Grid.SelectedIndex = 0;
                     if (!page.PageLayout.Panel) Click(window, page.PanelToggleButton);
-                    BooruComponentDispatcher.WaitUntil(() => page.IsPanelShown && page.PanelRow != null, "selected Media tile");
-                    BooruComponentDispatcher.Wait(page.PanelTask);
+                    await BooruTestSupport.WaitAsync(() => page.IsPanelShown && page.PanelRow != null, "selected Media tile");
+                    await page.PanelTask;
                     var sidebar = Assert.IsType<ReaderMediaSidebar>(page.Panel);
                     CheckFacts(window, sidebar, legacyOff);
-                    CheckTagExpansion(window, sidebar, () => page.MediaMenu, settings);
+                    CheckTagExpansion(window, sidebar, () => (page.MediaMenu, page.MediaMenuSession), settings, names);
                 }
                 finally { window.Close(); page.EndLifetime(); }
             }
             else
             {
                 ArchivePage page = new(OpenReader, (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
+                page.AttachPrivateTags(host);
                 bool marked = false;
                 List<GalleryEntry> writes = [];
                 page.IsArchiveFavorite = _ => marked;
@@ -212,10 +336,10 @@ public sealed class ReaderMediaSidebarHostClickTests
                     page.ApplyReaderMediaPreferences(preferences);
                     window.Content = page;
                     window.Show();
-                    BooruComponentDispatcher.Wait(page.LoadThreadAsync(thread.Summary.Id));
+                    await page.LoadThreadAsync(thread.Summary.Id);
                     page.FindControl<ListBox>("ArchivePosts")!.SelectedIndex = 0;
-                    BooruComponentDispatcher.Wait(page.MediaLoadTask);
-                    BooruComponentDispatcher.Wait(page.MediaSidebarTask);
+                    await page.MediaLoadTask;
+                    await page.MediaSidebarTask;
                     ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
                     Assert.True(page.IsMediaSidebarShown);
                     CheckFacts(window, sidebar, legacyOff);
@@ -223,7 +347,7 @@ public sealed class ReaderMediaSidebarHostClickTests
                     Click(window, sidebar.FavoriteButton);
                     Assert.Equal(media.Asset.AssetId, Assert.Single(writes).Asset.AssetId);
                     Assert.True(sidebar.FavoriteButton.IsChecked);
-                    CheckTagExpansion(window, sidebar, () => page.ArchiveMediaMenu, settings);
+                    CheckTagExpansion(window, sidebar, () => (page.ArchiveMediaMenu, page.ArchiveMediaMenuSession), settings, names);
                 }
                 finally { window.Close(); page.EndLifetime(); }
             }
@@ -267,7 +391,7 @@ public sealed class ReaderMediaSidebarHostClickTests
     {
         window.UpdateLayout();
         var facts = SidePanelDesignTests.ById<MediaSidebarFacts>(sidebar, "ReaderMediaSidebarFacts");
-        var tags = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarTagsEmpty");
+        var tags = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarMoreTags");
         var edit = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarEditTags");
         void Expect(bool visible)
         {
@@ -301,10 +425,9 @@ public sealed class ReaderMediaSidebarHostClickTests
         window.UpdateLayout();
     }
 
-    private static void CheckTagExpansion(Window window, ReaderMediaSidebar sidebar, Func<ContextMenu?> openMenu, Config settings)
+    private static void CheckTagExpansion(Window window, ReaderMediaSidebar sidebar,
+        Func<(ContextMenu? Menu, MediaMenuSession? Session)> openMenu, Config settings, string[] names)
     {
-        string[] names = Enumerable.Range(1, 8).Select(index => "long_fixture_tag_" + index).ToArray();
-        sidebar.SetTags(names, null);
         window.UpdateLayout();
         var more = SidePanelDesignTests.ById<Button>(sidebar, "ReaderMediaSidebarMoreTags");
         var frame = SidePanelDesignTests.ById<Control>(sidebar, "ReaderMediaSidebarFrame");
@@ -329,12 +452,25 @@ public sealed class ReaderMediaSidebarHostClickTests
             window.KeyPressQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
             window.KeyReleaseQwerty(PhysicalKey.F10, RawInputModifiers.Shift);
             Dispatcher.UIThread.RunJobs();
-            ContextMenu menu = Assert.IsType<ContextMenu>(openMenu());
+            var (popup, menuSession) = openMenu();
+            ContextMenu menu = Assert.IsType<ContextMenu>(popup);
+            MediaMenuSession session = Assert.IsType<MediaMenuSession>(menuSession);
             Assert.True(menu.IsOpen);
             MenuItem action = Assert.Single(menu.Items.OfType<MenuItem>(),
                 item => AutomationProperties.GetAutomationId(item) == "media.sidebar.showAllTags");
             Assert.Equal(Texts.T(label), action.Header);
             Assert.True(action.Focus(NavigationMethod.Tab));
+            if (session.Surface == MediaMenuSurface.MediaPage)
+            {
+                var copy = SidePanelDesignTests.ById<MenuItem>(menu, MediaSourceMenu.CopyId);
+                Assert.True(copy.IsEffectivelyEnabled);
+                // Avalonia raises this hover event when layout moves a row under a stationary pointer.
+                copy.RaiseEvent(new RoutedEventArgs(MenuItem.PointerEnteredItemEvent));
+            }
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(action, menu.SelectedItem);
+            Assert.Same(action, window.FocusManager!.GetFocusedElement());
+            Assert.True(session.IsCurrent);
             window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.None);
             Dispatcher.UIThread.RunJobs();

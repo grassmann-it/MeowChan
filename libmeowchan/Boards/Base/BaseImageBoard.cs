@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,8 +18,10 @@ public abstract class BaseImageBoard : IImageBoard
     private static readonly JsonResponseReader DefaultJsonReader = new JsonResponseReader();
     private readonly HttpClient? _httpClient;
     private readonly JsonResponseReader _jsonReader;
-    private readonly SemaphoreSlim _metadataGate = new(1, 1);
-    private readonly Dictionary<string, IReadOnlyDictionary<string, string>> _boardMetadata = new(StringComparer.Ordinal);
+    private readonly BoardRequestGate _metadataGate = new();
+    private readonly Dictionary<string, BoardNamesSnapshot> _boardMetadata = new(StringComparer.Ordinal);
+
+    internal sealed record BoardNamesSnapshot(IReadOnlyDictionary<string, string> Names, DateTimeOffset? LastModified);
 
     /// <summary>
     /// A supplied client is borrowed unchanged; its caller owns request limits, deadlines and redirect policy.
@@ -51,31 +54,40 @@ public abstract class BaseImageBoard : IImageBoard
         provider is BaseImageBoard imageBoard ? imageBoard._jsonReader : DefaultJsonReader;
 
     internal async Task<IReadOnlyDictionary<string, string>> GetBoardNamesAsync(
-        string endpoint, string idField, string? collectionField = null, CancellationToken cancellationToken = default)
+        string endpoint, string idField, string? collectionField = null, CancellationToken cancellationToken = default,
+        bool revalidate = false)
     {
-        await _metadataGate.WaitAsync(cancellationToken);
+        await _metadataGate.EnterAsync(cancellationToken);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_boardMetadata.TryGetValue(endpoint, out IReadOnlyDictionary<string, string>? cached)) return cached;
-            IReadOnlyDictionary<string, string> names = await FetchBoardNamesAsync(
-                GetHttpClient(), endpoint, idField, collectionField, cancellationToken, _jsonReader);
+            _boardMetadata.TryGetValue(endpoint, out BoardNamesSnapshot? cached);
+            if (cached != null && (!revalidate || cached.LastModified == null)) return cached.Names;
+            BoardNamesSnapshot snapshot = await FetchBoardNamesAsync(
+                GetHttpClient(), endpoint, idField, collectionField, cancellationToken, _jsonReader, cached);
             cancellationToken.ThrowIfCancellationRequested();
-            _boardMetadata.Add(endpoint, names);
-            return names;
+            _boardMetadata[endpoint] = snapshot;
+            return snapshot.Names;
         }
         finally
         {
-            _metadataGate.Release();
+            _metadataGate.Exit();
         }
     }
 
-    internal static async Task<IReadOnlyDictionary<string, string>> FetchBoardNamesAsync(
+    internal static async Task<BoardNamesSnapshot> FetchBoardNamesAsync(
         HttpClient client, string endpoint, string idField, string? collectionField = null,
-        CancellationToken cancellationToken = default, JsonResponseReader? jsonReader = null)
+        CancellationToken cancellationToken = default, JsonResponseReader? jsonReader = null, BoardNamesSnapshot? previous = null)
     {
-        using HttpResponseMessage response = await client.GetAsync(endpoint, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using HttpRequestMessage request = new(HttpMethod.Get, endpoint);
+        request.Headers.IfModifiedSince = previous?.LastModified;
+        using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (response.StatusCode == HttpStatusCode.NotModified)
+            return previous ?? throw new InvalidDataException("Board metadata returned 304 before a successful snapshot was available.");
         response.EnsureSuccessStatusCode();
+        if (response.StatusCode != HttpStatusCode.OK)
+            throw new InvalidDataException("A board metadata snapshot requires a complete HTTP 200 response.");
         JToken data = JToken.Parse(await (jsonReader ?? DefaultJsonReader).ReadAsync(response.Content, cancellationToken));
         cancellationToken.ThrowIfCancellationRequested();
         JArray boards = (collectionField == null ? data : (data as JObject)?[collectionField]) as JArray
@@ -94,7 +106,7 @@ public abstract class BaseImageBoard : IImageBoard
             if (!string.IsNullOrEmpty(code) && !string.IsNullOrEmpty(name)) names[code] = name;
         }
         cancellationToken.ThrowIfCancellationRequested();
-        return names;
+        return new BoardNamesSnapshot(names, response.Content.Headers.LastModified);
     }
 
     protected static bool IsWebUri(Uri? uri) =>

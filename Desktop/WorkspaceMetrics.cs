@@ -25,6 +25,8 @@ public static class WorkspaceMetrics
     public const double CompactRowHeight = 32;
     internal const double InputHeight = 32;
     internal const double FilterChipHeight = 28;
+    // Code mirrors of the Workspace.Space tokens for geometry computed before controls enter the visual tree.
+    internal const double Space4 = 4, Space8 = 8, Space12 = 12, Space16 = 16;
     internal const double MediaFirstInset = 8;
     internal const double MediaPanelSectionGap = 12;
     internal const double MediaFactLabelWidth = 120;

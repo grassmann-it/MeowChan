@@ -20,7 +20,7 @@
                         <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                 <Rectangle Width="4" RadiusX="2" RadiusY="2" Fill="{DynamicResource Workspace.Accent}" Opacity="0.8" />
-                                <Button Grid.Column="1" Classes="reader-reply-card" AutomationProperties.AutomationId="ReaderReplyCard" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
+                                <Button Grid.Column="1" Classes="reader-reply-card" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
                                         commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited"
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                                     <StackPanel Spacing="{StaticResource Workspace.Space.2}">
@@ -35,7 +35,7 @@
                 <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" TextWrapping="Wrap" />
                 <!-- Narrow-window sweep: the button and its range share a line while they fit; in a narrow card the range wraps below. -->
                 <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="{Binding HasMoreReplies}">
-                    <Button AutomationProperties.AutomationId="ReaderMoreReplies" Content="{Binding MoreRepliesLabel}"
+                    <Button Classes="reader-more-replies" Content="{Binding MoreRepliesLabel}"
                             commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
                     <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" />
                 </WrapPanel>
@@ -49,11 +49,20 @@
                     <TextBlock Text="{Binding Posted}" IsVisible="{Binding HasPosted}" Classes="workspace-meta" ToolTip.Tip="{Binding PostedFull}" />
                     <TextBlock Text="{Binding RemovedLabel}" IsVisible="{Binding IsDeleted}" Classes="workspace-meta" />
                 </WrapPanel>
-                <desktop:ReaderBodyTextBlock Classes="reader-body" AutomationProperties.AutomationId="ReaderSidebarPostBody" Document="{Binding BodyDocument}" Expanded="True"
+                <desktop:ReaderBodyTextBlock Classes="reader-body" AutomationProperties.AutomationId="ReaderSidebarPostBody" Document="{Binding BodyDocument}" Expanded="True" IsTextOnly="True"
                                              SpoilersRevealed="{Binding SpoilersRevealed, Mode=TwoWay}"
                                              FontSize="{Binding $parent[ContentControl].FontSize}" TextWrapping="Wrap"
                                              QuoteInvoked="OnInlineQuoteInvoked" LinkInvoked="OnInlineLinkInvoked" QuoteHover="OnInlineQuoteHover" />
-                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ReaderReplyCards}" HorizontalContentAlignment="Stretch" />
+                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ReaderReplyCards}" HorizontalContentAlignment="Stretch">
+                    <ContentControl.Styles>
+                        <Style Selector="Button.reader-reply-card">
+                            <Setter Property="AutomationProperties.AutomationId" Value="ReaderSidebarReply" />
+                        </Style>
+                        <Style Selector="Button.reader-more-replies">
+                            <Setter Property="AutomationProperties.AutomationId" Value="ReaderSidebarMoreReplies" />
+                        </Style>
+                    </ContentControl.Styles>
+                </ContentControl>
                 <StackPanel IsVisible="{Binding HasRepliesError}" Spacing="{StaticResource Workspace.Space.4}">
                     <TextBlock Text="{Binding RepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
                     <Button Tag="action.retry" Classes="localized" Click="OnMoreRepliesClick" HorizontalAlignment="Left" />
@@ -263,7 +272,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <DataGrid x:Name="ArchiveThreadTable" AutomationProperties.AutomationId="ArchiveThreadTable" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
+                        <controls:RowFocusDataGrid x:Name="ArchiveThreadTable" AutomationProperties.AutomationId="ArchiveThreadTable" Classes="row-focus" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Extended"
                                   PointerReleased="OnArchiveColumnsReleased"
                                   SelectionChanged="OnThreadTableSelected" DoubleTapped="OnThreadTableDoubleTapped">
                             <DataGrid.Styles>
@@ -285,13 +294,13 @@
                                 <DataGridTemplateColumn Header="Work" SortMemberPath="CompactWork" Width="110" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactWork}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding WorkStatus}" AutomationProperties.HelpText="{Binding WorkStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="Last capture" SortMemberPath="LastCapture" Width="145" MinWidth="125"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><controls:TrimTipTextBlock Text="{Binding LastCapture}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="Tags" SortMemberPath="TagColumnText" Width="170" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock AutomationProperties.AutomationId="ArchiveThreadTagCell" Text="{Binding TagColumnText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TagColumnTip}" AutomationProperties.HelpText="{Binding TagColumnTip}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <!-- A2: the favourite star is the last column by key (saved widths and orders of older versions stay valid) and the first by
+                                <!-- A2: the favourite heart is the last column by key (saved widths and orders of older versions stay valid) and the first by
                                      display (ArchivePage.ViewPreferences pins it at DisplayIndex 0). 48 dip, not resizable or movable; the button is a 24 dip square
-                                     (the width the 12 dip cell padding leaves) with the 18 dip star. -->
+                                     (the width the 12 dip cell padding leaves) with a centred 16 dip heart. -->
                                 <DataGridTemplateColumn Header="Favorite" SortMemberPath="FavoriteSortKey" Width="48" MinWidth="48" MaxWidth="48" CanUserResize="False" CanUserReorder="False">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate x:DataType="desktop:ArchiveThreadRow">
-                                            <desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="0" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -299,7 +308,7 @@
                                 <DataGridTemplateColumn Header="Found in" SortMemberPath="FoundInSortKey" Width="140" MinWidth="90" IsVisible="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding FoundIn}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding FoundIn}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             </DataGrid.Columns>
                             <DataGrid.ContextMenu><ContextMenu Opening="OnArchiveSelectionMenuOpening" /></DataGrid.ContextMenu>
-                        </DataGrid>
+                        </controls:RowFocusDataGrid>
                         <!-- Same pattern as the empty Downloads list: centred, one sentence, one primary next step. -->
                         <controls:WorkspaceEmptyState x:Name="ArchiveEmptyState" IsVisible="False">
                             <TextBlock x:Name="ArchiveEmpty" Classes="workspace-empty-text" />
@@ -647,7 +656,16 @@
                                                                 <!-- I2: replies as nested cards, one level deep: a left rail, the header and the first lines of each reply.
                                                                      The header counter above opens and closes them; "Show more replies" adds the next five. -->
                                                                 <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ReaderReplyCards}"
-                                                                                IsVisible="{Binding RepliesExpanded}" Margin="12,2,0,2" HorizontalContentAlignment="Stretch" />
+                                                                                IsVisible="{Binding RepliesExpanded}" Margin="12,2,0,2" HorizontalContentAlignment="Stretch">
+                                                                    <ContentControl.Styles>
+                                                                        <Style Selector="Button.reader-reply-card">
+                                                                            <Setter Property="AutomationProperties.AutomationId" Value="ReaderReplyCard" />
+                                                                        </Style>
+                                                                        <Style Selector="Button.reader-more-replies">
+                                                                            <Setter Property="AutomationProperties.AutomationId" Value="ReaderMoreReplies" />
+                                                                        </Style>
+                                                                    </ContentControl.Styles>
+                                                                </ContentControl>
                                                                 <TextBlock Text="{Binding RepliesError}" IsVisible="{Binding HasRepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
                                                             </StackPanel>
                                                         </desktop:ReaderPostLayout>
@@ -687,7 +705,7 @@
                                 </Grid>
                             </TabItem>
                             <TabItem x:Name="ArchiveMediaTab" AutomationProperties.AutomationId="ArchiveMediaTab" wv:WorkViewElement.Id="reader.tabs.media" Header="Media">
-                                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}" Margin="8,4">
+                                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}" Margin="{StaticResource Workspace.Inset.MediaTab}">
                                     <!-- WV3: one bar instead of a wrapping row; what the view does not show directly sits under More.
                                          An active favourites/rating filter or all versions stays on the bar (R6). -->
                                     <desktop:ActionToolBar x:Name="ReaderMediaTools" AutomationProperties.AutomationId="ReaderMediaTools" PrioritizedOverflow="True">
@@ -739,7 +757,7 @@
                                         </ListBox>
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,32,8,8" />
                                     </Grid>
-                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}">
+                                    <StackPanel x:Name="ArchiveMediaFooter" AutomationProperties.AutomationId="ArchiveMediaFooter" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}">
                                         <TextBlock x:Name="ArchiveRatingStatus" wv:WorkViewElement.Id="reader.media.rating-error" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
                                         <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">

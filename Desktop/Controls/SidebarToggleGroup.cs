@@ -6,13 +6,12 @@ using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Input;
 using Avalonia.Layout;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Controls;
 
-/// <summary>Adjacent, independent sidebar switches with the same joints as the List/Grid control.</summary>
+/// <summary>Adjacent sidebar switches that can be on independently.</summary>
 internal sealed class SidebarToggleGroup : StackPanel
 {
     // Room for the labelled group beside the reader actions in the post column.
@@ -24,8 +23,8 @@ internal sealed class SidebarToggleGroup : StackPanel
     {
         Orientation = Orientation.Horizontal;
         VerticalAlignment = VerticalAlignment.Center;
+        Spacing = 4;
         AutomationProperties.SetControlTypeOverride(this, AutomationControlType.Group);
-        KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Once);
         Children.CollectionChanged += OnSegmentsChanged;
     }
 
@@ -65,41 +64,15 @@ internal sealed class SidebarToggleGroup : StackPanel
             foreach (ToggleButton segment in e.NewItems)
             {
                 segment.Classes.Add("segment");
+                segment.Classes.Add("segment-single");
                 segment.Classes.Add("toolbar-toggle");
                 segment.PropertyChanged += OnSegmentPropertyChanged;
             }
-        UpdateJoints();
     }
 
     private void OnSegmentPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == IsVisibleProperty) UpdateJoints();
         if (e.Property == ToggleButton.IsCheckedProperty && sender is ToggleButton segment
             && _descriptions.TryGetValue(segment, out var description)) UpdateDescription(segment, description);
-    }
-
-    private void UpdateJoints()
-    {
-        bool joined = Children.Count == 2 && Children[0].IsVisible && Children[1].IsVisible;
-        for (int i = 0; i < Children.Count; i++)
-        {
-            Classes classes = Children[i].Classes;
-            classes.Set("segment-first", joined && i == 0);
-            classes.Set("segment-last", joined && i == 1);
-            classes.Set("segment-single", !joined);
-        }
-    }
-
-    internal static bool IsSegmentArrow(KeyEventArgs e) => e.KeyModifiers == KeyModifiers.None
-        && e.Key is Key.Left or Key.Right && e.Source is ToggleButton { Parent: SidebarToggleGroup };
-
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        base.OnKeyDown(e);
-        if (e.Handled || !IsSegmentArrow(e)) return;
-        int index = e.Key == Key.Left ? 0 : Children.Count - 1;
-        if (Children[index] is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } target)
-            target.Focus(NavigationMethod.Tab);
-        e.Handled = true;
     }
 }

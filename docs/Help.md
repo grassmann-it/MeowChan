@@ -1956,8 +1956,9 @@ window hides an enabled sidebar, the sidebar returns when space is available.
 Choose **Reader and Archive view** to show the sidebar in both.
 When enabled, it shows the selected post’s medium beside the posts, following
 Up/Down navigation. A post without media shows its text and replies in the sidebar.
-You can scroll the details and load more replies without changing which replies are
-expanded under the post. Choose left or right. A post with several media gets a thumbnail strip
+Scroll to read the details and use **Show more replies** to load the next page
+without changing which replies are expanded under the post. Choose left or right.
+A post with several media gets a thumbnail strip
 under the picture (**Thumbnails in the media sidebar strip** sets how many show at once,
 12 by default, 2–40; a larger post slides a window along); click a thumbnail or use
 **Alt+Shift+Left** and **Alt+Shift+Right** to step through the post's media. The sidebar header holds the
@@ -2139,14 +2140,17 @@ Built-in image views support PNG, JPEG, GIF, WebP and BMP when the decoder accep
 the file. In 1.0.2, **GIFs animate in the gallery**;
 **Space** (or the effective Play/Pause binding) and the GIF control pause/resume them.
 Encoded finite/infinite loops are respected; ending a GIF does not silently select
-another medium. Reader/thumbnail previews remain posters like video previews:
-click, or Enter/Space in the selected post, opens the actual associated animation.
+another medium. A selected GIF also animates in the Reader, Media and Tagging
+sidebars when interface animations are enabled. The Booru sidebar animates GIFs
+delivered as previews or samples. Thumbnails show a still frame. Open the
+associated GIF in the gallery to use its playback controls.
 The explicitly started slideshow still treats a GIF as an image for its selected
 image duration; Repeat-video preferences do not rewrite a GIF's encoded loop count.
 Other animated image formats retain their still-first-frame fallback. GIF animation
-uses verified originals only, at most 64 MiB, 16 million source pixels and 1024 frames;
-over-limit or damaged GIFs remain unavailable with details in Diagnostics rather
-than being presented as successful still-frame playback. Image previews above 64 MiB
+uses verified originals in the Reader, Media, Tagging and gallery, with limits of
+64 MiB, 16 million source pixels and 1024 frames. A sidebar keeps its still preview
+when playback fails or exceeds the GIF limits. The gallery shows a failure and
+records details in Diagnostics. Image previews above 64 MiB
 or 80 million source pixels are refused by the gallery. Fit decoding is bounded to 16 million pixels; 1:1 may need substantially
 more memory. Corrupt, missing, unsupported or unverifiable files show a reason.
 The verified originals remain on disk even when preview is unavailable. These

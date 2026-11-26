@@ -25,7 +25,9 @@ public partial class MainWindow
         CommandBindings.Apply(DownloadsColumnsButton, "table.choose-columns", iconWithLabel: true);
     }
 
-    private void ToggleDownloadColumns()
+    private void ToggleDownloadColumns() => ToggleDownloadColumns(anchor: null);
+
+    private void ToggleDownloadColumns(Control? anchor)
     {
         var button = DownloadsColumnsButton;
         if (PopupToggle.ConsumeActivation(button))
@@ -37,7 +39,7 @@ public partial class MainWindow
         ContextMenu menu = BuildDownloadColumnsMenu(boards ? "BoardsDataGrid" : "ThreadsDataGrid");
         // Barebones and Simple keep "Columns" under "More": with that list closed the button is not on screen, and the shortcut
         // opens the menu at the visible "More" of the same bar (or at the table when the bar shows no "More").
-        Control anchor = DownloadColumnsAnchor(button, boards);
+        anchor ??= DownloadColumnsAnchor(button, boards);
         if (!ReferenceEquals(anchor, button))
         {
             menu.PlacementTarget = anchor;
@@ -63,7 +65,7 @@ public partial class MainWindow
             menu.Close();
         }, RoutingStrategies.Tunnel);
         PopupToggle.Track(button, menu);
-        menu.Open(button);
+        menu.Open(anchor);
         button.IsChecked = menu.IsOpen;
     }
 
@@ -91,6 +93,7 @@ public partial class MainWindow
     // can run the column command separately. Rows keep their own menu (MainWindow.Selection.cs).
     private void InitializeDownloadHeaderMenus()
     {
+        WorkspaceListActions.OverflowKeyDown += OnDownloadOverflowKeyDown;
         foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
         {
             DataGrid grid = WorkspaceControl<DataGrid>(gridName);
@@ -106,6 +109,27 @@ public partial class MainWindow
                 menu.Open(header);
             }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         }
+    }
+
+    private void OnDownloadOverflowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (ShortcutService.IsCapturing || !CanFocusDownloadSearch || !DownloadsColumnsButton.IsVisible
+            || !CanExecuteShellPowerCommand(e.Source, e.Key) || !DownloadsMatches(e, "table.choose-columns")) return;
+        e.Handled = true;
+        ToggleDownloadColumnsFromShortcut();
+    }
+
+    private void ToggleDownloadColumnsFromShortcut()
+    {
+        if (WorkspaceListActions.More is { IsChecked: true } more
+            && WorkspaceListActions.OverflowHost?.Children.Contains(DownloadsColumnsButton) == true)
+        {
+            // An independent popup rooted in More's popup cannot take keyboard focus on every platform.
+            more.IsChecked = false;
+            ToggleDownloadColumns(more);
+            return;
+        }
+        ToggleDownloadColumns();
     }
 
     /// <summary>The column menu of a downloads table: one switch per offered column (the last visible one cannot be hidden), then the reset.</summary>
@@ -128,8 +152,8 @@ public partial class MainWindow
             if (available && IsAdvancedWorkColumn(column))
                 help.Add((key, Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint")));
         }
-        builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
-            () => _ = ResetDownloadColumnsAsync(gridName, mode));
+        builder.Section().Command("table.reset-layout", () => _ = ResetDownloadColumnsAsync(gridName, mode),
+            label: Texts.T("archive.columnsReset"), entryId: "archive.columnsReset", showShortcut: false);
         help.Add(("archive.columnsReset", Texts.T("archive.columnsReset.hint")));
         ContextMenu menu = builder.Build()!;
         foreach ((string key, string? text) in help)

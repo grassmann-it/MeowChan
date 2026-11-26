@@ -25,6 +25,7 @@ public static class CommandCatalog
         new("reader-groups.save", "command.reader-groups.save", "Save group", "Gruppe speichern", "save", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("reader-groups.read", "command.reader-groups.read", "Read group", "Gruppe lesen", "book-open", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("media.tags.edit", "media.tags.edit", "Edit tags…", "Tags bearbeiten…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "reader", "gallery" }),
+        new("media.copy-booru-tags", "command.media.copy-booru-tags", "Copy tags as Booru text", "Tags als Booru-Text kopieren", "copy", null, CommandScope.None, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu", "booru-hit", "tagging-list-menu" }, Array.Empty<string>()),
         new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "reader", "gallery" }),
         // QW4: selects the next shown medium without own media tags (the rule of the "untagged" filter). Deliberately no default key: it is bound in Settings, Shortcuts.
         new("media.next-untagged", "command.media.next-untagged", "Next untagged medium", "Nächstes Medium ohne Tags", "arrow-right", null, CommandScope.Media, new[] { "media-page" }),
@@ -50,7 +51,7 @@ public static class CommandCatalog
         new("tagging.move-first", "command.tagging.move-first", "Move to the start", "An den Anfang", "chevrons-up", "Alt+Home", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-last", "command.tagging.move-last", "Move to the end", "Ans Ende", "chevrons-down", "Alt+End", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.add", "command.tagging.add", "Add…", "Hinzufügen…", "plus", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
-        new("tagging.stamp", "help.taggingStamp.title", "Stamp", "Stempel", "tag", "F9", CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
+        new("tagging.stamp", "command.tagging.stamp", "Stamp", "Stempel", "tag", "F9", CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.preview-column", "command.tagging.preview-column", "Thumbnails", "Vorschaubilder", "image", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.clear-done", "command.tagging.clear-done", "Remove finished", "Erledigte entfernen", "check-square", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.clear", "command.tagging.clear", "Clear queue…", "Warteschlange leeren…", "x-circle", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
@@ -230,6 +231,8 @@ public static class CommandCatalog
         new("gallery.rotate", "command.gallery.rotate", "Rotate 90°", "90° drehen", "rotate-cw", "Shift+R", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         // G1: the gallery's mode switch "View | Tag" (enters and leaves the tagging mode of a walkable list).
         new("gallery.mode-toggle", "command.gallery.mode-toggle", "Gallery mode: view / tag", "Galeriemodus: Ansehen / Taggen", "edit-2", "Shift+T", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.flip-horizontal", "command.gallery.flip-horizontal", "Flip horizontally", "Horizontal spiegeln", "flip-horizontal", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.background", "command.gallery.background", "Background", "Hintergrund", "grid", "B", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.tools-toggle", "command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden", "sliders", "Shift+H", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "Shift+D", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten", "sliders", "Shift+O", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
@@ -452,7 +455,7 @@ public static class CommandCatalog
     private static readonly IReadOnlyDictionary<string, CommandDefinition> ById =
         new ReadOnlyDictionary<string, CommandDefinition>(Entries.ToDictionary(x => x.Id, StringComparer.Ordinal));
 
-    private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> StateIcons =
+    internal static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> StateIcons =
         new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal)
     {
         { "session.pause", new Dictionary<string, string>(StringComparer.Ordinal) { { "running", "pause" }, { "paused", "play" } } },

@@ -25,7 +25,6 @@ internal sealed class BooruSearchTabs
         internal BooruSearchView? Snapshot { get; set; }
         internal BooruSearchTabTarget? SavedTarget { get; set; }
         internal bool IsDeferred { get; set; }
-        internal bool WasCaptured { get; set; }
     }
 
     internal BooruSearchTabs(BooruSearchModel search, Func<int>? limit = null)
@@ -50,7 +49,7 @@ internal sealed class BooruSearchTabs
     {
         if (!CanAdd) return -1;
         BooruSearchView current = _search.View;
-        if (_activeId is null && (current.Input.Length > 0 || current.Mode != BooruInputMode.Tags))
+        if (_activeId is null && HasStartDraft(current))
             _slots.Add(new Slot(_nextId++) { Snapshot = current });
         else
             Store();
@@ -106,13 +105,6 @@ internal sealed class BooruSearchTabs
         {
             Slot? next = _slots.Take(index).LastOrDefault(slot => !slot.IsDeferred)
                 ?? _slots.Skip(index).FirstOrDefault(slot => !slot.IsDeferred);
-            if (next is null && _slots.FirstOrDefault() is { } deferred)
-            {
-                // Keep saved tabs reachable when a lower limit had hidden them.
-                deferred.IsDeferred = false;
-                Materialize(deferred);
-                next = deferred;
-            }
             Activate(next);
         }
         else Changed?.Invoke();
@@ -122,21 +114,24 @@ internal sealed class BooruSearchTabs
     internal BooruSearchTabState CaptureTargets(int tabLimit = Config.BooruSavedTabsMaximum,
         int resultLimit = Config.BooruSavedResultsPerTabDefault)
     {
-        if (_activeId is null)
-            return new(0, [null], CaptureView(_search.View, 0));
+        BooruSearchView current = _search.View;
+        if (_slots.Count == 0) return new(0, [null], CaptureView(current, 0));
 
-        Slot[] visible = _slots.Where(slot => !slot.IsDeferred).ToArray();
-        int activeIndex = Array.FindIndex(visible, slot => slot.Id == _activeId);
-        int deferredCount = _slots.Count - visible.Length;
-        int visibleLimit = Math.Max(visible.Count(slot => slot.WasCaptured), Math.Min(tabLimit, Limit) - deferredCount);
-        // Keep the active tab and preserve the existing saved capacity when the limit shrinks.
-        int[] indices = RetainedIndices(visible.Length, activeIndex, Math.Max(1, visibleLimit));
-        HashSet<int> retained = indices.Select(index => visible[index].Id).ToHashSet();
-        foreach (Slot slot in visible) slot.WasCaptured = retained.Contains(slot.Id);
-        Slot[] saved = _slots.Where(slot => slot.IsDeferred || retained.Contains(slot.Id)).ToArray();
-        BooruSearchTabTarget?[] targets = Array.ConvertAll(saved,
-            slot => slot.IsDeferred ? slot.SavedTarget : CaptureTarget(slot, resultLimit));
-        return new(Array.FindIndex(saved, slot => slot.Id == _activeId), targets);
+        int count = _slots.Count;
+        int activeIndex = _slots.FindIndex(slot => slot.Id == _activeId);
+        if (activeIndex < 0)
+        {
+            // With hidden tabs the start draft is stored as a regular tab, in strip order.
+            activeIndex = HasStartDraft(current) ? count++ : 0;
+        }
+
+        int[] retained = RetainedIndices(count, activeIndex, tabLimit);
+        return new(Array.IndexOf(retained, activeIndex), Array.ConvertAll(retained, index =>
+        {
+            if (index == _slots.Count) return CaptureView(current, 0);
+            Slot slot = _slots[index];
+            return slot.IsDeferred ? slot.SavedTarget : CaptureTarget(slot, resultLimit);
+        }));
     }
 
     private BooruSearchTabTarget? CaptureTarget(Slot slot, int resultLimit)
@@ -157,7 +152,7 @@ internal sealed class BooruSearchTabs
                 ? bytes : null)).ToArray();
         return new(view.ProviderId, view.InstanceId, view.ExecutedPostIdentity?.PostId, view.ExecutedQuery, view.Page,
             view.Mode, BoundedInput(view), view.IsEnd, view.Status == BooruSearchStatus.Empty, rows,
-            view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
+            view.PagerLimits.Pages, view.PagerLimits.PostsPerPage, view.LastResultPage);
     }
 
     internal void RestoreTargets(BooruSearchTabState state, int tabLimit = Config.BooruSavedTabsMaximum,
@@ -180,7 +175,6 @@ internal sealed class BooruSearchTabs
             Slot slot = new(_nextId++)
             {
                 IsDeferred = !visible.Contains(index),
-                WasCaptured = true,
                 SavedTarget = state.Tabs[index]
             };
             if (!slot.IsDeferred) Materialize(slot);
@@ -213,6 +207,8 @@ internal sealed class BooruSearchTabs
         if (view?.ExecutedPostId is { } postId) return post(postId);
         return blank;
     }
+
+    private static bool HasStartDraft(BooruSearchView view) => view.Input.Length > 0 || view.Mode != BooruInputMode.Tags;
 
     private Slot? Find(int? id) => _slots.Find(slot => slot.Id == id && !slot.IsDeferred);
 

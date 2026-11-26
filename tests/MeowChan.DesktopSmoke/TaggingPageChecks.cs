@@ -16,6 +16,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -130,6 +131,9 @@ internal static class TaggingPageChecks
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-down"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-first"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.move-last"),
+                // Package I2 adds "Reverse image search" and "Copy tags as Booru text" to media context menus.
+                Texts.T(MediaSourceMenu.SearchId),
+                CommandCatalog.Label(MediaSourceMenu.CopyId),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.remove")
             };
             Require(labels.SequenceEqual(expectedLabels), "Context menu: " + string.Join(" | ", labels));
@@ -139,6 +143,9 @@ internal static class TaggingPageChecks
             await ReviewArtifacts.GestureAsync(window, "tagging-open-list-menu", () => tagging.ShowListMenu(),
                 () => tagging.OpenListMenu is { IsOpen: true }, () => SettleAsync(window));
             Require(tagging.OpenListMenu is { IsOpen: true }, "The context menu did not open on the list.");
+            MenuItem copyTags = tagging.OpenListMenu!.Items.OfType<MenuItem>()
+                .Single(item => AutomationProperties.GetAutomationId(item) == MediaSourceMenu.CopyId);
+            Require(!copyTags.IsEnabled && ToolTip.GetShowOnDisabled(copyTags), "The untagged fixture can copy tags or has no disabled tooltip.");
             await ReviewArtifacts.GestureAsync(window, "tagging-close-list-menu", () => tagging.OpenListMenu!.Close(),
                 () => tagging.OpenListMenu is not { IsOpen: true }, () => SettleAsync(window));
 
@@ -209,7 +216,8 @@ internal static class TaggingPageChecks
                 }
                 if (gridTile.SelectedMark.IsVisible) Require(slot.Inflate(0.5).Contains(check), "The selection check " + check + " is outside the slot " + slot + ".");
             }
-            Require(tagging.ListMenuModel() is { } gridMenu && gridMenu.Entries.Count() == 18, "The grid has no context menu for its selection.");
+            Require(tagging.ListMenuModel() is { } gridMenu && gridMenu.Entries.Select(item => item.Label).SequenceEqual(expectedLabels),
+                "The grid and list offer different commands for their media.");
             await Program.WaitUntilAsync(() => Config.LoadConfig().TaggingPageView == "Grid", () => "saved view " + Config.LoadConfig().TaggingPageView);
             Program.CaptureWindow(window, "smoke-tagging-page-grid.png");
             Press((Control)tagging.TileGrid.ContainerFromIndex(0)!, Key.Escape);

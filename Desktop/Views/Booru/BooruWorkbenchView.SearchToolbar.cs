@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using MeowChan.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -55,12 +56,18 @@ internal sealed partial class BooruWorkbenchView
     }
 
     internal const string SearchOverflowName = "BooruSearchOverflow";
+    internal const string OpenSearchName = "BooruOpenSearchInBrowser";
+    internal const string RatingSwitchPrefix = "BooruSearchRating:";
+    private const string OpenSearchIcon = "external-link";
     private const string WatchSearchCommand = "booru.search.watch";
     private const string DownloadAllCommand = "booru.search.download-all";
     private readonly Button _searchOverflow = new()
     {
         Name = SearchOverflowName, Classes = { "subtle", "icon-square" }, Focusable = false, IsTabStop = false
     };
+    private readonly Button _openSearch = new() { Name = OpenSearchName };
+    private readonly MenuItem _openSearchItem = new();
+    private readonly RatingSwitch[] _ratings = BooruRatingDraft.Codes.Select(code => new RatingSwitch(code)).ToArray();
 
     private SearchToolbar BuildSearchToolbar()
     {
@@ -75,11 +82,31 @@ internal sealed partial class BooruWorkbenchView
         _bulkHost.Child = _bulkText;
         AutomationProperties.SetLiveSetting(_bulkText, AutomationLiveSetting.Polite);
 
-        AutomationProperties.SetAutomationId(_searchOverflow, SearchOverflowName);
         _searchOverflow.Content = CommandBindings.ButtonIcon("more-horizontal", 16, byKey: true);
-        MenuFlyout menu = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
-        _searchOverflow.Flyout = menu;
-        SearchAction[] actions = [new(_alternateSubmit, AlternateSubmitCommand), new(_createWatcher, WatchSearchCommand), new(_downloadAll, DownloadAllCommand)];
+        MenuFlyout menu = new() { Placement = PlacementMode.BottomEdgeAlignedRight, OverlayInputPassThroughElement = _searchOverflow };
+        PopupToggle.BindFlyout(_searchOverflow, menu);
+        AutomationProperties.SetAutomationId(_openSearch, OpenSearchName);
+        _openSearchItem.Icon = CommandBindings.IconFromKey(OpenSearchIcon, deferMask: true);
+        SearchAction.ConnectItem(_openSearch, _openSearchItem);
+        _openSearch.Click += (_, _) =>
+        {
+            if (BooruSearchLinks.ForSearch(_model.Search.View) is { } url)
+                OpenActions.Start(() => OpenLinkAsync(url, failureKey: "booru.tabs.openSearchFailed"), "booru.search.openBrowser");
+        };
+        StackPanel ratings = new() { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        foreach (RatingSwitch rating in _ratings)
+        {
+            ratings.Children.Add(rating.Button);
+            rating.Button.Click += (_, _) => ToggleRating(rating.Code);
+        }
+        SearchAction[] actions =
+        [
+            SearchAction.ForCommand(_alternateSubmit, AlternateSubmitCommand),
+            SearchAction.ForCommand(_createWatcher, WatchSearchCommand),
+            SearchAction.ForCommand(_downloadAll, DownloadAllCommand),
+            new(_openSearch, _openSearchItem),
+            new(ratings, _ratings.Select(rating => rating.Item).ToArray())
+        ];
         menu.Opening += (_, _) =>
         {
             EffectiveShortcutBindings bindings = ShortcutService.Current;
@@ -95,11 +122,36 @@ internal sealed partial class BooruWorkbenchView
         return toolbar;
     }
 
-    private void RenderSearchOverflow()
+    private void RenderSearchToolbar(BooruSearchView view)
     {
-        string label = Texts.T("booru.tabs.moreActions");
+        string label = Texts.T("workview.more");
         ToolTip.SetTip(_searchOverflow, label);
         AutomationProperties.SetName(_searchOverflow, label);
+
+        string open = Texts.T("booru.tabs.openSearch");
+        bool canOpen = BooruSearchLinks.CanOpen(view);
+        string openTip = canOpen ? open : Texts.T("booru.tabs.openSearchNeedsQuery");
+        IconButtons.Apply(_openSearch, OpenSearchIcon, open);
+        _openSearchItem.Header = open;
+        AutomationProperties.SetName(_openSearchItem, open);
+        _openSearch.IsEnabled = canOpen;
+        ToolTip.SetTip(_openSearch, openTip);
+        ToolTip.SetShowOnDisabled(_openSearch, true);
+        AutomationProperties.SetHelpText(_openSearch, openTip);
+
+        bool canRate = CanRate(view);
+        string selected = canRate ? BooruRatingDraft.Selected(view.Input) : string.Empty;
+        foreach (RatingSwitch rating in _ratings) rating.Render(selected.Contains(rating.Code), canRate);
+    }
+
+    private static bool CanRate(BooruSearchView view) =>
+        view.ProviderId == DanbooruPostReference.ProviderId && view.Mode == BooruInputMode.Tags && view.Parsed.Kind != BooruInputKind.Post;
+
+    private void ToggleRating(char rating)
+    {
+        BooruSearchView view = _model.Search.View;
+        if (_closed || !CanRate(view)) return;
+        _input.Text = BooruRatingDraft.Toggle(view.Input, rating);
     }
 
     private static string AddSearchShortcut(string label, string command) =>
@@ -134,42 +186,80 @@ internal sealed partial class BooruWorkbenchView
         return string.IsNullOrEmpty(draft) ? null : Texts.T("booru.ui.query.draft", draft);
     }
 
-    private sealed class SearchAction
+    private sealed class RatingSwitch
     {
-        private readonly string _command;
+        private readonly string _labelKey;
 
-        internal SearchAction(Button button, string command)
+        internal RatingSwitch(char code)
         {
-            _command = command;
-            Button = button;
-            Slot = new Border { Child = button };
-            Item = new MenuItem();
-            Item.Bind(MenuItem.HeaderProperty, button.GetObservable(Button.ContentProperty));
-            Item.Bind(IsEnabledProperty, button.GetObservable(IsEnabledProperty));
-            Item.Bind(AutomationProperties.HelpTextProperty, button.GetObservable(AutomationProperties.HelpTextProperty));
-            Item.Bind(ToolTip.TipProperty, button.GetObservable(ToolTip.TipProperty));
-            ToolTip.SetShowOnDisabled(Item, true);
-            AutomationProperties.SetAutomationId(Item, button.Name + "Overflow");
-            Item.Click += (_, _) =>
+            Code = code;
+            _labelKey = "booru.tabs.rating." + code;
+            Button = new ToggleButton { Name = RatingSwitchPrefix + code, Content = code.ToString(), Classes = { "breakdown-chip" } };
+            Item = new MenuItem { ToggleType = MenuItemToggleType.CheckBox };
+            AutomationProperties.SetAutomationId(Button, Button.Name);
+            SearchAction.ConnectItem(Button, Item);
+        }
+
+        internal char Code { get; }
+        internal ToggleButton Button { get; }
+        internal MenuItem Item { get; }
+
+        internal void Render(bool selected, bool enabled)
+        {
+            string label = Texts.T(_labelKey);
+            Button.IsChecked = Item.IsChecked = selected;
+            Button.IsEnabled = enabled;
+            Item.Header = label;
+            AutomationProperties.SetName(Button, label);
+            AutomationProperties.SetName(Item, label);
+            ToolTip.SetTip(Button, label);
+            ToolTip.SetShowOnDisabled(Button, true);
+        }
+    }
+
+    private sealed class SearchAction(Control control, params MenuItem[] items)
+    {
+        internal static SearchAction ForCommand(Button button, string command)
+        {
+            MenuItem item = new();
+            item.Bind(MenuItem.HeaderProperty, button.GetObservable(Button.ContentProperty));
+            ConnectItem(button, item);
+            return new SearchAction(button, item) { Command = command };
+        }
+
+        internal static void ConnectItem(Button button, MenuItem item)
+        {
+            item.Bind(IsEnabledProperty, button.GetObservable(IsEnabledProperty));
+            item.Bind(AutomationProperties.HelpTextProperty, button.GetObservable(AutomationProperties.HelpTextProperty));
+            item.Bind(ToolTip.TipProperty, button.GetObservable(ToolTip.TipProperty));
+            ToolTip.SetShowOnDisabled(item, true);
+            AutomationProperties.SetAutomationId(item, button.Name + "Overflow");
+            item.Click += (_, _) =>
             {
                 if (button.IsEffectivelyEnabled) CommandBindings.InvokeAction(button);
             };
         }
 
-        internal Button Button { get; }
-        internal Border Slot { get; }
-        internal MenuItem Item { get; }
-        internal double Width => Button.DesiredSize.Width + SearchToolbar.Gap;
+        private string? Command { get; init; }
+        internal Control Control { get; } = control;
+        internal Border Slot { get; } = new() { Child = control };
+        internal MenuItem[] Items { get; } = items;
+        internal double Width => Control.DesiredSize.Width + SearchToolbar.Gap;
 
-        internal void RefreshGesture(EffectiveShortcutBindings bindings) =>
-            Item.InputGesture = bindings.For(_command)
-                .FirstOrDefault(gesture => ShortcutHelp.ActsHere(_command, gesture, "booru", bindings))
+        internal void RefreshGesture(EffectiveShortcutBindings bindings)
+        {
+            if (Command is not { } command) return;
+            MenuItem item = Items[0];
+            item.Icon ??= CommandBindings.Icon(command);
+            item.InputGesture = bindings.For(command)
+                .FirstOrDefault(gesture => ShortcutHelp.ActsHere(command, gesture, "booru", bindings))
                 ?.Resolve(bindings.Platform);
+        }
 
         internal void SetInline(bool inline)
         {
             Slot.IsVisible = inline;
-            Item.IsVisible = !inline;
+            foreach (MenuItem item in Items) item.IsVisible = !inline;
         }
     }
 
@@ -190,13 +280,13 @@ internal sealed partial class BooruWorkbenchView
         {
             (_mode, _input, _submit, _cancel, _overflow, _menu, _optional) = (mode, input, submit, cancel, overflow, menu, optional);
             AutomationProperties.SetAutomationId(_actions, _actions.Name);
-            _actions.Children.Add(overflow);
             foreach (SearchAction action in optional)
             {
                 _actions.Children.Add(action.Slot);
-                menu.Items.Add(action.Item);
+                foreach (MenuItem item in action.Items) menu.Items.Add(item);
             }
             _actions.Children.Add(cancel);
+            _actions.Children.Add(overflow);
             Children.AddRange([mode, input, submit, _actions]);
         }
 
@@ -205,8 +295,8 @@ internal sealed partial class BooruWorkbenchView
             _mode.Measure(Avalonia.Size.Infinity);
             _submit.Measure(Avalonia.Size.Infinity);
             _cancel.Measure(Avalonia.Size.Infinity);
-            // Measure the buttons inside their slots so hidden actions can move back as soon as they fit.
-            foreach (SearchAction action in _optional) action.Button.Measure(Avalonia.Size.Infinity);
+            // Measure the controls inside their slots so hidden actions can move back as soon as they fit.
+            foreach (SearchAction action in _optional) action.Control.Measure(Avalonia.Size.Infinity);
             double budget = availableSize.Width - PrimaryWidth - PreferredInputWidth;
             if (_cancel.IsVisible) budget -= _cancel.DesiredSize.Width + Gap;
             double optionalWidth = _optional.Sum(action => action.Width);

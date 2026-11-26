@@ -11,6 +11,14 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
+    internal Action<Uri>? ThirdPartyArchiveLauncherForTests { get; set; }
+
+    private void OpenThirdPartyArchive(Uri target, Action<string>? localError = null)
+    {
+        if (ThirdPartyArchiveLauncherForTests is { } launcher) launcher(target);
+        else OpenTarget(target.AbsoluteUri, localError);
+    }
+
     // A menu holds immutable identities and values, never the current mutable selection.
     private sealed record DownloadMenuTarget(bool Boards, ResourceId Lead, long LeadWatch, string Folder, string Url,
         long[] WatchIds, string[] Urls, ResourceId[] Threads, ResourceId[] Scope,
@@ -106,6 +114,12 @@ public partial class MainWindow
         Add("selection.copy-links", async () => await CopyUrlsAsync(frozen.Urls), count: frozen.Urls.Length);
         Add("location.open-folder", () => OpenDirectory(frozen.Folder));
         Add("location.open-source", () => OpenTarget(frozen.Url));
+        Uri? thirdPartyArchive = frozen.Boards ? null : ThirdPartyThreadArchiveMenu.Add(builder, frozen.Lead,
+            target =>
+            {
+                if (RevalidateDownloadMenu(frozen) != null) OpenThirdPartyArchive(target);
+            },
+            () => ready && !RowCommandBusy && !_selectionCommandRunning);
         builder.Section();
         AddCheck("watch.check", frozen.Checkable, retry: false);
         if (!frozen.Boards)
@@ -116,6 +130,7 @@ public partial class MainWindow
         Add("watch.remove", async () => await RemoveWatchesWithUndoAsync(frozen.WatchIds,
             frozen.Boards, id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
         builder.Populate(menu);
+        ThirdPartyThreadArchiveMenu.Present(menu, thirdPartyArchive);
         if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "thread.details")) is { } details)
         {
             details.ToggleType = MenuItemToggleType.CheckBox;

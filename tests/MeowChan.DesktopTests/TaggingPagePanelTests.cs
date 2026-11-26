@@ -434,7 +434,8 @@ public sealed class TaggingPagePanelTests
         Assert.False(fixture.Find<Control>(fixture.Window, HandleId).IsEffectivelyVisible);
         Assert.True(toggle.IsEffectivelyEnabled);
         Assert.True(toggle.IsChecked);
-        Assert.Contains(Texts.T("tagging.page.panel.narrow"), Assert.IsType<string>(ToolTip.GetTip(toggle)));
+        Assert.Contains(Texts.T("media.layout.panel.collapsed", fixture.Session.Config.MediaPanelMinimumPageWidth),
+            Assert.IsType<string>(ToolTip.GetTip(toggle)));
         BooruReviewTestPlatform.Resize(fixture.Window, 1400);
         await fixture.WaitAsync(() => fixture.Panel.IsEffectivelyVisible, "sidebar after widening");
         Assert.All(fixture.Panel.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible),
@@ -596,6 +597,48 @@ public sealed class TaggingPagePanelTests
             await opens.PlayCancelled.Task.WaitAsync(Deadline);
             Assert.False(video.IsOffered);
         }, clock: clock, video: 2, openVideoManifest: opens.OpenAsync, configure: config => config.ReaderSidebarVideoAutoplay = true);
+    }
+
+    [Fact]
+    public void MinimizingWhileAutoplayWaitsForTheManifestPreventsVideoPlayback()
+    {
+        ManualClock clock = new();
+        TaskCompletionSource manifestRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseManifest = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        WithPage(false, async fixture =>
+        {
+            await ShowVideoAsync(fixture);
+            ReaderInlineVideoSlot video = Assert.IsType<ReaderInlineVideoSlot>(fixture.Page.PanelVideo);
+            try
+            {
+                clock.Advance(ReaderInlineVideoRules.AutoplayDelayMs);
+                await manifestRequested.Task.WaitAsync(Deadline);
+                Task activation = video.ActivationTask;
+
+                fixture.Window.WindowState = WindowState.Minimized;
+                releaseManifest.SetResult();
+                await activation.WaitAsync(Deadline);
+
+                Assert.Equal(0, fixture.Page.PanelVideoController.Created);
+                Assert.True(video.IsOffered);
+            }
+            finally
+            {
+                releaseManifest.TrySetResult();
+                await fixture.Page.ReleasePanelVideosForShutdown();
+            }
+        }, clock: clock, video: 2, openVideoManifest: OpenDelayedManifestAsync, configure: config =>
+        {
+            config.ReaderSidebarVideoAutoplay = true;
+            config.ReaderSidebarVideoStartMuted = false;
+        });
+
+        async Task<MediaAssetSnapshot> OpenDelayedManifestAsync(string directory, CancellationToken _)
+        {
+            manifestRequested.TrySetResult();
+            await releaseManifest.Task.WaitAsync(Deadline, CancellationToken.None);
+            return await MediaAssetReader.OpenAsync(directory, CancellationToken.None);
+        }
     }
 
     [Fact]

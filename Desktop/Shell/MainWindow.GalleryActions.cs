@@ -63,7 +63,7 @@ public partial class MainWindow
             if (entry.Post is { } post) _ = RunGalleryActionAsync(() => EditPostBookmarkAsync(new MeowChan.Persistence.PostBookmarkKey(entry.Key.Thread, post.PostId), origin),
                 entry.Key.ToString());
         };
-        _gallery.SaveFrameRequested += entry => _ = RunGalleryActionAsync(SaveGalleryFrameAsync, entry.Key.ToString());
+        _gallery.SaveFrameRequested += (entry, request) => _ = RunGalleryActionAsync(() => SaveGalleryFrameAsync(entry, request), entry.Key.ToString());
         // L repeats the shown video: a short status says what the key did ("Repeat on / off", or that a running slideshow decides).
         _gallery.VideoLoopKeyed += (result, reason) => ShowNotification(
             result switch
@@ -105,12 +105,12 @@ public partial class MainWindow
         return (chosen, false);
     }
 
-    private async Task SaveGalleryFrameAsync()
+    private async Task SaveGalleryFrameAsync(GalleryEntry entry, int request)
     {
         if (_gallery is not { } gallery) return;
         (string? directory, bool cancelled) = await ResolveGalleryFrameDirectoryAsync();
-        if (_isClosing || cancelled) return;
-        string? path = directory == null ? null : await gallery.SaveVideoFrameAsync(directory);
+        if (_isClosing || cancelled || !ReferenceEquals(_gallery, gallery)) return;
+        string? path = directory == null ? null : await gallery.SaveVideoFrameAsync(entry, request, directory);
         if (_isClosing) return;
         if (path != null) ShowNotification(Texts.T("gallery.frame.saved"), path, NotificationType.Information, operation: "video.snapshot");
         else ShowNotification(Texts.T("notification.error"), Texts.T("gallery.frame.failed"), NotificationType.Warning, operation: "video.snapshot");

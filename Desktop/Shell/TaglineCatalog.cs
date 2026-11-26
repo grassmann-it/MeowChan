@@ -10,16 +10,29 @@ internal enum TaglineTone { Playful, Plain }
 
 internal enum TaglineCategory { General, Release, Seasonal }
 
+/// <summary>An inclusive, annually recurring date window. The end may fall in the next calendar year.</summary>
+internal readonly record struct TaglineSeason((int Month, int Day) Start, (int Month, int Day) End)
+{
+    internal bool Includes(DateOnly date)
+    {
+        var day = (date.Month, date.Day);
+        bool onOrAfterStart = day.CompareTo(Start) >= 0;
+        bool onOrBeforeEnd = day.CompareTo(End) <= 0;
+        return Start.CompareTo(End) <= 0 ? onOrAfterStart && onOrBeforeEnd : onOrAfterStart || onOrBeforeEnd;
+    }
+}
+
 /// <summary>
 /// One quip, ready to show: its stable <paramref name="Id"/> (what the "Fixed" setting stores), the version of MeowChan that introduced it
 /// (<paramref name="Since"/>, what the release highlight compares with) and the <paramref name="Text"/> in the language it was asked for.
 /// </summary>
-internal sealed record TaglineEntry(string Id, Version Since, TaglineTone Tone, string Text, TaglineCategory Category = TaglineCategory.General);
+internal sealed record TaglineEntry(string Id, Version Since, TaglineTone Tone, string Text,
+    TaglineCategory Category = TaglineCategory.General, TaglineSeason? Season = null);
 
 /// <summary>
 /// A source of quips. The built-in one reads the language packs; a theme (or any later feature) can add its own through
 /// <see cref="TaglineCatalog.Register"/> without touching the picker, the setting or the header. A provider returns only the entries it can
-/// show in the active UI language (<see cref="Texts.Language"/>), so no English quip ever stands behind a translated description.
+/// show in the active UI language (<see cref="Texts.Language"/>), including any shared English text chosen for that language.
 /// </summary>
 internal interface ITaglineProvider
 {
@@ -33,7 +46,11 @@ internal interface ITaglineProvider
 /// <summary>The quips that ship with MeowChan: ids, introducing version and tone here; the text of <c>x</c> is <c>shell.tagline.quip.x</c> in every pack.</summary>
 internal sealed class BuiltInTaglineProvider : ITaglineProvider
 {
-    private sealed record Definition(string Id, Version Since, TaglineTone Tone, TaglineCategory Category = TaglineCategory.General);
+    private sealed record Definition(string Id, Version Since, TaglineTone Tone,
+        TaglineCategory Category = TaglineCategory.General, TaglineSeason? Season = null);
+
+    private static readonly Version TaglinePackVersion = new(1, 1, 2);
+    private static readonly Version TaglinePackVersion113 = new(1, 1, 3);
 
     // Ids are persisted in Config.HeaderTaglineFixedId. Release eligibility is explicit and independent of Since and Tone.
     private static readonly Definition[] Definitions =
@@ -44,49 +61,97 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         new("notfound", new Version(1, 0, 0), TaglineTone.Playful),
         new("hoard", new Version(1, 0, 0), TaglineTone.Playful),
         new("reader", new Version(1, 0, 0), TaglineTone.Plain),
-        new("units", new Version(1, 0, 0), TaglineTone.Playful),
-        new("tray", new Version(1, 0, 0), TaglineTone.Plain),
         new("booru", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
         new("flashbang", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
         new("workviews", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
         new("tags", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
-        new("vibetested", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
         new("pink", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
         new("workflow", new Version(1, 1, 0), TaglineTone.Playful, TaglineCategory.Release),
         // Legacy self-deprecating quips retain their original Since values.
         new("jdownloader", new Version(1, 0, 0), TaglineTone.Playful),
         new("worksonmine", new Version(1, 0, 0), TaglineTone.Playful),
-        new("noai", new Version(1, 0, 0), TaglineTone.Playful),
-        new("whatbooru", new Version(1, 0, 0), TaglineTone.Playful),
         new("features", new Version(1, 0, 0), TaglineTone.Playful),
         // Legacy 1.1.1 additions: self-deprecating and UX lines, goals, and release quips.
         new("settingsforsettings", new Version(1, 0, 0), TaglineTone.Playful),
-        new("tooltipflicker", new Version(1, 0, 0), TaglineTone.Playful),
         new("bugfeature", new Version(1, 0, 0), TaglineTone.Playful),
         new("greenhere", new Version(1, 0, 0), TaglineTone.Playful),
-        new("toolbar14", new Version(1, 0, 0), TaglineTone.Playful),
-        new("pixelsbyhand", new Version(1, 0, 0), TaglineTone.Playful),
         new("scopecreep", new Version(1, 0, 0), TaglineTone.Playful),
-        new("bugshide", new Version(1, 0, 0), TaglineTone.Playful),
-        new("tidytoolbars", new Version(1, 0, 0), TaglineTone.Plain),
-        new("keyboardfirst", new Version(1, 0, 0), TaglineTone.Plain),
         new("galleryreader", new Version(1, 0, 0), TaglineTone.Plain),
-        new("evenspacing", new Version(1, 0, 0), TaglineTone.Playful),
-        new("lightdark", new Version(1, 0, 0), TaglineTone.Plain),
-        new("fewerclicks", new Version(1, 0, 0), TaglineTone.Plain),
         new("boorutabs", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
         new("downloadall", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
-        new("threadswitch", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
-        new("tagquickfix", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
         new("taglinesfeature", new Version(1, 1, 1), TaglineTone.Playful, TaglineCategory.Release),
-        new("yourarchive", new Version(1, 0, 0), TaglineTone.Plain),
-        new("sortnothoard", new Version(1, 0, 0), TaglineTone.Plain),
-        new("fetchthem", new Version(1, 1, 2), TaglineTone.Playful),
         new("tabsbreed", new Version(1, 1, 2), TaglineTone.Playful),
-        new("pawprint", new Version(1, 1, 2), TaglineTone.Playful),
-        new("sortedquips", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Release),
-        new("snowed", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal),
-        new("trickorthread", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal),
+        new("snowed", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((12, 1), (1, 6))),
+        new("trickorthread", new Version(1, 1, 2), TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((10, 24), (11, 1))),
+        new("hiddenqueue", TaglinePackVersion, TaglineTone.Playful),
+        new("traycurl", TaglinePackVersion, TaglineTone.Playful),
+        new("toolbarrewrite", TaglinePackVersion, TaglineTone.Playful),
+        new("archiveemall", TaglinePackVersion, TaglineTone.Playful),
+        new("threadcowboy", TaglinePackVersion, TaglineTone.Playful),
+        new("over9000", TaglinePackVersion, TaglineTone.Playful),
+        new("getinshinji", TaglinePackVersion, TaglineTone.Playful),
+        new("thethreads", TaglinePackVersion, TaglineTone.Playful),
+        new("threadripper", TaglinePackVersion, TaglineTone.Playful),
+        new("ripthread", TaglinePackVersion, TaglineTone.Playful),
+        new("curiosity", TaglinePackVersion, TaglineTone.Playful),
+        new("lasttab", TaglinePackVersion, TaglineTone.Playful),
+        new("truthinhere", TaglinePackVersion, TaglineTone.Playful),
+        new("threadlightly", TaglinePackVersion, TaglineTone.Playful),
+        new("heartsandstars", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Release),
+        new("fivestars", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Release),
+        new("favefinal", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Release),
+        new("firstclick", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Release),
+        new("cmdorctrl", TaglinePackVersion, TaglineTone.Playful),
+        new("macthinking", TaglinePackVersion, TaglineTone.Playful),
+        new("blackcat", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((10, 24), (10, 31))),
+        new("mirrorghost", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((10, 29), (10, 31))),
+        new("giftbox", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((12, 18), (12, 26))),
+        new("newyearbacklog", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((12, 30), (1, 2))),
+        new("eighthours", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((5, 1), (5, 1))),
+        new("unpaidmods", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((5, 1), (5, 1))),
+        new("bikeride", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((4, 19), (4, 19))),
+        new("breathingthumbs", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((4, 19), (4, 19))),
+        new("baselwheels", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((4, 19), (4, 19))),
+        new("catsnacks", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((4, 20), (4, 20))),
+        new("cloudindependence", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((7, 4), (7, 4))),
+        new("fireworksgif", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((7, 4), (7, 4))),
+        new("unodostres", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((5, 5), (5, 5))),
+        new("redheart", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((2, 14), (2, 14))),
+        new("inmyfavorites", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((2, 10), (2, 14))),
+        new("catday", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((8, 8), (8, 8))),
+        new("goodfolder", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((8, 8), (8, 8))),
+        new("archivebewithyou", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((5, 4), (5, 4))),
+        new("smallmoon", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((5, 4), (5, 4))),
+        new("pithreads", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((3, 14), (3, 14))),
+        new("pistars", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((3, 14), (3, 14))),
+        new("dontpanic", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((5, 25), (5, 25))),
+        new("treasuremisc", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((9, 19), (9, 19))),
+        new("nocloud", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((9, 15), (9, 21))),
+        new("worldbackup", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((3, 31), (3, 31))),
+        new("lastyeardownload", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((12, 31), (1, 1))),
+        new("queueovertime", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((5, 1), (5, 1))),
+        new("catsvote", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Seasonal, new TaglineSeason((5, 1), (5, 1))),
+        new("trustnoone", TaglinePackVersion, TaglineTone.Playful),
+        new("believebackup", TaglinePackVersion, TaglineTone.Playful),
+        new("kakarot", TaglinePackVersion, TaglineTone.Playful),
+        new("magivote", TaglinePackVersion, TaglineTone.Playful),
+        new("polishontop", TaglinePackVersion, TaglineTone.Playful, TaglineCategory.Release),
+        new("meddlingkids", TaglinePackVersion, TaglineTone.Playful),
+        new("mayoformat", TaglinePackVersion, TaglineTone.Playful),
+        new("bookmarkbackup", TaglinePackVersion, TaglineTone.Playful),
+        new("pinkyfinal", TaglinePackVersion, TaglineTone.Playful),
+        new("looksarchiving", TaglinePackVersion, TaglineTone.Playful),
+        new("quietmodem", TaglinePackVersion, TaglineTone.Playful),
+        new("popofaster", TaglinePackVersion113, TaglineTone.Playful),
+        new("teafirst", TaglinePackVersion113, TaglineTone.Playful),
+        new("skeletorbackup", TaglinePackVersion113, TaglineTone.Playful),
+        new("wholethreadjpeg", TaglinePackVersion113, TaglineTone.Playful),
+        new("sixstars", TaglinePackVersion113, TaglineTone.Playful),
+        new("kennypng", TaglinePackVersion113, TaglineTone.Playful),
+        new("gnomesplan", TaglinePackVersion113, TaglineTone.Playful),
+        new("archivitah", TaglinePackVersion113, TaglineTone.Playful),
+        new("buttersthumbnail", TaglinePackVersion113, TaglineTone.Playful),
+        new("gyozalater", TaglinePackVersion113, TaglineTone.Playful),
     ];
 
     private readonly Func<string, string?> _lookup;
@@ -106,7 +171,7 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         foreach (Definition definition in Definitions)
         {
             string? text = TaglineCatalog.CleanText(_lookup(KeyFor(definition.Id)));
-            if (text != null) result.Add(new TaglineEntry(definition.Id, definition.Since, definition.Tone, text, definition.Category));
+            if (text != null) result.Add(new TaglineEntry(definition.Id, definition.Since, definition.Tone, text, definition.Category, definition.Season));
         }
         return result;
     }
