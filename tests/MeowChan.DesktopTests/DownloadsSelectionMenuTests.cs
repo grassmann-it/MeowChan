@@ -117,7 +117,8 @@ public sealed class DownloadsSelectionMenuTests
             item => AutomationProperties.GetAutomationId(item) == "selection.copy-links");
         Assert.True(copy.Command?.CanExecute(copy.CommandParameter));
 
-        Point blank = grid.TranslatePoint(new Point(20, grid.Bounds.Height - 4), window)!.Value;
+        // The keyboard menu covers the left side of the grid in the overlay backend.
+        Point blank = grid.TranslatePoint(new Point(grid.Bounds.Width - 24, grid.Bounds.Height / 2), window)!.Value;
         Visual hit = Assert.IsAssignableFrom<Visual>(window.InputHitTest(blank));
         Assert.Contains(grid, hit.GetSelfAndVisualAncestors());
         Assert.DoesNotContain(hit.GetSelfAndVisualAncestors(), visual => visual is DataGridRow);
