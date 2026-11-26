@@ -1847,6 +1847,8 @@
     "archive.command.noRetry": "Žádné vybrané sledování nemá chybějící média, která by šlo zkusit znovu.",
     "archive.command.noFolder": "Pro tento záznam není zaznamenána žádná složka médií.",
     "archive.command.noSource": "Pro tento záznam není zaznamenána žádná zdrojová adresa URL.",
+    "archive.command.openThirdParty": "Otevřít v archivu třetí strany",
+    "archive.command.openThirdPartyTip": "Otevře {0} ve výchozím prohlížeči. MeowChan odtud sám nic nenačítá.",
     "archive.command.unavailable": "Proč nejsou akce k dispozici?",
     "archive.command.selectionCount": "Vybraná vlákna: {0} · každá akce ukazuje své způsobilé cíle",
     "archive.command.batchCount": "{0} (vlákna: {1})",

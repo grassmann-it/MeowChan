@@ -2145,6 +2145,8 @@
     "archive.command.noRetry": "所选关注项中没有可重试的缺失媒体。",
     "archive.command.noFolder": "此条目没有记录媒体文件夹。",
     "archive.command.noSource": "此条目没有记录来源 URL。",
+    "archive.command.openThirdParty": "在第三方存档中打开",
+    "archive.command.openThirdPartyTip": "在默认浏览器中打开 {0}。MeowChan 本身不会向该网站发送请求。",
     "archive.command.unavailable": "为什么操作不可用？",
     "archive.command.selectionCount": "已选 {0} 个串 · 每个操作会显示其适用的目标",
     "archive.command.batchCount": "{0} ({1} 个串)",

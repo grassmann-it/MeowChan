@@ -2145,6 +2145,8 @@
     "archive.command.noRetry": "選択した監視には再試行できる欠けたメディアがありません。",
     "archive.command.noFolder": "この項目にはメディアフォルダーが記録されていません。",
     "archive.command.noSource": "この項目にはソースURLが記録されていません。",
+    "archive.command.openThirdParty": "サードパーティのアーカイブで開く",
+    "archive.command.openThirdPartyTip": "{0} を既定のブラウザーで開きます。MeowChan 自体はこのサイトにリクエストを送信しません。",
     "archive.command.unavailable": "操作が利用できないのはなぜ？",
     "archive.command.selectionCount": "選択したスレッド {0}件 · 各操作に対象となる項目が表示されます",
     "archive.command.batchCount": "{0} (スレッド{1}件)",

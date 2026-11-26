@@ -45,11 +45,13 @@ internal static class ArchiveCommandChecks
             await Program.WaitUntilAsync(() => menu.IsOpen);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             MenuItem[] items = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string).ToArray();
-            Require(items.Select(item => (string)item.Tag!).SequenceEqual(new[]
+            // Fable §1 Z2 places the third-party action directly after the source on this /g/ fixture.
+            Require(items.Select(AutomationProperties.GetAutomationId).SequenceEqual(new[]
             {
                 "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "thread.show-in-media",
                 "post-bookmarks.open-manager", "export.open-html-dialog", "selection.copy-links",
-                "location.open-folder", "location.open-source", "watch.check", "watch.retry-media", "rules.edit-scope", "watch.remove", "archive.delete-permanently"
+                "location.open-folder", "location.open-source", "location.open-third-party-archive",
+                "watch.check", "watch.retry-media", "rules.edit-scope", "watch.remove", "archive.delete-permanently"
             }), "Archive context menu action order differs from the common thread menu: " + string.Join(", ", items.Select(item => item.Tag)));
             MenuItem Find(string id) => items.Single(item => (string)item.Tag! == id);
             Require(Find("thread.read").Command?.CanExecute(null) == false, "Archive batch selection offered the single-thread reader action.");

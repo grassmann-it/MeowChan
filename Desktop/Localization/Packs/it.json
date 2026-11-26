@@ -1832,6 +1832,8 @@
     "archive.command.noRetry": "Nessun monitoraggio selezionato ha media mancanti da riprovare.",
     "archive.command.noFolder": "Per questa voce non è registrata alcuna cartella dei media.",
     "archive.command.noSource": "Per questa voce non è registrato alcun URL della fonte.",
+    "archive.command.openThirdParty": "Apri nell’archivio di terze parti",
+    "archive.command.openThirdPartyTip": "Apre {0} nel browser predefinito. MeowChan non invia alcuna richiesta a quel sito.",
     "archive.command.unavailable": "Perché le azioni non sono disponibili?",
     "archive.command.selectionCount": "{0} thread selezionati · ogni azione mostra le sue destinazioni idonee",
     "archive.command.batchCount": "{0} ({1} thread)",

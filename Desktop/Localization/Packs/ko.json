@@ -2145,6 +2145,8 @@
     "archive.command.noRetry": "재시도할 수 있는 누락 미디어가 있는 선택된 감시가 없습니다.",
     "archive.command.noFolder": "이 항목에 기록된 미디어 폴더가 없습니다.",
     "archive.command.noSource": "이 항목에 기록된 소스 URL이 없습니다.",
+    "archive.command.openThirdParty": "외부 아카이브에서 열기",
+    "archive.command.openThirdPartyTip": "{0}을(를) 기본 브라우저에서 엽니다. MeowChan 자체는 해당 사이트에 요청을 보내지 않습니다.",
     "archive.command.unavailable": "동작을 사용할 수 없는 이유는?",
     "archive.command.selectionCount": "선택한 스레드 {0}개 · 각 동작에 해당 대상이 표시됩니다",
     "archive.command.batchCount": "{0} (스레드 {1}개)",

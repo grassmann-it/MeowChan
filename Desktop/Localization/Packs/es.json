@@ -2332,6 +2332,8 @@
     "archive.command.noRetry": "Ningún seguimiento seleccionado tiene medios ausentes que se puedan reintentar.",
     "archive.command.noFolder": "No hay ninguna carpeta de medios registrada para esta entrada.",
     "archive.command.noSource": "No hay ninguna URL de origen registrada para esta entrada.",
+    "archive.command.openThirdParty": "Abrir en un archivo de terceros",
+    "archive.command.openThirdPartyTip": "Abre {0} en el navegador predeterminado. MeowChan no realiza ninguna solicitud a ese sitio.",
     "archive.command.unavailable": "¿Por qué no están disponibles las acciones?",
     "archive.command.selectionCount": "{0} hilos seleccionados · cada acción muestra sus destinos aptos",
     "archive.command.batchCount": "{0} ({1} hilos)",

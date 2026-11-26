@@ -263,16 +263,17 @@ internal static class SelectionChecks
         // Keep the existing ArchiveCommandChecks batch contract exact. Page-URL
         // text export accepts one thread, not a batch; validate its single-target
         // slot too instead of silently ignoring extra commands or sorting tags.
+        // Fable §1 Z2 adds the third-party action directly after the source for these /g/ threads.
         var expected = new List<string>
         {
             "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "thread.show-in-media", "post-bookmarks.open-manager", "export.open-html-dialog",
-            "selection.copy-links", "location.open-folder", "location.open-source", "watch.check", "watch.retry-media",
+            "selection.copy-links", "location.open-folder", "location.open-source", "location.open-third-party-archive", "watch.check", "watch.retry-media",
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         };
         // One thread only: its own tags follow Show in Media; the URL-text export follows the HTML export.
         if (single) { expected.Insert(5, "thread.tags"); expected.Insert(8, "export.open-urltext-dialog"); }
         string[] actual = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string)
-            .Select(item => (string)item.Tag!).ToArray();
+            .Select(item => AutomationProperties.GetAutomationId(item) ?? string.Empty).ToArray();
         Require(actual.SequenceEqual(expected),
             $"Archive {(single ? "single" : "batch")} context menu action order differs from the shared contract: "
             + string.Join(", ", actual) + "; expected: " + string.Join(", ", expected));

@@ -1847,6 +1847,8 @@
     "archive.command.noRetry": "Żadna zaznaczona obserwacja nie ma brakujących mediów do ponowienia.",
     "archive.command.noFolder": "Dla tego wpisu nie zapisano folderu mediów.",
     "archive.command.noSource": "Dla tego wpisu nie zapisano adresu URL źródła.",
+    "archive.command.openThirdParty": "Otwórz w zewnętrznym archiwum",
+    "archive.command.openThirdPartyTip": "Otwiera {0} w domyślnej przeglądarce. MeowChan sam nie wysyła żadnych żądań do tej witryny.",
     "archive.command.unavailable": "Dlaczego akcje są niedostępne?",
     "archive.command.selectionCount": "Zaznaczone wątki: {0} · każda akcja pokazuje swoje kwalifikujące się cele",
     "archive.command.batchCount": "{0} (wątki: {1})",
