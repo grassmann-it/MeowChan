@@ -1851,6 +1851,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     /// </summary>
     internal event Action<GalleryEntry>? SaveFrameRequested;
 
+    internal Func<GalleryEntry, string, Task<bool>>? CaptureVideoFrameForTests { get; set; }
+
     private void RequestSaveFrame()
     {
         if (CanUseVideoTransport && _videoReadyRequest == _request && _entry != null) SaveFrameRequested?.Invoke(_entry);
@@ -1869,7 +1871,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         long position = video.PositionMs;
         // Written under a temporary name and moved into place without replacing a file (a frame is never overwritten).
         string temporary = GalleryFrameFile.TemporaryPath(directory);
-        bool saved = await video.SaveFrameAsync(temporary).ConfigureAwait(true) && ReferenceEquals(entry, _entry);
+        bool saved = await (CaptureVideoFrameForTests?.Invoke(entry, temporary) ?? video.SaveFrameAsync(temporary))
+            .ConfigureAwait(true) && ReferenceEquals(entry, _entry);
         string? path = saved ? await Task.Run(() => GalleryFrameFile.Commit(temporary, directory, fileName, position)).ConfigureAwait(true) : null;
         if (!saved) await Task.Run(() => GalleryFrameFile.Discard(temporary)).ConfigureAwait(true);
         return path;
