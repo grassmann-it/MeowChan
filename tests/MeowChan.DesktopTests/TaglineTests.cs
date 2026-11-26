@@ -223,8 +223,8 @@ public sealed class TaglineTests : IDisposable
     public void OnlyReleaseQuipsCanHighlightAnUpdateInAnyLanguage()
     {
         Version baseline = new(1, 0, 0), previous = new(1, 1, 1), current = new(1, 1, 2);
-        // Tom's final selection, B1: remove tagquickfix and add seven release taglines for 1.1.2.
-        string[] currentRelease = ["favefinal", "firstclick", "fivestars", "heartedstarred", "heartsandstars", "polishrelease", "roughhearts"];
+        // Tom's final selection: B1 adds seven release taglines for 1.1.2, B3 also marks P105 as Release.
+        string[] currentRelease = ["favefinal", "firstclick", "fivestars", "heartedstarred", "heartsandstars", "polishontop", "polishrelease", "roughhearts"];
         // Tom's final selection, B2: the Seasonal rows of the approved language matrix run in their date windows.
         string[] seasonal = ["adalovelace", "archivebewithyou", "baselwheels", "bikeride", "blackcat", "blazingfast",
             "breadroses", "breathingthumbs", "catday", "catdaysearch", "catnipresearch", "catsnacks", "catsvote",
@@ -397,19 +397,17 @@ public sealed class TaglineTests : IDisposable
     [Fact]
     public void AllTwelveLanguagesLocalizeTheQuipsExceptForTheApprovedSharedEnglish()
     {
-        // Tom's final selection distinguishes "EN überall" from the individual "EN" cells in the approved B2 matrix.
-        // The pack inventory audit also checks the exact set per bundled language.
-        string[] sharedEnglish = ["ninjaway", "threadcowboy", "threadlightly", "trickorthread"];
-        HashSet<string> regionalEnglish = ["archiveemall", "blazingfast", "boardlostthread", "chevronseven", "curiosity",
-            "hangingthread", "heartedstarred", "ifitfits", "jacktheripper", "lostthread", "mirrorghost", "notnative",
-            "polishrelease", "pullthread", "ribbon", "threadbare", "threadripper", "unodostres"];
+        // Tom's final selection specifies "EN überall" and the English pun fallback. The pack audit verifies exact copies by bundle.
+        string[] sharedEnglish = ["archivesit", "believebackup", "cloudpain", "diskspaaace", "finaldownload", "fourstarball",
+            "inspaaace", "justsaiyan", "kakarot", "narutoqueue", "ninjaway", "pinkyfinal", "policegirl", "polishontop",
+            "powerscombined", "radarfilter", "shadowclone", "threadcowboy", "threadlightly", "trickorthread", "waywardthread"];
         Texts.SetLanguage("en");
         Dictionary<string, string> english = TaglineCatalog.Available().ToDictionary(entry => entry.Id, entry => entry.Text);
         foreach (string language in AllLanguages.Where(code => code != "en"))
         {
             Texts.SetLanguage(language);
             IEnumerable<string> exactEnglish = TaglineCatalog.Available().Where(entry => entry.Text == english[entry.Id]).Select(entry => entry.Id);
-            Assert.Equal(sharedEnglish, exactEnglish.Where(id => language == "de" || !regionalEnglish.Contains(id)));
+            Assert.Equal(sharedEnglish, exactEnglish.Where(id => language == "de" || sharedEnglish.Contains(id, StringComparer.Ordinal)));
         }
     }
 
@@ -418,8 +416,8 @@ public sealed class TaglineTests : IDisposable
     {
         Texts.SetLanguage("en");
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        // Tom's final selection: B1 adds 42 and removes four, and the B2 matrix adds 51 distinct quips.
-        Assert.Equal(135, pool.Count);
+        // Tom's final selection adds 42 in B1, 51 in B2, 78 in B3 and 47 in B4, with four removals from the previous catalog.
+        Assert.Equal(260, pool.Count);
         Assert.Contains(pool, entry => entry.Id == TaglineCatalog.DefaultId);
         Assert.Equal("now with 100% more cats", pool.Single(entry => entry.Id == "cats").Text);
         Assert.Equal("now with booru support", pool.Single(entry => entry.Id == "booru").Text);

@@ -14,16 +14,17 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
             // Bundle D review blocker 3 calls for two Booru search actions in the command catalog, with labels in every pack.
             // 73-2 review #4 makes the sidebar preview pixel limit a setting (label and hint in every pack).
             // Tom's B1/B2 selection adds the shared English quips and the per-language "EN" cells from the approved matrix.
-            ["cs"] = (5704, 110, "bcbe32d7d9424ace915616821cdccc2de755120f5c18d0a9727c0c8ae553c27a"),
-            ["es"] = (5648, 96, "be2197658a227ee0a945c05ce6951f6099702338c859e3391f65b0555a30ef03"),
-            ["fr"] = (5648, 132, "b4b95867895ecef52f201de787a22149d5de6d83c952b80a05002ef0baee5746"),
-            ["it"] = (5654, 147, "ff034527957c2b6571680ea842dbad3e59e02f9985599ddeded53466d99c6aeb"),
-            ["ja"] = (5538, 77, "8610eb6cb46414e0d6f200989b1f440b220e5cc859f00610b1d075a4d37af4fc"),
-            ["ko"] = (5538, 73, "5118fb762b6f27486ab6e54eebd7631076afa6b8858020dad221c73048d500a7"),
-            ["pl"] = (5705, 112, "34eaba2fb6b882ae23e67afa0a1eaf1819d7e536c7ce9ca281a3bda3a4bc72c7"),
-            ["pt-BR"] = (5654, 158, "8d4249beb4a0a53c5998a5cd2b2b218c1c9e8ee67f2ec931c65752480e8e709e"),
-            ["ru"] = (5682, 78, "7c131bec440908d6bb408db86eb0399f63cac357159d54a33fe4d6afb566b673"),
-            ["zh-Hans"] = (5538, 69, "c7355ce0a1f5c4768e17619ff533c77dbef4070a66458a00a7220361ed17eaa6"),
+            // Tom's B3/B4 selection keeps English where the pop culture references work best in the original.
+            ["cs"] = (5829, 196, "7352a1604765761cf781ae18131e8ef748700a3bc63a185a10a5a6186f67f7b8"),
+            ["es"] = (5773, 182, "c7ae005f0c39a84ab62658ad778a0d11fe9e4a460bd06f27d17f3ca8b602f102"),
+            ["fr"] = (5773, 218, "1ff6244f61cab4e655366a786a52d72ac71a3648ff7a9e1520ed643336aac08e"),
+            ["it"] = (5779, 233, "2268f8f6022aad5dfbbd2260f4bbcf4dbc989a2d9f2d44bd365cd83223cebf1d"),
+            ["ja"] = (5663, 163, "7e01aef1c2e429efbc61d7d5fe69bfefb68aa2cbc457615e6ec2e4471fca30d1"),
+            ["ko"] = (5663, 159, "9599e2d906befb8b6bb12126ecc242b5ac44a42e7071754ba1e61aaafc830690"),
+            ["pl"] = (5830, 198, "77fa1ab994571caf6d5adacf64cc7638989bbf36bd2fd4085be9875454ecdc31"),
+            ["pt-BR"] = (5779, 244, "c8c2bec6259323dd5bb5947caf095bead0bb777c6e7bb4049b2219f00ab7ae60"),
+            ["ru"] = (5807, 164, "51946e41f99f9771b169f329b58abf24ee0cae02fe2b1983e1e5d83206dc69b6"),
+            ["zh-Hans"] = (5663, 155, "bbab78fcc85538e3bb109e49f4967b5566744d90d408ed88c270bf41de49ba93"),
         };
 
     // The provider number, unit and precision retain the same punctuation in these packs.
@@ -58,7 +59,8 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
         // 73-2 review #4 adds the label and hint of the sidebar preview pixel limit.
         // Tom, 26.11.2026 (icons): the rating stars get a theme colour of their own; its name is new in English and the ten packs.
         // Tom's B1/B2 selection adds 93 taglines and removes four that were still in the catalog.
-        Assert.Equal(5650, BuiltInCatalog.English.Count);
+        // Tom's B3/B4 selection adds 125 pop culture taglines.
+        Assert.Equal(5775, BuiltInCatalog.English.Count);
         Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
         Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
     }
