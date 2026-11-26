@@ -212,7 +212,10 @@ public sealed class BooruSearchOverflowTests
         if (inMenu)
         {
             MenuFlyout menu = Open(window, overflow);
-            Assert.All(menu.Items.OfType<MenuItem>(), item => Assert.False(item.IsEffectivelyEnabled));
+            Assert.All(OptionalIds.Append(BooruWorkbenchView.OpenSearchName), id =>
+                Assert.False(FindMenuItem(menu, id).IsEffectivelyEnabled));
+            // Paket I1: "Umschalten ändert NUR den Suchtext". "Suchtext bleibt Entwurf bis Absenden".
+            Assert.All(Ratings, code => Assert.True(FindMenuItem(menu, RatingId(code)).IsEffectivelyEnabled));
             menu.Hide();
             Settle(window);
             Assert.Same(input, window.FocusManager?.GetFocusedElement());
