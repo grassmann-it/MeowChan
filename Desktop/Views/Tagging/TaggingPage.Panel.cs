@@ -257,7 +257,7 @@ public sealed partial class TaggingPage
         PressOpenedContextGate press = new();
         frame.AddHandler(ContextRequestedEvent, (_, e) =>
         {
-            if (e.TryGetPosition(frame, out _) && press.TryConsume()) e.Handled = true;
+            if (e.TryGetPosition(frame, out Point _) && press.TryConsume()) e.Handled = true;
         }, RoutingStrategies.Tunnel);
         ContextMenuHost menu = _panelPictureMenu = new(frame, () =>
         {

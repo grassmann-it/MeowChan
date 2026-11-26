@@ -104,7 +104,7 @@ internal sealed partial class BooruWorkbenchView
         };
         picture.AddHandler(ContextRequestedEvent, (_, e) =>
         {
-            if (e.TryGetPosition(picture, out _) && _sidebarContextPress.TryConsume()) e.Handled = true;
+            if (e.TryGetPosition(picture, out Point _) && _sidebarContextPress.TryConsume()) e.Handled = true;
         }, RoutingStrategies.Tunnel);
         picture.AddHandler(PointerPressedEvent, (_, e) =>
         {
