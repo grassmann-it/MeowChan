@@ -1,5 +1,7 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -15,6 +17,43 @@ namespace MeowChan.DesktopTests;
 public sealed class StartupErrorWindowTests
 {
     private const string Message = " Fehler beim Start 🚧\r\n日本語 · Żółć\n\n  Letzte Zeile  ";
+
+    [Theory]
+    [InlineData("ja-JP", "同梱のVLCランタイムが不完全か、読み込めませんでした。", "終了")]
+    [InlineData("pt-PT", "The bundled VLC runtime is incomplete or could not be loaded.", "Exit")]
+    public void VideoStartupFailureUsesTheOperatingSystemLanguageOrFallsBackToEnglish(
+        string culture, string messageStart, string exitText) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        CultureInfo previousCulture = CultureInfo.CurrentUICulture;
+        string previousLanguage = Texts.Language;
+        StartupErrorWindow? window = null;
+        try
+        {
+            Texts.InitializeWithoutBundlesForTests();
+            Texts.SetLanguage("de");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
+            window = App.CreateVideoStartupError(new(LinuxVideoPreflightErrorKind.BundleDamaged));
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+
+            var detail = Find<SelectableTextBlock>(window, "StartupErrorMessage");
+            var exit = Find<Button>(window, "StartupErrorExit");
+            Assert.True(detail.IsEffectivelyVisible);
+            Assert.StartsWith(messageStart, detail.Text, StringComparison.Ordinal);
+            Assert.True(exit.IsEffectivelyVisible);
+            Assert.Equal(exitText, exit.Content);
+        }
+        finally
+        {
+            if (window?.IsVisible == true) window.Close();
+            CultureInfo.CurrentUICulture = previousCulture;
+            Texts.Initialize();
+            Texts.SetLanguage(previousLanguage);
+            Dispatcher.UIThread.RunJobs();
+        }
+    });
 
     [Fact]
     public void AConstructedWindowJoinsLanguageChangesOnlyWhenItOpens() => BooruComponentDispatcher.Run(() =>
@@ -207,8 +246,9 @@ public sealed class StartupErrorWindowTests
             }
         });
 
-    private static T Find<T>(Window window, string name) where T : Control =>
-        Assert.Single(window.GetVisualDescendants().OfType<T>(), control => control.Name == name);
+    private static T Find<T>(Window window, string automationId) where T : Control =>
+        Assert.Single(window.GetVisualDescendants().OfType<T>(),
+            control => ControlAutomationPeer.CreatePeerForElement(control)?.GetAutomationId() == automationId);
 
     private static Rect BoundsInWindow(Window window, Control control) =>
         new(control.TranslatePoint(default, window)!.Value, control.Bounds.Size);
