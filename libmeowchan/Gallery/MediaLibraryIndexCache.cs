@@ -1,6 +1,8 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +12,7 @@ using System.Threading.Tasks;
 using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Persistence;
+using MeowChan.Transfer;
 
 namespace MeowChan.Gallery;
 
@@ -23,12 +26,15 @@ namespace MeowChan.Gallery;
 internal static class MediaLibraryIndexCache
 {
     internal const string FileName = "media-index-v1.json";
+    internal const string PackedFileName = FileName + ".gz";
     /// <summary>
     /// Fixed technical ceiling of the cache file: a larger file is never read, nothing larger is ever written. The user's
     /// write limit (<see cref="DefaultLimitBytes"/>, a setting) is at most this, so lowering the setting never makes an
     /// existing cache unreadable; it only stops a larger one from being written.
     /// </summary>
     internal const long MaximumBytes = 1024L * 1024 * 1024;
+    // Independent hard bound on the amount of JSON a packed cache may expand to, regardless of disk budget.
+    internal const long MaximumExpandedBytes = 1024L * 1024 * 1024;
     /// <summary>Default write limit: the former fixed limit, so default behavior does not change.</summary>
     internal const long DefaultLimitBytes = 256L * 1024 * 1024;
     internal const long MinimumLimitBytes = 16L * 1024 * 1024;
@@ -61,6 +67,8 @@ internal static class MediaLibraryIndexCache
     private const int MaximumRawStringBytes = MaximumStringChars * 6;
     private const int CurrentVersion = 4;
     private const int PreviousVersion = 3;
+    private const int PackedVersion = 5;
+    private const int GzipTrailerBytes = 8;
     private static readonly JsonSerializerOptions WriteOptions = CreateOptions(null);
 
     private static JsonSerializerOptions CreateOptions(Reader? reader) => new()
@@ -71,7 +79,7 @@ internal static class MediaLibraryIndexCache
         Converters = { new ThreadConverter(reader), new EntryConverter(reader), new ManifestConverter(reader) }
     };
 
-    private sealed class Document
+    private class Document
     {
         public int Version { get; set; }
         public IReadOnlyList<MediaLibraryThreadState>? Threads { get; set; }
@@ -79,78 +87,136 @@ internal static class MediaLibraryIndexCache
         public IReadOnlyList<MediaLibraryManifestState>? Pm { get; set; }
     }
 
-    /// <summary>The cached index, the file's size and its identity while it was read; null when there is no usable cache.</summary>
-    internal static async Task<MediaLibraryIndexCacheRead?> LoadAsync(string path, CancellationToken cancellationToken = default)
+    private sealed class PackedDocument : Document
+    {
+        // A subsequently saved legacy file supersedes this packed generation, regardless of file timestamps.
+        public RegularProfileFileIdentity? JsonBase { get; set; }
+    }
+
+    /// <summary>The cached index and its stable file identity, or null when neither generation is usable.</summary>
+    internal static Task<MediaLibraryIndexCacheRead?> LoadAsync(string path, CancellationToken cancellationToken = default) =>
+        LoadAsync(path, MaximumExpandedBytes, cancellationToken);
+
+    internal static async Task<MediaLibraryIndexCacheRead?> LoadAsync(string path, long expandedLimit, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string packedPath = path + ".gz";
+        MediaLibraryCacheFiles files = MediaLibraryCacheFiles.Inspect(path);
+        MediaLibraryIndexCacheRead? packed = await LoadFileAsync(packedPath, files.Packed, packed: true, files.Json,
+            Math.Clamp(expandedLimit, 1, MaximumExpandedBytes), cancellationToken).ConfigureAwait(false);
+        if (packed != null && files == MediaLibraryCacheFiles.Inspect(path)) return packed with { Files = files };
+
+        // Reinspect after the packed read, since another writer may have published while it was in progress.
+        files = MediaLibraryCacheFiles.Inspect(path);
+        MediaLibraryIndexCacheRead? json = await LoadFileAsync(path, files.Json, packed: false, null,
+            MaximumBytes, cancellationToken).ConfigureAwait(false);
+        return json == null || files != MediaLibraryCacheFiles.Inspect(path) ? null : json with { Files = files };
+    }
+
+    private static async Task<MediaLibraryIndexCacheRead?> LoadFileAsync(string path, RegularProfileFileIdentity? expected,
+        bool packed, RegularProfileFileIdentity? jsonBase, long expandedLimit, CancellationToken token)
     {
         try
         {
-            RegularProfileFileIdentity? before = RegularProfileFile.TryGetIdentity(path);
-            long length;
-            Document? document;
-            Reader reader = new(cancellationToken);
-            await using (FileStream stream = RegularProfileFile.OpenRead(path))
-            {
-                length = stream.Length;
-                if (length > MaximumBytes) return null;
-                document = await JsonSerializer.DeserializeAsync<Document>(stream, CreateOptions(reader), cancellationToken).ConfigureAwait(false);
-            }
-            MediaLibrarySnapshot? snapshot = Validate(document, reader);
-            if (snapshot == null) return null;
-            RegularProfileFileIdentity? after = RegularProfileFile.TryGetIdentity(path);
-            return new(snapshot, length, before is { } stable && after == stable ? stable : null);
+            await using FileStream file = RegularProfileFile.OpenRead(path);
+            long length = file.Length;
+            if (length > MaximumBytes) return null;
+            RegularProfileFileIdentity? before = RegularProfileFile.TryGetIdentity(file);
+            if (expected.HasValue && before.HasValue && before != expected) return null;
+            using BoundedReadStream disk = new(file, length);
+            Reader reader = new(token);
+            JsonSerializerOptions options = CreateOptions(reader);
+            Document? document = packed
+                ? await ReadPackedAsync(file, disk, length, expandedLimit, options, token).ConfigureAwait(false)
+                : await JsonSerializer.DeserializeAsync<Document>(disk, options, token).ConfigureAwait(false);
+            if (document == null || file.Length != length || before != RegularProfileFile.TryGetIdentity(file)
+                || expected != RegularProfileFile.TryGetIdentity(path) || !HasExpectedVersion(document, reader, packed, jsonBase)
+                || !IsValid(document, reader)) return null;
+            token.ThrowIfCancellationRequested();
+            MediaLibrarySnapshot snapshot = new(document.Entries!, document.Threads!, Array.Empty<string>(),
+                complete: document.Threads!.All(thread => thread.Complete), providerManifests: document.Pm);
+            token.ThrowIfCancellationRequested();
+            return new(snapshot, length, expected);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException
             or DecoderFallbackException or ArgumentException or InvalidDataException or NotSupportedException or OverflowException
             or InvalidOperationException or FormatException)
-        { return null; }
+        {
+            token.ThrowIfCancellationRequested();
+            return null;
+        }
     }
 
-    private static MediaLibrarySnapshot? Validate(Document? document, Reader reader)
+    private static async Task<Document?> ReadPackedAsync(FileStream file, BoundedReadStream disk, long length,
+        long expandedLimit, JsonSerializerOptions options, CancellationToken token)
     {
-        if (document is not { Version: CurrentVersion or PreviousVersion } || document.Threads == null || document.Entries == null
-            || document.Threads.Count > ThreadCeiling || document.Entries.Count > EntryCeiling) return null;
-        // A version 3 document never carries what version 4 added.
-        if (document.Version == PreviousVersion && (reader.SawIdentity || reader.SawImport || document.Pm != null)) return null;
+        if (length < 20) return null; // gzip header, a minimal deflate stream and its trailer
+        byte[] trailer = new byte[GzipTrailerBytes];
+        file.Position = length - trailer.Length;
+        await file.ReadExactlyAsync(trailer, token).ConfigureAwait(false);
+        uint expectedBytes = BinaryPrimitives.ReadUInt32LittleEndian(trailer.AsSpan(4));
+        if (expectedBytes > expandedLimit) return null;
+        file.Position = 0;
+
+        // GZipStream can return EOF for a clipped trailer. Verify both trailer fields independently.
+        TransferCrc32 crc = new();
+        using GZipStream gzip = new(disk, CompressionMode.Decompress, leaveOpen: true);
+        using BoundedReadStream expanded = new(gzip, expandedLimit, crc);
+        PackedDocument? document = await JsonSerializer.DeserializeAsync<PackedDocument>(expanded, options, token).ConfigureAwait(false);
+        return expanded.BytesRead == expectedBytes && crc.Value == BinaryPrimitives.ReadUInt32LittleEndian(trailer)
+            && disk.BytesRead == length ? document : null;
+    }
+
+    private static bool HasExpectedVersion(Document document, Reader reader, bool packed, RegularProfileFileIdentity? jsonBase) =>
+        packed ? document is PackedDocument { Version: PackedVersion } candidate && candidate.JsonBase == jsonBase
+        : document.Version == CurrentVersion
+            || document.Version == PreviousVersion && !reader.SawIdentity && !reader.SawImport && document.Pm == null;
+
+    private static bool IsValid(Document document, Reader reader)
+    {
+        if (document.Threads == null || document.Entries == null
+            || document.Threads.Count > ThreadCeiling || document.Entries.Count > EntryCeiling) return false;
         HashSet<ResourceId> known = new();
         foreach (MediaLibraryThreadState? thread in document.Threads)
-            if (thread == null || !known.Add(thread.Thread)) return null;
+        {
+            reader.Tick();
+            if (thread == null || !known.Add(thread.Thread)) return false;
+        }
         foreach (MediaLibraryEntry? entry in document.Entries)
         {
-            if (entry == null) return null;
+            reader.Tick();
+            if (entry == null) return false;
             // A downloaded provider post is no archived thread: its identity must be exactly the one its post id names,
             // and it never carries a post binding (a present one names its loose slot; an older cache without it is rebuilt on use).
             if (entry.BooruPostId != null && (entry.BooruIdentity is null
-                || entry.PostId != null || entry.AttachmentRevisionKey != null || entry.Position != null)) return null;
+                || entry.PostId != null || entry.AttachmentRevisionKey != null || entry.Position != null)) return false;
             // An imported file is no archived thread either: its batch identity is the borrowed thread, it never carries a
             // post binding, and a present one always names its loose slot.
             if (entry.ImportItemId is { } itemId && (entry.BooruPostId != null || !Import.ManualImportIdentity.TryParseId(itemId, out _)
                 || !Import.ManualImportIdentity.IsImportThread(entry.Thread) || entry.PostId != null || entry.AttachmentRevisionKey != null
-                || entry.Position != null || entry.Presence != MediaLibraryPresence.Missing && entry.LocalSlot == null)) return null;
+                || entry.Position != null || entry.Presence != MediaLibraryPresence.Missing && entry.LocalSlot == null)) return false;
             // Every other entry belongs to a listed thread.
-            if (entry.BooruPostId == null && entry.ImportItemId == null && !known.Contains(entry.Thread)) return null;
+            if (entry.BooruPostId == null && entry.ImportItemId == null && !known.Contains(entry.Thread)) return false;
         }
         HashSet<string> providerFolders = new(StringComparer.Ordinal);
         foreach (MediaLibraryManifestState? manifest in document.Pm ?? (IReadOnlyList<MediaLibraryManifestState>)Array.Empty<MediaLibraryManifestState>())
-            if (manifest == null || !providerFolders.Add(manifest.Directory)) return null;
-        // A cached index is a starting point for reuse, not a complete answer on its own.
-        return new MediaLibrarySnapshot(document.Entries, document.Threads, Array.Empty<string>(),
-            complete: document.Threads.All(thread => thread.Complete), providerManifests: document.Pm);
+        {
+            reader.Tick();
+            if (manifest == null || !providerFolders.Add(manifest.Directory)) return false;
+        }
+        return true;
     }
 
-    /// <summary>
-    /// Writes the index as a stream to a temporary file and replaces the cache atomically. Stops as soon as the document
-    /// would exceed <paramref name="limitBytes"/> (clamped to the technical ceiling) and then leaves the existing cache as
-    /// it was; the result says so, so the page can tell the user instead of silently rebuilding on every start.
-    /// </summary>
+    /// <summary>Writes a complete generation atomically, packing it only if the legacy JSON exceeds the disk budget.</summary>
     internal static Task<MediaLibraryIndexCacheWrite> SaveAsync(string path, MediaLibrarySnapshot snapshot, long limitBytes,
         CancellationToken token = default) => SaveAsync(path, snapshot, limitBytes, DefaultEntryLimit, DefaultThreadLimit, token);
 
-    /// <summary>As above, with the configured limits of entries and threads (clamped to the technical ceilings).</summary>
     internal static async Task<MediaLibraryIndexCacheWrite> SaveAsync(string path, MediaLibrarySnapshot snapshot, long limitBytes,
         int entryLimit, int threadLimit, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        token.ThrowIfCancellationRequested();
         snapshot = WithoutFolderItems(snapshot);
         long limit = Math.Clamp(limitBytes, 1, MaximumBytes);
         if (ExceedsCountLimits(snapshot, entryLimit, threadLimit))
@@ -160,26 +226,66 @@ internal static class MediaLibraryIndexCache
             Version = CurrentVersion, Threads = snapshot.Threads, Entries = snapshot.Entries,
             Pm = snapshot.ProviderManifests.Count == 0 ? null : snapshot.ProviderManifests
         };
-        // A cache needs neither a backup nor a preserved copy of the previous version: plain atomic replace.
         string directory = Path.GetDirectoryName(Path.GetFullPath(path))!;
         Directory.CreateDirectory(directory);
-        string temporary = Path.Combine(directory, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            return await WriteFileAsync(path, document, limit, token).ConfigureAwait(false);
+        }
+        catch (LimitExceededException error)
+        {
+            PackedDocument packed = new()
+            {
+                Version = PackedVersion, Threads = document.Threads, Entries = document.Entries, Pm = document.Pm,
+                JsonBase = RegularProfileFile.TryGetIdentity(path)
+            };
+            if (!IsValid(packed, new Reader(token))) throw new IOException("The media index cache is damaged.");
+            try { return await WriteFileAsync(path, packed, limit, token).ConfigureAwait(false); }
+            catch (LimitExceededException packedLimit)
+            {
+                // If expansion would be too large, the original disk refusal is still the relevant budget figure.
+                return TooLarge(packedLimit.Limit == MaximumExpandedBytes ? error.Bytes : packedLimit.Bytes, limit);
+            }
+            catch (ValueTooLongException) { return TooLarge(error.Bytes, limit); }
+        }
+        catch (ValueTooLongException) { return TooLarge(0, limit); }
+    }
+
+    private static MediaLibraryIndexCacheWrite TooLarge(long bytes, long limit) =>
+        new(MediaLibraryIndexCacheWriteStatus.TooLarge, bytes, limit, null);
+
+    private static async Task<MediaLibraryIndexCacheWrite> WriteFileAsync(string path, Document document, long limit, CancellationToken token)
+    {
+        PackedDocument? packed = document as PackedDocument;
+        string destination = packed == null ? path : path + ".gz";
+        string temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             long written;
             await using (FileStream file = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.None))
             {
-                LimitedWriteStream limited = new(file, limit);
-                try { await JsonSerializer.SerializeAsync(limited, document, WriteOptions, token).ConfigureAwait(false); }
-                // A value longer than any a cache may hold is refused like an index over the limit: nothing is written.
-                catch (Exception error) when (error is LimitExceededException or ValueTooLongException)
-                { return new(MediaLibraryIndexCacheWriteStatus.TooLarge, limited.Written, limit, null); }
-                written = limited.Written;
+                using LimitedWriteStream disk = new(file, limit);
+                if (packed != null)
+                {
+                    // Finalize gzip inside the bounded disk stream before doing any publishing.
+                    await using GZipStream gzip = new(disk, CompressionLevel.Fastest, leaveOpen: true);
+                    using LimitedWriteStream expanded = new(gzip, MaximumExpandedBytes);
+                    await JsonSerializer.SerializeAsync(expanded, packed, WriteOptions, token).ConfigureAwait(false);
+                }
+                else await JsonSerializer.SerializeAsync(disk, document, WriteOptions, token).ConfigureAwait(false);
+                written = disk.Written;
                 file.Flush(flushToDisk: true);
             }
+            RegularProfileFileIdentity? staged = RegularProfileFile.TryGetIdentity(temporary);
             token.ThrowIfCancellationRequested();
-            File.Move(temporary, path, overwrite: true);
-            return new(MediaLibraryIndexCacheWriteStatus.Written, written, limit, RegularProfileFile.TryGetIdentity(path));
+            File.Move(temporary, destination, overwrite: true);
+            MediaLibraryCacheFiles files = MediaLibraryCacheFiles.Inspect(path);
+            RegularProfileFileIdentity? identity = packed == null ? files.Json : files.Packed;
+            // Rename itself can change ctime, but the remaining fields must still describe the file we staged.
+            if (staged is not { } before || identity is not { } after
+                || (before with { ChangedSeconds = after.ChangedSeconds, ChangedNanoseconds = after.ChangedNanoseconds }) != after
+                || packed != null && files.Json != packed.JsonBase) identity = null;
+            return new(MediaLibraryIndexCacheWriteStatus.Written, written, limit, identity) { Files = files };
         }
         finally
         {
@@ -552,9 +658,52 @@ internal static class MediaLibraryIndexCache
         internal ValueTooLongException() : base("A media index cache value is longer than a cache may hold.") { }
     }
 
-    private sealed class LimitExceededException : IOException
+    private sealed class LimitExceededException(long bytes, long limit) : IOException("The media index cache would exceed its limit.")
     {
-        internal LimitExceededException() : base("The media index cache would exceed its limit.") { }
+        internal long Bytes => bytes;
+        internal long Limit => limit;
+    }
+
+    private sealed class BoundedReadStream(Stream inner, long limit, TransferCrc32? crc = null) : Stream
+    {
+        internal long BytesRead { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => BytesRead; set => throw new NotSupportedException(); }
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        // Probe one byte past the limit, so exactly filling it is allowed but an incomplete read cannot look like EOF.
+        private int ReadSize(int requested) => (int)Math.Min(requested, limit - BytesRead + 1);
+
+        private int Count(ReadOnlySpan<byte> buffer)
+        {
+            BytesRead += buffer.Length;
+            if (BytesRead > limit) throw new LimitExceededException(BytesRead, limit);
+            crc?.Add(buffer);
+            return buffer.Length;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            int read = inner.Read(buffer[..ReadSize(buffer.Length)]);
+            return Count(buffer[..read]);
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            int read = await inner.ReadAsync(buffer[..ReadSize(buffer.Length)], cancellationToken).ConfigureAwait(false);
+            return Count(buffer.Span[..read]);
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
     }
 
     /// <summary>Counts what is written and refuses to go past the limit (nothing beyond it reaches the disk).</summary>
@@ -574,7 +723,7 @@ internal static class MediaLibraryIndexCache
 
         private void Count(int count)
         {
-            if (Written + count > limit) { Written += count; throw new LimitExceededException(); }
+            if (Written + count > limit) throw new LimitExceededException(Written + count, limit);
             Written += count;
         }
 
@@ -593,7 +742,16 @@ internal static class MediaLibraryIndexCache
 }
 
 /// <summary>A loaded cache: the index, the file's size in bytes and its identity while it was read (null: unknown).</summary>
-internal sealed record MediaLibraryIndexCacheRead(MediaLibrarySnapshot Snapshot, long Bytes, RegularProfileFileIdentity? Identity);
+internal sealed record MediaLibraryIndexCacheRead(MediaLibrarySnapshot Snapshot, long Bytes, RegularProfileFileIdentity? Identity)
+{
+    internal MediaLibraryCacheFiles Files { get; init; }
+}
+
+internal readonly record struct MediaLibraryCacheFiles(RegularProfileFileIdentity? Json, RegularProfileFileIdentity? Packed)
+{
+    internal static MediaLibraryCacheFiles Inspect(string path) =>
+        new(RegularProfileFile.TryGetIdentity(path), RegularProfileFile.TryGetIdentity(path + ".gz"));
+}
 
 internal enum MediaLibraryIndexCacheWriteStatus
 {
@@ -611,6 +769,8 @@ internal enum MediaLibraryIndexCacheWriteStatus
 internal sealed record MediaLibraryIndexCacheWrite(MediaLibraryIndexCacheWriteStatus Status, long Bytes, long LimitBytes,
     RegularProfileFileIdentity? Identity)
 {
+    internal MediaLibraryCacheFiles Files { get; init; }
+
     /// <summary>Whether the user should hear about the limit: it stopped the save, or the saved index is near it.</summary>
     internal bool NearOrOverLimit => Status is MediaLibraryIndexCacheWriteStatus.TooLarge
         || Status is MediaLibraryIndexCacheWriteStatus.Written or MediaLibraryIndexCacheWriteStatus.Unchanged
@@ -624,13 +784,23 @@ internal sealed record MediaLibraryIndexCacheWrite(MediaLibraryIndexCacheWriteSt
 /// </summary>
 internal sealed class MediaLibraryIndexCacheFile(string path)
 {
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    // Process-lifetime stripes serialize pages addressing the same path, with bounded storage for profile switches.
+    private static readonly SemaphoreSlim[] Gates = Array.ConvertAll(new SemaphoreSlim?[32], static _ => new SemaphoreSlim(1, 1));
+    private readonly SemaphoreSlim _gate = GateFor(path);
+    private MediaLibraryCacheFiles _files;
     private MediaLibrarySnapshot? _persisted;
     private RegularProfileFileIdentity? _identity;
     private long _bytes;
     // The last index refused for its size, so an unchanged oversized index is not written up to the limit on every visit.
     private MediaLibraryIndexCacheWrite? _refused;
     private MediaLibrarySnapshot? _refusedSnapshot;
+
+    private static SemaphoreSlim GateFor(string path)
+    {
+        string absolute = System.IO.Path.GetFullPath(path);
+        StringComparer comparer = OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+        return Gates[(uint)comparer.GetHashCode(absolute) % (uint)Gates.Length];
+    }
 
     internal string Path => path;
     /// <summary>How many saves were skipped because the file already held the index; lets a test see the skip.</summary>
@@ -643,9 +813,8 @@ internal sealed class MediaLibraryIndexCacheFile(string path)
         try
         {
             MediaLibraryIndexCacheRead? read = await MediaLibraryIndexCache.LoadAsync(path, cancellationToken).ConfigureAwait(false);
-            if (read == null) return null;
-            (_persisted, _identity, _bytes) = (read.Snapshot, read.Identity, read.Bytes);
-            return read.Snapshot;
+            (_persisted, _identity, _bytes, _files) = (read?.Snapshot, read?.Identity, read?.Bytes ?? 0, read?.Files ?? default);
+            return _persisted;
         }
         finally { _gate.Release(); }
     }
@@ -662,7 +831,7 @@ internal sealed class MediaLibraryIndexCacheFile(string path)
         try
         {
             long limit = Math.Clamp(limitBytes, 1, MediaLibraryIndexCache.MaximumBytes);
-            if (_identity is { } known && MediaLibrarySnapshot.SameContent(_persisted, snapshot) && RegularProfileFile.TryGetIdentity(path) == known)
+            if (_identity is { } known && MediaLibrarySnapshot.SameContent(_persisted, snapshot) && MediaLibraryCacheFiles.Inspect(path) == _files)
             {
                 SkippedWrites++;
                 // The file stays readable even above a lowered limit; the page still says how close it is.
@@ -679,7 +848,7 @@ internal sealed class MediaLibraryIndexCacheFile(string path)
             if (result.Status == MediaLibraryIndexCacheWriteStatus.Written)
             {
                 Writes++;
-                (_persisted, _identity, _bytes) = (snapshot, result.Identity, result.Bytes);
+                (_persisted, _identity, _bytes, _files) = (snapshot, result.Identity, result.Bytes, result.Files);
                 (_refused, _refusedSnapshot) = (null, null);
             }
             else if (result.Status is MediaLibraryIndexCacheWriteStatus.TooLarge or MediaLibraryIndexCacheWriteStatus.TooManyEntries)
