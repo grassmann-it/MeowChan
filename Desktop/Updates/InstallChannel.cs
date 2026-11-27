@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Unicode;
 using Microsoft.Win32.SafeHandles;
@@ -228,7 +229,7 @@ internal static class InstallChannelDetector
         {
             using FileStream stream = File.OpenRead(Path.Combine(directory, MarkerName));
             byte[] buffer = new byte[MaximumMarkerBytes + 1];
-            int read = stream.ReadAtLeast(buffer, buffer.Length, throwIfEndOfStream: false);
+            int read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
             return buffer.AsMemory(0, read);
         }
         catch (FileNotFoundException) { return null; }
@@ -266,15 +267,17 @@ internal static class InstallChannelDetector
             return !handle.IsInvalid;
         }
         const int writeAndSearch = 3;
-        return OperatingSystem.IsLinux() && Access(path, writeAndSearch) == 0;
+        return OperatingSystem.IsLinux() && HasUnixAccess(path, writeAndSearch);
     }
 
     private static bool IsAppImageWritable(string? path)
     {
         const int write = 2;
         return OperatingSystem.IsLinux() && path is not null && Path.IsPathFullyQualified(path) && File.Exists(path)
-            && Access(path, write) == 0 && Path.GetDirectoryName(path) is { } parent && IsDirectoryWritable(parent);
+            && HasUnixAccess(path, write) && Path.GetDirectoryName(path) is { } parent && IsDirectoryWritable(parent);
     }
+
+    private static bool HasUnixAccess(string path, int mode) => Access(Encoding.UTF8.GetBytes(path + '\0'), mode) == 0;
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -282,5 +285,5 @@ internal static class InstallChannelDetector
         uint disposition, uint flags, IntPtr template);
 
     [DllImport("libc", EntryPoint = "access", ExactSpelling = true)]
-    private static extern int Access([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int mode);
+    private static extern int Access(byte[] path, int mode);
 }
