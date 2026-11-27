@@ -122,9 +122,17 @@ internal sealed partial class GalleryViewer
         return true;
     }
 
+    private void MoveOrScrollFit(KeyEventArgs e, string commandId, int direction)
+    {
+        // The default arrows scroll along the fitted axis when it overflows.
+        // A saved navigation shortcut keeps its assigned action.
+        bool assigned = ShortcutService.CurrentSection is { IsEditable: true } bindings && bindings.HasOverride(commandId);
+        if (assigned || !RouteFitScrollKey(e)) Move(direction);
+    }
+
     private bool ScrollFitImage(GalleryViewGeometry geometry, double pages)
     {
-        if (!CanSelectImageFitMode || !double.IsFinite(pages) || geometry.FitScrollLimit(_zoom) <= 0) return false;
+        if (_manualZoom || !CanSelectImageFitMode || !double.IsFinite(pages) || geometry.FitScrollLimit(_zoom) <= 0) return false;
         double length = geometry.ScrollsHorizontally ? geometry.ViewportWidth : geometry.ViewportHeight;
         Adopt(geometry.WithFitScrollPan(Placement, geometry.FitScrollPan(Placement) - pages * length));
         ApplyPan();

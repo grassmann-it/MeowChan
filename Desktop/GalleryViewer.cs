@@ -1812,9 +1812,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             if (CommandBindings.Matches(e, "video.pause")) { _ = _video.PauseAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.stop")) { _ = _video.StopPlaybackAsync(); e.Handled = true; return; }
         }
-        if (RouteFitScrollKey(e)) return;
-        if (CommandBindings.Matches(e, "gallery.previous")) Move(-1);
-        else if (CommandBindings.Matches(e, "gallery.next")) Move(1);
+        if (CommandBindings.Matches(e, "gallery.previous")) MoveOrScrollFit(e, "gallery.previous", -1);
+        else if (CommandBindings.Matches(e, "gallery.next")) MoveOrScrollFit(e, "gallery.next", 1);
         else if (CommandBindings.Matches(e, "gallery.zoom-in")) Zoom(1.1);
         else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
         else if (CommandBindings.Matches(e, "gallery.rotate")) RotateView();
@@ -1838,7 +1837,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         {
             // A command that exists only as a button of the hidden footer: the controls come first, then the existing executor runs.
             if (OverlayControlsEffective && _overlayHidden && CommandBindings.HasActionBehind(this, _overlayFooter, e)) RevealControlsForCommand();
-            CommandBindings.RouteVisibleActions(this, e);
+            if (!CommandBindings.RouteVisibleActions(this, e)) RouteFitScrollKey(e);
             return;
         }
         e.Handled = true;

@@ -1,12 +1,65 @@
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Favorites;
+using MeowChan.Gallery;
+using MeowChan.Storage;
+using SkiaSharp;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Gallery viewer construction")]
 public sealed class GalleryFitModeTests
 {
+    [Fact]
+    public void WidthFitScrollsWithTheWheelButActualSizeUsesTheWheelForZoom() => WithTallImage((viewer, viewport) =>
+    {
+        double start = viewer.CaptureState().PanY;
+        ScrollDown(viewport);
+        Assert.True(viewer.CaptureState().PanY < start);
+        Assert.False(viewer.IsViewManuallyZoomed);
+
+        Assert.True(Press(viewer, Key.NumPad1));
+        Assert.True(viewer.CaptureState().ActualZoom);
+        Assert.Equal(1, viewer.ViewZoom);
+        ScrollDown(viewport);
+        Assert.InRange(viewer.ViewZoom, 0.01, 0.99);
+    });
+
+    [Fact]
+    public void APageDownRotationBindingTakesPriorityOverWidthFitScrolling() => WithTallImage((viewer, _) =>
+    {
+        double start = viewer.CaptureState().PanY;
+        Assert.True(Press(viewer, Key.PageDown));
+        Assert.True(viewer.CaptureState().PanY < start);
+        Assert.Equal(0, viewer.Rotation);
+
+        ShortcutService.Publish(new ShortcutBindingsSection()
+            .Set("gallery.rotate", [ShortcutGesture.Parse("PageDown")]));
+        Assert.True(Press(viewer, Key.PageDown));
+        Assert.Equal(90, viewer.Rotation);
+        Assert.False(viewer.IsViewManuallyZoomed);
+    });
+
+    [Fact]
+    public void APageDownNavigationBindingTakesPriorityOverWidthFitScrolling() => WithTallImage((viewer, _) =>
+    {
+        viewer.SetPosition("1 / 2", previous: false, next: true);
+        List<int> moves = [];
+        viewer.MoveRequested += moves.Add;
+        ShortcutService.Publish(new ShortcutBindingsSection()
+            .Set("gallery.next", [ShortcutGesture.Parse("PageDown")]));
+
+        double start = viewer.CaptureState().PanY;
+        Assert.True(Press(viewer, Key.PageDown));
+        Assert.Equal(1, Assert.Single(moves));
+        Assert.Equal(start, viewer.CaptureState().PanY);
+    });
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -104,5 +157,61 @@ public sealed class GalleryFitModeTests
         KeyGesture heightGesture = heightKey.Resolve(platform);
         Assert.True(bindings.Matches(new KeyEventArgs { Key = widthGesture.Key, KeyModifiers = widthGesture.KeyModifiers }, width));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = heightGesture.Key, KeyModifiers = heightGesture.KeyModifiers }, height));
+    }
+
+    private static void WithTallImage(Action<GalleryViewer, Grid> test) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory directory = new();
+        ShortcutBindingsSection previous = ShortcutService.CurrentSection;
+        ShortcutService.Publish(new());
+        GalleryViewer viewer = new();
+        try
+        {
+            const string file = "tall.png";
+            string path = Path.Combine(directory.Path, file);
+            using SKBitmap picture = new(640, 1280);
+            picture.Erase(SKColors.Red);
+            using SKData png = picture.Encode(SKEncodedImageFormat.Png, 100);
+            byte[] bytes = png.ToArray();
+            File.WriteAllBytes(path, bytes);
+            MediaAssetReference asset = new(file, file, "original", file, path, bytes.Length,
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)), "", file, true);
+            MediaAssetSnapshot snapshot = new(directory.Path, MediaManifestStatus.Available, 1, "fixture", [asset]);
+            GalleryEntry entry = new(new(new("fixture", "gallery", "1"), directory.Path, asset.AssetId),
+                snapshot, asset, null, null, false, false);
+
+            Size size = new(400, 300);
+            viewer.Measure(size);
+            viewer.Arrange(new Rect(size));
+            viewer.ConfigureFit(new GalleryFitPreferences { Mode = GalleryFitMode.Width });
+            BooruComponentDispatcher.Wait(viewer.ShowAsync(entry, CancellationToken.None));
+            Grid viewport = Assert.Single(viewer.GetLogicalDescendants().OfType<Grid>(),
+                control => AutomationProperties.GetAutomationId(control) == "GalleryViewport");
+            Assert.True(viewer.CaptureState().PanY > 0);
+            Assert.InRange(viewer.ViewZoom, 0.01, 0.8);
+            test(viewer, viewport);
+        }
+        finally
+        {
+            BooruComponentDispatcher.Wait(viewer.DisposeAsync().AsTask());
+            ShortcutService.Publish(previous);
+        }
+    });
+
+    private static bool Press(GalleryViewer viewer, Key key)
+    {
+        KeyEventArgs input = new() { Key = key, Source = viewer };
+        viewer.RouteKeyForTests(input);
+        return input.Handled;
+    }
+
+    private static void ScrollDown(Grid viewport)
+    {
+        using Avalonia.Input.Pointer pointer = new(Avalonia.Input.Pointer.GetNextFreeId(), PointerType.Mouse, true);
+        PointerWheelEventArgs wheel = new(viewport, pointer, viewport, new Point(5, 5), 0,
+            new PointerPointProperties(), KeyModifiers.None, new Vector(0, -1)) { RoutedEvent = InputElement.PointerWheelChangedEvent };
+        viewport.RaiseEvent(wheel);
+        Assert.True(wheel.Handled);
     }
 }
