@@ -95,6 +95,11 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
                 return new DanbooruWatcherSearchUnavailable("worker_unavailable");
             }
             if (client is null) return new DanbooruWatcherSearchUnavailable("worker_unavailable");
+            if (port._services.ProfileOf(port._sourceId) is not { } profile)
+                return new DanbooruWatcherSearchUnavailable("source_unavailable");
+            if (!BooruEndpointPolicy.TryNormalizeQuery(port._sourceId, profile, providerQuery, out string canonical)
+                || canonical != providerQuery)
+                return new DanbooruWatcherSearchFailed("watcher_query_out_of_policy");
 
             BooruSearchResult result = await (beforePostId is null
                     ? port._search.SearchAsync(client, port._sourceId, providerQuery, 1, scope, cancellationToken)

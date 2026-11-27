@@ -1,5 +1,6 @@
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.DesktopTests;
 
@@ -71,5 +72,22 @@ public sealed class BooruSourceTagSearchTests : IDisposable
         BooruTagSearchPlan plan = BooruSourceTagSearch.Plan(new[] { "rating:g" });
         Assert.Equal(BooruTagSearchProblem.Unusable, plan.Problem);
         Assert.Null(plan.Query);
+    }
+
+    [Theory]
+    [InlineData("e621")]
+    [InlineData("e926")]
+    public void TheActiveSourceRulesPermitAnExtraTagAndRefuseUserCursors(string sourceId)
+    {
+        BooruSourceProfile profile = new([], new(3, ["s", "q", "e"], BeforeCursorPrefix: "id:<"), [], [], 50, 12);
+        Assert.Equal("wolf blue_sky artist_name", BooruSourceTagSearch.Plan(["wolf", "blue_sky", "artist_name"], sourceId, profile).Query);
+        Assert.Equal("wolf blue_sky artist_name rating:s",
+            BooruInput.Parse(BooruInputMode.Tags, "wolf\tblue_sky\nartist_name rating:s", sourceId, profile).Canonical);
+        Assert.Equal(BooruInputIssue.MetaTag, BooruInput.Parse(BooruInputMode.Tags, "wolf id:<42", sourceId, profile).Issue);
+        Assert.Equal(BooruInputIssue.Rating, BooruInput.Parse(BooruInputMode.Tags, "wolf rating:g", sourceId, profile).Issue);
+
+        BooruSourceProfile reduced = profile with { Query = profile.Query with { MaximumTagTerms = 2 } };
+        Assert.Equal(BooruTagSearchProblem.TooMany, BooruSourceTagSearch.Plan(["wolf", "blue_sky", "artist_name"], sourceId, reduced).Problem);
+        Assert.Equal(BooruInputIssue.TooManyTags, BooruInput.Parse(BooruInputMode.Tags, "wolf blue_sky artist_name", sourceId, reduced).Issue);
     }
 }

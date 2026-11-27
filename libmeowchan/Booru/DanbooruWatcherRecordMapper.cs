@@ -51,7 +51,7 @@ internal static class DanbooruWatcherRecordMapper
         int pageSize = record.PageSize ?? DanbooruWatcher.DefaultPageSize;
         int pageBudget = record.PageBudget ?? DanbooruWatcher.DefaultPageBudget;
         if (!DanbooruWatcher.TryCreate(record.WatcherId, record.Query, record.CreatedAtUtc,
-                out DanbooruWatcher? fresh, out _, pageSize, pageBudget) || fresh is null
+                out DanbooruWatcher? fresh, out _, pageSize, pageBudget, sourceId) || fresh is null
             || fresh.CanonicalQuery != record.Query)
             throw Invalid("identity or query");
         if (!Enum.TryParse(record.State, ignoreCase: false, out DanbooruWatcherState state) || !Enum.IsDefined(state))
@@ -63,7 +63,6 @@ internal static class DanbooruWatcherRecordMapper
 
         return fresh with
         {
-            SourceId = record.SourceId,
             State = state,
             ResumeState = resume,
             LastCheckedAtUtc = record.LastCheckedAtUtc,
