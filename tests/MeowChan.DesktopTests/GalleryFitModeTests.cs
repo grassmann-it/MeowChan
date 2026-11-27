@@ -166,6 +166,7 @@ public sealed class GalleryFitModeTests
         ShortcutBindingsSection previous = ShortcutService.CurrentSection;
         ShortcutService.Publish(new());
         GalleryViewer viewer = new();
+        Window window = new() { Width = 400, Height = 300, Content = viewer };
         try
         {
             const string file = "tall.png";
@@ -181,11 +182,11 @@ public sealed class GalleryFitModeTests
             GalleryEntry entry = new(new(new("fixture", "gallery", "1"), directory.Path, asset.AssetId),
                 snapshot, asset, null, null, false, false);
 
-            Size size = new(400, 300);
-            viewer.Measure(size);
-            viewer.Arrange(new Rect(size));
             viewer.ConfigureFit(new GalleryFitPreferences { Mode = GalleryFitMode.Width });
+            window.Show();
+            window.UpdateLayout();
             BooruComponentDispatcher.Wait(viewer.ShowAsync(entry, CancellationToken.None));
+            window.UpdateLayout();
             Grid viewport = Assert.Single(viewer.GetLogicalDescendants().OfType<Grid>(),
                 control => AutomationProperties.GetAutomationId(control) == "GalleryViewport");
             Assert.True(viewer.CaptureState().PanY > 0);
@@ -194,6 +195,7 @@ public sealed class GalleryFitModeTests
         }
         finally
         {
+            window.Close();
             BooruComponentDispatcher.Wait(viewer.DisposeAsync().AsTask());
             ShortcutService.Publish(previous);
         }

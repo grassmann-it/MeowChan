@@ -25,11 +25,11 @@ public sealed class BooruSourceActivationTests
         using TempDirectory profile = new();
         using CountingTransport network = new();
         string plugins = Path.Combine(profile.Path, "plugins");
-        Directory.CreateDirectory(plugins);
         string media = Path.Combine(profile.Path, "media");
-        Directory.CreateDirectory(media);
         new Config { DownloadPath = media, FirstRunSetupVersion = 1, AutomaticUpdateChecks = false, RestoreBooruSearchTabs = true }
             .SaveConfig(profile.Path);
+        Directory.CreateDirectory(plugins);
+        Directory.CreateDirectory(media);
         List<string> fixtureSources = new();
         string delivered = Path.Combine(AppContext.BaseDirectory, "plugins");
         if (!File.Exists(Path.Combine(delivered, "MeowChan.Plugin.E621.plugin.json")))

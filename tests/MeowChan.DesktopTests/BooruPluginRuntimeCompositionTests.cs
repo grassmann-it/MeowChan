@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Updates;
@@ -53,6 +54,8 @@ public sealed class BooruPluginRuntimeCompositionTests
             await BooruCompositionHostTests.WaitAsync(() => host.BooruServices != null, "the composition from the real plugin");
             Assert.Empty(stub.Requests);
             BooruWorkbenchServices services = host.BooruServices!;
+            BooruWorkspaceContent content = Assert.IsType<BooruWorkspaceContent>(host.BooruContent);
+            await host.SaveBooruContentAsync(new(BooruPostClaimRating.General, "", []), content.Snapshot.Revision);
 
             BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline);
             Assert.True(result.Status == BooruCallStatus.Ok, result.Status + " " + result.Code);
