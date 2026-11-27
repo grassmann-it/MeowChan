@@ -10,9 +10,10 @@ using MeowChan.Archive;
 namespace MeowChan.Persistence;
 
 internal sealed record ProfileSnapshotFile(string Name, long Length, string Sha256);
+internal sealed record ProfileExternalMedia(string Root, ProfileSnapshotFile[] Files);
 
 internal sealed record ProfileSnapshot(int Version, string SourceDirectory, DateTimeOffset CreatedUtc,
-    ProfileManifest Profile, string[] Directories, ProfileSnapshotFile[] Files)
+    ProfileManifest Profile, string[] Directories, ProfileSnapshotFile[] Files, ProfileExternalMedia? ExternalMedia = null)
 {
     internal const string FileName = "snapshot.json";
     internal const string DataName = "data";
@@ -64,11 +65,15 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
             || !Path.IsPathFullyQualified(snapshot.SourceDirectory)
             || snapshot.Profile is null || snapshot.Profile.ProfileId == Guid.Empty || snapshot.Profile.Generation == Guid.Empty
             || snapshot.Directories is null || snapshot.Files is null
-            || snapshot.Files.Any(entry => entry is null || entry.Length < 0
-                || entry.Sha256 is not { Length: 64 } || !entry.Sha256.All(Uri.IsHexDigit)))
+            || !ValidFiles(snapshot.Files)
+            || snapshot.ExternalMedia is { } external && !ValidFiles(external.Files))
             throw new InvalidDataException("The profile snapshot index is invalid.");
         return snapshot;
     }
+
+    private static bool ValidFiles(ProfileSnapshotFile[]? files) =>
+        files is not null && files.All(entry => entry is not null && entry.Length >= 0
+            && entry.Sha256 is { Length: 64 } && entry.Sha256.All(Uri.IsHexDigit));
 
     internal void Restore(string snapshotDirectory, string destination, CancellationToken token = default)
     {
@@ -77,6 +82,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         string? generation = Path.GetDirectoryName(ProfileLease.NormalizeDirectory(snapshotDirectory));
         if (Overlaps(SourceDirectory, target) || generation is not null && Overlaps(generation, target))
             throw new IOException("Restore the snapshot outside the original and working profile directories.");
+        VerifyExternalMedia(token);
         RestoreData(snapshotDirectory, target, token);
     }
 
@@ -129,11 +135,25 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         if (!Directories.SequenceEqual(directories)
             || !Files.Select(file => (file.Name, file.Length)).SequenceEqual(files))
             throw new InvalidDataException("The profile snapshot inventory changed during verification.");
-        foreach (ProfileSnapshotFile file in Files)
+        VerifyFiles(directory, Files, token);
+    }
+
+    internal void VerifyExternalMedia(CancellationToken token = default)
+    {
+        if (ExternalMedia is not { } media) return;
+        if (string.IsNullOrWhiteSpace(media.Root) || !Path.IsPathFullyQualified(media.Root) || media.Files is null)
+            throw new InvalidDataException("The snapshot's external media inventory is invalid.");
+        VerifyFiles(media.Root, media.Files, token);
+    }
+
+    private static void VerifyFiles(string directory, ProfileSnapshotFile[] files, CancellationToken token)
+    {
+        foreach (ProfileSnapshotFile file in files)
         {
             token.ThrowIfCancellationRequested();
             using FileStream stream = RegularProfileFile.OpenRead(Child(directory, file.Name));
-            if (!string.Equals(Convert.ToHexString(SHA256.HashData(stream)), file.Sha256, StringComparison.Ordinal))
+            if (stream.Length != file.Length ||
+                !string.Equals(Convert.ToHexString(SHA256.HashData(stream)), file.Sha256, StringComparison.Ordinal))
                 throw new InvalidDataException($"The profile snapshot checksum failed for '{file.Name}'.");
         }
     }

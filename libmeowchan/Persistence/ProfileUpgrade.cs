@@ -45,6 +45,8 @@ internal static class ProfileUpgrade
                 return source;
             }
 
+            if (Directory.GetParent(directory) is null)
+                throw new InvalidDataException("A filesystem root cannot be used as an upgrade source.");
             string generation = directory + GenerationSuffix;
             ArchiveExportMetadataFile.RejectLinks(generation);
             if (!Directory.Exists(generation))
@@ -98,8 +100,12 @@ internal static class ProfileUpgrade
             ProfileSnapshot snapshot = ProfileSnapshot.Capture(source, snapshotPath, initial, availableBytes, token);
             snapshot.RestoreData(snapshotPath, prepared, token);
             var originalParts = ProfileManifest.Inspect(prepared);
-            var roots = ProfileMediaRelocation.Prepare(source.ProfileDirectory, prepared, target, legacyDownloads, token);
-            snapshot = snapshot with { Profile = initial with { Parts = originalParts, ExternalMediaRoots = roots } };
+            var (roots, media) = ProfileMediaRelocation.Prepare(source.ProfileDirectory, prepared, target, legacyDownloads, token);
+            snapshot = snapshot with
+            {
+                Profile = initial with { Parts = originalParts, ExternalMediaRoots = roots },
+                ExternalMedia = media
+            };
             snapshot.Write(snapshotPath);
             using (ProfileLease lease = ProfileLease.Acquire(prepared))
             {
@@ -109,6 +115,7 @@ internal static class ProfileUpgrade
             }
             beforePublish?.Invoke();
             snapshot.VerifyData(snapshotPath, token);
+            snapshot.VerifyExternalMedia(token);
             token.ThrowIfCancellationRequested();
             source.EnsureDirectoryIdentity();
             Directory.Move(staging, generation);

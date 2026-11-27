@@ -22,7 +22,7 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
         "local-imports.json", "local-imports.json.bak"
     ];
 
-    internal static string[] Prepare(string source, string staged, string target, string legacyDownloads, CancellationToken token)
+    internal static (string[] Roots, ProfileExternalMedia? Media) Prepare(string source, string staged, string target, string legacyDownloads, CancellationToken token)
     {
         string downloads = ReadDownloads(staged, legacyDownloads);
         string? local = RelativeTo(source, downloads);
@@ -33,8 +33,9 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
 
         // An external managed directory is copied to a private destination for the new generation.
         // Read-only folder sources keep their locations in both generations.
-        if (local is null)
-            CopyExternal(downloads, Path.Combine(staged, "upgrade-downloads"), token);
+        ProfileExternalMedia? media = local is null
+            ? CopyExternal(downloads, Path.Combine(staged, "upgrade-downloads"), token)
+            : null;
         foreach (string name in PathDocuments)
         {
             token.ThrowIfCancellationRequested();
@@ -45,7 +46,7 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
         relocation.RewriteWork(Path.Combine(staged, "work-state.before-prune.sqlite"));
         var roots = new HashSet<string>(StringComparer.Ordinal) { downloads };
         roots.UnionWith(FolderRoots(staged));
-        return roots.Where(root => RelativeTo(source, root) is null).Order(StringComparer.Ordinal).ToArray();
+        return (roots.Where(root => RelativeTo(source, root) is null).Order(StringComparer.Ordinal).ToArray(), media);
     }
 
     internal static string[] CurrentRoots(string directory, string downloads, string[] previous)
@@ -79,10 +80,10 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
         catch (JsonException) { return null; }
     }
 
-    private static void CopyExternal(string from, string to, CancellationToken token)
+    private static ProfileExternalMedia? CopyExternal(string from, string to, CancellationToken token)
     {
         ArchiveExportMetadataFile.RejectLinks(from);
-        if (!Directory.Exists(from)) return;
+        if (!Directory.Exists(from)) return null;
         if (Directory.Exists(to) || File.Exists(to))
             throw new InvalidDataException("The staged profile already contains the designated download directory.");
         var (directories, files) = ProfileSnapshot.Inventory(from);
@@ -91,6 +92,7 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
             throw new IOException("There is insufficient space for a separate copy of the profile downloads.");
         Directory.CreateDirectory(to);
         foreach (string directory in directories) Directory.CreateDirectory(ProfileSnapshot.Child(to, directory));
+        var copied = new List<ProfileSnapshotFile>(files.Count);
         foreach (var file in files)
         {
             token.ThrowIfCancellationRequested();
@@ -99,10 +101,12 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
             using FileStream input = RegularProfileFile.OpenRead(original);
             if (!string.Equals(hash, Convert.ToHexString(SHA256.HashData(input)), StringComparison.Ordinal))
                 throw new InvalidDataException("A download changed while it was being copied.");
+            copied.Add(new(file.Name, file.Length, hash));
         }
         var closing = ProfileSnapshot.Inventory(from);
         if (!directories.SequenceEqual(closing.Directories) || !files.SequenceEqual(closing.Files))
             throw new InvalidDataException("The original download inventory changed during the profile upgrade.");
+        return new(from, copied.ToArray());
     }
 
     private void RewriteDocument(string path, bool settings)

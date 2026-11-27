@@ -155,6 +155,9 @@ public sealed class ProfileUpgradeReturnTests
         ProfileSnapshot snapshot = ProfileSnapshot.Read(backup);
         Assert.Equal(1, snapshot.Profile.Parts[BooruSearchTabStore.FileName].Version);
         Assert.Contains(downloads, snapshot.Profile.ExternalMediaRoots);
+        var media = Assert.IsType<ProfileExternalMedia>(snapshot.ExternalMedia);
+        Assert.Equal(downloads, media.Root);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(original)), Assert.Single(media.Files).Sha256);
         snapshot.Restore(backup, restored);
         foreach (ProfileSnapshotFile file in snapshot.Files)
         {
