@@ -10,7 +10,7 @@ using MeowChan.Archive;
 
 namespace MeowChan.Persistence;
 
-internal sealed record ProfileSnapshotFile(string Name, long Length, string Sha256);
+internal sealed record ProfileSnapshotFile(string Name, long Length, string Sha256, DateTime? LastWriteUtc = null);
 internal sealed record ProfileExternalMedia(string Root, ProfileSnapshotFile[] Files, string[]? Directories = null,
     string[]? SelectedNames = null);
 
@@ -75,8 +75,9 @@ internal readonly record struct ProfileCopyOperation(Action<string, long>? Progr
 
 internal sealed record ProfileSnapshot(int Version, string SourceDirectory, DateTimeOffset CreatedUtc,
     ProfileManifest Profile, string[] Directories, ProfileSnapshotFile[] Files, ProfileExternalMedia? ExternalMedia = null,
-    string? SourceIdentity = null, string? LegacyDownloads = null, ProfileExternalMedia[]? ManagedMedia = null)
+    string? LegacyDownloads = null, ProfileExternalMedia[]? ManagedMedia = null)
 {
+    private readonly record struct InventoryFile(string Name, long Length, DateTime LastWriteUtc);
     internal const string FileName = "snapshot.json";
     internal const string DataName = "data";
     internal const int UpgradeVersion = 2;
@@ -88,7 +89,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
     { RespectRequiredConstructorParameters = true, AllowDuplicateProperties = false };
 
     internal static ProfileSnapshot CaptureUpgrade(ProfileLease source, string destination, ProfileManifest profile,
-        string legacyDownloads, string sourceIdentity, Func<string, long>? availableBytes, ProfileCopyOperation operation)
+        string legacyDownloads, Func<string, long>? availableBytes, ProfileCopyOperation operation)
     {
         return source.RunExclusive(() =>
         {
@@ -117,17 +118,17 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
             VerifyInventory(root, profileTree.Directories, copied, operation);
             source.EnsureDirectoryIdentity();
             return new ProfileSnapshot(UpgradeVersion, root, DateTimeOffset.UtcNow, profile, profileTree.Directories,
-                copied, SourceIdentity: sourceIdentity, LegacyDownloads: legacyDownloads, ManagedMedia: media);
+                copied, LegacyDownloads: legacyDownloads, ManagedMedia: media);
         });
     }
 
-    private static (string[] Directories, List<(string Name, long Length)> Files) InventoryMedia(
+    private static (string[] Directories, List<InventoryFile> Files) InventoryMedia(
         ProfileMediaSelection selection, ProfileCopyOperation operation)
     {
         ArchiveExportMetadataFile.RejectLinks(selection.Root);
         if (!MediaRootExists(selection.Root)) return ([], []);
         if (selection.Names is null) return Inventory(selection.Root, operation);
-        List<(string Name, long Length)> files = [];
+        List<InventoryFile> files = [];
         foreach (string name in selection.Names)
         {
             string path = Child(selection.Root, name);
@@ -135,7 +136,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
             try
             {
                 using FileStream stream = RegularProfileFile.OpenRead(path);
-                files.Add((name, stream.Length));
+                files.Add(new(name, stream.Length, File.GetLastWriteTimeUtc(stream.SafeFileHandle)));
             }
             catch (FileNotFoundException) { } // A planned download or optional manifest can be absent.
         }
@@ -143,7 +144,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
     }
 
     private static ProfileSnapshotFile[] CaptureTree(string root, string destination,
-        (string[] Directories, List<(string Name, long Length)> Files) tree, ProfileCopyOperation operation)
+        (string[] Directories, List<InventoryFile> Files) tree, ProfileCopyOperation operation)
     {
         Directory.CreateDirectory(destination);
         foreach (string directory in tree.Directories)
@@ -154,9 +155,9 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         var copied = new ProfileSnapshotFile[tree.Files.Count];
         for (int index = 0; index < copied.Length; index++)
         {
-            var (name, length) = tree.Files[index];
+            var (name, length, lastWriteUtc) = tree.Files[index];
             string hash = operation.Copy(Child(root, name), Child(destination, name), length);
-            copied[index] = new(name, length, hash);
+            copied[index] = new(name, length, hash, lastWriteUtc);
         }
         VerifyFiles(root, copied, operation);
         return copied;
@@ -191,7 +192,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
             || snapshot.Directories is null || snapshot.Files is null
             || !ValidFiles(snapshot.Files)
             || snapshot.ExternalMedia is { } external && !ValidMedia(external)
-            || snapshot.Version == UpgradeVersion && (snapshot.ExternalMedia is not null || string.IsNullOrWhiteSpace(snapshot.SourceIdentity)
+            || snapshot.Version == UpgradeVersion && (snapshot.ExternalMedia is not null
                 || snapshot.LegacyDownloads is null || !Path.IsPathFullyQualified(snapshot.LegacyDownloads)
                 || snapshot.ManagedMedia is null || snapshot.ManagedMedia.Any(media => !ValidMedia(media) || media.Directories is null)))
             throw new InvalidDataException("The profile snapshot index is invalid.");
@@ -282,8 +283,15 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         return Contains(first, second) || Contains(second, first);
     }
 
-    internal void VerifyLegacySource(ProfileCopyOperation operation) =>
-        VerifyTree(SourceDirectory, Directories, Files, operation);
+    internal bool LegacyInventoryMatches(string directory, CancellationToken token)
+    {
+        var inventory = Inventory(directory, new(null, token));
+        // Older snapshots recorded only their completion time. For those, a newer timestamp is
+        // evidence of a change. New snapshots can also detect a restored or backdated timestamp.
+        return Directories.SequenceEqual(inventory.Directories) && Files.Length == inventory.Files.Count
+            && Files.Zip(inventory.Files).All(pair => pair.First.Name == pair.Second.Name && pair.First.Length == pair.Second.Length
+                && (pair.First.LastWriteUtc is { } saved ? saved == pair.Second.LastWriteUtc : pair.Second.LastWriteUtc <= CreatedUtc.UtcDateTime));
+    }
 
     internal void VerifyData(string directory, ProfileCopyOperation operation = default) =>
         VerifyTree(Path.Combine(directory, DataName), Directories, Files, operation);
@@ -298,7 +306,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
     {
         var inventory = Inventory(directory, operation);
         if (!directories.SequenceEqual(inventory.Directories)
-            || !files.Select(file => (file.Name, file.Length)).SequenceEqual(inventory.Files))
+            || !files.Select(file => (file.Name, file.Length)).SequenceEqual(inventory.Files.Select(file => (file.Name, file.Length))))
             throw new InvalidDataException("The profile snapshot inventory changed during verification.");
     }
 
@@ -322,11 +330,11 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         }
     }
 
-    internal static (string[] Directories, List<(string Name, long Length)> Files) Inventory(string root, ProfileCopyOperation operation)
+    private static (string[] Directories, List<InventoryFile> Files) Inventory(string root, ProfileCopyOperation operation)
     {
         ArchiveExportMetadataFile.RejectLinks(root);
         List<string> directories = new();
-        List<(string Name, long Length)> files = new();
+        List<InventoryFile> files = new();
         var pending = new Stack<string>();
         pending.Push(root);
         while (pending.TryPop(out string? directory))
@@ -346,7 +354,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
                     continue;
                 }
                 using FileStream stream = RegularProfileFile.OpenRead(entry);
-                files.Add((name, stream.Length));
+                files.Add(new(name, stream.Length, File.GetLastWriteTimeUtc(stream.SafeFileHandle)));
             }
         }
         directories.Sort(StringComparer.Ordinal);

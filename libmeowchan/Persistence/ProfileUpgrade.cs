@@ -14,12 +14,24 @@ internal static class ProfileUpgrade
     private const string GenerationSuffix = ".1.2.0";
 
     internal static ProfileLease Open(string path, string legacyDownloads, bool temporary = false,
+        Func<string, long>? availableBytes = null, Action? beforePublish = null, Action<string, long>? progress = null, CancellationToken token = default) =>
+        Open(path, legacyDownloads, out _, temporary, availableBytes, beforePublish, progress, token);
+
+    internal static ProfileLease Open(string path, string legacyDownloads, out bool legacySourceChanged, bool temporary = false,
         Func<string, long>? availableBytes = null, Action? beforePublish = null, Action<string, long>? progress = null, CancellationToken token = default)
     {
         ProfileCopyOperation operation = new(progress, token);
         string directory = ProfileLease.NormalizeDirectory(path);
         if (Directory.GetParent(directory) is null)
             throw new InvalidDataException("A filesystem root cannot be used as an upgrade source.");
+
+        string generation = directory + GenerationSuffix;
+        legacySourceChanged = false;
+        // After publication the source is only probed for an informational notice. Acquiring it could
+        // create a missing directory or fail on a folder that has been replaced, locked or made read-only.
+        if (!temporary && HasPublishedGeneration(directory))
+            return OpenWorking(directory, generation, operation, out legacySourceChanged);
+
         ArchiveExportMetadataFile.RejectLinks(directory);
         ProfileLease? source = null;
         try
@@ -27,38 +39,31 @@ internal static class ProfileUpgrade
             source = ProfileLease.Acquire(directory);
             if (ProfileManifest.Read(directory) is { } existing)
             {
-                RequireIdentity(source, existing);
-                if (SnapshotFor(directory) is { } backup)
-                {
-                    ProfileSnapshot saved = ProfileSnapshot.Read(backup);
-                    VerifyUpgrade(saved, existing, backup, operation);
-                }
-                else if (existing.State == ProfileManifest.Preparing)
-                    throw new InvalidDataException("The preparing profile has no pre-upgrade snapshot.");
-                ProfileManifest.Inspect(directory);
+                legacySourceChanged = InspectWorking(source, existing, SnapshotFor(directory), null, operation);
                 ProfileLease current = source;
                 source = null;
                 return current;
             }
 
-            if (temporary || !Directory.Exists(directory + GenerationSuffix) && (source.WasEmptyAtAcquisition || HasOnlyLeaseMetadata(directory)))
+            if (temporary || !Directory.Exists(generation) && (source.WasEmptyAtAcquisition || HasOnlyLeaseMetadata(directory)))
             {
                 ProfileLease current = source;
                 source = null;
                 return current;
             }
 
-            string generation = directory + GenerationSuffix;
             ArchiveExportMetadataFile.RejectLinks(generation);
             if (!Directory.Exists(generation))
                 Prepare(source, generation, legacyDownloads, availableBytes, beforePublish, operation);
-            return OpenWorking(source, generation, operation);
+            return OpenWorking(directory, generation, operation, out legacySourceChanged);
         }
         finally
         {
             source?.Dispose();
         }
     }
+
+    internal static bool HasPublishedGeneration(string source) => Directory.Exists(source + GenerationSuffix);
 
     internal static void Complete(ProfileLease lease, string[] externalRoots)
     {
@@ -96,12 +101,11 @@ internal static class ProfileUpgrade
             string target = Path.Combine(generation, WorkingDirectoryName);
             ProfileSnapshot.CreatePrivateDirectory(staging, source.ProfileDirectory);
             ProfileSnapshot.CreatePrivateDirectory(snapshotPath, source.ProfileDirectory);
-            string sourceIdentity = ProfileDirectoryIdentity.Capture(source.ProfileDirectory).DiscardToken;
             Guid id = ProfileInstanceIdentity.TryRead(source.ProfileDirectory)?.Id ?? Guid.NewGuid();
             var initial = ProfileManifest.New(id, ProfileManifest.Preparing, new(), []);
             string defaultDownloads = ProfileLease.NormalizeDirectory(legacyDownloads);
             ProfileSnapshot snapshot = ProfileSnapshot.CaptureUpgrade(source, snapshotPath, initial, defaultDownloads,
-                sourceIdentity, availableBytes, operation);
+                availableBytes, operation);
             snapshot.RestoreData(snapshotPath, prepared, operation);
             var originalParts = ProfileManifest.Inspect(prepared);
             string[] external = snapshot.ManagedMedia!.SelectMany(media => media.SelectedNames is null
@@ -129,37 +133,58 @@ internal static class ProfileUpgrade
         }
     }
 
-    private static ProfileLease OpenWorking(ProfileLease source, string generation, ProfileCopyOperation operation)
+    private static ProfileLease OpenWorking(string source, string generation, ProfileCopyOperation operation, out bool legacySourceChanged)
     {
         string work = Path.Combine(generation, WorkingDirectoryName);
         if (!Directory.Exists(work))
             throw new InvalidDataException("The working profile is missing from the upgrade directory.");
         ArchiveExportMetadataFile.RejectLinks(work);
         string backup = Path.Combine(generation, SnapshotDirectoryName);
-        var snapshot = ProfileSnapshot.Read(backup);
-        source.EnsureDirectoryIdentity();
-        if (snapshot.SourceIdentity != ProfileDirectoryIdentity.Capture(source.ProfileDirectory).DiscardToken)
-            throw new InvalidDataException("The source profile directory is no longer the one captured for this upgrade.");
         ProfileLease lease = ProfileLease.Acquire(work);
         try
         {
             ProfileManifest manifest = ProfileManifest.Read(work)
                 ?? throw new InvalidDataException("The working profile has no upgrade manifest.");
-            var original = ProfileInstanceIdentity.TryRead(source.ProfileDirectory);
-            if (!string.Equals(snapshot.SourceDirectory, source.ProfileDirectory, PathComparison)
-                || (original is not null && original.Id != manifest.ProfileId))
-                throw new InvalidDataException("The working profile does not belong to this upgrade.");
-            if (original is null)
-                snapshot.VerifyLegacySource(operation);
-            RequireIdentity(lease, manifest);
-            VerifyUpgrade(snapshot, manifest, backup, operation);
-            ProfileManifest.Inspect(work);
+            legacySourceChanged = InspectWorking(lease, manifest, backup, source, operation);
             return lease;
         }
         catch
         {
             lease.Dispose();
             throw;
+        }
+    }
+
+    private static bool InspectWorking(ProfileLease lease, ProfileManifest manifest, string? backup, string? source,
+        ProfileCopyOperation operation)
+    {
+        RequireIdentity(lease, manifest);
+        ProfileManifest.Inspect(lease.ProfileDirectory);
+        if (backup is not null)
+        {
+            ProfileSnapshot snapshot = ProfileSnapshot.Read(backup);
+            VerifyUpgrade(snapshot, manifest, backup, operation);
+            return LegacySourceChanged(snapshot, source ?? snapshot.SourceDirectory, operation.Token);
+        }
+        if (manifest.State == ProfileManifest.Preparing)
+            throw new InvalidDataException("The preparing profile has no pre-upgrade snapshot.");
+        return false;
+    }
+
+    private static bool LegacySourceChanged(ProfileSnapshot snapshot, string source, CancellationToken token)
+    {
+        if (!string.Equals(snapshot.SourceDirectory, source, PathComparison) || !Directory.Exists(source)) return true;
+        try
+        {
+            ArchiveExportMetadataFile.RejectLinks(source);
+            if (ProfileInstanceIdentity.TryRead(source) is { } identity)
+                return identity.Id != snapshot.Profile.ProfileId;
+            return !snapshot.LegacyInventoryMatches(source, token);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException
+            or ArgumentException or NotSupportedException)
+        {
+            return true;
         }
     }
 

@@ -121,7 +121,7 @@ public partial class App : Application
     }
 
     private static bool NeedsProfileCopyWindow(string profile) =>
-        Directory.Exists(profile) && (!File.Exists(Path.Combine(profile, ProfileManifest.FileName))
+        ProfileUpgrade.HasPublishedGeneration(profile) || Directory.Exists(profile) && (!File.Exists(Path.Combine(profile, ProfileManifest.FileName))
             || ProfileUpgrade.SnapshotFor(profile) is not null);
 
     private static void ShowProfileStartup(IClassicDesktopStyleApplicationLifetime desktop, string profile)
@@ -241,7 +241,17 @@ public partial class App : Application
             menu.Items.Add(action);
         }
         action.Click += async (_, _) => await ShowReturnAsync();
-        if (main.SessionHost.OfferProfileReturnAtStartup)
+        if (main.SessionHost.LegacyProfileSourceChanged)
+        {
+            main.Opened += async (_, _) =>
+            {
+                DialogPrompt.Parts notice = DialogPrompt.Build(ProfileUpgradeCatalog.SourceChangedTitle, ProfileUpgradeCatalog.SourceChangedMessage,
+                    ProfileUpgradeCatalog.ShowBackup, ProfileUpgradeCatalog.Continue, danger: false, automationId: "ProfileUpgradeSourceChanged");
+                AutomationProperties.SetAutomationId(notice.Cancel, "ProfileUpgradeSourceChanged.continue");
+                if (await notice.Window.ShowDialog<bool>(main)) await ShowReturnAsync();
+            };
+        }
+        else if (main.SessionHost.OfferProfileReturnAtStartup)
             main.Opened += async (_, _) => await ShowReturnAsync();
     }
 
