@@ -42,7 +42,10 @@ internal sealed class MediaOccurrencesWindow : Window
             string? provider = entry.BooruPostId == null ? null : providerOf?.Invoke(entry);
             TextBlock where = new() { Name = "MediaOccurrenceWhere", TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 Text = folderFile ? Texts.T("folderSource.media.board", string.IsNullOrWhiteSpace(entry.ThreadTitle) ? Texts.T("folderSource.media.unknown") : entry.ThreadTitle)
-                    : entry.BooruPostId == null ? board + " · " + thread : Texts.T("booru.media.badge") + " · " + Texts.T("booru.media.tile.post", entry.BooruPostId) };
+                    : entry.BooruIdentity is { } identity
+                        ? string.Join(" · ", identity.SourceId == BooruMediaIdentity.Source ? Texts.T("booru.media.source") : identity.SourceId,
+                            identity.InstanceId, Texts.T("booru.ui.post.title", identity.PostId))
+                        : board + " · " + thread };
             where.Classes.Add("section-title");
             TextBlock file = new() { Name = "MediaOccurrenceFile", TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 Text = string.Join(" · ", new[] { entry.Name ?? entry.MediaId ?? string.Empty,
