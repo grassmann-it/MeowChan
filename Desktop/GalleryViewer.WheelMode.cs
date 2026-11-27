@@ -64,6 +64,13 @@ internal sealed partial class GalleryViewer
     /// <summary>The action of a wheel turn over the picture with these modifiers (the setting, inverted by Ctrl).</summary>
     private GalleryWheelAction WheelActionFor(KeyModifiers modifiers) => GalleryWheel.Resolve(_wheelMode, modifiers);
 
+    private bool TryScrollFitByWheel(PointerWheelEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.None || CurrentGeometry is not { } geometry) return false;
+        double delta = geometry.ScrollsHorizontally && e.Delta.X != 0 ? e.Delta.X : e.Delta.Y;
+        return delta != 0 && ScrollFitImage(geometry, -delta * 0.1);
+    }
+
     /// <summary>
     /// Browse: a wheel turn goes to the previous (up) or next (down) medium, like the arrow keys; a touchpad's small deltas add up to one step. While the
     /// shell is still moving to the previous one, further turns only add up (WheelBrowseQueue) and go as one move when it has landed, so a spinning wheel

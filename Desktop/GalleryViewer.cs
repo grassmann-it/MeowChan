@@ -497,6 +497,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _helpPanel.MaxHeight = 350;
         AutomationProperties.SetAutomationId(_viewport, "GalleryViewport");
         AutomationProperties.SetAutomationId(_image, "GalleryImage");
+        AutomationProperties.SetAutomationId(_quality, "GalleryQuality");
         _viewport.Children.Add(_themeBackdrop);
         _viewport.Children.Add(_image);
         _statusPlate.Child = _status;
@@ -1013,6 +1014,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         _fit.IsEnabled = _actual.IsEnabled = _actualRow.IsEnabled = _zoomIn.IsEnabled = _zoomOut.IsEnabled = _rotate.IsEnabled = enabled;
         _flipHorizontal.IsEnabled = enabled && CanFlipView;
+        RefreshFitModeRows();
     }
 
     private void SetMediaFocus(bool enabled, bool notify = true)
@@ -1228,6 +1230,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             ? Math.Clamp(state.PhysicalZoom, 1, maxZoom)
             : Math.Clamp(double.IsFinite(state.PhysicalZoom) ? state.PhysicalZoom : fit, fit, maxZoom);
         _panX = state.PanX; _panY = state.PanY;
+        if (!_manualZoom && CurrentGeometry is { } geometry)
+            _fitScrollPosition = geometry.FitScrollPosition(Placement with { Zoom = state.PhysicalZoom }) ?? 0;
         FitIfAutomatic(); if (_manualZoom) _ = EnsureDetailAsync();
     }
 
@@ -1389,19 +1393,6 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         }
         await RequestDecodeAsync(CurrentFitRequest(), debounce: false);
         CompleteFilmstripContextRequest(entry, filmstripContextRequest);
-    }
-
-    /// <summary>The display-size target the viewer decodes for now; the preloader decodes the neighbors at the same size.</summary>
-    internal GalleryDecodeRequest.Fit PreloadFitRequest => CurrentFitRequest(oriented: false);
-
-    private GalleryDecodeRequest.Fit CurrentFitRequest(bool oriented = true)
-    {
-        Size available = _viewport.Bounds.Size;
-        if (available.Width <= 0 || available.Height <= 0)
-            available = TopLevel.GetTopLevel(this)?.ClientSize ?? new Size(1280, 720);
-        // A picture turned a quarter fits its swapped box: decode for the orientation it is shown in.
-        if (oriented && GalleryRotation.IsQuarterTurn(_rotation)) available = new Size(available.Height, available.Width);
-        return new(available.Width * DisplayScale, available.Height * DisplayScale);
     }
 
     private Task EnsureDetailAsync()
@@ -1791,7 +1782,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         if (CommandBindings.Matches(e, "gallery.tools-toggle")) { SetMediaFocus(!_mediaFocus); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.context-toggle")) { ToggleContext(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.context-close")) { CloseContextByCommand(); e.Handled = true; return; }
-        if (CommandBindings.Matches(e, "gallery.fit")) { Fit(); e.Handled = true; return; }
+        if (RouteFitModeKey(e)) return;
         if (CommandBindings.Matches(e, "gallery.actual-size")) { ActualPixels(); e.Handled = true; return; }
         // Matches already protects Button Space/Enter. A custom non-activation
         // gesture must still work when a transport/toolbar button has focus.
@@ -1821,8 +1812,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             if (CommandBindings.Matches(e, "video.pause")) { _ = _video.PauseAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.stop")) { _ = _video.StopPlaybackAsync(); e.Handled = true; return; }
         }
-        if (CommandBindings.Matches(e, "gallery.previous")) Move(-1);
-        else if (CommandBindings.Matches(e, "gallery.next")) Move(1);
+        if (CommandBindings.Matches(e, "gallery.previous")) MoveOrScrollFit(e, "gallery.previous", -1);
+        else if (CommandBindings.Matches(e, "gallery.next")) MoveOrScrollFit(e, "gallery.next", 1);
         else if (CommandBindings.Matches(e, "gallery.zoom-in")) Zoom(1.1);
         else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
         else if (CommandBindings.Matches(e, "gallery.rotate")) RotateView();
@@ -1846,7 +1837,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         {
             // A command that exists only as a button of the hidden footer: the controls come first, then the existing executor runs.
             if (OverlayControlsEffective && _overlayHidden && CommandBindings.HasActionBehind(this, _overlayFooter, e)) RevealControlsForCommand();
-            CommandBindings.RouteVisibleActions(this, e);
+            if (!CommandBindings.RouteVisibleActions(this, e)) RouteFitScrollKey(e);
             return;
         }
         e.Handled = true;

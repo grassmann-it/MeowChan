@@ -2,7 +2,11 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
@@ -48,6 +52,9 @@ internal static class GalleryFitChecks
             await viewer.StopAsync();
             await viewer.DisposeAsync();
             viewer = new GalleryViewer { DecodeImageAsync = probe.DecodeAsync };
+            // ResizeAsync measures the picture plus both docked rows, including before the first decode.
+            viewer.ConfigurePlayback(new GalleryPlaybackPreferences().WithControlsOverlay(false));
+            viewer.SetRating(3, error: null);
             window.Content = viewer;
             await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().Any(control => control is Image { Name: "GalleryImage" }));
             viewer.SetPosition("Fit integration", false, false);
@@ -260,6 +267,10 @@ internal static class GalleryFitChecks
             await viewer.ShowAsync(small, CancellationToken.None); await SettledAsync();
             Require(viewer.Rotation == 0, "A new medium did not start upright.");
 
+            GalleryEntry tall = await FixtureAsync(directory, "tall", 1000, 12000, SKColors.DarkCyan);
+            await ResetAsync(tall);
+            await CheckFitModesAsync(window, viewer, tall, small);
+
             List<long> resident = new(); List<double> latencies = new();
             int perfStart = probe.Calls.Count;
             for (int cycle = 0; cycle < 6; cycle++)
@@ -305,6 +316,87 @@ internal static class GalleryFitChecks
                 Directory.Delete(directory, true);
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryFitChecks: " + exception));
         }
+    }
+
+    private static async Task CheckFitModesAsync(MainWindow window, GalleryViewer viewer, GalleryEntry tall, GalleryEntry small)
+    {
+        T Find<T>(string id) where T : Control =>
+            viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => AutomationProperties.GetAutomationId(control) == id);
+        Image image = Find<Image>("GalleryImage");
+        Grid viewport = Find<Grid>("GalleryViewport");
+        TextBlock quality = Find<TextBlock>("GalleryQuality");
+        List<GalleryFitMode> choices = new();
+        viewer.FitModeChanged += choices.Add;
+
+        void Select(string id)
+        {
+            viewer.SetOverflowOpen(true);
+            ToggleButton row = viewer.OverflowItems.OfType<ToggleButton>()
+                .Single(button => AutomationProperties.GetAutomationId(button) == id);
+            Require(row.IsEnabled, $"Fit mode {id} was unavailable for the picture.");
+            row.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(row.IsChecked == true, $"Fit mode {id} was not marked as selected.");
+            viewer.SetOverflowOpen(false);
+            viewer.UpdateLayout();
+        }
+
+        void Press(Key key)
+        {
+            KeyEventArgs input = new() { RoutedEvent = InputElement.KeyDownEvent, Source = viewer, Key = key };
+            viewer.RaiseEvent(input);
+            Require(input.Handled, $"The fit viewport did not handle {key}.");
+        }
+
+        void AssertPosition(double position)
+        {
+            string expected = Texts.T("gallery.fitMode.position", position.ToString("P0", Texts.Culture));
+            Require(quality.Text?.Contains(expected, StringComparison.Ordinal) == true,
+                $"Expected '{expected}', got '{quality.Text}'.");
+        }
+
+        Select("gallery.fit-width");
+        double displayedWidth = image.Width;
+        double displayedHeight = image.Height;
+        Require(Math.Abs(displayedWidth - viewport.Bounds.Width) < 1
+            && Math.Abs(displayedHeight - 12 * displayedWidth) < 1, "Width mode did not fill the viewport with the 1000 × 12000 image.");
+        Require(image.TranslatePoint(default, viewport) is { } top && Math.Abs(top.Y) < 1,
+            "The top of the image was outside the viewport at the start of width fit.");
+        AssertPosition(0);
+
+        using (Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true))
+        {
+            Point point = viewport.TranslatePoint(new Point(5, 5), window)!.Value;
+            viewport.RaiseEvent(new PointerWheelEventArgs(viewport, pointer, window, point, 0,
+                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None, new Vector(0, -1)));
+        }
+        Require(viewer.CaptureState().PanY < (displayedHeight - viewport.Bounds.Height) / 2, "The wheel did not scroll down.");
+        double afterWheel = viewer.CaptureState().PanY;
+        Press(Key.Down);
+        Require(viewer.CaptureState().PanY < afterWheel, "Down did not continue scrolling the tall image.");
+        int pages = (int)Math.Ceiling(displayedHeight / viewport.Bounds.Height);
+        for (int page = 0; page < pages; page++) Press(Key.PageDown);
+        Require(image.TranslatePoint(new Point(0, displayedHeight), viewport) is { } bottom
+            && Math.Abs(bottom.Y - viewport.Bounds.Height) < 1, "Page Down could not reach the bottom of the image.");
+        AssertPosition(1);
+        Press(Key.PageUp);
+        Require(viewer.CaptureState().PanY > (viewport.Bounds.Height - displayedHeight) / 2, "Page Up did not scroll back.");
+
+        await viewer.ShowAsync(small, CancellationToken.None);
+        await viewer.ShowAsync(tall, CancellationToken.None);
+        Require(Math.Abs(image.Width - viewport.Bounds.Width) < 1, "Media navigation reset the width mode.");
+        AssertPosition(0);
+        viewer.RotateView();
+        Select("gallery.fit-height");
+        Require(Math.Abs(image.Width - viewport.Bounds.Height) < 1, "Height mode did not fill the rotated image's short axis.");
+        double beforeRight = viewer.CaptureState().PanX;
+        Press(Key.Right);
+        Require(viewer.CaptureState().PanX < beforeRight && viewer.CaptureState().PanY == 0,
+            "Right did not scroll horizontally in height mode.");
+        Select("gallery.fit");
+        Require(viewer.CaptureState().PanX == 0 && viewer.CaptureState().PanY == 0
+            && choices.SequenceEqual(new[] { GalleryFitMode.Width, GalleryFitMode.Height, GalleryFitMode.Fit }),
+            "Mode changes did not publish the chosen preference once each or Fit retained a scroll offset.");
+        Console.WriteLine("SMOKE gallery-fit modes: 1000 × 12000 width fit, wheel, arrows, page keys, both edges, position and media navigation passed.");
     }
 
     private static void PrintState(string stage, GalleryViewer viewer, Image image, Grid viewport, DecodeProbe probe)
@@ -376,7 +468,9 @@ internal static class GalleryFitChecks
                 && Math.Abs(toolsBottom + tools.Margin.Bottom + caption.Margin.Top - captionOrigin.Y) < 1
                 && Math.Abs(captionBottom + caption.Margin.Bottom - height) < 1
                 && Math.Abs(viewport.Bounds.Height + footerHeight - height) < 1;
-        });
+        }, () => $"requested {width} × {height}; viewer {viewer.Bounds}; media {viewport.Bounds} at {viewport.TranslatePoint(default, viewer)}; "
+            + $"tools {tools.Bounds} at {tools.TranslatePoint(default, viewer)}, margin {tools.Margin}, visible {tools.IsEffectivelyVisible}; "
+            + $"info {caption.Bounds} at {caption.TranslatePoint(default, viewer)}, margin {caption.Margin}, visible {caption.IsEffectivelyVisible}");
     }
 
     private static Task SettledAsync() => Task.Delay(350);

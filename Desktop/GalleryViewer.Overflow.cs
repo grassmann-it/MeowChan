@@ -70,6 +70,29 @@ internal sealed partial class GalleryViewer
     internal bool IsContextOverPicture => _contextOverPicture;
     internal IReadOnlyList<Button> OverflowItems => _overflowButtons;
     internal Control OverflowMenuContent => _overflowPanel;
+    private readonly List<(GalleryFitMode Mode, ToggleButton Button)> _fitModeRows = new();
+
+    private void InitializeFitModeMenu()
+    {
+        int insertAt = _overflowPanel.Children.IndexOf(_zoomIn);
+        foreach (var (mode, commandId) in FitCommands)
+        {
+            ToggleButton button = AddOverflowItem(new ToggleButton(), commandId, check: true, keepOpen: true,
+                label: () => FitModeLabel(mode));
+            _overflowPanel.Children.Move(_overflowPanel.Children.IndexOf(button), insertAt++);
+            button.Click += (_, _) => SelectFitMode(mode);
+            _fitModeRows.Add((mode, button));
+        }
+    }
+
+    private void RefreshFitModeRows()
+    {
+        foreach (var (mode, button) in _fitModeRows)
+        {
+            button.IsChecked = mode == EffectiveFitMode;
+            button.IsEnabled = mode == GalleryFitMode.Fit ? _fit.IsEnabled : CanSelectImageFitMode;
+        }
+    }
 
     /// <summary>Opens or closes the "⋯" menu without a pointer or key (smokes and tests).</summary>
     internal void SetOverflowOpen(bool open)
@@ -89,6 +112,7 @@ internal sealed partial class GalleryViewer
 
     private void InitializeOverflowMenu()
     {
+        InitializeFitModeMenu();
         _overflowButton.Content = OverflowGlyph();
         _overflowFlyout.FlyoutPresenterClasses.Add("gallery-overflow");
         _overflowFlyout.Content = new ScrollViewer
@@ -208,6 +232,7 @@ internal sealed partial class GalleryViewer
             if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root;
         }
         RefreshFrameCommands(); // the moment-dependent rows are enabled exactly while they can act
+        RefreshFitModeRows();
         _flipHorizontal.IsEnabled = CanFlipView;
         _playbackHeading.Text = GalleryPlaybackCatalog.Get("viewer.playback.group.playback");
         _viewHeading.Text = GalleryPlaybackCatalog.Get("viewer.playback.group.view");

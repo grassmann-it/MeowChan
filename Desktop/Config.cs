@@ -1426,6 +1426,15 @@ namespace MeowChan
         }
         internal static string NormalizeGalleryWheelMode(string? value) =>
             string.Equals(value?.Trim(), GalleryWheelModeBrowse, StringComparison.OrdinalIgnoreCase) ? GalleryWheelModeBrowse : GalleryWheelModeZoom;
+
+        private string _galleryFitMode = nameof(MeowChan.Desktop.GalleryFitMode.Fit);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryFitMode
+        {
+            get => _galleryFitMode;
+            set => _galleryFitMode = GalleryFitPreferences.ParseMode(value).ToString();
+        }
+
         /// <summary>GL5c: how long a transient status of the gallery's info line (the slideshow's "ready", a confirmation) stays before it fades out; a running slideshow and every error stay.</summary>
         [JsonConverter(typeof(DesktopPreferenceGalleryStatusDwellMsConverter))]
         public int GalleryStatusDwellMs { get; set; } = GalleryStatusDwellMsDefault;
@@ -2240,6 +2249,7 @@ namespace MeowChan
                 ReaderNavigationMode = ReaderNavigationMode,
                 ReaderNavigationShowPosition = ReaderNavigationShowPosition,
                 GalleryWheelMode = GalleryWheelMode,
+                GalleryFitMode = GalleryFitMode,
                 GalleryBackground = GalleryBackground,
                 GalleryStatusDwellMs = GalleryStatusDwellMs,
                 GalleryPostTagChipLimit = GalleryPostTagChipLimit,
@@ -2552,6 +2562,7 @@ namespace MeowChan
             ReaderNavigationMode = source.ReaderNavigationMode;
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
             GalleryWheelMode = source.GalleryWheelMode;
+            GalleryFitMode = source.GalleryFitMode;
             GalleryBackground = source.GalleryBackground;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             GalleryPostTagChipLimit = source.GalleryPostTagChipLimit;

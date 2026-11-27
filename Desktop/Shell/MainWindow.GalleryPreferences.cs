@@ -17,6 +17,8 @@ public partial class MainWindow
     private int? _pendingGalleryVolume;
     private bool? _desiredGalleryContext;
     private int? _desiredGalleryVolume;
+    private GalleryFitMode? _pendingGalleryFitMode;
+    private GalleryFitMode? _desiredGalleryFitMode;
     private GalleryPlaybackPreferences? _pendingGalleryPlayback;
     private GalleryPlaybackPreferences? _pendingGalleryPlaybackBaseline;
     private GalleryPlaybackPreferences? _desiredGalleryPlayback;
@@ -36,7 +38,10 @@ public partial class MainWindow
             _config.VideoAutoplay, _config.VideoStartMuted, _desiredGalleryVolume ?? _config.VideoVolume);
         _presentedGalleryPlayback = _desiredGalleryPlayback ?? GalleryPlaybackPreferences.FromConfig(_config);
         _gallery?.ConfigurePlayback(_presentedGalleryPlayback);
-        _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
+        _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config) with
+        {
+            Mode = _desiredGalleryFitMode ?? GalleryFitPreferences.ParseMode(_config.GalleryFitMode)
+        });
         _gallery?.ConfigureZoomLimits(_config.GalleryMaxZoomPercent);
         _gallery?.ConfigureWheelMode(_config.GalleryWheelMode);
         _gallery?.ConfigureBackground(_config.GalleryBackground);
@@ -81,6 +86,12 @@ public partial class MainWindow
         QueueGalleryPreference(null, null);
     }
 
+    private void QueueGalleryFitMode(GalleryFitMode mode)
+    {
+        _pendingGalleryFitMode = _desiredGalleryFitMode = mode;
+        QueueGalleryPreference(null, null);
+    }
+
     private void OnGalleryActivationChanged(object? sender, EventArgs args) =>
         Dispatcher.UIThread.Post(UpdateGalleryInteractionAvailability, DispatcherPriority.Background);
 
@@ -108,13 +119,15 @@ public partial class MainWindow
         _galleryPreferenceTimer?.Stop();
         bool? context = _pendingGalleryContext;
         int? volume = _pendingGalleryVolume;
+        GalleryFitMode? fitMode = _pendingGalleryFitMode;
         GalleryPlaybackPreferences? playback = _pendingGalleryPlayback;
         GalleryPlaybackPreferences? baseline = _pendingGalleryPlaybackBaseline;
         GalleryLayoutChoice? layoutView = _pendingGalleryLayoutView, layoutTag = _pendingGalleryLayoutTag;
         _pendingGalleryContext = null; _pendingGalleryVolume = null;
+        _pendingGalleryFitMode = null;
         _pendingGalleryPlayback = null; _pendingGalleryPlaybackBaseline = null;
         _pendingGalleryLayoutView = null; _pendingGalleryLayoutTag = null;
-        if (!context.HasValue && !volume.HasValue && playback == null && layoutView == null && layoutTag == null)
+        if (!context.HasValue && !volume.HasValue && !fitMode.HasValue && playback == null && layoutView == null && layoutTag == null)
         {
             // A later explicit Settings/Close flush may retry a retained failed
             // host draft. Do not permanently chain the earlier faulted observer.
@@ -132,6 +145,7 @@ public partial class MainWindow
             {
                 if (context.HasValue) current.GalleryContextOpen = context.Value;
                 if (volume.HasValue) current.VideoVolume = volume.Value;
+                if (fitMode.HasValue) current.GalleryFitMode = fitMode.Value.ToString();
                 if (playback != null && baseline != null) playback.ApplyChangesTo(current, baseline);
                 ApplyGalleryLayoutChanges(current, layoutView, layoutTag);
             });
@@ -140,6 +154,7 @@ public partial class MainWindow
         {
             _pendingGalleryContext ??= context;
             _pendingGalleryVolume ??= volume;
+            _pendingGalleryFitMode ??= fitMode;
             _pendingGalleryPlayback ??= playback;
             _pendingGalleryPlaybackBaseline ??= baseline;
             _pendingGalleryLayoutView ??= layoutView;
@@ -165,6 +180,9 @@ public partial class MainWindow
                 _desiredGalleryContext = null;
             if (_pendingGalleryVolume == null && _desiredGalleryVolume == _config.VideoVolume)
                 _desiredGalleryVolume = null;
+            if (ReferenceEquals(write, _galleryPreferenceWrite) && _pendingGalleryFitMode == null
+                && _desiredGalleryFitMode == GalleryFitPreferences.ParseMode(_config.GalleryFitMode))
+                _desiredGalleryFitMode = null;
             if (ReferenceEquals(write, _galleryPreferenceWrite) && _pendingGalleryPlayback == null)
                 _desiredGalleryPlayback = null;
             if (ReferenceEquals(write, _galleryPreferenceWrite) && !GalleryLayoutPending)

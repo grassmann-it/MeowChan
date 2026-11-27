@@ -49,7 +49,8 @@ internal static class GalleryRotation
 /// give the orientation on screen; every method answers in physical pixels per source pixel (zoom) or dip (pan).
 /// </summary>
 internal readonly record struct GalleryViewGeometry(int SourceWidth, int SourceHeight, double ViewportWidth, double ViewportHeight,
-    double DisplayScale, double? FitCap = null, int MaxZoomPercent = GalleryZoomLimits.MaxPercentDefault, int Rotation = 0, bool Flipped = false)
+    double DisplayScale, double? FitCap = null, int MaxZoomPercent = GalleryZoomLimits.MaxPercentDefault, int Rotation = 0,
+    bool Flipped = false, GalleryFitMode FitMode = GalleryFitMode.Fit)
 {
     internal bool IsValid => SourceWidth > 0 && SourceHeight > 0 && double.IsFinite(DisplayScale) && DisplayScale > 0;
 
@@ -58,8 +59,23 @@ internal readonly record struct GalleryViewGeometry(int SourceWidth, int SourceH
         ? (SourceHeight, SourceWidth) : (SourceWidth, SourceHeight);
 
     /// <summary>The zoom that fits the rotated medium into the viewport (the image viewer's Fit, with its upscale cap).</summary>
-    internal double Fit => IsValid
-        ? GalleryGeometry.Fit(Oriented.Width, Oriented.Height, ViewportWidth, ViewportHeight, DisplayScale, FitCap) : 1;
+    internal double Fit
+    {
+        get
+        {
+            if (!IsValid) return 1;
+            (double width, double height) = FitBounds(ViewportWidth, ViewportHeight, FitMode);
+            return GalleryGeometry.Fit(Oriented.Width, Oriented.Height, width, height, DisplayScale, FitCap);
+        }
+    }
+
+    // A finite upper bound serves as the unconstrained axis in both view geometry and Fit decode requests.
+    internal static (double Width, double Height) FitBounds(double width, double height, GalleryFitMode mode) => mode switch
+    {
+        GalleryFitMode.Width => (width, double.MaxValue),
+        GalleryFitMode.Height => (double.MaxValue, height),
+        _ => (width, height)
+    };
 
     /// <summary>The largest zoom: the setting, but never below Fit (a huge medium that only fits above it stays usable).</summary>
     internal double MaxZoom => Math.Max(Fit, GalleryZoomLimits.ClampPercent(MaxZoomPercent) / 100.0);
@@ -69,6 +85,26 @@ internal readonly record struct GalleryViewGeometry(int SourceWidth, int SourceH
 
     internal double PanX(double pan, double zoom) => GalleryGeometry.Pan(pan, Oriented.Width, zoom, DisplayScale, ViewportWidth);
     internal double PanY(double pan, double zoom) => GalleryGeometry.Pan(pan, Oriented.Height, zoom, DisplayScale, ViewportHeight);
+
+    internal bool ScrollsHorizontally => FitMode == GalleryFitMode.Height;
+
+    internal double FitScrollLimit(double zoom) => FitMode switch
+    {
+        GalleryFitMode.Width => PanY(double.MaxValue, zoom),
+        GalleryFitMode.Height => PanX(double.MaxValue, zoom),
+        _ => 0
+    };
+
+    internal double FitScrollPan(GalleryViewPlacement view) => ScrollsHorizontally ? view.PanX : view.PanY;
+
+    internal double? FitScrollPosition(GalleryViewPlacement view)
+    {
+        double limit = FitScrollLimit(view.Zoom);
+        return limit > 0 ? Math.Clamp((1 - FitScrollPan(view) / limit) / 2, 0, 1) : null;
+    }
+
+    internal GalleryViewPlacement WithFitScrollPan(GalleryViewPlacement view, double pan) =>
+        ScrollsHorizontally ? view with { PanX = pan } : view with { PanY = pan };
 }
 
 /// <summary>Where the medium is: the zoom (physical pixels per source pixel), the pan in dip, and how it got there.</summary>
@@ -81,7 +117,12 @@ internal readonly record struct GalleryViewPlacement(double Zoom, double PanX, d
 /// </summary>
 internal static class GalleryViewMath
 {
-    internal static GalleryViewPlacement Fitted(GalleryViewGeometry geometry) => new(geometry.Fit, 0, 0, false, false);
+    internal static GalleryViewPlacement Fitted(GalleryViewGeometry geometry, double scrollPosition = 0)
+    {
+        GalleryViewPlacement view = new(geometry.Fit, 0, 0, false, false);
+        double pan = geometry.FitScrollLimit(view.Zoom) * (1 - 2 * scrollPosition);
+        return geometry.WithFitScrollPan(view, pan);
+    }
 
     internal static GalleryViewPlacement ActualPixels(GalleryViewGeometry geometry) => new(1, 0, 0, true, true);
 
@@ -116,12 +157,12 @@ internal static class GalleryViewMath
     }
 
     /// <summary>The placement after a viewport or limit change: Fit follows the viewport, a manual zoom is re-clamped.</summary>
-    internal static GalleryViewPlacement IfAutomatic(GalleryViewPlacement view, GalleryViewGeometry geometry)
+    internal static GalleryViewPlacement IfAutomatic(GalleryViewPlacement view, GalleryViewGeometry geometry, double scrollPosition = 0)
     {
         if (!geometry.IsValid) return view;
         double fit = geometry.Fit;
         if (view.Actual && view.Zoom < fit) return Clamped(view, geometry);
-        if (!view.Manual || view.Zoom <= fit) return Fitted(geometry);
+        if (!view.Manual || view.Zoom <= fit) return Fitted(geometry, scrollPosition);
         return Clamped(view with { Zoom = geometry.ClampZoom(view.Zoom) }, geometry);
     }
 

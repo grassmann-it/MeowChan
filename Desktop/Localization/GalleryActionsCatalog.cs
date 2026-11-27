@@ -43,6 +43,7 @@ internal static class GalleryActionsCatalog
         ("gallery.toolbar.label.edit", "Edit", "Bearbeiten"),
         ("gallery.toolbar.label.help", "Help", "Hilfe"),
         ("gallery.overflow.label", "More gallery actions", "Weitere Galerieaktionen"),
+        ("gallery.fitMode.position", "Scroll position {0}", "Scrollposition {0}"),
         ("gallery.background.black", "Black", "Schwarz"),
         ("gallery.background.theme", "Theme", "Design"),
         ("gallery.background.white", "White", "Weiß"),

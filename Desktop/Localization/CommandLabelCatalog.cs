@@ -118,6 +118,8 @@ internal static class CommandLabelCatalog
         ("command.gallery.previous", "Previous media", "Voriges Medium"),
         ("command.gallery.next", "Next media", "Nächstes Medium"),
         ("command.gallery.fit", "Fit", "Einpassen"),
+        ("command.gallery.fit-width", "Fit to width", "An Breite anpassen"),
+        ("command.gallery.fit-height", "Fit to height", "An Höhe anpassen"),
         ("command.gallery.actual-size", "1:1", "1:1"),
         ("command.gallery.zoom-in", "Zoom in", "Vergrößern"),
         ("command.gallery.rotate", "Rotate 90°", "90° drehen"),
