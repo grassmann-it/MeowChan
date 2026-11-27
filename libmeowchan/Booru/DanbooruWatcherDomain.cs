@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Globalization;
+using System.Text;
 
 namespace MeowChan.Booru;
 
@@ -78,11 +80,12 @@ internal sealed record DanbooruWatcher
     internal const int DefaultPageBudget = MaximumPageBudget;
     internal const int MaximumPageBudget = 5;
 
-    private DanbooruWatcher(string watcherId, DanbooruTagQuery query,
+    private DanbooruWatcher(string watcherId, string sourceId, string query,
         DateTimeOffset createdAtUtc, int pageSize, int pageBudget)
     {
         WatcherId = watcherId;
-        Query = query;
+        SourceId = sourceId;
+        CanonicalQuery = query;
         State = DanbooruWatcherState.Active;
         BaselineMode = DanbooruWatcherBaselineMode.FromNow;
         CreatedAtUtc = createdAtUtc.ToUniversalTime();
@@ -95,8 +98,7 @@ internal sealed record DanbooruWatcher
 
     internal string WatcherId { get; init; }
     internal string SourceId { get; init; } = ProviderId;
-    internal DanbooruTagQuery Query { get; init; }
-    internal string CanonicalQuery => Query.ProviderQuery;
+    internal string CanonicalQuery { get; }
     internal DanbooruWatcherState State { get; init; }
     internal DanbooruWatcherBaselineMode BaselineMode { get; init; }
     internal DateTimeOffset CreatedAtUtc { get; init; }
@@ -123,11 +125,12 @@ internal sealed record DanbooruWatcher
     internal static bool TryCreate(string? watcherId, string? explicitQuery,
         DateTimeOffset createdAtUtc, out DanbooruWatcher? watcher,
         out DanbooruWatcherCreateError error, int pageSize = DefaultPageSize,
-        int pageBudget = DefaultPageBudget)
+        int pageBudget = DefaultPageBudget, string sourceId = ProviderId)
     {
         watcher = null;
         error = DanbooruWatcherCreateError.None;
-        if (string.IsNullOrWhiteSpace(watcherId) || watcherId.Length > 128 || watcherId.Any(char.IsControl))
+        if (string.IsNullOrWhiteSpace(watcherId) || watcherId.Length > 128 || watcherId.Any(char.IsControl)
+            || !BooruPostKey.IsToken(sourceId))
         {
             error = DanbooruWatcherCreateError.InvalidWatcherId;
             return false;
@@ -142,13 +145,13 @@ internal sealed record DanbooruWatcher
             error = DanbooruWatcherCreateError.InvalidPageBudget;
             return false;
         }
-        if (!DanbooruTagQuery.TryParse(explicitQuery, out DanbooruTagQuery? query, out _))
+        if (!BooruProfileQuery.TryNormalizeStored(sourceId, explicitQuery, out string canonical))
         {
             error = DanbooruWatcherCreateError.InvalidQuery;
             return false;
         }
 
-        watcher = new DanbooruWatcher(watcherId, query!, createdAtUtc, pageSize, pageBudget);
+        watcher = new DanbooruWatcher(watcherId, sourceId, canonical, createdAtUtc, pageSize, pageBudget);
         return true;
     }
 
@@ -496,4 +499,94 @@ internal sealed record DanbooruWatcher
             CooldownUntilUtc = null,
             Progress = watcher.Progress with { PagesCheckedInRun = 0, BudgetLimited = false }
         }, false, code);
+}
+
+// The SDK host applies the active profile when executing a query. The catalog only
+// checks the durable syntax so it can still read a watcher after its profile is withdrawn.
+internal static class BooruProfileQuery
+{
+    internal const int MaximumTagTerms = 8;
+
+    internal static bool TryNormalizeStored(string sourceId, string? input, out string canonical)
+    {
+        if (sourceId != DanbooruWatcher.ProviderId)
+            return Parse(input, MaximumTagTerms, true, null, null, out canonical) == DanbooruTagQueryError.None;
+
+        bool accepted = DanbooruTagQuery.TryParse(input, out DanbooruTagQuery? parsed, out _);
+        canonical = parsed?.ProviderQuery ?? string.Empty;
+        return accepted;
+    }
+
+    internal static DanbooruTagQueryError Parse(string? input, int maximumTagTerms, bool allowsExclusion,
+        IReadOnlyList<string>? ratingValues, string? cursorPrefix, out string canonical)
+    {
+        canonical = string.Empty;
+        if (input is null) return DanbooruTagQueryError.NullInput;
+        if (input.Length > DanbooruTagQuery.MaximumInputUtf16CodeUnits) return DanbooruTagQueryError.InputTooLong;
+        int bytes = 0;
+        for (int offset = 0; offset < input.Length;)
+        {
+            if (Rune.DecodeFromUtf16(input.AsSpan(offset), out Rune rune, out int consumed) != System.Buffers.OperationStatus.Done)
+                return DanbooruTagQueryError.InvalidUnicode;
+            bool separator = rune.Value is ' ' or '\t' or '\r' or '\n';
+            if (!separator && (Rune.IsWhiteSpace(rune) || Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format))
+                return DanbooruTagQueryError.InvalidCharacter;
+            bytes += rune.Utf8SequenceLength;
+            offset += consumed;
+        }
+        if (bytes > DanbooruTagQuery.MaximumQueryUtf8Bytes) return DanbooruTagQueryError.InputTooLong;
+
+        string[] terms = input.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        if (terms.Length == 0) return DanbooruTagQueryError.Empty;
+        int tags = 0;
+        bool rating = false, cursor = false;
+        foreach (string term in terms)
+        {
+            if (Encoding.UTF8.GetByteCount(term) > DanbooruTagQuery.MaximumTermUtf8Bytes) return DanbooruTagQueryError.TermTooLong;
+            if (cursorPrefix is not null && term.StartsWith(cursorPrefix, StringComparison.Ordinal))
+            {
+                if (cursor || !DanbooruPostReference.IsValidPostId(term[cursorPrefix.Length..]))
+                    return DanbooruTagQueryError.UnsupportedMetaTag;
+                cursor = true;
+                continue;
+            }
+
+            bool negative = term[0] == '-';
+            string body = negative ? term[1..] : term;
+            if (body.Length == 0 || body[0] == '-' || negative && !allowsExclusion)
+                return DanbooruTagQueryError.InvalidNegativeTerm;
+            int colon = body.IndexOf(':');
+            if (colon >= 0)
+            {
+                if (!body[..colon].Equals("rating", StringComparison.Ordinal)) return DanbooruTagQueryError.UnsupportedMetaTag;
+                if (rating) return DanbooruTagQueryError.DuplicateRating;
+                string value = body[(colon + 1)..];
+                if (ratingValues is not null ? !ratingValues.Contains(value, StringComparer.Ordinal) : !IsRatingToken(value))
+                    return DanbooruTagQueryError.InvalidRating;
+                rating = true;
+            }
+            else
+            {
+                if (!IsTag(body)) return DanbooruTagQueryError.UnsupportedExpression;
+                if (++tags > Math.Min(maximumTagTerms, MaximumTagTerms)) return DanbooruTagQueryError.TooManyTagTerms;
+            }
+        }
+        canonical = string.Join(' ', terms);
+        return DanbooruTagQueryError.None;
+    }
+
+    private static bool IsTag(string text)
+    {
+        if (text.Equals("or", StringComparison.OrdinalIgnoreCase) || text.Equals("and", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("not", StringComparison.OrdinalIgnoreCase)) return false;
+        foreach (Rune rune in text.EnumerateRunes())
+            if (!Rune.IsLetterOrDigit(rune) && Rune.GetUnicodeCategory(rune) is not
+                    (UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark)
+                && rune.Value is not ('_' or '-' or '.'))
+                return false;
+        return true;
+    }
+
+    private static bool IsRatingToken(string value) => value.Length is > 0 and <= 32
+        && value.All(character => character is >= 'a' and <= 'z' or >= '0' and <= '9' or '_');
 }

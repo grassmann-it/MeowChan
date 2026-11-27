@@ -1174,8 +1174,7 @@ internal sealed class BooruCatalogStore
         if (watcher.WatcherId.Any(char.IsControl) || !BooruPostKey.IsToken(watcher.SourceId))
             throw new ArgumentException("The Booru watcher record is invalid.", nameof(watcher));
         ValidateRequiredText(watcher.Query, nameof(watcher.Query), 1024);
-        if (!DanbooruTagQuery.TryParse(watcher.Query, out DanbooruTagQuery? query, out _)
-            || query is null || query.ProviderQuery != watcher.Query)
+        if (!BooruProfileQuery.TryNormalizeStored(watcher.SourceId, watcher.Query, out string query) || query != watcher.Query)
             throw new ArgumentException("The Booru watcher query is not canonical.", nameof(watcher));
         // Enum.TryParse also accepts numeric strings, whitespace and comma lists for non-flags enums.
         // Durable names must be exact: successor checks rely on the canonical Removed spelling.

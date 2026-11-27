@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using MeowChan.Booru;
 using MeowChan.PluginSdk;
 
@@ -16,8 +15,6 @@ internal static class BooruEndpointPolicy
     /// <summary>Host ceilings: a profile can only lower them.</summary>
     internal const int HostMaximumPage = DanbooruTagQuery.MaximumSearchPages;
     internal const int HostMaximumLimit = DanbooruTagQuery.MaximumSearchPageSize;
-    internal const int MaximumQueryUtf8Bytes = 1024;
-    internal const int MaximumTermUtf8Bytes = 256;
     /// <summary>Danbooru post ids fit a signed 64-bit integer: at most 18 canonical decimal digits are accepted.</summary>
     internal const int MaximumPostIdDigits = SdkLimits.MaximumBooruPostIdDigits;
 
@@ -70,19 +67,20 @@ internal static class BooruEndpointPolicy
     /// plugin receives. Danbooru keeps its own restricted syntax; every other source uses its declared rules.
     /// A cursor term is never accepted from the user: only the plugin adds it for a host-issued cursor.
     /// </summary>
-    internal static bool TryNormalizeQuery(string sourceId, BooruSourceProfile profile, string? userQuery, out string providerQuery)
+    internal static bool TryNormalizeQuery(string sourceId, BooruSourceProfile profile, string? userQuery, out string providerQuery) =>
+        ParseQuery(sourceId, profile, userQuery, out providerQuery) == DanbooruTagQueryError.None;
+
+    internal static DanbooruTagQueryError ParseQuery(string sourceId, BooruSourceProfile? profile, string? input, out string canonical)
     {
-        providerQuery = string.Empty;
-        if (userQuery is null) return false;
         if (IsDanbooru(sourceId))
         {
-            if (!DanbooruTagQuery.TryParse(userQuery, out DanbooruTagQuery? parsed, out _) || parsed is null) return false;
-            providerQuery = parsed.ProviderQuery;
-            return true;
+            DanbooruTagQuery.TryParse(input, out DanbooruTagQuery? parsed, out DanbooruTagQueryError error);
+            canonical = parsed?.ProviderQuery ?? string.Empty;
+            return error;
         }
-        if (!TryTerms(userQuery, profile.Query, allowCursor: false, out List<string>? terms)) return false;
-        providerQuery = string.Join(" ", terms!);
-        return true;
+        BooruQueryRules? rules = profile?.Query;
+        return BooruProfileQuery.Parse(input, rules?.MaximumTagTerms ?? BooruProfileQuery.MaximumTagTerms,
+            rules?.AllowsExclusion ?? true, rules?.RatingValues, null, out canonical);
     }
 
     internal static string? SourceOf(object? operation) => operation switch
@@ -108,8 +106,10 @@ internal static class BooruEndpointPolicy
             value.Kind == (search is not null ? BooruEndpointKind.Search : BooruEndpointKind.Post));
         if (search is not null && (!TryNormalizeQuery(source.SourceId, profile, search.Query, out string normalized)
                 || normalized != search.Query
+                || search.Page < 1 || search.Page > MaximumPage(profile)
+                || search.Limit < 1 || search.Limit > MaximumLimit(profile)
                 || search.Page > 1 && !endpoint.Parameters.Any(value => IsPageParameter(value.Kind))
-                || before is not null && (source.PostOrder != PostOrderKind.DecimalPostId
+                || before is not null && (search.Page != 1 || source.PostOrder != PostOrderKind.DecimalPostId
                     || !IsCanonicalPostId(before) || profile.Query.BeforeCursorPrefix is null
                         && !endpoint.Parameters.Any(value => value.Kind == BooruParameterKind.PageOrBeforeCursor))))
             return null;
@@ -220,7 +220,8 @@ internal static class BooruEndpointPolicy
             case BooruParameterKind.TagQuery:
                 return IsDanbooru(sourceId)
                     ? DanbooruTagQuery.TryParse(value, out _, out _)
-                    : TryTerms(value, profile.Query, allowCursor: true, out _);
+                    : BooruProfileQuery.Parse(value, profile.Query.MaximumTagTerms, profile.Query.AllowsExclusion,
+                        profile.Query.RatingValues, profile.Query.BeforeCursorPrefix, out _) == DanbooruTagQueryError.None;
             case BooruParameterKind.PageNumber:
                 return TryInteger(value, out int page) && page >= 1 && page <= MaximumPage(profile);
             case BooruParameterKind.PageIndex:
@@ -252,65 +253,4 @@ internal static class BooruEndpointPolicy
         raw.Length is >= 2 and <= MaximumPostIdDigits + 1 && raw[0] == 'b' && raw[1] is >= '1' and <= '9'
         && raw.AsSpan(2).IndexOfAnyExceptInRange('0', '9') < 0;
 
-    /// <summary>
-    /// The declared literal tag syntax. Only ASCII whitespace separates terms; controls, invisible formatting and
-    /// other whitespace refuse the query instead of vanishing. Rejected text is never echoed.
-    /// </summary>
-    internal static bool TryTerms(string value, BooruQueryRules rules, bool allowCursor, out List<string>? terms)
-    {
-        terms = null;
-        if (rules is null || value is null || value.Length > MaximumQueryUtf8Bytes) return false;
-        int bytes = 0;
-        for (int offset = 0; offset < value.Length;)
-        {
-            if (Rune.DecodeFromUtf16(value.AsSpan(offset), out Rune rune, out int consumed) != System.Buffers.OperationStatus.Done) return false;
-            bool separator = rune.Value is ' ' or '\t' or '\r' or '\n';
-            if (!separator && (Rune.IsWhiteSpace(rune) || Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format)) return false;
-            bytes += rune.Utf8SequenceLength;
-            offset += consumed;
-        }
-        if (bytes > MaximumQueryUtf8Bytes) return false;
-
-        List<string> result = new();
-        int tags = 0;
-        bool rating = false, cursor = false;
-        foreach (string term in value.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (Encoding.UTF8.GetByteCount(term) > MaximumTermUtf8Bytes) return false;
-            string? prefix = rules.BeforeCursorPrefix;
-            if (allowCursor && prefix is not null && term.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                if (cursor || !IsCanonicalPostId(term[prefix.Length..])) return false;
-                cursor = true;
-            }
-            else
-            {
-                bool negative = term[0] == '-';
-                string body = negative ? term[1..] : term;
-                if (body.Length == 0 || body[0] == '-' || negative && !rules.AllowsExclusion) return false;
-                if (body.Equals("or", StringComparison.OrdinalIgnoreCase) || body.Equals("and", StringComparison.OrdinalIgnoreCase)
-                    || body.Equals("not", StringComparison.OrdinalIgnoreCase)) return false;
-                int colon = body.IndexOf(':');
-                if (colon >= 0)
-                {
-                    if (!body[..colon].Equals("rating", StringComparison.Ordinal) || rating
-                        || !rules.RatingValues.Contains(body[(colon + 1)..], StringComparer.Ordinal)) return false;
-                    rating = true;
-                }
-                else
-                {
-                    foreach (Rune rune in body.EnumerateRunes())
-                        if (!Rune.IsLetterOrDigit(rune) && Rune.GetUnicodeCategory(rune) is not
-                                (UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark)
-                            && rune.Value is not ('_' or '-' or '.'))
-                            return false;
-                    if (++tags > Math.Min(rules.MaximumTagTerms, 8)) return false;
-                }
-            }
-            result.Add(term);
-        }
-        if (result.Count == 0) return false;
-        terms = result;
-        return true;
-    }
 }

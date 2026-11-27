@@ -1,4 +1,6 @@
 using MeowChan.Booru;
+using MeowChan.PluginHost.Sources.Booru;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -33,7 +35,8 @@ internal sealed record BooruParsedInput(BooruInputKind Kind, string? Canonical =
 /// </summary>
 internal static class BooruInput
 {
-    internal static BooruParsedInput Parse(BooruInputMode mode, string? text, string sourceId = DanbooruPostReference.ProviderId)
+    internal static BooruParsedInput Parse(BooruInputMode mode, string? text, string sourceId = DanbooruPostReference.ProviderId,
+        BooruSourceProfile? profile = null)
     {
         // A full link can never be a tag query (':' and '/' are outside the tag subset), so a pasted
         // post link is recognized in either mode instead of failing with a tag error.
@@ -42,8 +45,9 @@ internal static class BooruInput
             if (string.IsNullOrWhiteSpace(text)) return new BooruParsedInput(BooruInputKind.Empty);
             return sourceId == DanbooruPostReference.ProviderId ? ParsePost(text) : ParseScopedPost(text);
         }
-        DanbooruTagQuery? query = ReadTagDraft(text, out BooruInputIssue issue);
-        if (query != null) return new BooruParsedInput(BooruInputKind.Tags, query.ProviderQuery);
+        DanbooruTagQueryError error = BooruEndpointPolicy.ParseQuery(sourceId, profile, text ?? string.Empty, out string query);
+        if (error == DanbooruTagQueryError.None) return new BooruParsedInput(BooruInputKind.Tags, query);
+        BooruInputIssue issue = TagIssue(error);
         return issue == BooruInputIssue.None ? new BooruParsedInput(BooruInputKind.Empty)
             : new BooruParsedInput(BooruInputKind.Invalid, Issue: issue);
     }
@@ -74,7 +78,11 @@ internal static class BooruInput
             issue = BooruInputIssue.None;
             return query;
         }
-        issue = error switch
+        issue = TagIssue(error);
+        return null;
+    }
+
+    private static BooruInputIssue TagIssue(DanbooruTagQueryError error) => error switch
         {
             DanbooruTagQueryError.None or DanbooruTagQueryError.Empty => BooruInputIssue.None,
             DanbooruTagQueryError.TooManyTagTerms => BooruInputIssue.TooManyTags,
@@ -86,6 +94,4 @@ internal static class BooruInput
             DanbooruTagQueryError.InvalidNegativeTerm => BooruInputIssue.Negative,
             _ => BooruInputIssue.Characters
         };
-        return null;
-    }
 }
