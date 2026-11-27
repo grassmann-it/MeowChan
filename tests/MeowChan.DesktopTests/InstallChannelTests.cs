@@ -141,6 +141,69 @@ public sealed class InstallChannelTests
     }
 
     [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void PortableMarkerCannotOverrideAcceptanceOrTestRun(bool acceptance, bool testRun)
+    {
+        InstallIdentity result = InstallChannelDetector.Detect(OfficialLinux with { Platform = OSPlatform.Windows,
+            BaseDirectory = @"C:\portable\MeowChan", DistributionMarker = Marker("windows-portable-zip"),
+            Acceptance = acceptance, TestRun = testRun });
+
+        Assert.False(result.SelfUpdateEligible);
+        Assert.Equal("ci-acceptance", result.Channel);
+    }
+
+    [Theory]
+    [InlineData("aur")]
+    [InlineData("distro")]
+    [InlineData("homebrew")]
+    public void PortableMarkerCannotOverrideManagedBuildStamp(string managedChannel)
+    {
+        InstallIdentity result = InstallChannelDetector.Detect(OfficialLinux with { DistributionChannel = managedChannel,
+            DistributionMarker = Marker("linux-tarball-bundled-vlc"), LinuxVideoMode = "bundled" });
+
+        Assert.False(result.SelfUpdateEligible);
+        Assert.False(InstallChannel.IsOfficial(result.Channel));
+    }
+
+    [Theory]
+    [InlineData("/usr/lib/meowchan")]
+    [InlineData("/home/fixture/unrelated/usr/lib/meowchan")]
+    [InlineData("/tmp/.mount_unrelated/usr/lib/meowchan")]
+    public void InheritedAppImageCannotTurnAnUnrelatedInstallationIntoAnAppImage(string directory)
+    {
+        InstallIdentity result = InstallChannelDetector.Detect(OfficialLinux with { BaseDirectory = directory,
+            AppImage = "/home/fixture/MeowChan.AppImage", AppImageWritable = true,
+            DistributionMarker = Marker("appimage"), LinuxVideoMode = "bundled" });
+
+        Assert.False(result.SelfUpdateEligible);
+        Assert.Equal("notify", result.Channel);
+    }
+
+    [Theory]
+    [InlineData("linux-tarball-bundled-vlc", "system")]
+    [InlineData("linux-tarball-system-vlc", "bundled")]
+    [InlineData("linux-tarball-system-vlc", null)]
+    public async Task UnconfirmedTarballFlavorUsesTheReleasePage(string claimedChannel, string? videoMode)
+    {
+        InstallIdentity identity = InstallChannelDetector.Detect(OfficialLinux with {
+            DistributionMarker = Marker(claimedChannel), LinuxVideoMode = videoMode });
+        const string release = "https://github.com/grassmann-it/MeowChan/releases/tag/v1.2.1";
+        const string downloads = "https://github.com/grassmann-it/MeowChan/releases/download/v1.2.1/";
+        string[] names = ["MeowChan-1.2.1-linux-x64-bundled-vlc.tar.gz", "MeowChan-1.2.1-linux-x64-system-vlc.tar.gz"];
+        object[] assets = names.Select(name => (object)new { name, browser_download_url = downloads + name }).ToArray();
+        using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("v1.2.1", assets: assets),
+            new UpdateServiceOptions { CurrentVersion = SemanticVersion.Parse("1.2.0"), RuntimeIdentifier = "linux-x64",
+                Channel = identity.Channel });
+
+        UpdateCheckResult result = await fixture.Service.CheckAsync(UpdateCheckKind.Manual);
+
+        Assert.Equal(UpdateCheckStatus.Available, result.Status);
+        Assert.Equal(release, result.Update?.DownloadUri.AbsoluteUri);
+        Assert.False(identity.SelfUpdateEligible);
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("{not json")]
     [InlineData("""{"SchemaVersion":2,"Channel":"aur"}""")]
