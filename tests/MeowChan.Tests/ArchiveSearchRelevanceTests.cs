@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Text.Json;
 using MeowChan.Archive;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
+using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests;
 
@@ -64,6 +66,105 @@ public sealed class ArchiveSearchRelevanceTests
         ArchiveThreadPage all = await reader.SearchThreadsBySpecAsync(Request(""));
         Assert.Equal(["400", "300", "210", "200", "100"], Numbers(all));
         Assert.Null(all.MatchTiers);
+    }
+
+    [Theory]
+    [InlineData(ArchiveThreadSort.Relevance)]
+    [InlineData(ArchiveThreadSort.LatestCapture)]
+    public async Task EmptyPagesKeepCountsOffsetAndTierMetadata(ArchiveThreadSort sort)
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease))
+            await SeedAsync(catalog, directory.Path, "É猫");
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
+        bool ranked = sort == ArchiveThreadSort.Relevance;
+
+        ArchiveSearchRequest request = Request("é猫", sort);
+        ArchiveThreadPage last = await reader.SearchThreadsBySpecAsync(request, offset: 3, limit: 1);
+        Assert.Equal(ranked ? "300" : "100", Assert.Single(last.Items).Id.Thread);
+        foreach (int offset in new[] { 4, 5 })
+            AssertEmptyPage(await reader.SearchThreadsBySpecAsync(request, offset), 4, offset, ranked ? [1, 2, 1] : null);
+
+        foreach (int offset in new[] { 0, 5 })
+            AssertEmptyPage(await reader.SearchThreadsBySpecAsync(Request("不存在", sort), offset),
+                0, offset, ranked ? [0, 0, 0] : null);
+    }
+
+    [Fact]
+    public async Task SchemaOneEmptyPagesKeepTheLegacyLiteralMatchCount()
+    {
+        using TempDirectory directory = new();
+        using (SqliteConnection connection = new($"Data Source={Path.Combine(directory.Path, "archive.db")};Pooling=False"))
+        {
+            connection.Open();
+            using SqliteCommand command = connection.CreateCommand();
+            var assembly = typeof(ArchiveSearchRelevanceTests).Assembly;
+            string name = assembly.GetManifestResourceNames().Single(resource => resource.EndsWith("archive-schema-1.sql", StringComparison.Ordinal));
+            using StreamReader schema = new(assembly.GetManifestResourceStream(name)!);
+            command.CommandText = schema.ReadToEnd();
+            command.ExecuteNonQuery();
+            command.CommandText = """
+                INSERT INTO archive_threads VALUES('4chan','g','123','https://fixture.invalid/123','legacy',$directory,1,0,$date,$date,0);
+                INSERT INTO archive_posts VALUES('4chan','g','123','123',0,63,$date,NULL,NULL,'É猫界',0);
+                """;
+            command.Parameters.AddWithValue("$directory", directory.Path);
+            command.Parameters.AddWithValue("$date", Start.ToString("O", CultureInfo.InvariantCulture));
+            command.ExecuteNonQuery();
+        }
+
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
+        ArchiveSearchRequest request = Request("é猫界");
+        ArchiveThreadPage first = await reader.SearchThreadsBySpecAsync(request);
+        Assert.Equal("123", Assert.Single(first.Items).Id.Thread);
+        AssertEmptyPage(await reader.SearchThreadsBySpecAsync(request, offset: 1), 1, 1, [0, 1, 0]);
+        AssertEmptyPage(await reader.SearchThreadsBySpecAsync(Request("zz")), 0, 0, [0, 0, 0]);
+    }
+
+    [Theory]
+    [InlineData(ArchiveThreadSort.Relevance)]
+    [InlineData(ArchiveThreadSort.LatestCapture)]
+    public async Task EmptyPageUsesOneSearchStatementAndObservesCancellationFromTheCount(ArchiveThreadSort sort)
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease)) { }
+        using SqliteConnection connection = ArchiveSql.OpenConnection(Path.Combine(directory.Path, "archive.db"), SqliteOpenMode.ReadOnly);
+        using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+        using CancellationTokenSource cancellation = new();
+        ArchiveSearchRequest request = Request("zz", sort);
+        int statements = 0;
+        SQLitePCL.raw.sqlite3_trace(connection.Handle!, (_, _) => statements++, null);
+        AssertEmptyPage(ArchiveSql.SearchPage(connection, transaction, request, 0, 1, CancellationToken.None),
+            0, 0, sort == ArchiveThreadSort.Relevance ? [0, 0, 0] : null);
+        Assert.Equal(2, statements); // The schema-version pragma and the count.
+
+        statements = 0;
+        SQLitePCL.raw.sqlite3_trace(connection.Handle!, (_, _) =>
+        {
+            if (++statements == 2) cancellation.Cancel();
+        }, null);
+        OperationCanceledException error = Assert.Throws<OperationCanceledException>(
+            () => ArchiveSql.SearchPage(connection, transaction, request, 0, 1, cancellation.Token));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(2, statements);
+    }
+
+    private static void AssertEmptyPage(ArchiveThreadPage page, int totalCount, int offset, int[]? tierCounts)
+    {
+        Assert.Empty(page.Items);
+        Assert.Equal(totalCount, page.TotalCount);
+        Assert.Equal(offset, page.Offset);
+        if (tierCounts is null)
+        {
+            Assert.Null(page.MatchTiers);
+            Assert.Null(page.MatchTierCounts);
+        }
+        else
+        {
+            Assert.Empty(page.MatchTiers!);
+            Assert.Equal(tierCounts, page.MatchTierCounts);
+        }
     }
 
     [Theory]
