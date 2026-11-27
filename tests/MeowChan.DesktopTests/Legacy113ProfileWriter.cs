@@ -120,8 +120,9 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         Assert.Equal(5, Get(active, "LastResultPage"));
         Type catalogType = _library.GetType("MeowChan.Archive.BooruCatalogStore", true)!;
         object catalog = New(catalogType, profile, lease);
-        object post = Assert.IsType(_library.GetType("MeowChan.Archive.BooruPostRecord", true)!,
-            Call(catalogType, catalog, "TryGetPost", "danbooru", "123"));
+        object? post = Call(catalogType, catalog, "TryGetPost", "danbooru", "123");
+        Assert.NotNull(post);
+        Assert.IsType(_library.GetType("MeowChan.Archive.BooruPostRecord", true)!, post);
         Assert.Equal("fixture-asset", Get(post, "LocalAssetId"));
         Assert.Equal(Path.Combine(downloads, originalName), Get(post, "LocalPath"));
         Assert.Null(Call(catalogType, catalog, "TryGetPost", "e621", "123"));
@@ -137,8 +138,10 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         object blank = constructor.Invoke(constructor.GetParameters().Select(parameter =>
             parameter.ParameterType == typeof(string) ? "danbooru"
             : parameter.ParameterType.IsValueType ? Activator.CreateInstance(parameter.ParameterType) : null).ToArray());
-        return Assert.IsType(_desktop.GetType("MeowChan.Desktop.Booru.BooruTabSnapshot", true)!,
-            Call(storeType, store, "Load", blank, 30, null));
+        object? snapshot = Call(storeType, store, "Load", blank, 30, null);
+        Assert.NotNull(snapshot);
+        Assert.IsType(_desktop.GetType("MeowChan.Desktop.Booru.BooruTabSnapshot", true)!, snapshot);
+        return snapshot;
     }
 
     private const BindingFlags Members = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
