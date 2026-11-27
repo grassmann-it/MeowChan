@@ -27,6 +27,15 @@ public partial class ArchivePage
     private ArchiveAssetRow? _mediaLead;
     private bool _mediaSelectionBusy;
     private MediaSelectionTagDialog? _mediaSelectionTagDialog;
+    private QuickTagStamp? _archiveStamp;
+    private ArchiveStampRun? _archiveStampRun;
+    private ThreadMediaTarget? _threadMediaTarget;
+
+    private sealed record ThreadMediaTarget(ArchivedThreadView Thread, IReadOnlyList<ArchiveAssetRow> ShownRows,
+        ArchiveAssetRow[] Rows, GalleryEntry[] Entries, ArchiveMediaSelection.MediaCount Count);
+
+    private sealed record ArchiveStampRun(ResourceId Thread, QuickTagSession Session, MediaSelectionTagSession Target,
+        ArchiveMediaSelection.MediaCount Count, string Names);
 
     /// <summary>Own-tag access for "Tag together" in the Media tab; set when the private tags are attached, null disables the action.</summary>
     internal MediaSelectionTagServices? MediaTagServices { get; set; }
@@ -56,6 +65,13 @@ public partial class ArchivePage
         {
             if (!_mediaTiles) NoteMediaLead(ArchiveMediaGrid.CurrentRowItem as ArchiveAssetRow);
         };
+        foreach (Control list in new Control[] { ArchiveThreads, ArchiveThreadTable })
+            list.AddHandler(InputElement.KeyDownEvent, OnThreadMediaCommandKey, RoutingStrategies.Tunnel);
+        ArchiveContentTabs.SelectionChanged += (_, e) =>
+        {
+            if (ReferenceEquals(e.Source, ArchiveContentTabs)) UpdateMediaSelectionBar();
+        };
+        CommandBindings.ObservePresentation(ArchiveMediaSelectionStamp, UpdateMediaSelectionBar);
         AutomationProperties.SetLiveSetting(ArchiveMediaSelectionStatus, AutomationLiveSetting.Polite);
     }
 
@@ -180,6 +196,16 @@ public partial class ArchivePage
     {
         if (e.Handled || _ended || !_available || IsReaderDialogOpen || sender is not Control list
             || !MainWindow.IsListCommandSource(e.Source, list) || !ReferenceEquals(list, VisibleMediaList)) return;
+        if (ArchiveMediaTab.IsSelected && !ShortcutService.IsCapturing)
+        {
+            if (RunThreadMediaShortcut(e, _selectedThread, list, "reader")) return;
+            if (SelectedMediaCount > 0 && ShortcutService.Current.Matches(e, QuickTagCommands.StampApply, "reader"))
+            {
+                e.Handled = true;
+                StartSelectionStamp();
+                return;
+            }
+        }
         if (e.KeyModifiers == KeyModifiers.Meta && e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
             e.Handled = true;
         else if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && ArchiveMediaSelection.ShowsStatus(SelectedMediaCount))
@@ -196,6 +222,10 @@ public partial class ArchivePage
 
     private void LocalizeMediaSelection()
     {
+        ArchiveThreadMediaMenuButton.Content = Texts.T("tags.quick.archive.menu");
+        ArchiveMediaSelectionTagAll.Content = CommandCatalog.Label("thread.tag-media");
+        ArchiveMediaSelectionStamp.Content = CommandCatalog.Label(QuickTagCommands.StampApply);
+        ArchiveMediaStampUndo.Content = Texts.T("tags.quick.undo");
         ArchiveMediaSelectionTag.Content = Texts.T("media.selection.tag");
         ArchiveMediaSelectionQueue.Content = Texts.T("media.selection.queue");
         ArchiveMediaSelectionGallery.Content = Texts.T("media.selection.gallery");
@@ -207,12 +237,24 @@ public partial class ArchivePage
         UpdateMediaSelectionBar();
     }
 
-    // From two selected files on, a small line says how many are selected and offers the selection actions and "clear selection".
     private void UpdateMediaSelectionBar()
     {
+        ObserveArchiveStamp();
+        if (_archiveStampRun is { } run && (_ended || run.Thread != _selectedThread)) ClearArchiveStampRun();
+        if (_threadMediaTarget is { } target && !ReferenceEquals(target.Thread, _thread)) _threadMediaTarget = null;
         int count = _ended ? 0 : SelectedMediaCount;
         bool show = ArchiveMediaSelection.ShowsStatus(count);
+        bool showActions = ArchiveMediaTab.IsSelected && count > 0;
+        ArchiveMediaSelectionActions.IsVisible = showActions;
         ArchiveMediaSelectionBar.IsVisible = show;
+        ArchiveMediaStampResult.IsVisible = _archiveStampRun is { } result && result.Session.Status.Kind != QuickTagStatusKind.None;
+        ArchiveMediaSelectionStrip.IsVisible = showActions || ArchiveMediaStampResult.IsVisible;
+        UpdateArchiveStampResult();
+        if (showActions)
+        {
+            SetArchiveStampAction(ArchiveMediaSelectionTagAll, "thread.tag-media", ThreadMediaBlocked(_selectedThread));
+            SetArchiveStampAction(ArchiveMediaSelectionStamp, QuickTagCommands.StampApply, SelectionStampBlocked());
+        }
         if (!show) return;
         ArchiveMediaSelectionStatus.Text = ArchiveMediaSelection.Status(count);
         bool ready = _available && !_busy && !_ended && !IsReaderDialogOpen && !_mediaSelectionBusy && _thread != null;
@@ -221,6 +263,123 @@ public partial class ArchivePage
         SetMediaSelectionAction(ArchiveMediaSelectionGallery, ready && OpenMediaGallery != null, OpenMediaGallery != null, "media.selection.gallery.hint");
         SetMediaSelectionAction(ArchiveMediaSelectionExport, ready, true, "media.selection.export.hint");
         ArchiveMediaSelectionClear.IsEnabled = !_ended;
+    }
+
+    private void ObserveArchiveStamp()
+    {
+        if (_ended || _archiveStamp != null || TagPopoverOptions?.Invoke(TagContext.Empty).Stamp is not { } stamp) return;
+        _archiveStamp = stamp;
+        stamp.Changed += UpdateMediaSelectionBar;
+    }
+
+    private static void SetArchiveStampAction(Button button, string command, string? reason)
+    {
+        button.IsEnabled = reason == null;
+        string tip = CommandBindings.Tooltip(command, reason, keyContext: "reader");
+        ToolTip.SetTip(button, tip);
+        AutomationProperties.SetHelpText(button, tip);
+    }
+
+    private string? ThreadMediaBlocked(ResourceId? id)
+    {
+        if (_ended || !_available || _busy || _mediaSelectionBusy || IsReaderDialogOpen || IsFilenameSearchOpen)
+            return Texts.T("archive.command.busy");
+        if (id == null || _thread?.Summary.Id != id || _selectedThread != id)
+            return Texts.T("tags.quick.archive.threadNotLoaded");
+        if (_mediaLoading || _mediaProjectionPending) return Texts.T("archive.loadingMedia");
+        if (_shownMedia.Count == 0) return Texts.T("tags.quick.archive.noSaved");
+        return MediaTagServices?.Load().State == PrivateTagLoadState.Ready ? null : Texts.T("media.selection.reason.unavailable");
+    }
+
+    private int ArchiveStampTagCount() => _archiveStamp?.Resolve(MediaTagServices?.Load().Snapshot).Count ?? 0;
+
+    private string? StampBlocked() =>
+        ArchiveStampTagCount() == 0 ? Texts.T("tags.quick.archive.emptyStamp") : null;
+
+    private string? SelectionStampBlocked() => ThreadMediaBlocked(_selectedThread) ?? StampBlocked();
+
+    private ThreadMediaTarget FreezeThreadMedia(ArchivedThreadView thread)
+    {
+        if (_threadMediaTarget is { } frozen && ReferenceEquals(frozen.Thread, thread)
+            && ReferenceEquals(frozen.ShownRows, _shownMedia)) return frozen;
+        ArchiveAssetRow[] rows = _shownMedia.ToArray();
+        GalleryEntry[] entries = MediaSelectionEntries(thread);
+        return _threadMediaTarget = new(thread, _shownMedia, rows, entries, ArchiveMediaSelection.CountThreadMedia(thread, rows, entries));
+    }
+
+    private GalleryEntry[] MediaSelectionEntries(ArchivedThreadView thread) =>
+        GallerySelection.Build(thread, _assets.Select(row => row.Manifest).DistinctBy(manifest => manifest.Directory),
+            true, includeOtherMedia: true).Entries.ToArray();
+
+    private void OnMediaSelectionTagAllClick(object? sender, RoutedEventArgs e) =>
+        StartThreadMediaCommand("thread.tag-media", _selectedThread, ArchiveMediaSelectionTagAll);
+
+    private void OnMediaSelectionStampClick(object? sender, RoutedEventArgs e) => StartSelectionStamp();
+
+    private void StartSelectionStamp()
+    {
+        if (SelectionStampBlocked() != null || FreezeMediaSelection() is not { } frozen) return;
+        OpenActions.Start(() => ApplyArchiveStampAsync(frozen.Thread, frozen.Rows, frozen.Entries, new(frozen.Rows.Length)), QuickTagCommands.StampApply);
+    }
+
+    private void UpdateArchiveStampResult()
+    {
+        if (_archiveStampRun is not { } run) return;
+        QuickTagStatus status = run.Session.Status;
+        string summary = Texts.T("tags.quick.archive.stampResult", run.Names, run.Count.Text);
+        ArchiveMediaStampStatus.Text = status.Kind switch
+        {
+            QuickTagStatusKind.StampApplied => summary,
+            QuickTagStatusKind.StampComplete => summary + " · " + status.Text,
+            QuickTagStatusKind.Error when run.Session.UndoSteps.Count > 0 =>
+                Texts.T("tags.quick.archive.stampResult", status.Name, run.Count.Text) + " · " + status.Text,
+            _ => status.Text
+        };
+        ArchiveMediaStampUndo.IsVisible = run.Session.UndoSteps.Count > 0;
+        ArchiveMediaStampUndo.IsEnabled = _available && !_busy && !_mediaSelectionBusy && !IsReaderDialogOpen && run.Session.CanUndo;
+    }
+
+    private async Task ApplyArchiveStampAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries,
+        ArchiveMediaSelection.MediaCount count)
+    {
+        if (SelectionStampBlocked() != null || thread.Summary.Id != _selectedThread
+            || MediaTagServices is not { } services || SelectionTagContext(thread, rows, entries) is not { } context) return;
+        QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
+        MediaSelectionTagSession target = NewMediaSelectionTagSession(thread, rows, entries, services);
+        QuickTagSession session = options.NewSession(QuickTagTarget.For(target));
+        ClearArchiveStampRun();
+        string names = string.Join(", ", session.Stamp.Resolve(session.Snapshot).Select(tag => tag.Name.Display));
+        _archiveStampRun = new(thread.Summary.Id, session, target, count, names);
+        if (options.Recent is { } recent) session.Applied += change => recent.Touch(change.Tag);
+        await RunArchiveStampAsync(() => session.ApplyStampJoinedAsync(_lifetime.Token));
+    }
+
+    private void OnMediaStampUndoClick(object? sender, RoutedEventArgs e)
+    {
+        if (!ArchiveMediaStampUndo.IsEnabled || _archiveStampRun is not { } run || run.Thread != _selectedThread) return;
+        OpenActions.Start(() => RunArchiveStampAsync(async () =>
+        {
+            run.Target.Reload();
+            await run.Session.UndoAsync(_lifetime.Token);
+        }), "archive.media-stamp.undo");
+    }
+
+    private async Task RunArchiveStampAsync(Func<Task> action)
+    {
+        _mediaSelectionBusy = true;
+        UpdateActions();
+        try { await action(); }
+        finally
+        {
+            _mediaSelectionBusy = false;
+            if (!_ended) UpdateActions();
+        }
+    }
+
+    private void ClearArchiveStampRun()
+    {
+        _archiveStampRun?.Session.Dispose();
+        _archiveStampRun = null;
     }
 
     // A disabled action says why in its tooltip and accessible description.
@@ -239,9 +398,7 @@ public partial class ArchivePage
         ArchiveAssetRow[] rows = SelectedMediaRows().ToArray();
         if (rows.Length == 0) return null;
         ArchivedThreadView thread = _thread;
-        GalleryEntry[] entries = GallerySelection.Build(thread, _assets.Select(row => row.Manifest).DistinctBy(manifest => manifest.Directory),
-            true, includeOtherMedia: true).Entries.ToArray();
-        return (thread, rows, entries);
+        return (thread, rows, MediaSelectionEntries(thread));
     }
 
     private async void OnMediaSelectionTagClick(object? sender, RoutedEventArgs e) =>
@@ -280,16 +437,13 @@ public partial class ArchivePage
     /// Tags the selected files in the quick tag popover on the button that asked (tri-state chips over every occurrence, one write per
     /// change). "Advanced…" opens the dialog that lists the occurrences (<see cref="TagMediaSelectionDialogAsync"/>).
     /// </summary>
-    private async Task TagMediaSelectionAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin, QuickTagInitialFocus initialFocus = QuickTagInitialFocus.TagInput)
+    private async Task TagMediaSelectionAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin,
+        QuickTagInitialFocus initialFocus = QuickTagInitialFocus.TagInput, ArchiveMediaSelection.MediaCount? threadCount = null)
     {
-        if (_mediaSelectionBusy || MediaTagServices is not { } services) return;
-        IReadOnlyList<MediaLibraryTile> tiles = ArchiveMediaSelection.Tiles(thread.Summary, rows, entries);
-        if (tiles.Count == 0 || rows.Length == 0) return;
-        MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
-        GalleryAssetKey leadKey = new(thread.Summary.Id, rows[0].Manifest.Directory, rows[0].Asset.AssetId);
-        if ((entries.FirstOrDefault(entry => entry.Key == leadKey) ?? entries.FirstOrDefault()) is not { } lead) return;
+        if (_mediaSelectionBusy || MediaTagServices is not { } services
+            || SelectionTagContext(thread, rows, entries) is not { } selectionContext) return;
+        MediaSelectionTagSession session = NewMediaSelectionTagSession(thread, rows, entries, services);
         ResourceId threadId = thread.Summary.Id;
-        TagContext selectionContext = QuickTagPopoverContext.ContextOf(lead, entries, thread.Summary.Title) with { Sha256 = null };
         // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(selectionContext) ?? QuickTagPopoverOptions.Defaults(selectionContext);
         using QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
@@ -312,13 +466,13 @@ public partial class ArchivePage
             // Favourite and rating of every selected file ride on top (the shell's decision session over the same entries).
             HashSet<GalleryAssetKey> selectedKeys = rows.Select(row => new GalleryAssetKey(threadId, row.Manifest.Directory, row.Asset.AssetId)).ToHashSet();
             GalleryEntry[] decided = entries.Where(entry => selectedKeys.Contains(entry.Key)).DistinctBy(entry => entry.Key).ToArray();
-            QuickTagPopover popover = QuickTagPopover.Open(origin, quick, Texts.T("media.selection.count", rows.Length), options with
+            QuickTagPopover popover = QuickTagPopover.Open(origin, quick, threadCount?.Text ?? Texts.T("media.selection.count", rows.Length), options with
             {
                 ReadSourceTags = _sourceTagSuggestions.Read,
                 IsCurrent = () => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId,
                 Name = "ArchiveSelectionTagPopover",
                 TooltipKeyContext = "reader",
-                FocusFallback = FocusAfterRateAndTag,
+                FocusFallback = () => threadCount != null && origin.Focus() || FocusAfterRateAndTag(),
                 Decision = DecisionFor?.Invoke(decided, initialFocus)
             });
             shown = popover;
@@ -329,6 +483,19 @@ public partial class ArchivePage
         finally { Release(); }
         if (reason == QuickTagPopoverCloseReason.Advanced && !_ended) await TagMediaSelectionDialogAsync(thread, rows, entries, origin);
     }
+
+    private static TagContext? SelectionTagContext(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries)
+    {
+        if (rows.Length == 0) return null;
+        GalleryAssetKey leadKey = ArchiveMediaSelection.KeyOf(thread.Summary, rows[0]);
+        GalleryEntry lead = entries.FirstOrDefault(entry => entry.Key == leadKey)
+            ?? ArchiveMediaSelection.GalleryEntries(thread.Summary, rows, entries)[0];
+        return QuickTagPopoverContext.ContextOf(thread, lead, entries) with { Sha256 = null };
+    }
+
+    private static MediaSelectionTagSession NewMediaSelectionTagSession(ArchivedThreadView thread, ArchiveAssetRow[] rows,
+        GalleryEntry[] entries, MediaSelectionTagServices services) =>
+        new(MediaLibraryTagging.Candidates(ArchiveMediaSelection.Tiles(thread.Summary, rows, entries)), services.Load, services.DefineAndSetMany, services.SetMany);
 
     /// <summary>Adds or removes one own tag on every occurrence of the selected files; the dialog lists them and tags all by default.</summary>
     private async Task TagMediaSelectionDialogAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin)
@@ -390,6 +557,10 @@ public partial class ArchivePage
 
     private void EndMediaSelectionLifetime()
     {
+        if (_archiveStamp != null) _archiveStamp.Changed -= UpdateMediaSelectionBar;
+        _archiveStamp = null;
+        ClearArchiveStampRun();
+        _threadMediaTarget = null;
         _mediaSelectionTagDialog?.CloseForLifetime();
         _mediaSelectionTagPopover?.Close(QuickTagPopoverCloseReason.Stale);
         _mediaSelectionBusy = false;

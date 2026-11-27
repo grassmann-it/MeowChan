@@ -30,6 +30,23 @@ internal static class ArchiveMediaSelection
     /// <summary>"3 selected" in the interface language; the same words as the media page.</summary>
     internal static string Status(int count) => Texts.T("media.selection.count", count);
 
+    /// <summary>Files are counted once. The coverage of the thread is measured separately by attachment position.</summary>
+    internal readonly record struct MediaCount(int Files, int ShownPositions = 0, int ThreadPositions = 0)
+    {
+        internal string Text => ShownPositions >= ThreadPositions ? Texts.Count("tags.quick.files", Files)
+            : ShownPositions == Files ? Texts.T("tags.quick.archive.filesOfTotal", Files, ThreadPositions)
+            : Texts.T("tags.quick.archive.filesAndPositions", Texts.Count("tags.quick.files", Files), ShownPositions, ThreadPositions);
+    }
+
+    internal static MediaCount CountThreadMedia(ArchivedThreadView thread, IReadOnlyList<ArchiveAssetRow> rows,
+        IReadOnlyList<GalleryEntry> entries)
+    {
+        HashSet<GalleryAssetKey> shown = rows.Select(row => KeyOf(thread.Summary, row)).ToHashSet();
+        int positions = entries.Where(entry => shown.Contains(entry.Key) && entry.Post != null && entry.Attachment != null)
+            .Select(entry => (entry.Post!.PostId, entry.Attachment!.Position)).Distinct().Count();
+        return new MediaCount(rows.Count, positions, thread.MediaPositions.Count);
+    }
+
     /// <summary>
     /// The selected rows in the order the tab shows them, each once. A selected row that is no longer shown is dropped, so an
     /// action can never reach a file the user cannot see.
