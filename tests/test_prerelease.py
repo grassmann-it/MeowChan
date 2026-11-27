@@ -10,6 +10,7 @@ import plistlib
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import textwrap
@@ -712,8 +713,10 @@ class CandidateWorkflowFixtures(unittest.TestCase):
     }
 
     def matrix(self, scenario='all', event='workflow_dispatch', mode='validate'):
-        from test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
-        rows = DotnetDesktopWorkflowContractTests().matrix(scenario=scenario, event=event, mode=mode)
+        # The shared matrix fixture imports the planner as tests.test_validation_gate.
+        with patch.object(sys, 'path', [str(ROOT), *sys.path]):
+            from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
+            rows = DotnetDesktopWorkflowContractTests().matrix(scenario=scenario, event=event, mode=mode)
         balanced = event != 'workflow_dispatch' or scenario in ('all', 'gui-only')
         for platform in (*self.PORTABLE, *self.NATIVE):
             platform_rows = [row for row in rows if row['os'] == platform]
