@@ -41,6 +41,7 @@ internal static class BooruMessages
         ["http-410"] = "booru.failure.http-410",
         ["page-limit"] = "booru.failure.page-limit",
         ["access-denied"] = "booru.failure.access-denied",
+        [Booru.BooruCodes.AccountUnavailable] = "booru.failure.booru-account-unavailable",
         ["too-many-posts"] = "booru.failure.too-many-posts",
         ["invalid-cursor"] = "booru.failure.invalid-cursor",
         ["invalid_cursor"] = "booru.failure.invalid-cursor",

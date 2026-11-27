@@ -34,6 +34,8 @@ internal static class BooruStatusCatalog
         ("booru.failure.http-410", "The provider reports that the item was permanently removed (HTTP 410).", "Der Anbieter meldet, dass das Element dauerhaft entfernt wurde (HTTP 410)."),
         ("booru.failure.page-limit", "The provider does not serve this result page.", "Der Anbieter liefert diese Ergebnisseite nicht aus."),
         ("booru.failure.access-denied", "The provider denied access to this public request.", "Der Anbieter hat den Zugriff auf diese öffentliche Anfrage verweigert."),
+        ("booru.failure.booru-account-unavailable", "MeowChan could not access the account for this source. Check the account settings and try again.",
+            "MeowChan konnte nicht auf das Konto für diese Quelle zugreifen. Prüfe die Kontoeinstellungen und versuche es erneut."),
         ("booru.failure.too-many-posts", "The provider returned more posts than requested.", "Der Anbieter hat mehr Posts geliefert als angefragt."),
         ("booru.failure.invalid-cursor", "The continuation point of this search is not valid for this source.", "Der Fortsetzungspunkt dieser Suche ist für diese Quelle nicht gültig."),
         ("booru.failure.unexpected-order", "The provider did not list the posts newest first.", "Der Anbieter hat die Posts nicht mit den neuesten zuerst aufgelistet."),

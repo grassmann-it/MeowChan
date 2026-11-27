@@ -8,8 +8,8 @@ namespace MeowChan.Desktop.Booru
     /// port, the production ports and the window models surface in command results, check summaries, watcher error
     /// codes and list faults. The core has no constants for them, so they are collected here (the source of truth for
     /// the window) and <c>BooruCodeTextTests</c> checks both that each has catalog text and that the core sources
-    /// produce no code missing from this list. Host/plugin failure codes (<c>http-*</c>, <c>access-denied</c>, …) have
-    /// their texts in <c>BooruStatusCatalog</c> (<c>booru.failure.*</c>) and are not repeated here.
+    /// produce no code missing from this list. Host/plugin failure codes use <c>BooruStatusCatalog</c>
+    /// (<c>booru.failure.*</c>).
     /// </summary>
     internal static class BooruCodes
     {
@@ -61,6 +61,7 @@ namespace MeowChan.Desktop.Booru
 
         // Watcher search port (BooruWatcherSearchPort) and the production ports.
         internal const string WorkerUnavailable = "worker_unavailable";
+        internal const string WatcherQueryOutOfPolicy = "watcher_query_out_of_policy";
         internal const string MalformedPost = "malformed_post";
         internal const string NotAdmitted = "not_admitted";
         internal const string BooruSource = "booru-source";
@@ -69,6 +70,9 @@ namespace MeowChan.Desktop.Booru
         internal const string BooruCooldown = "booru-cooldown";
         internal const string ProviderThrottled = "provider-throttled";
         internal const string ProviderUnavailable = "provider-unavailable";
+
+        // Host failure code resolved by BooruMessages.Failure.
+        internal const string AccountUnavailable = "booru-account-unavailable";
 
         // Window models and the search adapter.
         internal const string Busy = "busy";
@@ -91,7 +95,8 @@ namespace MeowChan.Desktop.Booru
             SearchResultMissing, SearchPortFault, ForeignPost, PageRejected, ProviderDeferred, SourceUnavailable, ProviderError,
             SearchResultUnknown, AdmissionFailed, ProviderCooldown, ProviderCooldownUnavailable, TransportResetFailed,
             TransportResetUnavailable, WatcherError, CheckFaulted, CheckAlreadyRunning, CooldownActive,
-            WatcherNotResumable, CooldownNotActive, MissingReason, MissingError, InvalidReason, InvalidError, WorkerUnavailable, MalformedPost, NotAdmitted, BooruSource,
+            WatcherNotResumable, CooldownNotActive, MissingReason, MissingError, InvalidReason, InvalidError,
+            WorkerUnavailable, WatcherQueryOutOfPolicy, MalformedPost, NotAdmitted, BooruSource,
             BooruCooldown, ProviderThrottled, ProviderUnavailable,
             Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost, CancelNotPending, CancelFailed,
             PluginSdkMismatch,
@@ -170,6 +175,8 @@ namespace MeowChan.Desktop.Localization
             (P + "invalid_reason", "The provider pause supplied an invalid reason code. The check was stopped.", "Die Anbieterpause enthielt einen ungültigen Grundcode. Die Prüfung wurde abgebrochen."),
             (P + "invalid_error", "The watcher check supplied an invalid error code. The check was stopped.", "Die Prüfung der Suchbeobachtung enthielt einen ungültigen Fehlercode. Die Prüfung wurde abgebrochen."),
             (P + "worker_unavailable", "The Danbooru plugin could not be started. Nothing was requested.", "Das Danbooru-Plugin konnte nicht gestartet werden. Es wurde nichts angefragt."),
+            (P + Booru.BooruCodes.WatcherQueryOutOfPolicy, "The watched search is invalid for this source. Create a new watcher with supported search terms.",
+                "Die beobachtete Suche ist für diese Quelle ungültig. Lege eine neue Suchbeobachtung mit unterstützten Suchbegriffen an."),
             (P + "malformed_post", "The provider's answer contained a post MeowChan cannot store.", "Die Antwort des Anbieters enthielt einen Post, den MeowChan nicht speichern kann."),
             (P + "not_admitted", "The download queue did not accept the original (it may be stopping). Try again.", "Die Downloadwarteschlange hat das Original nicht angenommen (sie wird eventuell beendet). Versuche es erneut."),
             (P + "booru-source", "This post belongs to another source.", "Dieser Post gehört zu einer anderen Quelle."),
