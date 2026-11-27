@@ -11,6 +11,7 @@ using MeowChan.PluginProtocol;
 using MeowChan.PluginSdk;
 using MeowChan.TestSupport;
 using Xunit.Abstractions;
+using SdkThreadSnapshot = MeowChan.PluginSdk.ThreadSnapshot;
 
 namespace MeowChan.PluginRuntime.Tests;
 
@@ -316,7 +317,7 @@ public sealed class LegacyPluginCompatibilityTests(ITestOutputHelper output)
         Assert.Equal("42", Assert.Single(Assert.IsType<CatalogSnapshot>(result).Snapshot.Threads).Id.ThreadId);
 
     private static void AssertThread(ThreadReadResult result) =>
-        Assert.Equal("historical catalog thread", Assert.Single(Assert.IsType<ThreadSnapshot>(result).Snapshot.Posts).Text);
+        Assert.Equal("historical catalog thread", Assert.Single(Assert.IsType<SdkThreadSnapshot>(result).Snapshot.Posts).Text);
 
     private static void AssertSearch(BooruSearchResult result) =>
         Assert.Equal(new BooruPostId("danbooru", "1003"), Assert.Single(Assert.IsType<BooruSearchSnapshot>(result).Page.Posts).Id);
