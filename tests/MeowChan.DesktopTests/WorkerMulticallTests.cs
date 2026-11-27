@@ -7,7 +7,6 @@ using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginProtocol;
 using MeowChan.PluginSdk;
-using MeowChan.TestSupport;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -15,7 +14,8 @@ namespace MeowChan.DesktopTests;
 
 public sealed class WorkerMulticallTests
 {
-    private static string Application => BuiltTestBinaries.AppHostDirectory(".", "MeowChan");
+    // The project reference copies the real apphost and its matching payload into this test output.
+    private static string Application => AppContext.BaseDirectory;
     private static string Apphost => Path.Combine(Application, OperatingSystem.IsWindows() ? "MeowChan.exe" : "MeowChan");
     private static string Toolchain => Path.Combine(Application, "plugin-compiler");
     private static PluginConfiguration Configuration(params string[] sources) =>
@@ -145,7 +145,7 @@ public sealed class WorkerMulticallTests
     }
 
     [Fact]
-    public async Task PublishedSourcesUseTheApphostWorkerForCatalogThreadAndSearch()
+    public async Task DeliveredSourcesUseTheApphostWorkerForCatalogThreadAndSearch()
     {
         using TempDirectory workspace = new();
         await using PluginWorkerManager manager = new();
