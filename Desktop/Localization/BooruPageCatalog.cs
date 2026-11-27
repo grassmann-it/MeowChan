@@ -16,7 +16,6 @@ internal static class BooruPageCatalog
         ("booru.content.saveError", "The Booru content rules could not be saved.", "Die Booru-Inhaltsregeln konnten nicht gespeichert werden."),
         ("booru.content.invalidRule", "Check blacklist rule on line {0}.", "Prüfe die Blacklist-Regel in Zeile {0}."),
         ("booru.content.hidden", "{0} hidden", "{0} ausgeblendet"),
-        ("booru.content.blocked", "Blocked by the Booru content rules.", "Durch die Booru-Inhaltsregeln gesperrt."),
         ("nav.booru", "Booru", "Booru"),
         ("command.navigation.booru", "Booru", "Booru"),
         ("workview.page.booru", "Booru", "Booru"),

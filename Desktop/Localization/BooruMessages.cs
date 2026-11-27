@@ -15,7 +15,7 @@ internal static class BooruMessages
 {
     private static readonly IReadOnlyDictionary<string, string> FailureKeys = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["content-blocked"] = "booru.content.blocked",
+        [Booru.BooruCodes.ContentBlocked] = Booru.BooruCodes.Key(Booru.BooruCodes.ContentBlocked),
         ["invalid_query"] = "booru.failure.invalid_query",
         ["invalid_page"] = "booru.failure.invalid_page",
         ["invalid_limit"] = "booru.failure.invalid_limit",

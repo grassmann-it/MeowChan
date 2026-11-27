@@ -75,6 +75,7 @@ namespace MeowChan.Desktop.Booru
         internal const string AccountUnavailable = "booru-account-unavailable";
 
         // Window models and the search adapter.
+        internal const string ContentBlocked = "content-blocked";
         internal const string Busy = "busy";
         internal const string Canceled = "canceled";
         internal const string Closed = "closed";
@@ -98,7 +99,7 @@ namespace MeowChan.Desktop.Booru
             WatcherNotResumable, CooldownNotActive, MissingReason, MissingError, InvalidReason, InvalidError,
             WorkerUnavailable, WatcherQueryOutOfPolicy, MalformedPost, NotAdmitted, BooruSource,
             BooruCooldown, ProviderThrottled, ProviderUnavailable,
-            Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost, CancelNotPending, CancelFailed,
+            ContentBlocked, Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost, CancelNotPending, CancelFailed,
             PluginSdkMismatch,
             // Domain codes whose texts already exist on goal (BooruStatusCatalog).
             "check_not_running", "watcher_paused", "watcher_already_paused", "watcher_already_active", "page_binding_mismatch",
@@ -183,6 +184,7 @@ namespace MeowChan.Desktop.Localization
             (P + "booru-cooldown", "Danbooru limited requests (HTTP 429). MeowChan waits before asking again.", "Danbooru hat Anfragen begrenzt (HTTP 429). MeowChan wartet, bevor es erneut anfragt."),
             (P + "provider-throttled", "Danbooru is limiting requests. MeowChan waits before asking again.", "Danbooru begrenzt Anfragen. MeowChan wartet, bevor es erneut anfragt."),
             (P + "provider-unavailable", "Danbooru is temporarily unavailable. The watcher tries again later.", "Danbooru ist vorübergehend nicht verfügbar. Die Suchbeobachtung versucht es später erneut."),
+            (P + Booru.BooruCodes.ContentBlocked, "Blocked by the Booru content rules.", "Durch die Booru-Inhaltsregeln gesperrt."),
             (P + "busy", "Another action is still running.", "Eine andere Aktion läuft noch."),
             (P + "canceled", "The action was cancelled.", "Die Aktion wurde abgebrochen."),
             (P + "closed", "The window was closed.", "Das Fenster wurde geschlossen."),

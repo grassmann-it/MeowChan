@@ -64,7 +64,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         {
             return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.MalformedPost);
         }
-        if (!_originals.AllowsContent(claim)) return new BooruLoadResult(BooruLoadStatus.Failed, "content-blocked");
+        if (!_originals.AllowsContent(claim)) return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.ContentBlocked);
         BooruFindingKind kind = origin == BooruLoadOrigin.OneShot ? BooruFindingKind.OneShot : BooruFindingKind.Search;
         BooruOriginalAdmission? admission;
         try
@@ -169,7 +169,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
 
     internal static BooruLoadResult Map(BooruOriginalAdmission admission) => admission.Status switch
     {
-        BooruOriginalAdmissionStatus.ContentBlocked => new(BooruLoadStatus.Failed, "content-blocked"),
+        BooruOriginalAdmissionStatus.ContentBlocked => new(BooruLoadStatus.Failed, BooruCodes.ContentBlocked),
         BooruOriginalAdmissionStatus.Queued => new BooruLoadResult(BooruLoadStatus.Queued),
         BooruOriginalAdmissionStatus.AlreadyQueued => new BooruLoadResult(BooruLoadStatus.AlreadyQueued),
         BooruOriginalAdmissionStatus.AlreadyLinked => new BooruLoadResult(BooruLoadStatus.AlreadyLoaded),

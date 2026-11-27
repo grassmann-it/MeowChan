@@ -502,7 +502,7 @@ internal sealed partial class BooruSearchModel : IDisposable
                     BooruLocalState.Loaded => (BooruRowLoad.AlreadyLoaded, null),
                     BooruLocalState.Queued => (row.Load == BooruRowLoad.Queued ? row.Load : BooruRowLoad.AlreadyQueued, null),
                     BooruLocalState.DownloadFailed => (BooruRowLoad.DownloadFailed, null),
-                    BooruLocalState.ContentBlocked => (BooruRowLoad.Failed, "content-blocked"),
+                    BooruLocalState.ContentBlocked => (BooruRowLoad.Failed, BooruCodes.ContentBlocked),
                     BooruLocalState.LinkFailed => (BooruRowLoad.LinkFailed, null),
                     BooruLocalState.Interrupted => (BooruRowLoad.Interrupted, null),
                     BooruLocalState.RefusalPending => (BooruRowLoad.RefusalPending, null),
