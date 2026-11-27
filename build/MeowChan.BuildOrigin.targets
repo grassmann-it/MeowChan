@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <_MeowChanBuildOrigin Condition="'$(GITHUB_ACTIONS)' != 'true'">local</_MeowChanBuildOrigin>
+    <_MeowChanBuildOrigin Condition="'$(GITHUB_ACTIONS)' == 'true'">fork-ci</_MeowChanBuildOrigin>
+    <_MeowChanBuildOrigin Condition="'$(GITHUB_ACTIONS)' == 'true' And '$(GITHUB_REPOSITORY)' == 'grassmann-it/MeowChan'">official</_MeowChanBuildOrigin>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="MeowChan.BuildOrigin" Value="$(_MeowChanBuildOrigin)" />
+    <AssemblyMetadata Include="MeowChan.BuildRepository" Value="$(GITHUB_REPOSITORY)" />
+    <AssemblyMetadata Include="MeowChan.BuildRunId" Value="$(GITHUB_RUN_ID)" />
+    <AssemblyMetadata Include="MeowChan.DistributionChannel" Value="$(MeowChanDistributionChannel)" />
+    <AssemblyMetadata Include="MeowChan.Acceptance" Value="$(MeowChanAcceptancePublish)" />
+  </ItemGroup>
+</Project>

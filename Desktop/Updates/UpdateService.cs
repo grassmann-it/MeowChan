@@ -222,7 +222,7 @@ public sealed class UpdateService : IDisposable
                 return Failure(UpdateCheckError.RateLimited);
             if (!response.IsSuccessStatusCode) return Failure(UpdateCheckError.Http);
             byte[] bytes = await ReadBoundedAsync(response.Content, linked.Token).ConfigureAwait(false);
-            UpdateInfo? newest = UpdateReleaseParser.Parse(bytes, _options.IncludePrereleases, _options.RuntimeIdentifier);
+            UpdateInfo? newest = UpdateReleaseParser.Parse(bytes, _options.IncludePrereleases, _options.RuntimeIdentifier, _options.Channel);
             if (newest is null && !_options.IncludePrereleases) return Failure(UpdateCheckError.InvalidResponse);
             UpdateInfo? update = newest is not null && newest.Version.CompareTo(_options.CurrentVersion) > 0 ? newest : null;
             if (update is null) return new UpdateCheckResult(UpdateCheckStatus.UpToDate);

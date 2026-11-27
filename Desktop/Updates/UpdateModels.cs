@@ -22,6 +22,7 @@ public sealed record UpdateServiceOptions
 {
     public required SemanticVersion CurrentVersion { get; init; }
     public string RuntimeIdentifier { get; init; } = CurrentRuntimeIdentifier();
+    internal string? Channel { get; init; }
 
     // Distribution-provided .NET builds can report e.g. arch-x64. Release assets use portable RIDs.
     internal static string CurrentRuntimeIdentifier()

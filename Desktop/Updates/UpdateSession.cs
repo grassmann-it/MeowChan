@@ -17,6 +17,8 @@ internal sealed class UpdateSession : IAsyncDisposable
     private readonly HttpClient _client;
     private readonly UpdateService _service;
     private readonly SemanticVersion _current;
+    private readonly string _channel;
+    private readonly string _runtimeIdentifier;
     private readonly TimeProvider _time;
     private readonly Func<string?> _disable;
     private readonly SemaphoreSlim _operations = new(1, 1);
@@ -30,7 +32,7 @@ internal sealed class UpdateSession : IAsyncDisposable
 
     internal UpdateSession(string profileDirectory, Config config, HttpClient? client = null,
         TimeProvider? timeProvider = null, Func<string?>? disableEnvironment = null,
-        SemanticVersion? currentVersion = null)
+        SemanticVersion? currentVersion = null, string? channel = null)
     {
         _client = client ?? UpdateService.CreateHttpClient();
         _time = timeProvider ?? TimeProvider.System;
@@ -38,12 +40,15 @@ internal sealed class UpdateSession : IAsyncDisposable
         string version = typeof(UpdateSession).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             ?? typeof(UpdateSession).Assembly.GetName().Version!.ToString(3);
         _current = currentVersion ?? SemanticVersion.Parse(version);
+        _channel = channel ?? InstallChannelDetector.Current.Channel;
         _prereleases = config.IncludePrereleaseUpdates;
-        _service = new UpdateService(_client, new UpdateStateStore(profileDirectory), new UpdateServiceOptions
+        UpdateServiceOptions options = new()
         {
             CurrentVersion = _current, AutomaticChecksEnabled = config.AutomaticUpdateChecks,
-            IncludePrereleases = _prereleases
-        }, _time, _disable);
+            IncludePrereleases = _prereleases, Channel = _channel
+        };
+        _runtimeIdentifier = options.RuntimeIdentifier;
+        _service = new UpdateService(_client, new UpdateStateStore(profileDirectory), options, _time, _disable);
         _view = new(EnvironmentDisabled: _disable() == "1");
     }
 
@@ -143,7 +148,8 @@ internal sealed class UpdateSession : IAsyncDisposable
             UpdateState state = await _service.GetStateAsync(_lifetime.Token).ConfigureAwait(false);
             bool disabled = _disable() == "1";
             UpdateInfo? update = state.FoundUpdate is { } found && !disabled && found.Version.CompareTo(_current) > 0
-                && !found.Version.Equals(state.SkippedVersion) && (_prereleases || !found.Version.IsPrerelease) ? found : null;
+                && !found.Version.Equals(state.SkippedVersion) && (_prereleases || !found.Version.IsPrerelease)
+                ? UpdateReleaseParser.ForChannel(found, _runtimeIdentifier, _channel) : null;
             Publish(View with { LastCheckedUtc = state.LastCheckedUtc, Update = update,
                 ManualResult = clearManual ? null : View.ManualResult, EnvironmentDisabled = disabled });
         }

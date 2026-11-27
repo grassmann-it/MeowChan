@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Avalonia;
@@ -32,7 +33,8 @@ internal static class UpdateGuiChecks
         using HttpClient updateClient = new(handler);
         await using Program.FixtureShell fixture = await Program.FixtureShell.CreateAsync(
             () => new DesktopSessionHost(profile, [], updateSessionFactory: (path, settings) =>
-                new UpdateSession(path, settings, updateClient, disableEnvironment: () => disabled)), TimeSpan.FromSeconds(15));
+                new UpdateSession(path, settings, updateClient, disableEnvironment: () => disabled,
+                    channel: InstallChannel.LinuxSystemVlc)), TimeSpan.FromSeconds(15));
         MainWindow window = fixture.Window;
         DesktopSessionHost host = window.SessionHost;
         AboutWindow? about = null;
@@ -55,6 +57,7 @@ internal static class UpdateGuiChecks
             string[] handoffs = File.ReadAllLines(browserCapture);
             Require(handoffs[37] == Handler.ReleaseUrl && handoffs[44] == Handler.DownloadUrl,
                 "Update browser handoff differs: " + handoffs[37] + " | " + handoffs[44] + "; runtime=" + System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+            await VerifyVersionIdentityAsync(about);
             about.Close();
             about = null;
 
@@ -244,6 +247,24 @@ internal static class UpdateGuiChecks
         await Program.WaitUntilAsync(() => privacy.TranslatePoint(default, scroll) is { } bottom
             && automatic.TranslatePoint(default, scroll) is { } top
             && top.Y >= -1 && bottom.Y + privacy.Bounds.Height <= scroll.Bounds.Height + 1);
+    }
+
+    private static async Task VerifyVersionIdentityAsync(AboutWindow about)
+    {
+        string version = typeof(AboutWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+            .InformationalVersion.Split('+', 2)[0];
+        string expected = InstallChannelDetector.Current.FormatVersion(version);
+        SelectableTextBlock versionText = about.GetVisualDescendants().OfType<SelectableTextBlock>()
+            .Single(control => AutomationProperties.GetAutomationId(control) == "about.version");
+        Button copy = about.GetVisualDescendants().OfType<Button>()
+            .Single(control => AutomationProperties.GetAutomationId(control) == "about.copy-version");
+        Require(versionText.Text == Texts.T("shell.version", expected), "About did not show the installed version identity.");
+        bool copied = await ClipboardChecks.CheckIsolatedCopyAsync(about, () =>
+        {
+            copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            return Task.CompletedTask;
+        }, [], [], exactText: expected);
+        Require(copied, "The isolated clipboard was unavailable for Copy version.");
     }
 
     private static void Capture(Window window, string name)

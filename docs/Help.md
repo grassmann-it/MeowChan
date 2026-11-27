@@ -1492,6 +1492,50 @@ category a bar.
 These semantics do not establish screen-reader compatibility on every platform;
 Windows, macOS and Linux accessibility acceptance remain separate checks.
 
+## Installation channel
+
+About, **Copy version** and the platform summary in Diagnostics show the version,
+installation channel, build origin and short commit, for example
+`1.2.0 · appimage · official · 3e826a6`.
+
+| Channel ID | Installation |
+|---|---|
+| `windows-portable-zip` | Official portable Windows ZIP |
+| `winget` | Installation in the WinGet packages directory |
+| `macos-app` | Official macOS application bundle |
+| `homebrew` | Homebrew formula |
+| `appimage` | Official Linux AppImage |
+| `linux-tarball-bundled-vlc` | Official Linux archive with bundled VLC |
+| `linux-tarball-system-vlc` | Official Linux archive using system VLC |
+| `aur` | Repackaged AUR binary |
+| `distro` | Distribution-managed package |
+| `flatpak` | Flatpak installation |
+| `source` | Local build or publish |
+| `ci-fork` | GitHub Actions build from another repository |
+| `ci-acceptance` | Acceptance archive or test run |
+| `notify` | Official package downgraded by an installation layout or write-access check |
+| `none` | Update checks disabled with `MEOWCHAN_DISABLE_UPDATE_CHECK=1` |
+
+Binary repackagers can put a UTF-8 file named `meowchan-distribution.json` next
+to the apphost. Use exactly these two fields, with schema version 1 and a channel
+ID from the table. The file can be at most 4 KiB. The IDs `notify` and `none`
+are assigned at runtime.
+
+```json
+{"SchemaVersion":1,"Channel":"aur"}
+```
+
+Source packagers can set `-p:MeowChanDistributionChannel=distro` or
+`-p:MeowChanDistributionChannel=homebrew`. The marker takes precedence over
+this property, followed by runtime detection. Internal acceptance archives use
+`-p:MeowChanAcceptancePublish=true`. GitHub Actions stamps the origin
+(`official` or `fork-ci`), repository and run ID. Builds outside GitHub Actions
+use `local`.
+
+Official channels require an official build stamp. The marker is used for
+routing. In 1.2.0 the app opens update links in your browser, and you install
+updates yourself.
+
 ## Linux packages and startup
 
 For either `linux-x64` or `linux-arm64`, choose a package from the [1.1.0 release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0):

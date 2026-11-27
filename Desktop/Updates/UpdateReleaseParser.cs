@@ -7,26 +7,26 @@ namespace MeowChan.Desktop.Updates;
 
 internal static class UpdateReleaseParser
 {
-    internal static UpdateInfo? Parse(byte[] json, bool includePrereleases, string runtimeIdentifier)
+    internal static UpdateInfo? Parse(byte[] json, bool includePrereleases, string runtimeIdentifier, string? channel)
     {
         using JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 32 });
         if (!includePrereleases)
         {
             if (document.RootElement.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Expected a release object.");
-            return ParseRelease(document.RootElement, false, runtimeIdentifier);
+            return ParseRelease(document.RootElement, false, runtimeIdentifier, channel);
         }
         if (document.RootElement.ValueKind != JsonValueKind.Array || document.RootElement.GetArrayLength() > 100)
             throw new InvalidDataException("Expected at most 100 releases.");
         UpdateInfo? newest = null;
         foreach (JsonElement release in document.RootElement.EnumerateArray())
         {
-            UpdateInfo? candidate = ParseRelease(release, true, runtimeIdentifier);
+            UpdateInfo? candidate = ParseRelease(release, true, runtimeIdentifier, channel);
             if (candidate is not null && (newest is null || candidate.Version.CompareTo(newest.Version) > 0)) newest = candidate;
         }
         return newest;
     }
 
-    private static UpdateInfo? ParseRelease(JsonElement release, bool includePrereleases, string rid)
+    private static UpdateInfo? ParseRelease(JsonElement release, bool includePrereleases, string rid, string? channel)
     {
         if (release.ValueKind != JsonValueKind.Object
             || !release.TryGetProperty("draft", out JsonElement draft)
@@ -47,7 +47,7 @@ internal static class UpdateReleaseParser
         {
             foreach (JsonElement asset in assets.EnumerateArray())
             {
-                if (!TryGetString(asset, "name", out string name) || !MatchesAsset(name, version, rid)
+                if (!TryGetString(asset, "name", out string name) || !MatchesAsset(name, version, rid, channel)
                     || !TryGetString(asset, "browser_download_url", out string url)) continue;
                 Uri expected = AssetUri(tag, name);
                 if (Uri.TryCreate(url, UriKind.Absolute, out Uri? actual) && actual.AbsoluteUri == expected.AbsoluteUri)
@@ -78,29 +78,43 @@ internal static class UpdateReleaseParser
         {
             if (!string.Equals(info.ReleaseUri.AbsoluteUri, ReleaseUri(tag).AbsoluteUri, StringComparison.Ordinal)) continue;
             if (string.Equals(info.DownloadUri.AbsoluteUri, info.ReleaseUri.AbsoluteUri, StringComparison.Ordinal)) return true;
-            string name = Uri.UnescapeDataString(info.DownloadUri.Segments[^1]);
+            if (info.DownloadUri.Segments is not [.., string segment]) return false;
+            string name = Uri.UnescapeDataString(segment);
             return IsKnownAsset(name, info.Version)
                 && string.Equals(info.DownloadUri.AbsoluteUri, AssetUri(tag, name).AbsoluteUri, StringComparison.Ordinal);
         }
         return false;
     }
 
+    internal static UpdateInfo ForChannel(UpdateInfo info, string rid, string channel)
+    {
+        if (info.DownloadUri == info.ReleaseUri) return info;
+        string name = Uri.UnescapeDataString(info.DownloadUri.Segments[^1]);
+        return MatchesAsset(name, info.Version, rid, channel) ? info : info with { DownloadUri = info.ReleaseUri };
+    }
+
     private static bool IsKnownAsset(string name, SemanticVersion version)
     {
         foreach (string rid in new[] { "win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-x64", "osx-arm64" })
-            if (MatchesAsset(name, version, rid)) return true;
+            if (MatchesAsset(name, version, rid, channel: null)) return true;
         return false;
     }
 
-    private static bool MatchesAsset(string name, SemanticVersion version, string rid)
+    private static bool MatchesAsset(string name, SemanticVersion version, string rid, string? channel)
     {
+        if (channel is not null && !InstallChannel.IsOfficial(channel)) return false;
+        if (name.Length > 3 && char.IsAsciiDigit(name[0]) && char.IsAsciiDigit(name[1]) && name[2] == '-')
+            name = name[3..];
         string prefix = $"MeowChan-{version}-{rid}";
         return rid switch
         {
-            "win-x64" or "win-arm64" => name == prefix + ".zip",
-            "osx-x64" or "osx-arm64" => name == prefix + ".dmg" || name == prefix + ".zip",
-            "linux-x64" or "linux-arm64" => name == prefix + ".AppImage"
-                || name == prefix + "-bundled-vlc.tar.gz" || name == prefix + "-system-vlc.tar.gz",
+            "win-x64" or "win-arm64" => (channel is null or InstallChannel.WindowsPortableZip) && name == prefix + ".zip",
+            "osx-x64" or "osx-arm64" => (channel is null or InstallChannel.MacOsApp) && name == prefix + ".dmg"
+                || channel is null && name == prefix + ".zip",
+            "linux-x64" or "linux-arm64" =>
+                (channel is null or InstallChannel.AppImage) && name == prefix + ".AppImage"
+                || (channel is null or InstallChannel.LinuxBundledVlc) && name == prefix + "-bundled-vlc.tar.gz"
+                || (channel is null or InstallChannel.LinuxSystemVlc) && name == prefix + "-system-vlc.tar.gz",
             _ => false
         };
     }
