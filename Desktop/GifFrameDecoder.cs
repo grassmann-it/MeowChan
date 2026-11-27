@@ -106,15 +106,35 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
     internal static bool HasGifHeader(ReadOnlySpan<byte> bytes) =>
         bytes.StartsWith("GIF87a"u8) || bytes.StartsWith("GIF89a"u8);
 
-    internal static bool HasWebpHeader(ReadOnlySpan<byte> bytes) =>
+    private static bool HasWebpHeader(ReadOnlySpan<byte> bytes) =>
         bytes.Length >= 12 && bytes.StartsWith("RIFF"u8) && bytes[8..].StartsWith("WEBP"u8);
 
-    internal static void ValidateWebpLength(ReadOnlySpan<byte> header, long length)
+    private static long ValidateWebpLength(ReadOnlySpan<byte> header, long length)
     {
         // Skia can report the complete frames from a partial WebP. Reject a truncated RIFF
         // before a shortened animation or its first frame can be published.
-        if (8L + BinaryPrimitives.ReadUInt32LittleEndian(header[4..8]) > length)
+        long declared = 8L + BinaryPrimitives.ReadUInt32LittleEndian(header[4..8]);
+        if (declared > length)
             throw new InvalidDataException("WebP data is incomplete.");
+        return declared;
+    }
+
+    private static async Task<bool> NeedsWebpFrameCountAsync(Stream source, CancellationToken token)
+    {
+        const int extendedHeaderLength = 30;
+        byte[] header = new byte[(int)Math.Min(source.Length, extendedHeaderLength)];
+        await source.ReadExactlyAsync(header.AsMemory(), token).ConfigureAwait(false);
+        if (!HasWebpHeader(header)) return false;
+        long declared = ValidateWebpLength(header, source.Length);
+        ReadOnlySpan<byte> chunk = header.AsSpan(12);
+        if (chunk.StartsWith("VP8 "u8) || chunk.StartsWith("VP8L"u8)) return false;
+        // Leave unrecognized chunk layouts to the codec.
+        if (!chunk.StartsWith("VP8X"u8)) return true;
+        if (header.Length < extendedHeaderLength || declared < extendedHeaderLength
+            || BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(16)) != 10)
+            throw new InvalidDataException("WebP extended header is incomplete or invalid.");
+        const byte animationFlag = 0x02;
+        return (header[20] & animationFlag) != 0;
     }
 
     internal static SKEncodedImageFormat? AnimationFormat(GalleryEntry entry)
@@ -126,9 +146,53 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
     }
 
     internal static Task<GifFrameDecoder?> OpenAnimationAsync(GalleryEntry entry, CancellationToken cancellationToken) =>
-        AnimationFormat(entry) is { } format
-            ? OpenAsync(token => ReadVerifiedAsync(entry, token), MaximumPixels, viewport: null, cancellationToken, format)
-            : Task.FromResult<GifFrameDecoder?>(null);
+        AnimationFormat(entry) switch
+        {
+            SKEncodedImageFormat.Webp => Task.Run(() => OpenWebpAnimationAsync(entry, cancellationToken), cancellationToken),
+            SKEncodedImageFormat.Gif => OpenAsync(token => ReadVerifiedAsync(entry, token), MaximumPixels,
+                viewport: null, cancellationToken, SKEncodedImageFormat.Gif),
+            _ => Task.FromResult<GifFrameDecoder?>(null)
+        };
+
+    private static async Task<GifFrameDecoder?> OpenWebpAnimationAsync(GalleryEntry entry, CancellationToken token)
+    {
+        ValidateSourceLength(entry.Asset.Length);
+        bool gateHeld = false;
+        try
+        {
+            byte[] bytes;
+            await using (Stream source = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false))
+            {
+                if (!await NeedsWebpFrameCountAsync(source, token).ConfigureAwait(false)) return null;
+                await GlobalGifGate.WaitAsync(token).ConfigureAwait(false);
+                gateHeld = true;
+                source.Position = 0;
+                bytes = await CopyVerifiedAsync(source, entry.Asset.Length, token).ConfigureAwait(false);
+            }
+            return OpenCore(bytes, MaximumPixels, viewport: null, SKEncodedImageFormat.Webp, token);
+        }
+        finally { if (gateHeld) GlobalGifGate.Release(); }
+    }
+
+    internal static async Task<bool> IsAnimatedWebpAsync(GalleryEntry entry, CancellationToken token)
+    {
+        if (AnimationFormat(entry) != SKEncodedImageFormat.Webp) return false;
+        ValidateSourceLength(entry.Asset.Length);
+        await using Stream source = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false);
+        if (!await NeedsWebpFrameCountAsync(source, token).ConfigureAwait(false)) return false;
+        await GlobalGifGate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            source.Position = 0;
+            using SKManagedStream managed = new(source, disposeManagedStream: false);
+            using SKCodec? codec = SKCodec.Create(managed);
+            bool animated = codec is { EncodedFormat: SKEncodedImageFormat.Webp, FrameCount: > 1 };
+            token.ThrowIfCancellationRequested();
+            return animated;
+        }
+        finally { GlobalGifGate.Release(); }
+    }
 
     internal static Task<GifFrameDecoder?> OpenAsync(GalleryEntry entry, CancellationToken cancellationToken, PixelSize? viewport = null) =>
         OpenAsync(token => ReadVerifiedAsync(entry, token), MaximumPixels, viewport, cancellationToken);
@@ -140,10 +204,20 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
 
     private static async Task<byte[]> ReadVerifiedAsync(GalleryEntry entry, CancellationToken token)
     {
-        if (entry.Asset.Length < 0 || entry.Asset.Length > MaximumBytes)
-            throw new InvalidDataException("Animation source exceeds the 64 MiB limit.");
+        ValidateSourceLength(entry.Asset.Length);
         await using Stream source = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false);
-        byte[] bytes = new byte[checked((int)entry.Asset.Length)];
+        return await CopyVerifiedAsync(source, entry.Asset.Length, token).ConfigureAwait(false);
+    }
+
+    private static void ValidateSourceLength(long length)
+    {
+        if (length < 0 || length > MaximumBytes)
+            throw new InvalidDataException("Animation source exceeds the 64 MiB limit.");
+    }
+
+    private static async Task<byte[]> CopyVerifiedAsync(Stream source, long length, CancellationToken token)
+    {
+        byte[] bytes = new byte[checked((int)length)];
         await source.ReadExactlyAsync(bytes.AsMemory(), token).ConfigureAwait(false);
         byte[] extra = new byte[1];
         if (await source.ReadAsync(extra.AsMemory(), token).ConfigureAwait(false) != 0)
@@ -168,7 +242,7 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
         SKEncodedImageFormat? expectedAnimation, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (bytes.LongLength > MaximumBytes) throw new InvalidDataException("Animation source exceeds the 64 MiB limit.");
+        ValidateSourceLength(bytes.LongLength);
         bool webp = HasWebpHeader(bytes);
         if (!webp && !HasGifHeader(bytes)) return null;
         SKEncodedImageFormat format = webp ? SKEncodedImageFormat.Webp : SKEncodedImageFormat.Gif;
@@ -190,11 +264,12 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
                 codec = SKCodec.Create(managed) ?? throw new InvalidDataException("Unsupported or damaged animation.");
                 if (codec.EncodedFormat != format) throw new InvalidDataException("Animation header/codec format mismatch.");
                 int count = Math.Max(1, codec.FrameCount); // Skia may report zero for a single-frame image.
-                if (count == 1 && (webp || expectedAnimation.HasValue)) return null;
+                if (count == 1 && webp) return null;
                 SKImageInfo source = codec.Info;
                 ValidateLimits(bytes.LongLength, source.Width, source.Height, count);
                 if ((long)source.Width * source.Height > maximumPixels)
                     throw new InvalidDataException("Animation canvas exceeds the preview pixel limit.");
+                if (count == 1 && expectedAnimation.HasValue) return null;
                 SKCodecFrameInfo[] frames = codec.FrameInfo;
                 if (frames.Length == 0 && count == 1)
                     frames = [new SKCodecFrameInfo { Duration = 100, RequiredFrame = -1,
