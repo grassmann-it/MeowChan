@@ -9,13 +9,49 @@ using MeowChan.Storage;
 namespace MeowChan.Tests;
 
 /// <summary>
-/// Opt-in measurement of the media index cache and the index build on a synthetic library (no pass/fail, no GUI).
+/// Opt-in measurement of the media index cache and directory batching on synthetic libraries.
 /// Runs only with MEOWCHAN_MEDIA_INDEX_BENCHMARK_OUT set to a result file; sizes via MEOWCHAN_MEDIA_INDEX_BENCHMARK_SIZES
 /// (default "20000,100000" entries, 100 per thread).
 /// </summary>
+[Collection(MediaLibraryIndexBenchmarkCollection.Name)]
 public sealed class MediaLibraryIndexBenchmark
 {
     private const int PerThread = 100;
+    private const int WarmRuns = 5;
+
+    [Fact]
+    public async Task MeasureMetadataOnlyThreadPages()
+    {
+        string? output = Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INDEX_BENCHMARK_OUT");
+        if (string.IsNullOrEmpty(output)) return;
+        const int threads = 10_000;
+        using TempDirectory temp = new();
+        await MediaLibraryIndexTests.SeedMetadataThreadsAsync(temp.Path, threads);
+        int opens = 0;
+        MediaManifestCache manifests = new((directory, token) =>
+        {
+            Interlocked.Increment(ref opens);
+            return MediaAssetReader.OpenAsync(directory, token);
+        }, identity: true);
+        Func<CancellationToken, Task<ArchiveReader>> reader = token => ArchiveReader.OpenAsync(temp.Path, token);
+        StringBuilder report = new();
+        report.AppendLine("# metadata-only media index benchmark " + DateTimeOffset.Now.ToString("O") + " loadavg " + LoadAverage());
+
+        long allocated = GC.GetTotalAllocatedBytes(precise: true);
+        Stopwatch watch = Stopwatch.StartNew();
+        MediaLibrarySnapshot cold = await MediaLibraryIndexBuilder.BuildAsync(reader, manifests);
+        Line(report, threads, "metadata.cold.ms", Ms(watch));
+        Line(report, threads, "metadata.cold.allocMiB", MiB(GC.GetTotalAllocatedBytes(precise: true) - allocated));
+        Line(report, threads, "metadata.cold.manifestOpens", opens);
+        Assert.True(cold.Complete);
+        Assert.Empty(cold.Entries);
+        Assert.Equal(threads, cold.Threads.Count);
+        Assert.All(cold.Threads, thread => Assert.Empty(thread.Manifests));
+        Assert.Equal(0, opens);
+
+        await MeasureWarmBuildsAsync(threads, report, "metadata.warm", reader, manifests, cold, () => opens);
+        File.AppendAllText(output, report.ToString());
+    }
 
     [Fact]
     public async Task MeasureCacheAndBuild()
@@ -167,22 +203,24 @@ public sealed class MediaLibraryIndexBenchmark
             Interlocked.Increment(ref opens);
             return MediaAssetReader.OpenAsync(directory, token);
         }
-        Progress progress = new(() => reports++);
+        Progress progress = new(_ => reports++);
         Func<CancellationToken, Task<ArchiveReader>> reader = t => ArchiveReader.OpenAsync(temp.Path, t);
 
+        long allocated = GC.GetTotalAllocatedBytes(precise: true);
         watch.Restart();
         MediaLibrarySnapshot cold = await MediaLibraryIndexBuilder.BuildAsync(reader, Open, null, progress);
         Line(report, size, "build.cold.ms", Ms(watch));
+        Line(report, size, "build.cold.allocMiB", MiB(GC.GetTotalAllocatedBytes(precise: true) - allocated));
         Line(report, size, "build.cold.manifestOpens", opens);
         Assert.Equal(size, cold.Entries.Count);
 
-        // Before: every open of the media page reads and hashes every manifest again and reports once per thread.
+        // The unpinned build reads and hashes every manifest again and reports once per thread.
         opens = reports = 0;
         watch.Restart();
         await MediaLibraryIndexBuilder.BuildAsync(reader, Open, cold, progress);
-        Line(report, size, "before.build.warm.ms", Ms(watch));
-        Line(report, size, "before.build.warm.manifestOpens", opens);
-        Line(report, size, "before.build.warm.statusUpdates", reports);
+        Line(report, size, "build.unpinnedWarm.ms", Ms(watch));
+        Line(report, size, "build.unpinnedWarm.manifestOpens", opens);
+        Line(report, size, "build.unpinnedWarm.statusUpdates", reports);
 
         // After: the first build records manifest identities; the next ones skip unchanged manifests, the status is throttled.
         MediaManifestCache manifests = new(Open, identity: true);
@@ -193,18 +231,11 @@ public sealed class MediaLibraryIndexBenchmark
         Line(report, size, "after.build.firstWithIdentity.manifestOpens", opens);
         Assert.Equal(cold.Entries, pinned.Entries);
 
-        opens = reports = 0;
-        ThrottledProgress<MediaLibraryProgress> throttled = new(progress, TimeSpan.FromMilliseconds(100), value => value.ThreadsDone >= value.ThreadsTotal);
-        watch.Restart();
-        MediaLibrarySnapshot warm = await MediaLibraryIndexBuilder.BuildAsync(reader, manifests, pinned, throttled);
-        Line(report, size, "after.build.warm.ms", Ms(watch));
-        Line(report, size, "after.build.warm.manifestOpens", opens);
-        Line(report, size, "after.build.warm.statusUpdates", reports);
-        Assert.Equal(cold.Entries, warm.Entries);
+        await MeasureWarmBuildsAsync(size, report, "after.build.warm", reader, manifests, pinned, () => opens);
 
         // After a restart: the identities come from the saved index.
         string path = Path.Combine(temp.Path, "cache", MediaLibraryIndexCache.FileName);
-        await new MediaLibraryIndexCacheFile(path).SaveAsync(warm, MediaLibraryIndexCache.DefaultLimitBytes);
+        await new MediaLibraryIndexCacheFile(path).SaveAsync(pinned, MediaLibraryIndexCache.DefaultLimitBytes);
         MediaLibrarySnapshot restarted = (await new MediaLibraryIndexCacheFile(path).LoadAsync())!;
         opens = 0;
         watch.Restart();
@@ -214,8 +245,49 @@ public sealed class MediaLibraryIndexBenchmark
         Assert.Equal(cold.Entries, afterRestart.Entries);
     }
 
-    private sealed class Progress(Action report) : IProgress<MediaLibraryProgress>
+    private static async Task MeasureWarmBuildsAsync(int size, StringBuilder report, string name,
+        Func<CancellationToken, Task<ArchiveReader>> reader, MediaManifestCache manifests,
+        MediaLibrarySnapshot previous, Func<int> manifestOpens)
     {
-        public void Report(MediaLibraryProgress value) => report();
+        double[] times = new double[WarmRuns];
+        long[] allocations = new long[WarmRuns];
+        for (int run = 0; run < WarmRuns; run++)
+        {
+            int priorOpens = manifestOpens();
+            MediaLibraryProgress? last = null;
+            ThrottledProgress<MediaLibraryProgress> progress = new(new Progress(value => last = value),
+                TimeSpan.FromMilliseconds(100), value => value.ThreadsDone >= value.ThreadsTotal);
+            long allocated = GC.GetTotalAllocatedBytes(precise: true);
+            Stopwatch watch = Stopwatch.StartNew();
+            MediaLibrarySnapshot warm = await MediaLibraryIndexBuilder.BuildAsync(reader, manifests, previous, progress);
+            times[run] = Ms(watch);
+            allocations[run] = GC.GetTotalAllocatedBytes(precise: true) - allocated;
+            int opened = manifestOpens() - priorOpens;
+            string sample = name + ".run" + (run + 1);
+            Line(report, size, sample + ".ms", times[run]);
+            Line(report, size, sample + ".allocMiB", MiB(allocations[run]));
+            Line(report, size, sample + ".manifestOpens", opened);
+            Line(report, size, sample + ".statusUpdates", progress.Forwarded);
+            Assert.Equal(0, opened);
+            Assert.Equal(new MediaLibraryProgress(previous.Threads.Count, previous.Threads.Count, previous.Threads.Count), last);
+            Assert.True(warm.Complete);
+            Assert.Empty(warm.Warnings);
+            Assert.True(MediaLibrarySnapshot.SameContent(previous, warm));
+        }
+        Line(report, size, name + ".median.ms", times.Order().ElementAt(WarmRuns / 2));
+        Line(report, size, name + ".median.allocMiB", MiB(allocations.Order().ElementAt(WarmRuns / 2)));
+        int pageSize = ArchiveReader.MediaIndexPageSize;
+        Line(report, size, name + ".directoryBatchesBound", (previous.Threads.Count + pageSize - 1) / pageSize);
     }
+
+    private sealed class Progress(Action<MediaLibraryProgress> report) : IProgress<MediaLibraryProgress>
+    {
+        public void Report(MediaLibraryProgress value) => report(value);
+    }
+}
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class MediaLibraryIndexBenchmarkCollection
+{
+    public const string Name = "Media library index benchmark";
 }
