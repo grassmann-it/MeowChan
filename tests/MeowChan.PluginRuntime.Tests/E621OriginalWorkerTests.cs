@@ -77,7 +77,8 @@ public sealed class E621OriginalWorkerTests : IDisposable
             {
                 Assert.Equal(-3, result.Score);
                 Assert.Null(claim.Score);
-                Assert.False(claim.Fields.HasFlag(BooruPostClaimPresence.Score));
+                // A negative observation clears the stored score under the archive contract.
+                Assert.True(claim.Fields.HasFlag(BooruPostClaimPresence.Score));
             }
 
             using HttpClient media = context.OpenMedia(source);
