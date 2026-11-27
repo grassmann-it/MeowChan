@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Booru;
@@ -26,53 +27,68 @@ namespace MeowChan.DesktopTests;
 public sealed class MediaPageContentBoundaryTests
 {
     [Fact]
-    public void RatingCorrectionRetiresTheGridWhileItsThumbnailIsDecoding() => BooruComponentDispatcher.Run(async () =>
+    public async Task RatingCorrectionRetiresTheGridWhileItsThumbnailIsDecoding()
     {
-        using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory temporary = new();
         ConfigureWindow(temporary.Path);
         GalleryEntry[] entries = await SeedPostsAsync(temporary.Path, BooruPostClaimRating.Sensitive, BooruPostClaimRating.General);
-        await using DesktopSessionHost session = CreateSession(temporary.Path);
-        await using MainWindow window = await ShowWindowAsync(session);
-        MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
-        TaskCompletionSource<CancellationToken> decoding = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        int correctedDecodes = 0;
-        page.TileThumbnailDecoder = async (tile, token) =>
-        {
-            if (tile.Entry.BooruPostId != "102") return null;
-            Interlocked.Increment(ref correctedDecodes);
-            decoding.TrySetResult(token);
-            await release.Task;
-            return new Bitmap(entries[1].Asset.Path);
-        };
-        try
-        {
-            ById<Button>(window, "MediaNavigationButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-            await page.BuildTask;
-            await page.PresentTask;
-            window.UpdateLayout();
-            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-            ListBox grid = ById<ListBox>(page, "MediaGrid");
-            Assert.Equal(2, grid.ItemCount);
-            await BooruTestSupport.WaitAsync(() => decoding.Task.IsCompleted, "the thumbnail decode to start");
-            CancellationToken decodingToken = await decoding.Task;
-            BooruContentProfileStore profile = new(session.ProfileLeaseForTests);
-            long revision = profile.Load().Revision;
+        BooruComponentDispatcher.Run(ExerciseAsync);
 
-            CorrectRating(session, "102");
+        async Task ExerciseAsync()
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            await using DesktopSessionHost session = CreateSession(temporary.Path);
+            await using MainWindow window = await ShowWindowAsync(session);
+            MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+            TaskCompletionSource<CancellationToken> decoding = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<Bitmap?> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource discarded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            int correctedDecodes = 0;
+            page.TileThumbnailDecoder = (tile, token) =>
+            {
+                if (tile.Entry.BooruPostId != "102") return Task.FromResult<Bitmap?>(null);
+                Interlocked.Increment(ref correctedDecodes);
+                decoding.TrySetResult(token);
+                return release.Task;
+            };
+            try
+            {
+                ById<Button>(window, "MediaNavigationButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                await page.BuildTask;
+                await page.PresentTask;
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                ListBox grid = ById<ListBox>(page, "MediaGrid");
+                Assert.Equal(2, grid.ItemCount);
+                CancellationToken decodingToken = await decoding.Task.WaitAsync(BooruComponentDispatcher.Cancellation);
+                BooruContentProfileStore profile = new(session.ProfileLeaseForTests);
+                long revision = profile.Load().Revision;
 
-            await BooruTestSupport.WaitAsync(() => grid.ItemCount == 1 && decodingToken.IsCancellationRequested,
-                "the corrected tile and its decode to be retired");
-            Assert.Equal("101", Assert.IsType<MediaLibraryTileRow>(Assert.Single(grid.Items)).Entry.BooruPostId);
-            Assert.Equal(revision, profile.Load().Revision);
-            release.SetResult();
-            window.UpdateLayout();
-            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-            Assert.Equal(1, Volatile.Read(ref correctedDecodes));
+                CorrectRating(session, "102");
+                // The shell posts the catalog notification at Send priority. Let it start the new presentation.
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Normal);
+                await page.PresentTask;
+                window.UpdateLayout();
+
+                Assert.True(decodingToken.IsCancellationRequested);
+                Assert.Equal("101", Assert.IsType<MediaLibraryTileRow>(Assert.Single(grid.Items)).Entry.BooruPostId);
+                Assert.Equal(revision, profile.Load().Revision);
+                release.SetResult(new ObservedThumbnail(entries[1].Asset.Path, discarded));
+                await discarded.Task.WaitAsync(BooruComponentDispatcher.Cancellation);
+                Assert.Equal(1, Volatile.Read(ref correctedDecodes));
+            }
+            finally { release.TrySetResult(null); }
         }
-        finally { release.TrySetResult(); }
-    });
+    }
+
+    private sealed class ObservedThumbnail(string path, TaskCompletionSource discarded) : Bitmap(path)
+    {
+        public override void Dispose()
+        {
+            base.Dispose();
+            discarded.TrySetResult();
+        }
+    }
 
     [Theory]
     [InlineData(false)]
@@ -326,7 +342,7 @@ public sealed class MediaPageContentBoundaryTests
     private static void ConfigureWindow(string path) => new Config
     {
         FirstRunSetupVersion = 1, DownloadsPaused = true, DownloadPath = Path.Combine(path, "downloads"),
-        Language = "en", SaveUrlsOnExit = false, GalleryFilmstripHeight = 96
+        Language = "en", SaveUrlsOnExit = false, GalleryFilmstripHeight = 96, Animations = "Off"
     }.SaveConfig(path);
 
     private static DesktopSessionHost CreateSession(string path) => new(path, [],
