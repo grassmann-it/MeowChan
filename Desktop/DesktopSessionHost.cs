@@ -81,10 +81,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         _logger = logger ?? Log.Logger;
         _ioStats = ioStats ?? Stats.IoStatsHub.Shared;
-        _profileLease = ProfileLease.Acquire(profileDirectory);
         DownloadQueue? queue = null;
         try
         {
+            _profileLease = ProfileLease.Acquire(profileDirectory);
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "lease");
             _profileStartupAdmission = _profileLease.Admission.EnterStartupWriter();
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory, _profileLease);
@@ -135,32 +135,48 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _registry.ConfigureBoardAdmission(_boardAdmission);
             _registry.StateChanged += OnRegistryChanged;
             queue.MediaTagsCarriedOver += OnMediaTagsCarriedOver;
-            Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
-                ?? new UpdateSession(_profileLease.ProfileDirectory, Config);
+            UpdateSession? suppliedUpdates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config);
+            if (suppliedUpdates == null)
+                Updates = new UpdateSession(_profileLease.ProfileDirectory, Config);
+            else
+                Updates = suppliedUpdates;
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "updates-done");
             StartIoStats();
         }
         catch
         {
-            // The registry has not started any watches before StartAsync. Even a
-            // cleanup failure must release startup admission and the profile lease.
-            try { queue?.StopAll(); }
+            try
+            {
+                TryCleanup("download queue", () => queue?.StopAll());
+                // The probe may already be running describe workers and writing its cache.
+                TryCleanup("startup cancellation", _startupCancellation.Cancel);
+                TryCleanup("plugin session", () => Plugins?.DisposeAsync().AsTask().GetAwaiter().GetResult());
+                TryCleanup("update session", () => Updates?.DisposeAsync().AsTask().GetAwaiter().GetResult());
+                TryCleanup("registry", () => _registry?.DisposeAsync().AsTask().GetAwaiter().GetResult());
+                TryCleanup("content runtime", () => _content?.DisposeAsync().AsTask().GetAwaiter().GetResult());
+                if (_profileLease != null)
+                {
+                    TryCleanup("profile startup admission", () => FinishProfileStartup(succeeded: false));
+                    TryCleanup("profile shutdown", () =>
+                    {
+                        _profileLease.Admission.BeginShutdown();
+                        _profileLease.Admission.CompleteShutdown();
+                    });
+                }
+            }
             finally
             {
-                try
-                {
-                    // An early plugin probe may already import or run describe workers. It ends (workers reaped,
-                    // cache writes stopped) before the profile lease is released; its own failure never replaces
-                    // the constructor's exception. No continuation here needs the calling (UI) thread.
-                    try { _startupCancellation.Cancel(); Plugins?.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
-                    catch (Exception error) { _logger.Error(error, "Failed to dispose the plugin session after a failed session construction."); }
-                    FinishProfileStartup(succeeded: false);
-                    _profileLease.Admission.BeginShutdown();
-                    _profileLease.Admission.CompleteShutdown();
-                }
-                finally { _profileLease.Dispose(); }
+                _startupCancellation.Dispose();
+                _commands.Dispose();
+                _profileLease?.Dispose();
             }
             throw;
+        }
+
+        void TryCleanup(string resource, Action cleanup)
+        {
+            try { cleanup(); }
+            catch (Exception error) { _logger.Error(error, "Failed to release {Resource} after a failed session construction.", resource); }
         }
     }
 
@@ -842,7 +858,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     }
     public Task StopAsync()
     {
-        Task engineStopped = BeginShutdown(); // Never inside StopAsync's reentrant lifecycle lock.
+        BeginShutdown(); // Never inside StopAsync's reentrant lifecycle lock.
         lock (_lifecycle)
         {
             if (_stopTask == null)
@@ -851,24 +867,24 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 _stopTask = _stopCompletion.Task;
             }
         }
-        StartStopCoreOnce(engineStopped);
+        StartStopCoreOnce();
         return _stopTask;
     }
-    private void StartStopCoreOnce(Task engineStopped)
+    private void StartStopCoreOnce()
     {
         if (Interlocked.CompareExchange(ref _stopLaunchClaimed, 1, 0) != 0) return;
         try
         {
             _ = Task.Run(async () =>
             {
-                try { await StopCoreAsync(engineStopped).ConfigureAwait(false); _stopCompletion!.TrySetResult(); }
+                try { await CloseAsync().ConfigureAwait(false); _stopCompletion!.TrySetResult(); }
                 catch (Exception error) { _stopCompletion!.TrySetException(error); }
             });
         }
         catch (Exception error) { _stopCompletion!.TrySetException(error); }
     }
 
-    private async Task StopCoreAsync(Task engineStopped)
+    private async Task CloseAsync()
     {
         using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.drain", epoch: _epoch);
         // Command/profile admission is already sealed. Seal the separate final writers now;
@@ -881,7 +897,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             try { await action().ConfigureAwait(false); }
             catch (Exception error) { errors.Add(error); if (ownsLifetime) quiescent = false; }
         }
-        await Observe(() => Task.WhenAll(engineStopped, _acceptedDrain, finalWrites)).ConfigureAwait(false);
+        await Observe(() => Task.WhenAll(_engineStopTask!, _acceptedDrain, finalWrites)).ConfigureAwait(false);
         await Observe(() => { StopIoStats(); return Task.CompletedTask; }).ConfigureAwait(false);
         // The optional cache belongs to the existing TerminalOpen authority, before
         // releasing the host family and BEFORE the kernel's final admission drain.
@@ -909,8 +925,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
-            await Observe(() => _registry.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
-            await Observe(() => _content.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
+            try { await _registry.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { errors.Add(error); quiescent = false; }
+            try { await _content.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception error) { errors.Add(error); quiescent = false; }
             if (Plugins != null) await Observe(() => Plugins.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
             _registry.StateChanged -= OnRegistryChanged;
             _downloadQueue.MediaTagsCarriedOver -= OnMediaTagsCarriedOver;
@@ -942,30 +960,32 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        lock (_lifecycle) return new(_disposeTask ??= Task.Run(DisposeCoreAsync));
+        lock (_lifecycle) return new(_disposeTask ??= DisposeCoreAsync());
     }
 
     private async Task DisposeCoreAsync()
     {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         try { await StopAsync().ConfigureAwait(false); }
         finally
         {
-        lock (_lifecycle)
-        {
-            if (!_disposed && _ownersQuiescent && !_externalOwnershipBlocked)
+            lock (_lifecycle)
             {
-            _disposed = true;
-            _projectionClosed = true;
-            ProjectionPublished = null;
-            _startupCancellation.Dispose();
-            lock (_ratingsSync)
-            {
-                _ratingsStore = null; _ratingEntries = null; _ratingValues = null; _ratingLoadError = null;
+                if (!_disposed && _ownersQuiescent && !_externalOwnershipBlocked)
+                {
+                    _disposed = true;
+                    _projectionClosed = true;
+                    ProjectionPublished = null;
+                    _startupCancellation.Dispose();
+                    _commands.Dispose();
+                    lock (_ratingsSync)
+                    {
+                        _ratingsStore = null; _ratingEntries = null; _ratingValues = null; _ratingLoadError = null;
+                    }
+                    _profileLease.Dispose();
+                    StateChanged = null;
+                }
             }
-            _profileLease.Dispose();
-            StateChanged = null;
-            }
-        }
         }
     }
 
