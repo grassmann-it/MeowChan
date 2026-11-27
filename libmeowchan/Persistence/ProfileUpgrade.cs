@@ -17,11 +17,13 @@ internal static class ProfileUpgrade
         Func<string, long>? availableBytes = null, Action? beforePublish = null, CancellationToken token = default)
     {
         string directory = ProfileLease.NormalizeDirectory(path);
+        if (Directory.GetParent(directory) is null)
+            throw new InvalidDataException("A filesystem root cannot be used as an upgrade source.");
         ArchiveExportMetadataFile.RejectLinks(directory);
-        ProfileLease source = ProfileLease.Acquire(directory);
-        bool handedOff = false;
+        ProfileLease? source = null;
         try
         {
+            source = ProfileLease.Acquire(directory);
             if (ProfileManifest.Read(directory) is { } existing)
             {
                 RequireIdentity(source, existing);
@@ -33,20 +35,21 @@ internal static class ProfileUpgrade
                     if (saved.Profile.ProfileId != existing.ProfileId || saved.Profile.Generation != existing.Generation)
                         throw new InvalidDataException("The pre-upgrade snapshot belongs to another generation.");
                     saved.VerifyData(backup, token);
+                    saved.VerifyExternalMedia(token);
                 }
                 ProfileManifest.Inspect(directory);
-                handedOff = true;
-                return source;
+                ProfileLease current = source;
+                source = null;
+                return current;
             }
 
             if (temporary || source.WasEmptyAtAcquisition || HasOnlyLeaseMetadata(directory))
             {
-                handedOff = true;
-                return source;
+                ProfileLease current = source;
+                source = null;
+                return current;
             }
 
-            if (Directory.GetParent(directory) is null)
-                throw new InvalidDataException("A filesystem root cannot be used as an upgrade source.");
             string generation = directory + GenerationSuffix;
             ArchiveExportMetadataFile.RejectLinks(generation);
             if (!Directory.Exists(generation))
@@ -55,7 +58,7 @@ internal static class ProfileUpgrade
         }
         finally
         {
-            if (!handedOff) source.Dispose();
+            source?.Dispose();
         }
     }
 
@@ -145,7 +148,10 @@ internal static class ProfileUpgrade
                 throw new InvalidDataException("The working profile does not belong to this upgrade.");
             RequireIdentity(lease, manifest);
             if (manifest.State == ProfileManifest.Preparing)
+            {
                 snapshot.VerifyData(Path.Combine(generation, SnapshotDirectoryName));
+                snapshot.VerifyExternalMedia();
+            }
             ProfileManifest.Inspect(work);
             return lease;
         }
