@@ -1,0 +1,26 @@
+{
+  "1.0.0": {
+    "sourceCommit": "9013ea1b6d899d51ea7127c20e82fea580ff3f66",
+    "assetUrl": "https://github.com/grassmann-it/MeowChan/releases/download/v1.0.0/07-MeowChan-1.0.0-linux-x64-system-vlc.tar.gz",
+    "assetSha256": "2d8c095f490e60d2ed9e0f778c0345b1d3d3e6b42a93f9b4f2d23b23e59cf129",
+    "files": {
+      "plugin-worker/MeowChan.PluginSdk.dll": "a9c0c53d53230927cb11402aa8f2d2920ee0af241b6ae3c9e80425ca4c1744da",
+      "plugin-worker/MeowChan.PluginWorker.dll": "5478329fa8e9ea6fcec3f19413d1ae2f620fc2fddff210149e82b0e7f475e63d",
+      "plugins/MeowChan.Plugin.FourChan.plugin.json": "36d6688f417de4e338dfb56ad37de66efdd2153f85dddf352ffe887b5fb74a37",
+      "plugins/assemblies/MeowChan.Plugin.FourChan.dll": "0d82eed20f4e8df26c6e448f7bdf0f00ddf58036679829888b10ee4d82ce7d74"
+    }
+  },
+  "1.1.0": {
+    "sourceCommit": "8806763ef36bd5a473c96ac085af241a3ac43d07",
+    "assetUrl": "https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/07-MeowChan-1.1.0-linux-x64-system-vlc.tar.gz",
+    "assetSha256": "f7e3aeeb83b8ab10b4d756ce49afd81e8b0a1df80493bb96e548f5fb022684b1",
+    "files": {
+      "plugin-worker/MeowChan.PluginSdk.dll": "8544a4b0925623ef49ecf1cb3421763f4e28c53921548641124ee7f975427f40",
+      "plugin-worker/MeowChan.PluginWorker.dll": "f28066fb846463f6bb1283e6d089786e7bb80f0179a4436ef06e156e52ca6bc3",
+      "plugins/MeowChan.Plugin.FourChan.plugin.json": "cbb58a26dbdd3c017fd93f59f476ded54216c9737dc46dd099a3e09897fdba87",
+      "plugins/assemblies/MeowChan.Plugin.FourChan.dll": "9ccef2ecb13390bba25ed9fb060475a45331bbf0dc63c62cd206f72de00f3890",
+      "plugins/MeowChan.Plugin.Danbooru.plugin.json": "8add07adeef6c6f039aec8c0488dd3869efd021fcdc94ef26f7cab389c0b8942",
+      "plugins/assemblies/MeowChan.Plugin.Danbooru.dll": "10eaae9cb54a21eee157887e09bce0fdd791a5ba739c980a8b301ee6e3420f27"
+    }
+  }
+}
