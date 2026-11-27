@@ -59,6 +59,17 @@ class SigningContracts(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Unresolved'):
                     signing.validate(root, 'osx-arm64')
 
+    def test_multicall_toolchain_requires_only_the_main_apphost(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            main = root / 'Contents/MacOS/MeowChan'
+            compiler = root / 'Contents/Resources/application/plugin-compiler/MeowChan.PluginCompiler.dll'
+            for path, content in ((main, bytes.fromhex('cffaedfe')), (compiler, b'managed compiler')):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            self.assertEqual([main], signing.inventory(root))
+            self.assertEqual([main], signing.coreclr_apphosts(root))
+
     def test_load_commands_omit_id_and_preserve_spaces(self):
         deps, paths = signing.load_commands('''Load command 0
           cmd LC_ID_DYLIB

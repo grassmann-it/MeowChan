@@ -49,9 +49,9 @@ public partial class MainWindow
             RequireWorkflow(Math.Abs(RenderScaling - descriptor.ExpectedScale) < .01, "Fixture display scale differs.");
             var plugins = _session.Plugins ?? throw new InvalidOperationException("Provider injection bypassed PluginSession.");
             RequireWorkflow(plugins.Warnings.Count == 0, string.Join("; ", plugins.Warnings));
-            string app = AppContext.BaseDirectory;
-            foreach (string helper in new[] { "plugin-worker/MeowChan.PluginWorker", "plugin-compiler/MeowChan.PluginCompiler" })
-                RequireWorkflow(File.Exists(Path.Combine(app, helper)), "Delivered helper missing: " + helper);
+            string app = ProcessEntry.PayloadDirectory();
+            RequireWorkflow(!Directory.Exists(Path.Combine(app, "plugin-worker")), "Published workers must use the main apphost.");
+            RequireWorkflow(File.Exists(Path.Combine(app, "plugin-compiler", "toolchain.json")), "Delivered compiler toolchain missing.");
             string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
             PluginProfileSnapshot installed = await plugins.ProfileStore.ReadAsync();
             RequireWorkflow(manifests.Length == 24, "Delivered manifest inventory differs.");

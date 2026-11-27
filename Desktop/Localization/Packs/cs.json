@@ -1491,6 +1491,7 @@
     "plugins.candidate.selected": "Vybraný soubor",
     "plugins.candidate.otherPending": "Pro příští spuštění uložen jiný build",
     "plugins.candidate.changedHint": "Změněný build nebyl vybrán pro příští spuštění aplikace.",
+    "plugins.problem.forbiddenReference": "Plugin odkazuje na sestavení, které není pro pluginy dostupné ({0}).",
     "plugins.problemHint": "Tento plugin nebo kandidát vyžaduje pozornost. Důvod najdete v podrobnostech.",
     "plugins.pending.build": "Build uložen pro příští spuštění",
     "plugins.pending.configuration": "Nastavení uložena pro příští spuštění",

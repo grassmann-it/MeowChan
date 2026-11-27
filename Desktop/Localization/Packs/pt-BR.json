@@ -1474,6 +1474,7 @@
     "plugins.candidate.selected": "Arquivo selecionado",
     "plugins.candidate.otherPending": "Outro build salvo para a próxima inicialização",
     "plugins.candidate.changedHint": "O build alterado não foi selecionado para a próxima inicialização do app.",
+    "plugins.problem.forbiddenReference": "O plugin faz referência a um assembly que não está disponível para plugins ({0}).",
     "plugins.problemHint": "Este plugin ou candidato precisa de atenção. Veja o motivo nos detalhes.",
     "plugins.pending.build": "Build salvo para a próxima inicialização",
     "plugins.pending.configuration": "Configurações salvas para a próxima inicialização",

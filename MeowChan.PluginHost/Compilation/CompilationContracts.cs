@@ -21,6 +21,8 @@ public sealed record PluginBuildResult(PluginBuildStatus Status, PluginArtifact?
 /// <summary>All paths are explicit. CompilerExecutablePath must point at the bundled apphost, never PATH/dotnet.</summary>
 public sealed record PluginCompilerOptions(string CompilerExecutablePath, string ToolchainDirectory, string CacheDirectory)
 {
+    /// <summary>Optional mode switch placed before the compiler protocol arguments on a shared apphost.</summary>
+    public string? EntryArgument { get; init; }
     public TimeSpan BuildTimeout { get; init; } = TimeSpan.FromSeconds(60);
     public int MaximumSourceBytes { get; init; } = 4 * 1024 * 1024;
     public int MaximumResourceBytes { get; init; } = 32 * 1024 * 1024;

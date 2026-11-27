@@ -10,6 +10,7 @@ using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Installation;
+using MeowChan.Desktop.Localization;
 using MeowChan.Diagnostics;
 using MeowChan.PluginSdk;
 using Serilog;
@@ -48,8 +49,10 @@ internal static class PluginStartupDiagnostics
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
-            // Preserve the existing UI/profile problem text; structured evidence supplies context.
-            string problem = name + ": " + exception.Message;
+            string detail = exception is PluginWorkerException { Code: "forbidden_reference" }
+                ? Texts.T("plugins.problem.forbiddenReference", exception.Message)
+                : exception.Message;
+            string problem = name + ": " + detail;
             logger.Warning(exception,
                 "Plugin startup candidate failed in {PluginStartupPhase} candidate {PluginStartupCandidate} id {PluginStartupCandidateId} plugin {PluginStartupPluginId} previously declared sources {PluginStartupSourceIds} error {PluginStartupErrorType} worker code {PluginStartupWorkerCode} build status {PluginStartupBuildStatus} diagnostic codes {PluginStartupDiagnosticCodes}",
                 phase, name, candidate.CandidateId, previous?.PluginId,

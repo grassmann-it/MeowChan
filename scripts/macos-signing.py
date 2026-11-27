@@ -2,8 +2,8 @@
 """Native macOS ad-hoc signing and fail-closed bundle dependency validation.
 
 No hardened runtime, Developer ID, timestamp, notarization or Gatekeeper claim.
-CoreCLR permissions apply only to the main executable, the two known plugin
-helper apphosts, and the outer bundle signature.
+CoreCLR permissions apply to the main executable and the outer bundle signature.
+Legacy bundles can also contain standalone plugin apphosts.
 """
 from __future__ import annotations
 import argparse
@@ -86,8 +86,9 @@ def coreclr_apphosts(bundle: Path) -> list[Path]:
     for payload in (bundle / 'Contents/Resources/application', bundle / 'Contents/MacOS'):
         for directory, name in (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')):
             parent = payload / directory
-            if parent.is_dir() and not parent.is_symlink():
-                hosts.append(parent / name)
+            host = parent / name
+            if parent.is_dir() and not parent.is_symlink() and (host.exists() or host.is_symlink()):
+                hosts.append(host)
     return hosts
 
 

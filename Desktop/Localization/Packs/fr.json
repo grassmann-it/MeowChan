@@ -1974,6 +1974,7 @@
     "plugins.candidate.selected": "Fichier sélectionné",
     "plugins.candidate.otherPending": "Autre version enregistrée pour le prochain démarrage",
     "plugins.candidate.changedHint": "La version modifiée n’a pas été sélectionnée pour le prochain démarrage.",
+    "plugins.problem.forbiddenReference": "Le module complémentaire référence un assembly auquel les modules n’ont pas accès ({0}).",
     "plugins.problemHint": "Cette extension ou ce candidat nécessite une intervention. Consultez les détails pour en connaître la raison.",
     "plugins.pending.build": "Version enregistrée pour le prochain démarrage",
     "plugins.pending.configuration": "Paramètres enregistrés pour le prochain démarrage",

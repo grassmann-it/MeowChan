@@ -1986,6 +1986,7 @@
     "plugins.candidate.selected": "Выбранный файл",
     "plugins.candidate.otherPending": "Другая сборка сохранена для следующего запуска",
     "plugins.candidate.changedHint": "Изменённая сборка не выбрана для следующего запуска приложения.",
+    "plugins.problem.forbiddenReference": "Плагин ссылается на сборку, недоступную для плагинов ({0}).",
     "plugins.problemHint": "Этот плагин или кандидат требует внимания. Причина указана в подробностях.",
     "plugins.pending.build": "Сборка сохранена для следующего запуска",
     "plugins.pending.configuration": "Настройки сохранены для следующего запуска",

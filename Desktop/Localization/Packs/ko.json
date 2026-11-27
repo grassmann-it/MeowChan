@@ -1784,6 +1784,7 @@
     "plugins.candidate.selected": "선택한 파일",
     "plugins.candidate.otherPending": "다음 시작용으로 저장된 다른 빌드",
     "plugins.candidate.changedHint": "변경된 빌드가 다음 앱 시작용으로 선택되지 않았습니다.",
+    "plugins.problem.forbiddenReference": "플러그인이 플러그인에서 사용할 수 없는 어셈블리를 참조합니다({0}).",
     "plugins.problemHint": "이 플러그인 또는 후보에 주의가 필요합니다. 이유는 세부 정보를 확인하세요.",
     "plugins.pending.build": "다음 시작용으로 저장된 빌드",
     "plugins.pending.configuration": "다음 시작용으로 저장된 설정",

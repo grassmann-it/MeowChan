@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <StartupObject>MeowChan.ProcessEntry</StartupObject>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
@@ -74,6 +75,8 @@
              Condition="'$(Configuration)' != 'Debug'" />
     <Compile Include="tests/Shared/Apphost/*.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="Shared/UiResponsivenessProbe.cs" Link="Diagnostics/UiResponsivenessProbe.cs" />
+    <Compile Include="MeowChan.PluginWorker/WorkerEntry.cs;MeowChan.PluginWorker/WorkerServer.cs;MeowChan.PluginWorker/WorkspaceQuota.cs"
+             Link="PluginWorker/%(Filename)%(Extension)" />
     <ProjectReference Include="libmeowchan/libmeowchan.csproj" />
     <ProjectReference Include="MeowChan.PluginHost/MeowChan.PluginHost.csproj" />
   </ItemGroup>

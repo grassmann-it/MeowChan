@@ -1,13 +1,21 @@
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
 using MeowChan.PluginProtocol;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginWorker;
 
-internal sealed class WorkerServer
+internal sealed class WorkerServer : IDisposable
 {
     private readonly FrameCodec _codec;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<WireEnvelope>> _services = new();
@@ -90,7 +98,17 @@ internal sealed class WorkerServer
             throw new InvalidDataException("Stale worker or execution revision.");
     }
 
-    private static async Task<Assembly> LoadVerifiedAssemblyAsync(string path, string expectedSha256, CancellationToken token)
+    public void Dispose()
+    {
+        // A noncooperative plugin can still hold these objects until the host reaps the process.
+        if (_activeTask is { IsCompleted: false }) return;
+        _activeCancellation?.Dispose();
+        _codec.Dispose();
+        _shutdown.Dispose();
+        _serviceSlots.Dispose();
+    }
+
+    private static async Task<Assembly> LoadVerifiedAssemblyAsync(string path, string? expectedSha256, CancellationToken token)
     {
         // The compiler and prebuilt installation paths already cap a plugin assembly at 32 MiB.
         const int maximumAssemblyBytes = 32 * 1024 * 1024;
@@ -100,11 +118,24 @@ internal sealed class WorkerServer
             throw new InvalidDataException("The approved adapter assembly has an invalid size.");
         byte[] bytes = new byte[checked((int)length)];
         await input.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
-        string actualSha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
-        if (!string.Equals(expectedSha256, actualSha256, StringComparison.OrdinalIgnoreCase))
+        if (expectedSha256 != null && !string.Equals(expectedSha256, Convert.ToHexStringLower(SHA256.HashData(bytes)), StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The loaded adapter must match the approved SHA-256.");
         token.ThrowIfCancellationRequested();
         using MemoryStream verified = new(bytes, writable: false);
+        using (PEReader reader = new(verified, PEStreamOptions.LeaveOpen))
+        {
+            MetadataReader metadata = reader.GetMetadataReader();
+            foreach (AssemblyReferenceHandle handle in metadata.AssemblyReferences)
+            {
+                string name = metadata.GetString(metadata.GetAssemblyReference(handle).Name);
+                if (name is "MeowChan.PluginSdk" or "netstandard" or "mscorlib"
+                    || name.StartsWith("System.", StringComparison.Ordinal)
+                    || name.StartsWith("Microsoft.Win32.", StringComparison.Ordinal))
+                    continue;
+                throw new ForbiddenReferenceException(name);
+            }
+        }
+        verified.Position = 0;
         return AssemblyLoadContext.Default.LoadFromStream(verified);
     }
 
@@ -119,9 +150,7 @@ internal sealed class WorkerServer
                 InitializeRequest initialize = WireJson.Read<InitializeRequest>(envelope.Payload);
                 if (initialize.Configuration.Revision != envelope.ConfigurationRevision)
                     throw new InvalidDataException("Configuration revision mismatch.");
-                Assembly assembly = initialize.RequiredAssemblySha256 is { } hash
-                    ? await LoadVerifiedAssemblyAsync(initialize.AssemblyPath, hash, token).ConfigureAwait(false)
-                    : AssemblyLoadContext.Default.LoadFromAssemblyPath(initialize.AssemblyPath);
+                Assembly assembly = await LoadVerifiedAssemblyAsync(initialize.AssemblyPath, initialize.RequiredAssemblySha256, token).ConfigureAwait(false);
                 Type[] entries = assembly.GetExportedTypes().Where(type => typeof(IPlugin).IsAssignableFrom(type)
                     && type is { IsAbstract: false, IsInterface: false } && type.GetConstructor(Type.EmptyTypes) != null).ToArray();
                 if (entries.Length != 1) throw new InvalidDataException("Exactly one public plugin entrypoint is required.");
@@ -238,6 +267,7 @@ internal sealed class WorkerServer
     {
         OperationCanceledException => "cancelled",
         FrameLimitException => "frame-too-large",
+        ForbiddenReferenceException => "forbidden_reference",
         InvalidDataException => "protocol",
         PluginSdkMismatchException => PluginSdkBinding.MismatchCode,
         HostServiceException => "host-service",
@@ -261,7 +291,7 @@ internal sealed class WorkerServer
         token.ThrowIfCancellationRequested();
         string requestId = Guid.NewGuid().ToString("N");
         TaskCompletionSource<WireEnvelope> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_serviceSlots.Wait(0)) throw new InvalidOperationException("Too many concurrent host-service calls.");
+        if (!_serviceSlots.Wait(0, token)) throw new InvalidOperationException("Too many concurrent host-service calls.");
         _services[requestId] = completion;
         try
         {
@@ -297,6 +327,7 @@ internal sealed class WorkerServer
     }
     /// <summary>The plugin binary does not bind to this worker's SDK; every call after describe reports it.</summary>
     private sealed class PluginSdkMismatchException(string message) : Exception(message);
+    private sealed class ForbiddenReferenceException(string name) : Exception(name);
 
     /// <summary>
     /// The host answered a service call (HTTP or image) with an error. Still an InvalidOperationException, as before,
