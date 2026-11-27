@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
 using MeowChan.Desktop.Motion;
+using MeowChan.Desktop.Updates;
 using Serilog;
 
 namespace MeowChan.Desktop;
@@ -71,7 +72,8 @@ internal static class PlatformSummary
     }
 
     internal static Facts Collect(Window window) => new(
-        App: Safe(() => typeof(PlatformSummary).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+')[0] ?? "?"),
+        App: Safe(() => InstallChannelDetector.Current.FormatVersion(
+            typeof(PlatformSummary).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+', 2)[0] ?? "?")),
         Os: Safe(() => ShortOs(RuntimeInformation.OSDescription) + " " + RuntimeInformation.OSArchitecture),
         Runtime: Safe(() => RuntimeInformation.FrameworkDescription.Replace(".NET ", ".NET") + ", Avalonia " + typeof(Application).Assembly.GetName().Version?.ToString(3)),
         Backend: Safe(() => Backend(window)),

@@ -93,4 +93,5 @@
     </ItemGroup>
   </Target>
   <Import Project="packaging/PluginDelivery.targets" />
+  <Import Project="build/MeowChan.BuildOrigin.targets" />
 </Project>

@@ -7,7 +7,7 @@ namespace MeowChan.DesktopTests;
 // (backend, render mode, scaling, resolved fonts) need a window and are read by the normal smoke (see the log line there).
 public sealed class PlatformSummaryTests
 {
-    private static PlatformSummary.Facts Sample(string os = "Linux 6.1 X64") => new("1.1.0", os, ".NET10, Avalonia 12.1.4",
+    private static PlatformSummary.Facts Sample(string os = "Linux 6.1 X64") => new("1.2.0 · appimage · official · 3e826a6", os, ".NET10, Avalonia 12.1.4",
         "Avalonia.X11 12.1.4 (XID)", "software", "1.5 (screens 1: 1.5)", "Custom", "animations ON, decided by the setting (On)",
         "Inter", "Noto Sans", "Yu Gothic UI=yes,Microsoft YaHei UI=missing");
 
@@ -15,7 +15,7 @@ public sealed class PlatformSummaryTests
     public void TheLineHasEveryFieldTheChecklistAsksFor()
     {
         string line = PlatformSummary.Format(Sample());
-        foreach (string key in new[] { "MeowChan 1.1.0", "os=", "runtime=", "backend=", "render=", "scaling=", "chrome=", "motion=", "font.ui=", "font.post=", "cjk=" })
+        foreach (string key in new[] { "MeowChan 1.2.0 · appimage · official · 3e826a6", "os=", "runtime=", "backend=", "render=", "scaling=", "chrome=", "motion=", "font.ui=", "font.post=", "cjk=" })
             Assert.Contains(key, line);
         Assert.DoesNotContain('\n', line);
         Assert.DoesNotContain('\r', line);
