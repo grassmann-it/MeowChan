@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Net;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MeowChan.Archive;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
@@ -31,6 +33,19 @@ public sealed class ProfileUpgradeReturnTests
     }
 
     [Fact]
+    public void ReplacingLegacyContentsInPlaceRejectsThePreviousWorkingCopy()
+    {
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path);
+        using (ProfileLease lease = ProfileUpgrade.Open(source, root.Path))
+            ProfileUpgrade.Complete(lease, []);
+        // Keep the directory identity, filenames and lengths identical to the capture.
+        File.WriteAllText(Path.Combine(source, "unfinished.journal"), "another");
+        Assert.Null(ProfileInstanceIdentity.TryRead(source));
+        Assert.Throws<InvalidDataException>(() => ProfileUpgrade.Open(source, root.Path));
+    }
+
+    [Fact]
     public void NativeUnixNamesRoundTripThroughUpgradeAndRestore()
     {
         if (OperatingSystem.IsWindows()) return;
@@ -49,8 +64,10 @@ public sealed class ProfileUpgradeReturnTests
         Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(restored, "downloads", name)));
     }
 
-    [Fact]
-    public async Task ResumedWatchUsesItsOwnCopiedDownloadTree()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResumedWatchUsesItsOwnCopiedDownloadTree(bool utf16Session)
     {
         using TempDirectory root = new();
         string source = CreateSource(root.Path);
@@ -66,7 +83,14 @@ public sealed class ProfileUpgradeReturnTests
             settings.AutomaticUpdateChecks = false;
             settings.SaveConfig(source);
             lease.Admission.CompleteStartup();
-            new WorkStateStore(source, lease).CommitIntent(new WorkResource
+            if (utf16Session)
+            {
+                var session = new SessionSnapshot { ThreadUrls = [thread], DownloadDirectories = new() { [thread] = previous } };
+                await File.WriteAllTextAsync(Path.Combine(source, "saved_urls.json"), JsonSerializer.Serialize(session), Encoding.Unicode);
+                string configFile = Path.Combine(source, "settings.json");
+                await File.WriteAllTextAsync(configFile, await File.ReadAllTextAsync(configFile), Encoding.BigEndianUnicode);
+            }
+            else new WorkStateStore(source, lease).CommitIntent(new WorkResource
             {
                 Url = thread, OutputRoot = previous, Generation = 2, Intent = WorkIntent.Watching, IsThread = true
             });
@@ -96,6 +120,8 @@ public sealed class ProfileUpgradeReturnTests
         }
         finally { host.StateChanged -= ReadSnapshot; }
         await host.StopAsync();
+        Assert.Equal("current marker", await File.ReadAllTextAsync(Path.Combine(current, "current.txt")));
+        Assert.Equal("previous marker", await File.ReadAllTextAsync(Path.Combine(previous, "previous.txt")));
         Assert.Equal(Path.Combine(current, "current.txt"), Assert.Single(Directory.EnumerateFileSystemEntries(current)));
         Assert.Equal(Path.Combine(previous, "previous.txt"), Assert.Single(Directory.EnumerateFileSystemEntries(previous)));
     }
@@ -110,6 +136,92 @@ public sealed class ProfileUpgradeReturnTests
         Assert.Contains("insufficient space", failure.Message, StringComparison.Ordinal);
         Assert.Equal(settings, File.ReadAllBytes(Path.Combine(source, "settings.json")));
         Assert.False(Directory.Exists(source + ".1.2.0"));
+    }
+
+    [Fact]
+    public void CombinedSpaceIsCheckedBeforeCopyingTheFirstFile()
+    {
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path);
+        string current = Directory.CreateDirectory(Path.Combine(root.Path, "current")).FullName;
+        string previous = Directory.CreateDirectory(Path.Combine(root.Path, "previous")).FullName;
+        File.WriteAllBytes(Path.Combine(current, "first"), new byte[1024 * 1024]);
+        File.WriteAllBytes(Path.Combine(previous, "second"), new byte[1024 * 1024]);
+        new Config { DownloadPath = current }.SaveConfig(source);
+        File.WriteAllText(Path.Combine(source, "saved_urls.json"), JsonSerializer.Serialize(new SessionSnapshot
+        {
+            DownloadDirectories = new() { ["https://boards.4chan.org/g/thread/123"] = previous }
+        }));
+        bool copied = false;
+        Assert.Throws<IOException>(() => ProfileUpgrade.Open(source, root.Path,
+            availableBytes: _ => 3 * 1024 * 1024, progress: (_, bytes) => copied |= bytes > 0));
+        Assert.False(copied);
+        Assert.False(Directory.Exists(source + ".1.2.0"));
+    }
+
+    [Fact]
+    public void CancellationInsideOneLargeFileCleansUpThePartialCopy()
+    {
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path);
+        const int length = 4 * 1024 * 1024;
+        File.WriteAllBytes(Path.Combine(source, "large.bin"), new byte[length]);
+        using CancellationTokenSource cancellation = new();
+        Assert.Throws<OperationCanceledException>(() => ProfileUpgrade.Open(source, root.Path,
+            progress: (path, bytes) =>
+            {
+                if (Path.GetFileName(path) == "large.bin" && bytes is > 0 and < length) cancellation.Cancel();
+            }, token: cancellation.Token));
+        Assert.False(Directory.Exists(source + ".1.2.0"));
+        Assert.Empty(Directory.EnumerateDirectories(root.Path, "*.pending-*"));
+    }
+
+    [Legacy113WriterFact]
+    public async Task AbsentLinkedOriginalStopsUpgradeUntilTheDriveReturns()
+    {
+        using TempDirectory root = new();
+        string source = Path.Combine(root.Path, "legacy");
+        string drive = Directory.CreateDirectory(Path.Combine(root.Path, "drive")).FullName;
+        string offline = Path.Combine(root.Path, "offline");
+        File.WriteAllText(Path.Combine(drive, "original.png"), "original");
+        using Legacy113ProfileWriter writer = new();
+        await writer.WriteAsync(source, drive, "original.png");
+        Directory.Move(drive, offline);
+        Assert.Throws<InvalidDataException>(() => ProfileUpgrade.Open(source, root.Path));
+        Assert.False(Directory.Exists(source + ".1.2.0"));
+        Assert.False(Directory.Exists(drive));
+        Directory.Move(offline, drive);
+        using ProfileLease working = ProfileUpgrade.Open(source, root.Path);
+        Assert.Equal("original", File.ReadAllText(Assert.Single(Directory.GetFiles(
+            working.ProfileDirectory, "original.png", SearchOption.AllDirectories))));
+    }
+
+    [Legacy113WriterFact]
+    public async Task SingleLinkedFileCopiesOnlyItsOriginalAndManifestIntoBothCopies()
+    {
+        using TempDirectory root = new();
+        string source = Path.Combine(root.Path, "legacy");
+        string shared = Directory.CreateDirectory(Path.Combine(root.Path, "shared")).FullName;
+        string downloads = Path.Combine(source, "downloads");
+        using Legacy113ProfileWriter writer = new();
+        await writer.WriteAsync(source, downloads, "original.png", originalDirectory: shared);
+        File.WriteAllText(Path.Combine(shared, "original.png"), "kept");
+        File.WriteAllText(Path.Combine(shared, ".meowchan-manifest.json"), "{}");
+        File.WriteAllText(Path.Combine(shared, "unrelated.png"), "private");
+        if (!OperatingSystem.IsWindows())
+            File.CreateSymbolicLink(Path.Combine(shared, "unrelated-link"), Path.Combine(shared, "unrelated.png"));
+
+        using ProfileLease working = ProfileUpgrade.Open(source, root.Path);
+        string backup = Assert.IsType<string>(ProfileUpgrade.SnapshotFor(working.ProfileDirectory));
+        string restored = Path.Combine(root.Path, "restored");
+        ProfileSnapshot.Read(backup).Restore(backup, restored);
+        foreach (string copy in new[] { backup, working.ProfileDirectory, restored })
+        {
+            string original = Assert.Single(Directory.GetFiles(copy, "original.png", SearchOption.AllDirectories));
+            Assert.Equal("kept", File.ReadAllText(original));
+            Assert.Equal("{}", File.ReadAllText(Path.Combine(Path.GetDirectoryName(original)!, ".meowchan-manifest.json")));
+            Assert.Empty(Directory.GetFiles(copy, "unrelated*", SearchOption.AllDirectories));
+        }
     }
 
     [Fact]
@@ -209,6 +321,10 @@ public sealed class ProfileUpgradeReturnTests
         await historical.WriteAsync(source, downloads, originalName);
         await historical.WriteTabsAsync(source, draft: false);
 
+        string tags = JsonSerializer.Serialize(new { Version = 1, Revision = 1,
+            Tags = new[] { new { Id = Guid.NewGuid(), Name = downloads } }, Threads = Array.Empty<object>(), Media = Array.Empty<object>() });
+        await File.WriteAllTextAsync(Path.Combine(source, PrivateTagStore.FileName), tags);
+
         string working;
         await using (DesktopSessionHost host = new(source, providers: [], admitProfileUpgrade: true))
         {
@@ -252,16 +368,40 @@ public sealed class ProfileUpgradeReturnTests
         string detached = Path.Combine(root.Path, "detached-downloads");
         Directory.Move(downloads, detached);
         snapshot.Restore(backup, restored);
+        string restoredOriginal = Assert.Single(Directory.EnumerateFiles(restored, originalName, SearchOption.AllDirectories));
+        string restoredDownloads = Path.GetDirectoryName(restoredOriginal)!;
         foreach (ProfileSnapshotFile file in snapshot.Files)
         {
-            // The review requires absolute references to be rebound in the restored copy.
+            string destination = Path.Combine(restored, file.Name);
+            string sourceFile = Path.Combine(source, file.Name);
+            byte[] restoredBytes = await File.ReadAllBytesAsync(destination);
+            string primary = file.Name.EndsWith(".bak", StringComparison.Ordinal) ? file.Name[..^4] : file.Name;
+            if (primary is "settings.json" or "saved_urls.json" or "booru-catalog.json")
+            {
+                JsonObject expected = JsonNode.Parse(await File.ReadAllTextAsync(sourceFile))!.AsObject();
+                bool rebound = false;
+                void Rebind(JsonObject row, string field, string from, string to)
+                {
+                    if ((string?)row[field] != from) return;
+                    row[field] = to;
+                    rebound = true;
+                }
+                if (primary == "settings.json") Rebind(expected, "DownloadPath", downloads, restoredDownloads);
+                if (expected["DownloadDirectories"] is JsonObject assignments)
+                    foreach (string url in assignments.Select(pair => pair.Key).ToArray())
+                        Rebind(assignments, url, downloads, restoredDownloads);
+                if (expected["posts"] is JsonArray posts)
+                    foreach (JsonObject post in posts.OfType<JsonObject>())
+                        Rebind(post, "localPath", Path.Combine(downloads, originalName), restoredOriginal);
+                Assert.True(JsonNode.DeepEquals(expected, JsonNode.Parse(restoredBytes)), file.Name);
+                if (!rebound) Assert.Equal(file.Sha256, Convert.ToHexString(SHA256.HashData(restoredBytes)));
+            }
+            else Assert.Equal(file.Sha256, Convert.ToHexString(SHA256.HashData(restoredBytes)));
             Assert.Equal(file.Sha256, Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(backup, ProfileSnapshot.DataName, file.Name)))));
             Assert.Equal(file.Sha256, Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(source, file.Name)))));
         }
         Assert.Equal(original, await File.ReadAllBytesAsync(Path.Combine(detached, originalName)));
-        string restoredOriginal = Assert.Single(Directory.EnumerateFiles(restored, originalName, SearchOption.AllDirectories));
         Assert.Equal(SHA256.HashData(original), SHA256.HashData(await File.ReadAllBytesAsync(restoredOriginal)));
-        string restoredDownloads = Path.GetDirectoryName(restoredOriginal)!;
         historical.CheckAndEdit(restored, restoredDownloads, originalName, edit: true);
         historical.CheckAndEdit(restored, restoredDownloads, originalName, edit: false);
         Assert.Equal(original, await File.ReadAllBytesAsync(restoredOriginal));

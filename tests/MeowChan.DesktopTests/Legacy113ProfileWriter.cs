@@ -30,7 +30,7 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         return File.Exists(path) ? LoadFromAssemblyPath(path) : null;
     }
 
-    internal async Task WriteAsync(string profile, string downloads, string originalName, string? previous = null)
+    internal async Task WriteAsync(string profile, string downloads, string originalName, string? previous = null, string? originalDirectory = null)
     {
         using var lease = (IDisposable)Call(_lease, null, "Acquire", profile)!;
         object settings = Call(_config, null, "LoadConfig", profile, lease)!;
@@ -72,7 +72,7 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
             Call(catalogType, catalog, "LinkLocalAsset", "danbooru", id, asset,
                 Path.Combine(root, originalName), CancellationToken.None);
         }
-        LinkOriginal("123", downloads, "fixture-asset");
+        LinkOriginal("123", originalDirectory ?? downloads, "fixture-asset");
         if (previous is not null) LinkOriginal("456", previous, "fixture-secondary");
     }
 

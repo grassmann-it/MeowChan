@@ -4,7 +4,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
 
-public sealed class ProfileCopyAccessTests
+public sealed class ProfileSnapshotCopyAccessTests
 {
     [Theory]
     [InlineData(3, 3, true, true)]
@@ -46,7 +46,7 @@ public sealed class ProfileCopyAccessTests
         shared.Create(sharedAcl);
 
         DirectoryInfo source = new(Path.Combine(shared.FullName, "legacy"));
-        source.Create(OwnerOnly(user));
+        source.Create(OwnerOnly(user, FileSystemRights.Modify));
         new Config { DownloadPath = Path.Combine(source.FullName, "downloads") }.SaveConfig(source.FullName);
 
         using ProfileLease working = ProfileUpgrade.Open(source.FullName, temp.Path);
@@ -61,12 +61,12 @@ public sealed class ProfileCopyAccessTests
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static DirectorySecurity OwnerOnly(SecurityIdentifier user)
+    private static DirectorySecurity OwnerOnly(SecurityIdentifier user, FileSystemRights rights = FileSystemRights.FullControl)
     {
         DirectorySecurity acl = new();
         acl.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
         acl.SetOwner(user);
-        acl.AddAccessRule(Rule(user, FileSystemRights.FullControl));
+        acl.AddAccessRule(Rule(user, rights));
         return acl;
     }
 
@@ -81,9 +81,12 @@ public sealed class ProfileCopyAccessTests
         DirectorySecurity acl = new DirectoryInfo(path).GetAccessControl();
         Assert.True(acl.AreAccessRulesProtected);
         Assert.Equal(user, acl.GetOwner(typeof(SecurityIdentifier)));
-        FileSystemAccessRule rule = Assert.Single(acl.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>());
+        var rules = acl.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>().ToArray();
+        Assert.All(rules, rule => Assert.True(rule.IdentityReference.Equals(user)
+            || rule.IdentityReference.Equals(new SecurityIdentifier(WellKnownSidType.CreatorOwnerRightsSid, null))));
+        FileSystemAccessRule rule = Assert.Single(rules, rule => rule.IdentityReference.Equals(user));
         Assert.Equal(user, rule.IdentityReference);
-        Assert.Equal(FileSystemRights.FullControl, rule.FileSystemRights);
+        Assert.Equal(FileSystemRights.Modify | FileSystemRights.Synchronize, rule.FileSystemRights);
     }
 
     private sealed class WindowsProfileAclFactAttribute : FactAttribute
