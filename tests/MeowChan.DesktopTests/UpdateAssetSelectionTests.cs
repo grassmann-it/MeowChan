@@ -4,6 +4,83 @@ namespace MeowChan.DesktopTests;
 
 public sealed class UpdateAssetSelectionTests
 {
+    private const string Release113 = "https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.3";
+    private const string Download113 = "https://github.com/grassmann-it/MeowChan/releases/download/v1.1.3/";
+    private static readonly string[] AssetNames113 =
+    [
+        "01-MeowChan-1.1.3-win-x64.zip",
+        "02-MeowChan-1.1.3-osx-arm64.dmg",
+        "03-MeowChan-1.1.3-osx-x64.dmg",
+        "04-MeowChan-1.1.3-linux-x64.AppImage",
+        "05-MeowChan-1.1.3-linux-arm64.AppImage",
+        "06-MeowChan-1.1.3-linux-x64-bundled-vlc.tar.gz",
+        "07-MeowChan-1.1.3-linux-x64-system-vlc.tar.gz",
+        "08-MeowChan-1.1.3-linux-arm64-bundled-vlc.tar.gz",
+        "09-MeowChan-1.1.3-linux-arm64-system-vlc.tar.gz"
+    ];
+
+    [Theory]
+    [InlineData("windows-portable-zip", "win-x64", 1)]
+    [InlineData("macos-app", "osx-arm64", 2)]
+    [InlineData("macos-app", "osx-x64", 3)]
+    [InlineData("appimage", "linux-x64", 4)]
+    [InlineData("appimage", "linux-arm64", 5)]
+    [InlineData("linux-tarball-bundled-vlc", "linux-x64", 6)]
+    [InlineData("linux-tarball-system-vlc", "linux-x64", 7)]
+    [InlineData("linux-tarball-bundled-vlc", "linux-arm64", 8)]
+    [InlineData("linux-tarball-system-vlc", "linux-arm64", 9)]
+    [InlineData("winget", "win-x64", null)]
+    [InlineData("homebrew", "osx-arm64", null)]
+    [InlineData("aur", "linux-x64", null)]
+    [InlineData("distro", "linux-x64", null)]
+    [InlineData("flatpak", "linux-x64", null)]
+    [InlineData("source", "linux-x64", null)]
+    [InlineData("ci-fork", "linux-x64", null)]
+    [InlineData("ci-acceptance", "linux-x64", null)]
+    [InlineData("notify", "linux-x64", null)]
+    [InlineData("none", "linux-x64", null)]
+    [InlineData("appimage", "win-x64", null)]
+    public async Task PublicRelease113AssetIsSelectedByChannelAndArchitecture(string channel, string rid, int? assetNumber)
+    {
+        object[] assets = AssetNames113.Select(name => (object)new { name, browser_download_url = Download113 + name }).ToArray();
+        using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("v1.1.3", assets: assets),
+            new UpdateServiceOptions { CurrentVersion = SemanticVersion.Parse("1.0.0"), RuntimeIdentifier = rid, Channel = channel });
+
+        UpdateCheckResult result = await fixture.Service.CheckAsync(UpdateCheckKind.Manual);
+        Assert.Equal(UpdateCheckStatus.Available, result.Status);
+        Assert.Equal(Release113, result.Update?.ReleaseUri.AbsoluteUri);
+        Assert.Equal(assetNumber is { } number ? Download113 + AssetNames113[number - 1] : Release113,
+            result.Update?.DownloadUri.AbsoluteUri);
+        Assert.Equal(result.Update, fixture.Store.Load().FoundUpdate);
+    }
+
+    [Theory]
+    [InlineData("4-")]
+    [InlineData("004-")]
+    [InlineData("０４-")]
+    public async Task OnlyTwoAsciiDigitsAreAllowedAsAnAssetPrefix(string prefix)
+    {
+        string name = prefix + "MeowChan-1.1.3-linux-x64.AppImage";
+        using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("v1.1.3",
+            assets: [new { name, browser_download_url = Download113 + Uri.EscapeDataString(name) }]),
+            new UpdateServiceOptions { CurrentVersion = SemanticVersion.Parse("1.0.0"), RuntimeIdentifier = "linux-x64", Channel = "appimage" });
+
+        UpdateInfo? update = (await fixture.Service.CheckAsync(UpdateCheckKind.Manual)).Update;
+        Assert.Equal(Release113, update?.DownloadUri.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task TwoAssetsForTheSameChannelFallBackToTheReleasePage()
+    {
+        object[] assets = new[] { "04-MeowChan-1.1.3-linux-x64.AppImage", "MeowChan-1.1.3-linux-x64.AppImage" }
+            .Select(name => (object)new { name, browser_download_url = Download113 + name }).ToArray();
+        using UpdateServiceTests.Fixture fixture = new(UpdateServiceTests.Release("v1.1.3", assets: assets),
+            new UpdateServiceOptions { CurrentVersion = SemanticVersion.Parse("1.0.0"), RuntimeIdentifier = "linux-x64", Channel = "appimage" });
+
+        UpdateInfo? update = (await fixture.Service.CheckAsync(UpdateCheckKind.Manual)).Update;
+        Assert.Equal(Release113, update?.DownloadUri.AbsoluteUri);
+    }
+
     [Theory]
     [InlineData("win-x64", "MeowChan-2.0.0-win-x64.zip")]
     [InlineData("osx-arm64", "MeowChan-2.0.0-osx-arm64.dmg")]
