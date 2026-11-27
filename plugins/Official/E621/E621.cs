@@ -433,7 +433,8 @@ internal static class E621Parser
     {
         JsonElement file = default, sample = default, preview = default;
         bool hasFile = Section(element, "file", ref file), hasSample = Section(element, "sample", ref sample), hasPreview = Section(element, "preview", ref preview);
-        if (!hasFile && !hasSample && !hasPreview) return null;
+        // A withdrawal also clears the media from an earlier observation of this post.
+        if (!isDeleted && !hasFile && !hasSample && !hasPreview) return null;
         fields |= BooruFieldPresence.Media;
         List<BooruMediaVariant> variants = new();
 

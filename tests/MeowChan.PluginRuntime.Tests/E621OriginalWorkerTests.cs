@@ -97,7 +97,7 @@ public sealed class E621OriginalWorkerTests : IDisposable
     [InlineData("missing-size", (int)BooruOriginalSelectionError.MissingIntegrityClaims)]
     [InlineData("missing-md5", (int)BooruOriginalSelectionError.MissingIntegrityClaims)]
     [InlineData("foreign-host", (int)BooruOriginalSelectionError.OriginalUrlMissing)]
-    [InlineData("deleted", (int)BooruOriginalSelectionError.OriginalUrlMissing)]
+    [InlineData("deleted", (int)BooruOriginalSelectionError.MissingOriginal)]
     [InlineData("restricted", (int)BooruOriginalSelectionError.OriginalUrlMissing)]
     [InlineData("preview-only", (int)BooruOriginalSelectionError.MissingOriginal)]
     [InlineData("wrong-length", (int)BooruOriginalSelectionError.None)]
@@ -115,7 +115,11 @@ public sealed class E621OriginalWorkerTests : IDisposable
                 case "missing-size": file["size"] = null; break;
                 case "missing-md5": file["md5"] = null; break;
                 case "foreign-host": file["url"] = "https://other.example/data/42.png"; break;
-                case "deleted": post["flags"]!["deleted"] = true; break;
+                case "deleted":
+                    post["flags"]!["deleted"] = true;
+                    post.Remove("file");
+                    post.Remove("preview");
+                    break;
                 case "restricted": file["url"] = null; break;
                 case "preview-only": post.Remove("file"); break;
                 case "wrong-length": delivered = expected[..^1]; break;
@@ -130,6 +134,13 @@ public sealed class E621OriginalWorkerTests : IDisposable
             BooruPostClaim claim = await ReadClaimAsync(context, source, "42");
             using HttpClient media = context.OpenMedia(source);
             await using QueueSession session = new(_workspace.FullName);
+            if (fault == "deleted")
+            {
+                BooruPostClaim previous = new(source.SourceId, "42", BooruPostClaimPresence.Media,
+                    Media: [new(BooruPostClaimMediaRole.Original, originalUrl, ".png", expected.Length,
+                        ExpectedMd5: Convert.ToBase64String(MD5.HashData(expected)))]);
+                session.Catalog.UpsertPost(previous, _clock.GetUtcNow());
+            }
             BooruOriginalAdmission admission = await session.Originals(source, media).AdmitAsync(claim, BooruFindingKind.OneShot);
             BooruOriginalDownloadOutcome outcome = await admission.Completion.WaitAsync(B9Wait.Timeout);
             BooruOriginalSelectionError error = (BooruOriginalSelectionError)selectionError;

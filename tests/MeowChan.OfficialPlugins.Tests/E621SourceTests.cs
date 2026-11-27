@@ -242,7 +242,7 @@ public sealed class E621SourceTests
     }
 
     [Fact]
-    public async Task SearchDoesNotOfferTheOriginalAddressAsAThumbnailOrSample()
+    public async Task PostDoesNotOfferTheOriginalAddressAsAThumbnailOrSample()
     {
         JsonNode fixture = JsonNode.Parse(Fixture("post-normal.json"))!;
         JsonNode raw = fixture["post"]!;
