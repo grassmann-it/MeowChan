@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Describe all delivered plugins through the actual SDK-inaccessible Linux worker.
+"""Describe delivered plugins and exercise source operations with an SDK-inaccessible Linux worker.
 
 An isolated packaging probe, not the production session/HTTP/filter acceptance suite.
 """
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -42,13 +44,49 @@ def envelope(operation, request, payload):
             'parentRequestId': None, 'payload': payload}
 
 
-def send(process, value):
+def write_frame(process, value):
     data = json.dumps(value).encode()
     process.stdin.write(struct.pack('<i', len(data)) + data); process.stdin.flush()
+
+
+def send(process, value, http_fixture=None):
+    write_frame(process, value)
     response = receive(process)
+    if http_fixture is not None:
+        source_id, url, body = http_fixture
+        assert response['direction'] == 'service' and response['operation'] == 'http', response
+        assert response['parentRequestId'] == value['requestId'], response
+        request = response['payload']
+        assert (request['sourceId'], request['method'], request['url']) == (source_id, 'Get', url), request
+        payload = {'kind': 'response', 'statusCode': 200, 'finalUri': url,
+                   'headers': {'Content-Type': 'application/json'},
+                   'body': base64.b64encode(body.encode()).decode('ascii')}
+        write_frame(process, dict(response, direction='serviceResult', payload=payload))
+        response = receive(process)
     assert response['requestId'] == value['requestId'] and response['operation'] == value['operation'], response
     assert response['direction'] == 'response', response
+    assert response['version'] == value['version'] and response['workerInstance'] == value['workerInstance'], response
     return response['payload']
+
+
+source_probes = {
+    'meowchan.official.4chan': (
+        '4chan', 'catalog', {'board': {'sourceId': '4chan', 'boardId': 'g'}},
+        'https://a.4cdn.org/g/catalog.json', '[{"threads":[{"no":42}]}]'),
+    'meowchan.official.danbooru': (
+        'danbooru', 'booru.search', {'sourceId': 'danbooru', 'query': 'cat', 'page': 1, 'limit': 20, 'beforePostId': '1004'},
+        'https://danbooru.donmai.us/posts.json?tags=cat&page=b1004&limit=20', '[{"id":1003,"rating":"g"}]'),
+}
+
+
+def assert_source_result(operation, result):
+    assert result['kind'] == 'snapshot', result
+    if operation == 'catalog':
+        threads = result['snapshot']['threads']
+        assert [thread['id'] for thread in threads] == [{'sourceId': '4chan', 'boardId': 'g', 'threadId': '42'}], result
+    elif operation == 'booru.search':
+        posts = result['page']['posts']
+        assert [post['id'] for post in posts] == [{'sourceId': 'danbooru', 'postId': '1003'}], result
 
 
 def main():
@@ -80,6 +118,12 @@ def main():
     assert {path.stem.removesuffix(".plugin") for path in manifests} == set(expected_ids)
     for index, manifest_path in enumerate(manifests):
         manifest = json.loads(manifest_path.read_text())
+        plugin_id = expected_ids[manifest_path.name.removesuffix('.plugin.json')]
+        source_probe = source_probes.get(plugin_id)
+        required = ['describe'] if source_probe is None else ['describe', 'http', source_probe[1]]
+        relative_assembly = manifest['AssemblyRelativePath']
+        assembly_sha = hashlib.sha256((bundle / 'plugins' / relative_assembly).read_bytes()).hexdigest()
+        assert assembly_sha == manifest['AssemblySha256'], manifest
         work = output / (str(index) + ' isolated work')
         work.mkdir()
         args = ['bwrap', '--die-with-parent', '--unshare-net', '--unshare-pid', '--clearenv',
@@ -91,22 +135,31 @@ def main():
         with (work / 'stderr.txt').open('wb') as stderr:
             process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, start_new_session=True)
             try:
-                hello = send(process, envelope('hello', 'hello-1', {'requiredOperations': ['describe']}))
-                assert 'describe' in hello['operations']
+                hello = send(process, envelope('hello', 'hello-1', {'requiredOperations': required}))
+                assert set(required).issubset(hello['operations']), hello
+                source_settings = {} if source_probe is None else {source_probe[0]: {'schemaVersion': '1', 'values': []}}
                 description = send(process, envelope('describe', 'describe-1', {
-                    'assemblyPath': '/application/plugins/' + manifest['AssemblyRelativePath'], 'resourcePaths': {},
-                    'configuration': {'revision': 'delivery-config', 'pluginSettings': {'schemaVersion': '1', 'values': []}, 'sourceSettings': {}},
-                    'validateConfiguration': False}))
-                assert description['pluginId'] == expected_ids[manifest_path.name.removesuffix('.plugin.json')], description
-                if description['pluginId'] in blocked_ids:
+                    'assemblyPath': '/application/plugins/' + relative_assembly, 'resourcePaths': {},
+                    'configuration': {'revision': 'delivery-config', 'pluginSettings': {'schemaVersion': '1', 'values': []},
+                                      'sourceSettings': source_settings},
+                    'validateConfiguration': source_probe is not None}))
+                assert description['pluginId'] == plugin_id, description
+                if plugin_id in blocked_ids:
                     # Documented technical blocks register no route; they must say so explicitly.
                     assert not description['sources'] and not description['filters'], description
                     assert any(item['key'] == 'block' for item in description['information']), description
                 else:
                     assert description['sources'] or description['filters'], description
+                operation = None
+                if source_probe is not None:
+                    source_id, operation, request, url, body = source_probe
+                    result = send(process, envelope(operation, 'source-1', request), (source_id, url, body))
+                    assert_source_result(operation, result)
                 process.stdin.close()
                 assert process.wait(timeout=5) == 0
-                results.append({'manifest': manifest_path.name, 'pluginId': description['pluginId'],
+                results.append({'manifest': manifest_path.name, 'pluginId': plugin_id,
+                                'assemblySha256': assembly_sha, 'sdkFingerprint': manifest['SdkFingerprint'],
+                                'sdkVersion': description['sdkVersion'], 'operation': operation,
                                 'sourceIds': [source['sourceId'] for source in description['sources']],
                                 'filterKeys': [item['key'] for item in description['filters']], 'exitCode': process.returncode})
             finally:
