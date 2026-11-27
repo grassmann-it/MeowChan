@@ -8,7 +8,7 @@ using System.Text;
 namespace MeowChan.Interop;
 
 internal sealed record SafeFilenameValues(string Source, string Post, string Role,
-    string MeasuredSha256, string Ext);
+    string MeasuredSha256, string Ext, string? Md5 = null);
 internal sealed record SafeFilenameItem(string ItemId, SafeFilenameValues Values);
 internal enum SafeFilenameError
 {
@@ -51,7 +51,7 @@ internal static class SafeFilenameTemplate
                 int end = template.IndexOf('}', i + 1);
                 if (end < 0) return Fail(SafeFilenameError.InvalidTemplate);
                 string token = template.Substring(i + 1, end - i - 1);
-                if (token is not ("source" or "post" or "role" or "hash" or "ext"))
+                if (token is not ("source" or "post" or "role" or "hash" or "md5" or "ext"))
                     return Fail(SafeFilenameError.InvalidTemplate);
                 parts.Add((token, true));
                 i = end;
@@ -76,11 +76,8 @@ internal static class SafeFilenameTemplate
                     if (value is null || value.Length > MaxNameBytes || Utf8.GetByteCount(value) > MaxNameBytes ||
                         !SafeLeaf(value)) return Fail(SafeFilenameError.InvalidValue);
                 }
-                if (v.MeasuredSha256 is null || v.MeasuredSha256.Length != 64)
+                if (v.MeasuredSha256 is not { Length: 64 } || !IsHex(v.MeasuredSha256))
                     return Fail(SafeFilenameError.InvalidHash);
-                foreach (char c in v.MeasuredSha256)
-                    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
-                        return Fail(SafeFilenameError.InvalidHash);
                 if (v.Ext is null || v.Ext.Length is < 1 or > 16) return Fail(SafeFilenameError.InvalidExtension);
                 foreach (char c in v.Ext)
                     if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
@@ -88,10 +85,13 @@ internal static class SafeFilenameTemplate
                 var output = new StringBuilder();
                 foreach (var part in parts)
                 {
+                    if (part is ("md5", true) &&
+                        (v.Md5 is not { Length: 32 } || !IsHex(v.Md5)))
+                        return Fail(SafeFilenameError.InvalidHash);
                     string text = !part.Token ? part.Text : part.Text switch
                     {
                         "source" => v.Source, "post" => v.Post, "role" => v.Role,
-                        "hash" => v.MeasuredSha256, _ => v.Ext
+                        "hash" => v.MeasuredSha256, "md5" => v.Md5!.ToLowerInvariant(), _ => v.Ext
                     };
                     if (output.Length + text.Length > MaxNameBytes) return Fail(SafeFilenameError.OutputTooLarge);
                     output.Append(text);
@@ -121,6 +121,13 @@ internal static class SafeFilenameTemplate
             return new(SafeFilenameError.None, inventory.ToImmutable());
         }
         catch (EncoderFallbackException) { return Fail(SafeFilenameError.InvalidUnicode); }
+    }
+
+    private static bool IsHex(string value)
+    {
+        foreach (char c in value)
+            if (!char.IsAsciiHexDigit(c)) return false;
+        return true;
     }
 
     private static bool SafeLeaf(string text)

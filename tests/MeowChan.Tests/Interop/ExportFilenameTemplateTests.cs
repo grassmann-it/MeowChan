@@ -76,6 +76,20 @@ public sealed class ExportFilenameTemplateTests
     }
 
     [Fact]
+    public void Md5RendersAsLowercaseHexWhenTheTemplateUsesIt()
+    {
+        string md5 = new('B', 32);
+        string? name = ExportFilenameTemplate.TryRender("{md5}.{ext}", "id", "src", "1", "original", Hash, "jpg", md5);
+        Assert.NotNull(name);
+        Assert.StartsWith(new string('b', 32) + "~", name);
+        Assert.Null(ExportFilenameTemplate.TryRender("{md5}.{ext}", "id", "src", "1", "original", Hash, "jpg"));
+        Assert.Null(ExportFilenameTemplate.TryRender("{md5}.{ext}", "id", "src", "1", "original", Hash, "jpg", new string('g', 32)));
+        Assert.Equal(
+            ExportFilenameTemplate.TryRender("{source}.{ext}", "id", "src", "1", "original", Hash, "jpg"),
+            ExportFilenameTemplate.TryRender("{source}.{ext}", "id", "src", "1", "original", Hash, "jpg", "short"));
+    }
+
+    [Fact]
     public void ValuesThatAreNotSafeNameParts_FallBackInsteadOfThrowing()
     {
         Assert.Null(ExportFilenameTemplate.TryRender("{source}.{ext}", "id", "CON", "1", "original", Hash, "jpg"));

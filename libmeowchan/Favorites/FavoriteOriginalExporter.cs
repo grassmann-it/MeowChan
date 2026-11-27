@@ -132,15 +132,13 @@ public static class FavoriteOriginalExporter
             }
             // Include the content identity from the start: choosing A before B must not decide
             // which of two equally named originals gets the unsuffixed name.
-            string identityDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-                item.Key.Thread.Source + "\0" + item.Key.Thread.Board + "\0" + item.Key.Thread.Thread
-                + "\0" + item.Key.MediaIdentifier + "\0" + item.Key.Variant))).ToLowerInvariant();
+            string identityDigest = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(TemplateIdentity(item))));
             for (int extraLength = 0; extraLength <= 64; extraLength = extraLength == 0 ? 16 : Math.Min(64, extraLength + 8))
             {
                 token.ThrowIfCancellationRequested();
                 string suffix = item.Key.Sha256.ToLowerInvariant()
                     + (extraLength == 0 ? "" : "-" + identityDigest[..extraLength]);
-                string candidate = Path.Combine(directory, WithSuffix(name, suffix));
+                string candidate = Path.Combine(directory, ExportFilenameTemplate.WithContentSuffix(name, suffix));
                 if (File.Exists(candidate) || Directory.Exists(candidate))
                 {
                     if (await SameBytesAsync(candidate, item.Length, item.Key.Sha256, token).ConfigureAwait(false))
@@ -214,10 +212,19 @@ public static class FavoriteOriginalExporter
         string extension = Path.GetExtension((item.OriginalFileName ?? string.Empty).Replace('\\', '/').Split('/').LastOrDefault() ?? string.Empty).TrimStart('.');
         string safeExtension = Clean(extension, 12);
         if (extension.Length == 0 || safeExtension == "item" || safeExtension.Any(ch => !char.IsAsciiLetterOrDigit(ch))) return null;
-        string identity = item.Key.Thread.Source + "\0" + item.Key.Thread.Board + "\0" + item.Key.Thread.Thread
-            + "\0" + item.Key.MediaIdentifier + "\0" + item.Key.Variant;
-        return ExportFilenameTemplate.TryRender(template, identity, Clean(item.Key.Thread.Source, 40),
-            Clean(item.Key.Thread.Thread!, 40), "original", item.Key.Sha256, safeExtension);
+        return ExportFilenameTemplate.TryRender(template, TemplateIdentity(item), Clean(item.Key.Thread.Source, 40),
+            Clean(item.Key.Thread.Thread!, 40), "original", item.Key.Sha256, safeExtension, FilenameMd5(item));
+    }
+
+    private static string TemplateIdentity(FavoriteExportAsset item) => ExportFilenameTemplate.ItemIdentity(
+        item.Key.Thread.Source, item.Key.Thread.Board, item.Key.Thread.Thread!, item.Key.MediaIdentifier, item.Key.Variant);
+
+    private static string? FilenameMd5(FavoriteExportAsset item)
+    {
+        string? value = item.Manifest.FindById(item.AssetId)?.Md5;
+        Span<byte> bytes = stackalloc byte[16];
+        return value is not null && Convert.TryFromBase64String(value, bytes, out int written) && written == bytes.Length
+            ? Convert.ToHexStringLower(bytes) : null;
     }
 
     private static string SafeFileName(string? original)
@@ -241,11 +248,5 @@ public static class FavoriteOriginalExporter
             (upper.Length == 4 && (upper.StartsWith("COM", StringComparison.Ordinal) || upper.StartsWith("LPT", StringComparison.Ordinal))
              && upper[3] is >= '1' and <= '9')) clean = "_" + clean;
         return clean;
-    }
-
-    private static string WithSuffix(string name, string suffix)
-    {
-        string extension = Path.GetExtension(name);
-        return (extension.Length == 0 ? name : name[..^extension.Length]) + "-" + suffix + extension;
     }
 }
