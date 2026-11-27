@@ -306,7 +306,15 @@ internal static partial class SmokeScenarios
         {
             await GalleryFitChecks.RunAsync(mainWindow);
             await GalleryViewerChecks.RunAsync(mainWindow);
-        }),
+        })
+        {
+            Seed = profile =>
+            {
+                using ProfileLease lease = ProfileLease.Acquire(profile);
+                ProfileUpgrade.Complete(lease, []);
+                return Task.CompletedTask;
+            }
+        },
         ["media-tile-panel"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {
             await MediaTilePanelChecks.RunAsync(mainWindow);
