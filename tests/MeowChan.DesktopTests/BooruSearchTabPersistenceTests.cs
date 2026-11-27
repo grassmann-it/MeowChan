@@ -697,6 +697,68 @@ public sealed class BooruSearchTabPersistenceTests
         Assert.Equal(0, offline.ProviderRequests);
     }
 
+    internal static async Task ReopenLegacyPageWithKnownEndAsync(string directory, bool editDeferredTab)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(directory);
+        lease.Admission.CompleteStartup();
+        var store = new BooruSearchTabStore(lease);
+        var snapshot = Assert.IsType<BooruSearchTabState>(store.Read());
+        var offline = new BooruUiHarness();
+        using var model = new BooruWorkbenchModel(WithSource(offline));
+        int openLimit = Config.BooruSearchTabsMinimum;
+        var tabs = new BooruSearchTabs(model.Search, () => openLimit);
+        tabs.RestoreTargets(snapshot, source: Source);
+        Assert.Equal(new[] { "", "draft_17" }, tabs.Ids.Select(id => tabs.ViewOf(id)!.Input));
+        Assert.Equal(tabs.Ids[1], tabs.ActiveId);
+        AssertPaging(model.Search.View);
+
+        openLimit = Config.BooruSearchTabsMaximum;
+        tabs.RestoreTargets(snapshot, source: Source);
+        Assert.Equal(33, tabs.Ids.Count);
+        Assert.True(tabs.Select(tabs.Ids[1]));
+        Assert.Equal(editDeferredTab ? "draft_1" : "offline_edit", model.Search.View.Input);
+        if (editDeferredTab) model.Search.SetInput("offline_edit");
+        Assert.True(tabs.Select(tabs.Ids[17]));
+        AssertPaging(model.Search.View);
+        Assert.True(await store.Save(tabs.CaptureTargets()));
+        Assert.False(File.Exists(Path.Combine(directory, BooruSearchTabStore.FileName + ".bad")));
+        Assert.Equal(0, offline.ProviderRequests);
+
+        static void AssertPaging(BooruSearchView view)
+        {
+            Assert.Equal(2, view.Page);
+            Assert.Equal(5, view.LastResultPage);
+            Assert.Equal(8, view.PagerLimits.Pages);
+            Assert.True(view.HasNextPage);
+            Assert.True(view.HasPreviousPage);
+            Assert.Equal(new[] { "101", "102" }, view.Rows.Select(row => row.Post.PostId));
+        }
+    }
+
+    [Legacy113WriterFact]
+    public async Task ReleasedWriterDraftSurvivesTwoOfflineRestarts()
+    {
+        using TempDirectory profile = new();
+        using Legacy113ProfileWriter writer = new();
+        await writer.WriteTabsAsync(profile.Path, draft: true);
+        for (int restart = 0; restart < 2; restart++)
+        {
+            using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+            lease.Admission.CompleteStartup();
+            var store = new BooruSearchTabStore(lease);
+            var snapshot = Assert.IsType<BooruSearchTabState>(store.Read());
+            var offline = new BooruUiHarness();
+            using var model = new BooruWorkbenchModel(WithSource(offline));
+            var tabs = new BooruSearchTabs(model.Search);
+            tabs.RestoreTargets(snapshot, source: Source);
+            Assert.Empty(tabs.Ids);
+            Assert.Equal("start_here", model.Search.View.Input);
+            Assert.True(await store.Save(tabs.CaptureTargets()));
+            Assert.Equal(0, offline.ProviderRequests);
+            Assert.False(File.Exists(Path.Combine(profile.Path, BooruSearchTabStore.FileName + ".bad")));
+        }
+    }
+
     [Fact]
     public void Legacy113WriterRestoresStartDraftWithoutRewritingIt()
     {
