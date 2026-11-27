@@ -102,6 +102,7 @@ internal sealed class WorkerServer : IDisposable
     {
         // A noncooperative plugin can still hold these objects until the host reaps the process.
         if (_activeTask is { IsCompleted: false }) return;
+        _activeCancellation?.Dispose();
         _codec.Dispose();
         _shutdown.Dispose();
         _serviceSlots.Dispose();

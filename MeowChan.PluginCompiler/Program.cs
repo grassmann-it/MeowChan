@@ -11,6 +11,8 @@ namespace MeowChan.PluginCompiler;
 
 internal static class Program
 {
+    private static readonly JsonSerializerOptions ManifestJsonOptions = new() { WriteIndented = true };
+
     private static async Task<int> Main(string[] args)
     {
         if (args is ["--write-toolchain-manifest", string directory])
@@ -98,6 +100,6 @@ internal static class Program
         ToolchainManifest manifest = new(1, "net10.0", CompilerWire.Options,
             CompilerWire.FileSetHash(files.Where(f => f.Role == "compiler")), files.Single(f => f.Role == "sdk").Sha256,
             CompilerWire.FileSetHash(files.Where(f => f.Role != "compiler")), files.ToArray());
-        await File.WriteAllTextAsync(Path.Combine(directory, "toolchain.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+        await File.WriteAllTextAsync(Path.Combine(directory, "toolchain.json"), JsonSerializer.Serialize(manifest, ManifestJsonOptions));
     }
 }
