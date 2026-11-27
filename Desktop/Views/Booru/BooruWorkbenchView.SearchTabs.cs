@@ -526,6 +526,7 @@ internal sealed partial class BooruWorkbenchView
         if (running)
         {
             _bulkText.Text = Texts.T("booru.bulk.running", bulk.Query, bulk.PagesRead, bulk.PagerLimits.Pages, bulk.Found, bulk.Queued);
+            if (bulk.HiddenCount > 0) _bulkText.Text += " " + Texts.T("booru.content.hidden", bulk.HiddenCount);
             ApplyTone(_bulkHost, BooruNoticeKind.Info);
             return;
         }
@@ -538,6 +539,7 @@ internal sealed partial class BooruWorkbenchView
         });
         _bulkText.Text = Texts.T("booru.bulk.result", bulk.Query, bulk.Found, bulk.PagesRead, bulk.PagerLimits.Pages, bulk.Queued,
             bulk.AlreadyQueued, bulk.AlreadySaved, bulk.NoOriginal, bulk.Failed) + " " + end;
+        if (bulk.HiddenCount > 0) _bulkText.Text += " " + Texts.T("booru.content.hidden", bulk.HiddenCount);
         ApplyTone(_bulkHost, bulk.End is BooruBulkEnd.Blocked or BooruBulkEnd.Canceled || bulk.Failed > 0 ? BooruNoticeKind.Warning : BooruNoticeKind.Info);
     }
 }

@@ -42,11 +42,12 @@ public partial class SourcesPage : UserControl
     private bool _showDetails;
     private bool _narrow;
     private readonly double _wideColumnSpacing;
+    private readonly IDisposable _pageKeyContext;
     internal Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? GetSourceMediaIntegrityPolicies { get; set; }
     internal Func<string, string, bool, long, Task>? SetSourceMediaIntegrityPermission { get; set; }
     /// <summary>A family site's own switch (owner, source → on/off, null without one) and its setter.</summary>
-    internal Func<string, string, bool?>? GetChanSiteEnabled { get; set; }
-    internal Func<string, bool, Task<bool>>? SetChanSiteEnabled { get; set; }
+    internal Func<string, string, bool?>? GetSourceSiteEnabled { get; set; }
+    internal Func<string, bool, Task<bool>>? SetSourceSiteEnabled { get; set; }
     /// <summary>The "Sources page: watch rows per source" setting; read on every render so a saved change shows on the next visit.</summary>
     internal Func<int>? GetWatchPreviewRows { get; set; }
     private Action? _openMediaFolders;
@@ -64,7 +65,7 @@ public partial class SourcesPage : UserControl
     {
         // Every key of the page runs in the "sources" context (S3 P2-4), the plugin management inside it in "plugins" (its own host, nearer the key): a
         // default that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "sources");
+        _pageKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "sources");
         InitializeComponent(); InitializeContextMenus(); InitializeMergedSources(); InstallWatchEnter();
         _wideColumnSpacing = this.FindControl<Grid>("SourcesSplit")!.ColumnSpacing;
         AddHandler(GotFocusEvent, (_, _) =>
@@ -97,7 +98,7 @@ public partial class SourcesPage : UserControl
     private void RefreshSourceRows()
     {
         if (_ended) return;
-        _rows = SourceListRows.Merge(_registeredRows, SourcePluginManagement.CatalogEntries);
+        _rows = SourceListRows.Merge(_registeredRows, SourcePluginManagement.CatalogEntries, GetSourceSiteEnabled);
         if (!_rows.Any(row => row.Id == _selectedId)) SetSelectedSource(_rows.FirstOrDefault()?.Id);
         SourcePluginManagement.SetSourceCount(_rows.Count, _rows.Count(row => row.IsActive));
         this.FindControl<TextBlock>("SourcesEmpty")!.IsVisible = _rows.Count == 0;
@@ -551,6 +552,7 @@ public partial class SourcesPage : UserControl
     private void OnAddToDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _addToDownloads?.Invoke(); }
     internal void EndLifetime()
     {
+        _pageKeyContext.Dispose();
         _ended = true; _available = false; BusyChanged = null; SourcePluginManagement.EndLifetime();
     }
 }

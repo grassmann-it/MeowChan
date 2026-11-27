@@ -10,7 +10,7 @@ using Serilog;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// The on/off switch of each site of an engine-family chan plugin, in <c>chan-sources.json</c> next to the plugin
+/// The on/off switch of each site of an engine-family chan or Booru plugin, in <c>chan-sources.json</c> next to the plugin
 /// profile. A site is used only while its family plugin (the master switch) and its own switch are both on. A site
 /// nobody chose keeps <see cref="ChanSourceFamilies.DefaultEnabled"/>. The first start after the single-site plugins
 /// were replaced takes each site's state over from its old plugin's enabled state, once per old plugin.
@@ -50,18 +50,33 @@ internal sealed class ChanSiteSwitches
     internal bool IsEnabled(string pluginId, string sourceId)
     {
         if (!ChanSourceFamilies.IsFamily(pluginId)) return true;
+        return IsEnabled(sourceId, ChanSourceFamilies.DefaultEnabled(pluginId, sourceId));
+    }
+
+    internal static bool HasBooruSwitch(string sourceId) =>
+        sourceId is "e621" or "e926" or "gelbooru" or "gelbooru.com" or "safebooru" or "safebooruorg";
+
+    internal bool IsBooruEnabled(string sourceId) => !HasBooruSwitch(sourceId)
+        || IsEnabled(sourceId, sourceId is "e926" or "safebooru" or "safebooruorg");
+
+    private bool IsEnabled(string sourceId, bool defaultEnabled)
+    {
         lock (_sync)
         {
             Load();
             if (IsUnreadable) return false;
-            return _enabled.TryGetValue(sourceId, out bool enabled) ? enabled : ChanSourceFamilies.DefaultEnabled(pluginId, sourceId);
+            return _enabled.GetValueOrDefault(sourceId, defaultEnabled);
         }
     }
 
     /// <summary>Stores the user's choice for one site of a family plugin. False for other plugins, an unreadable file or a write failure.</summary>
-    internal bool SetEnabled(string pluginId, string sourceId, bool enabled)
+    internal bool SetEnabled(string pluginId, string sourceId, bool enabled) =>
+        ChanSourceFamilies.IsFamily(pluginId) && SetEnabled(sourceId, enabled);
+
+    internal bool SetBooruEnabled(string sourceId, bool enabled) => HasBooruSwitch(sourceId) && SetEnabled(sourceId, enabled);
+
+    private bool SetEnabled(string sourceId, bool enabled)
     {
-        if (!ChanSourceFamilies.IsFamily(pluginId)) return false;
         lock (_sync)
         {
             Load();
@@ -136,7 +151,7 @@ internal sealed class ChanSiteSwitches
             IsUnreadable = true;
             _enabled.Clear();
             _migrated.Clear();
-            _logger.Warning(exception, "The chan site switches in {File} cannot be used; no site of a chan family plugin is used and no switch can change until the file is fixed or removed", FileName);
+            _logger.Warning(exception, "The site switches in {File} cannot be used; sources with a site switch are disabled until the file is fixed or removed", FileName);
         }
     }
 
@@ -161,7 +176,7 @@ internal sealed class ChanSiteSwitches
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            _logger.Warning(exception, "The chan site switches could not be saved");
+            _logger.Warning(exception, "The site switches could not be saved");
             try { File.Delete(temporary); } catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException) { }
             return false;
         }

@@ -60,7 +60,8 @@ internal sealed partial class PluginSession
             // One transport per plugin. The e621 family budget follows the session policy, including separate builds.
             BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources,
                 maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours),
-                sourceRevision: () => EnabledBooruRevision(pluginId));
+                sourceRevision: () => EnabledBooruRevision(pluginId),
+                sourceEnabled: sourceId => IsRegisteredBooruSourceEnabled(pluginId, sourceId));
             services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp);
             lock (_state)
             {
@@ -69,9 +70,11 @@ internal sealed partial class PluginSession
             }
         }
         BooruProviderBinding binding = new(source, services, _transport, _httpPolicy,
-            token => ResolveBooruWorkerAsync(pluginId, token), () => IsBooruPluginEnabled(pluginId), _logger)
+            token => SiteSwitches.IsBooruEnabled(source.SourceId) ? ResolveBooruWorkerAsync(pluginId, token)
+                : Task.FromResult<IPluginWorkerClient?>(null), () => IsBooruPluginEnabled(pluginId), _logger)
         {
             PluginId = pluginId,
+            SourceEnabled = () => SiteSwitches.IsBooruEnabled(source.SourceId),
             SdkMismatchObserved = () => SdkMismatches.Record(pluginId, RunningExecutionRevision(pluginId))
         };
         lock (_state)
@@ -79,6 +82,34 @@ internal sealed partial class PluginSession
             _booruSources[source.SourceId] = binding;
             if (danbooru) _booru = binding;
         }
+    }
+
+    private bool IsRegisteredBooruSourceEnabled(string pluginId, string sourceId)
+    {
+        lock (_state)
+            return _booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding) && binding.PluginId == pluginId
+                && binding.IsSourceEnabled;
+    }
+
+    internal bool? BooruSiteEnabled(string pluginId, string sourceId)
+    {
+        lock (_state)
+            return !_disposed && ChanSiteSwitches.HasBooruSwitch(sourceId)
+                && _booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding)
+                && binding.PluginId == pluginId && binding.SupportsWorkbench ? SiteSwitches.IsBooruEnabled(sourceId) : null;
+    }
+
+    internal bool SetBooruSiteEnabled(string sourceId, bool enabled)
+    {
+        string? pluginId;
+        lock (_state)
+        {
+            if (_disposed || !_booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding)
+                || !binding.SupportsWorkbench || !SiteSwitches.SetBooruEnabled(sourceId, enabled)) return false;
+            pluginId = binding.PluginId;
+        }
+        if (pluginId is not null) NotifyBooruLifecycle(pluginId);
+        return true;
     }
 
     /// <summary>Session-scope sdk-mismatch observations of running plugin builds (presentation only).</summary>

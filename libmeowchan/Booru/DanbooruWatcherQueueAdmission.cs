@@ -36,6 +36,7 @@ internal sealed class DanbooruWatcherQueueAdmission : IDanbooruWatcherAdmissionP
         ArgumentNullException.ThrowIfNull(post);
         cancellationToken.ThrowIfCancellationRequested();
         if (!_originals.Owns(post.Identity)) return DanbooruWatcherAdmissionResult.NotAdmitted;
+        if (!_originals.AllowsContent(post)) return DanbooruWatcherAdmissionResult.ContentBlocked;
         BooruPostRecord? existing = _catalog.TryGetPost(post.Identity);
         if (existing is { OriginalIntent: BooruOriginalIntent.Cancelled })
         {
@@ -65,7 +66,9 @@ internal sealed class DanbooruWatcherQueueAdmission : IDanbooruWatcherAdmissionP
             BooruOriginalAdmissionStatus.Queued => DanbooruWatcherAdmissionResult.Queued,
             BooruOriginalAdmissionStatus.AlreadyQueued => DanbooruWatcherAdmissionResult.AlreadyQueued,
             BooruOriginalAdmissionStatus.AlreadyLinked => DanbooruWatcherAdmissionResult.AlreadyLinked,
+            BooruOriginalAdmissionStatus.ContentBlocked => DanbooruWatcherAdmissionResult.ContentBlocked,
             BooruOriginalAdmissionStatus.Unavailable => DanbooruWatcherAdmissionResult.Unavailable,
+            BooruOriginalAdmissionStatus.SourceUnavailable => DanbooruWatcherAdmissionResult.SourceUnavailable,
             _ => DanbooruWatcherAdmissionResult.NotAdmitted
         };
     }

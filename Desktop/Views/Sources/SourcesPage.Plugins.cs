@@ -82,7 +82,7 @@ public partial class SourcesPage
             this.FindControl<TextBlock>("SourcePluginNext")!, this.FindControl<TextBlock>("SourcePluginShared")!,
             this.FindControl<Button>("SourcePluginEnabled")!, this.FindControl<Button>("SourcePluginCandidate")!, this.FindControl<Button>("SourcePluginSdk")!, row!.Id,
             this.FindControl<Button>("SourcePluginReview"));
-        ApplyChanSiteSwitch(plugin, row);
+        ApplySiteSwitch(plugin, row);
         Button details = this.FindControl<Button>("SourcePluginButton")!;
         CommandBindings.ApplyLabeled(details, "plugins.details", Texts.T("sources.pluginDetails"));
         details.IsEnabled = !IsBusy;
@@ -92,20 +92,20 @@ public partial class SourcesPage
         this.FindControl<Button>("SourcePluginMore")!.IsEnabled = !IsBusy;
     }
 
-    private sealed record ChanSiteToggle(string SourceId, bool Enabled);
+    private sealed record SiteToggle(string SourceId, bool Enabled);
 
     // A site of an engine-family plugin has its own switch while its plugin is on; with the plugin off, the copied
     // plugin button (which turns every site of the family on together) stays, so the master switch is reachable here.
-    private void ApplyChanSiteSwitch(Desktop.Plugins.PluginCatalogEntry plugin, SourceListRow row)
+    private void ApplySiteSwitch(Desktop.Plugins.PluginCatalogEntry plugin, SourceListRow row)
     {
         if (plugin.PluginId is not { } owner || plugin.Activation?.Enabled != true
-            || GetChanSiteEnabled?.Invoke(owner, row.Id) is not bool enabled) return;
+            || GetSourceSiteEnabled?.Invoke(owner, row.Id) is not bool enabled) return;
         Button button = this.FindControl<Button>("SourcePluginEnabled")!;
         CommandBindings.ApplyLabeled(button, enabled ? "plugins.disable" : "plugins.enable",
             Texts.T(enabled ? "sources.site.disable" : "sources.site.enable"));
-        button.Tag = new ChanSiteToggle(row.Id, !enabled);
+        button.Tag = new SiteToggle(row.Id, !enabled);
         button.IsVisible = true;
-        button.IsEnabled = !IsBusy && SetChanSiteEnabled != null;
+        button.IsEnabled = !IsBusy && SetSourceSiteEnabled != null;
         TextBlock shared = this.FindControl<TextBlock>("SourcePluginShared")!;
         shared.Text = Texts.T("sources.familySite", row.Name, plugin.Name);
         shared.IsVisible = true;
@@ -113,7 +113,7 @@ public partial class SourcesPage
 
     private async void OnSourcePluginEnabledClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: ChanSiteToggle toggle } && !IsBusy && SetChanSiteEnabled is { } set)
+        if (sender is Button { Tag: SiteToggle toggle } && !IsBusy && SetSourceSiteEnabled is { } set)
         {
             bool saved = false;
             _busy = true; BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
@@ -125,6 +125,7 @@ public partial class SourcesPage
                 if (!_ended)
                 {
                     SetActionError(saved ? null : Texts.T("sources.site.saveFailed"));
+                    if (saved) RefreshSourceRows();
                     if (GetSourceMediaIntegrityPolicies?.Invoke() is { } current)
                         _rows = _rows.Select(item => item with { MediaIntegrityPolicy = SourcesSnapshot.FindPolicy(item.Id, current) }).ToArray();
                     BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();

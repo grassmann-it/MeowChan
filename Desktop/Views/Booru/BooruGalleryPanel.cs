@@ -70,6 +70,11 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     internal const string ImageName = "BooruGalleryImage";
 
     private readonly BooruGallerySampleLoader _sample = new();
+    internal Func<BooruPostView, bool>? AllowsMedia
+    {
+        get => _sample.AllowsMedia;
+        set => _sample.AllowsMedia = value;
+    }
     private readonly Image _image = new() { Name = ImageName, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both };
     private readonly TextBlock _placeholder = new() { Name = "BooruGalleryPlaceholder", Classes = { "workspace-meta" }, TextAlignment = TextAlignment.Center,
         TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -251,7 +256,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     private void ShowPreview(BooruResultRowView row)
     {
         _previewBytes = row.PreviewBytes;
-        IImage? bitmap = row.Preview == BooruPreviewState.Ready && row.PreviewBytes is { Length: > 0 } bytes && bytes.Length <= 8 * 1024 * 1024
+        IImage? bitmap = AllowsMedia?.Invoke(row.Post) != false && row.Preview == BooruPreviewState.Ready && row.PreviewBytes is { Length: > 0 } bytes && bytes.Length <= 8 * 1024 * 1024
             ? Decode(bytes, 512, Config.BooruGalleryMaximumPixelsDefault).Bitmap : null;
         _image.Source = _sampleBitmap ?? bitmap;
         Release(_previewBitmap);

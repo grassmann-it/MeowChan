@@ -29,7 +29,8 @@ internal sealed partial class BooruSearchModel
     private static BooruSearchView BlankView(Binding binding) =>
         new(binding.Search.ProviderId, binding.Search.ProviderName, BooruInputMode.Tags, string.Empty,
             new BooruParsedInput(BooruInputKind.Empty), BooruSearchStatus.Idle, null, null, 1, true,
-            ImmutableArray<BooruResultRowView>.Empty, null, null, null, InstanceId: binding.Search.InstanceId);
+            ImmutableArray<BooruResultRowView>.Empty, null, null, null, InstanceId: binding.Search.InstanceId)
+        { HasContentRules = binding.Content is not null };
 
     internal BooruSearchView? NewSourceView(string sourceId, string instanceId, BooruSearchView? draft = null)
     {
@@ -61,23 +62,29 @@ internal sealed partial class BooruSearchModel
         }
         BooruInputMode mode = target.Mode ?? (target.PostId is null ? BooruInputMode.Tags : BooruInputMode.Post);
         string input = target.Input ?? target.PostId ?? target.Query ?? string.Empty;
+        int hidden = 0;
         ImmutableArray<BooruResultRowView> rows = bound && target.Rows is { } cached
-            ? cached.Take(resultLimit).Where(row => IsValidCachedPost(row.Post, target, source)).Select(row =>
+            ? cached.Take(resultLimit).Where(row => IsValidCachedPost(row.Post, target, source)).SelectMany(row =>
             {
                 BooruPostView post = BooruPostView.From(row.Post, target.Instance);
+                if (!IsMediaAllowed(post))
+                {
+                    hidden++;
+                    return Array.Empty<BooruResultRowView>();
+                }
                 BooruPreviewState preview = row.Preview is not null ? BooruPreviewState.Ready
                     : post.PreviewUrl is not null ? BooruPreviewState.Unavailable : BooruPreviewState.None;
-                return new BooruResultRowView(post, Preview: preview, PreviewBytes: row.Preview);
+                return new[] { new BooruResultRowView(post, Preview: preview, PreviewBytes: row.Preview) };
             }).ToImmutableArray()
             : ImmutableArray<BooruResultRowView>.Empty;
         BooruSearchStatus status = !bound ? BooruSearchStatus.Unavailable
-            : !rows.IsEmpty ? BooruSearchStatus.Results : target.Empty ? BooruSearchStatus.Empty : BooruSearchStatus.Idle;
+            : !rows.IsEmpty || hidden > 0 ? BooruSearchStatus.Results : target.Empty ? BooruSearchStatus.Empty : BooruSearchStatus.Idle;
         return new BooruSearchView(target.Source, binding?.Search.ProviderName ?? target.Source, mode, input,
             ParseInput(mode, input, target.Source), status, target.Query, target.PostId, target.Page, target.IsEnd, rows,
             null, bound ? null : BooruCodes.SourceUnavailable, null, InstanceId: target.Instance,
             NeedsLoad: status == BooruSearchStatus.Idle
                 && (!string.IsNullOrWhiteSpace(input) || target.Query is not null || target.PostId is not null))
-        { PagerLimits = limits, LastResultPage = target.KnownLastResultPage(limits.Pages) };
+        { PagerLimits = limits, LastResultPage = target.KnownLastResultPage(limits.Pages), HiddenCount = hidden, HasContentRules = _content is not null };
     }
 
     private static bool IsValidCachedPost(BooruPost post, BooruSearchTabTarget target, SourceDescription? source)
@@ -105,7 +112,7 @@ internal sealed partial class BooruSearchModel
         {
             if (_disposed) return;
             _activeSearchTabId = tabId;
-            BooruSearchView next = snapshot ?? BlankView(_defaultBinding);
+            BooruSearchView next = FilterView(snapshot ?? BlankView(_defaultBinding));
             bool bound = IsBound(next);
             ImmutableArray<BooruResultRowView> rows = (bound ? next.Rows : ImmutableArray<BooruResultRowView>.Empty)
                 .Where(row => MatchesView(row.Post, next))

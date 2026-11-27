@@ -299,6 +299,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     // ---- construction ------------------------------------------------------------------------------
 
+    private readonly Button _contentSettings = new();
+    internal Action? EditContent { get; set; }
+
     private Control BuildHeader()
     {
         StackPanel details = new() { Classes = { "workspace-page-header" }, VerticalAlignment = VerticalAlignment.Top, Children = { _title } };
@@ -310,7 +313,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             if (ReferenceEquals(_tabs.SelectedItem, _watchersTab)) CloseWatchers();
             else ShowWatchers();
         };
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Top, Children = { _more, _searchHelp } };
+        AutomationProperties.SetAutomationId(_contentSettings, "BooruContentSettings");
+        _contentSettings.Click += (_, _) => EditContent?.Invoke();
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Top, Children = { _more, _searchHelp, _contentSettings } };
         PageHeader.SetRole(actions, PageHeaderRole.Actions);
         PageHeader.SetRole(_openWatchers, PageHeaderRole.Help);
         PageHeader heading = new() { Children = { details, actions, _openWatchers } };
@@ -540,6 +545,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private void RenderChrome()
     {
         _title.Text = Texts.T("booru.ui.title");
+        _contentSettings.Content = Texts.T("booru.content.title");
+        _contentSettings.IsVisible = _model.Services.Content is not null;
         if (_linkNoteScope is { } scope && !IsCurrentResultLink(scope))
         {
             _linkNoteScope = null;
@@ -588,7 +595,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         {
             issue, ExecutedSearchText(view), DraftSearchText(view),
             view.Mode == BooruInputMode.Tags ? Texts.T("booru.ui.query.hint") : null,
-            Texts.T("booru.ui.noFilterNote")
+            view.HasContentRules ? null : Texts.T("booru.ui.noFilterNote")
         }.Where(text => !string.IsNullOrEmpty(text)));
         ToolTip.SetTip(_input, help);
         AutomationProperties.SetHelpText(_input, help);
@@ -634,6 +641,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         BooruNoticeKind tone = repairShown ? RepairTone() : ToneOf(view.Status);
         AutomationProperties.SetLiveSetting(_statusText, tone == BooruNoticeKind.Error ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite);
         _statusText.Text = repairShown ? BooruText.RepairStatus(_repair) : BooruText.SearchStatus(view, paused);
+        if (view.HiddenCount > 0)
+        {
+            string hidden = Texts.T("booru.content.hidden", view.HiddenCount);
+            _statusText.Text = view.Rows.IsEmpty ? hidden : _statusText.Text + Environment.NewLine + hidden;
+        }
         AutomationProperties.SetName(_statusText, _statusText.Text);
         ApplyTone(_statusHost, tone);
         _retry.Content = Texts.T("booru.ui.status.retry");
@@ -1043,7 +1055,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Bitmap? PreviewBitmap(BooruResultRowView row, int decodeWidth)
     {
-        if (row.PreviewBytes is not { Length: > 0 } bytes || bytes.Length > MaximumPreviewBytes) return null;
+        if (!_model.Search.IsMediaAllowed(row.Post) || row.PreviewBytes is not { Length: > 0 } bytes || bytes.Length > MaximumPreviewBytes) return null;
         var key = (row.Post.PostId, decodeWidth);
         if (_bitmaps.TryGetValue(key, out CachedBitmap? cached) && ReferenceEquals(cached.Bytes, bytes)) return cached.Bitmap;
         try
@@ -1121,6 +1133,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         {
             Text = Texts.T("booru.ui.watcher.hits", watcher.HitCount, watcher.QueuedCount), Classes = { "workspace-meta" }
         });
+        if (watcher.HiddenCount > 0)
+            panel.Children.Add(new TextBlock { Text = Texts.T("booru.content.hidden", watcher.HiddenCount),
+                Classes = { "workspace-meta" } });
         if (watcher.LatestPostId is { } latest)
         {
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.latest", latest), Classes = { "workspace-meta" } });

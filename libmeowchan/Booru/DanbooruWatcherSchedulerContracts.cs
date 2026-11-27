@@ -77,7 +77,9 @@ internal enum DanbooruWatcherAdmissionResult
     /// <summary>The queue refused the job; visible per post, retried only on explicit request.</summary>
     NotAdmitted,
     /// <summary>The user cancelled this post's original before; the finding is kept, nothing is re-queued.</summary>
-    KeptCancelled
+    KeptCancelled,
+    ContentBlocked,
+    SourceUnavailable
 }
 
 internal interface IDanbooruWatcherAdmissionPort
@@ -166,7 +168,10 @@ internal sealed record DanbooruWatcherCheckSummary(
     int KeptCancelled,
     string? Code = null,
     DateTimeOffset? RetryAtUtc = null,
-    bool Manual = false);
+    bool Manual = false)
+{
+    internal int HiddenCount { get; init; }
+}
 
 /// <summary>Bindable read model for one watcher (B6).</summary>
 internal sealed record DanbooruWatcherStatus(

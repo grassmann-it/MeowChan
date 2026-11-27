@@ -51,6 +51,8 @@ internal sealed record BooruSearchView(
     internal long ResultId { get; init; }
     internal BooruPagerLimits PagerLimits { get; init; } = BooruPagerLimits.Default;
     internal int? LastResultPage { get; init; }
+    internal int HiddenCount { get; init; }
+    internal bool HasContentRules { get; init; }
     internal BooruPostKey? ExecutedPostIdentity => ExecutedPostId is { } postId ? new(ProviderId, InstanceId, postId) : null;
     internal bool IsPostResult => ExecutedPostIdentity is not null;
     internal bool IsBusy => Status == BooruSearchStatus.Searching;
@@ -82,7 +84,7 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     private readonly object _gate = new();
     internal sealed record Binding(IBooruSearchPort Search, IBooruQueuePort Queue, IBooruPreviewPort Previews,
-        SourceDescription? Source = null);
+        SourceDescription? Source = null, BooruWorkspaceContent? Content = null);
 
     private readonly IReadOnlyList<Binding> _bindings;
     private readonly Binding _defaultBinding;
@@ -109,6 +111,8 @@ internal sealed partial class BooruSearchModel : IDisposable
         _defaultBinding = bindings[0];
         _clock = clock;
         _view = BlankView(_defaultBinding);
+        _content = _defaultBinding.Content;
+        if (_content is not null) _content.Changed += OnContentChanged;
         foreach (Binding binding in _bindings) binding.Queue.LocalStatesChanged += OnLocalStatesChanged;
     }
 
@@ -292,16 +296,19 @@ internal sealed partial class BooruSearchModel : IDisposable
                 }
                 else
                 {
+                    BooruContentFilter? filter = _content?.Snapshot.Filter;
                     ImmutableArray<BooruResultRowView> rows = value.Posts
+                        .Where(post => BooruWorkspaceContent.Allows(filter, post))
                         .Select(post => new BooruResultRowView(post,
                             Preview: post.PreviewUrl is null ? BooruPreviewState.None : BooruPreviewState.Loading))
                         .ToImmutableArray();
                     _view = _view with
                     {
-                        Status = rows.IsEmpty ? BooruSearchStatus.Empty : BooruSearchStatus.Results,
-                        Rows = rows, IsEnd = value.IsEnd || rows.IsEmpty,
+                        Status = value.Posts.IsEmpty ? BooruSearchStatus.Empty : BooruSearchStatus.Results,
+                        Rows = rows, IsEnd = value.IsEnd || value.Posts.IsEmpty,
+                        HiddenCount = value.Posts.Length - rows.Length,
                         // A jump to an empty page cannot establish how many preceding pages have results.
-                        LastResultPage = rows.IsEmpty ? null : value.IsEnd ? page
+                        LastResultPage = value.Posts.IsEmpty ? null : value.IsEnd ? page
                             : _view.LastResultPage > page ? _view.LastResultPage : null,
                         Code = null, RetryAt = null
                     };
@@ -339,13 +346,14 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (result.Status == BooruCallStatus.Ok && result.Value is { } post
                 && post.Identity == _view.ExecutedPostIdentity)
             {
+                follow = IsMediaAllowed(post);
                 _view = _view with
                 {
-                    Status = BooruSearchStatus.Results, IsEnd = true, Code = null, RetryAt = null,
-                    Rows = ImmutableArray.Create(new BooruResultRowView(post,
-                        Preview: post.PreviewUrl is null ? BooruPreviewState.None : BooruPreviewState.Loading))
+                    Status = BooruSearchStatus.Results,
+                    IsEnd = true, Code = null, RetryAt = null, HiddenCount = follow ? 0 : 1,
+                    Rows = follow ? ImmutableArray.Create(new BooruResultRowView(post,
+                        Preview: post.PreviewUrl is null ? BooruPreviewState.None : BooruPreviewState.Loading)) : []
                 };
-                follow = true;
             }
             else if (result.Status == BooruCallStatus.Ok)
                 _view = _view with { Status = BooruSearchStatus.Failed, Code = "wrong_post" };
@@ -368,6 +376,7 @@ internal sealed partial class BooruSearchModel : IDisposable
             {
                 Status = status, ExecutedQuery = query, ExecutedPostId = postId, Page = page,
                 Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null,
+                HiddenCount = 0,
                 LastResultPage = newSearch || postId != null ? null : _view.LastResultPage,
                 Restored = false, NeedsLoad = false, PagerLimits = pagerLimits, ResultId = _requestId
             };
@@ -428,7 +437,9 @@ internal sealed partial class BooruSearchModel : IDisposable
             await _previewSlots.WaitAsync(token).ConfigureAwait(false);
             entered = true;
             token.ThrowIfCancellationRequested();
+            if (!IsMediaAllowed(post)) return;
             bytes = await previews.LoadPreviewAsync(post, token).ConfigureAwait(false);
+            if (!IsMediaAllowed(post)) return;
         }
         catch (OperationCanceledException) { return; }
         catch (Exception exception) when (exception is not OutOfMemoryException) { bytes = null; }
@@ -491,6 +502,7 @@ internal sealed partial class BooruSearchModel : IDisposable
                     BooruLocalState.Loaded => (BooruRowLoad.AlreadyLoaded, null),
                     BooruLocalState.Queued => (row.Load == BooruRowLoad.Queued ? row.Load : BooruRowLoad.AlreadyQueued, null),
                     BooruLocalState.DownloadFailed => (BooruRowLoad.DownloadFailed, null),
+                    BooruLocalState.ContentBlocked => (BooruRowLoad.Failed, "content-blocked"),
                     BooruLocalState.LinkFailed => (BooruRowLoad.LinkFailed, null),
                     BooruLocalState.Interrupted => (BooruRowLoad.Interrupted, null),
                     BooruLocalState.RefusalPending => (BooruRowLoad.RefusalPending, null),
@@ -566,7 +578,7 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (index < 0) return;
             queue = binding.Queue;
             BooruResultRowView row = _view.Rows[index];
-            if (target != null && (!row.CanLoad || row.CanRetry)) return;
+            if (!IsMediaAllowed(row.Post) || target != null && (!row.CanLoad || row.CanRetry)) return;
             target ??= BooruResultTarget.From(_view, row);
             post = row.Post;
             origin = target.Origin;
@@ -589,7 +601,11 @@ internal sealed partial class BooruSearchModel : IDisposable
         RaiseChanged();
         if (blocked) return;
         BooruLoadResult result;
-        try { result = await queue.LoadOriginalAsync(post, origin, query, operation!.Token).ConfigureAwait(false); }
+        try
+        {
+            if (!IsMediaAllowed(post)) return;
+            result = await queue.LoadOriginalAsync(post, origin, query, operation!.Token).ConfigureAwait(false);
+        }
         catch (OperationCanceledException) { result = new BooruLoadResult(BooruLoadStatus.Failed, "canceled"); }
         catch (Exception exception) when (exception is not OutOfMemoryException) { result = new BooruLoadResult(BooruLoadStatus.Failed, "exception"); }
         CompleteOriginalAction(target, actionVersion, MapLoad(result), result.Code);
@@ -647,7 +663,7 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (index < 0) return;
             queue = binding.Queue;
             BooruResultRowView row = _view.Rows[index];
-            if (!row.CanRetry || !_originalActions.Add(postId)) return;
+            if (!IsMediaAllowed(row.Post) || !row.CanRetry || !_originalActions.Add(postId)) return;
             target ??= BooruResultTarget.From(_view, row);
             actionVersion = BeginOriginalAction(postId);
             post = row.Post;
@@ -660,6 +676,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         BooruLoadResult result;
         try
         {
+            if (!IsMediaAllowed(post)) return;
             result = await (saveRefusal ? queue.SaveOriginalRefusalAsync(post.PostId, operation.Token)
                 : queue.RetryOriginalAsync(post.PostId, operation.Token)).ConfigureAwait(false);
         }
@@ -714,7 +731,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         {
             if (id != _requestId || _disposed) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
-            if (index < 0) return;
+            if (index < 0 || !IsMediaAllowed(_view.Rows[index].Post)) return;
             SetRow(index, update(_view.Rows[index]));
         }
         RaiseChanged();
@@ -733,6 +750,7 @@ internal sealed partial class BooruSearchModel : IDisposable
             _disposed = true;
             ReplaceRequest(needsRequest: false);
         }
+        if (_content is not null) _content.Changed -= OnContentChanged;
         foreach (Binding binding in _bindings) binding.Queue.LocalStatesChanged -= OnLocalStatesChanged;
         Task retirement = _lifetime.RetireAsync();
         OpenActions.Start(() => retirement, "booru.search.retire");
