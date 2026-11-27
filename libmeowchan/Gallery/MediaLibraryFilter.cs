@@ -5,12 +5,59 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Favorites;
 using MeowChan.Ratings;
 using MeowChan.Tags;
 using MeowChan.Transfer;
 
 namespace MeowChan.Gallery;
+
+/// <summary>The rating ceiling for already saved Booru media, evaluated against local provider claims.</summary>
+internal sealed class MediaContentBoundary(BooruContentFilter filter, Func<BooruCatalogSnapshot?>? readCatalog)
+{
+    private readonly Lazy<BooruCatalogSnapshot?> _catalog = new(() => readCatalog?.Invoke());
+
+    internal static bool SameCeiling(BooruContentProfileSnapshot? first, BooruContentProfileSnapshot? second) =>
+        first?.State == second?.State && first?.Settings.MaximumRating == second?.Settings.MaximumRating;
+
+    internal static BooruContentFilter? RatingFilter(BooruContentProfileSnapshot? profile)
+    {
+        if (profile == null || profile.State == BooruContentProfileState.Missing) return null;
+        return profile.State == BooruContentProfileState.Ready
+            ? new BooruContentFilter(profile.Revision, new BooruContentSettings(profile.Settings.MaximumRating, string.Empty, []))
+            : profile.Filter;
+    }
+
+    internal BooruContentReason ReasonFor(BooruPostKey identity)
+    {
+        BooruPostClaim claim = _catalog.Value?.TryGetPost(identity)?.Post
+            ?? new BooruPostClaim(identity.SourceId, identity.PostId, BooruPostClaimPresence.None, InstanceId: identity.InstanceId);
+        return filter.Evaluate(claim).Reason;
+    }
+
+    internal bool Allows(ResourceId thread) =>
+        !BooruMediaIdentity.TryGetPostKey(thread, out BooruPostKey identity) || ReasonFor(identity) == BooruContentReason.Allowed;
+
+    internal (IReadOnlyList<MediaLibraryEntry> Entries, int Hidden) Apply(IReadOnlyList<MediaLibraryEntry> entries)
+    {
+        List<MediaLibraryEntry>? visible = null;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            MediaLibraryEntry entry = entries[i];
+            if (entry.BooruPostId != null && ReasonFor(entry.BooruIdentity.GetValueOrDefault()) != BooruContentReason.Allowed)
+            {
+                if (visible == null)
+                {
+                    visible = new List<MediaLibraryEntry>(entries.Count - 1);
+                    for (int kept = 0; kept < i; kept++) visible.Add(entries[kept]);
+                }
+            }
+            else visible?.Add(entry);
+        }
+        return visible == null ? (entries, 0) : (visible, entries.Count - visible.Count);
+    }
+}
 
 /// <summary>Media type choice of the media page. GIF is an image whose file name ends in .gif.</summary>
 internal enum MediaLibraryKindFilter { Any, Image, Gif, Video, Other }

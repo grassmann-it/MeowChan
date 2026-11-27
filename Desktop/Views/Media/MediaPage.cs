@@ -184,6 +184,9 @@ public sealed partial class MediaPage : UserControl
         // (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
         _pageKeyContext = KeyContextHost.Install(this, _ => "media");
         _openManifest = openManifest ?? MediaAssetReader.OpenAsync;
+        AutomationProperties.SetAutomationId(_grid, "MediaGrid");
+        AutomationProperties.SetAutomationId(_status, "MediaStatus");
+        AutomationProperties.SetAutomationId(_empty, "MediaEmpty");
         // Only the real manifest reader is checked by file identity; a supplied opener keeps the per-build behavior.
         _manifests = new MediaManifestCache(openManifest, _lifetime.Token);
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
@@ -277,6 +280,7 @@ public sealed partial class MediaPage : UserControl
     /// </summary>
     internal Task ActivateAsync()
     {
+        RefreshContentBoundary();
         RefreshUserData();
         UpdateSearchTip();
         WarmBooruCatalog();
@@ -297,6 +301,7 @@ public sealed partial class MediaPage : UserControl
     private async Task BuildAsync(bool force)
     {
         if (_lifetime.IsCancellationRequested) return;
+        if (force) RefreshContentBoundary();
         _building?.Cancel();
         CancellationTokenSource building = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _building = building;
@@ -389,10 +394,23 @@ public sealed partial class MediaPage : UserControl
     private long _selectAllStamp = -1;
     private PresentIndexHolder? _presentIndex;
 
-    private sealed class PresentIndexHolder(MediaLibrarySnapshot snapshot)
+    private sealed class PresentIndexHolder
     {
-        internal MediaLibrarySnapshot Snapshot { get; } = snapshot;
-        private readonly Lazy<MediaLibraryPresentIndex> _index = new(() => new MediaLibraryPresentIndex(snapshot.Entries), LazyThreadSafetyMode.ExecutionAndPublication);
+        private readonly Lazy<(IReadOnlyList<MediaLibraryEntry> Entries, int Hidden)> _visible;
+        private readonly Lazy<MediaLibraryPresentIndex> _index;
+        private readonly bool _hasBoundary;
+
+        internal PresentIndexHolder(MediaLibrarySnapshot snapshot, MediaContentBoundary? boundary)
+        {
+            Snapshot = snapshot;
+            _hasBoundary = boundary != null;
+            _visible = new(() => boundary?.Apply(snapshot.Entries) ?? (snapshot.Entries, 0));
+            _index = new(() => new MediaLibraryPresentIndex(Visible.Entries));
+        }
+
+        internal MediaLibrarySnapshot Snapshot { get; }
+        internal (IReadOnlyList<MediaLibraryEntry> Entries, int Hidden) Visible => _visible.Value;
+        internal bool NeedsBoundaryRead => _hasBoundary && !_visible.IsValueCreated;
         internal MediaLibraryPresentIndex Index => _index.Value;
     }
 
@@ -418,13 +436,14 @@ public sealed partial class MediaPage : UserControl
 
     private sealed record PresentResult(IReadOnlyList<MediaLibraryTile> Tiles, MediaLibraryEntry[] Shown, int[] PresentPositions,
         MediaLibraryTileRow[] Rows, int ShownMissing, int Unfiltered, bool FilterActive, string? ErrorKey, int AudioUnknown,
-        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored, MediaLibraryUserOrder? UserOrder, MediaTextCounts? Breakdown = null);
+        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored, MediaLibraryUserOrder? UserOrder, int BoundaryHidden,
+        MediaTextCounts? Breakdown = null);
 
     /// <param name="keepView">
     /// True when the data changed and not the query (a rebuilt index, own state, the queue, sound results, the language): the grid keeps its scroll
     /// anchor, the selected tile's place on screen and the previews it shows (MediaPage.ViewKeep.cs). A changed filter, order or search starts fresh.
     /// </param>
-    private void Present(bool keepView = false)
+    private void Present(bool keepView = false, bool boundaryChanged = false)
     {
         _presenting?.Cancel();
         _presenting = null;
@@ -433,7 +452,8 @@ public sealed partial class MediaPage : UserControl
         PresentInputs inputs = CapturePresentInputs() with { KeepView = keepView };
         RefreshThreadMedia(inputs.Filter);
         // Source tags read the Booru catalog: its first read (tens of MiB) never happens on the UI thread (see WarmBooruCatalog).
-        if (inputs.All.Count < BackgroundPresentEntries && !(inputs.PageTerms?.NeedsSourceTags == true && ReadBooruCatalog != null && !_booruCatalogWarm))
+        if (inputs.All.Count < BackgroundPresentEntries && inputs.Holder?.NeedsBoundaryRead != true
+            && !(inputs.PageTerms?.NeedsSourceTags == true && ReadBooruCatalog != null && !_booruCatalogWarm))
         {
             _presentPending = false;
             PresentTask = Task.CompletedTask;
@@ -444,6 +464,12 @@ public sealed partial class MediaPage : UserControl
         _presenting = presenting;
         _presentPending = true;
         _presentPendingKeepsView = keepView;
+        if (boundaryChanged && _tiles.Count != 0)
+        {
+            // Retire the old rows and sidebar before the worker reads the newly restricted catalog.
+            PresentInputs cleared = inputs with { All = [], Holder = null, KeepView = false };
+            ApplyPresent(cleared, ComputePresent(cleared, CancellationToken.None));
+        }
         PresentTask = PresentInBackgroundAsync(inputs, presenting, ++PresentRunCount);
     }
 
@@ -480,7 +506,8 @@ public sealed partial class MediaPage : UserControl
         // The source and board choices belong to the index; they are rebuilt here, on the UI thread, when the index changed.
         if (!ReferenceEquals(_optionsFor, _snapshot)) RenderSourceOptions();
         MediaLibrarySnapshot? snapshot = _snapshot;
-        if (snapshot != null && !ReferenceEquals(_presentIndex?.Snapshot, snapshot)) _presentIndex = new PresentIndexHolder(snapshot);
+        if (snapshot != null && !ReferenceEquals(_presentIndex?.Snapshot, snapshot))
+            _presentIndex = new PresentIndexHolder(snapshot, ContentBoundaryForPresentation());
         MediaLibraryFilter? filter = null;
         bool invalid = false;
         try { filter = CurrentFilter(); }
@@ -507,7 +534,7 @@ public sealed partial class MediaPage : UserControl
     // Filter, group and order (the index), and make the rows. Touches no control and no page state, so it may run on any thread.
     private static PresentResult ComputePresent(PresentInputs input, CancellationToken token)
     {
-        IReadOnlyList<MediaLibraryEntry> all = input.All;
+        (IReadOnlyList<MediaLibraryEntry> all, int boundaryHidden) = input.Holder?.Visible ?? (input.All, 0);
         string? errorKey = null;
         IReadOnlyList<MediaLibraryEntry> passing;
         int audioUnknown = 0;
@@ -599,7 +626,7 @@ public sealed partial class MediaPage : UserControl
         MediaTextCounts? breakdown = tally == null || errorKey != null ? null
             : MediaTextCounts.Of(tally, input.IncludeMissing, input.Filter!.TextFields, shown.Length);
         return new PresentResult(tiles, shown, MediaLibraryView.PresentIndex(shown), rows, missing, unfiltered, filterActive, errorKey,
-            audioUnknown, untaggedTiles, untagged, restored, userOrder ?? input.UserOrder, breakdown);
+            audioUnknown, untaggedTiles, untagged, restored, userOrder ?? input.UserOrder, boundaryHidden, breakdown);
     }
 
     // The entries of the tally the page-side terms kept. Both lists follow the order of the index (the terms only remove), so one pass pairs them.
@@ -659,6 +686,7 @@ public sealed partial class MediaPage : UserControl
         _mediaViewRanks = null;
         PresentPositions = result.PresentPositions;
         _shownMissing = result.ShownMissing;
+        _boundaryHidden = result.BoundaryHidden;
         _unfiltered = result.Unfiltered;
         _breakdownCounts = result.Breakdown;
         _breakdownText = input.SearchText ?? string.Empty;
@@ -683,17 +711,19 @@ public sealed partial class MediaPage : UserControl
     private void UpdateStatus()
     {
         UpdateStatusText();
-        _empty.Text = Texts.T(_filterActive ? "media.filter.noMatch" : "media.empty");
+        bool boundaryEmpty = !_filterActive && _boundaryHidden > 0;
+        _empty.Text = boundaryEmpty ? MediaLibraryCatalog.ContentBoundaryCount(_boundaryHidden)
+            : Texts.T(_filterActive ? "media.filter.noMatch" : "media.empty");
         // A refused filter explains itself above the grid; the grid stays empty.
         bool showEmpty = _snapshot != null && _shown.Count == 0 && _building == null && !_filterFailed && !_presentPending;
         _empty.IsVisible = showEmpty;
         _emptyState.IsVisible = showEmpty;
         // An empty library points to Downloads and Archive; a filter that matches nothing offers to reset it (C3).
         _emptyActions.IsVisible = showEmpty;
-        _goDownloads.IsVisible = !_filterActive;
-        _importFiles.IsVisible = !_filterActive && ImportFilesRequested != null;
-        _linkFolder.IsVisible = !_filterActive && LinkFolderRequested != null;
-        _emptyHelp.IsVisible = showEmpty && !_filterActive && (ImportFilesRequested != null || LinkFolderRequested != null);
+        _goDownloads.IsVisible = !_filterActive && !boundaryEmpty;
+        _importFiles.IsVisible = !_filterActive && !boundaryEmpty && ImportFilesRequested != null;
+        _linkFolder.IsVisible = !_filterActive && !boundaryEmpty && LinkFolderRequested != null;
+        _emptyHelp.IsVisible = showEmpty && !_filterActive && !boundaryEmpty && (ImportFilesRequested != null || LinkFolderRequested != null);
         // An empty library shows the sentence and its action only; with a filter the filters stay, since they are the way out.
         _headerBody.IsVisible = !(showEmpty && !_filterActive);
         _emptyReset.IsVisible = _filterActive;
@@ -724,8 +754,9 @@ public sealed partial class MediaPage : UserControl
         if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? CountPhrases.MediaFilterSummary(_shown.Count, _unfiltered)
             : CountPhrases.MediaSummary(_shown.Count, threads, missing));
         if (ThreadMediaSummary() is { } threadMedia) parts.Add(threadMedia);
-        if (_snapshot != null && _providerEntries is > 0 and int provider)
+        if (_snapshot != null && _providerEntries - _boundaryHidden is > 0 and int provider)
             parts.Add(Texts.Count("booru.media.statusCount", provider));
+        if (_boundaryHidden > 0) parts.Add(MediaLibraryCatalog.ContentBoundaryCount(_boundaryHidden));
         if (_snapshot != null && _queueOpen > 0) parts.Add(Texts.T("media.status.queue", _queueOpen.ToString("N0", Texts.Culture))); // MP3
         if (_snapshot is { Complete: false } && _building == null) parts.Add(Texts.T("media.incomplete"));
         if (_failed) parts.Add(Texts.T("media.failed"));
@@ -758,7 +789,7 @@ public sealed partial class MediaPage : UserControl
 
     // A decoded preview is kept by its bytes (the tile view gets a lease and gives it back), so scrolling back does not decode it again.
     private Task<Bitmap?> LoadThumbnailAsync(MediaLibraryTile tile, CancellationToken token) =>
-        MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token);
+        TileThumbnailDecoder?.Invoke(tile, token) ?? MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token);
 
     private Task<MediaAssetSnapshot> OpenManifestAsync(string directory, CancellationToken token) => _manifests.OpenAsync(directory, token);
 

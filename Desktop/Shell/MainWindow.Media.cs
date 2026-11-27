@@ -16,6 +16,7 @@ using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 using MeowChan.Archive;
+using MeowChan.Favorites;
 using MeowChan.Tags;
 
 namespace MeowChan;
@@ -99,6 +100,7 @@ public partial class MainWindow
             PendingFavorite = PendingMediaFavorite,
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,
+            ReadContentProfile = _session.ReadLocalMediaContentProfile,
             CacheLimitBytes = () => (long)_session.Config.MediaIndexCacheLimitMiB * 1024 * 1024,
             CacheCountLimits = () => (_session.Config.MediaIndexMaxEntries, _session.Config.MediaIndexMaxThreads),
             AudioCacheLimits = () => new((long)_session.Config.AudioProbeCacheLimitMiB * 1024 * 1024, _session.Config.AudioProbeCacheEntries),
@@ -161,8 +163,13 @@ public partial class MainWindow
                 _settingsEditor?.RefreshConfirmedSettings([SettingsFieldId.MediaSidebarInfo]);
         }, "media.sidebar.info");
         _mediaPage.SaveLayoutAsync = layout => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = layout.TagList; config.MediaLayout = layout.Format(); });
-        _session.StateChanged += OnMediaTagQueueChanged;
-        Closed += (_, _) => _session.StateChanged -= OnMediaTagQueueChanged;
+        _session.StateChanged += OnMediaSessionChanged;
+        Closed += (_, _) => _session.StateChanged -= OnMediaSessionChanged;
+        if (_archivePage is { } archive)
+        {
+            archive.GetFavorites = ReadVisibleLocalFavorites;
+            archive.OpenFavoritesGallery = OpenLocalFavoritesGalleryAsync;
+        }
         _mediaPage.InitializeSharedMediaMenus();
         _mediaPage.FocusModeChanged += on => { _mediaFocusActive = on; UpdateMediaFocusChrome(); };
         // Work views (WV5): the page applies the window's view now and again whenever the window applies another one.
@@ -174,8 +181,23 @@ public partial class MainWindow
         AttachBooruOverflow(_mediaPage);
     }
 
-    // MP1: the session changed (any command); the page reads the queue's published view and refreshes its marks only when it changed.
-    private void OnMediaTagQueueChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (!_isClosing) _mediaPage?.RefreshTagQueue(); });
+    private void OnMediaSessionChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_isClosing) return;
+        if (_selectedPage == WorkspacePage.Media) _mediaPage?.RefreshContentBoundary();
+        RefreshLocalGalleryContentBoundary();
+        _mediaPage?.RefreshTagQueue();
+    });
+
+    private IReadOnlyList<FavoriteEntry> ReadVisibleLocalFavorites()
+    {
+        IReadOnlyList<FavoriteEntry> favorites = _session.GetFavorites();
+        if (!favorites.Any(entry => BooruMediaIdentity.IsBooruThread(entry.Key.Thread))
+            || MediaContentBoundary.RatingFilter(_session.ReadLocalMediaContentProfile()) is not { } filter)
+            return favorites;
+        MediaContentBoundary boundary = new(filter, _session.ReadBooruCatalog);
+        return favorites.Where(entry => boundary.Allows(entry.Key.Thread)).ToArray();
+    }
 
     /// <summary>
     /// MP2: "Add to tagging queue" of the media page. The sentence goes to the page's status line as before; when something was really
@@ -253,7 +275,7 @@ public partial class MainWindow
             // A still pending second restore of an earlier "Back to media" must not move selection and focus under the gallery.
             page.EndPendingReturn();
             if (!Current()) return;
-            await OpenMediaGalleryAsync(entries, first.EntryKey, page.Grid, stillRequested: Current, threadPositions: threadPositions);
+            await OpenLocalMediaGalleryAsync(entries, first.EntryKey, page.Grid, Current, threadPositions);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
