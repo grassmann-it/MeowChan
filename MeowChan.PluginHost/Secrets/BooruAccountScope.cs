@@ -40,7 +40,7 @@ internal sealed record BooruAccountScope
         SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\0', PluginId, ExecutionRevision, SourceId, InstanceId, Origin)));
 
     private static string? HttpsOrigin(Uri? uri) =>
-        uri is { IsAbsoluteUri: true, Scheme: Uri.UriSchemeHttps, IsDefaultPort: true }
+        uri is { IsAbsoluteUri: true, IsDefaultPort: true } && uri.Scheme == Uri.UriSchemeHttps
         && uri.UserInfo.Length == 0 && uri.Fragment.Length == 0 && uri.IdnHost.Length != 0
         ? Uri.UriSchemeHttps + "://" + uri.IdnHost : null;
 }

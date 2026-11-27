@@ -359,19 +359,20 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
 
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _call.Lifetime);
             lock (_owner._gate) EnsureCurrent();
-            SecretStoreRead read = _mayReadStore && _reference is not null
-                ? await Task.Run(() => _owner.Read(_scope, _reference, linked.Token, out _), linked.Token).ConfigureAwait(false)
-                : new(SecretStoreStatus.Missing);
+            SecretStoreRead? read = null;
             HttpResponseMessage? response = null;
             string? basic = null;
             try
             {
+                if (_mayReadStore && _reference is not null)
+                    read = await Task.Run(() => _owner.Read(_scope, _reference, linked.Token, out _), linked.Token).ConfigureAwait(false);
+
                 Task<HttpResponseMessage> pending;
                 lock (_owner._gate)
                 {
                     EnsureCurrent();
                     linked.Token.ThrowIfCancellationRequested();
-                    if (read.Status == SecretStoreStatus.Available && read.Bytes is { } bytes)
+                    if (read is { Status: SecretStoreStatus.Available, Bytes: { } bytes })
                     {
                         basic = Convert.ToBase64String(bytes.AsSpan(ScopeFingerprintBytes));
                         message.Headers.Authorization = new AuthenticationHeaderValue("Basic", basic);
@@ -387,7 +388,7 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
 
                 BooruAccountAttempt attempt = new(response, read, basic);
                 response = null;
-                read = null!;
+                read = null;
                 return attempt;
             }
             catch (OperationCanceledException) when (basic is not null)

@@ -14,7 +14,7 @@ internal sealed class LinuxBooruSecretStore : NativeBooruSecretStore
     private const int ReplaceItem = 2;
 
     protected override SecretStoreRead ReadNative(string target, CancellationToken token) =>
-        WithCollection(target, token, (collection, attributes, cancel) =>
+        WithCollection(target, (collection, attributes, cancel) =>
     {
         byte[]? bytes = null;
         SecretStoreStatus status = WithItem(collection, attributes, SearchAll | LoadUnlockedSecrets, cancel, item =>
@@ -33,27 +33,27 @@ internal sealed class LinuxBooruSecretStore : NativeBooruSecretStore
             finally { secret_value_unref(value); }
         });
         return new SecretStoreRead(status, bytes);
-    }, static status => new(status));
+    }, static status => new(status), token);
 
     protected override SecretStoreStatus WriteNative(string target, byte[] secret, CancellationToken token) =>
-        WithCollection(target, token, (collection, attributes, cancel) =>
+        WithCollection(target, (collection, attributes, cancel) =>
     {
-        IntPtr value = secret_value_new(secret, secret.Length, "application/octet-stream");
+        IntPtr value = secret_value_new(secret, secret.Length, "application/octet-stream\0"u8.ToArray());
         if (value == IntPtr.Zero) return SecretStoreStatus.Unavailable;
         try
         {
-            IntPtr item = secret_item_create_sync(collection, IntPtr.Zero, attributes, "MeowChan Booru API key",
+            IntPtr item = secret_item_create_sync(collection, IntPtr.Zero, attributes, "MeowChan Booru API key\0"u8.ToArray(),
                 value, ReplaceItem, cancel, out IntPtr error);
             if (item != IntPtr.Zero) g_object_unref(item);
             return StatusOf(error, item == IntPtr.Zero ? SecretStoreStatus.Unavailable : SecretStoreStatus.Available);
         }
         finally { secret_value_unref(value); }
-    }, static status => status);
+    }, static status => status, token);
 
     protected override SecretStoreStatus DeleteNative(string target, CancellationToken token) =>
-        WithCollection(target, token, (collection, attributes, cancel) =>
+        WithCollection(target, (collection, attributes, cancel) =>
             WithItem(collection, attributes, SearchAll, cancel, item =>
-                StatusOfAfterDelete(item, cancel)), static status => status);
+                StatusOfAfterDelete(item, cancel)), static status => status, token);
 
     private static SecretStoreStatus StatusOfAfterDelete(IntPtr item, IntPtr cancel)
     {
@@ -61,8 +61,8 @@ internal sealed class LinuxBooruSecretStore : NativeBooruSecretStore
         return StatusOf(error, removed != 0 ? SecretStoreStatus.Available : SecretStoreStatus.Unavailable);
     }
 
-    private static T WithCollection<T>(string target, CancellationToken token,
-        Func<IntPtr, IntPtr, IntPtr, T> action, Func<SecretStoreStatus, T> failure)
+    private static T WithCollection<T>(string target, Func<IntPtr, IntPtr, IntPtr, T> action,
+        Func<SecretStoreStatus, T> failure, CancellationToken token)
     {
         // Require an existing user bus. Never start a session bus through X11 autolaunch.
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS")))
@@ -76,7 +76,7 @@ internal sealed class LinuxBooruSecretStore : NativeBooruSecretStore
             if (service == IntPtr.Zero) return failure(StatusOf(error, SecretStoreStatus.Unavailable));
             try
             {
-                IntPtr collection = secret_collection_for_alias_sync(service, "default", 0, cancel, out error);
+                IntPtr collection = secret_collection_for_alias_sync(service, "default\0"u8.ToArray(), 0, cancel, out error);
                 if (collection == IntPtr.Zero) return failure(StatusOf(error, SecretStoreStatus.Unavailable));
                 try
                 {
@@ -105,7 +105,8 @@ internal sealed class LinuxBooruSecretStore : NativeBooruSecretStore
         {
             name = Marshal.StringToCoTaskMemUTF8("org.meowchan.booru.reference");
             value = Marshal.StringToCoTaskMemUTF8(target);
-            g_hash_table_insert(attributes, name, value);
+            // The return value distinguishes insert from replacement. This table is empty.
+            _ = g_hash_table_insert(attributes, name, value);
             return action(collection, attributes, cancel);
         }
         finally
@@ -162,18 +163,18 @@ internal sealed class LinuxBooruSecretStore : NativeBooruSecretStore
     [DllImport(Secret)] private static extern IntPtr secret_service_open_sync(nuint type, IntPtr bus, int flags,
         IntPtr cancel, out IntPtr error);
     [DllImport(Secret)] private static extern IntPtr secret_collection_for_alias_sync(IntPtr service,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string alias, int flags, IntPtr cancel, out IntPtr error);
+        byte[] alias, int flags, IntPtr cancel, out IntPtr error);
     [DllImport(Secret)] private static extern int secret_collection_get_locked(IntPtr collection);
     [DllImport(Secret)] private static extern IntPtr secret_collection_search_sync(IntPtr collection, IntPtr schema,
         IntPtr attributes, int flags, IntPtr cancel, out IntPtr error);
     [DllImport(Secret)] private static extern IntPtr secret_item_create_sync(IntPtr collection, IntPtr schema,
-        IntPtr attributes, [MarshalAs(UnmanagedType.LPUTF8Str)] string label, IntPtr value, int flags,
+        IntPtr attributes, byte[] label, IntPtr value, int flags,
         IntPtr cancel, out IntPtr error);
     [DllImport(Secret)] private static extern int secret_item_get_locked(IntPtr item);
     [DllImport(Secret)] private static extern int secret_item_delete_sync(IntPtr item, IntPtr cancel, out IntPtr error);
     [DllImport(Secret)] private static extern IntPtr secret_item_get_secret(IntPtr item);
     [DllImport(Secret)] private static extern IntPtr secret_value_new(byte[] secret, nint length,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string contentType);
+        byte[] contentType);
     [DllImport(Secret)] private static extern IntPtr secret_value_get(IntPtr value, out nuint length);
     [DllImport(Secret)] private static extern void secret_value_unref(IntPtr value);
 }

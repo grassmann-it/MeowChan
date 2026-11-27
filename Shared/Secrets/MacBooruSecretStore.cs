@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32.SafeHandles;
 using MeowChan.Secrets;
 
@@ -91,8 +92,8 @@ internal sealed class MacBooruSecretStore : NativeBooruSecretStore
                 if (Status != SecretStoreStatus.Available) return;
 
                 _searchList.Assign(CFArrayCreate(IntPtr.Zero, [keychain], 1, FoundationExport("kCFTypeArrayCallBacks")));
-                _service.Assign(CFStringCreateWithCString(IntPtr.Zero, "MeowChan Booru API key", Utf8));
-                _account.Assign(CFStringCreateWithCString(IntPtr.Zero, target, Utf8));
+                _service.Assign(CFStringCreateWithCString(IntPtr.Zero, "MeowChan Booru API key\0"u8.ToArray(), Utf8));
+                _account.Assign(CFStringCreateWithCString(IntPtr.Zero, Encoding.UTF8.GetBytes(target + "\0"), Utf8));
                 if (_dictionary.IsInvalid || _searchList.IsInvalid || _service.IsInvalid || _account.IsInvalid)
                 {
                     Status = SecretStoreStatus.Unavailable;
@@ -171,7 +172,7 @@ internal sealed class MacBooruSecretStore : NativeBooruSecretStore
     [DllImport(CoreFoundation)]
     private static extern IntPtr CFArrayCreate(IntPtr allocator, IntPtr[] values, nint count, IntPtr callbacks);
     [DllImport(CoreFoundation)]
-    private static extern IntPtr CFStringCreateWithCString(IntPtr allocator, [MarshalAs(UnmanagedType.LPUTF8Str)] string text, uint encoding);
+    private static extern IntPtr CFStringCreateWithCString(IntPtr allocator, byte[] text, uint encoding);
     [DllImport(CoreFoundation)]
     private static extern IntPtr CFDataCreate(IntPtr allocator, byte[] data, nint length);
     [DllImport(CoreFoundation)]
