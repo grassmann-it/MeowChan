@@ -90,6 +90,51 @@ public sealed class ApiReleaseReviewTests
         Assert.Equal(10, Enum.GetValues<BooruFieldPresence>().Count(v => v != BooruFieldPresence.All));
     }
 
+    [Theory]
+    [InlineData("1.0.0", true, false)]
+    [InlineData("1.1.0", true, true)]
+    [InlineData("1.2.0", false, false)]
+    [InlineData("1.1.0 ", false, false)]
+    [InlineData("1.1", false, false)]
+    public void DeclaredSdkVersionAndPostSearchCapabilityAreValidatedIndependently(
+        string sdk, bool supportsCatalog, bool supportsPostSearch)
+    {
+        PluginDescription catalog = TestContracts.Plugin() with { SdkVersion = sdk, PluginVersion = "9.0.0" };
+        SourceDescription source = new("booru", "Booru", new("https://booru.test/"), SourceCapabilities.PostSearch, [],
+            [new("booru.test", HttpHostPurpose.Metadata)], TestContracts.EmptySchema);
+        PluginDescription postSearch = catalog with { Sources = [source] };
+        Assert.Equal(supportsCatalog, SdkContract.IsSupported(sdk));
+        AssertSdkValidation(catalog, supportsCatalog, "supports SDK");
+        AssertSdkValidation(postSearch, supportsPostSearch, supportsCatalog ? "Post search requires" : "supports SDK");
+    }
+
+    [Theory]
+    [InlineData("1.0.0", "1.0.0", "incompatible_sdk")]
+    [InlineData("1.1.0", "1.0.0", null)]
+    [InlineData("1.1.0", "1.1.0", "incompatible_tagger_contract")]
+    public void TaggerContractAndSdkVersionHaveSeparateGates(string sdk, string taggerContract, string? error)
+    {
+        var tagger = TaggerContractTests.Tagger() with { ContractVersion = taggerContract };
+        PluginDescription description = TestContracts.Plugin() with { SdkVersion = sdk, Sources = [], Taggers = [tagger] };
+        Assert.Equal(taggerContract == "1.0.0", TaggerContract.IsSupported(taggerContract));
+        IReadOnlyList<ValidationIssue> issues = SdkValidation.ValidateDescription(description);
+        if (error is null) Assert.Empty(issues);
+        else Assert.Equal(error, Assert.Single(issues).Code);
+    }
+
+    private static void AssertSdkValidation(PluginDescription description, bool supported, string message)
+    {
+        IReadOnlyList<ValidationIssue> issues = SdkValidation.ValidateDescription(description);
+        if (supported)
+        {
+            Assert.Empty(issues);
+            return;
+        }
+        ValidationIssue issue = Assert.Single(issues);
+        Assert.Equal("incompatible_sdk", issue.Code);
+        Assert.Contains(message, issue.Message, StringComparison.Ordinal);
+    }
+
     private static void AssertCursorConstructor(Type type, Type[] signature, string cursorName)
     {
         ConstructorInfo constructor = Assert.Single(type.GetConstructors());
