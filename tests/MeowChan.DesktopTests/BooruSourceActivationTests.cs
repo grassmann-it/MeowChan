@@ -26,8 +26,11 @@ public sealed class BooruSourceActivationTests
         using CountingTransport network = new();
         string plugins = Path.Combine(profile.Path, "plugins");
         string media = Path.Combine(profile.Path, "media");
-        new Config { DownloadPath = media, FirstRunSetupVersion = 1, AutomaticUpdateChecks = false, RestoreBooruSearchTabs = true }
-            .SaveConfig(profile.Path);
+        new Config
+        {
+            DownloadPath = media, FirstRunSetupVersion = 1, AutomaticUpdateChecks = false,
+            RestoreBooruSearchTabs = true, WorkspaceMode = "Advanced"
+        }.SaveConfig(profile.Path);
         Directory.CreateDirectory(plugins);
         Directory.CreateDirectory(media);
         List<string> fixtureSources = new();
@@ -62,7 +65,10 @@ public sealed class BooruSourceActivationTests
 
             BooruWorkspaceContent content = Assert.IsType<BooruWorkspaceContent>(host.BooruContent);
             await host.SaveBooruContentAsync(new(BooruPostClaimRating.Sensitive, "", []), content.Snapshot.Revision);
-            Click(FindButton(window, "SourcesNavigationButton"));
+            Button navigation = FindButton(window, "SourcesNavigationButton");
+            await BooruTestSupport.WaitAsync(() => navigation.IsEffectivelyVisible && navigation.IsEffectivelyEnabled, "Plugins navigation");
+            Click(navigation);
+            window.UpdateLayout();
             SourcesPage sources = Assert.Single(window.GetVisualDescendants().OfType<SourcesPage>(), page => page.IsEffectivelyVisible);
             await sources.ActivateAsync();
             await ToggleAsync(sources, "e621", enable: true);
