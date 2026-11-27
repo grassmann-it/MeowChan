@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using MeowChan.Persistence;
 using MeowChan.PluginHost.Contracts;
+using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
 using MeowChan.Secrets;
@@ -357,7 +358,9 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
                 || !_scope.MatchesOrigin(canonical.Url)
                 || message.Method != HttpMethod.Get
                 || message.RequestUri is not { IsAbsoluteUri: true } uri || uri.AbsoluteUri != canonical.Url.AbsoluteUri
-                || message.Headers.Host is not null || message.Headers.Contains("Authorization")
+                || (message.Headers.Host is string host
+                    && !host.Equals(PluginRequestHeaders.CanonicalHost(canonical.Url), StringComparison.OrdinalIgnoreCase))
+                || message.Headers.Contains("Authorization")
                 || message.Headers.Contains("Proxy-Authorization") || message.Headers.Contains("Cookie")
                 || message.Content is not null)
                 throw new BooruAccountChangedException();
