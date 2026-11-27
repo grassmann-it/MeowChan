@@ -74,6 +74,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         temporaryProfile: ProfileStartup.FolderSession != null) { }
 
     internal string? PreUpgradeSnapshot { get; }
+    internal bool OfferProfileReturnAtStartup { get; }
     private readonly bool _admitProfileUpgrade;
 
     // Injectable providers and storage keep lifecycle and admission tests independent of the network.
@@ -92,8 +93,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _profileLease = admitProfileUpgrade
                 ? ProfileUpgrade.Open(profileDirectory, Path.Combine(Path.GetDirectoryName(global::MeowChan.Config.GetDefaultDownloadPath())!, "oChan"), temporaryProfile)
                 : ProfileLease.Acquire(profileDirectory);
-            if (admitProfileUpgrade && ProfileManifest.Read(ProfileDirectory)?.State == ProfileManifest.Preparing)
+            if (admitProfileUpgrade)
+            {
                 PreUpgradeSnapshot = ProfileUpgrade.SnapshotFor(ProfileDirectory);
+                OfferProfileReturnAtStartup = PreUpgradeSnapshot is not null
+                    && ProfileManifest.Read(ProfileDirectory)?.State == ProfileManifest.Preparing;
+            }
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "lease");
             _profileStartupAdmission = _profileLease.Admission.EnterStartupWriter();
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory, _profileLease);

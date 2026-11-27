@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -11,62 +10,109 @@ using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Persistence;
 
-/// <summary>Rebinds managed paths on the staged working copy. The snapshot keeps the historical paths.</summary>
-internal sealed class ProfileMediaRelocation(string source, string downloads, string target, string newDownloads)
+/// <summary>Inventories legacy write destinations and rebinds them when materializing a snapshot.</summary>
+internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private static readonly StringComparer PathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+    private static readonly string[] SettingsDocuments = ["settings.json", "settings.json.bak"];
+    private static readonly string[] SessionDocuments = ["saved_urls.json", "saved_urls.json.bak"];
+    private static readonly string[] BooruDocuments = ["booru-catalog.json", "booru-catalog.json.bak"];
+    private static readonly string[] WorkDatabases = ["work-state.sqlite", "work-state.before-prune.sqlite"];
     private static readonly string[] PathDocuments =
     [
-        "settings.json", "settings.json.bak", "saved_urls.json", "saved_urls.json.bak",
-        "booru-catalog.json", "booru-catalog.json.bak", "private-tags.json", "private-tags.json.bak",
+        .. SessionDocuments, .. BooruDocuments, "private-tags.json", "private-tags.json.bak",
         "local-imports.json", "local-imports.json.bak"
     ];
 
-    internal static (string[] Roots, ProfileExternalMedia? Media) Prepare(string source, string staged, string target, string legacyDownloads, CancellationToken token)
+    internal static string[] ManagedRoots(string source, string staged, string legacyDownloads, CancellationToken token)
     {
-        string downloads = ReadDownloads(staged, legacyDownloads);
-        string? local = RelativeTo(source, downloads);
-        if (local is null && RelativeTo(downloads, source) is not null)
-            throw new InvalidDataException("The download root contains the source profile. It cannot be copied safely.");
-        string managed = local is null ? Path.Combine(target, "upgrade-downloads") : Path.Combine(target, local);
-        var relocation = new ProfileMediaRelocation(source, downloads, target, managed);
+        HashSet<string> directories = new(PathComparer) { source };
+        HashSet<string> files = new(PathComparer);
+        foreach (string name in SettingsDocuments)
+            if (ReadDocument(Path.Combine(staged, name)) is JsonObject settings && SettingsDownloadRoot(settings, legacyDownloads) is { } root)
+                directories.Add(root);
+        foreach (string name in SessionDocuments)
+        {
+            if (ReadDocument(Path.Combine(staged, name)) is JsonObject session
+                && (session["DownloadDirectories"] ?? session["downloadDirectories"]) is JsonObject assignments)
+                foreach (var assignment in assignments) AddPath(directories, ReadString(assignment.Value));
+        }
+        foreach (string name in BooruDocuments)
+        {
+            if (ReadDocument(Path.Combine(staged, name)) is JsonObject catalog && catalog["posts"] is JsonArray posts)
+                foreach (JsonNode? item in posts)
+                    if (item is JsonObject post) AddPath(files, ReadString(post["localPath"]));
+        }
+        foreach (string name in WorkDatabases) ReadWorkPaths(Path.Combine(staged, name), directories, files, token);
+        ReadArchivePaths(Path.Combine(staged, "archive.db"), directories, files, token);
+        foreach (string file in files)
+        {
+            if (!directories.Contains(file) && !HasParentIn(directories, file) && Path.GetDirectoryName(file) is { } parent)
+                directories.Add(parent);
+        }
+        if (HasParentIn(directories, source) || directories.Any(root => Path.GetDirectoryName(root) is null))
+            throw new InvalidDataException("A managed media root contains the source profile or is a filesystem root.");
+        return directories.Where(root => !PathComparer.Equals(root, source) && !HasParentIn(directories, root))
+            .Order(StringComparer.Ordinal).ToArray();
+    }
 
-        // An external managed directory is copied to a private destination for the new generation.
-        // Read-only folder sources keep their locations in both generations.
-        ProfileExternalMedia? media = local is null
-            ? CopyExternal(downloads, Path.Combine(staged, "upgrade-downloads"), token)
-            : null;
+    internal static void Apply(ProfileSnapshot snapshot, string snapshotDirectory, string staged, string target, CancellationToken token)
+    {
+        Dictionary<string, string> paths = new(PathComparer) { [snapshot.SourceDirectory] = target };
+        string container = "upgrade-downloads";
+        string candidate = Path.Combine(staged, container);
+        if (Directory.Exists(candidate) || File.Exists(candidate))
+            container += "-" + snapshot.Profile.Generation.ToString("N");
+        ProfileExternalMedia[] media = snapshot.ManagedMedia!;
+        for (int index = 0; index < media.Length; index++)
+        {
+            string relative = Path.Combine(container, (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            paths.Add(media[index].Root, Path.Combine(target, relative));
+            snapshot.CopyMedia(snapshotDirectory, index, Path.Combine(staged, relative), token);
+        }
+        var relocation = new ProfileMediaRelocation(paths);
+        foreach (string name in SettingsDocuments)
+            relocation.RewriteDocument(Path.Combine(staged, name), snapshot.LegacyDownloads);
         foreach (string name in PathDocuments)
         {
             token.ThrowIfCancellationRequested();
-            relocation.RewriteDocument(Path.Combine(staged, name), name is "settings.json" or "settings.json.bak");
+            relocation.RewriteDocument(Path.Combine(staged, name));
         }
         relocation.RewriteArchive(Path.Combine(staged, "archive.db"));
-        relocation.RewriteWork(Path.Combine(staged, "work-state.sqlite"));
-        relocation.RewriteWork(Path.Combine(staged, "work-state.before-prune.sqlite"));
-        var roots = new HashSet<string>(StringComparer.Ordinal) { downloads };
-        roots.UnionWith(FolderRoots(staged));
-        return (roots.Where(root => RelativeTo(source, root) is null).Order(StringComparer.Ordinal).ToArray(), media);
+        foreach (string name in WorkDatabases) relocation.RewriteWork(Path.Combine(staged, name));
     }
 
-    internal static string[] CurrentRoots(string directory, string downloads, string[] previous)
+    internal static string[] CurrentRoots(string directory, string? downloads, string[] previous)
     {
-        var roots = new HashSet<string>(previous, StringComparer.Ordinal) { downloads };
+        var roots = new HashSet<string>(previous, PathComparer);
+        if (downloads is not null) roots.Add(downloads);
         roots.UnionWith(FolderRoots(directory));
         return roots.Where(root => RelativeTo(directory, root) is null).Order(StringComparer.Ordinal).ToArray();
     }
 
-    private static string ReadDownloads(string directory, string fallback)
+    private static bool HasParentIn(HashSet<string> roots, string path)
     {
-        foreach (string name in new[] { "settings.json", "settings.json.bak" })
-        {
-            if (ReadDocument(Path.Combine(directory, name)) is not JsonObject settings) continue;
-            if (settings["DownloadPath"] is JsonValue value && value.TryGetValue(out string? path)
-                && !string.IsNullOrWhiteSpace(path))
-                return ProfileLease.NormalizeDirectory(path);
-            return fallback;
-        }
-        return fallback;
+        for (string? parent = Path.GetDirectoryName(path); parent is not null; parent = Path.GetDirectoryName(parent))
+            if (roots.Contains(parent)) return true;
+        return false;
+    }
+
+    private static string? SettingsDownloadRoot(JsonObject settings, string fallback)
+    {
+        if (!settings.TryGetPropertyValue("DownloadPath", out JsonNode? value)) return fallback;
+        string? path = ReadString(value);
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        try { return ProfileLease.NormalizeDirectory(path); }
+        catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
+    }
+
+    private static string? ReadString(JsonNode? value) =>
+        value is JsonValue scalar && scalar.TryGetValue(out string? path) ? path : null;
+
+    private static void AddPath(HashSet<string> paths, string? value)
+    {
+        if (value is not null && Path.IsPathFullyQualified(value)) paths.Add(ProfileLease.NormalizeDirectory(value));
     }
 
     private static JsonNode? ReadDocument(string path)
@@ -80,43 +126,69 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
         catch (JsonException) { return null; }
     }
 
-    private static ProfileExternalMedia? CopyExternal(string from, string to, CancellationToken token)
+    private static void ReadWorkPaths(string path, HashSet<string> directories, HashSet<string> files, CancellationToken token)
     {
-        ArchiveExportMetadataFile.RejectLinks(from);
-        if (!Directory.Exists(from)) return null;
-        if (Directory.Exists(to) || File.Exists(to))
-            throw new InvalidDataException("The staged profile already contains the designated download directory.");
-        var (directories, files) = ProfileSnapshot.Inventory(from);
-        long total = files.Aggregate(0L, (bytes, file) => checked(bytes + file.Length));
-        if (ProfileSnapshot.FreeSpace(Path.GetDirectoryName(to)!) < total)
-            throw new IOException("There is insufficient space for a separate copy of the profile downloads.");
-        Directory.CreateDirectory(to);
-        foreach (string directory in directories) Directory.CreateDirectory(ProfileSnapshot.Child(to, directory));
-        var copied = new List<ProfileSnapshotFile>(files.Count);
-        foreach (var file in files)
-        {
-            token.ThrowIfCancellationRequested();
-            string original = ProfileSnapshot.Child(from, file.Name);
-            string hash = ProfileSnapshot.CopyFile(original, ProfileSnapshot.Child(to, file.Name), file.Length);
-            using FileStream input = RegularProfileFile.OpenRead(original);
-            if (!string.Equals(hash, Convert.ToHexString(SHA256.HashData(input)), StringComparison.Ordinal))
-                throw new InvalidDataException("A download changed while it was being copied.");
-            copied.Add(new(file.Name, file.Length, hash));
-        }
-        var closing = ProfileSnapshot.Inventory(from);
-        if (!directories.SequenceEqual(closing.Directories) || !files.SequenceEqual(closing.Files))
-            throw new InvalidDataException("The original download inventory changed during the profile upgrade.");
-        return new(from, copied.ToArray());
+        if (!File.Exists(path)) return;
+        using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadOnly);
+        ReadDatabasePaths(connection, directories, """
+            SELECT value FROM work_resources, json_each(CASE WHEN json_valid(payload) THEN payload ELSE '{}' END)
+                WHERE lower(key)='outputroot';
+            """, token);
+        ReadDatabasePaths(connection, files, """
+            SELECT target FROM work_media;
+            SELECT value FROM work_media, json_each(CASE WHEN json_valid(payload) THEN payload ELSE '{}' END)
+                WHERE lower(key) IN ('destinationpath','legacypath');
+            """, token);
     }
 
-    private void RewriteDocument(string path, bool settings)
+    private static void ReadArchivePaths(string path, HashSet<string> directories, HashSet<string> files, CancellationToken token)
+    {
+        if (!File.Exists(path)) return;
+        using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadOnly);
+        ArchiveSql.ValidateSchema(connection);
+        ReadDatabasePaths(connection, directories, """
+            SELECT media_directory FROM archive_threads;
+            SELECT directory FROM archive_media_directories;
+            """, token);
+        ReadDatabasePaths(connection, files, """
+            SELECT planned_path FROM archive_attachments;
+            SELECT destination_path,legacy_path FROM media_decisions;
+            """, token);
+        int version = ArchiveSql.GetPragma(connection, "user_version");
+        if (version >= 7)
+            ReadDatabasePaths(connection, directories, "SELECT operations_parent,candidate_directory FROM archive_media_import_operations", token);
+        if (version >= 8)
+            ReadDatabasePaths(connection, directories, "SELECT operations_parent,full_directory,safe_directory FROM archive_media_merge_operations", token);
+    }
+
+    private static void ReadDatabasePaths(SqliteConnection connection, HashSet<string> paths, string sql, CancellationToken token)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = sql;
+        using SqliteDataReader reader = command.ExecuteReader();
+        do
+        {
+            while (reader.Read())
+            {
+                token.ThrowIfCancellationRequested();
+                for (int column = 0; column < reader.FieldCount; column++)
+                    if (reader.GetValue(column) is string value) AddPath(paths, value);
+            }
+        } while (reader.NextResult());
+    }
+
+    private void RewriteDocument(string path, string? legacyDownloads = null)
     {
         if (ReadDocument(path) is not JsonObject document) return;
         bool changed = RewriteValues(document);
-        if (settings)
+        if (legacyDownloads is not null && SettingsDownloadRoot(document, legacyDownloads) is { } root)
         {
-            document["DownloadPath"] = newDownloads;
-            changed = true;
+            string mapped = Map(root);
+            if (mapped != ReadString(document["DownloadPath"]))
+            {
+                document["DownloadPath"] = mapped;
+                changed = true;
+            }
         }
         if (changed) ProfileSnapshot.PublishJson(path, document, Json);
     }
@@ -162,8 +234,11 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
     private string Map(string path)
     {
         if (!Path.IsPathFullyQualified(path)) return path;
-        if (RelativeTo(downloads, path) is { } download) return Path.Combine(newDownloads, download);
-        return RelativeTo(source, path) is { } profile ? Path.Combine(target, profile) : path;
+        string full = ProfileLease.NormalizeDirectory(path);
+        for (string? root = full; root is not null; root = Path.GetDirectoryName(root))
+            if (paths.TryGetValue(root, out string? mapped))
+                return PathComparer.Equals(root, full) ? mapped : Path.Combine(mapped, Path.GetRelativePath(root, full));
+        return path;
     }
 
     private static string? RelativeTo(string root, string path)
@@ -180,7 +255,9 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
         if (!File.Exists(path)) return;
         using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadWrite);
         ArchiveSql.ValidateSchema(connection);
+        int version = ArchiveSql.GetPragma(connection, "user_version");
         connection.CreateFunction("upgrade_path", (string? value) => value is null ? null : Map(value));
+        connection.CreateFunction<string, string>("upgrade_payload", RewritePayload);
         using SqliteTransaction transaction = connection.BeginTransaction();
         using SqliteCommand command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -195,6 +272,26 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
                 WHERE destination_path IS NOT upgrade_path(destination_path) OR legacy_path IS NOT upgrade_path(legacy_path);
             """;
         command.ExecuteNonQuery();
+        if (version >= 7)
+        {
+            command.CommandText = """
+                UPDATE archive_media_import_operations SET operations_parent=upgrade_path(operations_parent),
+                    candidate_directory=upgrade_path(candidate_directory)
+                    WHERE operations_parent IS NOT upgrade_path(operations_parent)
+                    OR candidate_directory IS NOT upgrade_path(candidate_directory);
+                """;
+            command.ExecuteNonQuery();
+        }
+        if (version >= 8)
+        {
+            command.CommandText = """
+                UPDATE archive_media_merge_operations SET operations_parent=upgrade_path(operations_parent),
+                    full_directory=upgrade_path(full_directory),safe_directory=upgrade_path(safe_directory),roots_json=upgrade_payload(roots_json)
+                    WHERE operations_parent IS NOT upgrade_path(operations_parent) OR full_directory IS NOT upgrade_path(full_directory)
+                    OR safe_directory IS NOT upgrade_path(safe_directory) OR roots_json IS NOT upgrade_payload(roots_json);
+                """;
+            command.ExecuteNonQuery();
+        }
         transaction.Commit();
     }
 
@@ -203,8 +300,7 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
         if (!File.Exists(path)) return;
         using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadWrite);
         connection.CreateFunction("upgrade_path", (string value) => Map(value));
-        connection.CreateFunction("upgrade_payload", (string value) =>
-            JsonNode.Parse(value) is { } document && RewriteValues(document) ? document.ToJsonString() : value);
+        connection.CreateFunction<string, string>("upgrade_payload", RewritePayload);
         using SqliteTransaction transaction = connection.BeginTransaction();
         using SqliteCommand command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -215,6 +311,14 @@ internal sealed class ProfileMediaRelocation(string source, string downloads, st
             """;
         command.ExecuteNonQuery();
         transaction.Commit();
+    }
+
+    private string RewritePayload(string value)
+    {
+        JsonNode? document;
+        try { document = JsonNode.Parse(value); }
+        catch (JsonException) { return value; } // The owners retain unreadable entries for recovery.
+        return document is not null && RewriteValues(document) ? document.ToJsonString() : value;
     }
 
     private static string[] FolderRoots(string directory)

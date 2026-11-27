@@ -21,6 +21,32 @@ public sealed class BooruSearchTabPersistenceTests
 {
     private static SourceDescription Source => DanbooruTestPlugin.Plugin.Describe().Sources.Single();
 
+    [Fact]
+    public async Task OfflineRestartsKeepThreeTagForeignQueryAndDanbooruTab()
+    {
+        using TempDirectory profile = new();
+        BooruSearchTabTarget foreign = new("fixture-source", BooruPostKey.DefaultInstance, null, "cat dog bird");
+        BooruSearchTabTarget danbooru = new("danbooru", BooruPostKey.DefaultInstance, null, "cat dog");
+        using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+        {
+            lease.Admission.CompleteStartup();
+            Assert.True(await new BooruSearchTabStore(lease).Save(new(0, [foreign, danbooru])));
+        }
+
+        for (int restart = 0; restart < 2; restart++)
+        {
+            using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+            lease.Admission.CompleteStartup();
+            BooruSearchTabStore store = new(lease);
+            BooruSearchTabState saved = Assert.IsType<BooruSearchTabState>(store.Read());
+            Assert.Equal(new[] { foreign, danbooru }, saved.Tabs);
+            Assert.Equal(restart, saved.ActiveIndex);
+            Assert.True(await store.Save(saved with { ActiveIndex = 1 - restart }));
+        }
+        Assert.Equal(Path.Combine(profile.Path, BooruSearchTabStore.FileName), Assert.Single(
+            Directory.EnumerateFiles(profile.Path, "booru-search-tabs*")));
+    }
+
     [Theory]
     [InlineData(false, false, "42")]
     [InlineData(false, true, "42")]

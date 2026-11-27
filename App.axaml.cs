@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -169,7 +170,36 @@ public partial class App : Application
         UnhandledErrors.Presenter = main.ShowUnexpectedError;
         main.Closed += (_, _) => UnhandledErrors.Presenter = null;
         if (main.SessionHost.PreUpgradeSnapshot is { } snapshot)
-            main.Opened += async (_, _) => await OfferProfileReturnAsync(main, snapshot);
+            InstallProfileReturn(main, snapshot);
+    }
+
+    private static void InstallProfileReturn(MainWindow main, string snapshot)
+    {
+        MenuItem action = new();
+        AutomationProperties.SetAutomationId(action, "ProfileUpgradeReturnAction");
+        void Localize() => action.Header = ProfileUpgradeCatalog.Title + "…";
+        Localize();
+        EventHandler languageChanged = (_, _) => Dispatcher.UIThread.Post(Localize);
+        Texts.Changed += languageChanged;
+        main.Closed += (_, _) => Texts.Changed -= languageChanged;
+
+        async Task ShowReturnAsync()
+        {
+            if (!action.IsEnabled) return;
+            action.IsEnabled = false;
+            try { await OfferProfileReturnAsync(main, snapshot); }
+            finally { action.IsEnabled = true; }
+        }
+
+        if (main.FindControl<MenuItem>("WorkspaceMenuItem") is { } workspaceMenu)
+        {
+            MenuItem menu = workspaceMenu.Items.OfType<MenuItem>().FirstOrDefault(item => item.Name == "ProfileMenuItem")
+                ?? workspaceMenu;
+            menu.Items.Add(action);
+        }
+        action.Click += async (_, _) => await ShowReturnAsync();
+        if (main.SessionHost.OfferProfileReturnAtStartup)
+            main.Opened += async (_, _) => await ShowReturnAsync();
     }
 
     private static async Task OfferProfileReturnAsync(MainWindow main, string directory)
@@ -177,39 +207,28 @@ public partial class App : Application
         try
         {
             ProfileSnapshot snapshot = await Task.Run(() => ProfileSnapshot.Read(directory));
-            string savedAt = snapshot.CreatedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
-            string title = UpgradeText("profile.upgrade.title", "Profile upgrade", "Profil-Upgrade");
-            string message = UpgradeText("profile.upgrade.return",
-                "MeowChan 1.2.0 uses a separate profile copy. To return to 1.1.3, restore the snapshot from {0} and open that folder with 1.1.3. Changes made in 1.2.0 stay in its profile.\n\nSnapshot: {1}",
-                "MeowChan 1.2.0 verwendet eine getrennte Profilkopie. Für die Rückkehr zu 1.1.3 stelle die Sicherung vom {0} wieder her und öffne diesen Ordner mit 1.1.3. Änderungen aus 1.2.0 bleiben in seinem Profil.\n\nSicherung: {1}");
+            string savedAt = snapshot.CreatedUtc.ToLocalTime().ToString("g", Texts.Culture);
+            string title = ProfileUpgradeCatalog.Title;
+            string close = Texts.T("profile.switch.close");
             if (!await DialogPrompt.ConfirmAsync(main, title,
-                string.Format(CultureInfo.CurrentCulture, message, savedAt, directory),
-                UpgradeText("profile.upgrade.restore", "Restore a copy…", "Kopie wiederherstellen…"),
-                UpgradeText("profile.upgrade.continue", "Continue in 1.2.0", "In 1.2.0 fortfahren"),
+                string.Format(Texts.Culture, ProfileUpgradeCatalog.Return, savedAt, directory), ProfileUpgradeCatalog.Restore, close,
                 danger: false, automationId: "ProfileUpgradeReturn")) return;
 
             var selected = await LocalFolderPicker.PickAsync(main.StorageProvider, Texts.T("profile.new.chooseFolder"));
             if (selected.Path is not { } parent) return;
             string destination = ProfileOpenPolicy.FreeFolder(parent, "MeowChan-1.1.3");
             await Task.Run(() => snapshot.Restore(directory, destination));
-            await DialogPrompt.ConfirmAsync(main, title, destination, Texts.T("profile.new.cancel"),
-                Texts.T("profile.new.cancel"), danger: false, automationId: "ProfileUpgradeRestored");
+            await DialogPrompt.ConfirmAsync(main, title, destination, close, close,
+                danger: false, automationId: "ProfileUpgradeRestored");
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException
+            or Microsoft.Data.Sqlite.SqliteException)
         {
             Log.Warning(error, "The profile snapshot was not restored.");
-            await DialogPrompt.ConfirmAsync(main,
-                UpgradeText("profile.upgrade.restoreFailed", "Profile restore failed", "Profil konnte nicht wiederhergestellt werden"),
-                error.Message, Texts.T("profile.new.cancel"), Texts.T("profile.new.cancel"),
+            string close = Texts.T("profile.switch.close");
+            await DialogPrompt.ConfirmAsync(main, ProfileUpgradeCatalog.Failed, error.Message, close, close,
                 danger: false, automationId: "ProfileUpgradeRestoreFailed");
         }
-    }
-
-    private static string UpgradeText(string key, string english, string german)
-    {
-        string localized = Texts.T(key);
-        if (localized != key) return localized;
-        return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? german : english;
     }
 
     internal static StartupErrorWindow CreateVideoStartupError(LinuxVideoPreflightResult video)
