@@ -17,6 +17,7 @@
 // provider's own tag); the category is a display hint, never a filter.
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -402,7 +403,7 @@ internal static class E621Parser
             createdAt, rating, rawRating, score, favorites, tags, media, sourceClaim, isDeleted, false);
     }
 
-    private static IReadOnlyList<BooruTag>? ParseTags(JsonElement element, ref BooruFieldPresence fields)
+    private static ReadOnlyCollection<BooruTag>? ParseTags(JsonElement element, ref BooruFieldPresence fields)
     {
         if (!element.TryGetProperty("tags", out JsonElement tagObject)) return null;
         if (tagObject.ValueKind == JsonValueKind.Null) return null;
@@ -425,10 +426,10 @@ internal static class E621Parser
                 tags.Add(new BooruTag(name, category));
             }
         }
-        return tags;
+        return tags.AsReadOnly();
     }
 
-    private static IReadOnlyList<BooruMediaVariant>? ParseMedia(JsonElement element, bool isDeleted, ref BooruFieldPresence fields)
+    private static ReadOnlyCollection<BooruMediaVariant>? ParseMedia(JsonElement element, bool isDeleted, ref BooruFieldPresence fields)
     {
         JsonElement file = default, sample = default, preview = default;
         bool hasFile = Section(element, "file", ref file), hasSample = Section(element, "sample", ref sample), hasPreview = Section(element, "preview", ref preview);
@@ -453,7 +454,7 @@ internal static class E621Parser
             if (!string.IsNullOrEmpty(fileUrl) || dotted is not null || size is not null || width is not null || height is not null || base64Md5 is not null)
                 variants.Add(new BooruMediaVariant(BooruMediaRole.Original, original, dotted, size, width, height, base64Md5));
         }
-        if (isDeleted) return variants;
+        if (isDeleted) return variants.AsReadOnly();
 
         // A post without a sample answers "has": false and a null url; the original address is not a sample.
         if (hasSample && !(sample.TryGetProperty("has", out JsonElement has) && BoolOrNull(has) == false))
@@ -471,7 +472,7 @@ internal static class E621Parser
             if (!string.IsNullOrEmpty(previewUrl) && (previewUri is null || previewUri != original))
                 variants.Add(new BooruMediaVariant(BooruMediaRole.Preview, previewUri));
         }
-        return variants;
+        return variants.AsReadOnly();
     }
 
     // A media section is an object; null counts as absent, anything else is malformed.
