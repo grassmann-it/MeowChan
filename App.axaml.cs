@@ -7,10 +7,13 @@ using Semi.Avalonia;
 using Ursa.Themes.Semi;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Controls;
+using MeowChan.Persistence;
 using Serilog;
 using System;
 using System.Globalization;
 using System.Linq;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace MeowChan;
@@ -143,7 +146,7 @@ public partial class App : Application
             try
             {
                 if (!temporary)
-                    adopted = await Task.Run(() => new DesktopSessionHost(profile, readOnlyStartupSource: folderSession.Source));
+                    adopted = await Task.Run(() => new DesktopSessionHost(profile, readOnlyStartupSource: folderSession.Source, admitProfileUpgrade: true));
                 MainWindow main = adopted == null ? CreateMainWindow() : new MainWindow(adopted);
                 main.TemporaryFolderSession = temporary;
                 SetMainWindow(desktop, main);
@@ -165,6 +168,48 @@ public partial class App : Application
         desktop.MainWindow = main;
         UnhandledErrors.Presenter = main.ShowUnexpectedError;
         main.Closed += (_, _) => UnhandledErrors.Presenter = null;
+        if (main.SessionHost.PreUpgradeSnapshot is { } snapshot)
+            main.Opened += async (_, _) => await OfferProfileReturnAsync(main, snapshot);
+    }
+
+    private static async Task OfferProfileReturnAsync(MainWindow main, string directory)
+    {
+        try
+        {
+            ProfileSnapshot snapshot = await Task.Run(() => ProfileSnapshot.Read(directory));
+            string savedAt = snapshot.CreatedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+            string title = UpgradeText("profile.upgrade.title", "Profile upgrade", "Profil-Upgrade");
+            string message = UpgradeText("profile.upgrade.return",
+                "MeowChan 1.2.0 uses a separate profile copy. To return to 1.1.3, restore the snapshot from {0} and open that folder with 1.1.3. Changes made in 1.2.0 stay in its profile.\n\nSnapshot: {1}",
+                "MeowChan 1.2.0 verwendet eine getrennte Profilkopie. Für die Rückkehr zu 1.1.3 stelle die Sicherung vom {0} wieder her und öffne diesen Ordner mit 1.1.3. Änderungen aus 1.2.0 bleiben in seinem Profil.\n\nSicherung: {1}");
+            if (!await DialogPrompt.ConfirmAsync(main, title,
+                string.Format(CultureInfo.CurrentCulture, message, savedAt, directory),
+                UpgradeText("profile.upgrade.restore", "Restore a copy…", "Kopie wiederherstellen…"),
+                UpgradeText("profile.upgrade.continue", "Continue in 1.2.0", "In 1.2.0 fortfahren"),
+                danger: false, automationId: "ProfileUpgradeReturn")) return;
+
+            var selected = await LocalFolderPicker.PickAsync(main.StorageProvider, Texts.T("profile.new.chooseFolder"));
+            if (selected.Path is not { } parent) return;
+            string destination = ProfileOpenPolicy.FreeFolder(parent, "MeowChan-1.1.3");
+            await Task.Run(() => snapshot.Restore(directory, destination));
+            await DialogPrompt.ConfirmAsync(main, title, destination, Texts.T("profile.new.cancel"),
+                Texts.T("profile.new.cancel"), danger: false, automationId: "ProfileUpgradeRestored");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            Log.Warning(error, "The profile snapshot was not restored.");
+            await DialogPrompt.ConfirmAsync(main,
+                UpgradeText("profile.upgrade.restoreFailed", "Profile restore failed", "Profil konnte nicht wiederhergestellt werden"),
+                error.Message, Texts.T("profile.new.cancel"), Texts.T("profile.new.cancel"),
+                danger: false, automationId: "ProfileUpgradeRestoreFailed");
+        }
+    }
+
+    private static string UpgradeText(string key, string english, string german)
+    {
+        string localized = Texts.T(key);
+        if (localized != key) return localized;
+        return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? german : english;
     }
 
     internal static StartupErrorWindow CreateVideoStartupError(LinuxVideoPreflightResult video)

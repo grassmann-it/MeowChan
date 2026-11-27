@@ -44,11 +44,11 @@ internal sealed record ProfileInstanceIdentity(Guid Id, DateTimeOffset CreatedUt
     /// Reads the identity of the leased profile, creating it once when the profile has none. Creation publishes a
     /// complete file atomically and never replaces an existing one, also not a damaged one (that throws).
     /// </summary>
-    internal static ProfileInstanceIdentity ReadOrCreate(ProfileLease lease)
+    internal static ProfileInstanceIdentity ReadOrCreate(ProfileLease lease, Guid? initialId = null)
     {
         ArgumentNullException.ThrowIfNull(lease);
         using ProfileAdmissionToken admission = lease.Admission.EnterStoreWriter();
-        return lease.RunStoreWrite(admission, () => TryRead(lease.ProfileDirectory) ?? Create(lease.ProfileDirectory));
+        return lease.RunStoreWrite(admission, () => TryRead(lease.ProfileDirectory) ?? Create(lease.ProfileDirectory, initialId));
     }
 
     /// <summary>Fixed-length fingerprint of the normalized folder path (SHA-256, hex). Compares folders without
@@ -98,9 +98,9 @@ internal sealed record ProfileInstanceIdentity(Guid Id, DateTimeOffset CreatedUt
         return buffer.ToArray();
     }
 
-    private static ProfileInstanceIdentity Create(string directory)
+    private static ProfileInstanceIdentity Create(string directory, Guid? initialId)
     {
-        ProfileInstanceIdentity identity = new(Guid.NewGuid(), DateTimeOffset.UtcNow);
+        ProfileInstanceIdentity identity = new(initialId ?? Guid.NewGuid(), DateTimeOffset.UtcNow);
         string destination = Path.Combine(directory, FileName);
         string pending = destination + ".pending-" + Guid.NewGuid().ToString("N");
         try
