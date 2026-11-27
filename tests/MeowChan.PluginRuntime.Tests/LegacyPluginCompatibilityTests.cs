@@ -140,6 +140,7 @@ public sealed class LegacyPluginCompatibilityTests(ITestOutputHelper output)
     [Theory]
     [InlineData("1.0.0", FourChan)]
     [InlineData("1.1.0", Danbooru)]
+    [InlineData("1.1.0", FourChan)]
     public async Task CurrentHostImportsTheUnchangedPublishedBundle(string sdk, string plugin)
     {
         await using PluginProbeEvidenceRoot workspace = PluginProbeEvidenceRoot.Create(null, Path.GetTempPath());
@@ -153,6 +154,27 @@ public sealed class LegacyPluginCompatibilityTests(ITestOutputHelper output)
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
         Assert.Equal(historical.AssemblySha256, result.Artifact!.AssemblySha256);
         Assert.Equal(historical.SdkFingerprint, result.Artifact.SdkFingerprint);
+        Assert.Equal(historical.ExecutionRevision, result.Artifact.ExecutionRevision);
+    }
+
+    [Fact]
+    public async Task AReleasedSdkFingerprintDoesNotAuthorizeADifferentBinary()
+    {
+        await using PluginProbeEvidenceRoot workspace = PluginProbeEvidenceRoot.Create(null, Path.GetTempPath());
+        string slot = Path.Combine(workspace.RootPath, "plugins");
+        PluginArtifact fourChan = Stage("1.0.0", FourChan, slot, workspace.RootPath);
+        PluginArtifact danbooru = Stage("1.1.0", Danbooru, slot, workspace.RootPath);
+        string manifestPath = Path.Combine(slot, FourChan + ".plugin.json");
+        var mixed = new PluginBundleManifest(1, "assemblies/" + Danbooru + ".dll", danbooru.AssemblySha256,
+            fourChan.SdkFingerprint, fourChan.CompilerFingerprint, []);
+        await File.WriteAllBytesAsync(manifestPath, JsonSerializer.SerializeToUtf8Bytes(mixed));
+        string currentSdk = Path.Combine(Path.GetDirectoryName(BuiltTestBinaries.WorkerAssembly())!, "MeowChan.PluginSdk.dll");
+        await using PluginCompilationService installer = Installer(workspace.RootPath, currentSdk, out _);
+
+        PluginBuildResult result = await installer.ImportBundleAsync(manifestPath);
+        Assert.Equal(PluginBuildStatus.IntegrityError, result.Status);
+        Assert.Null(result.Artifact);
+        Assert.Equal("MCBUNDLE", Assert.Single(result.Diagnostics).Code);
     }
 
     [Fact]

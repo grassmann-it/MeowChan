@@ -7,15 +7,11 @@ namespace MeowChan.PluginHost.Compilation;
 
 public sealed partial class PluginCompilationService : IPluginBundleInstaller
 {
-    public Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default)
+    public async Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default)
     {
         // A single import is a pass of its own: it always verifies the toolchain, and ending it ends that verification.
-        ImportBatch single = new(this, eager: false);
-        return ScheduleOperation(async token =>
-        {
-            try { return await ImportBundleCoreAsync(manifestPath, single, token).ConfigureAwait(false); }
-            finally { single.Dispose(); }
-        }, manifestPath, cancellationToken);
+        using ImportBatch single = new(this, eager: false);
+        return await single.ImportBundleAsync(manifestPath, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Starts verifying the delivered toolchain at once, off the build gate, while the caller still prepares the pass.</summary>
@@ -39,7 +35,7 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
             if (eager) _verification = owner.StartToolchainVerification(_cancel.Token);
         }
 
-        internal bool Cancelled => _cancel.IsCancellationRequested;
+        internal bool Cancelled => Volatile.Read(ref _disposed);
 
         public Task<PluginBuildResult> ImportBundleAsync(string manifestPath, CancellationToken cancellationToken = default)
         {
@@ -51,7 +47,11 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
         internal async Task<(Task<ToolchainVerification> Source, ToolchainVerification Result)> AcquireAsync(CancellationToken cancellationToken)
         {
             Task<ToolchainVerification> source;
-            lock (_sync) source = _verification ??= _owner.StartToolchainVerification(_cancel.Token);
+            lock (_sync)
+            {
+                if (_disposed) throw new OperationCanceledException();
+                source = _verification ??= _owner.StartToolchainVerification(_cancel.Token);
+            }
             try { return (source, await source.WaitAsync(cancellationToken).ConfigureAwait(false)); }
             catch when (source.IsCompleted && !source.IsCompletedSuccessfully) { Forget(source); throw; }
         }
@@ -71,10 +71,12 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
         {
             lock (_sync)
             {
+                if (_disposed) return;
                 Volatile.Write(ref _disposed, true);
                 _verification = null;
             }
-            _cancel.Cancel();
+            try { _cancel.Cancel(); }
+            finally { _cancel.Dispose(); }
         }
     }
 
@@ -84,10 +86,9 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
         lock (_operationsGate)
         {
             if (_disposeTask is not null) return Task.FromCanceled<ToolchainVerification>(new CancellationToken(true));
-            CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(pass, _lifetime.Token);
             Task<ToolchainVerification> task = RunAsync();
             // The tracked continuation never faults (DisposeAsync awaits it) and observes the verification's failure.
-            Task tracked = task.ContinueWith(completed => { _ = completed.Exception; linked.Dispose(); }, CancellationToken.None,
+            Task tracked = task.ContinueWith(completed => { _ = completed.Exception; }, CancellationToken.None,
                 TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             _operations.Add(tracked);
             _ = tracked.ContinueWith(completed => { lock (_operationsGate) _operations.Remove(completed); },
@@ -96,6 +97,7 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
 
             async Task<ToolchainVerification> RunAsync()
             {
+                using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(pass, _lifetime.Token);
                 using (PerformanceDiagnostics.Measure("plugin.import.toolchain"))
                     return await ToolchainVerification.VerifyAsync(_options.ToolchainDirectory, linked.Token).ConfigureAwait(false);
             }
@@ -138,7 +140,8 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
                     toolchain = await ToolchainVerification.VerifyAsync(_options.ToolchainDirectory, cancellationToken).ConfigureAwait(false);
                     batch.Offer(toolchain);
                 }
-            if (bundle.SdkFingerprint != toolchain.Manifest.SdkFingerprint) throw new InvalidDataException("The prebuilt bundle does not match the delivered SDK fingerprint.");
+            if (bundle.SdkFingerprint != toolchain.Manifest.SdkFingerprint && !IsPublishedLegacyBundle(bundle))
+                throw new InvalidDataException("The prebuilt bundle does not match the delivered SDK fingerprint or a supported published bundle.");
             span = PerformanceDiagnostics.Measure("plugin.import.delivered", asset: trace);
             byte[] assembly = await CompilerWire.ReadBoundedAsync(CompilerWire.ResolvePath(root, bundle.AssemblyRelativePath), 32 * 1024 * 1024, cancellationToken).ConfigureAwait(false);
             if (CompilerWire.Hash(assembly) != bundle.AssemblySha256) throw new InvalidDataException("The prebuilt assembly hash does not match its manifest.");
@@ -205,4 +208,19 @@ public sealed partial class PluginCompilationService : IPluginBundleInstaller
             if (acquired) BuildGate.Release();
         }
     }
+
+    // Exact SDK/compiler and binary SHA-256 values from the published Linux x64 bundles, also pinned by the
+    // LegacyCompatibility fixtures. The worker still checks SDK binding and the normal approval rules apply.
+    private static bool IsPublishedLegacyBundle(PluginBundleManifest bundle) => bundle.Resources.Count == 0 &&
+        (bundle.SdkFingerprint, bundle.CompilerFingerprint, bundle.AssemblySha256) is
+            // 1.0.0 FourChan
+            ("a9c0c53d53230927cb11402aa8f2d2920ee0af241b6ae3c9e80425ca4c1744da",
+             "9a9a57eb6a314c8a1cb56d471aff0872110ff5dbc172026fc75aab74072105ce",
+             "0d82eed20f4e8df26c6e448f7bdf0f00ddf58036679829888b10ee4d82ce7d74")
+            or
+            // 1.1.0 Danbooru and FourChan
+            ("8544a4b0925623ef49ecf1cb3421763f4e28c53921548641124ee7f975427f40",
+             "f55c7eedc48801b74cd3e9c91e77a44ea77fb8afdb99ddd8243dc8d98fece2c4",
+             "10eaae9cb54a21eee157887e09bce0fdd791a5ba739c980a8b301ee6e3420f27"
+                 or "9ccef2ecb13390bba25ed9fb060475a45331bbf0dc63c62cd206f72de00f3890");
 }
