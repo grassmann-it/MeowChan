@@ -135,7 +135,9 @@ public sealed class ArchiveThreadStampTests
             ContextMenu mediaMenu = Assert.IsType<ContextMenu>(toolbar.ContextMenu);
             Assert.True(MenuItem(mediaMenu, "thread.tag-media").IsEnabled);
             ExecuteAndClose(mediaMenu, "thread.stamp-media");
-            await BooruTestSupport.WaitAsync(() => undo.IsEnabled && undo.IsEffectivelyVisible, "Undo after the whole-thread stamp");
+            TextBlock status = ById<TextBlock>(window, "ArchiveMediaStampStatus");
+            await BooruTestSupport.WaitAsync(() => undo.IsEnabled && undo.IsEffectivelyVisible
+                && status.Text?.Contains("40 of 42", StringComparison.Ordinal) == true, "Undo after the whole-thread stamp");
             PrivateTagStoreSnapshot stamped = store.ReadSnapshot();
             Assert.All(subjects, subject => Assert.True(stamped.Carries(tag, subject)));
             Click(undo);
@@ -202,7 +204,7 @@ public sealed class ArchiveThreadStampTests
                 TagPopoverOptions = context => QuickTagPopoverOptions.Defaults(context) with { Stamp = stamp },
                 IsAvailable = true
             };
-            Window window = new() { Content = page, Width = 1440, Height = 900 };
+            Window window = new() { Content = page, Width = 1720, Height = 900 };
             string language = Texts.Language;
             try
             {
