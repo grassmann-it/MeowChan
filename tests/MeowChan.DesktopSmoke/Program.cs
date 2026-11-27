@@ -239,6 +239,11 @@ internal static class Program
             if (_visualMode) ShowcaseData.SeedAsync(profile).GetAwaiter().GetResult();
             if (_videoContrastMode) VideoContrastChecks.SeedAsync(profile).GetAwaiter().GetResult();
             if (_archiveCleanupMode) ArchiveCleanupChecks.SeedAsync(profile).GetAwaiter().GetResult();
+            if (_aboutLinksMode)
+            {
+                using ProfileLease lease = ProfileLease.Acquire(profile);
+                ProfileUpgrade.Complete(lease, []);
+            }
             if (_selectionMode) ReaderUxChecks.SeedAsync(profile, deletionFixture: true).GetAwaiter().GetResult();
             if (_readerUxMode)
             {
