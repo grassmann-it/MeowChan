@@ -46,6 +46,7 @@ public sealed class BooruHostHttp : IDisposable
     private readonly Dictionary<string, BooruSourceProfile> _profiles;
     private readonly Func<TimeSpan>? _maximumCooldownProvider;
     private readonly Func<long?>? _sourceRevision;
+    private readonly Func<string, bool>? _sourceEnabled;
     private readonly Func<SourceDescription, Uri, object, BooruMetadataAccountLease?>? _metadataAccount;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceState> _states = new(StringComparer.Ordinal);
 
@@ -60,7 +61,8 @@ public sealed class BooruHostHttp : IDisposable
     internal BooruHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
         Func<TimeSpan>? maximumCooldownProvider, string? danbooruUserId = null,
         string? productVersion = null, bool disposeTransport = false, Func<long?>? sourceRevision = null,
-        Func<SourceDescription, Uri, object, BooruMetadataAccountLease?>? metadataAccount = null)
+        Func<SourceDescription, Uri, object, BooruMetadataAccountLease?>? metadataAccount = null,
+        Func<string, bool>? sourceEnabled = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         ArgumentNullException.ThrowIfNull(policy);
@@ -69,6 +71,7 @@ public sealed class BooruHostHttp : IDisposable
         _disposeTransport = disposeTransport;
         _maximumCooldownProvider = maximumCooldownProvider;
         _sourceRevision = sourceRevision;
+        _sourceEnabled = sourceEnabled;
         _metadataAccount = metadataAccount;
         _sources = (sources ?? throw new ArgumentNullException(nameof(sources)))
             .Where(source => source is not null)
@@ -122,12 +125,13 @@ public sealed class BooruHostHttp : IDisposable
         if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
 
         long? revision = _sourceRevision?.Invoke();
-        if (_sourceRevision is not null && revision is null) return StaleSource();
+        if (_sourceRevision is not null && revision is null || _sourceEnabled?.Invoke(source.SourceId) == false) return StaleSource();
         BooruMetadataAccountLease? account = operation is null ? null : _metadataAccount?.Invoke(source, request.Url, operation);
         if (account is not null && !BooruEndpointPolicy.IsExactOrigin(account.Origin, request.Url))
             return BooruEndpointPolicy.OperationDenied();
         CancellationToken accountLifetime = account?.Lifetime ?? default;
-        bool IsCurrent() => !accountLifetime.IsCancellationRequested && (_sourceRevision is null || _sourceRevision() == revision);
+        bool IsCurrent() => !accountLifetime.IsCancellationRequested && (_sourceRevision is null || _sourceRevision() == revision)
+            && _sourceEnabled?.Invoke(source.SourceId) != false;
 
         SourceState state = StateFor(source);
         TimeSpan spacing = BooruEndpointPolicy.Spacing(ProfileOf(source.SourceId), MinimumStartSpacing);
