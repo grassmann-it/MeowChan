@@ -30,10 +30,13 @@ binary application, together with this source-availability record.
   inventory intentionally includes a superset of optional components and does
   not claim that every inventoried component is linked into MeowChan.
 
-## Source access at the prerelease
+## Source access
 
-Distribute `MeowChan-0.9.0-video-sources.tar.gz` **alongside the Windows ZIP on
-that same GitHub prerelease**. It contains:
+From MeowChan 1.2.0, the release's
+[`MeowChan-<version>-current-video-sources.7z`](native-video-archive.md)
+contains the Windows corresponding sources under `base/MeowChan-video-sources/`.
+Earlier releases offered these files in `MeowChan-0.9.0-video-sources.tar.gz`.
+The Windows source set contains:
 
 - The unchanged official VLC 3.0.24 source archive, including the build scripts,
   `contrib/src` component versions/checksums and downstream patches.
@@ -93,8 +96,9 @@ MeowChan's project and lockfiles supply the application build inputs. The
 application license permits reverse engineering needed to debug modifications
 to these LGPL components, as stated in `THIRD-PARTY-NOTICES.md`.
 
-This record addresses the selected Windows package. The separate
+The [Windows file inventory](native-video-windows-inventory.json) records the
+reviewed VLC tree, including the import libraries. The release assembler compares
+each final Windows ZIP against these hashes. The
 [macOS source and component notices](native-video-macos-sources.md) describe the
-unchanged source base plus a release-specific Mac overlay, retained GPL modules,
-and replacement/build instructions. [macOS signing](macos-signing.md) records
+shared sources, retained GPL modules and replacement instructions. [macOS signing](macos-signing.md) records
 the distinct native-signing/startup checkpoint and its runtime limitations.

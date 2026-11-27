@@ -31,10 +31,18 @@ Third-party components retain their individual copyright/license terms; the
 The conservative source inventory includes optional components beyond those
 linked into the selected Mac package.
 
-## Two source assets for each binary release
+## Corresponding source archive
 
-Offer both assets alongside the matching binary DMGs and include all hashes in
-the same release checksums. Upstream URLs alone are not the source mechanism.
+From MeowChan 1.2.0,
+[`MeowChan-<version>-current-video-sources.7z`](native-video-archive.md)
+contains the shared VLC sources, editable application source, packaging and
+signing recipes, notices and the inventory of each final DMG. Extract the
+archive and consult `manifest.json` for `osx-arm64` or `osx-x64`.
+
+### Assembly inputs and archives from earlier releases
+
+The release assembler uses the following inputs. Releases through 1.1.3
+published these inputs as two downloads alongside the DMGs.
 
 1. The unchanged **`MeowChan-0.9.0-video-sources.tar.gz`**, 725131331 bytes,
    SHA-256 `bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa`.
@@ -56,8 +64,8 @@ DMGs it covers. Native validation reports can be retained alongside their hashes
 the generator does not infer Apple signature validity, playback or Gatekeeper
 acceptance from file hashes.
 
-Example, run after the final source changes are committed and the matching DMGs
-have passed native validation (substitute an exact 40-character commit):
+To prepare the macOS input, use the final committed source and native DMG
+evidence. The release workflow passes `--assembly-input`.
 
 ```sh
 python3 scripts/package-macos-sources.py \
