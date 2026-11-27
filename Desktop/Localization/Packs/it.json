@@ -5651,6 +5651,8 @@
     "settings.booru.newSearchTarget.current": "Scheda corrente",
     "booru.tabs.new": "Nuova scheda di ricerca",
     "booru.tabs.duplicate": "Duplica scheda",
+    "booru.tabs.searchOtherSource": "Cerca in un’altra fonte",
+    "booru.tabs.searchOtherSource.removed": "Sono stati rimossi i termini di ricerca specifici della fonte ({0}).",
     "booru.tabs.openCurrentHint": "Copia la ricerca mostrata e i suoi risultati in una nuova scheda. Non viene inviato nulla.",
     "booru.tabs.close": "Chiudi scheda",
     "booru.tabs.closeFor": "Chiudi la scheda «{0}»",

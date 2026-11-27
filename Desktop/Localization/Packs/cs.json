@@ -5703,6 +5703,8 @@
     "settings.booru.newSearchTarget.current": "Aktuální karta",
     "booru.tabs.new": "Nová karta hledání",
     "booru.tabs.duplicate": "Duplikovat kartu",
+    "booru.tabs.searchOtherSource": "Hledat v jiném zdroji",
+    "booru.tabs.searchOtherSource.removed": "Vyhledávací výrazy specifické pro zdroj byly odebrány ({0}).",
     "booru.tabs.openCurrentHint": "Zkopíruje zobrazené hledání a jeho výsledky do nové karty. Nic se neodesílá.",
     "booru.tabs.close": "Zavřít kartu",
     "booru.tabs.closeFor": "Zavřít kartu „{0}“",

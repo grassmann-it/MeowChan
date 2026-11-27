@@ -5533,6 +5533,8 @@
     "settings.booru.newSearchTarget.current": "当前标签页",
     "booru.tabs.new": "新建搜索标签页",
     "booru.tabs.duplicate": "复制标签页",
+    "booru.tabs.searchOtherSource": "在其他来源中搜索",
+    "booru.tabs.searchOtherSource.removed": "已移除来源专用的搜索词（{0}）。",
     "booru.tabs.openCurrentHint": "将当前显示的搜索及其结果复制到新标签页。不会发送任何请求。",
     "booru.tabs.close": "关闭标签页",
     "booru.tabs.closeFor": "关闭标签页“{0}”",

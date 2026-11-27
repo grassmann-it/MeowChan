@@ -5645,6 +5645,8 @@
     "settings.booru.newSearchTarget.current": "Onglet actuel",
     "booru.tabs.new": "Nouvel onglet de recherche",
     "booru.tabs.duplicate": "Dupliquer l’onglet",
+    "booru.tabs.searchOtherSource": "Rechercher dans une autre source",
+    "booru.tabs.searchOtherSource.removed": "Les termes de recherche propres à la source ont été retirés ({0}).",
     "booru.tabs.openCurrentHint": "Copie la recherche affichée et ses résultats dans un nouvel onglet. Rien n’est envoyé.",
     "booru.tabs.close": "Fermer l’onglet",
     "booru.tabs.closeFor": "Fermer l’onglet « {0} »",
