@@ -1007,7 +1007,7 @@ internal sealed class BooruOriginalQueue
         public IBoard GetBoard(Uri boardUri) => throw NotAChanThread();
         public IThread GetThread(Uri threadUri) => throw NotAChanThread();
         internal OwnerProvider ForPost(Action authorizeTransfer) =>
-            new(new HttpClient(new BooruOriginalRequestGuard(_client, authorizeTransfer)) { Timeout = Timeout.InfiniteTimeSpan }, Name, _legacy);
+            new(BooruOriginalRequestGuard.CreateClient(_client, authorizeTransfer), Name, _legacy);
 
         public HttpClient GetHttpClient() => _client;
     }

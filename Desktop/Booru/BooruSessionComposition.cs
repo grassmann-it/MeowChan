@@ -147,7 +147,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
                 if (failure.Code == BooruText.SdkMismatchCode) binding.SdkMismatchObserved?.Invoke();
             }
         };
-        _mediaTransport = new HttpClient(new BooruOriginalRequestGuard(binding.Transport)) { Timeout = Timeout.InfiniteTimeSpan };
+        _mediaTransport = BooruOriginalRequestGuard.CreateClient(binding.Transport);
         try
         {
             _mediaClient = binding.CreateOriginalMediaClient(_mediaTransport);
@@ -387,11 +387,18 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         // The final owner calls this only after the shared download queue has drained.
-        await StopAsync().ConfigureAwait(false);
-        _watcherPort.Dispose();
-        _previewHttp.Dispose();
-        _mediaClient.Dispose();
-        _mediaTransport.Dispose();
-        _lifecycle.Dispose();
+        try
+        {
+            await StopAsync().ConfigureAwait(false);
+            await _watcherHost.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _watcherPort.Dispose();
+            _previewHttp.Dispose();
+            _mediaClient.Dispose();
+            _mediaTransport.Dispose();
+            _lifecycle.Dispose();
+        }
     }
 }

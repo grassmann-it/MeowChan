@@ -675,10 +675,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     {
         DateTimeOffset started = _time.GetUtcNow();
         CheckCounters counters = new();
-        CancellationTokenSource check;
         RunningCheck running;
         DanbooruWatcher current;
         using BooruProducerUse? use = _lifecycle?.TryEnter();
+        using CancellationTokenSource check = CancellationTokenSource.CreateLinkedTokenSource(stop, use?.Cut ?? CancellationToken.None);
         lock (_sync)
         {
             // Re-checked here because the pick (RunNextAsync, loop) and this registration are separate
@@ -710,11 +710,9 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 return Record(watcherId, Rejected("persist_failed", started, manual));
             }
             current = stored!;
-            check = CreateCheckCancellation(stop, use);
             _running = running = new RunningCheck(watcherId, check, use);
             if (!manual) _lastAutomaticStart = started;
         }
-        using CancellationTokenSource ownedCheck = check;
         try
         {
             RaiseChanged();
@@ -743,10 +741,6 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             }
         }
     }
-
-    private static CancellationTokenSource CreateCheckCancellation(CancellationToken stop, BooruProducerUse? use) =>
-        use is null ? CancellationTokenSource.CreateLinkedTokenSource(stop)
-            : CancellationTokenSource.CreateLinkedTokenSource(stop, use.Cut);
 
     /// <summary>
     /// Terminal transition for a check that ended in an exception instead of a result. Only the watcher

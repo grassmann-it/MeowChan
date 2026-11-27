@@ -10,6 +10,18 @@ internal sealed class BooruOriginalRequestGuard(HttpClient transport, Action? au
 {
     private static readonly HttpRequestOptionsKey<Action> Authorization = new("MeowChan.Booru.OriginalAuthorization");
 
+    internal static HttpClient CreateClient(HttpClient transport, Action? authorize = null)
+    {
+        BooruOriginalRequestGuard? handler = new(transport, authorize);
+        try
+        {
+            HttpClient client = new(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
+            handler = null;
+            return client;
+        }
+        finally { handler?.Dispose(); }
+    }
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
