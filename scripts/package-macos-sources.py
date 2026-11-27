@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a deterministic Mac source overlay bound to final DMGs and checked ZIP inventories.
+"""Collect deterministic Mac source inputs bound to final DMGs and checked ZIP inventories.
 
 Only committed application files are included. No downloads, signing or publication.
 The large immutable source base is verified and referenced, never copied/repacked.
@@ -140,7 +140,7 @@ def inventory_zip(path: Path, rid: str, inputs: dict, version: str) -> dict:
 
 
 def generate(repository: Path, commit: str, base: Path, binaries: dict[str, Path], dmgs: dict[str, Path],
-             reports: dict[str, Path], version: str, output: Path) -> dict:
+             reports: dict[str, Path], version: str, output: Path, *, assembly_input: bool = False) -> dict:
     METADATA.bundle_metadata(version)  # Share the packager's canonical SemVer contract.
     if not binaries or binaries.keys() != dmgs.keys() or not reports.keys() <= binaries.keys():
         raise ValueError("Supply a DMG and inventory ZIP per selected RID; validation reports must refer to selected RIDs.")
@@ -183,11 +183,17 @@ def generate(repository: Path, commit: str, base: Path, binaries: dict[str, Path
                 "rebuild_provenance_uncertainties": inputs["rebuild_provenance_uncertainties"],
                 "scope": "Corresponding-source packaging record; no legal certification, native signature verification, playback acceptance or public release claim."}
     entries["manifest.json"] = json_bytes(manifest)
-    entries["README.txt"] = (f"MeowChan {version} macOS source overlay\n\n"
-        f"Application source commit: {exact}\n"
+    distribution = (
+        "These are the macOS inputs to the current video source archive.\n"
+        "The release assembler includes the shared VLC sources in that archive.\n"
+        if assembly_input else
         f"Use together with unchanged {inputs['source_base']['file']}\n"
         f"SHA256 {inputs['source_base']['sha256']}\n"
         "Both source assets must be available alongside the matching binary DMGs.\n"
+    )
+    entries["README.txt"] = (f"MeowChan {version} macOS source inventory\n\n"
+        f"Application source commit: {exact}\n"
+        + distribution +
         "Extract application-source.tar into a separate source directory.\n"
         "Read release-source/docs/native-video-macos-sources.md for build/replacement\n"
         "instructions and per-component notices. manifest.json binds the source commit\n"
@@ -222,10 +228,11 @@ def main() -> int:
     parser.add_argument("--validation-report", action="append", default=[], metavar="RID=PATH")
     parser.add_argument("--version", required=True)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--assembly-input", action="store_true", help="Mark the archive as an input to the current video source assembler")
     args = parser.parse_args()
     try:
         result = generate(args.repository, args.source_commit, args.base, assignments(args.binary_zip), assignments(args.binary_dmg),
-                          assignments(args.validation_report), args.version, args.output)
+                          assignments(args.validation_report), args.version, args.output, assembly_input=args.assembly_input)
     except (ValueError, OSError, KeyError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Source overlay failed: {error}\n")
     print(json.dumps(result, sort_keys=True, indent=2))

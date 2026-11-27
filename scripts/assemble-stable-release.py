@@ -2,8 +2,9 @@
 """Verify one final package-media candidate set and stage release assets.
 
 The release version defaults to 0.9.0 (the original contract) and is selected
-with --version. The immutable corresponding-source base stays the pinned 0.9.0
-archive regardless of the release version.
+with --version. From 1.2 onward, current-source candidates combine the pinned
+base and matching platform inputs into one public source asset. Release upload
+stages the exact bytes from a successful same-source stable candidate.
 
 Download the four named candidate artifacts into --artifacts-root first. This
 offline command does not create a tag or release. Platform source overrides
@@ -16,12 +17,16 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import tarfile
 import tempfile
+import xml.etree.ElementTree as ET
+import zipfile
 
 
 VERSION = '0.9.0'  # default release version; override with --version
@@ -31,6 +36,12 @@ BASE_SHA = 'bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa'
 RELEASE_VERSION = re.compile(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.]+)?\Z')
 SHA = re.compile(r'[0-9a-f]{64}\Z')
 COMMIT = re.compile(r'[0-9a-f]{40}\Z')
+
+
+VIDEO_SPEC = importlib.util.spec_from_file_location('video_sources', Path(__file__).with_name('assemble-video-sources.py'))
+video = importlib.util.module_from_spec(VIDEO_SPEC)
+VIDEO_SPEC.loader.exec_module(video)
+PACKAGE_IDS = ('libmeowchan', 'MeowChan.PluginSdk', 'MeowChan.PluginHost')
 
 
 def require(condition: bool, message: str) -> None:
@@ -220,9 +231,15 @@ def mac(root: Path, source: str, version: str = VERSION) -> dict[str, Path]:
     require(isinstance(architectures, dict) and set(architectures) == set(dmgs),
             'Mac source overlay architecture set mismatch')
     for rid, sha in dmgs.items():
-        record = architectures[rid].get('signed_dmg')
+        architecture = architectures[rid]
+        record = architecture.get('signed_dmg')
         require(isinstance(record, dict) and record.get('file') == f'MeowChan-{version}-{rid}.dmg'
                 and record.get('sha256') == sha, f'Mac source overlay DMG binding mismatch: {rid}')
+        if video.current_layout(version):
+            name = f'MeowChan-{version}-{rid}.zip'
+            archive = candidate / 'evidence' / rid / name
+            require(architecture.get('inventory_zip') == video.binary_record(archive, name),
+                    f'Mac source overlay does not bind the final ZIP inventory: {rid}')
     base = read_json(candidate / 'source-base.json')
     source_base = manifest.get('source_base')
     require(isinstance(source_base, dict) and source_base.get('file') == BASE_NAME
@@ -235,13 +252,16 @@ def mac(root: Path, source: str, version: str = VERSION) -> dict[str, Path]:
 
 def assemble(root: Path, source: str, source_base: Path, output: Path, *,
              windows_source: str | None = None, macos_source: str | None = None,
-             version: str = VERSION) -> None:
+             version: str = VERSION, repository: Path = Path(__file__).resolve().parents[1]) -> None:
     require(RELEASE_VERSION.fullmatch(version) is not None, f'Invalid release version: {version}')
     require(COMMIT.fullmatch(source) is not None, 'Expected full lowercase source commit SHA')
     windows_source = source if windows_source is None else windows_source
     macos_source = source if macos_source is None else macos_source
     require(COMMIT.fullmatch(windows_source) is not None, 'Invalid Windows source commit SHA')
     require(COMMIT.fullmatch(macos_source) is not None, 'Invalid macOS source commit SHA')
+    current = video.current_layout(version)
+    if current:
+        require(windows_source == macos_source == source, 'Current video sources require one binary source commit')
     root = root.resolve(strict=True)
     require(root.is_dir() and not root.is_symlink(), 'Artifact root must be a directory')
     require(not output.exists() and not output.is_symlink(), 'Output already exists')
@@ -253,8 +273,18 @@ def assemble(root: Path, source: str, source_base: Path, output: Path, *,
                   linux(root, source, 'linux-arm64', version), mac(root, macos_source, version)):
         require(not (assets.keys() & group.keys()), 'Duplicate public release asset')
         assets.update(group)
-    assets[BASE_NAME] = source_base
-    require(len(assets) == 13, 'Expected exactly 13 public binary/source assets')
+    require(len(assets) == 12, 'Expected nine binaries and three platform source inputs')
+    if current:
+        require(not any(root.rglob('*-current-video-sources.7z')), 'Duplicate current video source input')
+        inputs = {'base': source_base}
+        package_manifests = {}
+        for rid in video.LINUX_RIDS:
+            name = f'MeowChan-{version}-{rid}-video-sources.tar.gz'
+            inputs[rid] = assets.pop(name)
+            package_manifests[rid] = inputs[rid].with_name(f'{rid}-package-manifest.json')
+        inputs['macos'] = assets.pop(f'MeowChan-{version}-macos-video-source-overlay.tar.gz')
+    else:
+        assets[BASE_NAME] = source_base
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.meowchan-release-', dir=output.parent) as temporary:
         stage = Path(temporary) / 'assets'
@@ -262,30 +292,98 @@ def assemble(root: Path, source: str, source_base: Path, output: Path, *,
         for name, origin in sorted(assets.items()):
             shutil.copyfile(origin, stage / name)
             require(digest(stage / name) == digest(origin), f'Changed while staging: {name}')
-        lines = [f'{digest(stage / name)}  {name}\n' for name in sorted(assets)]
-        (stage / 'SHA256SUMS').write_text(''.join(lines), encoding='utf-8')
-        require({path.name for path in stage.iterdir()} == set(assets) | {'SHA256SUMS'},
+        names = set(assets)
+        if current:
+            source_name = video.archive_name(version)
+            video.assemble(inputs, package_manifests, {name: stage / name for name in assets}, stage / source_name,
+                           version, source, video.approved_windows(repository, source))
+            names.add(source_name)
+            require(names == set(video.public_names(version)), 'Current public asset inventory mismatch')
+        write_checksums(stage, names)
+        require({path.name for path in stage.iterdir()} == names | {'SHA256SUMS'},
                 'Staged asset set differs from public inventory')
+        stage.rename(output)
+
+
+def write_checksums(directory, names):
+    lines = [f'{digest(directory / name)}  {name}\n' for name in sorted(names)]
+    (directory / 'SHA256SUMS').write_text(''.join(lines), encoding='utf-8')
+
+
+def stage_candidate(candidate, source, version, run_id, output, repository):
+    """Verify the gated candidate and stage its public desktop assets byte-for-byte."""
+    require(RELEASE_VERSION.fullmatch(version) and '-' not in version and video.current_layout(version),
+            'Expected stable version 1.2 or later')
+    require(COMMIT.fullmatch(source) and re.fullmatch(r'[1-9][0-9]*', run_id),
+            'Expected exact source commit and candidate Actions run ID')
+    require(not output.exists() and not output.is_symlink(), 'Output already exists')
+    inventory = read_json(candidate / 'candidate-inventory.json')
+    require(inventory['schema'] == 'meowchan.stable-candidate.v1' and inventory['channel'] == 'stable'
+            and inventory['version'] == version and inventory['source_commit'] == source
+            and inventory['actions_run_id'] == run_id, 'Wrong stable candidate version, run, or source')
+    public = set(video.public_names(version))
+    names = public | {f'{package}.{version}.nupkg' for package in PACKAGE_IDS}
+    records = inventory['assets']
+    require(len(records) == len(names) and {row['file'] for row in records} == names
+            and {path.name for path in candidate.iterdir()} == names | {'candidate-inventory.json', 'SHA256SUMS'},
+            'Candidate asset inventory mismatch (missing, extra, or duplicate asset)')
+    checksums = {}
+    for row in records:
+        name = row['file']
+        path = file(candidate / name)
+        require(row['source_commit'] == source and type(row['bytes']) is int and path.stat().st_size == row['bytes'],
+                'Candidate asset length or source mismatch: ' + name)
+        check_hash(path, row['sha256'], name)
+        checksums[name] = row['sha256']
+    require(inventory['current_video_sources'] == next(row for row in records if row['file'] == video.archive_name(version)),
+            'Candidate source asset differs from its inventory row')
+    checksums['candidate-inventory.json'] = digest(candidate / 'candidate-inventory.json')
+    expected = ''.join(f'{sha}  {name}\n' for name, sha in sorted(checksums.items()))
+    require(file(candidate / 'SHA256SUMS').read_text(encoding='utf-8') == expected,
+            'Candidate SHA256SUMS differs from its assets')
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.meowchan-release-', dir=output.parent) as temporary:
+        stage = Path(temporary) / 'assets'
+        stage.mkdir()
+        for name in sorted(public):
+            shutil.copyfile(candidate / name, stage / name)
+            check_hash(stage / name, checksums[name], name)
+        source_name = video.archive_name(version)
+        video.verify(stage / source_name, {name: stage / name for name in public - {source_name}},
+                     version, source, video.approved_windows(repository, source))
+        write_checksums(stage, public)
         stage.rename(output)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--artifacts-root', required=True, type=Path)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument('--artifacts-root', type=Path)
+    inputs.add_argument('--candidate-dir', type=Path, help='Complete gated stable-candidate artifact')
+    parser.add_argument('--candidate-run-id')
+    parser.add_argument('--repository', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--windows-source-commit', help='Explicit accepted Windows source; defaults to --source-commit')
     parser.add_argument('--macos-source-commit', help='Explicit accepted macOS source; defaults to --source-commit')
     parser.add_argument('--version', default=VERSION, help='Release version used in asset names and manifests (default 0.9.0)')
-    parser.add_argument('--source-base', required=True, type=Path)
+    parser.add_argument('--source-base', type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     try:
-        assemble(args.artifacts_root, args.source_commit, args.source_base, args.output,
-                 windows_source=args.windows_source_commit, macos_source=args.macos_source_commit,
-                 version=args.version)
-    except (OSError, ValueError, KeyError, TypeError, tarfile.TarError, json.JSONDecodeError) as error:
+        if args.candidate_dir is not None:
+            require(args.candidate_run_id and not any((args.source_base, args.windows_source_commit,
+                                                      args.macos_source_commit)), 'Expected a candidate run without platform overrides')
+            stage_candidate(args.candidate_dir, args.source_commit, args.version, args.candidate_run_id, args.output,
+                            args.repository)
+        else:
+            require(args.source_base is not None and args.candidate_run_id is None, 'Expected the pinned source base')
+            assemble(args.artifacts_root, args.source_commit, args.source_base, args.output,
+                     windows_source=args.windows_source_commit, macos_source=args.macos_source_commit,
+                     version=args.version, repository=args.repository)
+    except (OSError, ValueError, KeyError, TypeError, tarfile.TarError, zipfile.BadZipFile, ET.ParseError,
+            subprocess.SubprocessError) as error:
         parser.exit(1, f'Release assembly rejected: {error}\n')
-    print(f'Staged 13 release assets and SHA256SUMS in {args.output}')
+    print(f'Staged release assets and SHA256SUMS in {args.output}')
 
 
 if __name__ == '__main__':
