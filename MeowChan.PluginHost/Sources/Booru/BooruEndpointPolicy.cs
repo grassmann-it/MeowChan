@@ -154,6 +154,10 @@ internal static class BooruEndpointPolicy
     internal static HostHttpFailure OperationDenied() =>
         new(new FailureDetail("http-request", "The HTTP request does not match the active booru operation."));
 
+    internal static bool IsExactOrigin(Uri origin, Uri target) => origin.IsAbsoluteUri && origin.Scheme == Uri.UriSchemeHttps
+        && origin.UserInfo.Length == 0 && origin.AbsolutePath == "/" && origin.Query.Length == 0 && origin.Fragment.Length == 0
+        && Uri.Compare(origin, target, UriComponents.SchemeAndServer, UriFormat.UriEscaped, StringComparison.OrdinalIgnoreCase) == 0;
+
     private static bool IsPageParameter(BooruParameterKind kind) => kind is BooruParameterKind.PageNumber
         or BooruParameterKind.PageIndex or BooruParameterKind.PageOrBeforeCursor;
 

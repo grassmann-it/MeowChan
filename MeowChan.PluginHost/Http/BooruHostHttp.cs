@@ -45,6 +45,8 @@ public sealed class BooruHostHttp : IDisposable
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
     private readonly Dictionary<string, BooruSourceProfile> _profiles;
     private readonly Func<TimeSpan>? _maximumCooldownProvider;
+    private readonly Func<long?>? _sourceRevision;
+    private readonly Func<SourceDescription, Uri, BooruMetadataAccountLease?>? _metadataAccount;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceState> _states = new(StringComparer.Ordinal);
 
     // Keep the original public constructor shape for already compiled PluginHost consumers. The
@@ -57,7 +59,8 @@ public sealed class BooruHostHttp : IDisposable
 
     internal BooruHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
         Func<TimeSpan>? maximumCooldownProvider, string? danbooruUserId = null,
-        string? productVersion = null, bool disposeTransport = false)
+        string? productVersion = null, bool disposeTransport = false, Func<long?>? sourceRevision = null,
+        Func<SourceDescription, Uri, BooruMetadataAccountLease?>? metadataAccount = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         ArgumentNullException.ThrowIfNull(policy);
@@ -65,6 +68,8 @@ public sealed class BooruHostHttp : IDisposable
         _clock = policy.TimeProvider;
         _disposeTransport = disposeTransport;
         _maximumCooldownProvider = maximumCooldownProvider;
+        _sourceRevision = sourceRevision;
+        _metadataAccount = metadataAccount;
         _sources = (sources ?? throw new ArgumentNullException(nameof(sources)))
             .Where(source => source is not null)
             .ToDictionary(source => source.SourceId, StringComparer.Ordinal);
@@ -85,8 +90,19 @@ public sealed class BooruHostHttp : IDisposable
         sourceId is not null && _profiles.TryGetValue(sourceId, out BooruSourceProfile? profile) ? profile : null;
     internal TimeProvider TimeProvider => _clock;
 
-    internal async Task<HostHttpResult> SendAsync(HostHttpRequest request, SourceDescription source,
-        BooruJob job, CancellationToken cancellationToken)
+    internal Task<HostHttpResult> SendAsync(HostHttpRequest request, SourceDescription source,
+        BooruJob job, CancellationToken cancellationToken) => SendCoreAsync(request, source, job, false, cancellationToken);
+
+    // Only a typed host operation can opt into account access. The offered transport must
+    // disable redirects, cookies and default credentials (PluginHostHttp.CreateTransport).
+    internal Task<HostHttpResult> SendBoundAsync(HostHttpRequest request, SourceDescription source,
+        object operation, BooruJob job, CancellationToken cancellationToken) =>
+        BooruEndpointPolicy.Bind(request, source, operation) is { } bound
+            ? SendCoreAsync(bound, source, job, true, cancellationToken)
+            : Task.FromResult<HostHttpResult>(BooruEndpointPolicy.OperationDenied());
+
+    private async Task<HostHttpResult> SendCoreAsync(HostHttpRequest request, SourceDescription source,
+        BooruJob job, bool isBound, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (source is null || !_sources.TryGetValue(source.SourceId, out SourceDescription? declared)
@@ -105,12 +121,20 @@ public sealed class BooruHostHttp : IDisposable
             return Failure("http-request", "The booru transport contains host-owned credentials.");
         if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
 
+        long? revision = _sourceRevision?.Invoke();
+        if (_sourceRevision is not null && revision is null) return StaleSource();
+        BooruMetadataAccountLease? account = isBound ? _metadataAccount?.Invoke(source, request.Url) : null;
+        if (account is not null && !BooruEndpointPolicy.IsExactOrigin(account.Origin, request.Url))
+            return BooruEndpointPolicy.OperationDenied();
+        CancellationToken accountLifetime = account?.Lifetime ?? default;
+        bool IsCurrent() => !accountLifetime.IsCancellationRequested && (_sourceRevision is null || _sourceRevision() == revision);
+
         SourceState state = StateFor(source);
         TimeSpan spacing = BooruEndpointPolicy.Spacing(ProfileOf(source.SourceId), MinimumStartSpacing);
         // Every wait and attempt observes both the caller and the job lifetime. Closing the
         // job (or reaching its deadline) therefore aborts a queued send-gate admission,
         // provider spacing, retry delays, the header wait and body reads alike.
-        using CancellationTokenSource abort = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
+        using CancellationTokenSource abort = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token, accountLifetime);
         CancellationToken token = abort.Token;
         bool entered = false;
         try
@@ -132,6 +156,7 @@ public sealed class BooruHostHttp : IDisposable
             }
             while (true)
             {
+                if (!IsCurrent()) return StaleSource();
                 if (JobEnded(job) is HostHttpFailure ended) return ended;
                 DateTimeOffset now = _clock.GetUtcNow();
                 DateTimeOffset cooldownUntil;
@@ -159,8 +184,14 @@ public sealed class BooruHostHttp : IDisposable
                     return JobEnded(job) ?? Failure("booru-budget", "The booru job send budget is exhausted.");
                 state.RecordStart(_clock.GetUtcNow(), spacing);
                 string userAgent = BooruEndpointPolicy.IsE621Family(source) ? _familyUserAgent : _userAgent;
-                return await SendWithRetryAsync(request, job, state, spacing, userAgent, cancellationToken, token).ConfigureAwait(false);
+                HostHttpResult result = await SendWithRetryAsync(request, job, state, spacing, userAgent,
+                    account, IsCurrent, cancellationToken, token).ConfigureAwait(false);
+                return IsCurrent() ? result : StaleSource();
             }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !IsCurrent())
+        {
+            return StaleSource();
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && job.Token.IsCancellationRequested)
         {
@@ -278,7 +309,8 @@ public sealed class BooruHostHttp : IDisposable
     }
 
     private async Task<HostHttpResult> SendWithRetryAsync(HostHttpRequest request,
-        BooruJob job, SourceState state, TimeSpan spacing, string userAgent, CancellationToken cancellationToken, CancellationToken abort)
+        BooruJob job, SourceState state, TimeSpan spacing, string userAgent, BooruMetadataAccountLease? account,
+        Func<bool> isCurrent, CancellationToken cancellationToken, CancellationToken abort)
     {
         bool retried = false;
         while (true)
@@ -288,10 +320,16 @@ public sealed class BooruHostHttp : IDisposable
                 Min(AddSaturating(_clock.GetUtcNow(), ResponseTimeout), job.Deadline));
             try
             {
-                response = await SendAttemptAsync(request, userAgent, window.Token).ConfigureAwait(false);
+                if (!isCurrent()) return StaleSource();
+                AuthenticationHeaderValue? authorization = account?.ReadAuthorization();
+                if (account is not null && authorization is null)
+                    return Failure("booru-account-unavailable", "The booru account is not available.");
+                if (!isCurrent()) return StaleSource();
+                response = await SendAttemptAsync(request, userAgent, authorization, window.Token).ConfigureAwait(false);
                 // A late transport completion must observe the response deadline as well as
                 // job/caller cancellation before any status handling, retry or body read.
                 window.Token.ThrowIfCancellationRequested();
+                if (!isCurrent()) return StaleSource();
                 if (response.RequestMessage?.RequestUri is Uri actual && actual != request.Url)
                     return Failure("http-redirect", "Metadata redirects are not followed.");
 
@@ -331,6 +369,7 @@ public sealed class BooruHostHttp : IDisposable
                     return StopForChallenge(state);
                 byte[] body = await ReadBodyAsync(response.Content, window, abort).ConfigureAwait(false);
                 window.Token.ThrowIfCancellationRequested();
+                if (!isCurrent()) return StaleSource();
                 if (status == 200 && LooksLikeHtml(body)) return StopForChallenge(state);
                 return new HostHttpResponse(status, request.Url,
                     ReadHeaders(response, status is 502 or 503 ? GetMaximumCooldown() : null, _clock.GetUtcNow()), body,
@@ -339,6 +378,10 @@ public sealed class BooruHostHttp : IDisposable
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
+            }
+            catch (OperationCanceledException) when (abort.IsCancellationRequested && !isCurrent())
+            {
+                return StaleSource();
             }
             catch (Exception exception) when (job.Token.IsCancellationRequested && exception is OperationCanceledException
                 or BooruAttemptTimeoutException or HttpRequestException or IOException)
@@ -424,6 +467,8 @@ public sealed class BooruHostHttp : IDisposable
 
     private static HostHttpFailure Challenge() => Failure("http-challenge", "The provider returned an HTML challenge.", 200);
 
+    private static HostHttpFailure StaleSource() => Failure("source_unavailable", "The booru source or account changed.");
+
     private static bool IsHtml(string? mediaType) =>
         string.Equals(mediaType, "text/html", StringComparison.OrdinalIgnoreCase)
         || string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase);
@@ -440,7 +485,8 @@ public sealed class BooruHostHttp : IDisposable
             || prefix.StartsWith("<body", StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task<HttpResponseMessage> SendAttemptAsync(HostHttpRequest request, string userAgent, CancellationToken token)
+    private async Task<HttpResponseMessage> SendAttemptAsync(HostHttpRequest request, string userAgent,
+        AuthenticationHeaderValue? authorization, CancellationToken token)
     {
         // The send was reserved under the job gate; a Close racing that reservation has
         // already cancelled this token, so the transport is never entered afterwards.
@@ -452,6 +498,7 @@ public sealed class BooruHostHttp : IDisposable
         message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
         message.Options.Set(MeteringHandler.SourceKey, request.SourceId);
         PluginRequestHeaders.Apply(message, request);
+        message.Headers.Authorization = authorization;
         return await _transport.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
     }
 
@@ -771,4 +818,12 @@ public sealed class BooruHostHttp : IDisposable
     private sealed class BooruBodyTooLargeException : Exception { }
     private sealed class BooruEncodingException(Exception? inner = null) : Exception("Unsupported booru content encoding.", inner) { }
     private sealed class BooruAttemptTimeoutException(Exception inner) : Exception("Booru response timed out.", inner) { }
+}
+
+/// <summary>Host-owned account grant scoped to an exact metadata origin and one profile/account generation.</summary>
+internal sealed class BooruMetadataAccountLease(Uri origin, CancellationToken lifetime, Func<AuthenticationHeaderValue?> readAuthorization)
+{
+    internal Uri Origin { get; } = origin;
+    internal CancellationToken Lifetime { get; } = lifetime;
+    internal AuthenticationHeaderValue? ReadAuthorization() => readAuthorization();
 }

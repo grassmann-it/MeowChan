@@ -31,7 +31,7 @@ internal sealed partial class PluginSession
 
     /// <summary>
     /// Every composed post-search source by source id (Danbooru included). Each plugin's sources share one booru host
-    /// services instance: one job registry and one bounded metadata transport with per-source pacing and cooldown. The
+    /// services instance: one job registry and one bounded metadata transport with source or family pacing and cooldown. The
     /// sources with the workbench's search and cursor contract can also be composed by the desktop session.
     /// </summary>
     internal IReadOnlyDictionary<string, BooruProviderBinding> BooruSources
@@ -57,9 +57,10 @@ internal sealed partial class PluginSession
         }
         if (services is null)
         {
-            // One transport per plugin over all of its post-search sources; pacing and cooldown stay per source.
+            // One transport per plugin. The e621 family budget follows the session policy, including separate builds.
             BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources,
-                maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours));
+                maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours),
+                sourceRevision: () => EnabledBooruRevision(pluginId));
             services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp);
             lock (_state)
             {
@@ -101,11 +102,13 @@ internal sealed partial class PluginSession
         return false;
     }
 
-    private bool IsBooruPluginEnabled(string pluginId)
+    private bool IsBooruPluginEnabled(string pluginId) => EnabledBooruRevision(pluginId).HasValue;
+
+    private long? EnabledBooruRevision(string pluginId)
     {
         lock (_state)
             return !_disposed && _active.TryGetValue(pluginId, out PluginActivationSnapshot? activation)
-                && activation.Enabled && activation.Active != null;
+                && activation.Enabled && activation.Active != null ? activation.LifecycleRevision : null;
     }
 
     /// <summary>The running worker, started on demand; null while disabled, stopped or not startable.</summary>
