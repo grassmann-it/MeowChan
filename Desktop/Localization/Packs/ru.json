@@ -5720,6 +5720,23 @@
     "settings.limits.booruGalleryMaximumWidth": "Галерея Danbooru: ширина декодированного изображения (пкс)",
     "settings.limits.booruGalleryMaximumWidth.hint": "Галерея уменьшает более широкие уменьшенные изображения до этой ширины.",
     "settings.limits.booruGalleryTimeoutSeconds": "Галерея Danbooru: время ожидания ответа (с)",
-    "settings.limits.booruGalleryTimeoutSeconds.hint": "Сколько времени галерея ждёт уменьшенное изображение от источника."
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "Сколько времени галерея ждёт уменьшенное изображение от источника.",
+    "booru.ui.issue.Md5": "После md5: укажите 32 строчные шестнадцатеричные цифры. Условие rating: необязательно.",
+    "media.menu.md5": "Поиск по MD5",
+    "media.menu.md5.source": "Искать в {0} по MD5",
+    "booru.md5.batch.title": "Пакетный поиск по MD5 в Danbooru",
+    "booru.md5.batch.selected": "Проверить выбранные медиа в Danbooru…",
+    "booru.md5.batch.all": "Проверить все локальные медиа в Danbooru…",
+    "booru.md5.batch.optIn": "Разрешить этому профилю отправлять хеши MD5 локальных файлов в Danbooru пакетами",
+    "booru.md5.batch.contentRequired": "Перед пакетным поиском выберите ограничение контента в Booru.",
+    "booru.md5.batch.start": "Начать поиск",
+    "booru.md5.batch.resume": "Продолжить поиск",
+    "booru.md5.batch.stop": "Приостановить поиск",
+    "booru.md5.batch.progress": "Проверено {0} из {1} · совпадений: {2} · без контрольной суммы: {3}",
+    "booru.md5.batch.matches": "Подходящие записи Danbooru",
+    "booru.md5.batch.saveFailed": "Не удалось сохранить разрешение для этого профиля.",
+    "booru.md5.batch.finished": "Поиск завершён.",
+    "booru.md5.batch.interrupted": "Поиск прерван. Его можно продолжить.",
+    "booru.md5.batch.paused": "Поиск приостановлен."
   }
 }

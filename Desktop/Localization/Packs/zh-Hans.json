@@ -5572,6 +5572,23 @@
     "settings.limits.booruGalleryMaximumWidth": "Danbooru 图库：解码图像宽度（像素）",
     "settings.limits.booruGalleryMaximumWidth.hint": "图库会将超过此宽度的缩小版图像缩放至该宽度。",
     "settings.limits.booruGalleryTimeoutSeconds": "Danbooru 图库：响应超时（秒）",
-    "settings.limits.booruGalleryTimeoutSeconds.hint": "图库等待来源返回缩小版图像的最长时间。"
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "图库等待来源返回缩小版图像的最长时间。",
+    "booru.ui.issue.Md5": "请在 md5: 后输入 32 位小写十六进制数字。rating: 条件可省略。",
+    "media.menu.md5": "按 MD5 搜索",
+    "media.menu.md5.source": "在 {0} 中按 MD5 搜索",
+    "booru.md5.batch.title": "Danbooru 批量 MD5 匹配",
+    "booru.md5.batch.selected": "在 Danbooru 中核对选中的媒体…",
+    "booru.md5.batch.all": "在 Danbooru 中核对所有本地媒体…",
+    "booru.md5.batch.optIn": "允许此配置文件将本地媒体的 MD5 哈希批量发送到 Danbooru",
+    "booru.md5.batch.contentRequired": "开始前，请先在 Booru 中选择内容限制。",
+    "booru.md5.batch.start": "开始核对",
+    "booru.md5.batch.resume": "继续核对",
+    "booru.md5.batch.stop": "暂停核对",
+    "booru.md5.batch.progress": "已核对 {0}/{1} 项 · {2} 条匹配 · {3} 项无校验和",
+    "booru.md5.batch.matches": "匹配的 Danbooru 帖子",
+    "booru.md5.batch.saveFailed": "无法保存此配置文件的授权。",
+    "booru.md5.batch.finished": "核对完成。",
+    "booru.md5.batch.interrupted": "核对已中断，可以继续。",
+    "booru.md5.batch.paused": "核对已暂停。"
   }
 }
