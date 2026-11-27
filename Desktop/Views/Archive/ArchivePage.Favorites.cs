@@ -18,6 +18,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan;
 
@@ -352,10 +353,23 @@ public partial class ArchivePage
         cancel.Classes.Add("subtle"); start.Classes.Add("primary");
         TextBlock hint = new() { Text = Texts.T("export.originalHint"), TextWrapping = TextWrapping.Wrap };
         hint.Classes.Add("workspace-help");
-        // Said before the export starts: own tags never travel with copied files (no silent drop, no implied round trip).
-        TextBlock privateOmitted = new() { Name = "OriginalExportPrivateOmitted", Text = string.Join(" ", PrivateTransferDisclosure.Lines()),
-            TextWrapping = TextWrapping.Wrap };
-        privateOmitted.Classes.Add("workspace-help");
+        CheckBox writeSidecar = OriginalExportOption("OriginalExportHydrusSidecar", "export.sidecar.write");
+        writeSidecar.IsEnabled = assets.Length > 0;
+        CheckBox privateTags = OriginalExportOption("OriginalExportPrivateTags", "export.sidecar.privateTags");
+        privateTags.IsEnabled = _loadPrivateTags != null;
+        CheckBox sourceTags = OriginalExportOption("OriginalExportSourceTags", "export.sidecar.sourceTags");
+        sourceTags.IsEnabled = _sourceTagSuggestions.Read != null && assets.Any(asset => BooruMediaIdentity.IsBooruThread(asset.Key.Thread));
+        TextBlock pairLimitLabel = new() { Text = Texts.T("export.sidecar.pairLimit"), TextWrapping = TextWrapping.Wrap };
+        pairLimitLabel.Classes.Add("workspace-field-label");
+        SettingsNumberInput pairLimit = new()
+        {
+            Minimum = OriginalExportSidecarOptions.MinPairLimit, Maximum = OriginalExportSidecarOptions.MaxPairLimit,
+            Value = OriginalExportSidecarOptions.DefaultPairLimit, Increment = 1, FormatString = "0"
+        };
+        AutomationProperties.SetAutomationId(pairLimit, "OriginalExportSidecarPairLimit");
+        AutomationProperties.SetLabeledBy(pairLimit, pairLimitLabel);
+        StackPanel sidecarFields = new() { Spacing = 4, IsVisible = false, Children = { privateTags, sourceTags, pairLimitLabel, pairLimit } };
+        writeSidecar.IsCheckedChanged += (_, _) => sidecarFields.IsVisible = writeSidecar.IsChecked == true;
         TextBlock targetLabel = new() { Text = Texts.T("export.target") }; targetLabel.Classes.Add("section-title");
         TextBlock unavailable = new() { Text = Texts.Count("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
         unavailable.Classes.Add("workspace-warning");
@@ -368,7 +382,8 @@ public partial class ArchivePage
             templateNote.Classes.Add("workspace-help");
             content.Children.Add(templateNote);
         }
-        content.Children.Add(hint); content.Children.Add(privateOmitted); content.Children.Add(unavailable); content.Children.Add(targetLabel);
+        content.Children.Add(hint); content.Children.Add(unavailable);
+        content.Children.Add(writeSidecar); content.Children.Add(sidecarFields); content.Children.Add(targetLabel);
         content.Children.Add(destination); content.Children.Add(browse);
         AutomationProperties.SetLabeledBy(destination, targetLabel);
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
@@ -427,12 +442,44 @@ public partial class ArchivePage
         start.Click += async (_, _) =>
         {
             if (running || string.IsNullOrWhiteSpace(destination.Text)) return;
+            bool withSidecar = writeSidecar.IsChecked == true;
+            int limit = OriginalExportSidecarOptions.DefaultPairLimit;
+            if (withSidecar && (!int.TryParse(pairLimit.Text, System.Globalization.NumberStyles.Integer, pairLimit.NumberFormat, out limit)
+                || limit is < OriginalExportSidecarOptions.MinPairLimit or > OriginalExportSidecarOptions.MaxPairLimit))
+            {
+                Fail(Texts.T("budgets.range", pairLimitLabel.Text, OriginalExportSidecarOptions.MinPairLimit, OriginalExportSidecarOptions.MaxPairLimit));
+                pairLimit.Focus();
+                return;
+            }
             running = true; start.IsEnabled = browse.IsEnabled = openFolder.IsEnabled = false;
+            writeSidecar.IsEnabled = sidecarFields.IsEnabled = false;
             CommandBindings.Apply(cancel, "export.cancel");
             Notice(Texts.T("viewer.export.running"));
+            bool exportStarted = false;
             try
             {
-                FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, ExportFilenameTemplate?.Invoke(), run.Token);
+                OriginalExportSidecarOptions? sidecar = null;
+                if (withSidecar)
+                {
+                    PrivateTagStoreSnapshot? own = null;
+                    if (privateTags.IsChecked == true)
+                    {
+                        if (_loadPrivateTags?.Invoke() is not { State: PrivateTagLoadState.Ready, Snapshot: { } snapshot })
+                        { Fail(Texts.T("tags.unavailable")); return; }
+                        own = snapshot;
+                    }
+                    BooruCatalogSnapshot? source = null;
+                    if (sourceTags.IsChecked == true)
+                    {
+                        if (_sourceTagSuggestions.Read is { } read)
+                            source = await Task.Run(read, run.Token);
+                        if (source == null) { Fail(Texts.T("booru.media.details.unavailable")); return; }
+                    }
+                    sidecar = new OriginalExportSidecarOptions(limit, own, source);
+                }
+                exportStarted = true;
+                FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text,
+                    ExportFilenameTemplate?.Invoke(), sidecar, run.Token);
                 Notice(Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
                     result.Missing + missingCount, result.Failed, result.Cancelled));
                 // As in the thread dialog: after the copy Close is the primary action (Start stays spent).
@@ -446,11 +493,21 @@ public partial class ArchivePage
             {
                 running = false;
                 CommandBindings.Apply(cancel, "export.close");
+                writeSidecar.IsEnabled = sidecarFields.IsEnabled = !exportStarted && !run.IsCancellationRequested;
+                start.IsEnabled = !exportStarted && !run.IsCancellationRequested;
                 browse.IsEnabled = assets.Length > 0;
                 openFolder.IsEnabled = !string.IsNullOrWhiteSpace(destination.Text);
             }
         };
         cancel.Click += (_, _) => { if (running) run.Cancel(); else dialog.Close(); };
         await dialog.ShowDialog(owner);
+    }
+
+    private static CheckBox OriginalExportOption(string id, string textKey)
+    {
+        CheckBox option = new() { Content = new TextBlock { Text = Texts.T(textKey), TextWrapping = TextWrapping.Wrap } };
+        AutomationProperties.SetAutomationId(option, id);
+        AutomationProperties.SetName(option, Texts.T(textKey));
+        return option;
     }
 }
