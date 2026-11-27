@@ -36,6 +36,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     // No ambient token, epoch lookup, or DownloadItem carries this binding.
     private readonly Dictionary<CancellationToken, ProfileAdmissionToken> _contentMonitorAdmissions = new();
     private TimeSpan _monitoringInterval = TimeSpan.FromSeconds(60);
+    private AdaptiveRecheckPolicy? _adaptiveRecheck;
     private HashSet<string> _downloadedMedia = new HashSet<string>(StringComparer.Ordinal);
     private readonly HashSet<(string MediaId, string Variant)> _downloadedVariants = new();
     private int CompletedCountLocked => _downloadedMedia.Count + _downloadedVariants.Count;
@@ -67,7 +68,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     }
     private ThreadActivity _activity = ThreadActivity.Pending;
     private FailureInfo? _lastCheckFailure;
-    private readonly CoalescedEvent<PropertyChangedEventHandler> _propertyChanges;
+    private readonly CoalescedSubscriptions<PropertyChangedEventHandler> _propertyChanges;
     private readonly SingleOwnerCallback<Action<IThread>> _removal = new SingleOwnerCallback<Action<IThread>>();
     private int _totalMediaCount;
     private ThreadContentContext? _content;
@@ -82,7 +83,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     protected BaseThread()
     {
-        _propertyChanges = new CoalescedEvent<PropertyChangedEventHandler>(
+        _propertyChanges = new CoalescedSubscriptions<PropertyChangedEventHandler>(
             handler => handler(this, new PropertyChangedEventArgs(string.Empty)),
             exception => Logger.Error(exception, "Thread property observer failed for {ThreadId}", ThreadId));
     }
@@ -90,8 +91,8 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     protected ILogger Logger => Board.ImageBoard.Logger;
     public event PropertyChangedEventHandler? PropertyChanged
     {
-        add => _propertyChanges.Add(value);
-        remove => _propertyChanges.Remove(value);
+        add { if (value != null) _propertyChanges.Add(value); }
+        remove { if (value != null) _propertyChanges.Remove(value); }
     }
     public IDisposable RegisterRemovalSink(Action<IThread> sink) => _removal.Register(sink);
     internal void SetLifecycleSinks(Func<ThreadSourceState, DateTimeOffset, CapturedThreadSnapshot?, CancellationToken, Task> endSink, Func<Task> captureSettledSink)
@@ -435,6 +436,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             {
                 _monitoringTask = null;
                 _monitoringCancellation = null;
+                _adaptiveRecheck = null;
                 if (cancellation != null) _contentMonitorAdmissions.Remove(cancellation.Token);
                 cancellation?.Dispose();
             }
@@ -493,6 +495,8 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             return _admission;
         }
 
+        internal CancellationToken MonitorToken => _monitorToken;
+
         // Borrowed authority only: no admission is acquired or disposed here. A
         // saved scope rejects even when its disposed linked CTS was never cancelled.
         public void Dispose() => Interlocked.Exchange(ref _retired, 1);
@@ -501,6 +505,22 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     private ProfileAdmissionToken? ContentAdmissionFor(CancellationToken cancellationToken,
         ContentCancellationScope? scope) => scope == null ? ContentAdmissionFor(cancellationToken)
             : scope.Resolve(this, cancellationToken);
+
+    private void UpdateAdaptiveRecheckLocked(AdaptiveRecheckSettings? settings)
+    {
+        if (_adaptiveRecheck?.Settings != settings)
+            _adaptiveRecheck = settings == null ? null : new AdaptiveRecheckPolicy(settings);
+    }
+
+    private AdaptiveRecheckSettings? GetAdaptiveRecheckSettings(DownloadQueue queue)
+        => queue.AdaptiveRecheck is { } settings && SupportsContent ? settings : null;
+
+    private void ObserveAdaptivePosts(IReadOnlyList<CapturedPost> posts, CancellationToken monitorToken)
+    {
+        lock (_monitoringLock)
+            if (_adaptiveRecheck != null && _monitoringCancellation?.Token == monitorToken && !monitorToken.IsCancellationRequested)
+                _adaptiveRecheck.ObservePosts(posts);
+    }
 
     private async Task MonitorAsync(DownloadQueue queue, CancellationToken cancellationToken)
     {
@@ -511,12 +531,17 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                 _checkTrigger.Consume();
                 SourceCheckDeferredException? deferredCheck = null;
                 bool sourceUnavailable = false;
+                bool succeeded = false;
                 ThreadActivity previousActivity = Activity;
                 try
                 {
                     await queue.WaitUntilResumedAsync(cancellationToken).ConfigureAwait(false);
+                    AdaptiveRecheckSettings? adaptive = GetAdaptiveRecheckSettings(queue);
+                    lock (_monitoringLock)
+                        UpdateAdaptiveRecheckLocked(adaptive);
                     await checkThreadAsync(queue, cancellationToken).ConfigureAwait(false);
                     SetCheckFailure(null);
+                    succeeded = true;
                 }
                 catch (SourceCheckDeferredException deferred)
                 {
@@ -564,7 +589,12 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                     continue;
                 }
                 TimeSpan interval;
-                lock (_monitoringLock) { interval = _monitoringInterval; }
+                AdaptiveRecheckSettings? currentAdaptive = GetAdaptiveRecheckSettings(queue);
+                lock (_monitoringLock)
+                {
+                    UpdateAdaptiveRecheckLocked(currentAdaptive);
+                    interval = _adaptiveRecheck?.AfterCheck(succeeded) ?? _monitoringInterval;
+                }
                 TimeSpan minimumInterval = MinimumRecheckInterval;
                 if (interval < minimumInterval) interval = minimumInterval;
                 if (deferredCheck != null)
@@ -730,13 +760,14 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     {
         ThreadContentContext? content = _content;
         ProfileAdmissionToken? admission = ContentAdmissionFor(cancellationToken, scope);
-        if (content == null) return CaptureContentCoreAsync(null, null, observed, cancellationToken);
-        if (admission != null) return CaptureContentCoreAsync(admission, content, observed, cancellationToken);
-        return content.WithStoreWriterAsync(owner => CaptureContentCoreAsync(owner, content, observed, cancellationToken), cancellationToken);
+        CancellationToken monitorToken = scope?.MonitorToken ?? cancellationToken;
+        if (content == null) return CaptureContentCoreAsync(null, null, observed, cancellationToken, monitorToken);
+        if (admission != null) return CaptureContentCoreAsync(admission, content, observed, cancellationToken, monitorToken);
+        return content.WithStoreWriterAsync(owner => CaptureContentCoreAsync(owner, content, observed, cancellationToken, monitorToken), cancellationToken);
     }
 
     private async Task CaptureContentCoreAsync(ProfileAdmissionToken? admission, ThreadContentContext? content,
-        CapturedThreadSnapshot? observed, CancellationToken cancellationToken)
+        CapturedThreadSnapshot? observed, CancellationToken cancellationToken, CancellationToken monitorToken)
     {
         if (content != null) content.ValidateAdmission(admission!);
         bool restoredObservation = observed == null;
@@ -759,6 +790,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         }
         if (content != null) await content.CaptureAdmittedAsync(admission!, observed, cancellationToken,
             restoredObservation: restoredObservation).ConfigureAwait(false);
+        if (!restoredObservation && observed != null) ObserveAdaptivePosts(observed.Posts, monitorToken);
         OnPropertyChanged();
     }
 

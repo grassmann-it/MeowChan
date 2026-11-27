@@ -278,6 +278,7 @@ namespace MeowChan
             LoadLimitsDraft(config);
             LoadWorkViewSwitchNoticeDraft(config);
             LoadShutdownLimitDraft(config);
+            LoadAdaptiveRecheckDraft(config);
             LoadFooterDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
@@ -838,6 +839,7 @@ namespace MeowChan
             LoadLimitsDraft(_config);
             LoadWorkViewSwitchNoticeDraft(_config);
             LoadShutdownLimitDraft(_config);
+            LoadAdaptiveRecheckDraft(_config);
             LoadFooterDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
@@ -979,6 +981,7 @@ namespace MeowChan
                 RaiseLimitsTextsChanged();
                 RaiseWorkViewNoticeTextsChanged();
                 RaiseShutdownLimitTextsChanged();
+                RaiseAdaptiveRecheckTextsChanged();
                 RaiseFooterTextsChanged();
                 RaiseTransferTextsChanged();
                 RefreshWorkViewOverviewTexts();
@@ -1213,6 +1216,7 @@ namespace MeowChan
                 ShortcutBindingsCommit.ApplyTo(candidate, savedShortcuts);
                 candidate.DownloadPath = normalizedPath!;
                 candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
+                ApplyAdaptiveRecheckDraft(candidate);
                 candidate.MaxParallelDownloads = GetInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum);
                 candidate.ParallelDownloadsSafetyLimit = GetInteger(ParallelDownloadsSafetyLimit, ParallelSafetyLabel, 1, Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit);
                 candidate.SaveUrlsOnExit = SaveUrlsOnExit;
@@ -1399,6 +1403,7 @@ namespace MeowChan
             LoadLimitsDraft(_config);
             LoadWorkViewSwitchNoticeDraft(_config);
             LoadShutdownLimitDraft(_config);
+            LoadAdaptiveRecheckDraft(_config);
             LoadFooterDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);

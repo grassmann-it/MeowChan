@@ -96,6 +96,10 @@ public partial class SettingsEditor
     private Dictionary<string, DefaultSetting> DefaultSettings() => _defaultSettings ??= new DefaultSetting[]
     {
             Number(RecheckTimerInput, () => RecheckTimer, value => RecheckTimer = value, config => config.RecheckTimer),
+            Flag(AdaptiveRecheckEnabledInput, () => AdaptiveRecheckEnabled, value => AdaptiveRecheckEnabled = value, config => config.AdaptiveRecheckEnabled),
+            Number(AdaptiveRecheckStartSecondsInput, () => AdaptiveRecheckStartSeconds, value => AdaptiveRecheckStartSeconds = value, config => config.AdaptiveRecheckStartSeconds),
+            Number(AdaptiveRecheckMinimumSecondsInput, () => AdaptiveRecheckMinimumSeconds, value => AdaptiveRecheckMinimumSeconds = value, config => config.AdaptiveRecheckMinimumSeconds),
+            Number(AdaptiveRecheckMaximumSecondsInput, () => AdaptiveRecheckMaximumSeconds, value => AdaptiveRecheckMaximumSeconds = value, config => config.AdaptiveRecheckMaximumSeconds),
             Number(ParallelDownloadsInput, () => MaxParallelDownloads, value => MaxParallelDownloads = value, config => config.MaxParallelDownloads),
             Number(ParallelDownloadsSafetyInput, () => ParallelDownloadsSafetyLimit, value => ParallelDownloadsSafetyLimit = value, config => config.ParallelDownloadsSafetyLimit),
             Number(BandwidthInput, () => BandwidthLimiterMB, value => BandwidthLimiterMB = value, config => config.BandwidthLimiter / (1024m * 1024m)),

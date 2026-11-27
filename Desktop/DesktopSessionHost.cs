@@ -109,6 +109,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
             queue = new DownloadQueue(Config.MaxParallelDownloads, Config.BandwidthLimiter, logger: _logger);
+            queue.AdaptiveRecheck = Config.GetAdaptiveRecheckSettings();
             queue.UpdateParallelDownloadsSafetyLimit(Config.ParallelDownloadsSafetyLimit);
             _downloadQueue = queue;
             queue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
@@ -623,6 +624,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             };
             await _registry.ApplyOptionsAdmittedAsync(options, candidate.SaveUrlsOnExit,
                 () => candidate.SaveConfigAdmitted(_profileLease.ProfileDirectory, admission), admission).ConfigureAwait(false);
+            _downloadQueue.AdaptiveRecheck = candidate.GetAdaptiveRecheckSettings();
             PublishConfig(candidate);
             if (!candidate.RememberReadingPosition) InvalidateReadingPositionWrites();
             readingFilesCleanedUp = candidate.TryCleanUpReadingPositionAfterOptOut();

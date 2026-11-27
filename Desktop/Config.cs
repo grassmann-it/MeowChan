@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using MeowChan.Boards.Base;
 using MeowChan.Models;
 using MeowChan.Desktop;
 using MeowChan.Persistence;
@@ -139,6 +140,18 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceExportFilenameTemplateConverter))]
         public string ExportFilenameTemplate { get; set; } = string.Empty;
         public int RecheckTimer { get; set; } = 60;
+        [JsonInclude]
+        internal bool AdaptiveRecheckEnabled { get; set; } = true;
+        [JsonInclude]
+        internal int AdaptiveRecheckStartSeconds { get; set; } = AdaptiveRecheckSettings.DefaultStartSeconds;
+        [JsonInclude]
+        internal int AdaptiveRecheckMinimumSeconds { get; set; } = AdaptiveRecheckSettings.MinimumSeconds;
+        [JsonInclude]
+        internal int AdaptiveRecheckMaximumSeconds { get; set; } = AdaptiveRecheckSettings.MaximumSeconds;
+
+        internal AdaptiveRecheckSettings? GetAdaptiveRecheckSettings() => AdaptiveRecheckEnabled
+            ? new(AdaptiveRecheckMinimumSeconds, AdaptiveRecheckStartSeconds, AdaptiveRecheckMaximumSeconds)
+            : null;
         public bool SaveUrlsOnExit { get; set; } = true;
         public bool ShowBoardAdmissionWizard { get; set; } = true;
         /// <summary>
@@ -1835,6 +1848,7 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ShutdownTimeLimitSeconds), "The shutdown time limit must be between 5 and 600 seconds.");
             if (RecheckTimer < 10 || TimeSpan.FromSeconds(RecheckTimer).TotalMilliseconds > uint.MaxValue - 1)
                 throw new ArgumentOutOfRangeException(nameof(RecheckTimer), "The recheck interval must be between 10 seconds and the supported timer maximum.");
+            AdaptiveRecheckSettings.Validate(AdaptiveRecheckMinimumSeconds, AdaptiveRecheckStartSeconds, AdaptiveRecheckMaximumSeconds);
             if (BandwidthLimiter <= 0 || BandwidthLimiter > BandwidthLimiterMaximumBytes)
                 throw new ArgumentOutOfRangeException(nameof(BandwidthLimiter), "The bandwidth limit must be greater than zero and at most " + BandwidthLimiterMaximumMiB + " MiB/s.");
             if (MaxParallelDownloads is < MaxParallelDownloadsMinimum or > MaxParallelDownloadsMaximum)
@@ -2148,6 +2162,10 @@ namespace MeowChan
                 DownloadPath = DownloadPath,
                 ExportFilenameTemplate = ExportFilenameTemplate,
                 RecheckTimer = RecheckTimer,
+                AdaptiveRecheckEnabled = AdaptiveRecheckEnabled,
+                AdaptiveRecheckStartSeconds = AdaptiveRecheckStartSeconds,
+                AdaptiveRecheckMinimumSeconds = AdaptiveRecheckMinimumSeconds,
+                AdaptiveRecheckMaximumSeconds = AdaptiveRecheckMaximumSeconds,
                 SaveUrlsOnExit = SaveUrlsOnExit,
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
                 WorkViewNoticePending = WorkViewNoticePending,
@@ -2468,6 +2486,10 @@ namespace MeowChan
             DownloadPath = absoluteDownloadPath;
             ExportFilenameTemplate = source.ExportFilenameTemplate;
             RecheckTimer = source.RecheckTimer;
+            AdaptiveRecheckEnabled = source.AdaptiveRecheckEnabled;
+            AdaptiveRecheckStartSeconds = source.AdaptiveRecheckStartSeconds;
+            AdaptiveRecheckMinimumSeconds = source.AdaptiveRecheckMinimumSeconds;
+            AdaptiveRecheckMaximumSeconds = source.AdaptiveRecheckMaximumSeconds;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             WorkViewNoticePending = source.WorkViewNoticePending;
@@ -2737,6 +2759,10 @@ namespace MeowChan
             DownloadPath = Path.GetFullPath(source.DownloadPath, source._relativePathBaseDirectory);
             ExportFilenameTemplate = source.ExportFilenameTemplate;
             RecheckTimer = source.RecheckTimer;
+            AdaptiveRecheckEnabled = source.AdaptiveRecheckEnabled;
+            AdaptiveRecheckStartSeconds = source.AdaptiveRecheckStartSeconds;
+            AdaptiveRecheckMinimumSeconds = source.AdaptiveRecheckMinimumSeconds;
+            AdaptiveRecheckMaximumSeconds = source.AdaptiveRecheckMaximumSeconds;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
