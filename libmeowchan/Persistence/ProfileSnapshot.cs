@@ -24,7 +24,19 @@ internal readonly record struct ProfileCopyOperation(Action<string, long>? Progr
         Token.ThrowIfCancellationRequested();
     }
 
-    internal string Hash(string path, FileStream input)
+    internal void Verify(string path, ProfileSnapshotFile file)
+    {
+        FileStream? input = null;
+        try
+        {
+            input = RegularProfileFile.OpenRead(path);
+            if (input.Length != file.Length || !string.Equals(Hash(path, input), file.Sha256, StringComparison.Ordinal))
+                throw new InvalidDataException($"The profile snapshot checksum failed for '{file.Name}'.");
+        }
+        finally { input?.Dispose(); }
+    }
+
+    private string Hash(string path, FileStream input)
     {
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         Transfer(path, input, hash, null);
@@ -306,11 +318,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         foreach (ProfileSnapshotFile file in files)
         {
             operation.Token.ThrowIfCancellationRequested();
-            string path = Child(directory, file.Name);
-            using FileStream stream = RegularProfileFile.OpenRead(path);
-            if (stream.Length != file.Length ||
-                !string.Equals(operation.Hash(path, stream), file.Sha256, StringComparison.Ordinal))
-                throw new InvalidDataException($"The profile snapshot checksum failed for '{file.Name}'.");
+            operation.Verify(Child(directory, file.Name), file);
         }
     }
 
