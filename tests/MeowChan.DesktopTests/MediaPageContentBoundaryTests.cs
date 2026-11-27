@@ -61,8 +61,13 @@ public sealed class MediaPageContentBoundaryTests
         Assert.Equal(3, session.GetFavorites().Count);
 
         GalleryEntry[] frozen = [first, blocked, last];
-        await window.ArchivePage.OpenFavoritesGallery!(frozen, first.EntryKey, () => { });
-        GalleryViewer viewer = Assert.IsType<GalleryViewer>(ById<Control>(window, "GalleryViewport").FindAncestorOfType<GalleryViewer>());
+        bool returnedToFavorites = false;
+        await window.ArchivePage.OpenFavoritesGallery!(frozen, first.EntryKey, () => returnedToFavorites = true);
+        Assert.False(returnedToFavorites);
+        window.UpdateLayout();
+        ContentControl host = ById<ContentControl>(window, "GalleryHost");
+        Assert.True(host.IsEffectivelyVisible);
+        GalleryViewer viewer = Assert.IsType<GalleryViewer>(host.Content);
         Assert.Equal(2, viewer.Filmstrip.Count);
         Assert.Equal(first.EntryKey, viewer.Filmstrip.EntryAt(0)!.EntryKey);
         Assert.Equal(last.EntryKey, viewer.Filmstrip.EntryAt(1)!.EntryKey);

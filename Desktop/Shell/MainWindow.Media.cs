@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
@@ -83,6 +84,7 @@ public partial class MainWindow
             if (!ReferenceEquals(MediaPageHost.Content, _mediaPage)) MediaPageHost.Content = _mediaPage;
             return;
         }
+        AutomationProperties.SetAutomationId(GalleryHost, "GalleryHost");
         _mediaPage = new MediaPage(_session.OpenArchiveReaderAsync, cachePath: Path.Combine(_session.ProfileDirectory, "cache", MediaLibraryIndexCache.FileName))
         {
             SidebarVideoSettings = CreateQuickSettingsHost(),

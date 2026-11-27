@@ -3,14 +3,13 @@ namespace MeowChan.Desktop.Localization;
 /// <summary>Texts of the media page. Registered in BuiltInCatalog.</summary>
 internal static class MediaLibraryCatalog
 {
-    private const string ContentBoundaryKey = "media.contentBoundary.hidden";
-
     internal static string ContentBoundaryCount(int count)
     {
-        // Bundled translations stay here until the language packs take over this key.
-        string format = Texts.Own(ContentBoundaryKey) ?? Texts.Language switch
+        // Keep the translations together until the bundled language packs take over this text.
+        string format = Texts.Language switch
         {
             "cs" => "{0} nad tvým limitem obsahu",
+            "de" => "{0} über deiner Inhaltsgrenze",
             "es" => "{0} por encima de tu límite de contenido",
             "fr" => "{0} au-dessus de ta limite de contenu",
             "it" => "{0} oltre il tuo limite di contenuti",
@@ -20,7 +19,7 @@ internal static class MediaLibraryCatalog
             "pt-BR" => "{0} acima do seu limite de conteúdo",
             "ru" => "{0} выше твоего ограничения по содержимому",
             "zh-Hans" => "{0} 项超出你的内容限制",
-            _ => Texts.T(ContentBoundaryKey)
+            _ => "{0} above your content limit"
         };
         return string.Format(Texts.Culture, format, count.ToString("N0", Texts.Culture));
     }
@@ -56,7 +55,6 @@ internal static class MediaLibraryCatalog
         ("media.count.media", "{0} media", "{0} Medien"),
         ("media.count.threads", "in {0} threads", "in {0} Threads"),
         ("media.countMissing", "{0} {1}, {2} missing", "{0} {1}, davon {2} fehlend"),
-        (ContentBoundaryKey, "{0} above your content limit", "{0} über deiner Inhaltsgrenze"),
         ("media.incomplete", "Some threads could not be read completely; their media may be missing here.", "Einige Threads konnten nicht vollständig gelesen werden; ihre Medien fehlen hier eventuell."),
         ("media.failed", "The archive could not be read. Use Refresh to try again.", "Das Archiv konnte nicht gelesen werden. Mit Aktualisieren erneut versuchen."),
         ("media.empty", "No saved media yet.", "Noch keine gespeicherten Medien."),
