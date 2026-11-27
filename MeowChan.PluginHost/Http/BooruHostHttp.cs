@@ -46,7 +46,7 @@ public sealed class BooruHostHttp : IDisposable
     private readonly Dictionary<string, BooruSourceProfile> _profiles;
     private readonly Func<TimeSpan>? _maximumCooldownProvider;
     private readonly Func<long?>? _sourceRevision;
-    private readonly Func<SourceDescription, Uri, BooruMetadataAccountLease?>? _metadataAccount;
+    private readonly Func<SourceDescription, Uri, object, BooruMetadataAccountLease?>? _metadataAccount;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceState> _states = new(StringComparer.Ordinal);
 
     // Keep the original public constructor shape for already compiled PluginHost consumers. The
@@ -60,7 +60,7 @@ public sealed class BooruHostHttp : IDisposable
     internal BooruHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
         Func<TimeSpan>? maximumCooldownProvider, string? danbooruUserId = null,
         string? productVersion = null, bool disposeTransport = false, Func<long?>? sourceRevision = null,
-        Func<SourceDescription, Uri, BooruMetadataAccountLease?>? metadataAccount = null)
+        Func<SourceDescription, Uri, object, BooruMetadataAccountLease?>? metadataAccount = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         ArgumentNullException.ThrowIfNull(policy);
@@ -91,18 +91,18 @@ public sealed class BooruHostHttp : IDisposable
     internal TimeProvider TimeProvider => _clock;
 
     internal Task<HostHttpResult> SendAsync(HostHttpRequest request, SourceDescription source,
-        BooruJob job, CancellationToken cancellationToken) => SendCoreAsync(request, source, job, false, cancellationToken);
+        BooruJob job, CancellationToken cancellationToken) => SendCoreAsync(request, source, job, null, cancellationToken);
 
     // Only a typed host operation can opt into account access. The offered transport must
     // disable redirects, cookies and default credentials (PluginHostHttp.CreateTransport).
     internal Task<HostHttpResult> SendBoundAsync(HostHttpRequest request, SourceDescription source,
         object operation, BooruJob job, CancellationToken cancellationToken) =>
         BooruEndpointPolicy.Bind(request, source, operation) is { } bound
-            ? SendCoreAsync(bound, source, job, true, cancellationToken)
+            ? SendCoreAsync(bound, source, job, operation, cancellationToken)
             : Task.FromResult<HostHttpResult>(BooruEndpointPolicy.OperationDenied());
 
     private async Task<HostHttpResult> SendCoreAsync(HostHttpRequest request, SourceDescription source,
-        BooruJob job, bool isBound, CancellationToken cancellationToken)
+        BooruJob job, object? operation, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (source is null || !_sources.TryGetValue(source.SourceId, out SourceDescription? declared)
@@ -123,7 +123,7 @@ public sealed class BooruHostHttp : IDisposable
 
         long? revision = _sourceRevision?.Invoke();
         if (_sourceRevision is not null && revision is null) return StaleSource();
-        BooruMetadataAccountLease? account = isBound ? _metadataAccount?.Invoke(source, request.Url) : null;
+        BooruMetadataAccountLease? account = operation is null ? null : _metadataAccount?.Invoke(source, request.Url, operation);
         if (account is not null && !BooruEndpointPolicy.IsExactOrigin(account.Origin, request.Url))
             return BooruEndpointPolicy.OperationDenied();
         CancellationToken accountLifetime = account?.Lifetime ?? default;
@@ -321,9 +321,13 @@ public sealed class BooruHostHttp : IDisposable
             try
             {
                 if (!isCurrent()) return StaleSource();
-                AuthenticationHeaderValue? authorization = account?.ReadAuthorization();
-                if (account is not null && authorization is null)
-                    return Failure("booru-account-unavailable", "The booru account is not available.");
+                AuthenticationHeaderValue? authorization = null;
+                if (account?.ReadAuthorization is { } readAuthorization)
+                {
+                    authorization = await readAuthorization(window.Token).ConfigureAwait(false);
+                    if (authorization is null)
+                        return Failure("booru-account-unavailable", "The booru account is not available.");
+                }
                 if (!isCurrent()) return StaleSource();
                 response = await SendAttemptAsync(request, userAgent, authorization, window.Token).ConfigureAwait(false);
                 // A late transport completion must observe the response deadline as well as
@@ -820,10 +824,14 @@ public sealed class BooruHostHttp : IDisposable
     private sealed class BooruAttemptTimeoutException(Exception inner) : Exception("Booru response timed out.", inner) { }
 }
 
-/// <summary>Host-owned account grant scoped to an exact metadata origin and one profile/account generation.</summary>
-internal sealed class BooruMetadataAccountLease(Uri origin, CancellationToken lifetime, Func<AuthenticationHeaderValue?> readAuthorization)
+/// <summary>
+/// Host-owned account grant scoped to an exact metadata origin and one profile/account generation.
+/// A null reader explicitly permits anonymous metadata and still fences the inactive account generation.
+/// </summary>
+internal sealed class BooruMetadataAccountLease(Uri origin, CancellationToken lifetime,
+    Func<CancellationToken, ValueTask<AuthenticationHeaderValue?>>? readAuthorization)
 {
     internal Uri Origin { get; } = origin;
     internal CancellationToken Lifetime { get; } = lifetime;
-    internal AuthenticationHeaderValue? ReadAuthorization() => readAuthorization();
+    internal Func<CancellationToken, ValueTask<AuthenticationHeaderValue?>>? ReadAuthorization { get; } = readAuthorization;
 }
