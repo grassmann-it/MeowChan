@@ -86,7 +86,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
     {
         _queue = queue; _logger = logger; _config = config ?? throw new ArgumentNullException(nameof(config));
         _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
-        string applicationDirectory = PayloadDirectory();
+        string applicationDirectory = ProcessEntry.PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
         LocalTaggerModels = new(profileLease, config.LocalTaggerSettings());
         SiteSwitches = new ChanSiteSwitches(profileDirectory, logger);
@@ -96,9 +96,15 @@ internal sealed partial class PluginSession : IAsyncDisposable
         _repairRestrictedSourceIds = RepairRestrictedSourceIds(_savedSourcePermissions, null, Array.Empty<PluginCandidateObservation>());
         string compilerDirectory = Path.Combine(applicationDirectory, "plugin-compiler");
         string executableSuffix = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
+        string apphost = Path.Combine(AppContext.BaseDirectory, "MeowChan" + executableSuffix);
+        string compilerHelper = Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix);
+        bool standaloneCompiler = File.Exists(compilerHelper);
         CompilationService = new PluginCompilationService(new PluginCompilerOptions(
-            Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + executableSuffix), compilerDirectory,
-            Path.Combine(profileDirectory, "plugin-cache")));
+            standaloneCompiler ? compilerHelper : Environment.ProcessPath ?? apphost, compilerDirectory,
+            Path.Combine(profileDirectory, "plugin-cache"))
+        {
+            EntryArgument = standaloneCompiler ? null : ProcessEntry.CompilerSwitch
+        });
         Inventory = new PluginInstallationInventory();
         ProfileStore = new PluginProfileStore(profileDirectory, ExperimentalSourceActivationPolicy.InitiallyEnabled, () =>
         {
@@ -120,25 +126,18 @@ internal sealed partial class PluginSession : IAsyncDisposable
             new FilterStageOptions { WorkerTemporaryBytes = Runtime.GetTemporaryBytes });
         string working = Path.Combine(profileDirectory, "plugin-workers");
         _workerWorkspaceRoot = working;
-        _launch = new PluginWorkerLaunch(Path.Combine(applicationDirectory, "plugin-worker", "MeowChan.PluginWorker" + executableSuffix),
-            Array.Empty<string>(), working);
+        string workerHelper = Path.Combine(applicationDirectory, "plugin-worker", "MeowChan.PluginWorker" + executableSuffix);
+        _launch = File.Exists(workerHelper)
+            ? new PluginWorkerLaunch(workerHelper, Array.Empty<string>(), working)
+            : new PluginWorkerLaunch(Environment.ProcessPath ?? apphost, [ProcessEntry.WorkerSwitch], working);
         // The optional factory only replaces network transport; this session owns the returned client.
-        _transport = transportFactory?.Invoke() ?? PluginHostHttp.CreateTransport();
+        _transport = CreateSessionTransport(transportFactory);
         ProfileStore.LifecycleChanged += OnLifecycleChanged;
         ProfileStore.GrantChanged += OnGrantChanged;
     }
 
-    private static string PayloadDirectory()
-    {
-        DirectoryInfo directory = new DirectoryInfo(AppContext.BaseDirectory);
-        if (OperatingSystem.IsMacOS() && directory.Name == "MacOS" && directory.Parent?.Name == "Contents"
-            && directory.Parent.Parent?.Name.EndsWith(".app", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            string payload = Path.Combine(directory.Parent.FullName, "Resources", "application");
-            if (Directory.Exists(payload)) return payload;
-        }
-        return directory.FullName;
-    }
+    private static HttpClient CreateSessionTransport(Func<HttpClient>? factory) =>
+        factory?.Invoke() ?? PluginHostHttp.CreateTransport();
 
     internal async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -391,7 +390,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         PluginInstallationCandidate[] ordered = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
             .Concat(local.Candidates).ToArray();
         // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
-        SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
+        using SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
         using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement pass = PluginStartupDiagnostics.Span("probe-pass");
         PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
         {
@@ -444,15 +443,17 @@ internal sealed partial class PluginSession : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         PluginDescription description = await DescribeTestAsync(artifact, cancellationToken).ConfigureAwait(false);
-        PluginHostHttp http = new(_transport, _httpPolicy, description.Sources);
+        PluginHostHttp? http = new(_transport, _httpPolicy, description.Sources);
         try
         {
             IPluginWorkerClient client = await Runtime.StartAsync(_launch, artifact, configuration,
                 new HostServices(http, _filterStages, description.PluginId), testWorker: true,
                 cancellationToken: cancellationToken, filterWorker: description.Filters.Count > 0).ConfigureAwait(false);
-            return new TestWorker(client, http);
+            var worker = new TestWorker(client, http);
+            http = null; // The returned worker owns the HTTP services after a successful start.
+            return worker;
         }
-        catch { http.Dispose(); throw; }
+        finally { http?.Dispose(); }
     }
 
     private async Task<IPluginWorkerClient> GetWorkerAsync(string pluginId, CancellationToken cancellationToken)
@@ -522,7 +523,11 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 SetSourceMediaIntegrityActive(item.Key, enabled);
                 ApplyAdapterState(item.Key, activation, change.Enabled);
             }
-            if (!change.Enabled) _clients.Remove(change.PluginId, out client);
+            if (!change.Enabled)
+            {
+                client = _clients.GetValueOrDefault(change.PluginId);
+                _clients.Remove(change.PluginId);
+            }
         }
         if (client != null)
         {

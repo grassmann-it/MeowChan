@@ -23,7 +23,7 @@ internal static class Program
         try
         {
             using MemoryStream input = new();
-            Stream standardInput = Console.OpenStandardInput();
+            using Stream standardInput = Console.OpenStandardInput();
             byte[] buffer = new byte[65536];
             int count;
             while ((count = await standardInput.ReadAsync(buffer)) != 0)
@@ -39,7 +39,8 @@ internal static class Program
         {
             response = new(false, "ReferenceError", [new("MCREF", exception.Message, null, null, null, "error")]);
         }
-        await Console.Out.WriteAsync(JsonSerializer.Serialize(response, CompilerWire.JsonOptions));
+        using Stream standardOutput = Console.OpenStandardOutput();
+        await JsonSerializer.SerializeAsync(standardOutput, response, CompilerWire.JsonOptions);
         return response.Success ? 0 : 1;
     }
 
