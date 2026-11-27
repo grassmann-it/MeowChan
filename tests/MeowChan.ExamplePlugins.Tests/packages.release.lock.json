@@ -99,12 +99,6 @@
           "MeowChan.PluginSdk": "[1.1.2, )"
         }
       },
-      "meowchan.plugin.anonimageboards": {
-        "type": "Project",
-        "dependencies": {
-          "MeowChan.PluginSdk": "[1.1.2, )"
-        }
-      },
       "meowchan.plugin.bbwchan": {
         "type": "Project",
         "dependencies": {
@@ -136,12 +130,6 @@
         }
       },
       "meowchan.plugin.fchan": {
-        "type": "Project",
-        "dependencies": {
-          "MeowChan.PluginSdk": "[1.1.2, )"
-        }
-      },
-      "meowchan.plugin.gurocx": {
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.1.2, )"

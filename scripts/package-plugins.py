@@ -17,12 +17,12 @@ RUNTIMES = ('win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
 PLUGINS = ('MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.VichanFamily',
            'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter', 'MeowChan.Plugin.Endchan',
            'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter', 'MeowChan.Plugin.Dvach', 'MeowChan.Plugin.JschanFamily',
-           'MeowChan.Plugin.SevenChan', 'MeowChan.Plugin.BbwChan', 'MeowChan.Plugin.AnonImageboards',
-           'MeowChan.Plugin.CapybaraChan', 'MeowChan.Plugin.EightchanMoe', 'MeowChan.Plugin.Fchan', 'MeowChan.Plugin.GuroCx')
+           'MeowChan.Plugin.SevenChan', 'MeowChan.Plugin.BbwChan',
+           'MeowChan.Plugin.CapybaraChan', 'MeowChan.Plugin.EightchanMoe', 'MeowChan.Plugin.Fchan')
 SOURCES = ('VichanFamily.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Endchan.cs',
            'FileRulesFilter.cs', 'HashBlocklistFilter.cs', 'AnimationFormatFilter.cs', 'PngMetadataFilter.cs', 'Dvach.cs', 'JschanFamily.cs',
-           'SevenChan.cs', 'BbwChan.cs', 'AnonImageboards.cs', 'CapybaraChan.cs', 'EightchanMoe.cs',
-           'Fchan.cs', 'GuroCx.cs')
+           'SevenChan.cs', 'BbwChan.cs', 'CapybaraChan.cs', 'EightchanMoe.cs',
+           'Fchan.cs')
 OPTIONS = 'net10.0;csharp14;release;deterministic;nullable=enable;unsafe=false;generators=none;v1'
 HASH = re.compile(r'[0-9a-f]{64}\Z')
 FORBIDDEN_PAYLOAD_COMPONENTS = frozenset(('bin', 'obj', '.git', '.vs', 'profile', 'profiles'))

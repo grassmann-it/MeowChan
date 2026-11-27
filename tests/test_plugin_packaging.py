@@ -211,8 +211,8 @@ class PluginPackagingTests(unittest.TestCase):
                 try:
                     self.fixture(runtime)
                     report = PACKAGE.verify(self.root, runtime)
-                    self.assertEqual(20, report['plugins'])
-                    self.assertEqual(17, report['editable_sources'])
+                    self.assertEqual(18, report['plugins'])
+                    self.assertEqual(15, report['editable_sources'])
                 finally:
                     self.root = outer
 
@@ -226,12 +226,12 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertEqual({'MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.VichanFamily',
                           'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter', 'MeowChan.Plugin.Endchan',
                           'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter', 'MeowChan.Plugin.Dvach', 'MeowChan.Plugin.JschanFamily',
-                          'MeowChan.Plugin.SevenChan', 'MeowChan.Plugin.BbwChan', 'MeowChan.Plugin.AnonImageboards',
-                          'MeowChan.Plugin.CapybaraChan', 'MeowChan.Plugin.EightchanMoe', 'MeowChan.Plugin.Fchan', 'MeowChan.Plugin.GuroCx'}, set(PACKAGE.PLUGINS))
+                          'MeowChan.Plugin.SevenChan', 'MeowChan.Plugin.BbwChan',
+                          'MeowChan.Plugin.CapybaraChan', 'MeowChan.Plugin.EightchanMoe', 'MeowChan.Plugin.Fchan'}, set(PACKAGE.PLUGINS))
         self.assertEqual({'VichanFamily.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Endchan.cs',
                           'FileRulesFilter.cs', 'HashBlocklistFilter.cs', 'AnimationFormatFilter.cs', 'PngMetadataFilter.cs', 'Dvach.cs', 'JschanFamily.cs',
-                          'SevenChan.cs', 'BbwChan.cs', 'AnonImageboards.cs', 'CapybaraChan.cs', 'EightchanMoe.cs',
-                          'Fchan.cs', 'GuroCx.cs'}, set(PACKAGE.SOURCES))
+                          'SevenChan.cs', 'BbwChan.cs', 'CapybaraChan.cs', 'EightchanMoe.cs',
+                          'Fchan.cs'}, set(PACKAGE.SOURCES))
         self.assertEqual(5, len(PACKAGE.RUNTIMES))
         self.assertNotIn('Danbooru.cs', PACKAGE.SOURCES)
         self.assertIn('MeowChan.Plugin.Danbooru', PACKAGE.PLUGINS)
@@ -239,9 +239,8 @@ class PluginPackagingTests(unittest.TestCase):
         for assembly_name, source in ([('MeowChan.Plugin.VichanFamily', 'VichanFamily'), ('MeowChan.Plugin.Endchan', 'Endchan')] +
                 [('MeowChan.FileRulesFilter', 'FileRulesFilter'), ('MeowChan.HashBlocklistFilter', 'HashBlocklistFilter'), ('MeowChan.AnimationFormatFilter', 'AnimationFormatFilter'), ('MeowChan.PngMetadataFilter', 'PngMetadataFilter'),
                  ('MeowChan.Plugin.Dvach', 'Dvach'), ('MeowChan.Plugin.JschanFamily', 'JschanFamily'),
-                 ('MeowChan.Plugin.SevenChan', 'SevenChan'), ('MeowChan.Plugin.BbwChan', 'BbwChan'), ('MeowChan.Plugin.AnonImageboards', 'AnonImageboards'),
-                 ('MeowChan.Plugin.CapybaraChan', 'CapybaraChan'), ('MeowChan.Plugin.EightchanMoe', 'EightchanMoe'), ('MeowChan.Plugin.Fchan', 'Fchan'),
-                 ('MeowChan.Plugin.GuroCx', 'GuroCx')]):
+                 ('MeowChan.Plugin.SevenChan', 'SevenChan'), ('MeowChan.Plugin.BbwChan', 'BbwChan'),
+                 ('MeowChan.Plugin.CapybaraChan', 'CapybaraChan'), ('MeowChan.Plugin.EightchanMoe', 'EightchanMoe'), ('MeowChan.Plugin.Fchan', 'Fchan')]):
             with self.subTest(source=source):
                 manifest = self.root / ('plugins/' + assembly_name + '.plugin.json')
                 original = manifest.read_bytes()

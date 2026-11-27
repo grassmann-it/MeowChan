@@ -181,6 +181,13 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 bool sdkUpgrade = false, pinnedUpdate = false, movedBundle = false, installedBuildChanged = false;
                 if (superseded.Contains(pluginId))
                     next = next with { Problem = "Replaced by the bundled plugin '" + SupersededBundledPlugins[pluginId] + "', which serves the same sources." };
+                // The 1.2 marketplace inventory retired these route-less declarations. An absent
+                // placeholder has no runtime to restore, but its saved record can stay for older releases.
+                else if (present.Length == 0 && (pluginId is "meowchan.source.anonimageboards" or "meowchan.source.gurocx")
+                    && (old.Active ?? old.Pinned ?? old.LastGood)?.Description.DeclarationStatus == PluginDeclarationStatus.Blocked)
+                {
+                    release = null;
+                }
                 else if (old.Pinned is not null)
                 {
                     release = BundledCandidateMigration.PinnedRelease(old)!;
