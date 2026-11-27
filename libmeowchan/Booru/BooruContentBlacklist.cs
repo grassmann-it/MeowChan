@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -10,6 +11,8 @@ namespace MeowChan.Booru;
 /// <summary>Compiles one blacklist scope. Blank lines are ignored and a rule contains whitespace-separated terms.</summary>
 internal sealed record BooruContentBlacklist(IReadOnlyList<BooruContentBlacklist.Rule> Rules, BooruContentRuleLocation? Error)
 {
+    private static readonly SearchValues<char> UnsupportedTagCharacters = SearchValues.Create(":+~*?<>|=\"");
+
     internal enum TermKind { Tag, Rating, SourceRatingS, ScoreBelow }
 
     internal readonly record struct Term(TermKind Kind, bool Negated, string Text, int Value)
@@ -81,7 +84,7 @@ internal sealed record BooruContentBlacklist(IReadOnlyList<BooruContentBlacklist
             && int.TryParse(operand.AsSpan(7), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int score))
             return new(TermKind.ScoreBelow, negated, string.Empty, score);
 
-        if (operand.Length == 0 || operand[0] == '-' || operand.AsSpan().ContainsAny(":+~*?<>|=\"")
+        if (operand.Length == 0 || operand[0] == '-' || operand.AsSpan().ContainsAny(UnsupportedTagCharacters)
             || operand.Any(char.IsControl))
             return null;
         return new(TermKind.Tag, negated, operand, 0);
