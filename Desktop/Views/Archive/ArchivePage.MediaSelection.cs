@@ -346,10 +346,14 @@ public partial class ArchivePage
             || MediaTagServices is not { } services || SelectionTagContext(thread, rows, entries) is not { } context) return;
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
         MediaSelectionTagSession target = NewMediaSelectionTagSession(thread, rows, entries, services);
-        QuickTagSession session = options.NewSession(QuickTagTarget.For(target));
         ClearArchiveStampRun();
-        string names = string.Join(", ", session.Stamp.Resolve(session.Snapshot).Select(tag => tag.Name.Display));
-        _archiveStampRun = new(thread.Summary.Id, session, target, count, names);
+        // The run owns the session; ClearArchiveStampRun disposes it.
+        _archiveStampRun = new(thread.Summary.Id, options.NewSession(QuickTagTarget.For(target)), target, count, "");
+        QuickTagSession session = _archiveStampRun.Session;
+        _archiveStampRun = _archiveStampRun with
+        {
+            Names = string.Join(", ", session.Stamp.Resolve(session.Snapshot).Select(tag => tag.Name.Display))
+        };
         if (options.Recent is { } recent) session.Applied += change => recent.Touch(change.Tag);
         await RunArchiveStampAsync(() => session.ApplyStampJoinedAsync(_lifetime.Token));
     }
