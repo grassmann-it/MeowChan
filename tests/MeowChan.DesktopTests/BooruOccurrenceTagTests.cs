@@ -73,9 +73,12 @@ public sealed class BooruOccurrenceTagTests
         SaveRules(lease, BooruPostClaimRating.Sensitive);
         await BooruTestSupport.WaitAsync(() => north.IsEffectivelyVisible, "the allowed tags to return");
         File.Delete(path);
+        Assert.True(copyNorth.IsEnabled);
+        copyNorth.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await BooruTestSupport.WaitAsync(() => !north.IsEffectivelyVisible, "the deleted original's tags to disappear");
         Assert.Null(north.Text);
         Assert.False(copyNorth.IsEnabled);
+        Assert.Equal("unchanged", await clipboard.TryGetTextAsync());
         Assert.True(window.IsVisible);
     });
 
@@ -85,6 +88,12 @@ public sealed class BooruOccurrenceTagTests
         using TempDirectory temp = new();
         using DanbooruStub transport = new() { Offline = true };
         using DanbooruTestBinding binding = new(transport);
+        new Config
+        {
+            DownloadPath = Path.Combine(temp.Path, "media"), FirstRunSetupVersion = 1,
+            DownloadsPaused = true, SaveUrlsOnExit = true, AutomaticUpdateChecks = false,
+            MinimizeToTray = false, CloseToTray = false, MaxParallelDownloads = 1, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0
+        }.SaveConfig(temp.Path);
         Dictionary<string, MediaAssetSnapshot> manifests = new(StringComparer.Ordinal);
         byte[] bytes = DanbooruStub.Png(4, 4, 0xff5182a1, 42);
         MediaAssetReference chanAsset = SaveAsset(temp.Path, "chan", "chan-image", bytes, manifests);
@@ -115,7 +124,7 @@ public sealed class BooruOccurrenceTagTests
 
         byte[] privateBefore = await File.ReadAllBytesAsync(privateTagFile);
         DateTime tagWriteBefore = File.GetLastWriteTimeUtc(privateTagFile);
-        await using DesktopSessionHost session = await BooruCompositionHostTests.StartAsync(temp.Path, transport, () => binding.Binding, paused: true);
+        await using DesktopSessionHost session = await BooruCompositionHostTests.StartAsync(temp.Path, transport, () => binding.Binding, writeConfig: false);
         Texts.SetLanguage("en");
         MediaLibraryEntry chan = new(new ResourceId("4chan", "g", "123"), "A Chan thread", 1, Captured, Captured, "123", 1,
             Captured, 0, null, Path.GetDirectoryName(chanAsset.Path), chanAsset.AssetId, chanAsset.Sha256, chanAsset.Length,
