@@ -136,6 +136,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     // Instance seam keeps controlled decodes isolated from other viewers.
     internal Func<GalleryEntry, GalleryDecodeRequest, CancellationToken,
         Task<(Bitmap Bitmap, GalleryImageInfo Info)>> DecodeImageAsync { get; set; } = GalleryImageCache.DecodeAsync;
+    internal Func<GalleryEntry, bool>? AllowsMedia { get; init; }
     private Bitmap? _fitBitmap;
     private Bitmap? _highBitmap;
     private GalleryImageInfo? _info;
@@ -344,6 +345,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         long revision, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (AllowsMedia?.Invoke(entry) == false) return Task.CompletedTask;
         SetAssociationIndex(associations, revision);
         FilmstripShown(entry, associations);
         return ShowAsync(entry, cancellationToken);
@@ -1281,6 +1283,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private async Task ShowMediaAsync(GalleryEntry entry, CancellationToken cancellationToken, bool? resumeAutoplay = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (AllowsMedia?.Invoke(entry) == false) return;
         if (_filmstripContextTarget is { } contextTarget && contextTarget.Key != entry.Key) CancelFilmstripContextRequest();
         int filmstripContextRequest = _filmstripContextRequest;
         _favoriteGestureKey = null; // a new medium starts with no held favourite key
@@ -1323,6 +1326,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             if (request != _request || cancellationToken.IsCancellationRequested) return;
             _video.IsVisible = false;
         }
+        if (AllowsMedia?.Invoke(entry) == false) return;
         if (entry.Kind != SavedMediaKind.Video)
         {
             UseNativeVideoOverlay(false);
@@ -1373,7 +1377,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
                 Dispatcher.UIThread.Post(CheckNativeOverlayTransparency, DispatcherPriority.Loaded);
             _video.PrepareRotation(_rotation, _flipped);
             await _video.ShowAsync(entry, cancellationToken);
-            if (request != _request || cancellationToken.IsCancellationRequested) return;
+            if (request != _request || cancellationToken.IsCancellationRequested || AllowsMedia?.Invoke(entry) == false) return;
             _videoReadyRequest = request;
             _slideshow.VideoReady(_slideshowGeneration);
             // Initial selection already honored autoplay. Only a slideshow explicitly started
@@ -1449,12 +1453,15 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, sessionToken);
             try
             {
+                if (AllowsMedia?.Invoke(entry) == false) return;
                 if (IsGifCandidate(entry) && await TryAdoptGifAsync(entry, session, generation, linked.Token)) return;
+                if (AllowsMedia?.Invoke(entry) == false) return;
                 Bitmap bitmap;
                 GalleryImageInfo info;
                 using (PerformanceDiagnostics.Measure("gallery.image.load", decodeId, asset: entry.Asset.AssetId, epoch: _diagnosticEpoch, revision: mappingRevision))
                     (bitmap, info) = await DecodeImageAsync(entry, decode, linked.Token);
-                if (session != _request || generation != _decodeGeneration || linked.IsCancellationRequested)
+                if (session != _request || generation != _decodeGeneration || linked.IsCancellationRequested
+                    || AllowsMedia?.Invoke(entry) == false)
                 {
                     PerformanceDiagnostics.Record("gallery.image.request", "discarded", decodeId, asset: entry.Asset.AssetId,
                         epoch: _diagnosticEpoch, revision: mappingRevision);

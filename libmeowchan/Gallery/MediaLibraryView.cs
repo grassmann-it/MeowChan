@@ -47,6 +47,10 @@ internal enum MediaLibrarySortDirection { Default, Reversed }
 /// <summary>Pure ordering and visibility rules of the media page. No IO.</summary>
 internal static class MediaLibraryView
 {
+    /// <summary>Applies the local ceiling to the sequence shared by all gallery navigation modes.</summary>
+    internal static IReadOnlyList<GalleryEntry> VisibleGalleryEntries(IReadOnlyList<GalleryEntry> entries, MediaContentBoundary? boundary) =>
+        boundary == null ? entries : entries.Where(entry => boundary.Allows(entry.Key.Thread)).ToArray();
+
     /// <summary>
     /// Whether the default direction of <paramref name="sort"/> runs from large to small or new to old (descending); the arrow of a
     /// direction toggle follows this. Name runs ascending. <see cref="MediaLibrarySort.Random"/> has no direction and answers false.

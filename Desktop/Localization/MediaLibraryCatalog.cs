@@ -3,6 +3,27 @@ namespace MeowChan.Desktop.Localization;
 /// <summary>Texts of the media page. Registered in BuiltInCatalog.</summary>
 internal static class MediaLibraryCatalog
 {
+    internal static string ContentBoundaryCount(int count)
+    {
+        // Keep the translations together until the bundled language packs take over this text.
+        string format = Texts.Language switch
+        {
+            "cs" => "{0} nad tvým limitem obsahu",
+            "de" => "{0} über deiner Inhaltsgrenze",
+            "es" => "{0} por encima de tu límite de contenido",
+            "fr" => "{0} au-dessus de ta limite de contenu",
+            "it" => "{0} oltre il tuo limite di contenuti",
+            "ja" => "コンテンツ制限を超えた項目が{0}件",
+            "ko" => "콘텐츠 제한을 초과한 항목 {0}개",
+            "pl" => "{0} ponad twój limit treści",
+            "pt-BR" => "{0} acima do seu limite de conteúdo",
+            "ru" => "{0} выше твоего ограничения по содержимому",
+            "zh-Hans" => "{0} 项超出你的内容限制",
+            _ => "{0} above your content limit"
+        };
+        return string.Format(Texts.Culture, format, count.ToString("N0", Texts.Culture));
+    }
+
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("nav.media", "Media", "Medien"),

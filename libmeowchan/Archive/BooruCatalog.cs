@@ -327,10 +327,20 @@ internal sealed class BooruCatalogStore
     private static readonly ConditionalWeakTable<BooruCatalogSnapshot, Dictionary<string, IReadOnlyDictionary<string, (int Hits, int Loaded)>>>
         WatcherCounts = new();
 
+    private sealed class LocalRatingChanges
+    {
+        internal event Action? Changed;
+
+        internal void Publish() => Changed?.Invoke();
+    }
+
+    private static readonly ConditionalWeakTable<ProfileLease, LocalRatingChanges> RatingChangesByProfile = new();
+
     private readonly object _sync = new();
     private readonly ProfileLease _lease;
     private readonly string _path;
     private readonly JsonSerializerOptions _json;
+    private readonly LocalRatingChanges _localRatingChanges;
     private Cache? _cache;
     private long _documentLimitBytes = DefaultDocumentLimitBytes;
     private long _fullReads;
@@ -346,10 +356,18 @@ internal sealed class BooruCatalogStore
         _lease = lease;
         _path = Path.Combine(lease.ProfileDirectory, FileName);
         _json = CreateJsonOptions();
+        _localRatingChanges = RatingChangesByProfile.GetValue(lease, static _ => new LocalRatingChanges());
     }
 
     internal string FilePath => _path;
     internal ProfileLease ProfileLease => _lease;
+
+    // Observers schedule refreshes without reading the catalog under its write lock.
+    internal event Action? LocalRatingChanged
+    {
+        add => _localRatingChanges.Changed += value;
+        remove => _localRatingChanges.Changed -= value;
+    }
 
     /// <summary>Configured write limit in bytes, between <see cref="MinimumDocumentLimitBytes"/> and <see cref="MaximumDocumentBytes"/>.</summary>
     internal long DocumentLimitBytes
@@ -826,6 +844,10 @@ internal sealed class BooruCatalogStore
         int schema = frozen.Identity.IsLegacyDanbooru ? cache.Snapshot.SchemaVersion : BooruCatalogSnapshot.ScopedIdentitySchemaVersion;
         WriteLocked(cache, cache.Snapshot with { SchemaVersion = schema, Posts = Array.AsReadOnly(posts) },
             index < 0 ? frozen.Identity : null, null, admission, cancellationToken, stateChangeOnly);
+        if (index >= 0 && cache.Snapshot.Posts[index] is { LocalAssetId: not null, Post: var previous }
+            && (previous.Rating != frozen.Post.Rating || previous.RawRating != frozen.Post.RawRating
+                || previous.Fields.HasFlag(BooruPostClaimPresence.Rating) != frozen.Post.Fields.HasFlag(BooruPostClaimPresence.Rating)))
+            _localRatingChanges.Publish();
         return frozen;
     }
 

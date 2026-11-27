@@ -11,6 +11,7 @@ using Avalonia.Data;
 using Avalonia.VisualTree;
 using Avalonia.Input;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Feedback;
@@ -100,22 +101,33 @@ public partial class MainWindow
         await StartGalleryAsync(Array.AsReadOnly(new[] { id }), origin, stillRequested: readerRequest);
     }
 
-    internal async Task OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null,
-        Func<bool>? stillRequested = null, ThreadMediaPositions? threadMedia = null, ThreadGalleryPositions? threadPositions = null)
+    internal async Task<IReadOnlyList<GalleryEntry>?> OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null,
+        Func<bool>? stillRequested = null, ThreadMediaPositions? threadMedia = null, ThreadGalleryPositions? threadPositions = null,
+        bool startAtFirstAllowed = false)
     {
         stillRequested ??= _archivePage?.GallerySelectionGuard ?? ArchiveGalleryHandoffGuard();
-        if (stillRequested?.Invoke() == false) return;
+        if (stillRequested?.Invoke() == false) return null;
+        bool checkLocalContent = entries.Any(entry => BooruMediaIdentity.IsBooruThread(entry.Key.Thread));
+        IReadOnlyList<GalleryEntry> visible = checkLocalContent
+            ? MediaLibraryView.VisibleGalleryEntries(entries, ReadLocalGalleryBoundary()) : entries;
+        if (checkLocalContent && !visible.Any(entry => entry.EntryKey == start))
+        {
+            if (!startAtFirstAllowed || visible.Count == 0) return null;
+            start = visible[0].EntryKey;
+        }
         _galleryStart = null;
         _galleryAllVersions = true;
         // StartGalleryAsync rechecks this after retiring native media, alongside its own request revision.
-        await StartGalleryAsync(Array.Empty<ResourceId>(), origin, entries, start, stillRequested: stillRequested,
-            threadPositions: threadPositions ?? (threadMedia == null ? null : ThreadGalleryPositions.Create(threadMedia, entries, capturedOrder: false)));
+        GalleryViewer? opened = await StartGalleryAsync(Array.Empty<ResourceId>(), origin, visible, start, stillRequested: stillRequested,
+            threadPositions: visible.Count != entries.Count ? null
+                : threadPositions ?? (threadMedia == null ? null : ThreadGalleryPositions.Create(threadMedia, visible, capturedOrder: false)),
+            checkLocalContent: checkLocalContent);
+        return opened != null && ReferenceEquals(_gallery, opened) ? visible : null;
     }
 
     private async Task OpenFavoritesGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Action completed)
     {
-        await OpenMediaGalleryAsync(entries, start);
-        if (_gallery != null) _galleryCompleted = completed;
+        if (await OpenMediaGalleryAsync(entries, start) != null) _galleryCompleted = completed;
         else if (!_isClosing) completed();
     }
 
@@ -152,17 +164,17 @@ public partial class MainWindow
             _ => GalleryReturnTarget.None
         };
 
-    private async Task StartGalleryAsync(IReadOnlyList<ResourceId> ids, Control? origin,
+    private async Task<GalleryViewer?> StartGalleryAsync(IReadOnlyList<ResourceId> ids, Control? origin,
         IReadOnlyList<GalleryEntry>? frozenEntries = null, GalleryEntryKey? entryStart = null,
         Func<CancellationToken, Task<IReadOnlyList<ResourceId>>>? selectThreads = null, Func<bool>? stillRequested = null,
-        ThreadGalleryPositions? threadPositions = null)
+        ThreadGalleryPositions? threadPositions = null, bool checkLocalContent = false)
     {
-        if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
+        if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return null;
         await _playbackGate.EnterGalleryAsync(() => Task.WhenAll(
             _archivePage?.ReleaseInlineVideos() ?? Task.CompletedTask,
             _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask,
             _taggingPage?.ReleasePanelVideos() ?? Task.CompletedTask));
-        if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
+        if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return null;
         bool largeReaderOrigin = _largeReaderOpen;
         bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;
         WorkspacePage originPage = _selectedPage;
@@ -174,7 +186,12 @@ public partial class MainWindow
         // stopped. A new viewer must not replace that host prematurely.
         await _galleryCleanupTask;
         if (_isClosing || request != _galleryRequest || _archivePage?.IsArchiveCleanupOpen == true
-            || stillRequested?.Invoke() == false) return;
+            || stillRequested?.Invoke() == false) return null;
+        if (checkLocalContent && frozenEntries != null && !AllowsLocalGalleryEntries(frozenEntries))
+        {
+            _playbackGate.ExitGallery();
+            return null;
+        }
         _galleryOrigin = origin;
         _galleryOriginPage = originPage;
         _galleryMediaReturn = CaptureGalleryMediaReturn(GalleryReturnTargetFor(origin, readerOrigin, originPage));
@@ -208,8 +225,10 @@ public partial class MainWindow
             ProviderContext = BooruGalleryContext,
             ReadMediaMenuBooruCatalog = _session.ReadBooruCatalog,
             ReadMediaMenuOwnTags = entry => MediaSourceMenu.OwnTags(_session.GetPublishedPrivateTagSnapshot().Snapshot, MediaTagSubjects.Of(entry)),
-            ThreadPositions = threadPositions
+            ThreadPositions = threadPositions,
+            AllowsMedia = checkLocalContent ? AllowsLocalGalleryEntry : null
         };
+        _gallery.Filmstrip.AllowsMedia = _gallery.AllowsMedia;
         ConfigureGalleryScrubPreview();
         _gallery.ApplyWorkView(ConfiguredWorkView); // WV4: the toolbar and "More" of the gallery follow the window's work view
         UpdateMediaReturn(); // the gallery owns the way back while it is open
@@ -277,11 +296,11 @@ public partial class MainWindow
             {
                 IReadOnlyList<ResourceId> selected = await Task.Run(() => selectThreads(token), token);
                 if (request != _galleryRequest || token.IsCancellationRequested || _gallery == null
-                    || _archivePage?.IsArchiveCleanupOpen == true) return;
+                    || _archivePage?.IsArchiveCleanupOpen == true) return null;
                 _galleryThreads = selected;
                 UpdateGalleryScope();
             }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return null; }
             catch (Exception exception)
             {
                 if (request == _galleryRequest && ReferenceEquals(_gallery, resolvingViewer))
@@ -290,12 +309,13 @@ public partial class MainWindow
                     TrackNativeGalleryCleanup(failure);
                     await failure;
                 }
-                return;
+                return null;
             }
         }
         if (_galleryStartMissing) _gallery.SetNotice(Texts.T("gallery.selectedUnavailable"));
         else if (_galleryEntries.Count > 0) await ShowGalleryEntryAsync();
         else await ResolveNextGalleryEntryAsync(request, _galleryIndex);
+        return preferenceOwner;
     }
 
     private async Task ResolveNextGalleryEntryAsync(int request, int requestedIndex)
@@ -491,6 +511,11 @@ public partial class MainWindow
     {
         GalleryViewer? viewer = _gallery;
         if (viewer == null || _galleryCancellation == null || _galleryIndex >= _galleryEntries.Count) return;
+        if (viewer.AllowsMedia != null && !AllowsLocalGalleryEntries(_galleryEntries))
+        {
+            CloseGallery();
+            return;
+        }
         UpdateGalleryPosition();
         CancelGalleryPreload(); // the user moved on: whatever was decoding around the previous image stops
         GalleryEntry entry = _galleryEntries[_galleryIndex];

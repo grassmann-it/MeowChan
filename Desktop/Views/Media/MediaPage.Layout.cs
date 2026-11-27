@@ -390,7 +390,8 @@ public sealed partial class MediaPage
     // limit) or while there is nothing to count yet.
     private void UpdateStatusAttention()
     {
-        bool attention = _failed || _snapshot == null || (_snapshot is { Complete: false } && _building == null) || CacheLimitNote() != null;
+        bool attention = _boundaryHidden > 0 || _failed || _snapshot == null
+            || (_snapshot is { Complete: false } && _building == null) || CacheLimitNote() != null;
         if (attention == _statusAttention) return;
         _statusAttention = attention;
         ApplyLayoutPlan();

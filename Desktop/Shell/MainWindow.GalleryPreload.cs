@@ -18,6 +18,6 @@ public partial class MainWindow
         int ahead = GalleryImageCache.PreloadAhead;
         int behind = GalleryImageCache.PreloadBehind;
         GalleryPreloadWindow window = GalleryPreloadWindow.Capture(_galleryEntries, _galleryIndex, ahead, behind);
-        _ = _galleryPreloader.Schedule(window, viewer.PreloadFitRequest);
+        _ = _galleryPreloader.Schedule(window, viewer.PreloadFitRequest, viewer.AllowsMedia);
     }
 }

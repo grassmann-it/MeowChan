@@ -27,6 +27,23 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private readonly GalleryFavoriteCommandQueue<FavoriteAssetKey> _favoriteChanges = new();
+    private MediaContentBoundary? ReadLocalGalleryBoundary() =>
+        MediaContentBoundary.RatingFilter(_session.ReadLocalMediaContentProfile()) is { } filter
+            ? new MediaContentBoundary(filter, _session.ReadBooruCatalog) : null;
+
+    private bool AllowsLocalGalleryEntry(GalleryEntry entry) =>
+        !BooruMediaIdentity.IsBooruThread(entry.Key.Thread) || ReadLocalGalleryBoundary()?.Allows(entry.Key.Thread) != false;
+
+    private bool AllowsLocalGalleryEntries(IReadOnlyList<GalleryEntry> entries)
+    {
+        MediaContentBoundary? boundary = ReadLocalGalleryBoundary();
+        return boundary == null || entries.All(entry => boundary.Allows(entry.Key.Thread));
+    }
+
+    private void RefreshLocalGalleryContentBoundary()
+    {
+        if (_gallery?.AllowsMedia != null && !AllowsLocalGalleryEntries(_galleryEntries)) CloseGallery();
+    }
 
     private void WireGalleryActions()
     {

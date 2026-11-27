@@ -212,10 +212,7 @@ public partial class MainWindow
             System.Collections.Generic.IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
                 TaggingGalleryOpenManifest, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
             if (!Current()) return;
-            // Older queues lack a binding revision. The resolver still pins the saved asset and its post occurrence.
-            GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(chosen.AttachmentRevisionKey == null
-                ? chosen with { AttachmentRevisionKey = entry.AttachmentResolution?.Binding?.Reference.RevisionKey }
-                : chosen, entry));
+            GalleryEntry? first = entries.FirstOrDefault(entry => MatchesSavedTaggingEntry(chosen, entry));
             if (first == null || !File.Exists(first.Asset.Path))
             {
                 ShowNotification(Texts.T("notification.error"), Texts.T("tagging.page.openGallery.missing"), NotificationType.Warning, operation: "tagging.menu");
