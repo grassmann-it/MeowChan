@@ -12,13 +12,18 @@ internal sealed record AdaptiveRecheckSettings
 
     internal AdaptiveRecheckSettings(int minimumSeconds, int startSeconds, int maximumSeconds)
     {
+        Validate(minimumSeconds, startSeconds, maximumSeconds);
+        Minimum = TimeSpan.FromSeconds(minimumSeconds);
+        Start = TimeSpan.FromSeconds(startSeconds);
+        Maximum = TimeSpan.FromSeconds(maximumSeconds);
+    }
+
+    internal static void Validate(int minimumSeconds, int startSeconds, int maximumSeconds)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThan(minimumSeconds, MinimumSeconds);
         ArgumentOutOfRangeException.ThrowIfLessThan(startSeconds, minimumSeconds);
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumSeconds, startSeconds);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumSeconds, MaximumSeconds);
-        Minimum = TimeSpan.FromSeconds(minimumSeconds);
-        Start = TimeSpan.FromSeconds(startSeconds);
-        Maximum = TimeSpan.FromSeconds(maximumSeconds);
     }
 
     internal TimeSpan Minimum { get; }
@@ -32,6 +37,7 @@ internal sealed class AdaptiveRecheckPolicy(AdaptiveRecheckSettings settings)
 {
     private readonly HashSet<string> _seenPosts = new(StringComparer.Ordinal);
     private TimeSpan _interval = settings.Start;
+    private TimeSpan? _failureInterval;
     private bool _hasObservation;
     private bool _hasScheduled;
     private bool _newPosts;
@@ -47,11 +53,20 @@ internal sealed class AdaptiveRecheckPolicy(AdaptiveRecheckSettings settings)
 
     internal TimeSpan AfterCheck(bool succeeded)
     {
-        if (!succeeded) return _interval;
+        if (!succeeded)
+        {
+            TimeSpan delay = Grow(_failureInterval ?? _interval);
+            _failureInterval = delay;
+            return delay;
+        }
+        _failureInterval = null;
         if (_newPosts) _interval = Settings.Minimum;
-        else if (_hasScheduled) _interval = TimeSpan.FromTicks(Math.Min(_interval.Ticks * 2, Settings.Maximum.Ticks));
+        else if (_hasScheduled) _interval = Grow(_interval);
         _hasScheduled = true;
         _newPosts = false;
         return _interval;
     }
+
+    private TimeSpan Grow(TimeSpan interval) =>
+        TimeSpan.FromTicks(Math.Min(interval.Ticks * 2, Settings.Maximum.Ticks));
 }

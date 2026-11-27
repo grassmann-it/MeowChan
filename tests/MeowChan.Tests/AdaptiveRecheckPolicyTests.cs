@@ -21,7 +21,7 @@ public sealed class AdaptiveRecheckPolicyTests
 
         policy.ObservePosts([opening with { Html = "Edited" }]);
         Assert.Equal(TimeSpan.FromSeconds(90), policy.AfterCheck(succeeded: true));
-        Assert.Equal(TimeSpan.FromSeconds(90), policy.AfterCheck(succeeded: false));
+        Assert.Equal(TimeSpan.FromSeconds(100), policy.AfterCheck(succeeded: false));
         policy.ObservePosts([reply, new("125", 2, PostFieldPresence.IsDeleted, IsDeleted: true)]);
         Assert.Equal(TimeSpan.FromSeconds(100), policy.AfterCheck(succeeded: true));
 
