@@ -1,13 +1,13 @@
 using MeowChan.PluginSdk;
 
-namespace PluginReauthorizationProbe;
+namespace PluginReauthorizationFixture;
 
-// The probe executable doubles as a loadable SDK-only entrypoint. A/B/C/W are synthetic,
-// byte-distinct PE images (a trailing marker), not a compiler/package acceptance test.
-// Only this public type is exported: the real worker needs no host implementation types.
+// The probe stamps this PE's embedded marker before delivery. The worker loads the
+// verified image from memory, so the entrypoint reads its marker from that image.
 public sealed class ProbePlugin : ISourcePlugin, IImageFilterPlugin
 {
-    private static char Marker => (char)File.ReadAllBytes(typeof(ProbePlugin).Assembly.Location)[^1];
+    internal static ReadOnlySpan<byte> ReleaseMarker => "MeowChan reauthorization fixture release marker: 0"u8;
+    private static char Marker => (char)ReleaseMarker[^1];
     public PluginDescription Describe() => Description(Marker);
     internal static PluginDescription Description(char marker)
     {

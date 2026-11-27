@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -10,7 +11,7 @@ using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Installation;
 using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginSdk;
-using PluginReauthorizationProbe;
+using PluginReauthorizationFixture;
 
 // Every invocation is a fresh host process. The only bridge is the fixture input and the
 // real profile store on disk; no snapshot, binding or consent is reconstructed by the parent.
@@ -19,6 +20,7 @@ int sequence = int.Parse(args[3], CultureInfo.InvariantCulture);
 if (sequence <= 0) throw new ArgumentOutOfRangeException(nameof(sequence));
 Directory.CreateDirectory(root);
 using CancellationTokenSource lifetime = new(TimeSpan.FromSeconds(25));
+byte[] fixtureAssembly = await File.ReadAllBytesAsync(typeof(ProbePlugin).Assembly.Location, lifetime.Token);
 using SemaphoreSlim permissions = new(1, 1);
 PluginProfileStore store = new(Path.Combine(root, "profile"), static _ => true, () => new[] { "shared" }, permissions);
 string inputPath = Path.Combine(root, "fixture.json"), reviewPath = Path.Combine(root, "review.json");
@@ -144,7 +146,8 @@ Console.WriteLine(JsonSerializer.Serialize(new
     State = final, Row = repair, Rejection = rejection, WorkerPid = workerPid, Text = text, ImageReads = imageReads, HttpRequests = httpRequests,
     StoreHash = Hash(await File.ReadAllBytesAsync(store.StorePath)),
     BackupHash = File.Exists(store.PreReselectionBackupPath) ? Hash(await File.ReadAllBytesAsync(store.PreReselectionBackupPath)) : null,
-    ProbeHash = Hash(await File.ReadAllBytesAsync(typeof(ProbePlugin).Assembly.Location)),
+    ProbeHash = Hash(await File.ReadAllBytesAsync(Assembly.GetExecutingAssembly().Location, lifetime.Token)),
+    FixtureHash = Hash(fixtureAssembly),
     WorkerHash = Hash(await File.ReadAllBytesAsync(workerPath)),
     TargetExecution = fixture.Target.Candidate.Artifact!.ExecutionRevision,
     TargetAssemblyHash = fixture.Target.Candidate.Artifact.AssemblySha256,
@@ -158,8 +161,8 @@ Task<PluginProfileSnapshot> Startup(Delivery delivery, PluginProfileSnapshot sta
 async Task<Delivery> Deliver(string slot, char marker)
 {
     string directory = Path.Combine(root, "delivery", slot); Directory.CreateDirectory(directory);
-    byte[] bytes = [.. await File.ReadAllBytesAsync(typeof(ProbePlugin).Assembly.Location), (byte)marker];
-    string sha = Hash(bytes), sdk = Hash(await File.ReadAllBytesAsync(typeof(IPlugin).Assembly.Location)), compiler = Hash("synthetic-PE-marker-v1"u8.ToArray());
+    byte[] bytes = StampRelease(fixtureAssembly, marker);
+    string sha = Hash(bytes), sdk = Hash(await File.ReadAllBytesAsync(typeof(IPlugin).Assembly.Location)), compiler = Hash("synthetic-PE-marker-v2"u8.ToArray());
     string compilation = HashParts("prebuilt-v1", sha, sdk, compiler), execution = HashParts("artifact-v1", compilation);
     string cache = Path.Combine(root, "artifacts", execution); Directory.CreateDirectory(cache);
     await File.WriteAllBytesAsync(Path.Combine(directory, "fixture.dll"), bytes);
@@ -171,6 +174,18 @@ async Task<Delivery> Deliver(string slot, char marker)
     var description = ProbePlugin.Description(marker);
     PluginCandidateObservation candidate = new(installed.CandidateId, description.PluginId, artifact, description, CandidatePath: installed.Path);
     return new(candidate, await PluginInstallationInventory.RecordDeliveredAsync(directory, installed, artifact, description));
+}
+static byte[] StampRelease(byte[] template, char marker)
+{
+    ReadOnlySpan<byte> sentinel = ProbePlugin.ReleaseMarker;
+    ReadOnlySpan<byte> image = template;
+    int offset = image.IndexOf(sentinel);
+    if (offset < 0 || offset != image.LastIndexOf(sentinel))
+        throw new InvalidDataException("Expected exactly one release marker in the fixture assembly.");
+
+    byte[] bytes = (byte[])template.Clone();
+    bytes[offset + sentinel.Length - 1] = checked((byte)marker);
+    return bytes;
 }
 static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 static string HashParts(params string[] parts)
