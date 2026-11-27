@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Gallery;
+using SkiaSharp;
 
 namespace MeowChan.Desktop;
 
@@ -47,7 +48,7 @@ internal sealed class GalleryPreloadWindow
 /// <summary>
 /// After the gallery shows an image, decodes the images around it (a number after it and a number before it, nearest first) into
 /// the shared <see cref="GalleryImageCache"/> in the background, so stepping either way shows them at once. It works one image at a
-/// time behind the decode of the shown image, never decodes videos, animations (GIF) or other files, stays inside the memory budget
+/// time behind the decode of the shown image, skips videos, animations and other files, stays inside the memory budget
 /// of the cache (it stops before the images around the shown one would not fit, so it never pushes out its own work) and is
 /// cancelled as soon as the user moves on. Failures are ignored: the image is decoded normally when it is shown.
 /// </summary>
@@ -122,6 +123,22 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
         return _cache.Touch(key, fit, validity!);
     }
 
+    private static async Task<bool> IsAnimatedWebpAsync(GalleryEntry entry, CancellationToken token)
+    {
+        if (GifFrameDecoder.AnimationFormat(entry) != SKEncodedImageFormat.Webp) return false;
+        await using Stream stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, token).ConfigureAwait(false);
+        if (stream.Length < 12) return false;
+        byte[] header = new byte[12];
+        await stream.ReadExactlyAsync(header.AsMemory(), token).ConfigureAwait(false);
+        if (!GifFrameDecoder.HasWebpHeader(header)) return false;
+        GifFrameDecoder.ValidateWebpLength(header, stream.Length);
+        token.ThrowIfCancellationRequested();
+        stream.Position = 0;
+        using SKManagedStream managed = new(stream, disposeManagedStream: false);
+        using SKCodec? codec = SKCodec.Create(managed);
+        return codec is { EncodedFormat: SKEncodedImageFormat.Webp, FrameCount: > 1 };
+    }
+
     private async Task RunAsync(GalleryPreloadWindow preloadWindow, GalleryDecodeRequest.Fit fit, CancellationTokenSource source)
     {
         CancellationToken token = source.Token;
@@ -146,7 +163,11 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
                 GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry, _cache.IdentityOf); // before the decode reads the file
                 if (validity == null) continue;
                 (T bitmap, GalleryImageInfo info) decoded;
-                try { decoded = await _decode(entry, fit, token).ConfigureAwait(false); }
+                try
+                {
+                    if (await IsAnimatedWebpAsync(entry, token).ConfigureAwait(false)) continue;
+                    decoded = await _decode(entry, fit, token).ConfigureAwait(false);
+                }
                 catch (Exception exception) when (exception is not OperationCanceledException) { continue; }
                 try { token.ThrowIfCancellationRequested(); }
                 catch
@@ -178,12 +199,11 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
 internal static class GalleryPreload
 {
     /// <summary>
-    /// Whether an entry is preloaded: a saved image that is not a GIF. Videos, other files and animations stay out; the viewer
-    /// opens them in their own way.
+    /// Whether an entry can be considered for preloading. WebP still needs a frame-count check.
     /// </summary>
     internal static bool Eligible(GalleryEntry entry) =>
         entry.Kind is SavedMediaKind.Image or SavedMediaKind.Unknown
-        && !string.Equals(Path.GetExtension(entry.Asset.OriginalFileName ?? entry.Asset.Path), ".gif", StringComparison.OrdinalIgnoreCase)
+        && GifFrameDecoder.AnimationFormat(entry) != SKEncodedImageFormat.Gif
         && entry.Asset.Length <= GalleryImageDecoder.MaximumBytes;
 
     /// <summary>

@@ -96,7 +96,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
         Func<MeowChan.Gallery.GalleryEntry, CancellationToken, Task<IGifFrameDecoder?>>? decoderFactory = null)
     {
         IGifFrameDecoder? decoder = decoderFactory == null
-            ? await GifFrameDecoder.OpenAsync(entry, cancellationToken) : await decoderFactory(entry, cancellationToken);
+            ? await GifFrameDecoder.OpenAnimationAsync(entry, cancellationToken) : await decoderFactory(entry, cancellationToken);
         return decoder == null ? null : await OpenAsync(decoder, target, cancellationToken);
     }
 
