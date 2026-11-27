@@ -22,6 +22,8 @@ internal static class BooruClaimMapper
         ValidatePost(post, identity);
 
         BooruFieldPresence fields = post.Fields;
+        // Keep score presence so a negative observation clears a previously stored score.
+        int? score = post.Score is < 0 ? null : post.Score;
         return new BooruPostClaim(
             post.Id.SourceId,
             post.Id.PostId,
@@ -30,7 +32,7 @@ internal static class BooruClaimMapper
             Has(fields, BooruFieldPresence.CreatedAt) ? post.CreatedAt : null,
             Has(fields, BooruFieldPresence.Rating) ? MapRating(post.Rating) : BooruPostClaimRating.Unknown,
             Has(fields, BooruFieldPresence.Rating) ? post.RawRating : null,
-            Has(fields, BooruFieldPresence.Score) ? post.Score : null,
+            score,
             Has(fields, BooruFieldPresence.FavoriteCount) ? post.FavoriteCount : null,
             Has(fields, BooruFieldPresence.Tags) ? MapTags(post.Tags) : Array.Empty<BooruPostClaimTag>(),
             Has(fields, BooruFieldPresence.Media) ? MapMedia(post.Media) : Array.Empty<BooruPostClaimMedia>(),
@@ -71,7 +73,7 @@ internal static class BooruClaimMapper
         _ = MapRating(post.Rating);
         ValidateText(post.RawRating, "RawRating", 16);
         ValidateText(post.SourceClaim, "SourceClaim", 4096);
-        if (post.Score is < 0 || post.FavoriteCount is < 0)
+        if (post.FavoriteCount is < 0)
             throw Invalid("Booru counters cannot be negative.");
 
         if (Has(fields, BooruFieldPresence.Tags)) ValidateTags(post.Tags);
