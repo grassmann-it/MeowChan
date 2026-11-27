@@ -124,6 +124,9 @@ public sealed class BooruSourceActivationTests
         Click(button);
         await BooruTestSupport.WaitAsync(() => button.IsEffectivelyEnabled &&
             AutomationName(button) == Texts.T(enable ? "sources.site.disable" : "sources.site.enable"), "the saved site switch");
+        TextBlock summary = Assert.Single(page.GetVisualDescendants().OfType<TextBlock>(),
+            text => ControlAutomationPeer.CreatePeerForElement(text).GetAutomationId() == "SourceWatchSummary");
+        Assert.Equal(Texts.T(enable ? "sources.noObservation" : "sources.inactiveHint"), summary.Text);
     }
 
     private static string AutomationName(Button button) => ControlAutomationPeer.CreatePeerForElement(button).GetName();
