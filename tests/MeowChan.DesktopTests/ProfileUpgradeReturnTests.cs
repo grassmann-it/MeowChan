@@ -24,7 +24,10 @@ public sealed class ProfileUpgradeReturnTests
         Directory.Move(source, Path.Combine(root.Path, "detached"));
         Assert.Equal(source, CreateSource(root.Path));
         Assert.Null(ProfileInstanceIdentity.TryRead(source));
-        Assert.Throws<InvalidDataException>(() => ProfileUpgrade.Open(source, root.Path));
+        Assert.Throws<InvalidDataException>(() =>
+        {
+            using ProfileLease unexpected = ProfileUpgrade.Open(source, root.Path);
+        });
     }
 
     [Fact]
@@ -243,7 +246,7 @@ public sealed class ProfileUpgradeReturnTests
         ProfileSnapshot snapshot = ProfileSnapshot.Read(backup);
         Assert.Equal(1, snapshot.Profile.Parts[BooruSearchTabStore.FileName].Version);
         Assert.Contains(downloads, snapshot.Profile.ExternalMediaRoots);
-        var media = Assert.IsType<ProfileExternalMedia>(snapshot.ExternalMedia);
+        var media = Assert.Single(Assert.IsType<ProfileExternalMedia[]>(snapshot.ManagedMedia));
         Assert.Equal(downloads, media.Root);
         Assert.Equal(Convert.ToHexString(SHA256.HashData(original)), Assert.Single(media.Files).Sha256);
         string detached = Path.Combine(root.Path, "detached-downloads");
@@ -271,15 +274,16 @@ public sealed class ProfileUpgradeReturnTests
     {
         using TempDirectory root = new();
         string source = Path.Combine(root.Path, "original");
-        string downloads = Directory.CreateDirectory(Path.Combine(source, "downloads")).FullName;
+        string downloads = Path.Combine(source, "downloads");
         string previous = Directory.CreateDirectory(Path.Combine(root.Path, "older-downloads")).FullName;
         const string name = "original.png";
         byte[] internalBytes = BooruUiFixtures.Png(5);
         byte[] externalBytes = BooruUiFixtures.Png(6);
-        await File.WriteAllBytesAsync(Path.Combine(downloads, name), internalBytes);
         await File.WriteAllBytesAsync(Path.Combine(previous, name), externalBytes);
         using Legacy113ProfileWriter historical = new();
         await historical.WriteAsync(source, downloads, name, previous);
+        Directory.CreateDirectory(downloads);
+        await File.WriteAllBytesAsync(Path.Combine(downloads, name), internalBytes);
         await historical.WriteTabsAsync(source, draft: false);
 
         string working;

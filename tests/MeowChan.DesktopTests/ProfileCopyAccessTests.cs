@@ -6,6 +6,32 @@ namespace MeowChan.DesktopTests;
 
 public sealed class ProfileCopyAccessTests
 {
+    [Theory]
+    [InlineData(3, 3, true, true)]
+    [InlineData(7, 3, true, true)]
+    [InlineData(3, 7, true, false)]
+    [InlineData(3, 3, false, false)]
+    public void CopyRequiresProtectedAccessWithinTheSourceRights(int source, int copy, bool ownerOnly, bool accepted)
+    {
+        var access = new CopyAccess((uint)source, (uint)copy, ownerOnly);
+        if (accepted) ProfileCopyAccess.CreateVerified("source", "copy", access);
+        else Assert.Throws<UnauthorizedAccessException>(() => ProfileCopyAccess.CreateVerified("source", "copy", access));
+        Assert.Equal(new[] { "read source", "create protected copy", "read copy" }, access.Calls);
+    }
+
+    private sealed class CopyAccess(uint source, uint copy, bool ownerOnly) : IProfileCopyAccess
+    {
+        internal List<string> Calls { get; } = [];
+
+        public void CreateProtectedDirectory(string path) => Calls.Add("create protected " + path);
+
+        public ProfileDirectoryAccess Inspect(string path)
+        {
+            Calls.Add("read " + path);
+            return path == "source" ? new(source, false) : new(copy, ownerOnly);
+        }
+    }
+
     [WindowsProfileAclFact]
     public void UpgradeAndReturnProtectTheCopyUnderASharedParent()
     {

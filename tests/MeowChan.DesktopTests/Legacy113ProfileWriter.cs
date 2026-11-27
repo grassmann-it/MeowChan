@@ -59,16 +59,21 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         object catalog = New(catalogType, profile, lease);
         Type claimType = _library.GetType("MeowChan.Archive.BooruPostClaim", true)!;
         ConstructorInfo claimConstructor = claimType.GetConstructors().Single(item => item.GetParameters().Length == 14);
-        object claim = claimConstructor.Invoke(claimConstructor.GetParameters().Select((parameter, index) => index switch
+        void LinkOriginal(string id, string root, string asset)
         {
-            0 => "danbooru",
-            1 => "123",
-            2 => Activator.CreateInstance(parameter.ParameterType),
-            _ => parameter.DefaultValue
-        }).ToArray());
-        Call(catalogType, catalog, "UpsertPost", claim, DateTimeOffset.UtcNow, CancellationToken.None);
-        Call(catalogType, catalog, "LinkLocalAsset", "danbooru", "123", "fixture-asset",
-            Path.Combine(previous ?? downloads, originalName), CancellationToken.None);
+            object claim = claimConstructor.Invoke(claimConstructor.GetParameters().Select((parameter, index) => index switch
+            {
+                0 => "danbooru",
+                1 => id,
+                2 => Activator.CreateInstance(parameter.ParameterType),
+                _ => parameter.DefaultValue
+            }).ToArray());
+            Call(catalogType, catalog, "UpsertPost", claim, DateTimeOffset.UtcNow, CancellationToken.None);
+            Call(catalogType, catalog, "LinkLocalAsset", "danbooru", id, asset,
+                Path.Combine(root, originalName), CancellationToken.None);
+        }
+        LinkOriginal("123", downloads, "fixture-asset");
+        if (previous is not null) LinkOriginal("456", previous, "fixture-secondary");
     }
 
     internal async Task WriteTabsAsync(string profile, bool draft)
@@ -132,7 +137,14 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         Assert.NotNull(post);
         Assert.IsType(_library.GetType("MeowChan.Archive.BooruPostRecord", true)!, post);
         Assert.Equal("fixture-asset", Get(post, "LocalAssetId"));
-        Assert.Equal(Path.Combine(previous ?? downloads, originalName), Get(post, "LocalPath"));
+        Assert.Equal(Path.Combine(downloads, originalName), Get(post, "LocalPath"));
+        if (previous is not null)
+        {
+            object? secondary = Call(catalogType, catalog, "TryGetPost", "danbooru", "456");
+            Assert.NotNull(secondary);
+            Assert.Equal("fixture-secondary", Get(secondary, "LocalAssetId"));
+            Assert.Equal(Path.Combine(previous, originalName), Get(secondary, "LocalPath"));
+        }
         Assert.Null(Call(catalogType, catalog, "TryGetPost", "e621", "123"));
         if (!edit) return;
         Set(settings, "Language", "de");
