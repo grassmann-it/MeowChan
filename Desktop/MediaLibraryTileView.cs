@@ -121,6 +121,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
 
     /// <summary>Set by the page: loads a verified thumbnail (image, or the local video poster) for a tile, or null when none can be shown.</summary>
     internal Func<MediaLibraryTile, CancellationToken, Task<Bitmap?>>? ThumbnailLoader { get; set; }
+    internal Func<MediaLibraryTile, bool>? ThumbnailAllowed { get; set; }
     /// <summary>Set by the page: a kept image preview leased to this tile, or null. Videos always use the verified asynchronous loader.</summary>
     internal Func<MediaLibraryTile, Bitmap?>? ThumbnailCached { get; set; }
     /// <summary>Set by the page: takes back a bitmap that came from the page's cache instead of disposing it (other tiles may show it).</summary>
@@ -430,7 +431,8 @@ internal sealed partial class MediaLibraryTileView : UserControl
     private async Task LoadAsync()
     {
         if (DataContext is not MediaLibraryTileRow { Entry.Presence: MediaLibraryPresence.Present } row
-            || ThumbnailLoader is not { } loader || _loading != null || _bitmap != null) return;
+            || ThumbnailLoader is not { } loader || _loading != null || _bitmap != null
+            || ThumbnailAllowed?.Invoke(row.Tile) == false) return;
         int request = _request;
         if ((ThumbnailHandover?.Invoke(row.Tile) ?? ThumbnailCached?.Invoke(row.Tile)) is { } cached)
         {
@@ -448,9 +450,14 @@ internal sealed partial class MediaLibraryTileView : UserControl
         {
             await ThumbnailGate.WaitAsync(loading.Token);
             Bitmap? bitmap;
-            try { bitmap = await Task.Run(() => loader(row.Tile, loading.Token), loading.Token); }
+            try
+            {
+                bitmap = await Task.Run(() => ThumbnailAllowed?.Invoke(row.Tile) == false
+                    ? Task.FromResult<Bitmap?>(null) : loader(row.Tile, loading.Token), loading.Token);
+            }
             finally { ThumbnailGate.Release(); }
-            if (request != _request || !_visible || !ReferenceEquals(DataContext, row)) { Discard(bitmap); return; }
+            if (request != _request || !_visible || !ReferenceEquals(DataContext, row)
+                || ThumbnailAllowed?.Invoke(row.Tile) == false) { Discard(bitmap); return; }
             _bitmap = bitmap;
             ThumbnailWasCached = false;
             _tile.Thumbnail = bitmap;

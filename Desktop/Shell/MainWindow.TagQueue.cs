@@ -110,18 +110,20 @@ public partial class MainWindow
     internal TaggingWalk? GalleryTagging => _galleryTagging;
 
     /// <summary>
-    /// Opens the gallery in the tagging mode over <paramref name="entries"/>, the resolved media of the queue entries <paramref name="walk"/>
+    /// Opens the gallery in the tagging mode over <paramref name="resolved"/>, the resolved media of the queue entries <paramref name="walk"/>
     /// in the same order (the menu's walk-through, and the smoke over its own fixture). The walk pairs every shown medium with its queue
     /// entry; the open ones the resolver could not find stay open in the queue and are counted in the first status line.
     /// </summary>
-    internal async Task OpenTaggingWalkAsync(TagQueueSnapshot queue, IReadOnlyList<TagQueueItem> walk, IReadOnlyList<GalleryEntry> entries,
+    internal async Task OpenTaggingWalkAsync(TagQueueSnapshot queue, IReadOnlyList<TagQueueItem> walk, IReadOnlyList<GalleryEntry> resolved,
         GalleryEntryKey start, string? groupName = null, string? groupId = null, bool ungrouped = false)
     {
+        IReadOnlyList<GalleryEntry>? entries = await OpenMediaGalleryAsync(resolved, start,
+            stillRequested: () => !_isClosing && _gallery == null, startAtFirstAllowed: true);
+        if (entries == null) return;
         (IReadOnlyList<TaggingWalkItem> items, int unavailable) = TaggingWalk.Pair(walk, entries);
         // TG1 source seam: new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config))
         TaggingWalk tagging = new(items, unavailable, queue, new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config), groupId, ungrouped, groupName);
         SetGalleryWalkStamp(queue, groupId);
-        await OpenMediaGalleryAsync(entries, start, stillRequested: () => !_isClosing && _gallery == null);
         StartGalleryTagging(tagging, entries);
     }
 

@@ -86,7 +86,7 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
     /// Replaces the running preload with the immutable bounded window. The returned task ends when the work is done or cancelled
     /// and never throws.
     /// </summary>
-    internal Task Schedule(GalleryPreloadWindow window, GalleryDecodeRequest.Fit fit)
+    internal Task Schedule(GalleryPreloadWindow window, GalleryDecodeRequest.Fit fit, Func<GalleryEntry, bool>? allowsMedia = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         Cancel();
@@ -97,7 +97,7 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
         // RunAsync may reach identity/stat/hash work before its first await when the delay is zero or an await completes inline.
         // Queue the whole runner explicitly: Task.Yield would resume on the caller's context, while this keeps every filesystem
         // operation below on the pool even for a completed delay/verification task.
-        return Task.Run(() => RunAsync(window, fit, source), CancellationToken.None);
+        return Task.Run(() => RunAsync(window, fit, source, allowsMedia), CancellationToken.None);
     }
 
     /// <summary>
@@ -122,7 +122,8 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
         return _cache.Touch(key, fit, validity!);
     }
 
-    private async Task RunAsync(GalleryPreloadWindow preloadWindow, GalleryDecodeRequest.Fit fit, CancellationTokenSource source)
+    private async Task RunAsync(GalleryPreloadWindow preloadWindow, GalleryDecodeRequest.Fit fit, CancellationTokenSource source,
+        Func<GalleryEntry, bool>? allowsMedia)
     {
         CancellationToken token = source.Token;
         try
@@ -144,7 +145,7 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
                 // Farther images would not fit either: stop instead of pushing out the nearer ones.
                 if (window + viewportBytes > budget) break;
                 GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry, _cache.IdentityOf); // before the decode reads the file
-                if (validity == null) continue;
+                if (validity == null || allowsMedia?.Invoke(entry) == false) continue;
                 (T bitmap, GalleryImageInfo info) decoded;
                 try { decoded = await _decode(entry, fit, token).ConfigureAwait(false); }
                 catch (Exception exception) when (exception is not OperationCanceledException) { continue; }

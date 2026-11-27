@@ -25,17 +25,18 @@ internal static class ArchiveListThumbnails
     };
 
     internal static async Task<Bitmap?> LoadAsync(ArchiveAssetRow row, string posterCacheDirectory, CancellationToken token,
-        ThumbnailDecodeGate? gate = null)
+        ThumbnailDecodeGate? gate = null, Func<bool>? allowsMedia = null)
     {
         token.ThrowIfCancellationRequested();
         if (Kind(row) == SavedMediaKind.Video)
             return await MediaTileThumbnails.LoadPosterAsync(row.Manifest, row.Asset, posterCacheDirectory,
-                MaximumWidth, MaximumHeight, CacheKey(row), token, gate).ConfigureAwait(false);
+                MaximumWidth, MaximumHeight, CacheKey(row), token, gate, allowsMedia: allowsMedia).ConfigureAwait(false);
         if (Kind(row) != SavedMediaKind.Image) return null;
-        Func<Task<Bitmap?>> decode = () => ArchivePage.DecodeThumbnailAsync(row, token, MaximumWidth, MaximumHeight);
+        Task<Bitmap?> Decode() => allowsMedia?.Invoke() == false ? Task.FromResult<Bitmap?>(null)
+            : ArchivePage.DecodeThumbnailAsync(row, token, MaximumWidth, MaximumHeight);
         return gate == null
-            ? await MediaTileThumbnails.KeepAsync(CacheKey(row), decode).ConfigureAwait(false)
-            : await MediaTileThumbnails.KeepGatedAsync(gate, ThumbnailDecodePriority.Image, CacheKey(row), decode, token).ConfigureAwait(false);
+            ? await MediaTileThumbnails.KeepAsync(CacheKey(row), Decode).ConfigureAwait(false)
+            : await MediaTileThumbnails.KeepGatedAsync(gate, ThumbnailDecodePriority.Image, CacheKey(row), Decode, token).ConfigureAwait(false);
     }
 
     // The byte path is also testable without Avalonia or a native decoder: a verified cached poster is enough.
