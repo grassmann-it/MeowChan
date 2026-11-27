@@ -8,8 +8,14 @@ internal sealed class FrameCodec : IDisposable
 {
     private readonly Stream _input;
     private readonly Stream _output;
+    private readonly bool _leaveOpen;
     private readonly SemaphoreSlim _writer = new(1, 1);
-    public FrameCodec(Stream input, Stream output) { _input = input; _output = output; }
+    public FrameCodec(Stream input, Stream output, bool leaveOpen = true)
+    {
+        _input = input;
+        _output = output;
+        _leaveOpen = leaveOpen;
+    }
 
     public async Task<WireEnvelope?> ReadAsync(CancellationToken cancellationToken)
     {
@@ -30,7 +36,12 @@ internal sealed class FrameCodec : IDisposable
         return envelope;
     }
 
-    public async Task WriteAsync(WireEnvelope envelope, CancellationToken cancellationToken)
+    public Task WriteAsync(WireEnvelope envelope, CancellationToken cancellationToken) =>
+        TryWriteAsync(envelope, null, cancellationToken);
+
+    /// <summary>Runs admission with the writer held. The admission callback must start the write synchronously if accepted.</summary>
+    internal async Task<bool> TryWriteAsync(WireEnvelope envelope, Func<Action, bool>? tryStart,
+        CancellationToken cancellationToken)
     {
         using MemoryStream frame = new();
         frame.Position = 4; // length prefix, filled in below: one buffer, one write
@@ -44,14 +55,28 @@ internal sealed class FrameCodec : IDisposable
         // Once started, a frame is always finished: a partial frame would desynchronize the peer.
         // A cancelled caller stops waiting; the lock stays held until the write ends or the
         // owner kills the worker on its cancellation grace, which breaks a hung pipe.
-        Task write = WriteFrameAsync(bytes.AsMemory(0, length + 4));
-        try { await write.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        Task? write = null;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (tryStart is null) StartWrite();
+            else if (!tryStart(StartWrite)) return false;
+        }
+        finally
+        {
+            if (write is null) _writer.Release();
+        }
+
+        try { await write!.WaitAsync(cancellationToken).ConfigureAwait(false); }
         catch (OperationCanceledException)
         {
-            _ = write.ContinueWith(static task => _ = task.Exception, CancellationToken.None,
+            _ = write!.ContinueWith(static task => _ = task.Exception, CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             throw;
         }
+        return true;
+
+        void StartWrite() => write = WriteFrameAsync(bytes.AsMemory(0, length + 4));
     }
 
     private async Task WriteFrameAsync(ReadOnlyMemory<byte> frame)
@@ -63,7 +88,16 @@ internal sealed class FrameCodec : IDisposable
         }
         finally { _writer.Release(); }
     }
-    public void Dispose() => _writer.Dispose();
+    public void Dispose()
+    {
+        try
+        {
+            if (_leaveOpen) return;
+            try { _input.Dispose(); }
+            finally { if (!ReferenceEquals(_input, _output)) _output.Dispose(); }
+        }
+        finally { _writer.Dispose(); }
+    }
 }
 
 internal sealed class FrameLimitException(string message) : IOException(message);

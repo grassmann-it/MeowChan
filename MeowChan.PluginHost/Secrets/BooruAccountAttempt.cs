@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Unicode;
 using MeowChan.Secrets;
 
 namespace MeowChan.PluginHost.Secrets;
@@ -30,10 +31,10 @@ internal sealed class BooruAccountAttempt(HttpResponseMessage response, SecretSt
         finally { CryptographicOperations.ZeroMemory(bytes); }
     }
 
-    internal bool ContainsBodyEcho(ReadOnlySpan<byte> body)
+    internal bool IsBodySafe(ReadOnlySpan<byte> body)
     {
-        if (ContainsCredential(body)) return true;
-        if (body.IndexOf((byte)'\\') < 0) return false;
+        if (body.IsEmpty) return true;
+        if (ContainsCredential(body) || !Utf8.IsValid(body)) return false;
 
         // A provider can echo the key inside a JSON string using escapes.
         if (body.StartsWith("\uFEFF"u8)) body = body[3..];
@@ -47,13 +48,14 @@ internal sealed class BooruAccountAttempt(HttpResponseMessage response, SecretSt
                 byte[] decoded = ArrayPool<byte>.Shared.Rent(reader.ValueSpan.Length);
                 try
                 {
-                    if (ContainsCredential(decoded.AsSpan(0, reader.CopyString(decoded)))) return true;
+                    if (ContainsCredential(decoded.AsSpan(0, reader.CopyString(decoded)))) return false;
                 }
                 finally { ArrayPool<byte>.Shared.Return(decoded, clearArray: true); }
             }
         }
-        catch (JsonException) { /* The raw body has already been checked. */ }
-        return false;
+        catch (JsonException) { return false; }
+        catch (InvalidOperationException) { return false; } // Invalid Unicode escape during string decoding.
+        return reader.TokenType != JsonTokenType.None;
     }
 
     public void Dispose()

@@ -5,6 +5,7 @@ using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginProtocol;
 using MeowChan.PluginSdk;
 using MeowChan.PluginHost.Filters;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.Diagnostics;
 
 namespace MeowChan.PluginHost.Runtime;
@@ -308,11 +309,8 @@ internal sealed class WorkerConnection : IAsyncDisposable
                     using (Http.PluginHostHttp.MetadataHistory.Resume(parent.Context))
                         result = await _services.SendHttpAsync(http, parent.Context, parent.Token).ConfigureAwait(false);
                     SdkValidation.ThrowIfInvalid(SdkValidation.ValidateHttpResult(http, result, source));
-                    Task? reply = null;
-                    if (parent.Context.BooruCall?.Account is { } account
-                        && !account.TryPublish(() => reply = ServiceReplyAsync<HostHttpResult>(request, result, parent.Token)))
-                        result = Http.BooruHostHttp.StaleSource();
-                    await (reply ?? ServiceReplyAsync<HostHttpResult>(request, result, parent.Token)).ConfigureAwait(false);
+                    await WriteHttpServiceReplyAsync(_codec, request, result, parent.Context.BooruCall?.Account, parent.Token)
+                        .ConfigureAwait(false);
                     break;
                 case "image":
                     ImageReadRequest image = WireJson.Read<ImageReadRequest>(request.Payload);
@@ -346,6 +344,17 @@ internal sealed class WorkerConnection : IAsyncDisposable
             catch (Exception) when (_lifetime.IsCancellationRequested) { }
         }
     }
+
+    internal static async Task WriteHttpServiceReplyAsync(FrameCodec codec, WireEnvelope request, HostHttpResult response,
+        BooruAccountBinding.Operation? account, CancellationToken token)
+    {
+        WireEnvelope reply = request with { Direction = "serviceResult", Payload = WireJson.Element(response) };
+        if (await codec.TryWriteAsync(reply, account is null ? null : account.TryPublish, token).ConfigureAwait(false)) return;
+
+        reply = reply with { Payload = WireJson.Element<HostHttpResult>(Http.BooruHostHttp.StaleSource()) };
+        await codec.WriteAsync(reply, token).ConfigureAwait(false);
+    }
+
     private Task ServiceReplyAsync<T>(WireEnvelope request, T response, CancellationToken token) =>
         _codec.WriteAsync(request with { Direction = "serviceResult", Payload = WireJson.Element(response) }, token);
 

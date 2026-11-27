@@ -33,6 +33,7 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
     private readonly object _gate = new();
     private readonly object _mutations = new();
     private long _generation;
+    private TaskCompletionSource? _generationEnded;
     private bool _enabled = enabled;
     private bool _active = true;
     private bool _changing;
@@ -45,14 +46,14 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
         {
             if (_enabled == value) return;
             _enabled = value;
-            _generation++;
+            AdvanceGenerationUnderLock();
         }
     }
 
     /// <summary>Fences pending operations after an owner or source lifecycle change.</summary>
     internal void InvalidateOperations()
     {
-        lock (_gate) _generation++;
+        lock (_gate) AdvanceGenerationUnderLock();
     }
 
     internal void Retire()
@@ -60,8 +61,15 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
         lock (_gate)
         {
             _active = false;
-            _generation++;
+            AdvanceGenerationUnderLock();
         }
+    }
+
+    private void AdvanceGenerationUnderLock()
+    {
+        _generation++;
+        _generationEnded?.TrySetResult();
+        _generationEnded = null;
     }
 
     internal Task<BooruAccountState> GetStateAsync(BooruAccountScope scope, CancellationToken token = default) =>
@@ -113,7 +121,8 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
                     return new(BooruAccountState.ProfileUnavailable);
                 if (!revoke && !_enabled) return new(BooruAccountState.StoreDisabled);
                 _changing = true;
-                generation = ++_generation;
+                AdvanceGenerationUnderLock();
+                generation = _generation;
             }
 
             try
@@ -130,7 +139,7 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
                 lock (_gate)
                 {
                     _changing = false;
-                    _generation++;
+                    AdvanceGenerationUnderLock();
                 }
             }
         }
@@ -201,7 +210,8 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
         {
             if (!_active || !lease.IsHeld || _changing || call.Lifetime.IsCancellationRequested) return null;
             bool referenceReadable = TryReadReference(out Guid? reference);
-            return new Operation(this, scope, source, call, _generation, reference,
+            Task generationEnded = (_generationEnded ??= new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+            return new Operation(this, scope, source, call, _generation, generationEnded, reference,
                 referenceReadable && _enabled && !_revocationPending);
         }
     }
@@ -307,15 +317,17 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
         private readonly long _generation;
         private readonly Guid? _reference;
         private readonly bool _mayReadStore;
+        internal Task GenerationEnded { get; }
 
         internal Operation(BooruAccountBinding owner, BooruAccountScope scope, SourceDescription source,
-            BooruCallBinding call, long generation, Guid? reference, bool mayReadStore)
+            BooruCallBinding call, long generation, Task generationEnded, Guid? reference, bool mayReadStore)
         {
             _owner = owner;
             _scope = scope;
             _source = source;
             _call = call;
             _generation = generation;
+            GenerationEnded = generationEnded;
             _reference = reference;
             _mayReadStore = mayReadStore;
         }
