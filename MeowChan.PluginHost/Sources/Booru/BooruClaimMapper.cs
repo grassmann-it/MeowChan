@@ -22,6 +22,9 @@ internal static class BooruClaimMapper
         ValidatePost(post, identity);
 
         BooruFieldPresence fields = post.Fields;
+        // The archive only stores nonnegative score observations.
+        if (post.Score is < 0)
+            fields &= ~BooruFieldPresence.Score;
         return new BooruPostClaim(
             post.Id.SourceId,
             post.Id.PostId,
@@ -71,7 +74,7 @@ internal static class BooruClaimMapper
         _ = MapRating(post.Rating);
         ValidateText(post.RawRating, "RawRating", 16);
         ValidateText(post.SourceClaim, "SourceClaim", 4096);
-        if (post.Score is < 0 || post.FavoriteCount is < 0)
+        if (post.FavoriteCount is < 0)
             throw Invalid("Booru counters cannot be negative.");
 
         if (Has(fields, BooruFieldPresence.Tags)) ValidateTags(post.Tags);
