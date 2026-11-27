@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,7 +11,67 @@ using MeowChan.Archive;
 namespace MeowChan.Persistence;
 
 internal sealed record ProfileSnapshotFile(string Name, long Length, string Sha256);
-internal sealed record ProfileExternalMedia(string Root, ProfileSnapshotFile[] Files, string[]? Directories = null);
+internal sealed record ProfileExternalMedia(string Root, ProfileSnapshotFile[] Files, string[]? Directories = null,
+    string[]? SelectedNames = null);
+
+internal sealed record ProfileMediaSelection(string Root, string[]? Names = null);
+
+internal readonly record struct ProfileCopyOperation(Action<string, long>? Progress, CancellationToken Token)
+{
+    internal void Report(string path, long bytes = 0)
+    {
+        Progress?.Invoke(path, bytes);
+        Token.ThrowIfCancellationRequested();
+    }
+
+    internal void Verify(string path, ProfileSnapshotFile file)
+    {
+        FileStream? input = null;
+        try
+        {
+            input = RegularProfileFile.OpenRead(path);
+            if (input.Length != file.Length || !string.Equals(Hash(path, input), file.Sha256, StringComparison.Ordinal))
+                throw new InvalidDataException($"The profile snapshot checksum failed for '{file.Name}'.");
+        }
+        finally { input?.Dispose(); }
+    }
+
+    private string Hash(string path, FileStream input)
+    {
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Transfer(path, input, hash, null);
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    internal string Copy(string source, string destination, long length)
+    {
+        using FileStream input = RegularProfileFile.OpenRead(source);
+        if (input.Length != length) throw new InvalidDataException("A profile file changed length during the snapshot.");
+        using FileStream output = new(destination, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+        Transfer(source, input, null, output);
+        if (output.Length != length) throw new InvalidDataException("A profile file changed length during the snapshot.");
+        output.Flush(flushToDisk: true);
+        output.Position = 0;
+        return Hash(destination, output);
+    }
+
+    private void Transfer(string path, FileStream input, IncrementalHash? hash, FileStream? output)
+    {
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(128 * 1024);
+        try
+        {
+            Report(path);
+            int count;
+            while ((count = input.Read(buffer)) != 0)
+            {
+                hash?.AppendData(buffer, 0, count);
+                output?.Write(buffer, 0, count);
+                Report(path, input.Position);
+            }
+        }
+        finally { ArrayPool<byte>.Shared.Return(buffer, clearArray: true); }
+    }
+}
 
 internal sealed record ProfileSnapshot(int Version, string SourceDirectory, DateTimeOffset CreatedUtc,
     ProfileManifest Profile, string[] Directories, ProfileSnapshotFile[] Files, ProfileExternalMedia? ExternalMedia = null,
@@ -26,66 +87,79 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     { RespectRequiredConstructorParameters = true, AllowDuplicateProperties = false };
 
-    internal static ProfileSnapshot Capture(ProfileLease source, string destination, ProfileManifest profile,
-        Func<string, long>? availableBytes = null, CancellationToken token = default)
+    internal static ProfileSnapshot CaptureUpgrade(ProfileLease source, string destination, ProfileManifest profile,
+        string legacyDownloads, string sourceIdentity, Func<string, long>? availableBytes, ProfileCopyOperation operation)
     {
         return source.RunExclusive(() =>
         {
             source.EnsureDirectoryIdentity();
             string root = source.ProfileDirectory;
-            var (directories, copied) = CaptureTree(root, Path.Combine(destination, DataName), availableBytes, token);
+            var profileTree = Inventory(root, operation);
+            ProfileMediaSelection[] selections = ProfileMediaRelocation.ManagedRoots(root, legacyDownloads, operation.Token);
+            var mediaTrees = selections.Select(selection => InventoryMedia(selection, operation)).ToArray();
+            long bytes = profileTree.Files.Sum(file => file.Length);
+            foreach (var tree in mediaTrees) bytes = checked(bytes + tree.Files.Sum(file => file.Length));
+            if ((availableBytes ?? FreeSpace)(destination) / 2 < bytes)
+                throw new IOException("There is insufficient space for the profile snapshot and its working copy.");
+
+            ProfileSnapshotFile[] copied = CaptureTree(root, Path.Combine(destination, DataName), profileTree, operation);
+            var media = new ProfileExternalMedia[selections.Length];
+            for (int index = 0; index < selections.Length; index++)
+            {
+                var tree = mediaTrees[index];
+                var selection = selections[index];
+                var files = CaptureTree(selection.Root, MediaTree(destination, index), tree, operation);
+                media[index] = new(selection.Root, files, tree.Directories, selection.Names);
+                var current = InventoryMedia(selection, operation);
+                if (!tree.Directories.SequenceEqual(current.Directories) || !tree.Files.SequenceEqual(current.Files))
+                    throw new InvalidDataException("The media inventory changed during the snapshot.");
+            }
+            VerifyInventory(root, profileTree.Directories, copied, operation);
             source.EnsureDirectoryIdentity();
-            return new ProfileSnapshot(SnapshotVersion, root, DateTimeOffset.UtcNow, profile, directories, copied);
+            return new ProfileSnapshot(UpgradeVersion, root, DateTimeOffset.UtcNow, profile, profileTree.Directories,
+                copied, SourceIdentity: sourceIdentity, LegacyDownloads: legacyDownloads, ManagedMedia: media);
         });
     }
 
-    private static (string[] Directories, ProfileSnapshotFile[] Files) CaptureTree(string root, string destination,
-        Func<string, long>? availableBytes, CancellationToken token)
+    private static (string[] Directories, List<(string Name, long Length)> Files) InventoryMedia(
+        ProfileMediaSelection selection, ProfileCopyOperation operation)
     {
-        var (directories, files) = Inventory(root);
-        long bytes = files.Aggregate(0L, (sum, file) => checked(sum + file.Length));
-        if ((availableBytes ?? FreeSpace)(Path.GetDirectoryName(destination)!) / 2 < bytes)
-            throw new IOException("There is insufficient space for the profile snapshot and its trial restore.");
-
-        Directory.CreateDirectory(destination);
-        foreach (string directory in directories)
-            Directory.CreateDirectory(Child(destination, directory));
-        var copied = new ProfileSnapshotFile[files.Count];
-        for (int index = 0; index < files.Count; index++)
+        ArchiveExportMetadataFile.RejectLinks(selection.Root);
+        if (!MediaRootExists(selection.Root)) return ([], []);
+        if (selection.Names is null) return Inventory(selection.Root, operation);
+        List<(string Name, long Length)> files = [];
+        foreach (string name in selection.Names)
         {
-            token.ThrowIfCancellationRequested();
-            var file = files[index];
-            string hash = CopyFile(Child(root, file.Name), Child(destination, file.Name), file.Length);
-            copied[index] = new(file.Name, file.Length, hash);
+            string path = Child(selection.Root, name);
+            operation.Report(path);
+            try
+            {
+                using FileStream stream = RegularProfileFile.OpenRead(path);
+                files.Add((name, stream.Length));
+            }
+            catch (FileNotFoundException) { } // A planned download or optional manifest can be absent.
         }
-        VerifyTree(root, directories, copied, token);
-        return (directories, copied);
+        return ([], files);
     }
 
-    internal static ProfileExternalMedia[] CaptureMedia(string snapshotDirectory, string[] roots,
-        Func<string, long>? availableBytes, CancellationToken token)
+    private static ProfileSnapshotFile[] CaptureTree(string root, string destination,
+        (string[] Directories, List<(string Name, long Length)> Files) tree, ProfileCopyOperation operation)
     {
-        if (roots.Length == 0) return [];
-        Directory.CreateDirectory(Path.Combine(snapshotDirectory, MediaName));
-        var media = new ProfileExternalMedia[roots.Length];
-        for (int index = 0; index < roots.Length; index++)
+        Directory.CreateDirectory(destination);
+        foreach (string directory in tree.Directories)
         {
-            token.ThrowIfCancellationRequested();
-            string root = roots[index];
-            string destination = MediaTree(snapshotDirectory, index);
-            ArchiveExportMetadataFile.RejectLinks(root);
-            if (MediaRootExists(root))
-            {
-                var (directories, files) = CaptureTree(root, destination, availableBytes, token);
-                media[index] = new(root, files, directories);
-            }
-            else
-            {
-                Directory.CreateDirectory(destination);
-                media[index] = new(root, [], []);
-            }
+            operation.Token.ThrowIfCancellationRequested();
+            Directory.CreateDirectory(Child(destination, directory));
         }
-        return media;
+        var copied = new ProfileSnapshotFile[tree.Files.Count];
+        for (int index = 0; index < copied.Length; index++)
+        {
+            var (name, length) = tree.Files[index];
+            string hash = operation.Copy(Child(root, name), Child(destination, name), length);
+            copied[index] = new(name, length, hash);
+        }
+        VerifyFiles(root, copied, operation);
+        return copied;
     }
 
     private static bool MediaRootExists(string path)
@@ -131,19 +205,25 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
     private static bool ValidMedia(ProfileExternalMedia? media) => media is not null
         && !string.IsNullOrWhiteSpace(media.Root) && Path.IsPathFullyQualified(media.Root) && ValidFiles(media.Files);
 
-    internal void Restore(string snapshotDirectory, string destination, CancellationToken token = default)
+    internal void Restore(string snapshotDirectory, string destination, Action<string, long>? progress = null, CancellationToken token = default)
     {
         string target = ProfileLease.NormalizeDirectory(destination);
         ArchiveExportMetadataFile.RejectLinks(target);
         string? generation = Path.GetDirectoryName(ProfileLease.NormalizeDirectory(snapshotDirectory));
         if (Overlaps(SourceDirectory, target) || generation is not null && Overlaps(generation, target)
-            || ManagedMedia?.Any(media => Overlaps(media.Root, target)) == true)
+            || ManagedMedia?.Any(media => media.SelectedNames is null ? Overlaps(media.Root, target)
+                : media.SelectedNames.Any(name => Overlaps(Child(media.Root, name), target))) == true)
             throw new IOException("Restore the snapshot outside the original and working profile directories.");
-        if (Version == SnapshotVersion) VerifyExternalMedia(snapshotDirectory, token);
-        RestoreData(snapshotDirectory, target, token, rebindPaths: Version == UpgradeVersion);
+        ProfileCopyOperation operation = new(progress, token);
+        long bytes = Files.Sum(file => file.Length);
+        foreach (var media in ManagedMedia ?? []) bytes = checked(bytes + media.Files.Sum(file => file.Length));
+        if (FreeSpace(Path.GetDirectoryName(target)!) < bytes)
+            throw new IOException("There is insufficient space to restore the profile snapshot.");
+        if (Version == SnapshotVersion) VerifyExternalMedia(snapshotDirectory, operation);
+        RestoreData(snapshotDirectory, target, operation, rebindPaths: Version == UpgradeVersion);
     }
 
-    internal void RestoreData(string snapshotDirectory, string target, CancellationToken token, bool rebindPaths = false)
+    internal void RestoreData(string snapshotDirectory, string target, ProfileCopyOperation operation, bool rebindPaths = false)
     {
         if (Directory.Exists(target) || File.Exists(target))
             throw new IOException("The profile restore requires a fresh directory.");
@@ -151,9 +231,9 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         try
         {
             CreatePrivateDirectory(staging, snapshotDirectory);
-            CopyTree(Path.Combine(snapshotDirectory, DataName), staging, Directories, Files, token);
-            if (rebindPaths) ProfileMediaRelocation.Apply(this, snapshotDirectory, staging, target, token);
-            token.ThrowIfCancellationRequested();
+            CopyTree(Path.Combine(snapshotDirectory, DataName), staging, Directories, Files, operation);
+            if (rebindPaths) ProfileMediaRelocation.Apply(this, snapshotDirectory, staging, target, operation);
+            operation.Token.ThrowIfCancellationRequested();
             Directory.Move(staging, target);
         }
         finally
@@ -162,30 +242,33 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         }
     }
 
-    internal void CopyMedia(string snapshotDirectory, int index, string destination, CancellationToken token)
+    internal void CopyMedia(string snapshotDirectory, int index, string destination, ProfileCopyOperation operation)
     {
         ProfileExternalMedia media = ManagedMedia![index];
         if (File.Exists(destination) || Directory.Exists(destination))
             throw new InvalidDataException("The staged profile already contains the designated media directory.");
-        CopyTree(MediaTree(snapshotDirectory, index), destination, media.Directories!, media.Files, token);
+        CopyTree(MediaTree(snapshotDirectory, index), destination, media.Directories!, media.Files, operation);
     }
 
-    private static void CopyTree(string source, string destination, string[] directories, ProfileSnapshotFile[] files, CancellationToken token)
+    private static void CopyTree(string source, string destination, string[] directories, ProfileSnapshotFile[] files, ProfileCopyOperation operation)
     {
-        VerifyInventory(source, directories, files);
+        VerifyInventory(source, directories, files, operation);
         Directory.CreateDirectory(destination);
         if (FreeSpace(destination) < files.Aggregate(0L, (sum, file) => checked(sum + file.Length)))
             throw new IOException("There is insufficient space to restore the profile snapshot.");
         foreach (string directory in directories)
+        {
+            operation.Token.ThrowIfCancellationRequested();
             Directory.CreateDirectory(Child(destination, directory));
+        }
         foreach (ProfileSnapshotFile file in files)
         {
-            token.ThrowIfCancellationRequested();
-            string hash = CopyFile(Child(source, file.Name), Child(destination, file.Name), file.Length);
+            operation.Token.ThrowIfCancellationRequested();
+            string hash = operation.Copy(Child(source, file.Name), Child(destination, file.Name), file.Length);
             if (!string.Equals(hash, file.Sha256, StringComparison.Ordinal))
                 throw new InvalidDataException($"The profile snapshot checksum failed for '{file.Name}'.");
         }
-        VerifyInventory(destination, directories, files);
+        VerifyInventory(destination, directories, files, operation);
     }
 
     private static bool Overlaps(string first, string second)
@@ -199,47 +282,47 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         return Contains(first, second) || Contains(second, first);
     }
 
-    internal void VerifyData(string directory, CancellationToken token = default) =>
-        VerifyTree(Path.Combine(directory, DataName), Directories, Files, token);
+    internal void VerifyLegacySource(ProfileCopyOperation operation) =>
+        VerifyTree(SourceDirectory, Directories, Files, operation);
 
-    private static void VerifyTree(string directory, string[] directories, ProfileSnapshotFile[] files, CancellationToken token)
+    internal void VerifyData(string directory, ProfileCopyOperation operation = default) =>
+        VerifyTree(Path.Combine(directory, DataName), Directories, Files, operation);
+
+    private static void VerifyTree(string directory, string[] directories, ProfileSnapshotFile[] files, ProfileCopyOperation operation)
     {
-        VerifyInventory(directory, directories, files);
-        VerifyFiles(directory, files, token);
+        VerifyInventory(directory, directories, files, operation);
+        VerifyFiles(directory, files, operation);
     }
 
-    private static void VerifyInventory(string directory, string[] directories, ProfileSnapshotFile[] files)
+    private static void VerifyInventory(string directory, string[] directories, ProfileSnapshotFile[] files, ProfileCopyOperation operation)
     {
-        var inventory = Inventory(directory);
+        var inventory = Inventory(directory, operation);
         if (!directories.SequenceEqual(inventory.Directories)
             || !files.Select(file => (file.Name, file.Length)).SequenceEqual(inventory.Files))
             throw new InvalidDataException("The profile snapshot inventory changed during verification.");
     }
 
-    internal void VerifyExternalMedia(string snapshotDirectory, CancellationToken token = default)
+    internal void VerifyExternalMedia(string snapshotDirectory, ProfileCopyOperation operation = default)
     {
-        if (ExternalMedia is { } old) VerifyFiles(old.Root, old.Files, token);
+        if (ExternalMedia is { } old) VerifyFiles(old.Root, old.Files, operation);
         if (ManagedMedia is not { } managed) return;
         for (int index = 0; index < managed.Length; index++)
         {
             ProfileExternalMedia media = managed[index];
-            VerifyTree(MediaTree(snapshotDirectory, index), media.Directories!, media.Files, token);
+            VerifyTree(MediaTree(snapshotDirectory, index), media.Directories!, media.Files, operation);
         }
     }
 
-    private static void VerifyFiles(string directory, ProfileSnapshotFile[] files, CancellationToken token)
+    private static void VerifyFiles(string directory, ProfileSnapshotFile[] files, ProfileCopyOperation operation)
     {
         foreach (ProfileSnapshotFile file in files)
         {
-            token.ThrowIfCancellationRequested();
-            using FileStream stream = RegularProfileFile.OpenRead(Child(directory, file.Name));
-            if (stream.Length != file.Length ||
-                !string.Equals(Convert.ToHexString(SHA256.HashData(stream)), file.Sha256, StringComparison.Ordinal))
-                throw new InvalidDataException($"The profile snapshot checksum failed for '{file.Name}'.");
+            operation.Token.ThrowIfCancellationRequested();
+            operation.Verify(Child(directory, file.Name), file);
         }
     }
 
-    internal static (string[] Directories, List<(string Name, long Length)> Files) Inventory(string root)
+    internal static (string[] Directories, List<(string Name, long Length)> Files) Inventory(string root, ProfileCopyOperation operation)
     {
         ArchiveExportMetadataFile.RejectLinks(root);
         List<string> directories = new();
@@ -250,6 +333,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         {
             foreach (string entry in Directory.EnumerateFileSystemEntries(directory))
             {
+                operation.Report(entry);
                 string name = Path.GetRelativePath(root, entry);
                 if (name is ".meowchan-profile.lock" or ".ochan-profile.lock") continue;
                 FileAttributes attributes = File.GetAttributes(entry);
@@ -279,18 +363,6 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         string path = Path.Combine(directory, name);
         ArchiveExportMetadataFile.RejectLinks(path);
         return path;
-    }
-
-    internal static string CopyFile(string source, string destination, long length)
-    {
-        using FileStream input = RegularProfileFile.OpenRead(source);
-        if (input.Length != length) throw new InvalidDataException("A profile file changed length during the snapshot.");
-        using FileStream output = new(destination, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-        input.CopyTo(output);
-        if (output.Length != length) throw new InvalidDataException("A profile file changed length during the snapshot.");
-        output.Flush(flushToDisk: true);
-        output.Position = 0;
-        return Convert.ToHexString(SHA256.HashData(output));
     }
 
     internal static long FreeSpace(string path) => new DriveInfo(Path.GetFullPath(path)).AvailableFreeSpace;
