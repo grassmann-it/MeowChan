@@ -1,9 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Threading;
+using MeowChan.Archive;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -16,10 +22,16 @@ namespace MeowChan.Desktop;
 /// </summary>
 internal sealed class MediaOccurrencesWindow : Window
 {
+    private readonly Func<CancellationToken, Task<Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>>>>? _readSourceTags;
+    private readonly Dictionary<MediaLibraryEntry, (TextBlock Text, Button Copy, string? Source)> _sourceTagRows = new();
+    private CancellationTokenSource? _sourceTagRead;
+
     internal MediaOccurrencesWindow(MediaLibraryTile tile, Func<MediaLibraryEntry, string> tagsOf, Func<MediaLibraryEntry, bool> canJump,
         Action<MediaLibraryEntry> showInThread, Func<MediaLibraryEntry, string?>? providerOf = null,
-        Func<MediaLibraryEntry, Action, Control?>? extraOf = null)
+        Func<MediaLibraryEntry, Action, Control?>? extraOf = null,
+        Func<CancellationToken, Task<Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>>>>? readSourceTags = null)
     {
+        _readSourceTags = readSourceTags;
         Name = "MediaOccurrences";
         Title = Texts.T("media.occurrences.title", tile.Entry.Name ?? tile.Entry.MediaId ?? string.Empty);
         // Modals plan MD1: modeless (minimize and taskbar stay), the list step, fitted to the screen.
@@ -64,6 +76,7 @@ internal sealed class MediaOccurrencesWindow : Window
             // Extra content of a row (the hint about a changed folder file) can ask for the row's own tags to be shown again.
             if (extraOf?.Invoke(entry, () => tags.Text = tagsOf(entry)) is { } extra) row.Children.Add(extra);
             AutomationProperties.SetName(row, description);
+            if (_readSourceTags != null && entry.BooruIdentity != null) AddSourceTagControls(row, entry, where.Text);
             rows.Children.Add(new Border { Child = row, Classes = { "workspace-card" } });
         }
         // The title (the file) stands in the title bar; the summary is the header. Read-only with Close as its only way
@@ -73,7 +86,64 @@ internal sealed class MediaOccurrencesWindow : Window
         StackPanel header = new() { Spacing = 2, Children = { summary, favorite } };
         DialogWindow.Frame(this, DialogFrame.Build(header, rows, footer: null), modal: false);
         DialogEscape.Attach(this);
+
+        if (_sourceTagRows.Count != 0)
+        {
+            // The local rules and files can change while this modeless window stays open.
+            DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
+            timer.Tick += (_, _) => RefreshSourceTags();
+            Opened += (_, _) => { timer.Start(); RefreshSourceTags(); };
+            Closed += (_, _) => { timer.Stop(); _sourceTagRead?.Cancel(); };
+        }
     }
+
+    private void AddSourceTagControls(StackPanel row, MediaLibraryEntry entry, string? source)
+    {
+        TextBlock text = new() { IsVisible = false, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Classes = { "workspace-meta" } };
+        AutomationProperties.SetAutomationId(text, "MediaOccurrenceSourceTags");
+        string label = Texts.T("booru.media.tags.copyAll");
+        Button copy = new() { Content = label, IsVisible = false, IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Left };
+        AutomationProperties.SetAutomationId(copy, "MediaOccurrenceCopySourceTags");
+        AutomationProperties.SetName(copy, ShowName(label, source));
+        copy.Click += (_, _) => RefreshSourceTags(entry);
+        row.Children.Add(text);
+        row.Children.Add(copy);
+        _sourceTagRows.Add(entry, (text, copy, source));
+    }
+
+    private void RefreshSourceTags(MediaLibraryEntry? copy = null) =>
+        OpenActions.Start(() => RefreshSourceTagsAsync(copy), "media.occurrences.sourceTags");
+
+    private async Task RefreshSourceTagsAsync(MediaLibraryEntry? copy)
+    {
+        if (_readSourceTags == null || !IsVisible || (copy == null && _sourceTagRead != null)) return;
+        // Copy starts a new local read even if a periodic refresh is already in flight.
+        _sourceTagRead?.Cancel();
+        using CancellationTokenSource reading = new();
+        _sourceTagRead = reading;
+        try
+        {
+            Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>> tags = await _readSourceTags(reading.Token);
+            reading.Token.ThrowIfCancellationRequested();
+            foreach (var (entry, (text, button, source)) in _sourceTagRows)
+            {
+                bool available = tags.TryGetValue(entry, out IReadOnlyList<BooruPostClaimTag>? names);
+                text.Text = names == null ? null : SourceTagText(source, names);
+                AutomationProperties.SetName(text, text.Text);
+                text.IsVisible = button.IsVisible = button.IsEnabled = available;
+            }
+            if (copy != null && tags.TryGetValue(copy, out IReadOnlyList<BooruPostClaimTag>? copied))
+                await MenuClipboard.CopyAsync(this, BooruSourceTagSearch.Written(copied.Select(tag => tag.Name)));
+        }
+        finally
+        {
+            if (ReferenceEquals(_sourceTagRead, reading)) _sourceTagRead = null;
+        }
+    }
+
+    private static string SourceTagText(string? source, IReadOnlyList<BooruPostClaimTag> tags) => string.Join(Environment.NewLine,
+        tags.GroupBy(tag => tag.Category).Select(group => BooruMessages.TagCategory(group.Key) + " · " + string.Join(", ", group.Select(tag => tag.Name)))
+            .Prepend(Texts.T("booru.media.tags.listFor", source ?? string.Empty)));
 
     /// <summary>The accessible name of a row's action: the action, then the occurrence it applies to.</summary>
     internal static string ShowName(string action, string? where) =>
