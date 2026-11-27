@@ -3,6 +3,8 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Updates;
+using MeowChan.Downloader;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Installation;
@@ -22,6 +24,22 @@ public sealed class BooruPluginRuntimeCompositionTests
     private const string DanbooruManifest = "MeowChan.Plugin.Danbooru.plugin.json";
     internal const string ReleasedProfileVariable = "MEOWCHAN_RELEASED110_DANBOORU_PROFILE";
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(180);
+
+    [Fact]
+    public async Task PluginSessionShutsDownWhenTheOptionalTransportFactoryReturnsNull()
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        Config config = new();
+        DownloadQueue queue = new(config.MaxParallelDownloads, config.BandwidthLimiter);
+        try
+        {
+            PluginSession session = new(profile.Path, lease, config, queue, Serilog.Core.Logger.None,
+                transportFactory: static () => null!);
+            await session.DisposeAsync();
+        }
+        finally { await queue.StopAllAsync(); }
+    }
 
     [Fact]
     public async Task TheRealPluginWorkerServesTheWindowAndADisabledPluginComposesNothingAfterRestart()
