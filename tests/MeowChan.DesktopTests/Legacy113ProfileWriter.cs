@@ -30,7 +30,7 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         return File.Exists(path) ? LoadFromAssemblyPath(path) : null;
     }
 
-    internal async Task WriteAsync(string profile, string downloads, string originalName)
+    internal async Task WriteAsync(string profile, string downloads, string originalName, string? previous = null)
     {
         using var lease = (IDisposable)Call(_lease, null, "Acquire", profile)!;
         object settings = Call(_config, null, "LoadConfig", profile, lease)!;
@@ -42,10 +42,12 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         Type sessionType = _library.GetType("MeowChan.Persistence.SessionStore", true)!;
         object store = Activator.CreateInstance(sessionType, profile, lease)!;
         object session = Activator.CreateInstance(_library.GetType("MeowChan.Persistence.SessionSnapshot", true)!)!;
-        Set(session, "DownloadDirectories", new Dictionary<string, string>
+        Dictionary<string, string> directories = new()
         {
             ["https://boards.4chan.org/g/thread/123"] = downloads
-        });
+        };
+        if (previous is not null) directories.Add("https://boards.4chan.org/g/thread/456", previous);
+        Set(session, "DownloadDirectories", directories);
         await (Task)Call(sessionType, store, "SaveAsync", session, CancellationToken.None)!;
 
         Type archiveType = _library.GetType("MeowChan.Archive.ArchiveCatalog", true)!;
@@ -66,7 +68,7 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         }).ToArray());
         Call(catalogType, catalog, "UpsertPost", claim, DateTimeOffset.UtcNow, CancellationToken.None);
         Call(catalogType, catalog, "LinkLocalAsset", "danbooru", "123", "fixture-asset",
-            Path.Combine(downloads, originalName), CancellationToken.None);
+            Path.Combine(previous ?? downloads, originalName), CancellationToken.None);
     }
 
     internal async Task WriteTabsAsync(string profile, bool draft)
@@ -96,7 +98,7 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         Assert.True(File.Exists(file));
     }
 
-    internal void CheckAndEdit(string profile, string downloads, string originalName, bool edit)
+    internal void CheckAndEdit(string profile, string downloads, string originalName, bool edit, string? previous = null)
     {
         using var lease = (IDisposable)Call(_lease, null, "Acquire", profile)!;
         object settings = Call(_config, null, "LoadConfig", profile, lease)!;
@@ -108,7 +110,13 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         read.GetAwaiter().GetResult();
         object session = Get(Get(read, "Result")!, "Snapshot")!;
         var directories = Assert.IsType<Dictionary<string, string>>(Get(session, "DownloadDirectories"));
-        Assert.Equal(downloads, Assert.Single(directories).Value);
+        if (previous is null) Assert.Equal(downloads, Assert.Single(directories).Value);
+        else
+        {
+            Assert.Equal(2, directories.Count);
+            Assert.Equal(downloads, directories["https://boards.4chan.org/g/thread/123"]);
+            Assert.Equal(previous, directories["https://boards.4chan.org/g/thread/456"]);
+        }
         object admission = Get(lease, "Admission")!;
         Call(admission.GetType(), admission, "CompleteStartup");
         Type tabStore = _desktop.GetType("MeowChan.Desktop.Booru.BooruSearchTabStore", true)!;
@@ -124,7 +132,7 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         Assert.NotNull(post);
         Assert.IsType(_library.GetType("MeowChan.Archive.BooruPostRecord", true)!, post);
         Assert.Equal("fixture-asset", Get(post, "LocalAssetId"));
-        Assert.Equal(Path.Combine(downloads, originalName), Get(post, "LocalPath"));
+        Assert.Equal(Path.Combine(previous ?? downloads, originalName), Get(post, "LocalPath"));
         Assert.Null(Call(catalogType, catalog, "TryGetPost", "e621", "123"));
         if (!edit) return;
         Set(settings, "Language", "de");

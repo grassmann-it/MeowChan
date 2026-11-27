@@ -5,6 +5,7 @@ using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
@@ -12,6 +13,31 @@ namespace MeowChan.DesktopTests;
 public sealed class DesktopProfileAdmissionTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
+
+    [Fact]
+    public async Task CompletedUpgradeStillExposesItsReturnSnapshotAfterRestart()
+    {
+        using TempDirectory root = new();
+        string source = Path.Combine(root.Path, "legacy");
+        Directory.CreateDirectory(source);
+        new Config { DownloadPath = Path.Combine(source, "downloads"), AutomaticUpdateChecks = false }.SaveConfig(source);
+
+        string snapshot;
+        string working;
+        await using (DesktopSessionHost first = new(source, providers: [], admitProfileUpgrade: true))
+        {
+            await first.StartAsync().WaitAsync(Deadline);
+            Assert.Equal(DesktopSessionState.Ready, first.State);
+            working = first.ProfileDirectory;
+            snapshot = Assert.IsType<string>(first.PreUpgradeSnapshot);
+        }
+
+        await using DesktopSessionHost reopened = new(working, providers: [], admitProfileUpgrade: true);
+        await reopened.StartAsync().WaitAsync(Deadline);
+        Assert.Equal(DesktopSessionState.Ready, reopened.State);
+        Assert.Equal(snapshot, reopened.PreUpgradeSnapshot);
+        Assert.True(File.Exists(Path.Combine(snapshot, ProfileSnapshot.FileName)));
+    }
 
     [Fact]
     public async Task StartupProfileAdmissionStaysStartingUntilRestoreCompletesOrFails()
