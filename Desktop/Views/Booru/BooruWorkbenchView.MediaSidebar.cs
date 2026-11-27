@@ -63,6 +63,7 @@ internal sealed partial class BooruWorkbenchView
         Grid.SetRow(_mediaSidebar, 1);
         AutomationProperties.SetAutomationId(_mediaToggle, _mediaToggle.Name);
         // The sidebar reports through this that the page is shown again: a width changed in Media, Tagging or the settings arrives here.
+        _mediaSidebar.AllowsMedia = _model.Search.IsMediaAllowed;
         _mediaSidebar.FactsRefreshRequested = () =>
         {
             RefreshSidebarFacts();

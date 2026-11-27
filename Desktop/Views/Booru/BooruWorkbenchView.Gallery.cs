@@ -43,6 +43,7 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>Called once from <see cref="InitializeHitList"/>: wires the panel to this page's selection, links, original and popup.</summary>
     private void InitializeGallery()
     {
+        _gallery.AllowsMedia = _model.Search.IsMediaAllowed;
         _gallery.Samples = () => _model.Search.Samples;
         _gallery.SampleSettings = ReadGallerySampleSettings;
         _gallery.IsSelected = postId => _selectedResults.Contains(postId);

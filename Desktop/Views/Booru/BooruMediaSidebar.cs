@@ -58,6 +58,11 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto
     };
     private readonly BooruGallerySampleLoader _sample = new();
+    internal Func<BooruPostView, bool>? AllowsMedia
+    {
+        get => _sample.AllowsMedia;
+        set => _sample.AllowsMedia = value;
+    }
     private readonly List<Visual> _visibilityAncestors = new();
     private BooruResultTarget? _target;
     private byte[]? _previewBytes;
@@ -158,6 +163,11 @@ internal sealed class BooruMediaSidebar : Grid, IDisposable
 
     internal void Present(BooruResultTarget target, BooruResultRowView row, bool saved, int maximumPixels, string provider)
     {
+        if (AllowsMedia?.Invoke(row.Post) == false)
+        {
+            Release();
+            return;
+        }
         if (_target != target)
         {
             Release();

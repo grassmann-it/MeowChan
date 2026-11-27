@@ -55,6 +55,11 @@ internal sealed class BooruProviderBinding
     internal Func<CancellationToken, Task<IPluginWorkerClient?>> GetWorkerAsync { get; }
     internal Func<bool> IsEnabled { get; }
 
+    // The source registry supplies per-source state when it has an explicit choice.
+    internal Func<bool>? SourceEnabled { get; init; }
+    internal bool IsSourceEnabled => IsEnabled() && (SourceEnabled?.Invoke()
+        ?? Source.SourceId is not ("e621" or "gelbooru" or "gelbooru.com"));
+
     /// <summary>The session's logger for this provider (never null).</summary>
     internal ILogger Logger => _logger;
 
@@ -76,7 +81,8 @@ internal sealed class BooruProviderBinding
     /// The existing original-media path of plugin sources (<see cref="PluginOriginalMediaHttp"/>): GET/HEAD only,
     /// declared original-media hosts, validated redirects, shared provider policy. The caller owns the client.
     /// </summary>
-    internal HttpClient CreateOriginalMediaClient() => PluginOriginalMediaHttp.CreateClient(Transport, Source, _policy, _logger);
+    internal HttpClient CreateOriginalMediaClient(HttpClient transport) =>
+        PluginOriginalMediaHttp.CreateClient(transport, Source, _policy, _logger);
 }
 
 /// <summary>
@@ -95,6 +101,7 @@ internal sealed class BooruProviderBinding
 internal sealed class BooruSessionComposition : IAsyncDisposable
 {
     private readonly HttpClient _mediaClient;
+    private readonly HttpClient _mediaTransport;
     private readonly DownloadQueue _queue;
     private readonly BooruProducerLifecycle _producers;
     private readonly object _sessionPauseSync = new();
@@ -106,6 +113,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     private readonly BooruProviderBinding _binding;
     private readonly BooruPortAvailabilityGate _availability;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly BooruWorkspaceContent? _content;
     private readonly TaskCompletionSource _stopCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TimeProvider? _clock;
     private readonly DanbooruWatcherSchedulerOptions? _options;
@@ -115,15 +123,17 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     private int _stopped;
 
     private BooruSessionComposition(BooruProviderBinding binding, DownloadQueue queue, BooruCatalogStore catalog,
-        string outputRoot, BooruProducerLifecycle producers, TimeProvider? clock, DanbooruWatcherSchedulerOptions? options)
+        string outputRoot, BooruProducerLifecycle producers, TimeProvider? clock, DanbooruWatcherSchedulerOptions? options,
+        BooruWorkspaceContent? content)
     {
         _binding = binding;
+        _content = content;
         _queue = queue;
         _producers = producers;
         _clock = clock;
         _options = options;
-        _enabled = binding.IsEnabled() ? 1 : 0;
-        _availability = new BooruPortAvailabilityGate(() => binding.IsEnabled()
+        _enabled = binding.IsSourceEnabled ? 1 : 0;
+        _availability = new BooruPortAvailabilityGate(() => binding.IsSourceEnabled
             && catalog.ProfileLease.Admission.Phase == ProfileAdmissionPhase.Ready);
         Catalog = catalog;
         // A worker failure keeps only its code in the result; the log gets the worker's reason (exception type and
@@ -137,7 +147,16 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
                 if (failure.Code == BooruText.SdkMismatchCode) binding.SdkMismatchObserved?.Invoke();
             }
         };
-        _mediaClient = binding.CreateOriginalMediaClient();
+        _mediaTransport = new HttpClient(new BooruOriginalRequestGuard(binding.Transport)) { Timeout = Timeout.InfiniteTimeSpan };
+        try
+        {
+            _mediaClient = binding.CreateOriginalMediaClient(_mediaTransport);
+        }
+        catch
+        {
+            _mediaTransport.Dispose();
+            throw;
+        }
         try
         {
             string sourceId = binding.Source.SourceId;
@@ -145,7 +164,8 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
                 .Select(host => host.Host).ToArray();
             Originals = new BooruOriginalQueue(queue, catalog, outputRoot, _mediaClient,
                 allowedMediaHosts: sourceId == DanbooruPostReference.ProviderId && mediaHosts.Length == 0 ? null : mediaHosts,
-                timeProvider: clock, sourceId: sourceId);
+                timeProvider: clock, sourceId: sourceId, isEnabled: content is null ? null : () => binding.IsSourceEnabled,
+                allowsContent: content is null ? null : content.Allows);
             SearchPort = new BooruWatcherSearchPort(Search, binding.Services, binding.GetWorkerAsync, sourceId, clock);
             _watcherHost = CreateWatcherHost();
             _previewHttp = new BooruPreviewHttp(binding.Transport, binding.Source, timeProvider: clock);
@@ -155,16 +175,20 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             Services = new BooruWorkbenchServices(
                 new BooruHostSearchAdapter(
                     Search, binding.GetWorkerAsync, binding.Source.SourceId, binding.Source.Name, _availability),
-                _queuePort, _watcherPort, new BooruHostPreviewPort(_previewHttp, binding.Source.SourceId, _availability, () => _previewHttp), clock)
+                _queuePort, _watcherPort, new BooruHostPreviewPort(_previewHttp, binding.Source.SourceId, _availability,
+                    () => _previewHttp, content), clock)
             {
-                Source = binding.Source
+                Source = binding.Source,
+                Content = content
             };
             _binding.AvailabilityChanged += OnAvailabilityChanged;
+            if (_content is not null) _content.Changed += OnContentChanged;
         }
         catch
         {
             _availability.Close(terminal: true);
             _mediaClient.Dispose();
+            _mediaTransport.Dispose();
             throw;
         }
     }
@@ -182,14 +206,17 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     internal event Action? AvailabilityChanged;
 
     internal static BooruSessionComposition Create(BooruProviderBinding binding, DownloadQueue queue, BooruCatalogStore catalog,
-        string outputRoot, BooruProducerLifecycle producers, TimeProvider? clock = null, DanbooruWatcherSchedulerOptions? options = null)
+        string outputRoot, BooruProducerLifecycle producers, TimeProvider? clock = null, DanbooruWatcherSchedulerOptions? options = null,
+        BooruWorkspaceContent? content = null)
     {
         ArgumentNullException.ThrowIfNull(binding);
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(producers);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
-        return new BooruSessionComposition(binding, queue, catalog, outputRoot, producers, clock, options);
+        if (content is null && binding.PluginId is not null)
+            content = BooruWorkspaceContent.ForProfile(catalog.ProfileLease);
+        return new BooruSessionComposition(binding, queue, catalog, outputRoot, producers, clock, options, content);
     }
 
     /// <summary>
@@ -201,7 +228,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_started || Volatile.Read(ref _stopped) != 0) return;
+            if (_started || Volatile.Read(ref _stopped) != 0 || _content?.HasChoice == false) return;
             _started = true;
             SyncSessionPause();
             using BooruPortAvailabilityGate.Lease? start = _availability.TryEnter(cancellationToken);
@@ -241,9 +268,12 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             }
     }
 
+    private void OnContentChanged() =>
+        OpenActions.Start(() => StartAsync(CancellationToken.None), "booru.content.start");
+
     private void OnAvailabilityChanged()
     {
-        int enabled = _binding.IsEnabled() ? 1 : 0;
+        int enabled = _binding.IsSourceEnabled ? 1 : 0;
         if (Interlocked.Exchange(ref _enabled, enabled) == enabled) return;
         // Revocation is synchronous even if Start/Stop currently owns the lifecycle lane. Disposing the old
         // preview cache prevents an uncooperative old HTTP completion from populating the next generation.
@@ -267,7 +297,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
                 _watcherStopped = true;
             }
             await _availability.DrainAsync().ConfigureAwait(false);
-            if (Volatile.Read(ref _stopped) != 0 || _availability.IsStopped || !_binding.IsEnabled()) return;
+            if (Volatile.Read(ref _stopped) != 0 || _availability.IsStopped || !_binding.IsSourceEnabled) return;
             // StopAsync is terminal in B5. Recreate only its lifecycle owner, after a real drain, over the SAME
             // OriginalQueue/catalog/search services. Never reuse pending manual requests from the disabled run.
             Volatile.Write(ref _watcherHost, CreateWatcherHost());
@@ -318,6 +348,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         try
         {
             _binding.AvailabilityChanged -= OnAvailabilityChanged;
+            if (_content is not null) _content.Changed -= OnContentChanged;
             ClosePortIngress();
             await _lifecycle.WaitAsync().ConfigureAwait(false);
             try
@@ -347,10 +378,20 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     /// Releases the media client after the session proved that the shared queue stopped. Do not call this from
     /// <see cref="StopAsync"/>: that method drains Booru ingress, not already accepted queue jobs.
     /// </summary>
-    internal void ReleaseTransport() => _mediaClient.Dispose();
+    internal void ReleaseTransport()
+    {
+        _mediaClient.Dispose();
+        _mediaTransport.Dispose();
+    }
 
     public async ValueTask DisposeAsync()
     {
+        // The final owner calls this only after the shared download queue has drained.
         await StopAsync().ConfigureAwait(false);
+        _watcherPort.Dispose();
+        _previewHttp.Dispose();
+        _mediaClient.Dispose();
+        _mediaTransport.Dispose();
+        _lifecycle.Dispose();
     }
 }

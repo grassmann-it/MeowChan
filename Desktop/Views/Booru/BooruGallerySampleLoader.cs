@@ -29,6 +29,7 @@ internal sealed class BooruGallerySampleLoader
     internal static readonly TimeSpan DefaultDelay = TimeSpan.FromMilliseconds(200);
 
     private Action? _cancel;
+    internal Func<BooruPostView, bool>? AllowsMedia { get; set; }
     internal BooruGallerySampleState State { get; private set; } = BooruGallerySampleState.NotOffered;
     internal BooruGallerySampleLimits Limits { get; private set; }
 
@@ -55,7 +56,7 @@ internal sealed class BooruGallerySampleLoader
         TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode,
         Func<IImage, byte[], bool> adopt, Action changed, Func<TimeSpan, CancellationToken, Task>? waitAsync = null)
     {
-        if (State != BooruGallerySampleState.Deferred || port is null) return null;
+        if (State != BooruGallerySampleState.Deferred || port is null || AllowsMedia?.Invoke(post) == false) return null;
         Limits = settings?.Invoke() ?? BooruGallerySampleLimits.FromSettings();
         State = BooruGallerySampleState.Loading;
         BooruGallerySampleLimits limits = Limits;
@@ -79,8 +80,10 @@ internal sealed class BooruGallerySampleLoader
             {
                 await waitAsync(delay, token);
                 token.ThrowIfCancellationRequested();
+                if (AllowsMedia?.Invoke(post) == false) return;
                 BooruSampleResult result = await port.LoadSampleAsync(post, limits.Bytes, limits.CacheBytes,
                     TimeSpan.FromSeconds(limits.TimeoutSeconds), token);
+                if (AllowsMedia?.Invoke(post) == false) return;
                 state = result.TimedOut ? BooruGallerySampleState.TimedOut : BooruGallerySampleState.Failed;
                 if (result.Bytes is { Length: > 0 } bytes && bytes.Length <= limits.Bytes)
                 {
@@ -99,7 +102,7 @@ internal sealed class BooruGallerySampleLoader
 
             void Publish()
             {
-                if (token.IsCancellationRequested) return;
+                if (token.IsCancellationRequested || AllowsMedia?.Invoke(post) == false) return;
                 _cancel = null;
                 if (image is not null && encoded is not null)
                 {

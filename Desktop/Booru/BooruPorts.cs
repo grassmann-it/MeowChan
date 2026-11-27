@@ -190,4 +190,5 @@ internal sealed class BooruWorkbenchServices
     internal TimeProvider Clock { get; }
     internal BooruLinkActions Links { get; }
     internal SourceDescription? Source { get; init; }
+    internal BooruWorkspaceContent? Content { get; init; }
 }
