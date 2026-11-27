@@ -6,10 +6,12 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Updates;
 using MeowChan.Favorites;
@@ -24,6 +26,162 @@ namespace MeowChan.DesktopTests;
 [Collection("Avalonia global state")]
 public sealed class MediaPageContentBoundaryTests
 {
+    [Fact]
+    public async Task RatingCorrectionRetiresTheGridWhileItsThumbnailIsDecoding()
+    {
+        using TempDirectory temporary = new();
+        ConfigureWindow(temporary.Path);
+        GalleryEntry[] entries = await SeedPostsAsync(temporary.Path, BooruPostClaimRating.Sensitive, BooruPostClaimRating.General);
+        BooruComponentDispatcher.Run(ExerciseAsync);
+
+        async Task ExerciseAsync()
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            await using DesktopSessionHost session = CreateSession(temporary.Path);
+            await using MainWindow window = await ShowWindowAsync(session);
+            MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+            TaskCompletionSource<CancellationToken> decoding = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<Bitmap?> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource discarded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            int correctedDecodes = 0;
+            page.TileThumbnailDecoder = (tile, token) =>
+            {
+                if (tile.Entry.BooruPostId != "102") return Task.FromResult<Bitmap?>(null);
+                Interlocked.Increment(ref correctedDecodes);
+                decoding.TrySetResult(token);
+                return release.Task;
+            };
+            try
+            {
+                ById<Button>(window, "MediaNavigationButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                await page.BuildTask;
+                await page.PresentTask;
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                ListBox grid = ById<ListBox>(page, "MediaGrid");
+                Assert.Equal(2, grid.ItemCount);
+                CancellationToken decodingToken = await decoding.Task.WaitAsync(BooruComponentDispatcher.Cancellation);
+                BooruContentProfileStore profile = new(session.ProfileLeaseForTests);
+                long revision = profile.Load().Revision;
+
+                CorrectRating(session, "102");
+                // The shell posts the catalog notification at Send priority. Let it start the new presentation.
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Normal);
+                await page.PresentTask;
+                window.UpdateLayout();
+
+                Assert.True(decodingToken.IsCancellationRequested);
+                Assert.Equal("101", Assert.IsType<MediaLibraryTileRow>(Assert.Single(grid.Items)).Entry.BooruPostId);
+                Assert.Equal(revision, profile.Load().Revision);
+                release.SetResult(new ObservedThumbnail(entries[1].Asset.Path, discarded));
+                await discarded.Task.WaitAsync(BooruComponentDispatcher.Cancellation);
+                Assert.Equal(1, Volatile.Read(ref correctedDecodes));
+            }
+            finally { release.TrySetResult(null); }
+        }
+    }
+
+    private sealed class ObservedThumbnail(string path, TaskCompletionSource discarded) : Bitmap(path)
+    {
+        public override void Dispose()
+        {
+            base.Dispose();
+            discarded.TrySetResult();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RatingCorrectionAndTheFirstChoiceRetireAnOpeningGallery(bool firstChoice) => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory temporary = new();
+        ConfigureWindow(temporary.Path);
+        GalleryEntry[] entries = await SeedPostsAsync(temporary.Path, firstChoice ? null : BooruPostClaimRating.Sensitive,
+            firstChoice ? BooruPostClaimRating.Explicit : BooruPostClaimRating.General);
+        await using DesktopSessionHost session = CreateSession(temporary.Path);
+        await using MainWindow window = await ShowWindowAsync(session);
+        ContentControl host = ById<ContentControl>(window, "GalleryHost");
+        TaskCompletionSource<CancellationToken> decoding = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.PropertyChanged += (_, change) =>
+        {
+            if (change.Property != ContentControl.ContentProperty || host.Content is not GalleryViewer viewer) return;
+            viewer.DecodeImageAsync = async (entry, fit, token) =>
+            {
+                decoding.TrySetResult(token);
+                await release.Task;
+                return await GalleryImageCache.DecodeAsync(entry, fit, CancellationToken.None);
+            };
+        };
+        Task opening = window.ArchivePage.OpenFavoritesGallery!(entries, entries[1].EntryKey, () => { });
+        try
+        {
+            await BooruTestSupport.WaitAsync(() => decoding.Task.IsCompleted, "the first gallery decode to start");
+            CancellationToken decodingToken = await decoding.Task;
+            Assert.True(host.IsEffectivelyVisible);
+            BooruContentProfileStore profile = new(session.ProfileLeaseForTests);
+            if (firstChoice)
+            {
+                BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(session.ProfileLeaseForTests);
+                BooruContentProfileSnapshot confirmed = SetCeiling(profile, session.ProfileLeaseForTests, BooruPostClaimRating.Sensitive);
+                content.Publish(confirmed);
+            }
+            else
+            {
+                long revision = profile.Load().Revision;
+                CorrectRating(session, "102");
+                Assert.Equal(revision, profile.Load().Revision);
+            }
+
+            await BooruTestSupport.WaitAsync(() => !host.IsEffectivelyVisible && decodingToken.IsCancellationRequested,
+                "the opening gallery to be closed while its decode is still held");
+        }
+        finally
+        {
+            release.TrySetResult();
+            await opening;
+        }
+        await window.ArchivePage.OpenFavoritesGallery!(entries, entries[0].EntryKey, () => { });
+        GalleryViewer allowed = Assert.IsType<GalleryViewer>(host.Content);
+        Assert.Equal(1, allowed.Filmstrip.Count);
+        Assert.Equal(entries[0].EntryKey, allowed.Filmstrip.EntryAt(0)!.EntryKey);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SavedTaggingEntriesUseTheSameGalleryBoundary(bool walk) => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory temporary = new();
+        ConfigureWindow(temporary.Path);
+        GalleryEntry[] entries = await SeedPostsAsync(temporary.Path, BooruPostClaimRating.Sensitive, BooruPostClaimRating.Explicit);
+        await using DesktopSessionHost session = CreateSession(temporary.Path);
+        await using MainWindow window = await ShowWindowAsync(session);
+        TagQueueItem[] queued = entries.Select(entry => Assert.IsType<TagQueueItem>(TagQueueItem.From(entry, DateTimeOffset.UnixEpoch))).ToArray();
+        await session.EnqueueTagQueueAsync(walk ? queued.Reverse().ToArray() : queued);
+        ContentControl host = ById<ContentControl>(window, "GalleryHost");
+
+        if (walk) await window.OpenTagQueueGalleryAsync();
+        else
+        {
+            Assert.True(window.ShowTaggingPage());
+            TaggingPage page = Assert.IsType<TaggingPage>(window.TaggingPage);
+            await page.OpenGallery!(queued, 1);
+            Assert.False(host.IsEffectivelyVisible);
+            await page.OpenGallery!(queued, 0);
+        }
+
+        Assert.True(host.IsEffectivelyVisible);
+        GalleryViewer viewer = Assert.IsType<GalleryViewer>(host.Content);
+        Assert.Equal(1, viewer.Filmstrip.Count);
+        Assert.Equal(entries[0].EntryKey, viewer.Filmstrip.EntryAt(0)!.EntryKey);
+        if (walk) Assert.Equal(queued[0].Key, Assert.Single(Assert.IsType<TaggingWalk>(window.GalleryTagging).Items).Key);
+        Assert.Equal(2, session.GetTagQueue()!.Items.Count);
+    });
+
     [Fact]
     public void FavoritesAndTheirGalleryUseTheConfirmedCeiling() => BooruComponentDispatcher.Run(async () =>
     {
@@ -181,6 +339,42 @@ public sealed class MediaPageContentBoundaryTests
     private static T ById<T>(Visual view, string id) where T : Control =>
         Assert.Single(view.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
 
+    private static void ConfigureWindow(string path) => new Config
+    {
+        FirstRunSetupVersion = 1, DownloadsPaused = true, DownloadPath = Path.Combine(path, "downloads"),
+        Language = "en", SaveUrlsOnExit = false, GalleryFilmstripHeight = 96, Animations = "Off"
+    }.SaveConfig(path);
+
+    private static DesktopSessionHost CreateSession(string path) => new(path, [],
+        updateSessionFactory: (directory, config) => new UpdateSession(directory, config, disableEnvironment: () => "1"));
+
+    private static async Task<MainWindow> ShowWindowAsync(DesktopSessionHost session)
+    {
+        MainWindow window = new(session) { Width = 1200, Height = 800 };
+        window.Show();
+        await window.StartupTimingRestoreTask;
+        window.PlatformImpl!.Activated?.Invoke();
+        return window;
+    }
+
+    private static async Task<GalleryEntry[]> SeedPostsAsync(string path, BooruPostClaimRating? ceiling, BooruPostClaimRating secondRating)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(path);
+        lease.Admission.CompleteStartup();
+        if (ceiling is { } maximum) SetCeiling(new BooruContentProfileStore(lease), lease, maximum);
+        BooruCatalogStore catalog = new(path, lease);
+        FavoriteStore favorites = new(path, lease);
+        GalleryEntry first = await SeedFavoriteAsync(path, catalog, favorites, "101", BooruPostClaimRating.General, "g");
+        GalleryEntry second = await SeedFavoriteAsync(path, catalog, favorites, "102", secondRating,
+            secondRating == BooruPostClaimRating.General ? "g" : "e");
+        return [first, second];
+    }
+
+    private static void CorrectRating(DesktopSessionHost session, string id) =>
+        new BooruCatalogStore(session.ProfileDirectory, session.ProfileLeaseForTests).UpsertPost(
+            new("danbooru", id, BooruPostClaimPresence.Rating, Rating: BooruPostClaimRating.Explicit, RawRating: "e"),
+            DateTimeOffset.UnixEpoch.AddDays(1));
+
     private static async Task<GalleryEntry> SeedFavoriteAsync(string profile, BooruCatalogStore catalog, FavoriteStore favorites,
         string id, BooruPostClaimRating rating, string raw)
     {
@@ -189,6 +383,7 @@ public sealed class MediaPageContentBoundaryTests
         const string name = "fixture.png";
         string path = Path.Combine(directory, name);
         byte[] bytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGMQMgnDihiGlgQALKknAeyzZJgAAAAASUVORK5CYII=");
+        if (id == "102") bytes = [.. bytes, 0]; // A distinct byte key for the two thumbnails.
         await File.WriteAllBytesAsync(path, bytes);
         var item = new
         {
@@ -207,9 +402,9 @@ public sealed class MediaPageContentBoundaryTests
         return new GalleryEntry(new GalleryAssetKey(thread, directory, asset.AssetId), manifest, asset, null, null, false, true);
     }
 
-    private static void SetCeiling(BooruContentProfileStore store, ProfileLease lease, BooruPostClaimRating ceiling)
+    private static BooruContentProfileSnapshot SetCeiling(BooruContentProfileStore store, ProfileLease lease, BooruPostClaimRating ceiling)
     {
         using ProfileAdmissionToken writer = lease.Admission.EnterOrdinaryWriter();
-        store.SaveAdmitted(new BooruContentSettings(ceiling, string.Empty, []), store.Load().Revision, writer);
+        return store.SaveAdmitted(new BooruContentSettings(ceiling, string.Empty, []), store.Load().Revision, writer);
     }
 }

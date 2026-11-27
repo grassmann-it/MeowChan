@@ -27,60 +27,22 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private readonly GalleryFavoriteCommandQueue<FavoriteAssetKey> _favoriteChanges = new();
-    private (int Request, BooruContentProfileSnapshot Profile)? _localGalleryContent;
+    private MediaContentBoundary? ReadLocalGalleryBoundary() =>
+        MediaContentBoundary.RatingFilter(_session.ReadLocalMediaContentProfile()) is { } filter
+            ? new MediaContentBoundary(filter, _session.ReadBooruCatalog) : null;
 
-    private async Task OpenLocalFavoritesGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Action completed)
+    private bool AllowsLocalGalleryEntry(GalleryEntry entry) =>
+        !BooruMediaIdentity.IsBooruThread(entry.Key.Thread) || ReadLocalGalleryBoundary()?.Allows(entry.Key.Thread) != false;
+
+    private bool AllowsLocalGalleryEntries(IReadOnlyList<GalleryEntry> entries)
     {
-        GalleryViewer? previous = _gallery;
-        await OpenLocalMediaGalleryAsync(entries, start);
-        if (_gallery != null && !ReferenceEquals(previous, _gallery)) _galleryCompleted = completed;
-        else if (!_isClosing) completed();
+        MediaContentBoundary? boundary = ReadLocalGalleryBoundary();
+        return boundary == null || entries.All(entry => boundary.Allows(entry.Key.Thread));
     }
-
-    private async Task OpenLocalMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null,
-        Func<bool>? stillRequested = null, ThreadGalleryPositions? threadPositions = null)
-    {
-        if (!entries.Any(entry => BooruMediaIdentity.IsBooruThread(entry.Key.Thread)))
-        {
-            await OpenMediaGalleryAsync(entries, start, origin, stillRequested, threadPositions: threadPositions);
-            return;
-        }
-
-        stillRequested ??= _archivePage?.GallerySelectionGuard ?? ArchiveGalleryHandoffGuard();
-        BooruContentProfileSnapshot profile = _session.ReadLocalMediaContentProfile();
-        IReadOnlyList<GalleryEntry> visible = LocalGalleryEntries(entries, profile);
-        if (!visible.Any(entry => entry.EntryKey == start)) return;
-
-        // The gallery may await native playback cleanup before admitting this frozen sequence.
-        int admittedRequest = -1;
-        bool CeilingIsCurrent() => !_isClosing && MediaContentBoundary.SameCeiling(profile, _session.ReadLocalMediaContentProfile());
-        bool Current()
-        {
-            if (stillRequested?.Invoke() == false || !CeilingIsCurrent()) return false;
-            admittedRequest = _galleryRequest;
-            return true;
-        }
-        GalleryViewer? previous = _gallery;
-        await OpenMediaGalleryAsync(visible, start, origin, Current,
-            threadPositions: visible.Count == entries.Count ? threadPositions : null);
-        if (_gallery != null && !ReferenceEquals(previous, _gallery) && admittedRequest == _galleryRequest)
-        {
-            if (!CeilingIsCurrent()) CloseGallery();
-            else _localGalleryContent = (_galleryRequest, profile);
-        }
-    }
-
-    private IReadOnlyList<GalleryEntry> LocalGalleryEntries(IReadOnlyList<GalleryEntry> entries, BooruContentProfileSnapshot profile) =>
-        MediaLibraryView.VisibleGalleryEntries(entries, MediaContentBoundary.RatingFilter(profile) is { } filter
-            ? new MediaContentBoundary(filter, _session.ReadBooruCatalog) : null);
 
     private void RefreshLocalGalleryContentBoundary()
     {
-        if (_gallery == null || _localGalleryContent is not { } tracked || tracked.Request != _galleryRequest) return;
-        BooruContentProfileSnapshot profile = _session.ReadLocalMediaContentProfile();
-        if (MediaContentBoundary.SameCeiling(tracked.Profile, profile)) return;
-        if (LocalGalleryEntries(_galleryEntries, profile).Count < _galleryEntries.Count) CloseGallery();
-        else _localGalleryContent = (_galleryRequest, profile);
+        if (_gallery?.AllowsMedia != null && !AllowsLocalGalleryEntries(_galleryEntries)) CloseGallery();
     }
 
     private void WireGalleryActions()

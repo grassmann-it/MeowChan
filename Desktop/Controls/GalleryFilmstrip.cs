@@ -149,6 +149,7 @@ internal sealed class GalleryFilmstrip : Border
 
     /// <summary>Loads and leases the thumbnail of one entry (null when it has none). Null (the default) reads the shared preview cache.</summary>
     internal Func<GalleryEntry, CancellationToken, ThumbnailDecodeGate, Task<Bitmap?>>? ThumbnailLoader { get; set; }
+    internal Func<GalleryEntry, bool>? AllowsMedia { get; set; }
 
     /// <summary>The cache of video posters (the profile's cache directory unless a test supplies another).</summary>
     internal string PosterCacheDirectory { get; set; } = System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1");
@@ -571,8 +572,9 @@ internal sealed class GalleryFilmstrip : Border
         MediaBadgeOptions options = _flags.Options;
         string label = _threadPositions is not { } positions ? TileName(index + 1, _count, name, badges, options)
             : TileName(positions.NumberAt(index), positions.Count, name, badges, options);
+        Bitmap? bitmap = _thumbnails.TryGet(index);
         tile.Bind(index, name, label, badges, options, new Size(_tile, _tile), index + 1, _count,
-            _thumbnails.TryGet(index), index == _current);
+            bitmap != null && AllowsMedia?.Invoke(entry) != false ? bitmap : null, index == _current);
     }
 
     private void UpdateTileNames()
@@ -590,15 +592,17 @@ internal sealed class GalleryFilmstrip : Border
     private Task<Bitmap?> LoadAsync(int index, CancellationToken token)
     {
         GalleryEntry? entry = _entries != null && index >= 0 && index < _count ? _entries[index] : null;
-        if (entry == null) return Task.FromResult<Bitmap?>(null);
+        if (entry == null || AllowsMedia?.Invoke(entry) == false) return Task.FromResult<Bitmap?>(null);
         return ThumbnailLoader != null ? ThumbnailLoader(entry, token, _gate)
-            : ArchiveListThumbnails.LoadAsync(new ArchiveAssetRow(entry.Manifest, entry.Asset), PosterCacheDirectory, token, _gate);
+            : ArchiveListThumbnails.LoadAsync(new ArchiveAssetRow(entry.Manifest, entry.Asset), PosterCacheDirectory, token, _gate,
+                AllowsMedia is { } allows ? () => allows(entry) : null);
     }
 
     private void OnThumbnailLoaded(int index)
     {
         if (_retired || !_live.TryGetValue(index, out FilmstripTile? tile)) return;
-        tile.SetPicture(_thumbnails.TryGet(index));
+        GalleryEntry? entry = EntryAt(index);
+        tile.SetPicture(entry == null || AllowsMedia?.Invoke(entry) == false ? null : _thumbnails.TryGet(index));
     }
 
     // ---- texts and visuals ----

@@ -214,7 +214,7 @@ public sealed partial class MediaPage : UserControl
         {
             ItemHeight = _tileAppearance.CellHeight, ColumnWidth = _tileAppearance.CellWidth, FillColumns = true
         });
-        _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
+        _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached, ThumbnailAllowed = AllowsThumbnail,
             ThumbnailRelease = MediaTileThumbnails.Release, ThumbnailHandover = TakeHandedOverThumbnail, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, TagExclude = ExcludeTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
             CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null, InTagQueue = IsInTagQueue, Appearance = _tileAppearance,

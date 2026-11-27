@@ -78,7 +78,7 @@ public partial class MainWindow
             IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
                 Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
             if (_isClosing || _gallery != null) return;
-            GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(indexed[0], entry))
+            GalleryEntry? first = entries.FirstOrDefault(entry => MatchesSavedTaggingEntry(indexed[0], entry))
                 ?? entries.FirstOrDefault();
             if (first == null)
             {
@@ -93,6 +93,17 @@ public partial class MainWindow
             if (!_isClosing) ShowNotification(Texts.T("queue.title"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "media.queue.open");
         }
         finally { _tagQueueOpening = false; }
+    }
+
+    private static bool MatchesSavedTaggingEntry(MediaLibraryEntry saved, GalleryEntry resolved)
+    {
+        // A queued Booru original can predate its local tag slot. Its resolver verifies the catalog link and manifest asset.
+        if (saved.LocalSlot == null && saved.BooruIdentity != null && resolved.LocalTagEligible)
+            saved = saved with { LocalSlot = resolved.Asset.RequestedFileName };
+        // Older queue files also omit the attachment binding revision.
+        if (saved.AttachmentRevisionKey == null && resolved.AttachmentResolution?.Binding is { } binding)
+            saved = saved with { AttachmentRevisionKey = binding.Reference.RevisionKey };
+        return MediaMenuIdentity.Matches(saved, resolved);
     }
 
     // ---- the tagging mode (PT3) --------------------------------------------------------------------------------------
@@ -110,18 +121,20 @@ public partial class MainWindow
     internal TaggingWalk? GalleryTagging => _galleryTagging;
 
     /// <summary>
-    /// Opens the gallery in the tagging mode over <paramref name="entries"/>, the resolved media of the queue entries <paramref name="walk"/>
+    /// Opens the gallery in the tagging mode over <paramref name="resolved"/>, the resolved media of the queue entries <paramref name="walk"/>
     /// in the same order (the menu's walk-through, and the smoke over its own fixture). The walk pairs every shown medium with its queue
     /// entry; the open ones the resolver could not find stay open in the queue and are counted in the first status line.
     /// </summary>
-    internal async Task OpenTaggingWalkAsync(TagQueueSnapshot queue, IReadOnlyList<TagQueueItem> walk, IReadOnlyList<GalleryEntry> entries,
+    internal async Task OpenTaggingWalkAsync(TagQueueSnapshot queue, IReadOnlyList<TagQueueItem> walk, IReadOnlyList<GalleryEntry> resolved,
         GalleryEntryKey start, string? groupName = null, string? groupId = null, bool ungrouped = false)
     {
+        IReadOnlyList<GalleryEntry>? entries = await OpenMediaGalleryAsync(resolved, start,
+            stillRequested: () => !_isClosing && _gallery == null, startAtFirstAllowed: true);
+        if (entries == null) return;
         (IReadOnlyList<TaggingWalkItem> items, int unavailable) = TaggingWalk.Pair(walk, entries);
         // TG1 source seam: new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config))
         TaggingWalk tagging = new(items, unavailable, queue, new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config), groupId, ungrouped, groupName);
         SetGalleryWalkStamp(queue, groupId);
-        await OpenMediaGalleryAsync(entries, start, stillRequested: () => !_isClosing && _gallery == null);
         StartGalleryTagging(tagging, entries);
     }
 

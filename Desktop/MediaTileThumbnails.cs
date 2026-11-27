@@ -101,12 +101,12 @@ internal static class MediaTileThumbnails
     /// <summary>Every local video surface checks the original before leasing a decoded poster, even on a memory-cache hit.</summary>
     internal static Task<Bitmap?> LoadPosterAsync(MediaAssetSnapshot manifest, MediaAssetReference asset, string posterCacheDirectory,
         int maximumWidth, int maximumHeight, string? key, CancellationToken token, ThumbnailDecodeGate? gate = null,
-        bool useFailureBackoff = true) =>
+        bool useFailureBackoff = true, Func<bool>? allowsMedia = null) =>
         KeepVerifiedPosterAsync(Cache, key,
-            cancellation => VideoPosterCache.GetPngAsync(manifest, asset, posterCacheDirectory, cancellation, Verified,
-                useFailureBackoff: useFailureBackoff),
-            (png, cancellation) => VideoPosterCache.DecodeBitmapAsync(png, asset.AssetId, maximumWidth, maximumHeight, cancellation), token,
-            gate);
+            cancellation => allowsMedia?.Invoke() == false ? Task.FromResult<byte[]?>(null)
+                : VideoPosterCache.GetPngAsync(manifest, asset, posterCacheDirectory, cancellation, Verified, useFailureBackoff: useFailureBackoff),
+            (png, cancellation) => allowsMedia?.Invoke() == false ? Task.FromResult<Bitmap?>(null)
+                : VideoPosterCache.DecodeBitmapAsync(png, asset.AssetId, maximumWidth, maximumHeight, cancellation), token, gate);
 
     // The lease ordering is independent of Avalonia so warm-cache/integrity/cancellation cases can be exercised without a GUI.
     // The identity check (verifiedPoster) always comes first and is bounded by the poster cache itself; a page gate, when given,

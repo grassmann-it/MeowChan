@@ -85,6 +85,7 @@ public partial class MainWindow
             return;
         }
         AutomationProperties.SetAutomationId(GalleryHost, "GalleryHost");
+        AutomationProperties.SetAutomationId(MediaNavigationButton, "MediaNavigationButton");
         _mediaPage = new MediaPage(_session.OpenArchiveReaderAsync, cachePath: Path.Combine(_session.ProfileDirectory, "cache", MediaLibraryIndexCache.FileName))
         {
             SidebarVideoSettings = CreateQuickSettingsHost(),
@@ -167,11 +168,15 @@ public partial class MainWindow
         _mediaPage.SaveLayoutAsync = layout => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = layout.TagList; config.MediaLayout = layout.Format(); });
         _session.StateChanged += OnMediaSessionChanged;
         Closed += (_, _) => _session.StateChanged -= OnMediaSessionChanged;
-        if (_archivePage is { } archive)
+        _session.LocalMediaContent.Changed += OnLocalMediaContentChanged;
+        if (_session.LocalMediaCatalog is { } catalog) catalog.LocalRatingChanged += OnLocalMediaRatingChanged;
+        Closed += (_, _) =>
         {
+            _session.LocalMediaContent.Changed -= OnLocalMediaContentChanged;
+            if (_session.LocalMediaCatalog is { } localCatalog) localCatalog.LocalRatingChanged -= OnLocalMediaRatingChanged;
+        };
+        if (_archivePage is { } archive)
             archive.GetFavorites = ReadVisibleLocalFavorites;
-            archive.OpenFavoritesGallery = OpenLocalFavoritesGalleryAsync;
-        }
         _mediaPage.InitializeSharedMediaMenus();
         _mediaPage.FocusModeChanged += on => { _mediaFocusActive = on; UpdateMediaFocusChrome(); };
         // Work views (WV5): the page applies the window's view now and again whenever the window applies another one.
@@ -186,10 +191,19 @@ public partial class MainWindow
     private void OnMediaSessionChanged() => Dispatcher.UIThread.Post(() =>
     {
         if (_isClosing) return;
-        if (_selectedPage == WorkspacePage.Media) _mediaPage?.RefreshContentBoundary();
-        RefreshLocalGalleryContentBoundary();
         _mediaPage?.RefreshTagQueue();
     });
+
+    private void OnLocalMediaContentChanged() => PostLocalMediaBoundaryRefresh(localRatingsChanged: false);
+
+    private void OnLocalMediaRatingChanged() => PostLocalMediaBoundaryRefresh(localRatingsChanged: true);
+
+    private void PostLocalMediaBoundaryRefresh(bool localRatingsChanged) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_isClosing) return;
+        _mediaPage?.RefreshContentBoundary(localRatingsChanged);
+        RefreshLocalGalleryContentBoundary();
+    }, DispatcherPriority.Send);
 
     private IReadOnlyList<FavoriteEntry> ReadVisibleLocalFavorites()
     {
@@ -277,7 +291,7 @@ public partial class MainWindow
             // A still pending second restore of an earlier "Back to media" must not move selection and focus under the gallery.
             page.EndPendingReturn();
             if (!Current()) return;
-            await OpenLocalMediaGalleryAsync(entries, first.EntryKey, page.Grid, Current, threadPositions);
+            await OpenMediaGalleryAsync(entries, first.EntryKey, page.Grid, Current, threadPositions: threadPositions);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {

@@ -94,7 +94,8 @@ internal sealed partial class GalleryViewer
         try
         {
             if (BeforeGifAdoptionForTests is { } before) await before(player);
-            if (_viewerInteractionStopped || request != _request || decodeGeneration != _decodeGeneration || token.IsCancellationRequested)
+            if (_viewerInteractionStopped || request != _request || decodeGeneration != _decodeGeneration || token.IsCancellationRequested
+                || AllowsMedia?.Invoke(entry) == false)
             { await player.DisposeAsync(); return true; }
             _gif = player;
             player.StateChanged += () => { if (ReferenceEquals(_gif, player)) RefreshGifTransport(); };
