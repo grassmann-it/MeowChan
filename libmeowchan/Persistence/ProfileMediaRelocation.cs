@@ -130,15 +130,15 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
     {
         if (!File.Exists(path)) return;
         using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadOnly);
-        ReadDatabasePaths(connection, directories, token, """
+        ReadDatabasePaths(connection, directories, """
             SELECT value FROM work_resources, json_each(CASE WHEN json_valid(payload) THEN payload ELSE '{}' END)
                 WHERE lower(key)='outputroot';
-            """);
-        ReadDatabasePaths(connection, files, token, """
+            """, token);
+        ReadDatabasePaths(connection, files, """
             SELECT target FROM work_media;
             SELECT value FROM work_media, json_each(CASE WHEN json_valid(payload) THEN payload ELSE '{}' END)
                 WHERE lower(key) IN ('destinationpath','legacypath');
-            """);
+            """, token);
     }
 
     private static void ReadArchivePaths(string path, HashSet<string> directories, HashSet<string> files, CancellationToken token)
@@ -146,22 +146,22 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         if (!File.Exists(path)) return;
         using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadOnly);
         ArchiveSql.ValidateSchema(connection);
-        ReadDatabasePaths(connection, directories, token, """
+        ReadDatabasePaths(connection, directories, """
             SELECT media_directory FROM archive_threads;
             SELECT directory FROM archive_media_directories;
-            """);
-        ReadDatabasePaths(connection, files, token, """
+            """, token);
+        ReadDatabasePaths(connection, files, """
             SELECT planned_path FROM archive_attachments;
             SELECT destination_path,legacy_path FROM media_decisions;
-            """);
+            """, token);
         int version = ArchiveSql.GetPragma(connection, "user_version");
         if (version >= 7)
-            ReadDatabasePaths(connection, directories, token, "SELECT operations_parent,candidate_directory FROM archive_media_import_operations");
+            ReadDatabasePaths(connection, directories, "SELECT operations_parent,candidate_directory FROM archive_media_import_operations", token);
         if (version >= 8)
-            ReadDatabasePaths(connection, directories, token, "SELECT operations_parent,full_directory,safe_directory FROM archive_media_merge_operations");
+            ReadDatabasePaths(connection, directories, "SELECT operations_parent,full_directory,safe_directory FROM archive_media_merge_operations", token);
     }
 
-    private static void ReadDatabasePaths(SqliteConnection connection, HashSet<string> paths, CancellationToken token, string sql)
+    private static void ReadDatabasePaths(SqliteConnection connection, HashSet<string> paths, string sql, CancellationToken token)
     {
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = sql;
