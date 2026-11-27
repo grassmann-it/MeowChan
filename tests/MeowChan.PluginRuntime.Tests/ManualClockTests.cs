@@ -5,6 +5,27 @@ namespace MeowChan.PluginRuntime.Tests;
 public sealed class ManualClockTests
 {
     [Fact]
+    public void ADisabledTimerFiresOnlyAfterItIsArmed()
+    {
+        ManualClock clock = new();
+        int calls = 0;
+        TimeSpan delay = TimeSpan.FromSeconds(1);
+        using ITimer timer = clock.CreateTimer(_ => calls++, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        clock.Advance(delay);
+        Assert.Equal(0, calls);
+        Assert.True(timer.Change(delay, Timeout.InfiniteTimeSpan));
+        Assert.True(clock.HasTimer(delay));
+        clock.Advance(delay);
+        clock.Advance(delay);
+        Assert.Equal(1, calls);
+
+        Assert.True(timer.Change(delay, Timeout.InfiniteTimeSpan));
+        Assert.True(timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan));
+        clock.Advance(delay);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
     public void TimerLookupToleratesARoundingTickAndOffersARange()
     {
         ManualClock clock = new();

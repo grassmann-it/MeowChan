@@ -638,7 +638,7 @@ public sealed class BooruB9AcceptanceTests
         { "forbidden-403", 403, "<html>denied</html>", "text/html", nameof(DanbooruWatcherCheckKind.Failed), "access-denied" },
         { "not-found-404", 404, "{}", "application/json", nameof(DanbooruWatcherCheckKind.Failed), "not-found" },
         { "gone-410", 410, "{}", "application/json", nameof(DanbooruWatcherCheckKind.Failed), "page-limit" },
-        { "html-challenge", 200, "<html><body>challenge</body></html>", "text/html", nameof(DanbooruWatcherCheckKind.Failed), "not-json" },
+        { "html-challenge", 200, "<html><body>challenge</body></html>", "text/html", nameof(DanbooruWatcherCheckKind.Failed), "http-challenge" },
         { "wrong-shape", 200, "{\"posts\":[]}", "application/json", nameof(DanbooruWatcherCheckKind.Failed), "malformed" },
         { "truncated", 200, "[{\"id\": 1", "application/json", nameof(DanbooruWatcherCheckKind.Failed), "malformed" },
         { "too-large", 200, "[" + new string(' ', BooruHostHttp.MaximumWireBytes + 16) + "]", "application/json", nameof(DanbooruWatcherCheckKind.Failed), "metadata-too-large" },

@@ -34,7 +34,7 @@ internal sealed class ManualClock : TimeProvider
         lock (_gate)
         {
             DateTimeOffset now = GetUtcNow();
-            return _timers.Any(timer => !timer.Disposed && timer.Due - now >= minimum && timer.Due - now <= maximum);
+            return _timers.Any(timer => timer.Due is { } due && due - now >= minimum && due - now <= maximum);
         }
     }
 
@@ -44,7 +44,7 @@ internal sealed class ManualClock : TimeProvider
         lock (_gate)
         {
             DateTimeOffset now = GetUtcNow();
-            TimeSpan[] left = _timers.Where(timer => !timer.Disposed).Select(timer => timer.Due - now).ToArray();
+            TimeSpan[] left = _timers.Where(timer => timer.Due.HasValue).Select(timer => timer.Due.GetValueOrDefault() - now).ToArray();
             return left.Length == 0 ? "no pending timer" : "pending timers with " + string.Join(", ", left) + " left";
         }
     }
@@ -75,26 +75,48 @@ internal sealed class ManualClock : TimeProvider
     {
         Interlocked.Add(ref _ticks, amount.Ticks);
         Entry[] due;
-        lock (_gate) due = _timers.Where(timer => !timer.Disposed && timer.Due <= GetUtcNow()).ToArray();
+        lock (_gate) due = _timers.Where(timer => timer.Due <= GetUtcNow()).ToArray();
         foreach (Entry timer in due) timer.Fire();
     }
     private sealed class Entry(ManualClock owner, TimerCallback callback, object? state, TimeSpan due, TimeSpan period) : ITimer
     {
-        private long _due = owner.GetUtcNow().Ticks + Math.Max(0, due.Ticks);
-        internal bool Disposed { get; private set; }
-        internal DateTimeOffset Due => new(_due, TimeSpan.Zero);
-        public bool Change(TimeSpan dueTime, TimeSpan period) { lock (owner._gate) { _due = owner.GetUtcNow().Ticks + Math.Max(0, dueTime.Ticks); return !Disposed; } }
+        private TimeSpan _period = period;
+        private bool _disposed;
+        internal DateTimeOffset? Due { get; private set; } = DueAt(owner, due);
+
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            lock (owner._gate)
+            {
+                if (_disposed) return false;
+                Due = DueAt(owner, dueTime);
+                _period = period;
+                return true;
+            }
+        }
+
         internal void Fire()
         {
             // Claimed under the gate so that a concurrent Advance and the registration check cannot both run a one-shot callback.
             lock (owner._gate)
             {
-                if (Disposed || Due > owner.GetUtcNow()) return;
-                if (period == Timeout.InfiniteTimeSpan) Disposed = true; else _due = owner.GetUtcNow().Ticks + period.Ticks;
+                if (Due is not { } dueAt || dueAt > owner.GetUtcNow()) return;
+                Due = _period > TimeSpan.Zero ? DueAt(owner, _period) : null;
             }
             callback(state);
         }
-        public void Dispose() => Disposed = true;
+        public void Dispose()
+        {
+            lock (owner._gate)
+            {
+                _disposed = true;
+                Due = null;
+            }
+        }
+
         public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+
+        private static DateTimeOffset? DueAt(ManualClock clock, TimeSpan delay) =>
+            delay == Timeout.InfiniteTimeSpan ? null : clock.GetUtcNow() + delay;
     }
 }

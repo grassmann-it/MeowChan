@@ -11,12 +11,12 @@ namespace MeowChan.PluginRuntime.Tests;
 
 /// <summary>
 /// P2 source contract: several post-search sources side by side on one booru host. Endpoints, query syntax, paging
-/// and pacing come from each source's declared profile; Danbooru keeps its host-owned profile unchanged; a source
+/// and pacing come from each source's declared profile; Danbooru uses a host-owned profile; a source
 /// without a valid profile still fails closed. Fake transports and a manual clock only; no network.
 /// </summary>
 public sealed class BooruMultiSourceHostTests
 {
-    // ---------- Danbooru regression: exactly the endpoints accepted before profiles existed ----------
+    // ---------- Danbooru's host-owned endpoints and anonymous request bounds ----------
 
     [Theory]
     [InlineData("https://danbooru.test/posts.json", true)]
@@ -27,7 +27,10 @@ public sealed class BooruMultiSourceHostTests
     [InlineData("https://danbooru.test/posts.json?tags=cat%20dog%20bird", false)]
     [InlineData("https://danbooru.test/posts.json?tags=order%3Ascore", false)]
     [InlineData("https://danbooru.test/posts.json?tags=", false)]
-    [InlineData("https://danbooru.test/posts.json?page=6", false)]
+    // Five is the default search budget. The host accepts the full configured range (docs/help/limits.md).
+    [InlineData("https://danbooru.test/posts.json?page=6", true)]
+    [InlineData("https://danbooru.test/posts.json?page=1000", true)]
+    [InlineData("https://danbooru.test/posts.json?page=1001", false)]
     [InlineData("https://danbooru.test/posts.json?page=0", false)]
     [InlineData("https://danbooru.test/posts.json?page=01", false)]
     [InlineData("https://danbooru.test/posts.json?limit=05", false)]
@@ -45,7 +48,7 @@ public sealed class BooruMultiSourceHostTests
     [InlineData("https://danbooru.test/posts.json#x", false)]
     [InlineData("https://danbooru.test:8443/posts.json", false)]
     [InlineData("http://danbooru.test/posts.json", false)]
-    public void TheHostOwnedDanbooruProfileKeepsTheFormerAllowlist(string url, bool allowed)
+    public void TheHostOwnedDanbooruProfileEnforcesEndpointAndParameterBounds(string url, bool allowed)
     {
         SourceDescription source = Danbooru();
         Assert.Equal(allowed, BooruEndpointPolicy.IsAllowed(new Uri(url), source, BooruEndpointPolicy.Resolve(source)));
