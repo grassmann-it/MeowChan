@@ -122,7 +122,7 @@ public sealed class BooruMd5LookupTests
             (entry, _) => Task.FromResult(entry.Name switch { "second" => SecondHash, "unreadable" => null, _ => Base64 }),
             search, () => enabled, () => content, clock, 20);
         List<BooruMd5Match> matches = [];
-        CancellationToken token = TestContext.Current.CancellationToken;
+        CancellationToken token = CancellationToken.None;
         Assert.Equal(BooruCallStatus.Unavailable, await batch.RunAsync(matches.AddRange, token));
         Assert.Empty(search.Searches);
 
@@ -150,8 +150,8 @@ public sealed class BooruMd5LookupTests
     [Fact]
     public async Task CancellationKeepsTheInterruptedFilePendingForResume()
     {
-        CancellationToken token = TestContext.Current.CancellationToken;
-        using CancellationTokenSource cancel = CancellationTokenSource.CreateLinkedTokenSource(token);
+        CancellationToken token = CancellationToken.None;
+        using CancellationTokenSource cancel = new();
         FakeBooruSearchPort search = new();
         BooruContentFilter filter = new(1, new(BooruPostClaimRating.General, "", []));
         BooruMd5Batch batch = new([Entry("first"), Entry("second")],
