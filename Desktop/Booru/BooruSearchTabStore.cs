@@ -35,7 +35,7 @@ internal sealed record BooruSearchTabTarget(string? SourceId, string? InstanceId
         && (PostIdentity is null || PostIdentity is { IsValid: true } && Query is null && Page == 1 && Rows is not { Length: > 1 })
         && (Query is not null || PostId is not null || Page == 1 && Rows is not { Length: > 0 })
         && (!Empty || Query is not null && IsEnd && Rows is not { Length: > 0 })
-        && (Query is null || BooruInput.Parse(BooruInputMode.Tags, Query) is { Kind: BooruInputKind.Tags, Canonical: var canonical }
+        && (Query is null || BooruProfileQuery.TryNormalizeStored(Source, Query, out string canonical)
             && canonical == Query)
         && RowsAreValid();
 
