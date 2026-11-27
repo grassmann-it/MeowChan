@@ -1,10 +1,10 @@
 # Public desktop plugin inventory
 
-This is the public desktop package contract for the 1.1 line. It is a build-time
+This is the public desktop package contract for MeowChan 1.2.0. It is a build-time
 allowlist, not a scan of the repository or of a user's profile. The package
 contains exactly the 21 bundle identities below, their generated manifests and
 assemblies, and the 17 editable example/filter source files listed afterwards.
-Danbooru is included as an official post-search bundle.
+The official post-search bundles provide Danbooru, e621 and e926.
 
 ## Bundled plugin identities
 

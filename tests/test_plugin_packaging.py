@@ -209,7 +209,7 @@ class PluginPackagingTests(unittest.TestCase):
                 try:
                     self.fixture(runtime)
                     report = PACKAGE.verify(self.root, runtime)
-                    self.assertEqual(20, report['plugins'])
+                    self.assertEqual(21, report['plugins'])
                     self.assertEqual(17, report['editable_sources'])
                 finally:
                     self.root = outer
@@ -233,9 +233,10 @@ class PluginPackagingTests(unittest.TestCase):
                           'Fchan.cs', 'GuroCx.cs'}, set(PACKAGE.SOURCES))
         self.assertEqual(5, len(PACKAGE.RUNTIMES))
         self.assertNotIn('Danbooru.cs', PACKAGE.SOURCES)
-        self.assertIn('MeowChan.Plugin.Danbooru', PACKAGE.PLUGINS)
+        self.assertNotIn('E621.cs', PACKAGE.SOURCES)
         self.fixture()
-        for assembly_name, source in ([('MeowChan.Plugin.VichanFamily', 'VichanFamily'), ('MeowChan.Plugin.Endchan', 'Endchan')] +
+        for assembly_name, source in ([('MeowChan.Plugin.Danbooru', 'Danbooru'), ('MeowChan.Plugin.E621', 'E621'),
+                                      ('MeowChan.Plugin.VichanFamily', 'VichanFamily'), ('MeowChan.Plugin.Endchan', 'Endchan')] +
                 [('MeowChan.FileRulesFilter', 'FileRulesFilter'), ('MeowChan.HashBlocklistFilter', 'HashBlocklistFilter'), ('MeowChan.AnimationFormatFilter', 'AnimationFormatFilter'), ('MeowChan.PngMetadataFilter', 'PngMetadataFilter'),
                  ('MeowChan.Plugin.Dvach', 'Dvach'), ('MeowChan.Plugin.JschanFamily', 'JschanFamily'),
                  ('MeowChan.Plugin.SevenChan', 'SevenChan'), ('MeowChan.Plugin.BbwChan', 'BbwChan'), ('MeowChan.Plugin.AnonImageboards', 'AnonImageboards'),
@@ -248,12 +249,13 @@ class PluginPackagingTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'required plugin inventory'):
                     PACKAGE.verify(self.root, 'linux-x64')
                 manifest.write_bytes(original)
-                editable = self.root / ('plugins/sources/' + source + '.cs')
-                original = editable.read_bytes()
-                editable.unlink()
-                with self.assertRaisesRegex(ValueError, 'Missing'):
-                    PACKAGE.verify(self.root, 'linux-x64')
-                editable.write_bytes(original)
+                if source + '.cs' in PACKAGE.SOURCES:
+                    editable = self.root / ('plugins/sources/' + source + '.cs')
+                    original = editable.read_bytes()
+                    editable.unlink()
+                    with self.assertRaisesRegex(ValueError, 'Missing'):
+                        PACKAGE.verify(self.root, 'linux-x64')
+                    editable.write_bytes(original)
                 assembly = self.root / ('plugins/assemblies/' + assembly_name + '.dll')
                 original = assembly.read_bytes()
                 assembly.write_bytes(b'modified')

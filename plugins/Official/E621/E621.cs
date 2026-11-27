@@ -42,6 +42,10 @@ public sealed class E621Plugin : IBooruSourcePlugin
             "Original files are acquired by MeowChan's media queue, not by this plugin.") },
         Author: "MeowChan", DocumentationUrl: new Uri("https://github.com/grassmann-it/MeowChan"));
 
+    private const int MaximumTagTerms = 2;
+    private const int MaximumPage = 750;
+    private const int MaximumLimit = 100;
+
     private static SourceDescription Describe(E621Parser.Profile profile) =>
         new(profile.SourceId, profile.Name, new Uri($"https://{profile.MetadataHost}/"),
             SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews,
@@ -50,7 +54,25 @@ public sealed class E621Plugin : IBooruSourcePlugin
             {
                 new(profile.MetadataHost, HttpHostPurpose.Metadata),
                 new(E621Parser.MediaHost, HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)
-            }, EmptySettings, PostOrderKind.DecimalPostId) { Maturity = SourceMaturity.Experimental };
+            }, EmptySettings, PostOrderKind.DecimalPostId)
+        {
+            Maturity = SourceMaturity.Experimental,
+            BooruProfile = new BooruSourceProfile(
+                [
+                    new(BooruEndpointKind.Search, "/posts.json",
+                    [
+                        new("tags", BooruParameterKind.TagQuery, Required: true),
+                        new("page", BooruParameterKind.PageOrBeforeCursor, Required: true),
+                        new("limit", BooruParameterKind.Limit, Required: true)
+                    ]),
+                    new(BooruEndpointKind.Post, "/posts/{post}.json", [])
+                ],
+                new BooruQueryRules(MaximumTagTerms,
+                    profile.SafeOnly ? ["s", "safe"] : ["s", "q", "e", "safe", "questionable", "explicit"]),
+                [BooruTagCategory.General, BooruTagCategory.Artist, BooruTagCategory.Copyright, BooruTagCategory.Character, BooruTagCategory.Meta],
+                profile.SafeOnly ? [BooruRating.General] : [BooruRating.General, BooruRating.Questionable, BooruRating.Explicit],
+                MaximumPage, MaximumLimit)
+        };
 
     public PluginDescription Describe() => Description;
 
@@ -135,10 +157,10 @@ internal static class E621Parser
     private const int DefaultUnavailableSeconds = 5;
     private static readonly TimeSpan MaximumRetryAfter = TimeSpan.FromHours(168);
 
-    internal sealed record Profile(string SourceId, string Name, string MetadataHost);
+    internal sealed record Profile(string SourceId, string Name, string MetadataHost, bool SafeOnly);
 
-    internal static readonly Profile E621 = new("e621", "e621", "e621.net");
-    internal static readonly Profile E926 = new("e926", "e926", "e926.net");
+    internal static readonly Profile E621 = new("e621", "e621", "e621.net", SafeOnly: false);
+    internal static readonly Profile E926 = new("e926", "e926", "e926.net", SafeOnly: true);
 
     internal static Profile? Find(string? sourceId) => sourceId switch { "e621" => E621, "e926" => E926, _ => null };
 
@@ -157,7 +179,8 @@ internal static class E621Parser
     };
 
     // Positive decimal without leading zeros, small enough to fit a 64-bit integer.
-    internal static bool ValidPostId(string? id) => id is { Length: > 0 and <= 18 } && id[0] != '0' && id.All(char.IsAsciiDigit);
+    internal static bool ValidPostId(string? id) =>
+        id is { Length: > 0 and <= SdkLimits.MaximumBooruPostIdDigits } && id[0] != '0' && id.All(char.IsAsciiDigit);
 
     // e621's "before id" page value: the posts with a lower id, by descending id.
     internal static string BeforeCursor(string postId) => "b" + postId;
@@ -300,8 +323,9 @@ internal static class E621Parser
     {
         if (element.ValueKind != JsonValueKind.Object) throw Malformed();
         if (!element.TryGetProperty("id", out JsonElement idElement) || idElement.ValueKind != JsonValueKind.Number
-            || !idElement.TryGetInt64(out long id) || id <= 0) throw Malformed();
+            || !idElement.TryGetInt64(out long id)) throw Malformed();
         string postId = id.ToString(CultureInfo.InvariantCulture);
+        if (!ValidPostId(postId)) throw Malformed();
         BooruFieldPresence fields = BooruFieldPresence.None;
 
         DateTimeOffset? createdAt = null;
@@ -372,7 +396,7 @@ internal static class E621Parser
             && flags.TryGetProperty("deleted", out JsonElement deletedElement) && BoolOrNull(deletedElement) is bool deleted)
         { fields |= BooruFieldPresence.IsDeleted; isDeleted = deleted; }
 
-        IReadOnlyList<BooruMediaVariant>? media = ParseMedia(element, ref fields);
+        IReadOnlyList<BooruMediaVariant>? media = ParseMedia(element, isDeleted, ref fields);
 
         return new BooruPost(new BooruPostId(profile.SourceId, postId), fields, new Uri($"https://{profile.MetadataHost}/posts/{postId}"),
             createdAt, rating, rawRating, score, favorites, tags, media, sourceClaim, isDeleted, false);
@@ -404,7 +428,7 @@ internal static class E621Parser
         return tags;
     }
 
-    private static IReadOnlyList<BooruMediaVariant>? ParseMedia(JsonElement element, ref BooruFieldPresence fields)
+    private static IReadOnlyList<BooruMediaVariant>? ParseMedia(JsonElement element, bool isDeleted, ref BooruFieldPresence fields)
     {
         JsonElement file = default, sample = default, preview = default;
         bool hasFile = Section(element, "file", ref file), hasSample = Section(element, "sample", ref sample), hasPreview = Section(element, "preview", ref preview);
@@ -413,6 +437,7 @@ internal static class E621Parser
         List<BooruMediaVariant> variants = new();
 
         string? fileUrl = null;
+        Uri? original = null;
         if (hasFile)
         {
             fileUrl = Text(file, "url");
@@ -424,21 +449,27 @@ internal static class E621Parser
             if (size < 0 || width <= 0 || height <= 0) throw Malformed();
             string? base64Md5 = md5 is null ? null : Md5(md5);
             string? dotted = extension is { Length: > 0 and <= 32 } && extension.All(char.IsAsciiLetterOrDigit) ? "." + extension : null;
+            original = isDeleted ? null : CdnUri(fileUrl);
             if (!string.IsNullOrEmpty(fileUrl) || dotted is not null || size is not null || width is not null || height is not null || base64Md5 is not null)
-                variants.Add(new BooruMediaVariant(BooruMediaRole.Original, CdnUri(fileUrl), dotted, size, width, height, base64Md5));
+                variants.Add(new BooruMediaVariant(BooruMediaRole.Original, original, dotted, size, width, height, base64Md5));
         }
+        if (isDeleted) return variants;
+
         // A post without a sample answers "has": false and a null url; the original address is not a sample.
         if (hasSample && !(sample.TryGetProperty("has", out JsonElement has) && BoolOrNull(has) == false))
         {
             string? sampleUrl = Text(sample, "url");
-            if (!string.IsNullOrEmpty(sampleUrl) && !string.Equals(sampleUrl, fileUrl, StringComparison.Ordinal))
-                variants.Add(new BooruMediaVariant(BooruMediaRole.Sample, CdnUri(sampleUrl)));
+            Uri? sampleUri = CdnUri(sampleUrl);
+            if (!string.IsNullOrEmpty(sampleUrl) && !string.Equals(sampleUrl, fileUrl, StringComparison.Ordinal)
+                && (sampleUri is null || sampleUri != original))
+                variants.Add(new BooruMediaVariant(BooruMediaRole.Sample, sampleUri));
         }
         if (hasPreview)
         {
             string? previewUrl = Text(preview, "url");
-            if (!string.IsNullOrEmpty(previewUrl))
-                variants.Add(new BooruMediaVariant(BooruMediaRole.Preview, CdnUri(previewUrl)));
+            Uri? previewUri = CdnUri(previewUrl);
+            if (!string.IsNullOrEmpty(previewUrl) && (previewUri is null || previewUri != original))
+                variants.Add(new BooruMediaVariant(BooruMediaRole.Preview, previewUri));
         }
         return variants;
     }

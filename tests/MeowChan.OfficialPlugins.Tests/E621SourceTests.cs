@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using MeowChan.OfficialSources.E621;
 using MeowChan.PluginSdk;
 
@@ -31,12 +32,22 @@ public sealed class E621SourceTests
             Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
             Assert.Empty(source.Routes);
             Assert.Empty(source.Settings.Fields);
+            Assert.Empty(SdkValidation.ValidateBooruProfile(source));
+            BooruSourceProfile profile = Assert.IsType<BooruSourceProfile>(source.BooruProfile);
+            Assert.Equal(BooruAuthentication.None, profile.Authentication);
+            Assert.Equal(1000, profile.MinimumRequestSpacingMilliseconds);
+            Assert.Equal(750, profile.MaximumPage);
+            Assert.Equal(100, profile.MaximumLimit);
+            Assert.Equal(2, profile.Query.MaximumTagTerms);
             Assert.Equal(new[]
             {
                 new HttpHostDeclaration(host, HttpHostPurpose.Metadata),
                 new HttpHostDeclaration("static1.e621.net", HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)
             }, source.HttpHosts);
         }
+        Assert.Equal(new[] { "s", "safe" }, SourceOf("e926").BooruProfile!.Query.RatingValues);
+        Assert.Equal(new[] { BooruRating.General }, SourceOf("e926").BooruProfile!.Ratings);
+        Assert.Equal(new[] { "s", "q", "e", "safe", "questionable", "explicit" }, SourceOf("e621").BooruProfile!.Query.RatingValues);
     }
 
     [Fact]
@@ -213,6 +224,46 @@ public sealed class E621SourceTests
         BooruPost post = Assert.IsType<BooruPostSnapshot>((await Read(Json(Fixture("post-deleted.json")), new BooruPostId("e621", "2003"))).Result).Post;
         Assert.True(post.IsDeleted);
         Assert.False(post.IsBanned);
+        Assert.All(post.Media!, variant => Assert.Null(variant.Url));
+    }
+
+    [Fact]
+    public async Task DeletedPostWithStaleMediaAddressesMakesNoMediaAvailable()
+    {
+        JsonNode fixture = JsonNode.Parse(Fixture("post-normal.json"))!;
+        fixture["post"]!["flags"]!["deleted"] = true;
+        BooruPost post = Assert.IsType<BooruPostSnapshot>(
+            (await Read(Json(fixture.ToJsonString()), new BooruPostId("e621", "2001"))).Result).Post;
+        Assert.True(post.IsDeleted);
+        BooruMediaVariant original = Assert.Single(post.Media!);
+        Assert.Equal(BooruMediaRole.Original, original.Role);
+        Assert.Null(original.Url);
+        Assert.NotNull(original.ExpectedMd5);
+    }
+
+    [Fact]
+    public async Task SearchDoesNotOfferTheOriginalAddressAsAThumbnailOrSample()
+    {
+        JsonNode fixture = JsonNode.Parse(Fixture("post-normal.json"))!;
+        JsonNode raw = fixture["post"]!;
+        string originalUrl = raw["file"]!["url"]!.GetValue<string>();
+        raw["preview"]!["url"] = originalUrl;
+        raw["sample"]!["url"] = originalUrl.Replace("static1.e621.net", "STATIC1.E621.NET", StringComparison.Ordinal);
+        BooruPost post = Assert.IsType<BooruPostSnapshot>(
+            (await Read(Json(fixture.ToJsonString()), new BooruPostId("e621", "2001"))).Result).Post;
+        Assert.Equal(BooruMediaRole.Original, Assert.Single(post.Media!).Role);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1000000000000000000L)]
+    public async Task SearchRejectsAResponseWithAnUnusablePostId(long? id)
+    {
+        JsonNode fixture = JsonNode.Parse(Fixture("post-normal.json"))!["post"]!.DeepClone();
+        fixture["id"] = id;
+        JsonObject search = new() { ["posts"] = new JsonArray(fixture) };
+        BooruSearchFailure result = Assert.IsType<BooruSearchFailure>((await Search("e621", Json(search.ToJsonString()))).Result);
+        Assert.Equal("malformed", result.Failure.Code);
     }
 
     [Fact]

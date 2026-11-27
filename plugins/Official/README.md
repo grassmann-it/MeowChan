@@ -1,4 +1,4 @@
-# Official source plugins: 4chan, 8kun and Danbooru
+# Official source plugins
 
 Each plugin is maintained as one complete editable `.cs` file **in this
 repository** and consumes only .NET framework references plus
@@ -19,11 +19,12 @@ source allowlist contains only example/filter files under `plugins/Examples/`,
 copied to `plugins/sources/`. The [complete inventory](../../docs/plugins/README.md#packaged-inventory)
 is checked against [`package-plugins.py`](../../scripts/package-plugins.py).
 
-4chan and 8kun are board/thread sources. Danbooru is a booru post-search source
-(SDK 1.1.0, `IBooruSourcePlugin`, capability `PostSearch`): it has no URL routes, is
-not registered as a chan source by the desktop, and is verified by the same plugin
-package check. Its fixtures and the scenarios they cover are listed in the
-[booru test matrix](../../docs/development/booru-test-matrix.md).
+4chan and 8kun are board/thread sources. Danbooru, e621 and e926 are booru
+post-search sources (SDK 1.1.0, `IBooruSourcePlugin`, capability `PostSearch`).
+They declare no URL routes and use the desktop Booru workbench. e621 and e926
+each declare their own public metadata endpoint profile and share an original
+media host. The host manages request pacing and original downloads; each Booru
+original requires matching provider length and MD5.
 
 The 4chan/8kun board routes declare ASCII word identifiers and their thread
 routes declare decimal identifiers, matching the legacy URL grammar without worker IPC.
@@ -55,7 +56,7 @@ dotnet restore plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj --locke
 dotnet build plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj -c Release --no-restore -m:1 -p:UseSharedCompilation=false
 ```
 
-Substitute the EightKun or Danbooru project path to build those entries. This
+Substitute the EightKun, Danbooru or E621 project path to build those entries. This
 builds an assembly, not an installed bundle: a loose DLL alone is not installable.
 Repository desktop delivery generates the matching manifests; separately
 packaged candidates must follow the [verified bundle contract](../../docs/plugins/hosting-and-resources.md#prebuilt-bundles).
