@@ -64,3 +64,9 @@ yourself before sharing: this is **not a sanitized or anonymized support report*
 Passive diagnostics adds no automatic telemetry or active connection probes.
 Viewing, refreshing and copying do not start additional network requests; normal
 downloads may continue in the background.
+
+MeowChan's diagnostics record selected operation and failure details without
+collecting process memory. For account-bound Booru HTTP, worker service errors
+record a fixed message. Full process dumps captured by external tools or the
+operating system can contain Booru credentials, including the reversible HTTP
+Basic header.

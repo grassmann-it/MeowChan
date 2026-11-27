@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Contracts;
@@ -31,7 +32,10 @@ public sealed record PluginOperationContext(string ResourceId, long Generation,
     }
 }
 
-internal sealed record BooruCallBinding(object Request, CancellationToken Lifetime);
+internal sealed record BooruCallBinding(object Request, CancellationToken Lifetime)
+{
+    internal BooruAccountBinding.Operation? Account { get; set; }
+}
 
 public sealed record PluginWorkerIdentity(string InstanceId, string ExecutionRevision, string ConfigurationRevision);
 public sealed record PluginWorkerLaunch(string ExecutablePath, IReadOnlyList<string> Arguments, string WorkingDirectory);

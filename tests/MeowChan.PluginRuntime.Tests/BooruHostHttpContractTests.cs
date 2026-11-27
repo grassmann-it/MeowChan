@@ -3,8 +3,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using MeowChan.Http;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
 
@@ -81,13 +83,18 @@ public sealed class BooruHostHttpContractTests
                 {
                     Headers = { Location = new Uri("https://second.test/posts/42.json") }
                 });
+            if (request.Headers.IfNoneMatch.Count != 0)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)
+                {
+                    Headers = { ETag = new("\"x\"") }
+                });
             return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
         });
         using HttpClient transport = new(handler);
-        int reads = 0;
-        using BooruHostHttp host = new(transport, policy, [source], maximumCooldownProvider: null,
-            metadataAccount: (_, _, _) => new(origin, _ => ValueTask.FromResult<AuthenticationHeaderValue?>(Read()), default));
-        BooruHostServices services = new(new Inner(), host);
+        using AccountFixture account = new(source);
+        await account.ConfirmAsync();
+        using BooruHostHttp host = new(transport, policy, [source]);
+        BooruHostServices services = new(new Inner(), host, account.Binding, _ => account.Scope);
         using HttpClient media = PluginOriginalMediaHttp.CreateClient(transport, source, policy);
         BooruJob job = services.OpenJob();
         try
@@ -95,13 +102,13 @@ public sealed class BooruHostHttpContractTests
             BooruSearchRequest typed = new(source.SourceId, "cat", 1, 20);
             HostHttpRequest metadata = new(source.SourceId, HostHttpMethod.Get, new(origin, "posts.json?tags=cat&page=1&limit=20"));
             HostHttpRequest secondTarget = metadata with { Url = new("https://second.test/posts.json?tags=cat&page=1&limit=20") };
-            Assert.IsType<HostHttpFailure>(await host.SendBoundAsync(secondTarget, source, typed, job, default));
-            Assert.IsType<HostHttpFailure>(await host.SendBoundAsync(metadata, source, typed with { Query = "dog" }, job, default));
-            Assert.IsType<HostHttpFailure>(await host.SendBoundAsync(metadata with { Url = new(origin, "image.jpg") }, source, typed, job, default));
-            Assert.Equal(0, reads);
+            Assert.IsType<HostHttpFailure>(await SendBoundAsync(secondTarget, typed));
+            Assert.IsType<HostHttpFailure>(await SendBoundAsync(metadata, typed with { Query = "dog" }));
+            Assert.IsType<HostHttpFailure>(await SendBoundAsync(metadata with { Url = new(origin, "image.jpg") }, typed));
+            Assert.Equal(0, account.Store.ReadCount);
             Assert.Empty(seen);
 
-            Assert.IsType<HostHttpResponse>(await host.SendBoundAsync(metadata, source, typed, job, default));
+            Assert.IsType<HostHttpResponse>(await SendBoundAsync(metadata, typed));
             Assert.Equal((metadata.Url, credential), Assert.Single(seen));
 
             using HttpResponseMessage downloaded = await media.GetAsync(new Uri(origin, "image.jpg")).WaitAsync(Bound);
@@ -114,20 +121,24 @@ public sealed class BooruHostHttpContractTests
 
             clock.Advance(BooruHostHttp.MinimumStartSpacing);
             HostHttpRequest post = metadata with { Url = new(origin, "posts/42.json") };
-            HostHttpFailure redirected = Assert.IsType<HostHttpFailure>(await host.SendBoundAsync(post, source,
-                new BooruPostRequest(new(source.SourceId, "42")), job, default));
+            HostHttpFailure redirected = Assert.IsType<HostHttpFailure>(await SendBoundAsync(post,
+                new BooruPostRequest(new(source.SourceId, "42"))));
             Assert.Equal("http-redirect", redirected.Failure.Code);
             Assert.Equal((post.Url, credential), seen[^1]);
             Assert.Equal(4, seen.Count);
-            Assert.Equal(2, reads);
+            Assert.Equal(2, account.Store.ReadCount);
+
+            clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            HostHttpFailure echoedValidator = Assert.IsType<HostHttpFailure>(await SendBoundAsync(
+                metadata with { Validators = new SourceValidators("\"old\"", null) }, typed));
+            Assert.Equal("http-network", echoedValidator.Failure.Code);
+            Assert.Equal(304, echoedValidator.Failure.HttpStatusCode);
+            Assert.Equal(3, account.Store.ReadCount);
         }
         finally { services.CloseJob(job); }
 
-        AuthenticationHeaderValue Read()
-        {
-            ++reads;
-            return credential;
-        }
+        Task<HostHttpResult> SendBoundAsync(HostHttpRequest request, object typed) =>
+            services.SendHttpAsync(request, services.BindOperation(job.Operation, typed, source, default), default);
     }
 
     [Theory]
@@ -137,7 +148,8 @@ public sealed class BooruHostHttpContractTests
     {
         ManualClock clock = new();
         SourceDescription source = Source();
-        using CancellationTokenSource account = new();
+        using AccountFixture account = new(source);
+        await account.ConfirmAsync();
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int sends = 0;
@@ -152,20 +164,21 @@ public sealed class BooruHostHttpContractTests
             return Response(HttpStatusCode.OK, "{}");
         });
         using HttpClient transport = new(handler);
-        using BooruHostHttp host = new(transport, new RequestPolicyState(clock), [source], maximumCooldownProvider: null,
-            metadataAccount: (_, _, _) => new(source.BaseUri, _ =>
-                ValueTask.FromResult<AuthenticationHeaderValue?>(new("Basic", "Zml4dHVyZTp4")), account.Token));
-        BooruHostServices services = new(new Inner(), host);
+        using BooruHostHttp host = new(transport, new RequestPolicyState(clock), [source]);
+        BooruHostServices services = new(new Inner(), host, account.Binding, _ => account.Scope);
         BooruJob job = services.OpenJob();
         try
         {
             if (waitingForSpacing) Assert.IsType<HostHttpResponse>(await host.SendAsync(Get(), source, job, default));
             HostHttpRequest request = Get() with { Url = new(source.BaseUri, "posts.json?tags=cat&page=1&limit=20") };
-            Task<HostHttpResult> pending = host.SendBoundAsync(request, source, new BooruSearchRequest(source.SourceId, "cat", 1, 20), job, default);
+            PluginOperationContext operation = services.BindOperation(job.Operation,
+                new BooruSearchRequest(source.SourceId, "cat", 1, 20), source, default);
+            Task<HostHttpResult> pending = services.SendHttpAsync(request, operation, default);
             if (waitingForSpacing) await clock.WaitForTimerAsync(BooruHostHttp.MinimumStartSpacing, Bound);
             else await entered.Task.WaitAsync(Bound);
 
-            await account.CancelAsync();
+            Assert.Equal(BooruAccountState.Anonymous, (await account.Binding.RevokeAsync()).State);
+            if (waitingForSpacing) clock.Advance(BooruHostHttp.MinimumStartSpacing);
             reply.TrySetResult();
             HostHttpFailure invalidated = Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound));
             Assert.Equal("source_unavailable", invalidated.Failure.Code);
@@ -175,6 +188,31 @@ public sealed class BooruHostHttpContractTests
         {
             reply.TrySetResult();
             services.CloseJob(job);
+        }
+    }
+
+    private sealed class AccountFixture : IDisposable
+    {
+        private readonly string _root = Directory.CreateTempSubdirectory("booru-account-contract-").FullName;
+        private readonly ProfileLease _lease;
+        internal BooruSecretStoreTests.FakeStore Store { get; } = new();
+        internal BooruAccountBinding Binding { get; }
+        internal BooruAccountScope Scope { get; }
+
+        internal AccountFixture(SourceDescription source)
+        {
+            Scope = BooruAccountScope.Create("plugin", "revision", source.SourceId, "default", source.BaseUri);
+            _lease = ProfileLease.Acquire(_root);
+            Binding = new(_lease, Store);
+        }
+
+        internal async Task ConfirmAsync() =>
+            Assert.Equal(BooruAccountState.Ready, (await Binding.ConfirmAsync(Scope, "fixture", "x"u8.ToArray())).State);
+
+        public void Dispose()
+        {
+            _lease.Dispose();
+            Directory.Delete(_root, recursive: true);
         }
     }
 

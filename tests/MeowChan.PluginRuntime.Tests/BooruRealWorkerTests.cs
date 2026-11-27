@@ -4,16 +4,121 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using MeowChan.Http;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Runtime;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
+using MeowChan.Secrets;
 
 namespace MeowChan.PluginRuntime.Tests;
 
 public sealed class BooruRealWorkerTests
 {
+    private const string AccountMarker = "MEOWCHAN-WORKER-ACCOUNT-KEY";
+    private const string AccountName = "fixture-user";
+
+    [Theory]
+    [InlineData("clean")]
+    [InlineData("headless")]
+    [InlineData("body")]
+    [InlineData("json-escape")]
+    [InlineData("etag")]
+    [InlineData("header")]
+    [InlineData("diagnostics")]
+    public async Task AccountMetadataAndDiagnosticsUseTheRegularWorkerCall(string responseKind)
+    {
+        using Workspace profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        SourceDescription source = DanbooruSource();
+        string pluginPath = BuiltTestBinaries.LibraryOf(Path.Combine("plugins", "Official", "Danbooru"), "MeowChan.Plugin.Danbooru");
+        PluginArtifact artifact = Artifact(pluginPath);
+        BooruAccountScope scope = BooruAccountScope.Create("meowchan.official.danbooru", artifact.ExecutionRevision,
+            source.SourceId, "default", source.BaseUri);
+        BooruSecretStoreTests.FakeStore store = new();
+        BooruAccountBinding accounts = new(lease, store);
+        Assert.Equal(BooruAccountState.Ready,
+            (await accounts.ConfirmAsync(scope, AccountName, Encoding.UTF8.GetBytes(AccountMarker))).State);
+        if (responseKind == "headless") store.Status = SecretStoreStatus.Unavailable;
+
+        string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(AccountName + ":" + AccountMarker));
+        using AccountResponseHandler handler = new(responseKind, encoded);
+        using HttpClient transport = new(handler, disposeHandler: false);
+        using BooruHostHttp http = new(transport, new RequestPolicyState(), [source]);
+        BooruHostServices services = new(new Inner(), http, accounts, _ => scope);
+        BooruSearchService search = new(services);
+        using Workspace workspace = new();
+        await using PluginWorkerManager manager = new();
+        PluginConfiguration configuration = new("config1", new("1", []),
+            new Dictionary<string, SettingsSnapshot> { ["danbooru"] = new("1", []) });
+        await using IPluginWorkerClient worker = await manager.StartAsync(
+            new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet",
+                [BuiltTestBinaries.WorkerAssembly()], workspace.Path), artifact, configuration, services);
+
+        BooruSearchResult result = await search.SearchAsync(worker, source.SourceId, "cat", 1);
+        Assert.Equal(1, handler.Sends);
+        Assert.Equal(1, store.ReadCount);
+        Assert.Equal(responseKind == "headless" ? null : "Basic " + encoded, handler.Authorization);
+        Assert.DoesNotContain(AccountMarker, handler.RequestUri!.AbsoluteUri, StringComparison.Ordinal);
+        if (responseKind is "clean" or "headless")
+            Assert.IsType<BooruSearchSnapshot>(result);
+        else
+        {
+            BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(result);
+            Assert.Equal(responseKind == "diagnostics" ? "host-service" : "http-network", failure.Failure.Code);
+            Assert.DoesNotContain(AccountMarker, failure.Failure.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain(encoded, failure.Failure.Message, StringComparison.Ordinal);
+        }
+
+        string output = string.Join('\n', worker.Snapshot.Logs);
+        if (responseKind == "diagnostics")
+            Assert.Contains("Account-bound Booru host service failed.", output, StringComparison.Ordinal);
+        Assert.DoesNotContain(AccountMarker, output, StringComparison.Ordinal);
+        Assert.DoesNotContain(encoded, output, StringComparison.Ordinal);
+    }
+
+    private sealed class AccountResponseHandler(string responseKind, string encoded) : HttpMessageHandler
+    {
+        internal int Sends { get; private set; }
+        internal string? Authorization { get; private set; }
+        internal Uri? RequestUri { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            ++Sends;
+            Authorization = request.Headers.Authorization?.ToString();
+            RequestUri = request.RequestUri;
+            string body = responseKind switch
+            {
+                "body" => "[\"" + AccountMarker + "\"]",
+                "json-escape" => "[\"\\u004d" + AccountMarker[1..] + "\"]",
+                _ => "[]"
+            };
+            HttpResponseMessage response = new(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = responseKind == "diagnostics" ? new FailingContent(encoded) : new StringContent(body, Encoding.UTF8, "application/json")
+            };
+            if (responseKind == "etag") response.Headers.ETag = new("\"" + encoded + "\"");
+            if (responseKind == "header") response.Headers.TryAddWithoutValidation("Cache-Control", AccountMarker);
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class FailingContent(string encoded) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            throw new InvalidOperationException(AccountMarker + " " + encoded);
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+    }
+
     [Fact]
     public async Task DanbooruPluginSearchUsesLoopbackWireAndInvalidQueryDoesNotStartWorkerCall()
     {

@@ -137,10 +137,7 @@ internal static class BooruEndpointPolicy
 
         // BaseUri selects the metadata origin. A source with a separate website may
         // use its sole metadata host as the canonical API origin.
-        string[] metadataHosts = source.HttpHosts.Where(host => host.Purpose.HasFlag(HttpHostPurpose.Metadata))
-            .Select(host => host.Host).ToArray();
-        string? host = metadataHosts.FirstOrDefault(value => value.Equals(source.BaseUri.IdnHost, StringComparison.OrdinalIgnoreCase))
-            ?? (metadataHosts.Length == 1 ? metadataHosts[0] : null);
+        string? host = MetadataHost(source);
         if (host is null || !Uri.TryCreate("https://" + host + path
                 + (parameters.Count == 0 ? "" : "?" + string.Join("&", parameters)), UriKind.Absolute, out Uri? canonical)
             || !IsAllowed(canonical, source, profile)
@@ -154,9 +151,17 @@ internal static class BooruEndpointPolicy
     internal static HostHttpFailure OperationDenied() =>
         new(new FailureDetail("http-request", "The HTTP request does not match the active booru operation."));
 
-    internal static bool IsExactOrigin(Uri origin, Uri target) => origin.IsAbsoluteUri && origin.Scheme == Uri.UriSchemeHttps
-        && origin.UserInfo.Length == 0 && origin.AbsolutePath == "/" && origin.Query.Length == 0 && origin.Fragment.Length == 0
-        && Uri.Compare(origin, target, UriComponents.SchemeAndServer, UriFormat.UriEscaped, StringComparison.OrdinalIgnoreCase) == 0;
+    internal static Uri? MetadataOrigin(SourceDescription source) =>
+        MetadataHost(source) is { } host && Uri.TryCreate("https://" + host + "/", UriKind.Absolute, out Uri? origin)
+            ? origin : null;
+
+    private static string? MetadataHost(SourceDescription source)
+    {
+        string[] metadataHosts = source.HttpHosts.Where(host => host.Purpose.HasFlag(HttpHostPurpose.Metadata))
+            .Select(host => host.Host).ToArray();
+        return metadataHosts.FirstOrDefault(value => value.Equals(source.BaseUri.IdnHost, StringComparison.OrdinalIgnoreCase))
+            ?? (metadataHosts.Length == 1 ? metadataHosts[0] : null);
+    }
 
     private static bool IsPageParameter(BooruParameterKind kind) => kind is BooruParameterKind.PageNumber
         or BooruParameterKind.PageIndex or BooruParameterKind.PageOrBeforeCursor;

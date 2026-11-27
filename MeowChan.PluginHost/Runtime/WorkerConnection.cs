@@ -308,7 +308,11 @@ internal sealed class WorkerConnection : IAsyncDisposable
                     using (Http.PluginHostHttp.MetadataHistory.Resume(parent.Context))
                         result = await _services.SendHttpAsync(http, parent.Context, parent.Token).ConfigureAwait(false);
                     SdkValidation.ThrowIfInvalid(SdkValidation.ValidateHttpResult(http, result, source));
-                    await ServiceReplyAsync<HostHttpResult>(request, result, parent.Token).ConfigureAwait(false);
+                    Task? reply = null;
+                    if (parent.Context.BooruCall?.Account is { } account
+                        && !account.TryPublish(() => reply = ServiceReplyAsync<HostHttpResult>(request, result, parent.Token)))
+                        result = Http.BooruHostHttp.StaleSource();
+                    await (reply ?? ServiceReplyAsync<HostHttpResult>(request, result, parent.Token)).ConfigureAwait(false);
                     break;
                 case "image":
                     ImageReadRequest image = WireJson.Read<ImageReadRequest>(request.Payload);
@@ -335,7 +339,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
         catch (OperationCanceledException) when (parent.Token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            _log.Add(exception.ToString());
+            _log.Add(parent.Context?.BooruCall?.Account is null
+                ? exception.ToString()
+                : "Account-bound Booru host service failed.");
             try { await _codec.WriteAsync(request with { Direction = "error", Payload = WireJson.Element(new WireFailure("host-service", "The host rejected the service request.")) }, _lifetime.Token).ConfigureAwait(false); }
             catch (Exception) when (_lifetime.IsCancellationRequested) { }
         }

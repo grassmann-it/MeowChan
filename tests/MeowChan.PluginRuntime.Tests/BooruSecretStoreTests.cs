@@ -346,7 +346,7 @@ public sealed class BooruSecretStoreTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
-    private sealed class FakeStore : IBooruSecretStore
+    internal sealed class FakeStore : IBooruSecretStore
     {
         private int _readCount;
         internal int ReadCount => _readCount;

@@ -1,6 +1,7 @@
 using MeowChan.Booru;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Sources.Booru;
@@ -140,8 +141,8 @@ public sealed class BooruSearchService
         try
         {
             lifetime.Token.ThrowIfCancellationRequested();
-            Task<BooruSearchResult> workerCall = worker.SearchBooruPostsAsync(request,
-                job.Operation.BindBooruCall(request, lifetime.Token), lifetime.Token);
+            PluginOperationContext operation = _services.BindOperation(job.Operation, request, source!, lifetime.Token);
+            Task<BooruSearchResult> workerCall = worker.SearchBooruPostsAsync(request, operation, lifetime.Token);
             TrackWorkerCall(workerCall);
             BooruSearchResult result = await workerCall.WaitAsync(lifetime.Token).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
@@ -149,9 +150,15 @@ public sealed class BooruSearchService
             IReadOnlyList<ValidationIssue> resultIssues = SdkValidation.ValidateBooruSearchResult(request, result, source!);
             cancellationToken.ThrowIfCancellationRequested();
             if (SearchJobEnd(job, sourceId) is BooruSearchResult validationEnd) return validationEnd;
+            if (operation.BooruCall!.Account?.IsCurrent() == false) throw new BooruAccountChangedException();
             if (resultIssues.Count != 0) return new BooruSearchFailure(sourceId, PublicFailure(resultIssues[0]));
             acceptedPage = (result as BooruSearchSnapshot)?.Page;
             return result;
+        }
+        catch (BooruAccountChangedException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return SearchJobEnd(job, sourceId) ?? new BooruSearchFailure(sourceId, BooruHostHttp.StaleSource().Failure);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -212,7 +219,8 @@ public sealed class BooruSearchService
         {
             cancellationToken.ThrowIfCancellationRequested();
             lifetime.Token.ThrowIfCancellationRequested();
-            Task<BooruPostResult> workerCall = worker.ReadBooruPostAsync(request, job.Operation.BindBooruCall(request, lifetime.Token), lifetime.Token);
+            PluginOperationContext operation = _services.BindOperation(job.Operation, request, source!, lifetime.Token);
+            Task<BooruPostResult> workerCall = worker.ReadBooruPostAsync(request, operation, lifetime.Token);
             TrackWorkerCall(workerCall);
             BooruPostResult result = await workerCall.WaitAsync(lifetime.Token).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
@@ -220,7 +228,13 @@ public sealed class BooruSearchService
             IReadOnlyList<ValidationIssue> resultIssues = SdkValidation.ValidateBooruPostResult(request, result, source!);
             cancellationToken.ThrowIfCancellationRequested();
             if (PostJobEnd(job, post) is BooruPostResult validationEnd) return validationEnd;
+            if (operation.BooruCall!.Account?.IsCurrent() == false) throw new BooruAccountChangedException();
             return resultIssues.Count == 0 ? result : new BooruPostFailure(post, PublicFailure(resultIssues[0]));
+        }
+        catch (BooruAccountChangedException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return PostJobEnd(job, post) ?? new BooruPostFailure(post, BooruHostHttp.StaleSource().Failure);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

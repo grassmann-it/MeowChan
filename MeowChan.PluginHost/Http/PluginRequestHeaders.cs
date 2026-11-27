@@ -9,9 +9,7 @@ internal static class PluginRequestHeaders
     // Call only after SDK validation of the request and the current destination.
     internal static void Apply(HttpRequestMessage message, HostHttpRequest request)
     {
-        Uri uri = message.RequestUri!;
-        string host = uri.HostNameType == UriHostNameType.IPv6 ? "[" + uri.IdnHost + "]" : uri.IdnHost;
-        message.Headers.Host = uri.IsDefaultPort ? host : host + ":" + uri.Port.ToString(CultureInfo.InvariantCulture);
+        message.Headers.Host = CanonicalHost(message.RequestUri!);
 
         if (request.Headers is not null)
             foreach ((string name, string value) in request.Headers)
@@ -25,6 +23,12 @@ internal static class PluginRequestHeaders
             message.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Parse(tag));
         if (request.Validators?.LastModified is DateTimeOffset modified)
             message.Headers.IfModifiedSince = modified;
+    }
+
+    internal static string CanonicalHost(Uri uri)
+    {
+        string host = uri.HostNameType == UriHostNameType.IPv6 ? "[" + uri.IdnHost + "]" : uri.IdnHost;
+        return uri.IsDefaultPort ? host : host + ":" + uri.Port.ToString(CultureInfo.InvariantCulture);
     }
 
     internal static bool IsConditional(HostHttpRequest request) =>

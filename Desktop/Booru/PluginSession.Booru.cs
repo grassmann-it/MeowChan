@@ -7,10 +7,12 @@ using System.Threading.Tasks;
 using MeowChan.Booru;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Plugins;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
 
@@ -25,6 +27,14 @@ internal sealed partial class PluginSession
     private readonly Dictionary<string, BooruHostServices> _booruServices = new(StringComparer.Ordinal);
     private readonly Dictionary<string, BooruProviderBinding> _booruSources = new(StringComparer.Ordinal);
     private BooruProviderBinding? _booru;
+    private BooruAccountBinding? _booruAccounts;
+
+    internal void ConfigureBooruAccounts(ProfileLease lease)
+    {
+        // Account selection and native-store verification are not part of the default desktop path.
+        if (AppContext.TryGetSwitch("MeowChan.EnableBooruAccountSending", out bool enabled) && enabled)
+            _booruAccounts = new BooruAccountBinding(lease, NativeBooruSecretStore.Create());
+    }
 
     /// <summary>The Danbooru binding, when an active plugin declares the Danbooru post-search source; otherwise null.</summary>
     internal BooruProviderBinding? Booru { get { lock (_state) return _booru; } }
@@ -61,7 +71,12 @@ internal sealed partial class PluginSession
             BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources,
                 maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours),
                 sourceRevision: () => EnabledBooruRevision(pluginId));
-            services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp);
+            string? executionRevision = activation.Active?.ExecutionRevision;
+            services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp,
+                _booruAccounts, declared => executionRevision is not null && BooruEndpointPolicy.IsDanbooru(declared.SourceId)
+                    && BooruEndpointPolicy.MetadataOrigin(declared) is { } origin
+                    ? BooruAccountScope.Create(pluginId, executionRevision, declared.SourceId, BooruPostKey.DefaultInstance, origin)
+                    : null);
             lock (_state)
             {
                 _services.Add(booruHttp);
@@ -130,6 +145,8 @@ internal sealed partial class PluginSession
     {
         BooruProviderBinding[] bindings;
         lock (_state) bindings = _booruSources.Values.Where(binding => binding.PluginId == pluginId).ToArray();
+        if (bindings.Any(binding => BooruEndpointPolicy.IsDanbooru(binding.Source.SourceId)))
+            _booruAccounts?.InvalidateOperations();
         foreach (BooruProviderBinding binding in bindings)
         {
             try { binding.RaiseAvailabilityChanged(); }
