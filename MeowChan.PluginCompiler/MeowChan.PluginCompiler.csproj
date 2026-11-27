@@ -5,6 +5,7 @@
     <!-- The build host runs this IL assembly only to hash target payloads. RID still selects native apphost/runtime. -->
     <PlatformTarget>AnyCPU</PlatformTarget>
     <IsPackable>false</IsPackable>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <CompilerLockRuntime>$(RuntimeIdentifier)</CompilerLockRuntime>
     <CompilerLockRuntime Condition="'$(CompilerLockRuntime)' == ''">$(RuntimeIdentifiers)</CompilerLockRuntime>
