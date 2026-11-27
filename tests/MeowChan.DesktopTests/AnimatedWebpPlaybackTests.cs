@@ -1,10 +1,13 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using MeowChan.Desktop;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -110,43 +113,85 @@ public sealed class AnimatedWebpPlaybackTests
             GalleryEntry entry = await CopyAsync(temp, "animated.webp");
             using JsonDocument manifest = JsonDocument.Parse(await File.ReadAllTextAsync(Fixture("manifest.json")));
             JsonElement expected = manifest.RootElement;
-            int[] durations = expected.GetProperty("frames").EnumerateArray()
-                .Select(frame => frame.GetProperty("duration_ms").GetInt32()).ToArray();
+            JsonElement[] frames = expected.GetProperty("frames").EnumerateArray().ToArray();
+            int[] durations = frames.Select(frame => frame.GetProperty("duration_ms").GetInt32()).ToArray();
+            string?[] hashes = frames.Select(frame => frame.GetProperty("bgra_premul_sha256").GetString()).ToArray();
             int presentations = durations.Length * expected.GetProperty("total_passes").GetInt32();
             var decoder = await GifFrameDecoder.OpenAnimationAsync(entry, CancellationToken.None);
             Assert.NotNull(decoder);
             Image image = new() { Width = 120, Height = 80 };
-            Window window = new() { Width = 200, Height = 120, Content = image };
+            Window window = new() { Width = 200, Height = 120, Content = new Grid { Children = { image } } };
             await using var player = await GalleryGifPlayback.OpenAsync(
                 new DelayedWebpDecoder(decoder), image, CancellationToken.None);
+            TaskCompletionSource visibleViewport = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            image.EffectiveViewportChanged += (_, args) =>
+            {
+                Rect viewport = args.EffectiveViewport;
+                if (image.IsEffectivelyVisible && viewport.Width > 0 && viewport.Height > 0
+                    && image.Bounds.Width > 0 && image.Bounds.Height > 0)
+                    visibleViewport.TrySetResult();
+            };
             try
             {
+                using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
                 window.Show();
-                window.Activate();
+                window.PlatformImpl!.Activated?.Invoke();
                 ContextGestures.Settle(window);
-                image.Arrange(new Rect(0, 0, image.Width, image.Height));
+                await visibleViewport.Task.WaitAsync(deadline.Token);
+                Assert.True(window.IsActive);
+                using (var initialRender = window.CaptureRenderedFrame())
+                    Assert.NotNull(initialRender);
+                Assert.Null(image.Source);
+                Assert.Equal(0, player.Evidence.FramesPresented);
+
+                var bitmap = Assert.IsType<WriteableBitmap>(player.Bitmap);
+                byte[] pixels = new byte[bitmap.PixelSize.Width * bitmap.PixelSize.Height * 4];
+                string? previous = null;
+                List<long> presented = [];
+                void ObservePresentation()
+                {
+                    long timestamp = Stopwatch.GetTimestamp();
+                    string hash = ReadFrameHash(bitmap, pixels);
+                    if (hash == previous) return;
+                    Assert.Equal(hashes[presented.Count % hashes.Length], hash);
+                    Assert.Equal(presented.Count + 1, player.Evidence.FramesPresented);
+                    previous = hash;
+                    presented.Add(timestamp);
+                }
+
+                player.SetActive(true);
                 player.Adopt();
                 Assert.Same(player.Bitmap, image.Source);
-                Assert.Equal(1, player.Evidence.FramesPresented);
-                List<long> presented = [Stopwatch.GetTimestamp()];
-                player.SetActive(true);
-                using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
+                ObservePresentation();
+                Assert.Single(presented);
                 while (presented.Count < presentations)
                 {
                     await Task.Delay(1, deadline.Token);
-                    if (player.Evidence.FramesPresented == presented.Count) continue;
-                    Assert.Equal(presented.Count + 1, player.Evidence.FramesPresented);
-                    presented.Add(Stopwatch.GetTimestamp());
+                    ObservePresentation();
                 }
                 for (int index = 0; index < presented.Count - 1; index++)
                 {
                     int duration = durations[index % durations.Length];
-                    Assert.InRange(Stopwatch.GetElapsedTime(presented[index], presented[index + 1]).TotalMilliseconds,
-                        duration - 10, duration + 10);
+                    double actual = Stopwatch.GetElapsedTime(presented[index], presented[index + 1]).TotalMilliseconds;
+                    Assert.True(Math.Abs(actual - duration) <= 10,
+                        $"Frame {index + 1} → {index + 2}: expected {duration} ± 10 ms, observed {actual:F2} ms.");
                 }
+
+                await player.DisposeAsync();
+                Assert.Null(image.Source);
+                Assert.Throws<ObjectDisposedException>(() => { _ = decoder.DecodeAsync(0, CancellationToken.None); });
             }
             finally { window.Close(); }
         });
+
+    private static string ReadFrameHash(WriteableBitmap bitmap, byte[] pixels)
+    {
+        using ILockedFramebuffer frame = bitmap.Lock();
+        int rowBytes = frame.Size.Width * 4;
+        for (int row = 0; row < frame.Size.Height; row++)
+            Marshal.Copy(IntPtr.Add(frame.Address, row * frame.RowBytes), pixels, row * rowBytes, rowBytes);
+        return Hash(pixels);
+    }
 
     private sealed class DelayedWebpDecoder(IGifFrameDecoder decoder) : IGifFrameDecoder
     {
