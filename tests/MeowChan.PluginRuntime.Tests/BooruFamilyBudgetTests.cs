@@ -25,7 +25,7 @@ public sealed class BooruFamilyBudgetTests
         SourceDescription alias = Source("safe-mirror", "www.e926.net");
         SourceDescription danbooru = Source("danbooru", "danbooru.donmai.us");
         List<(string Host, DateTimeOffset At, string Agent)> seen = [];
-        using HttpClient transport = new(new Transport(request =>
+        using Transport transportHandler = new(request =>
         {
             seen.Add((request.RequestUri!.Host, clock.GetUtcNow(), request.Headers.UserAgent.ToString()));
             return seen.Count switch
@@ -34,7 +34,8 @@ public sealed class BooruFamilyBudgetTests
                 3 => new(HttpStatusCode.TooManyRequests) { Headers = { RetryAfter = new(TimeSpan.FromSeconds(90)) } },
                 _ => new(HttpStatusCode.OK)
             };
-        }));
+        });
+        using HttpClient transport = new(transportHandler);
         using BooruHostHttp firstHost = new(transport, policy, [e621, danbooru]);
         using BooruHostHttp secondHost = new(transport, policy, [e926, alias]);
         BooruHostServices firstServices = new(new UnusedServices(), firstHost);
@@ -120,11 +121,12 @@ public sealed class BooruFamilyBudgetTests
             ManualClock clock = new();
             SourceDescription source = Source(sourceId, hostname);
             List<Uri> targets = [];
-            using HttpClient transport = new(new Transport(request =>
+            using Transport transportHandler = new(request =>
             {
                 targets.Add(request.RequestUri!);
                 return new(HttpStatusCode.OK);
-            }));
+            });
+            using HttpClient transport = new(transportHandler);
             using BooruHostHttp host = new(transport, new RequestPolicyState(clock), [source]);
             BooruHostServices services = new(new UnusedServices(), host);
             BooruSearchService search = new(services);

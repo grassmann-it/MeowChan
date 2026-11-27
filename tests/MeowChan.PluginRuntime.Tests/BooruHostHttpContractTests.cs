@@ -73,7 +73,7 @@ public sealed class BooruHostHttpContractTests
         RequestPolicyState policy = new(clock);
         AuthenticationHeaderValue credential = new("Basic", "Zml4dHVyZTp4");
         List<(Uri Uri, AuthenticationHeaderValue? Authorization)> seen = [];
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             seen.Add((request.RequestUri!, request.Headers.Authorization));
             if (request.RequestUri!.AbsolutePath == "/posts/42.json")
@@ -82,7 +82,8 @@ public sealed class BooruHostHttpContractTests
                     Headers = { Location = new Uri("https://second.test/posts/42.json") }
                 });
             return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
-        }));
+        });
+        using HttpClient transport = new(handler);
         int reads = 0;
         using BooruHostHttp host = new(transport, policy, [source], maximumCooldownProvider: null,
             metadataAccount: (_, _, _) => new(origin, _ => ValueTask.FromResult<AuthenticationHeaderValue?>(Read()), default));
@@ -140,7 +141,7 @@ public sealed class BooruHostHttpContractTests
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int sends = 0;
-        using HttpClient transport = new(new Handler(async (_, _) =>
+        using Handler handler = new(async (_, _) =>
         {
             Interlocked.Increment(ref sends);
             if (!waitingForSpacing)
@@ -149,7 +150,8 @@ public sealed class BooruHostHttpContractTests
                 await reply.Task;
             }
             return Response(HttpStatusCode.OK, "{}");
-        }));
+        });
+        using HttpClient transport = new(handler);
         using BooruHostHttp host = new(transport, new RequestPolicyState(clock), [source], maximumCooldownProvider: null,
             metadataAccount: (_, _, _) => new(source.BaseUri, _ =>
                 ValueTask.FromResult<AuthenticationHeaderValue?>(new("Basic", "Zml4dHVyZTp4")), account.Token));
