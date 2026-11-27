@@ -102,7 +102,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                     && ProfileManifest.Read(ProfileDirectory)?.State == ProfileManifest.Preparing;
             }
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "lease");
-            _profileStartupAdmission = _profileLease.Admission.EnterStartupWriter();
+            _profileStartupAdmission = _profileLease.Admission.EnterStartupWriter(upgradeCancellation);
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory, _profileLease);
             // Fail closed: nothing may write into a profile whose settings were not read as they are. The startup
             // window explains the files and the way out (SettingsRecoveryRequiredException.LocalizedMessage).
