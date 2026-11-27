@@ -2,6 +2,8 @@ using Avalonia;
 using System;
 using Serilog;
 using MeowChan.Desktop;
+using MeowChan.Persistence;
+using System.IO;
 
 namespace MeowChan;
 
@@ -16,6 +18,20 @@ internal static partial class Program
         int? developmentExitCode = null;
         RunDevelopmentHost(args, ref developmentExitCode);
         if (developmentExitCode is int completed) return completed;
+
+        if (args is ["--restore-profile", string snapshot, string destination])
+        {
+            try
+            {
+                ProfileSnapshot.Read(snapshot).Restore(snapshot, destination);
+                return 0;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
+            {
+                Console.Error.WriteLine(error.Message);
+                return 2;
+            }
+        }
 
         string? startupFolder;
         try

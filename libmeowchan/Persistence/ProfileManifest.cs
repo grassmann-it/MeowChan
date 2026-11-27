@@ -42,6 +42,7 @@ internal sealed record ProfileManifest(int Version, Guid ProfileId, Guid Generat
             ["reader-groups.json"] = (1, 1, 1),
             ["archive-searches.json"] = (1, 1, 1),
             ["media_rules.json"] = (1, 1, 1),
+            ["local-imports.json"] = (1, 1, 1),
             ["export-history.json"] = (1, 1, 1),
             ["collection-export-history.json"] = (1, 1, 1),
         };
@@ -119,7 +120,7 @@ internal sealed record ProfileManifest(int Version, Guid ProfileId, Guid Generat
             {
                 if (!property.Name.Equals("version", StringComparison.OrdinalIgnoreCase)
                     && !property.Name.Equals("schemaVersion", StringComparison.OrdinalIgnoreCase)) continue;
-                if (result is not null || !property.Value.TryGetInt32(out int value))
+                if (result is not null || property.Value.ValueKind != JsonValueKind.Number || !property.Value.TryGetInt32(out int value))
                     throw new InvalidDataException($"The profile file '{Path.GetFileName(path)}' has an invalid format marker.");
                 result = value;
             }

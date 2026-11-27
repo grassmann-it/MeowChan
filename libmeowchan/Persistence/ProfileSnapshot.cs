@@ -78,7 +78,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         string staging = target + ".pending-" + Guid.NewGuid().ToString("N");
         try
         {
-            Directory.CreateDirectory(staging);
+            CreatePrivateDirectory(staging);
             string source = Path.Combine(snapshotDirectory, DataName);
             if (FreeSpace(staging) < Files.Aggregate(0L, (sum, file) => checked(sum + file.Length)))
                 throw new IOException("There is insufficient space to restore the profile snapshot.");
@@ -101,6 +101,8 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         }
     }
 
+    internal void VerifyData(string directory, CancellationToken token = default) => Verify(Path.Combine(directory, DataName), token);
+
     private void Verify(string directory, CancellationToken token)
     {
         (string[] directories, List<(string Name, long Length)> files) = Inventory(directory);
@@ -116,7 +118,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         }
     }
 
-    private static (string[] Directories, List<(string Name, long Length)> Files) Inventory(string root)
+    internal static (string[] Directories, List<(string Name, long Length)> Files) Inventory(string root)
     {
         ArchiveExportMetadataFile.RejectLinks(root);
         List<string> directories = new();
@@ -147,7 +149,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         return (directories.ToArray(), files);
     }
 
-    private static string Child(string directory, string name)
+    internal static string Child(string directory, string name)
     {
         if (string.IsNullOrEmpty(name) || Path.IsPathRooted(name) || name.Split('/', '\\').Any(
             part => part is "" or "." or ".." || part.Contains(':')))
@@ -157,7 +159,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         return path;
     }
 
-    private static string CopyFile(string source, string destination, long length)
+    internal static string CopyFile(string source, string destination, long length)
     {
         using FileStream input = RegularProfileFile.OpenRead(source);
         if (input.Length != length) throw new InvalidDataException("A profile file changed length during the snapshot.");
@@ -169,7 +171,13 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         return Convert.ToHexString(SHA256.HashData(output));
     }
 
-    private static long FreeSpace(string path) => new DriveInfo(Path.GetFullPath(path)).AvailableFreeSpace;
+    internal static long FreeSpace(string path) => new DriveInfo(Path.GetFullPath(path)).AvailableFreeSpace;
+
+    internal static void CreatePrivateDirectory(string path)
+    {
+        if (OperatingSystem.IsWindows()) Directory.CreateDirectory(path);
+        else Directory.CreateDirectory(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+    }
 
     internal static void PublishJson<T>(string path, T value, JsonSerializerOptions options)
     {

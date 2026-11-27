@@ -277,14 +277,15 @@ internal sealed class ProfileSwitchService
     {
         if (ProfileOpenPolicy.Classify(folder) != ProfileFolderKind.New)
             throw new InvalidOperationException("Only a new or empty folder becomes a new profile.");
-        using ProfileLease lease = ProfileLease.Acquire(folder);
+        using ProfileLease lease = ProfileUpgrade.Open(folder, downloadFolder);
         Config config = Config.LoadConfig(lease.ProfileDirectory, lease);
         if (config.Origin != ProfileOrigin.ConfirmedNew)
             throw new InvalidOperationException("The folder changed while the new profile was prepared.");
         config.DownloadPath = downloadFolder;
         if (!string.IsNullOrWhiteSpace(language)) config.Language = language;
         config.SaveConfig(lease.ProfileDirectory);
-        return ProfileInstanceIdentity.ReadOrCreate(lease).Id;
+        ProfileUpgrade.Complete(lease, [downloadFolder]);
+        return ProfileInstanceIdentity.TryRead(lease.ProfileDirectory)!.Id;
     }
 }
 
