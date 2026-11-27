@@ -76,6 +76,7 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
     [Fact]
     public void KeyboardCompletesOnlyTheLastTermAndEnterWithoutSelectionUsesFreeText() => BooruComponentDispatcher.Run(async () =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.SetLanguage("en");
         BooruUiHarness harness = new();
         BooruCatalogSnapshot snapshot = Snapshot([Post(Danbooru, 101, Tag("calf"), Tag("cat")), Post(Danbooru, 102, Tag("cat"))]);
@@ -121,6 +122,7 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
     [Fact]
     public void PendingReadsDoNotPublishSuggestionsFromThePreviousSourceOrInstance() => BooruComponentDispatcher.Run(async () =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = new();
         BooruWorkbenchServices E621Services(string instance) => new(
             new FakeBooruSearchPort { ProviderId = "e621", ProviderName = instance, InstanceId = instance },
@@ -163,6 +165,7 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
     [Fact]
     public void LocalCompletionUsesTheRealCatalogAndMakesNoTransportRequests() => BooruComponentDispatcher.Run(async () =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
         using DanbooruStub transport = new();
         using DanbooruTestBinding binding = new(transport);
