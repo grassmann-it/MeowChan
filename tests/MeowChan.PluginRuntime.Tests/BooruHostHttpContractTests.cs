@@ -142,10 +142,12 @@ public sealed class BooruHostHttpContractTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task AccountGenerationChangeRefusesWaitingSendsAndLateResults(bool waitingForSpacing)
+    [InlineData("spacing")]
+    [InlineData("transport")]
+    [InlineData("late-result")]
+    public async Task AccountGenerationChangeRefusesWaitingSendsAndLateResults(string phase)
     {
+        bool waitingForSpacing = phase == "spacing";
         ManualClock clock = new();
         SourceDescription source = Source();
         using AccountFixture account = new(source);
@@ -153,13 +155,14 @@ public sealed class BooruHostHttpContractTests
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int sends = 0;
-        using Handler handler = new(async (_, _) =>
+        using Handler handler = new(async (_, token) =>
         {
             Interlocked.Increment(ref sends);
             if (!waitingForSpacing)
             {
                 entered.TrySetResult();
-                await reply.Task;
+                if (phase == "transport") await reply.Task.WaitAsync(token);
+                else await reply.Task;
             }
             return Response(HttpStatusCode.OK, "{}");
         });
@@ -178,8 +181,7 @@ public sealed class BooruHostHttpContractTests
             else await entered.Task.WaitAsync(Bound);
 
             Assert.Equal(BooruAccountState.Anonymous, (await account.Binding.RevokeAsync()).State);
-            if (waitingForSpacing) clock.Advance(BooruHostHttp.MinimumStartSpacing);
-            reply.TrySetResult();
+            if (phase == "late-result") reply.TrySetResult();
             HostHttpFailure invalidated = Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound));
             Assert.Equal("source_unavailable", invalidated.Failure.Code);
             Assert.Equal(1, Volatile.Read(ref sends));

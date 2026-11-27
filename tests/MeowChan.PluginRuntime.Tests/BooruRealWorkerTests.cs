@@ -10,6 +10,7 @@ using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginHost.Sources.Booru;
+using MeowChan.PluginProtocol;
 using MeowChan.PluginSdk;
 using MeowChan.Secrets;
 
@@ -25,6 +26,9 @@ public sealed class BooruRealWorkerTests
     [InlineData("headless")]
     [InlineData("body")]
     [InlineData("json-escape")]
+    [InlineData("truncated-json")]
+    [InlineData("malformed-json")]
+    [InlineData("invalid-json-string")]
     [InlineData("etag")]
     [InlineData("header")]
     [InlineData("diagnostics")]
@@ -94,6 +98,9 @@ public sealed class BooruRealWorkerTests
             {
                 "body" => "[\"" + AccountMarker + "\"]",
                 "json-escape" => "[\"\\u004d" + AccountMarker[1..] + "\"]",
+                "truncated-json" => "[",
+                "malformed-json" => "[,\"\\u004d" + AccountMarker[1..] + "\"]",
+                "invalid-json-string" => "[\"\\uD800\"]",
                 _ => "[]"
             };
             HttpResponseMessage response = new(HttpStatusCode.OK)
@@ -104,6 +111,61 @@ public sealed class BooruRealWorkerTests
             if (responseKind == "etag") response.Headers.ETag = new("\"" + encoded + "\"");
             if (responseKind == "header") response.Headers.TryAddWithoutValidation("Cache-Control", AccountMarker);
             return Task.FromResult(response);
+        }
+    }
+
+    [Fact]
+    public async Task RevocationReplacesAServiceReplyWaitingForTheWorkerPipe()
+    {
+        using Workspace profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        SourceDescription source = DanbooruSource();
+        BooruAccountScope scope = BooruAccountScope.Create("plugin", "revision", source.SourceId, "default", source.BaseUri);
+        BooruAccountBinding accounts = new(lease, new BooruSecretStoreTests.FakeStore());
+        Assert.Equal(BooruAccountState.Ready, (await accounts.ConfirmAsync(scope, AccountName, Encoding.UTF8.GetBytes(AccountMarker))).State);
+        PluginOperationContext context = new PluginOperationContext("resource", 1)
+            .BindBooruCall(new BooruSearchRequest(source.SourceId, "cat", 1, 20), default);
+        BooruAccountBinding.Operation account = Assert.IsType<BooruAccountBinding.Operation>(accounts.CaptureOperation(scope, source, context));
+
+        using StalledWorkerPipe pipe = new();
+        using FrameCodec codec = new(pipe, pipe, leaveOpen: false);
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        CancellationToken token = deadline.Token;
+        WireEnvelope request = new(ProtocolVersion.Major, "service", "http", "metadata", "worker", "revision", "config",
+            context.ResourceId, context.Generation, null, null, "parent", WireJson.Element("request"));
+        HostHttpResponse metadata = new(200, source.BaseUri, new Dictionary<string, string>(), "{\"private\":true}"u8.ToArray());
+
+        Task occupied = codec.WriteAsync(request with { RequestId = "occupying-write" }, token);
+        Task pending;
+        try
+        {
+            await pipe.Entered.Task.WaitAsync(token);
+            pending = WorkerConnection.WriteHttpServiceReplyAsync(codec, request, metadata, account, token);
+            Assert.False(pending.IsCompleted);
+            Assert.Equal(BooruAccountState.Anonymous, (await accounts.RevokeAsync(token)).State);
+        }
+        finally { pipe.Resume.TrySetResult(); }
+        await Task.WhenAll(occupied, pending).WaitAsync(token);
+
+        pipe.Position = 0;
+        Assert.Equal("occupying-write", (await codec.ReadAsync(token))?.RequestId);
+        WireEnvelope reply = Assert.IsType<WireEnvelope>(await codec.ReadAsync(token));
+        Assert.Equal("metadata", reply.RequestId);
+        Assert.Equal("serviceResult", reply.Direction);
+        Assert.Equal("source_unavailable", Assert.IsType<HostHttpFailure>(WireJson.Read<HostHttpResult>(reply.Payload)).Failure.Code);
+        Assert.Null(await codec.ReadAsync(token));
+    }
+
+    private sealed class StalledWorkerPipe : MemoryStream
+    {
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Entered.TrySetResult();
+            await Resume.Task.ConfigureAwait(false);
+            await base.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
         }
     }
 

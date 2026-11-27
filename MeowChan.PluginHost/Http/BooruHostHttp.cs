@@ -115,11 +115,10 @@ public sealed class BooruHostHttp : IDisposable
 
         SourceState state = StateFor(source);
         TimeSpan spacing = BooruEndpointPolicy.Spacing(ProfileOf(source.SourceId), MinimumStartSpacing);
-        // Every wait and attempt observes both the caller and the job lifetime. Closing the
-        // job (or reaching its deadline) therefore aborts a queued send-gate admission,
-        // provider spacing, retry delays, the header wait and body reads alike.
+        // The caller, job and account generation can each abort admission, pacing and transport.
         using CancellationTokenSource abort = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
         CancellationToken token = abort.Token;
+        Task? accountWatch = account is null ? null : CancelWhenAccountChangesAsync(account.GenerationEnded, abort);
         bool entered = false;
         try
         {
@@ -184,7 +183,19 @@ public sealed class BooruHostHttp : IDisposable
         finally
         {
             if (entered) state.SendGate.Release();
+            if (accountWatch is not null)
+            {
+                await abort.CancelAsync().ConfigureAwait(false);
+                await accountWatch.ConfigureAwait(false);
+            }
         }
+    }
+
+    private static async Task CancelWhenAccountChangesAsync(Task generationEnded, CancellationTokenSource abort)
+    {
+        try { await generationEnded.WaitAsync(abort.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (abort.IsCancellationRequested) { return; }
+        await abort.CancelAsync().ConfigureAwait(false);
     }
 
     /// <summary>The terminal failure of a closed, expired or operation-cancelled job; null while it is live.</summary>
@@ -497,11 +508,11 @@ public sealed class BooruHostHttp : IDisposable
         IReadOnlyDictionary<string, string> headers = ReadHeaders(response,
             status is 502 or 503 ? GetMaximumCooldown() : null, _clock.GetUtcNow());
         string? etag = response.Headers.ETag?.ToString();
-        if (attempt.IsAuthenticated && (attempt.ContainsBodyEcho(body) || attempt.ContainsCredential(etag)
+        if (attempt.IsAuthenticated && (!attempt.IsBodySafe(body) || attempt.ContainsCredential(etag)
             || headers.Values.Any(attempt.ContainsCredential)))
         {
             System.Security.Cryptography.CryptographicOperations.ZeroMemory(body);
-            return Failure("http-network", "The booru metadata response echoed an account credential.", status);
+            return Failure("http-network", "The authenticated booru metadata response could not be verified.", status);
         }
         return new HostHttpResponse(status, url, headers, body, new SourceValidators(etag, response.Content.Headers.LastModified));
     }
