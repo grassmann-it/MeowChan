@@ -296,9 +296,9 @@ KurobaEx-/YChanEx-Strukturen als bekannt, aber als Import unsupported. Zusätzli
 reine Metadateninspektoren für explizit übergebene 4chan-API-JSON-Bytes (`FourChanJsonArchiveParser`)
 und für ein explizit gewähltes, enges YChanEx-Profil (`YChanExArchiveParser`). Sie erzeugen
 keine URL-Autorität, öffnen keinen Medienroot und führen nicht in Staging, Store oder Merge.
-Der `PassiveSidecarCodec` parst exakte Hydrus- und gallery-dl-Danbooru-Tag-JSON im Speicher
-und kann für Hydrus explizit gewählte Tags serialisieren; er findet oder schreibt keine
-Medien-/Sidecar-Dateipaare. Erkennung, 4chan-Inspektor und Sidecarcodec verwenden maximal
+Der `PassiveSidecarCodec` parst exakte Hydrus- und gallery-dl-Danbooru-Tag-JSON im Speicher.
+Der Originalexport kann explizit gewählte Tags über diesen Codec als Hydrus-Sidecar schreiben.
+Erkennung, 4chan-Inspektor und Sidecarcodec verwenden maximal
 1 MiB sowie JSON-Tiefe 8; der YChanEx-Inspektor verwendet 1 MiB und JSON-Tiefe 16. Die
 Nähte begrenzen 4.096 Post-/Attachment- bzw. Tag-Claims, wobei ein Tag höchstens 4.096
 UTF-8-Bytes lang ist. Dashchan und Grabber haben keinen Erkennungs- oder Importcode.
@@ -408,9 +408,29 @@ Instanz oder Originalgarantie aus der ID abgeleitet.
 
 ### Hydrus JSON-Tags-Sidecar
 
-**Status: enger In-memory-Codec implementiert; kein Hydrus-Client/API/Paar-Import.**
+**Status: optionaler Sidecar beim Originalexport. Der Paar-Import bleibt ein Zielprofil.**
 
-Zielprofil:
+Im Exportdialog ist **Hydrus-Sidecar mitschreiben** zunächst ausgeschaltet. Nach dem
+Einschalten können eigene Tags und Booru-Quelltags unabhängig voneinander gewählt werden.
+Eigene Tags stammen vom zugehörigen Thread und der exakten Medienversion. Booru-Tags
+stammen vom lokal verknüpften Original und erhalten die Quellkategorie als Namespace,
+beispielsweise `artist:tag_name`. Sind beide Tagoptionen aus, wird eine leere Tagliste
+geschrieben. Ohne Sidecar-Option wird nur das Original kopiert.
+
+Das Paar besteht aus `medium.ext` und `medium.ext.json` mit
+`{"metadata":{"tags":[...]}}`. Unicode bleibt beim Lesen erhalten. Bestehende Dateien
+werden nicht überschrieben. Ist ein Name belegt, versucht der Export den nächsten
+Kollisionsnamen. Bei einem Abbruch bleiben fertig geschriebene Paare erhalten und das
+gerade geschriebene Paar wird zurückgerollt. Die im Dialog einstellbare Höchstzahl gilt
+für die ausgewählten Originale in ihrer Exportreihenfolge (Standard 1.000, Minimum 1,
+Maximum 1.000). Weitere Originale, gesperrte Dateien und Tags oberhalb der Codecgrenzen
+werden in diesem Modus übersprungen.
+
+Der Platzhalter `{md5}` in der Dateinamenvorlage verwendet die im Medienmanifest
+aufgezeichnete MD5 als 32 kleine Hexziffern. Fehlt die MD5, gilt die bisherige
+Ersatzbenennung. Die Datei wird weiterhin mit SHA-256 geprüft.
+
+Zielprofil für den Import:
 
 - explizit gewähltes Paar aus `medium.ext` und `medium.ext.json`,
 - exakt `{"metadata":{"tags":[...]}}`,
@@ -419,10 +439,7 @@ Zielprofil:
 - Medien und Sidecar werden lokal gemessen; Hashclaims im Fremdjson sind kein Ersatz.
 
 Hydrus-Client-API, Notizen, URLs, Ratings, Tagbeziehungen, Dienstzustände, Router-
-Konfigurationen oder TXT-Formate sind nicht Teil des Profils. Der implementierte Codec
-schreibt nur deterministische UTF-8-Bytes für ausdrücklich gewählte Tags in den Speicher;
-Medienkopie, frischer Zielordner und Vermeidung bestehender Sidecars sind Zielvertrag
-eines späteren Stagingexports, kein heutiger Datei- oder Ordnerlauf.
+Konfigurationen oder TXT-Formate sind nicht Teil des Profils.
 
 ### Imgbrd-Grabber
 
