@@ -7,14 +7,17 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Archive;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -35,6 +38,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal const string TabsName = "BooruTabs";
     internal const string ModeName = "BooruMode";
     internal const string InputName = "BooruInput";
+    internal const string LocalTagsName = "BooruLocalTagSuggestions";
+    internal const string LocalTagPrefix = "BooruLocalTagSuggestion:";
     internal const string SubmitName = "BooruSubmit";
     internal const string CancelName = "BooruCancel";
     internal const string RetryName = "BooruRetry";
@@ -87,8 +92,17 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TabControl _tabs = new() { Name = TabsName, Classes = { "booru-tabs" } };
     private readonly TabItem _watchersTab = new() { Name = WatchersTabName };
     private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 136 };
-    // Escape empties the typed query first (SearchBox); in an empty field it closes the window as before. No debounce: a search goes out only on "Search".
+    // SearchBox keeps the draft live. Only the search commands submit it.
     private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false };
+    private readonly BooruLocalTagSuggestions _localTags = new();
+    private readonly Func<BooruCatalogSnapshot?>? _readLocalTagCatalog;
+    private readonly Popup _localTagPopup = new() { Placement = PlacementMode.BottomEdgeAlignedLeft, ShouldUseOverlayLayer = true };
+    private readonly TextBlock _localTagTitle = new() { Classes = { "workspace-meta" } };
+    private readonly StackPanel _localTagRows = new();
+    private LocalTagDraft? _localTagDraft;
+    private bool _localTagRefreshQueued;
+    private bool _localTagLoading;
+    private int _localTagSelection = -1;
     private readonly Button _submit = new() { Name = SubmitName, Focusable = false, IsTabStop = false };
     private readonly Button _cancel = new() { Name = CancelName, Focusable = false, IsTabStop = false };
     // Why the field is not accepted, shown under it: the red border alone is colour only.
@@ -149,10 +163,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     /// (focus, clipboard and attach/detach work in either host). The footer contains notes only.
     /// </param>
     internal BooruWorkbenchView(BooruWorkbenchModel model, bool ownsModel,
-        Func<Control, Control, Control, Control>? buildLayout = null)
+        Func<Control, Control, Control, Control>? buildLayout = null, Func<BooruCatalogSnapshot?>? readLocalTagCatalog = null)
     {
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _ownsModel = ownsModel;
+        _readLocalTagCatalog = readLocalTagCatalog;
         Name = "BooruWorkbenchView";
         AutomationProperties.SetAutomationId(_input, InputName);
         AutomationProperties.SetAutomationId(_submit, SubmitName);
@@ -238,6 +253,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _attached = false;
+        DismissLocalTags();
         _clock.Stop();
         DismissResultViewer();
         LayoutUpdated -= OnListLayoutUpdated;
@@ -352,11 +368,22 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         // SearchBox raises this synchronously, so closing can capture the latest keystroke.
         _input.QueryChanged += (_, _) =>
         {
-            if (!_applying) _model.Search.SetInput(_input.Text);
+            if (_applying) return;
+            _model.Search.SetInput(_input.Text);
+            QueueLocalTags();
+        };
+        _input.LostFocus += (_, _) => DismissLocalTags();
+        _input.PropertyChanged += (_, change) =>
+        {
+            if (change.Property != TextBox.CaretIndexProperty && change.Property != TextBox.SelectionStartProperty
+                && change.Property != TextBox.SelectionEndProperty) return;
+            if (_localTagDraft is { } draft && !AtDraftEnd(draft.Text)) DismissLocalTags();
         };
         _input.AddHandler(KeyDownEvent, async (_, e) =>
         {
             if (e.Handled || ShortcutServiceCapturing()) return;
+            if (_input.IsComposing && e.Key == Key.Enter) return;
+            if (HandleLocalTagKey(e)) { e.Handled = true; return; }
             EffectiveShortcutBindings bindings = ShortcutService.Current;
             Button? action = MatchesSearchShortcut(e, WatchSearchCommand, bindings) ? _createWatcher
                 : MatchesSearchShortcut(e, DownloadAllCommand, bindings) ? _downloadAll : null;
@@ -370,6 +397,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             }
             bool alternate = MatchesSearchShortcut(e, AlternateSubmitCommand, bindings);
             if (!alternate && !MatchesSearchShortcut(e, SubmitCommand, bindings)) return;
+            DismissLocalTags();
             e.Handled = true;
             await SubmitSearchAsync(alternate);
         }, RoutingStrategies.Tunnel);
@@ -381,7 +409,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         CommandBindings.EnsureIconBeforeText(_createWatcher, "plus");
         CommandBindings.EnsureIconBeforeText(_cancel, CardMenuIcons.Cancel);
         CommandBindings.EnsureIconBeforeText(_retry, CardMenuIcons.Retry);
-        _submit.Click += async (_, _) => await SubmitSearchAsync();
+        _submit.Click += async (_, _) =>
+        {
+            DismissLocalTags();
+            await SubmitSearchAsync();
+        };
         _cancel.Click += (_, _) => _model.Search.Cancel();
         _retry.Click += async (_, _) => await _model.Search.RetryAsync();
         _previous.Click += async (_, _) => await ChangePageAsync(-1, fromPagerButton: true);
@@ -409,7 +441,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         StackPanel tab = new() { Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         tab.Children.Add(BuildSourcePicker());
-        tab.Children.Add(searchToolbar);
+        tab.Children.Add(new Panel { Children = { searchToolbar, BuildLocalTagPopup() } });
         AutomationProperties.SetLiveSetting(_inputIssue, AutomationLiveSetting.Polite);
         tab.Children.Add(_inputIssue);
         tab.Children.Add(_noticeHost);
@@ -432,6 +464,162 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Grid.SetRow(hits, 1);
         InstallMediaSidebar(layout);
         return layout;
+    }
+
+    private sealed record LocalTagDraft(string Text, int PrefixStart, int Limit, int? TabId, BooruLocalTagSuggestions.Scope Scope);
+
+    private Popup BuildLocalTagPopup()
+    {
+        _localTagPopup.PlacementTarget = _input;
+        Border surface = new()
+        {
+            Padding = new Thickness(8),
+            [!Border.BackgroundProperty] = new DynamicResourceExtension("AutoCompleteBoxPopupBackground"),
+            [!Border.BorderBrushProperty] = new DynamicResourceExtension("AutoCompleteBoxPopupBorderBrush"),
+            [!Border.BorderThicknessProperty] = new DynamicResourceExtension("AutoCompleteBoxPopupBorderThickness"),
+            [!Border.CornerRadiusProperty] = new DynamicResourceExtension("AutoCompleteBoxPopupCornerRadius"),
+            Child = new StackPanel
+            {
+                Spacing = 4,
+                Children = { _localTagTitle, new ScrollViewer { MaxHeight = 240, Content = _localTagRows } }
+            }
+        };
+        AutomationProperties.SetAutomationId(surface, LocalTagsName);
+        _localTagPopup.Child = surface;
+        return _localTagPopup;
+    }
+
+    private DesktopSessionHost? LocalTagSession => (TopLevel.GetTopLevel(this) as MainWindow)?.SessionHost;
+
+    private bool AtDraftEnd(string text) => _input.CaretIndex == text.Length && _input.SelectionStart == _input.SelectionEnd;
+
+    private LocalTagDraft? ReadLocalTagDraft(BooruSearchView view)
+    {
+        int limit = LocalTagSession?.Config.BooruLocalTagSuggestionCount
+            ?? _listProfile?.BooruLocalTagSuggestionCount ?? Config.BooruLocalTagSuggestionDefault;
+        if (_closed || !_input.IsKeyboardFocusWithin || !_input.IsEffectivelyVisible || _input.IsComposing
+            || view.Mode != BooruInputMode.Tags || view.Parsed.Kind == BooruInputKind.Post || limit <= 0
+            || _input.Text is not { Length: > 0 } text || !AtDraftEnd(text)) return null;
+        int start = BooruLocalTagSuggestions.PrefixStart(text);
+        if (start == text.Length || text.AsSpan(start).Contains(':')) return null;
+
+        BooruWorkbenchServices? source = _model.Sources.FirstOrDefault(source =>
+            source.Search.ProviderId == view.ProviderId && source.Search.InstanceId == view.InstanceId);
+        return source is null ? null : new LocalTagDraft(text, start, limit, SearchTabs.ActiveId,
+            new(view.ProviderId, view.InstanceId, source.Source?.BooruProfile, source.Content?.Snapshot.Filter));
+    }
+
+    private void QueueLocalTags()
+    {
+        DismissLocalTags();
+        if (_localTagRefreshQueued) return;
+        _localTagRefreshQueued = true;
+        // Text changes can precede the caret update inside TextBox.
+        Dispatcher.UIThread.Post(() =>
+        {
+            _localTagRefreshQueued = false;
+            if (_closed) return;
+            Func<BooruCatalogSnapshot?>? read = _readLocalTagCatalog;
+            if (read is null && LocalTagSession is { } session) read = session.ReadBooruCatalog;
+            if (read is null || ReadLocalTagDraft(_model.Search.View) is not { } draft) return;
+            _localTagDraft = draft;
+            if (!_localTagLoading) _ = LoadLocalTagsAsync(read);
+        }, DispatcherPriority.Input);
+    }
+
+    private async Task LoadLocalTagsAsync(Func<BooruCatalogSnapshot?> read)
+    {
+        _localTagLoading = true;
+        try
+        {
+            // Coalesce edits made during a catalog read. Only the latest draft may publish rows.
+            while (_localTagDraft is { } draft)
+            {
+                BooruLocalTagSuggestions.Suggestion[] tags = await _localTags.FindAsync(read, draft.Scope,
+                    draft.Text[draft.PrefixStart..], draft.Limit);
+                if (!ReferenceEquals(draft, _localTagDraft)) continue;
+                if (tags.Length == 0 || draft != ReadLocalTagDraft(_model.Search.View)) DismissLocalTags();
+                else ShowLocalTags(draft, tags);
+                break;
+            }
+        }
+        finally { _localTagLoading = false; }
+    }
+
+    private void ShowLocalTags(LocalTagDraft draft, BooruLocalTagSuggestions.Suggestion[] tags)
+    {
+        string title = Texts.T("booru.suggest.local");
+        _localTagTitle.Text = title;
+        AutomationProperties.SetName(_localTagPopup.Child!, title);
+        foreach (BooruLocalTagSuggestions.Suggestion tag in tags)
+        {
+            string count = Texts.T("booru.suggest.posts", tag.Posts);
+            Button row = new()
+            {
+                Focusable = false,
+                IsTabStop = false,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Content = new DockPanel
+                {
+                    Children =
+                    {
+                        new TextBlock { Text = count, Classes = { "workspace-meta", "tnum" }, [DockPanel.DockProperty] = Dock.Right },
+                        WorkspaceChips.CreateSourceTag(tag.Name, tag.Category, compact: true)
+                    }
+                }
+            };
+            AutomationProperties.SetAutomationId(row, LocalTagPrefix + tag.Name);
+            AutomationProperties.SetName(row, string.Join(", ", tag.Name, BooruText.TagCategory((BooruTagCategory)tag.Category), count));
+            row.Click += (_, _) => CompleteLocalTag(draft, tag.Name);
+            _localTagRows.Children.Add(row);
+        }
+        _localTagPopup.Child!.Width = _input.Bounds.Width;
+        _localTagPopup.IsOpen = true;
+    }
+
+    private bool HandleLocalTagKey(KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.None || _input.IsComposing || _localTagDraft is not { } draft) return false;
+        if (draft != ReadLocalTagDraft(_model.Search.View)) { DismissLocalTags(); return false; }
+        if (e.Key == Key.Escape) { DismissLocalTags(); return true; }
+        if (!_localTagPopup.IsOpen) return false;
+        if (e.Key is Key.Down or Key.Up)
+        {
+            int last = _localTagRows.Children.Count - 1;
+            if (_localTagSelection >= 0) _localTagRows.Children[_localTagSelection].Classes.Remove("primary");
+            _localTagSelection = e.Key == Key.Down ? Math.Min(_localTagSelection + 1, last)
+                : _localTagSelection < 0 ? last : Math.Max(0, _localTagSelection - 1);
+            Control selected = _localTagRows.Children[_localTagSelection];
+            selected.Classes.Add("primary");
+            selected.BringIntoView();
+            return true;
+        }
+        if (e.Key == Key.Tab || (e.Key == Key.Enter && _localTagSelection >= 0))
+        {
+            Control selected = _localTagRows.Children[Math.Max(0, _localTagSelection)];
+            CommandBindings.InvokeAction(selected);
+            return true;
+        }
+        return false;
+    }
+
+    private void CompleteLocalTag(LocalTagDraft draft, string tag)
+    {
+        if (!ReferenceEquals(draft, _localTagDraft) || draft != ReadLocalTagDraft(_model.Search.View)) return;
+        DismissLocalTags();
+        string text = draft.Text[..draft.PrefixStart] + tag;
+        _input.SetTextSilently(text);
+        _input.CaretIndex = text.Length;
+        _model.Search.SetInput(text);
+    }
+
+    private void DismissLocalTags()
+    {
+        _localTagDraft = null;
+        _localTagSelection = -1;
+        _localTagPopup.IsOpen = false;
+        _localTagRows.Children.Clear();
     }
 
     internal const string CatalogStorageName = "BooruCatalogStorage";
@@ -491,6 +679,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return;
         _more.ContextMenu?.Close();
+        DismissLocalTags();
         foreach (SearchTabControl tab in _searchItems.Values) tab.CloseMenu();
         Render(force: true);
     });
@@ -578,6 +767,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         AutomationProperties.SetName(_mode, Texts.T("booru.ui.mode.label"));
         RenderSourcePicker(view);
         if (_input.Text != view.Input) _input.Text = view.Input;
+        if (_localTagDraft is { } draft && draft != ReadLocalTagDraft(view)) DismissLocalTags();
         _input.PlaceholderText = Texts.T(view.Mode == BooruInputMode.Post ? "booru.ui.input.placeholder.post" : "booru.ui.input.placeholder.tags");
         AutomationProperties.SetName(_input, Texts.T("booru.ui.input.label"));
         bool invalid = view.Parsed.Kind == BooruInputKind.Invalid;
@@ -1258,6 +1448,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return;
         _closed = true;
+        DismissLocalTags();
         DismissResultViewer();
         _gallery.Dispose();
         DisposeMediaSidebar();

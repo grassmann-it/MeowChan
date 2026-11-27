@@ -3,6 +3,8 @@
   "code": "pt-BR",
   "nativeName": "Português (Brasil) (Untested)",
   "strings": {
+    "booru.suggest.local": "Do seu catálogo",
+    "booru.suggest.posts": "Publicações locais: {0:N0}",
     "booru.content.title": "Regras de conteúdo",
     "booru.content.prompt": "Escolha a classificação máxima que este perfil pode exibir e baixar.",
     "booru.content.general": "Apenas geral (g)",

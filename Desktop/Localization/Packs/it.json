@@ -3,6 +3,8 @@
   "code": "it",
   "nativeName": "Italiano (Untested)",
   "strings": {
+    "booru.suggest.local": "Dal tuo catalogo",
+    "booru.suggest.posts": "Post locali: {0:N0}",
     "booru.content.title": "Regole dei contenuti",
     "booru.content.prompt": "Scegli il livello massimo che questo profilo può mostrare e scaricare.",
     "booru.content.general": "Solo generale (g)",

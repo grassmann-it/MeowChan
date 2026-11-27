@@ -3,6 +3,8 @@
   "code": "ko",
   "nativeName": "한국어 (Untested)",
   "strings": {
+    "booru.suggest.local": "내 카탈로그에서",
+    "booru.suggest.posts": "로컬 게시물 수: {0:N0}",
     "booru.content.title": "콘텐츠 규칙",
     "booru.content.prompt": "이 프로필에서 표시하고 다운로드할 수 있는 최고 등급을 선택하세요.",
     "booru.content.general": "전체 이용가만 (g)",

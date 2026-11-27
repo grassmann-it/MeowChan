@@ -3,6 +3,8 @@
   "code": "pl",
   "nativeName": "Polski (Untested)",
   "strings": {
+    "booru.suggest.local": "Z twojego katalogu",
+    "booru.suggest.posts": "Lokalne posty: {0:N0}",
     "booru.content.title": "Reguły treści",
     "booru.content.prompt": "Wybierz najwyższą kategorię treści, którą ten profil może wyświetlać i pobierać.",
     "booru.content.general": "Tylko ogólne (g)",

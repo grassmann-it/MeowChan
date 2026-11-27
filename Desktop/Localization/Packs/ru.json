@@ -3,6 +3,8 @@
   "code": "ru",
   "nativeName": "Русский (Untested)",
   "strings": {
+    "booru.suggest.local": "Из вашего каталога",
+    "booru.suggest.posts": "Локальные публикации: {0:N0}",
     "booru.content.title": "Правила содержимого",
     "booru.content.prompt": "Выберите максимальную категорию содержимого, которое этот профиль может показывать и скачивать.",
     "booru.content.general": "Только для всех (g)",
