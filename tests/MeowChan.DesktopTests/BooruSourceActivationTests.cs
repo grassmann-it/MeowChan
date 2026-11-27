@@ -28,7 +28,8 @@ public sealed class BooruSourceActivationTests
         Directory.CreateDirectory(plugins);
         string media = Path.Combine(profile.Path, "media");
         Directory.CreateDirectory(media);
-        new Config { DownloadPath = media, AutomaticUpdateChecks = false, RestoreBooruSearchTabs = true }.SaveConfig(profile.Path);
+        new Config { DownloadPath = media, FirstRunSetupVersion = 1, AutomaticUpdateChecks = false, RestoreBooruSearchTabs = true }
+            .SaveConfig(profile.Path);
         List<string> fixtureSources = new();
         string delivered = Path.Combine(AppContext.BaseDirectory, "plugins");
         if (!File.Exists(Path.Combine(delivered, "MeowChan.Plugin.E621.plugin.json")))
@@ -78,7 +79,7 @@ public sealed class BooruSourceActivationTests
 
             await ToggleAsync(sources, "gelbooru", enable: false);
             Assert.DoesNotContain(host.ActiveBooruServices, services => services.Search.ProviderId == "gelbooru");
-            Assert.Equal(BooruCallStatus.Unavailable, (await gelbooru.Search.SearchAsync("cat", 1, 10, CancellationToken.None)).Status);
+            await AssertStalePortsUnavailableAsync(gelbooru);
             Assert.Equal(new[] { "e621.net", "gelbooru.com" }, network.Hosts);
 
             host.CreateBooruSearchTabStore().Write(new(0, [new("e621", null, null, "cat"), new("gelbooru", null, null, "cat")]));
@@ -113,6 +114,26 @@ public sealed class BooruSourceActivationTests
         Assert.NotNull(worker);
         BooruSearchService search = new(binding.Services);
         Assert.IsType<BooruSearchFailure>(await search.SearchAsync(worker, disabledSource, "cat", 1));
+    }
+
+    private static async Task AssertStalePortsUnavailableAsync(BooruWorkbenchServices services)
+    {
+        CancellationToken token = CancellationToken.None;
+        Uri origin = services.Source!.BaseUri;
+        BooruPostView post = BooruPostView.From(new BooruPost(new(services.Search.ProviderId, "41"),
+            BooruFieldPresence.Rating | BooruFieldPresence.Media, new Uri(origin, "/posts/41"),
+            Rating: BooruRating.General, RawRating: "g", Media:
+            [new(BooruMediaRole.Original, new Uri(origin, "/41.png"), "png"),
+                new(BooruMediaRole.Sample, new Uri(origin, "/sample/41.png"), "png"),
+                new(BooruMediaRole.Preview, new Uri(origin, "/preview/41.png"), "png")]));
+
+        Assert.Equal(BooruCallStatus.Unavailable, (await services.Search.SearchAsync("cat", 1, 10, token)).Status);
+        Assert.Equal(BooruCallStatus.Unavailable, (await services.Search.ReadPostAsync("41", token)).Status);
+        Assert.Null(await services.Previews.LoadPreviewAsync(post, token));
+        IBooruSamplePort samples = Assert.IsAssignableFrom<IBooruSamplePort>(services.Previews);
+        Assert.Null((await samples.LoadSampleAsync(post, 1024 * 1024, 1024 * 1024, TimeSpan.FromSeconds(5), token)).Bytes);
+        Assert.Equal(BooruCodes.SourceUnavailable, (await services.Queue.LoadOriginalAsync(post, BooruLoadOrigin.Search, token)).Code);
+        Assert.Equal(BooruCodes.SourceUnavailable, (await services.Watchers.CreateAsync("cat", token)).Code);
     }
 
     private static async Task ToggleAsync(SourcesPage page, string sourceId, bool enable)
