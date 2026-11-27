@@ -26,19 +26,17 @@ public sealed class BundledSourceWordingEvidenceTests : IDisposable
 
     public void Dispose() => Texts.SetLanguage("en");
 
-    public static TheoryData<string, string> SevenBundledChanPlugins => new()
+    public static TheoryData<string, string> FiveBundledChanPlugins => new()
     {
         { "meowchan.source.sevenchan", "MeowChan.Plugin.SevenChan" },
         { "meowchan.source.bbwchan", "MeowChan.Plugin.BbwChan" },
-        { "meowchan.source.anonimageboards", "MeowChan.Plugin.AnonImageboards" },
         { "meowchan.source.eightchanmoe", "MeowChan.Plugin.EightchanMoe" },
-        { "meowchan.source.gurocx", "MeowChan.Plugin.GuroCx" },
         { "meowchan.source.fchan", "MeowChan.Plugin.Fchan" },
         { "meowchan.source.capybarachan", "MeowChan.Plugin.CapybaraChan" }
     };
 
     [Theory]
-    [MemberData(nameof(SevenBundledChanPlugins))]
+    [MemberData(nameof(FiveBundledChanPlugins))]
     public void ActualBundledChanDescriptionsRenderTheExactMeowChanExperimentalTier(
         string pluginId, string assemblyName)
     {
@@ -57,8 +55,8 @@ public sealed class BundledSourceWordingEvidenceTests : IDisposable
     }
 
     [Theory]
-    [MemberData(nameof(SevenBundledChanPlugins))]
-    public void PluginPresentationCarriesTheExactTierForRegisteredAndReservedAdapters(
+    [MemberData(nameof(FiveBundledChanPlugins))]
+    public void PluginPresentationCarriesTheExactTierForBundledAdapters(
         string pluginId, string assemblyName)
     {
         PluginDescription description = DeliveredDescription(pluginId, assemblyName);

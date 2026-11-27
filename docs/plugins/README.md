@@ -43,15 +43,15 @@ editable `.cs` file; there is no separate documentation copy to keep in sync.
 
 ## Packaged inventory
 
-The current packaging allowlists define **20 plugins**: **15 source-plugin
-entries** and **5 image filters**, with **17 editable example/filter source
+The current packaging allowlists define **18 plugins**: **13 source-plugin
+entries** and **5 image filters**, with **15 editable example/filter source
 files**. The exact split is:
 
 | Delivery group | Plugin bundles | Source-plugin entries | Image filters | Editable `.cs` files |
 | --- | --- | --- | --- | --- |
 | Official | 3 | 3 | 0 | 0 |
-| Examples / filters | 17 | 12 | 5 | 17 |
-| **Total** | **20** | **15** | **5** | **17** |
+| Examples / filters | 15 | 10 | 5 | 15 |
+| **Total** | **18** | **13** | **5** | **15** |
 
 Each bundle has one `.plugin.json` manifest under `plugins/` and one assembly
 under `plugins/assemblies/`. The editable files are copied from
@@ -59,11 +59,8 @@ under `plugins/assemblies/`. The editable files are copied from
 package**. Official implementations are available in the repository for
 [authoring and local builds](../../plugins/Official/README.md#authoring-and-local-builds).
 
-The source-plugin count includes 14 board/thread entries and one booru entry
-(Danbooru). Two board/thread entries, **Anon Imageboards** and **Guro.cx**, are
-blocked placeholders: they register no source or URL routes. Thus the inventory
-is not a count of usable or enabled sources. Danbooru uses post search, not the
-board/thread URL workflow. Two entries are engine families that each serve
+The source-plugin count includes 12 board/thread entries and one booru entry
+(Danbooru) for post search. Two entries are engine families that each serve
 several sites with their own source IDs: the vichan family (Lainchan, Leftypol,
 SushiChan, Uboachan, Wizchan) and the jschan family (ZZZchan). The other example
 sources are Kohlchan, Endchan, 2ch / Двач, 7chan, BBW-Chan, CapybaraChan,

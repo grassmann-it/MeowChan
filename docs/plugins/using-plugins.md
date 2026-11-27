@@ -8,16 +8,14 @@ are required for the corresponding plugin operations. See
 ## First session
 
 1. Open **Plugins** from the app menu or footer (under **More** in compact views).
-   The supplied inventory contains **20 plugins**: **15 source-plugin entries**
-   and **5 image filters**, with **17 editable example/filter source files**.
+   The supplied inventory contains **18 plugins**: **13 source-plugin entries**
+   and **5 image filters**, with **15 editable example/filter source files**.
    This includes three prebuilt official plugins (4chan, 8kun and Danbooru) and
-   21 example/filter plugins. Only example/filter `.cs` files are delivered under
+   15 example/filter plugins. Only example/filter `.cs` files are delivered under
    `plugins/sources/`; official source code is available in the repository, not
    in the application package. See the [packaging split](README.md#packaged-inventory)
    and [official authoring steps](../../plugins/Official/README.md#authoring-and-local-builds).
-   Source entries include two blocked placeholders, **Anon Imageboards** and
-   **Guro.cx**, which register no source or URL routes. **Danbooru** is a booru
-   post-search source, not a board/thread URL source. Filters include
+   **Danbooru** provides booru post search. Filters include
    **Image dimensions (example)** and the four [local media filters](local-media-filters.md).
    Selecting an entry shows
    its purpose, current status and available actions. Use the category selector
@@ -88,8 +86,8 @@ this section. To add or edit a trusted `.cs` source, follow the next sections.
 The supplied experimental board/thread sources are Kohlchan, Wizchan, Endchan,
 Leftypol, 2ch / Двач, Uboachan, ZZZchan, SushiChan, 7chan, BBW-Chan,
 CapybaraChan, 8chan.moe and Fchan. They start disabled when first registered in
-a profile. Anon Imageboards and Guro.cx are blocked placeholders, not activatable
-sources; this board/thread activation flow does not apply to Danbooru post search.
+a profile. MeowChan 1.2 skips the old Anon Imageboards and Guro.cx registrations
+at startup when their bundles are absent.
 Existing profiles keep their saved enable/disable and permission choices; an
 upgrade does not reset them. Registration does not establish live service health;
 see the source-specific notes and dated validation evidence for tested behavior.

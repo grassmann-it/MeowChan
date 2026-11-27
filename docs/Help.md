@@ -16,9 +16,9 @@ is not the same as [importing your own files](#importing-your-own-files).
 
 [Moving from GChan](#moving-from-gchan) · [Deutsche Anleitung](user-guide/gchan-umstieg.md)
 
-The supplied payload contains **24 plugins**: **19 source-plugin entries**
-(including two blocked placeholders) and **5 image filters**. It includes
-**21 editable example/filter source files**; official plugins are prebuilt,
+The supplied payload contains **18 plugins**: **13 source-plugin entries**
+and **5 image filters**. It includes
+**15 editable example/filter source files**; official plugins are prebuilt,
 with their source code available in the repository, not the application package.
 See the [packaged inventory](plugins/README.md#packaged-inventory) for the split;
 the entry count is not a count of usable or enabled sources. Open **Plugins**

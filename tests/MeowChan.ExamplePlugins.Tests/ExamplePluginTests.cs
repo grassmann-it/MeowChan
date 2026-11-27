@@ -2,12 +2,10 @@ using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
 using MeowChan.Plugins.Examples.VichanFamily;
-using MeowChan.Plugins.Examples.AnonImageboards;
 using MeowChan.Plugins.Examples.BbwChan;
 using MeowChan.Plugins.Examples.CapybaraChan;
 using MeowChan.Plugins.Examples.EightchanMoe;
 using MeowChan.Plugins.Examples.Fchan;
-using MeowChan.Plugins.Examples.GuroCx;
 using MeowChan.Plugins.Examples.Kohlchan;
 using MeowChan.Plugins.Examples.SevenChan;
 
@@ -335,33 +333,27 @@ public sealed class ExamplePluginTests
     }
 
     [Fact]
-    public void AllSevenExperimentalChanPluginsKeepDistinctSdkOnlyIdentities()
+    public void AllFiveExperimentalChanPluginsKeepDistinctSdkOnlyIdentities()
     {
-        (string PluginId, string Name, string SourceId, Uri? Origin, string Maturity)[] expected =
+        (string PluginId, string Name, string SourceId, Uri Origin, string Maturity)[] expected =
         [
             ("meowchan.source.sevenchan", "7chan", "sevenchan", new Uri("https://7chan.org/"),
                 "MeowChan · experimental; HTML contract and current availability are not a stability promise."),
             ("meowchan.source.bbwchan", "BBW-Chan", "bbwchan", new Uri("https://bbw-chan.link/"),
                 "MeowChan · experimental; the .link host is the only configured host."),
-            ("meowchan.source.anonimageboards", "Anon Imageboards", "anonimageboards", null,
-                "MeowChan · experimental · public entrance unavailable"),
             ("meowchan.source.capybarachan", "CapybaraChan", "capybarachan", new Uri("https://capybarachan.org/"),
                 "MeowChan · experimental; the board menu is not treated as an automatic webring."),
             ("meowchan.source.eightchanmoe", "8chan.moe", "eightchanmoe", new Uri("https://8chan.moe/"),
                 "MeowChan · experimental · not live-verified; live JSON is currently challenge-gated."),
             ("meowchan.source.fchan", "Fchan", "fchan", new Uri("http://fchan.us/"),
                 "MeowChan · experimental; HTTP-only source."),
-            ("meowchan.source.gurocx", "Guro.cx", "gurocx", null,
-                "MeowChan · experimental · technically blocked"),
         ];
-        IPlugin[] plugins = [new SevenChanPlugin(), new BbwChanPlugin(), new AnonImageboardsPlugin(),
-            new CapybaraChanPlugin(), new EightchanMoePlugin(), new FchanPlugin(), new GuroCxPlugin()];
+        IPlugin[] plugins = [new SevenChanPlugin(), new BbwChanPlugin(),
+            new CapybaraChanPlugin(), new EightchanMoePlugin(), new FchanPlugin()];
         PluginDescription[] descriptions = plugins.Select(plugin => plugin.Describe()).ToArray();
-        PluginDescription[] supportedDescriptions = descriptions.Where(description => description.Sources.Count != 0).ToArray();
-        Assert.Empty(SdkValidation.ValidateDescriptions(supportedDescriptions));
         Assert.Empty(SdkValidation.ValidateDescriptions(descriptions));
-        Assert.Equal(7, descriptions.Select(description => description.PluginId).Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(7, descriptions.Select(description => description.Name).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(5, descriptions.Select(description => description.PluginId).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(5, descriptions.Select(description => description.Name).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(5, descriptions.SelectMany(description => description.Sources).Select(source => source.SourceId).Distinct(StringComparer.Ordinal).Count());
 
         for (int index = 0; index < expected.Length; index++)
@@ -373,13 +365,6 @@ public sealed class ExamplePluginTests
             Assert.Empty(description.Settings.Fields);
             Assert.Empty(description.Filters);
             Assert.Equal(expected[index].Maturity, Assert.Single(description.Information, entry => entry.Key == "maturity").Value);
-
-            if (expected[index].Origin is null)
-            {
-                Assert.Equal(PluginDeclarationStatus.Blocked, description.DeclarationStatus);
-                Assert.Empty(description.Sources);
-                continue;
-            }
 
             Assert.Equal(PluginDeclarationStatus.Available, description.DeclarationStatus);
             SourceDescription source = Assert.Single(description.Sources);
@@ -406,8 +391,8 @@ public sealed class ExamplePluginTests
         Assert.False(identityText.Contains("official", StringComparison.OrdinalIgnoreCase));
         Assert.False(identityText.Contains("stable promise", StringComparison.OrdinalIgnoreCase));
 
-        Type[] types = [typeof(SevenChanPlugin), typeof(BbwChanPlugin), typeof(AnonImageboardsPlugin),
-            typeof(CapybaraChanPlugin), typeof(EightchanMoePlugin), typeof(FchanPlugin), typeof(GuroCxPlugin)];
+        Type[] types = [typeof(SevenChanPlugin), typeof(BbwChanPlugin),
+            typeof(CapybaraChanPlugin), typeof(EightchanMoePlugin), typeof(FchanPlugin)];
         foreach (Type type in types)
         {
             string[] references = type.Assembly.GetReferencedAssemblies().Select(reference => reference.Name!).ToArray();
@@ -434,7 +419,8 @@ public sealed class ExamplePluginTests
     [Fact]
     public void DeclarationStatusRoundTripsOnlyForBlockedMetadataBundles()
     {
-        PluginDescription blocked = new AnonImageboardsPlugin().Describe();
+        PluginDescription blocked = new SevenChanPlugin().Describe() with
+        { Sources = [], DeclarationStatus = PluginDeclarationStatus.Blocked };
         string blockedJson = System.Text.Encoding.UTF8.GetString(SdkJson.Serialize(blocked));
         Assert.Contains("\"declarationStatus\":\"Blocked\"", blockedJson, StringComparison.Ordinal);
         Assert.Equal(PluginDeclarationStatus.Blocked,
@@ -445,25 +431,6 @@ public sealed class ExamplePluginTests
         Assert.DoesNotContain("declarationStatus", availableJson, StringComparison.Ordinal);
         Assert.Equal(PluginDeclarationStatus.Available,
             SdkJson.Deserialize<PluginDescription>(SdkJson.Serialize(available)).DeclarationStatus);
-    }
-
-    [Theory]
-    [InlineData("anonimageboards", "public_entrance_unavailable")]
-    [InlineData("gurocx", "technical_block")]
-    public async Task BlockedExperimentalSourcesFailExactlyAndNeverTouchNetworkOrCredentials(string source, string code)
-    {
-        Harness h = new(source, "unreachable fixture body");
-        CatalogFailure catalog = Assert.IsType<CatalogFailure>(await h.ReadCatalog());
-        ThreadFailure thread = Assert.IsType<ThreadFailure>(await h.ReadThread());
-        Assert.Equal(code, catalog.Failure.Code);
-        Assert.Equal(code, thread.Failure.Code);
-        Assert.Null(catalog.Failure.HttpStatusCode);
-        Assert.Null(thread.Failure.HttpStatusCode);
-        Assert.Empty(h.Http.Requests);
-        CatalogReadResult catalogCopy = SdkJson.Deserialize<CatalogReadResult>(SdkJson.Serialize<CatalogReadResult>(catalog));
-        ThreadReadResult threadCopy = SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(thread));
-        Assert.Equal(code, Assert.IsType<CatalogFailure>(catalogCopy).Failure.Code);
-        Assert.Equal(code, Assert.IsType<ThreadFailure>(threadCopy).Failure.Code);
     }
 
     [Fact]
@@ -815,11 +782,9 @@ public sealed class ExamplePluginTests
         "kohlchan" => new KohlchanPlugin(),
         "sevenchan" => new SevenChanPlugin(),
         "bbwchan" => new BbwChanPlugin(),
-        "anonimageboards" => new AnonImageboardsPlugin(),
         "capybarachan" => new CapybaraChanPlugin(),
         "eightchanmoe" => new EightchanMoePlugin(),
         "fchan" => new FchanPlugin(),
-        "gurocx" => new GuroCxPlugin(),
         _ => throw new ArgumentOutOfRangeException(nameof(source)),
     };
 
