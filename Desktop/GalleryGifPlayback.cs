@@ -57,6 +57,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly DispatcherTimer _timer;
     private readonly TimeProvider _time;
+    private TaskCompletionSource _frameDue = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task _advance = Task.CompletedTask;
     private Task? _dispose;
     private TimeSpan _remaining;
@@ -124,6 +125,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
         if (_disposed || _adopted) return;
         _adopted = true;
         ShowBitmap();
+        Schedule();
     }
 
     internal void SetActive(bool active)
@@ -156,6 +158,7 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
     }
     private async Task RestartAsync()
     {
+        await Task.Yield(); // Publish the restart task before it can schedule the next decode.
         try
         {
             using GifDecodedFrame frame = await _decoder.DecodeAsync(0, _lifetime.Token);
@@ -179,26 +182,35 @@ internal sealed class GalleryGifPlayback : IAsyncDisposable
     private void Schedule()
     {
         _timer.Stop();
-        if (!Running || _advancing) return;
+        if (!Running) return;
         _scheduled = _time.GetTimestamp();
         _timer.Interval = _remaining > TimeSpan.Zero ? _remaining : TimeSpan.FromMilliseconds(1);
         _timer.Start();
+        if (!_advancing && _sequence.Next is int next)
+        {
+            _advancing = true;
+            _advance = AdvanceAsync(next);
+        }
     }
     private void OnTick(object? sender, EventArgs args)
     {
         _timer.Stop(); _remaining = TimeSpan.Zero;
-        if (!Running || _advancing) return;
-        if (_sequence.Next is not int next)
+        if (!Running) return;
+        if (_sequence.Next == null)
         { _sequence.Finish(); StateChanged?.Invoke(); return; }
-        _advancing = true;
-        _advance = AdvanceAsync(next);
+        TaskCompletionSource due = _frameDue;
+        _frameDue = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        due.TrySetResult();
     }
     private async Task AdvanceAsync(int next)
     {
         try
         {
             using GifDecodedFrame frame = await _decoder.DecodeAsync(next, _lifetime.Token);
-            if (_disposed || _lifetime.IsCancellationRequested || !Running) return;
+            // The prepared frame stays owned here across a pause and is released on cancellation.
+            while (!Running || _timer.IsEnabled)
+                await _frameDue.Task.WaitAsync(_lifetime.Token);
+            _lifetime.Token.ThrowIfCancellationRequested();
             _sequence.Commit(next); Present(frame);
             _remaining = TimeSpan.FromMilliseconds(_decoder.DurationMs(next));
         }

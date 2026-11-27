@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using MeowChan.Desktop;
@@ -108,24 +109,29 @@ public sealed class AnimatedWebpPlaybackTests
             using TempDirectory temp = new();
             GalleryEntry entry = await CopyAsync(temp, "animated.webp");
             using JsonDocument manifest = JsonDocument.Parse(await File.ReadAllTextAsync(Fixture("manifest.json")));
-            int[] durations = manifest.RootElement.GetProperty("frames").EnumerateArray()
+            JsonElement expected = manifest.RootElement;
+            int[] durations = expected.GetProperty("frames").EnumerateArray()
                 .Select(frame => frame.GetProperty("duration_ms").GetInt32()).ToArray();
+            int presentations = durations.Length * expected.GetProperty("total_passes").GetInt32();
             var decoder = await GifFrameDecoder.OpenAnimationAsync(entry, CancellationToken.None);
             Assert.NotNull(decoder);
-            Image image = new();
+            Image image = new() { Width = 120, Height = 80 };
             Window window = new() { Width = 200, Height = 120, Content = image };
             await using var player = await GalleryGifPlayback.OpenAsync(
                 new DelayedWebpDecoder(decoder), image, CancellationToken.None);
             try
             {
                 window.Show();
+                window.Activate();
                 ContextGestures.Settle(window);
+                image.Arrange(new Rect(0, 0, image.Width, image.Height));
                 player.Adopt();
+                Assert.Same(player.Bitmap, image.Source);
                 Assert.Equal(1, player.Evidence.FramesPresented);
                 List<long> presented = [Stopwatch.GetTimestamp()];
                 player.SetActive(true);
                 using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
-                while (presented.Count < durations.Length)
+                while (presented.Count < presentations)
                 {
                     await Task.Delay(1, deadline.Token);
                     if (player.Evidence.FramesPresented == presented.Count) continue;
@@ -133,8 +139,11 @@ public sealed class AnimatedWebpPlaybackTests
                     presented.Add(Stopwatch.GetTimestamp());
                 }
                 for (int index = 0; index < presented.Count - 1; index++)
+                {
+                    int duration = durations[index % durations.Length];
                     Assert.InRange(Stopwatch.GetElapsedTime(presented[index], presented[index + 1]).TotalMilliseconds,
-                        durations[index] - 10, durations[index] + 10);
+                        duration - 10, duration + 10);
+                }
             }
             finally { window.Close(); }
         });
