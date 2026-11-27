@@ -159,6 +159,22 @@ class MacSourceOverlayTests(unittest.TestCase):
 
 
 class MacSourceEvidenceTests(unittest.TestCase):
+    def test_release_assembly_input_keeps_dmg_and_inventory_hashes(self):
+        fixture = MacSourceOverlayTests()
+        self.addCleanup(fixture.doCleanups)
+        fixture.setUp()
+        output = fixture.root / 'assembly-input.tar.gz'
+        SOURCES.generate(fixture.repository, fixture.commit, fixture.base, {'osx-arm64': fixture.binary},
+                         {'osx-arm64': fixture.dmg}, {}, '0.9.0', output, assembly_input=True)
+        with tarfile.open(output) as archive:
+            manifest = json.load(archive.extractfile('manifest.json'))
+            osx = manifest['architectures']['osx-arm64']
+            self.assertEqual(SOURCES.file_record(fixture.dmg), osx['signed_dmg'])
+            entry = json.load(archive.extractfile(osx['inventory']))
+            self.assertEqual(SOURCES.file_record(fixture.binary), entry['signed_zip'])
+            self.assertEqual(set(fixture.native_names), {row['original_path'] for row in entry['native_files']})
+            self.assertEqual(fixture.files['LICENSE'], archive.extractfile('release-source/LICENSE').read())
+
     def test_durable_input_mapping_covers_both_architectures_and_retained_gpl(self):
         inputs = json.loads((ROOT / SOURCES.INPUT_MANIFEST).read_text())
         for rid, count in (("osx-arm64", 397), ("osx-x64", 403)):
