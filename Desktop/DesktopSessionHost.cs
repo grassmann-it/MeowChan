@@ -162,6 +162,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             else
                 Updates = suppliedUpdates;
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "updates-done");
+            upgradeCancellation.ThrowIfCancellationRequested();
             StartIoStats();
         }
         catch

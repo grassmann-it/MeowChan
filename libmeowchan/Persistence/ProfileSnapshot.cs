@@ -233,7 +233,7 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         {
             CreatePrivateDirectory(staging, snapshotDirectory);
             CopyTree(Path.Combine(snapshotDirectory, DataName), staging, Directories, Files, operation);
-            if (rebindPaths) ProfileMediaRelocation.Apply(this, snapshotDirectory, staging, target, operation);
+            if (rebindPaths) ProfileMediaRelocation.Apply(this, snapshotDirectory, staging, target, operation, restoring: true);
             operation.Token.ThrowIfCancellationRequested();
             Directory.Move(staging, target);
         }

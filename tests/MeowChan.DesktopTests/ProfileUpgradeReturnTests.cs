@@ -7,6 +7,8 @@ using MeowChan.Archive;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Updates;
+using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.Tags;
 using MeowChan.Tests.Shared;
@@ -126,6 +128,76 @@ public sealed class ProfileUpgradeReturnTests
         Assert.False(Directory.Exists(source + ".1.2.0"));
         Assert.Empty(Directory.EnumerateDirectories(root.Path, "*.pending-*"));
         Assert.Equal("pending", File.ReadAllText(Path.Combine(detached, "unfinished.journal")));
+    }
+
+    [Fact]
+    public async Task CancellationAfterTheCopyReleasesTheHostAndLeavesThePublishedCopyRetryable()
+    {
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path);
+        using CancellationTokenSource cancellation = new();
+        string? working = null;
+        Assert.Throws<OperationCanceledException>(() => new DesktopSessionHost(source, providers: [], admitProfileUpgrade: true,
+            upgradeCancellation: cancellation.Token, updateSessionFactory: (directory, config) =>
+            {
+                working = directory;
+                cancellation.Cancel();
+                return new UpdateSession(directory, config);
+            }));
+
+        Assert.Equal(ProfileManifest.Preparing, ProfileManifest.Read(Assert.IsType<string>(working))!.State);
+        Directory.Delete(source, recursive: true);
+        await using DesktopSessionHost reopened = new(source, providers: [], admitProfileUpgrade: true);
+        await reopened.StartAsync();
+        Assert.Equal(DesktopSessionState.Ready, reopened.State);
+        Assert.Equal(working, reopened.ProfileDirectory);
+        Assert.True(reopened.LegacyProfileSourceChanged);
+    }
+
+    [Fact]
+    public void TagQueueAndItsBackupPointAtCopiedMediaInEachGeneration()
+    {
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path);
+        string media = Directory.CreateDirectory(Path.Combine(root.Path, "queued-originals")).FullName;
+        const string name = "queued.png";
+        byte[] bytes = BooruUiFixtures.Png(7);
+        File.WriteAllBytes(Path.Combine(media, name), bytes);
+        TagQueueItem item = new(new ResourceId("fixture", "g", "123"), media, "asset",
+            Convert.ToHexStringLower(SHA256.HashData(bytes)), bytes.Length, "media", "original", null, null, null, null,
+            false, null, name, SavedMediaKind.Image, TagQueueState.Open, DateTimeOffset.UnixEpoch);
+        using (ProfileLease legacy = ProfileLease.Acquire(source))
+        {
+            legacy.Admission.CompleteStartup();
+            TagQueueStore queue = new(source, legacy);
+            Assert.Equal(1, queue.Add([item]).Added);
+            queue.SetCursor(1);
+        }
+        string originalQueue = File.ReadAllText(Path.Combine(source, TagQueueStore.FileName));
+        string originalBackup = File.ReadAllText(Path.Combine(source, TagQueueStore.FileName + ".bak"));
+
+        using ProfileLease working = ProfileUpgrade.Open(source, root.Path);
+        AssertRelocated(working);
+        string backup = Assert.IsType<string>(ProfileUpgrade.SnapshotFor(working.ProfileDirectory));
+        Directory.Move(media, Path.Combine(root.Path, "detached-originals"));
+        string restored = Path.Combine(root.Path, "restored");
+        ProfileSnapshot.Read(backup).Restore(backup, restored);
+        using ProfileLease restoredLease = ProfileLease.Acquire(restored);
+        AssertRelocated(restoredLease);
+        Assert.Equal(originalQueue, File.ReadAllText(Path.Combine(source, TagQueueStore.FileName)));
+        Assert.Equal(originalBackup, File.ReadAllText(Path.Combine(source, TagQueueStore.FileName + ".bak")));
+        Assert.Equal(originalQueue, File.ReadAllText(Path.Combine(backup, ProfileSnapshot.DataName, TagQueueStore.FileName)));
+
+        void AssertRelocated(ProfileLease lease)
+        {
+            string directory = lease.ProfileDirectory;
+            var entry = Assert.Single(new TagQueueStore(directory, lease).Read().Items);
+            Assert.Equal(item with { Directory = entry.Directory }, entry);
+            Assert.StartsWith(directory + Path.DirectorySeparatorChar, entry.Directory, StringComparison.Ordinal);
+            Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(entry.Directory, name)));
+            var document = JsonNode.Parse(File.ReadAllText(Path.Combine(directory, TagQueueStore.FileName + ".bak")));
+            Assert.Equal(entry.Directory, (string?)document!["Items"]![0]!["Directory"]);
+        }
     }
 
     [Fact]

@@ -135,7 +135,8 @@ public partial class App : Application
             try
             {
                 DesktopSessionHost host = await progress.RunAsync((report, token) =>
-                    new DesktopSessionHost(profile, admitProfileUpgrade: true, upgradeProgress: report, upgradeCancellation: token));
+                    new DesktopSessionHost(profile, admitProfileUpgrade: true, upgradeProgress: report, upgradeCancellation: token),
+                    static host => host.DisposeAsync());
                 MainWindow main = new(host);
                 SetMainWindow(desktop, main);
                 main.Show();
@@ -187,7 +188,8 @@ public partial class App : Application
                     try
                     {
                         adopted = await progress.RunAsync((report, token) => new DesktopSessionHost(profile,
-                            readOnlyStartupSource: folderSession.Source, admitProfileUpgrade: true, upgradeProgress: report, upgradeCancellation: token));
+                            readOnlyStartupSource: folderSession.Source, admitProfileUpgrade: true, upgradeProgress: report, upgradeCancellation: token),
+                            static host => host.DisposeAsync());
                     }
                     finally { progress.Close(); }
                 }

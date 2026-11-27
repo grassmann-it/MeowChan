@@ -43,13 +43,13 @@ internal sealed class ProfileCopyWindow : Window
         };
     }
 
-    internal async Task<T> RunAsync<T>(Func<Action<string, long>, CancellationToken, T> work)
+    internal async Task<T> RunAsync<T>(Func<Action<string, long>, CancellationToken, T> work, Func<T, ValueTask>? discardOnCancellation = null)
     {
         using CancellationTokenSource cancel = new();
         _running = cancel;
         try
         {
-            return await Task.Run(() =>
+            T result = await Task.Run(() =>
             {
                 Stopwatch refresh = Stopwatch.StartNew();
                 void Report(string path, long bytes)
@@ -62,6 +62,12 @@ internal sealed class ProfileCopyWindow : Window
                 }
                 return work(Report, cancel.Token);
             });
+            if (discardOnCancellation is not null && cancel.IsCancellationRequested)
+            {
+                await discardOnCancellation(result);
+                cancel.Token.ThrowIfCancellationRequested();
+            }
+            return result;
         }
         finally { _running = null; }
     }
