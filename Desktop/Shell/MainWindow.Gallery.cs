@@ -239,6 +239,8 @@ public partial class MainWindow
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(null, volume); };
         _gallery.PlaybackPreferencesChanged += preferences =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
+        _gallery.FitModeChanged += mode =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryFitMode(mode); };
         _gallery.WheelModeChanged += mode => OnGalleryWheelModeChanged(preferenceOwner, mode);
         _gallery.BackgroundChanged += mode => OnGalleryBackgroundChanged(preferenceOwner, mode);
         _gallery.LayoutChoiceChanged += (mode, choice) => OnGalleryLayoutChoiceChanged(preferenceOwner, mode, choice);

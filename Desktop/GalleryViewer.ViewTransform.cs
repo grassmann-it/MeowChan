@@ -70,7 +70,7 @@ internal sealed partial class GalleryViewer
     private GalleryViewGeometry? CurrentGeometry => MediaSize is { } size
         ? new GalleryViewGeometry(size.Width, size.Height, ViewportSize.Width, ViewportSize.Height, DisplayScale,
             // Fit enlargement is limited for images only; a video has always filled its area.
-            IsVideoView ? null : FitUpscaleCap, _maxZoomPercent, _rotation, _flipped)
+            IsVideoView ? null : FitUpscaleCap, _maxZoomPercent, _rotation, _flipped, EffectiveFitMode)
         : null;
 
     private GalleryViewPlacement Placement => new(_zoom, _panX, _panY, _manualZoom, _actualZoom);
@@ -112,18 +112,23 @@ internal sealed partial class GalleryViewer
     private void FitIfAutomatic()
     {
         if (CurrentGeometry is not { } geometry) return;
-        GalleryViewPlacement next = GalleryViewMath.IfAutomatic(Placement, geometry);
-        if (!next.Manual) { Fit(retry: false); return; }
+        GalleryViewPlacement next = GalleryViewMath.IfAutomatic(Placement, geometry, _fitScrollPosition);
+        if (!next.Manual) { ApplyFit(next, retry: false); return; }
         Adopt(next);
         ApplyTransform();
     }
 
-    private void Fit() { Fit(retry: true); AnnounceView(zoom: true); }
+    private void Fit() => SelectFitMode(GalleryFitMode.Fit);
 
     private void Fit(bool retry)
     {
         if (CurrentGeometry is not { } geometry) return;
-        Adopt(GalleryViewMath.Fitted(geometry));
+        ApplyFit(GalleryViewMath.Fitted(geometry, _fitScrollPosition), retry);
+    }
+
+    private void ApplyFit(GalleryViewPlacement placement, bool retry)
+    {
+        Adopt(placement);
         ApplyTransform();
         if (!IsVideoView) _ = RequestDecodeAsync(CurrentFitRequest(), debounce: !retry, retry: retry);
     }
@@ -137,7 +142,6 @@ internal sealed partial class GalleryViewer
             _image.Width = geometry.SourceWidth * _zoom / scale; _image.Height = geometry.SourceHeight * _zoom / scale;
         }
         ApplyPan();
-        UpdateQuality();
     }
 
     // The pan is kept inside the medium's edges and pushed to the surface (the image's transform, the video's matrix or crop).
@@ -150,13 +154,17 @@ internal sealed partial class GalleryViewer
         {
             _imageRotation.Angle = _rotation;
             _imageTranslation.X = _panX; _imageTranslation.Y = _panY;
+            if (!_manualZoom && geometry.FitScrollPosition(Placement) is { } position) _fitScrollPosition = position;
         }
+        UpdateQuality();
     }
 
     private void UpdateQuality()
     {
         if (MediaSize is not { } size) return;
-        string zoom = _manualZoom ? (_zoom * 100).ToString("0", Texts.Culture) + "%" : Texts.T("gallery.fit");
+        string zoom = _manualZoom ? (_zoom * 100).ToString("0", Texts.Culture) + "%" : FitModeLabel(EffectiveFitMode);
+        if (CurrentGeometry?.FitScrollPosition(Placement) is { } position)
+            zoom += " · " + Texts.T("gallery.fitMode.position", position.ToString("P0", Texts.Culture));
         string rotation = _rotation == 0 ? string.Empty : " · " + Texts.T("viewer.view.rotationState", _rotation.ToString(Texts.Culture));
         if (IsVideoView) { _quality.Text = size.Width + " × " + size.Height + " · " + zoom + rotation; return; }
         if (_info == null) return;
@@ -177,6 +185,7 @@ internal sealed partial class GalleryViewer
         GalleryViewGeometry after = before with { Rotation = next };
         GalleryViewPlacement placement = GalleryViewMath.Rotated(Placement, after, _flipped ? -steps : steps);
         _rotation = next;
+        _fitScrollPosition = 0;
         Adopt(placement);
         if (!IsVideoView && !_manualZoom) Fit(retry: false); // The decode target follows the new orientation.
         else
@@ -215,6 +224,7 @@ internal sealed partial class GalleryViewer
         _rotation = GalleryViewMath.RotationForMedium(same, _rotation);
         SetFlipped(same && _flipped);
         _imageRotation.Angle = _rotation;
+        _fitScrollPosition = 0;
         _announceZoom = _announceRotation = false;
         _announceTimer.Stop();
     }
@@ -237,6 +247,7 @@ internal sealed partial class GalleryViewer
         }
         else if (ReferenceEquals(root, _nativeVideoOverlay)) return;
         Focus();
+        if (TryScrollFitByWheel(e)) { e.Handled = true; return; }
         if (browse) { BrowseByWheel(e.Delta.Y); e.Handled = true; return; }
         Point point = e.GetPosition(root);
         Zoom(GalleryGeometry.WheelFactor(e.Delta.Y), new Point(point.X - root.Bounds.Width / 2, point.Y - root.Bounds.Height / 2));
@@ -293,7 +304,7 @@ internal sealed partial class GalleryViewer
 
     private void SpeakView()
     {
-        string text = GalleryViewAnnouncement.Compose(_announceZoom, _announceRotation, _manualZoom, _zoom, _rotation);
+        string text = GalleryViewAnnouncement.Compose(_announceZoom, _announceRotation, _manualZoom, _zoom, _rotation, EffectiveFitMode);
         _announceZoom = _announceRotation = false;
         if (text.Length == 0) return;
         // An unchanged sentence is announced again only when the text actually changes: clear first.
@@ -305,14 +316,20 @@ internal sealed partial class GalleryViewer
 /// <summary>The one polite sentence that says where the picture is after zoom keys, the wheel, Fit, 1:1 or a rotation.</summary>
 internal static class GalleryViewAnnouncement
 {
-    internal static string Compose(bool zoom, bool rotation, bool manualZoom, double physicalZoom, int degrees)
+    internal static string Compose(bool zoom, bool rotation, bool manualZoom, double physicalZoom, int degrees,
+        GalleryFitMode fitMode = GalleryFitMode.Fit)
     {
         var parts = new System.Collections.Generic.List<string>(2);
         degrees = GalleryRotation.Normalize(degrees);
         if (zoom)
             parts.Add(manualZoom
                 ? Texts.T("viewer.view.zoomAnnounce", Math.Round(physicalZoom * 100).ToString("0", Texts.Culture))
-                : Texts.T("viewer.view.fitAnnounce"));
+                : fitMode switch
+                {
+                    GalleryFitMode.Width => Texts.T("command.gallery.fit-width"),
+                    GalleryFitMode.Height => Texts.T("command.gallery.fit-height"),
+                    _ => Texts.T("viewer.view.fitAnnounce")
+                });
         if (rotation)
             parts.Add(degrees == 0 ? Texts.T("viewer.view.rotationOff")
                 : Texts.T("viewer.view.rotationAnnounce", degrees.ToString(Texts.Culture)));
