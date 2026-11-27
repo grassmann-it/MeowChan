@@ -7,6 +7,7 @@ using MeowChan.Desktop;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Tests.Shared;
 using Xunit.Abstractions;
 
 namespace MeowChan.DesktopTests;
