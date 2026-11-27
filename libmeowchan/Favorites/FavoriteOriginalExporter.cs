@@ -113,24 +113,29 @@ public static class FavoriteOriginalExporter
 
     public static Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets,
         string destinationDirectory, CancellationToken cancellationToken = default)
-        => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken, null, null);
+        => ExportCoreAsync(assets, destinationDirectory, null, null, null, cancellationToken);
 
-    /// <param name="filenameTemplate">The filename template setting (<see cref="ExportFilenameTemplate"/>); null or empty keeps the current naming, and so does any file the template cannot name safely.</param>
+    /// <summary>Copies originals with <paramref name="filenameTemplate"/>. Empty or unusable templates retain the current naming.</summary>
     public static Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets,
         string destinationDirectory, string? filenameTemplate, CancellationToken cancellationToken = default)
-        => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken, filenameTemplate, null);
+        => ExportCoreAsync(assets, destinationDirectory, null, filenameTemplate, null, cancellationToken);
 
     internal static Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets, string destinationDirectory,
         string? filenameTemplate, OriginalExportSidecarOptions? sidecar, CancellationToken cancellationToken)
-        => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken, filenameTemplate, sidecar);
+        => ExportCoreAsync(assets, destinationDirectory, null, filenameTemplate, sidecar, cancellationToken);
 
     internal static Task<FavoriteExportResult> ExportWithHooksAsync(IReadOnlyList<FavoriteExportAsset> assets,
-        string destinationDirectory, Hooks hooks, CancellationToken cancellationToken = default, string? filenameTemplate = null,
-        OriginalExportSidecarOptions? sidecar = null)
-        => ExportCoreAsync(assets, destinationDirectory, hooks, cancellationToken, filenameTemplate, sidecar);
+        string destinationDirectory, Hooks hooks, CancellationToken cancellationToken = default)
+        => ExportCoreAsync(assets, destinationDirectory, hooks, null, null, cancellationToken);
+
+    internal static Task<FavoriteExportResult> ExportWithHooksAsync(IReadOnlyList<FavoriteExportAsset> assets,
+        string destinationDirectory, Hooks hooks, string? filenameTemplate, OriginalExportSidecarOptions? sidecar = null,
+        CancellationToken cancellationToken = default)
+        => ExportCoreAsync(assets, destinationDirectory, hooks, filenameTemplate, sidecar, cancellationToken);
 
     private static async Task<FavoriteExportResult> ExportCoreAsync(IReadOnlyList<FavoriteExportAsset> assets,
-        string destinationDirectory, Hooks? hooks, CancellationToken cancellationToken, string? filenameTemplate, OriginalExportSidecarOptions? sidecar)
+        string destinationDirectory, Hooks? hooks, string? filenameTemplate, OriginalExportSidecarOptions? sidecar,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(assets);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationDirectory);
@@ -151,7 +156,7 @@ public static class FavoriteOriginalExporter
                 SidecarExportResult? sidecarData = PrepareSidecar(item, sidecar, results.Count);
                 string path = await CopyOneAsync(item, root, hooks, filenameTemplate, sidecarData, cancellationToken).ConfigureAwait(false);
                 results.Add(new FavoriteExportItem(item.Key,
-                    path.StartsWith("!", StringComparison.Ordinal)
+                    path.StartsWith('!')
                         ? FavoriteExportStatus.AlreadyExists : FavoriteExportStatus.Copied,
                     path.TrimStart('!'), null));
             }

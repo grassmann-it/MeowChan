@@ -77,7 +77,7 @@ public sealed class OriginalExportSidecarTests
         FavoriteOriginalExporter.Hooks hooks = new() { BeforePairCompletion = cancellation.Cancel };
 
         FavoriteExportResult result = await FavoriteOriginalExporter.ExportWithHooksAsync([original], destination,
-            hooks, cancellation.Token, sidecar: new OriginalExportSidecarOptions());
+            hooks, filenameTemplate: null, sidecar: new OriginalExportSidecarOptions(), cancellationToken: cancellation.Token);
 
         Assert.Equal(1, result.Cancelled);
         string[] files = Directory.GetFiles(destination, "*", SearchOption.AllDirectories);

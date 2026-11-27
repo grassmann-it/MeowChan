@@ -136,7 +136,7 @@ internal static class SafeFilenameTemplate
             text.EndsWith('.') || text.EndsWith(' ')) return false;
         foreach (char c in text)
         {
-            if ("<>:\"/\\|?*{}".IndexOf(c) >= 0 || char.IsControl(c)) return false;
+            if ("<>:\"/\\|?*{}".Contains(c) || char.IsControl(c)) return false;
         }
         // Strict UTF-8 validation remains at the API boundary; inspect valid surrogate
         // pairs as scalars here so supplementary Cf cannot masquerade as two surrogates.
