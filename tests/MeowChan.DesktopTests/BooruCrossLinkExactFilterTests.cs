@@ -183,7 +183,7 @@ public sealed class BooruCrossLinkExactFilterTests
             case "index":
                 Type indexType = typeof(MediaPage).GetNestedType("PresentIndexHolder", BindingFlags.NonPublic)!;
                 Set(page, "_presentIndex", Activator.CreateInstance(indexType, BindingFlags.Public | Private, null,
-                    new object[] { page.Snapshot! }, null));
+                    new object?[] { page.Snapshot, null }, null));
                 break;
             case "applied generation": SetProperty(page, "PresentCount", 1); break;
             case "requested generation": SetProperty(page, "PresentRunCount", 1); break;

@@ -527,12 +527,12 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(File.Exists(Path.Combine(app, "plugin-worker", "MeowChan.PluginWorker" + suffix)));
         Assert.True(File.Exists(Path.Combine(app, "plugin-compiler", "MeowChan.PluginCompiler" + suffix)));
         string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
-        // Danbooru ships as the official post-search source (B8 packaging); it is not a chan board adapter.
+        // Danbooru and the e621/e926 family are official post-search bundles.
         // The vichan and jschan family bundles replace the six single-site bundles of 1.0.x.
-        Assert.Equal(18, manifests.Length);
+        Assert.Equal(19, manifests.Length);
         foreach (string name in new[] { "Lainchan", "Leftypol", "SushiChan", "Uboachan", "Wizchan", "Zzzchan", "AnonImageboards", "GuroCx" })
             Assert.DoesNotContain(manifests, path => Path.GetFileName(path) == "MeowChan.Plugin." + name + ".plugin.json");
-        foreach (string name in new[] { "SevenChan", "BbwChan", "EightchanMoe", "Fchan", "CapybaraChan", "Danbooru", "VichanFamily", "JschanFamily" })
+        foreach (string name in new[] { "SevenChan", "BbwChan", "EightchanMoe", "Fchan", "CapybaraChan", "Danbooru", "E621", "VichanFamily", "JschanFamily" })
             Assert.Contains(manifests, path => Path.GetFileName(path) == "MeowChan.Plugin." + name + ".plugin.json");
         string cache = Path.Combine(host.ProfileDirectory, "plugin-cache", "artifacts");
         int priorArtifacts = Directory.Exists(cache) ? Directory.GetDirectories(cache).Length : 0;
@@ -553,8 +553,8 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Empty(fixture.Requests);
         Assert.Equal(0, fixture.Unexpected);
         PluginProfileSnapshot profile = await host.Plugins.ProfileStore.ReadAsync();
-        // 17 delivered chan/filter plugins (two of them engine families) plus the official Danbooru post-search plugin.
-        Assert.Equal(18, profile.Plugins.Count);
+        // The profile registers the 17 chan and filter bundles and both official post-search bundles.
+        Assert.Equal(19, profile.Plugins.Count);
         foreach (PluginActivationSnapshot plugin in profile.Plugins)
         {
             bool expectedEnabled = ExperimentalSourceActivationPolicy.InitiallyEnabled(plugin.PluginId)

@@ -81,6 +81,48 @@ public sealed class MediaPageContentBoundaryTests
         }
     }
 
+    [Fact]
+    public void HostQueueChangesRefreshRealizedTilesAndReapplyTheQueueFilter() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory temporary = new();
+        ConfigureWindow(temporary.Path);
+        GalleryEntry[] entries = await SeedPostsAsync(temporary.Path, BooruPostClaimRating.Sensitive, BooruPostClaimRating.General);
+        await using DesktopSessionHost session = CreateSession(temporary.Path);
+        await using MainWindow window = await ShowWindowAsync(session);
+        MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+        ById<Button>(window, "MediaNavigationButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        await page.BuildTask;
+        await page.PresentTask;
+        window.UpdateLayout();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+
+        ListBox grid = ById<ListBox>(page, "MediaGrid");
+        Assert.Equal(2, grid.ItemCount);
+        MediaLibraryTileView[] realized = grid.GetVisualDescendants().OfType<MediaLibraryTileView>().ToArray();
+        MediaLibraryTileView tile = Assert.Single(realized,
+            view => view.DataContext is MediaLibraryTileRow { Entry.BooruPostId: "101" });
+        MediaLibraryTileRow row = Assert.IsType<MediaLibraryTileRow>(tile.DataContext);
+        TagQueueItem item = Assert.IsType<TagQueueItem>(TagQueueItem.From(entries[0], DateTimeOffset.UnixEpoch));
+        MediaLibrarySnapshot snapshot = Assert.IsType<MediaLibrarySnapshot>(page.Snapshot);
+        int presentations = page.PresentCount;
+        Assert.False(tile.Badges.State.Queued);
+
+        await session.EnqueueTagQueueAsync([item]);
+        await BooruTestSupport.WaitAsync(() => tile.Badges.State.Queued, "the host queue change to reach the realized tile");
+        Assert.Contains(Texts.T("media.badge.queued"), AutomationProperties.GetName(tile));
+        Assert.Equal(realized.Length, page.QueueBadgeRefreshes);
+        Assert.Equal(presentations, page.PresentCount);
+        Assert.Same(snapshot, page.Snapshot);
+
+        Assert.Null(page.AddFilterTerm(MediaFilterTerm.InQueue()));
+        await page.PresentTask;
+        Assert.Same(row.Entry, Assert.IsType<MediaLibraryTileRow>(Assert.Single(grid.Items)).Entry);
+        await session.RemoveFromTagQueueAsync([item.Key]);
+        await BooruTestSupport.WaitAsync(() => grid.ItemCount == 0, "the queue filter to reflect the removal");
+        Assert.Same(snapshot, page.Snapshot);
+    });
+
     private sealed class ObservedThumbnail(string path, TaskCompletionSource discarded) : Bitmap(path)
     {
         public override void Dispose()

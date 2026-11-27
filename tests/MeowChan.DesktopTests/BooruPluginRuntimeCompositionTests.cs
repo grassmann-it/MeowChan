@@ -139,7 +139,7 @@ public sealed class BooruPluginRuntimeCompositionTests
             // Disabling the plugin hides the window at once and stops the worker path.
             plugins = await host.Plugins.ProfileStore.ReadAsync();
             await host.Plugins.ProfileStore.SetEnabledAsync(PluginId, false, plugins.Revision);
-            Assert.Null(host.BooruServices);
+            Assert.DoesNotContain(host.ActiveBooruServices, active => active.Search.ProviderId == services.Search.ProviderId);
             Assert.Equal(BooruCallStatus.Unavailable,
                 (await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline)).Status);
             Assert.Equal(1, stub.MetadataRequests);
@@ -154,7 +154,7 @@ public sealed class BooruPluginRuntimeCompositionTests
             Assert.NotNull(restarted.Plugins!.Booru);
             await Task.Delay(500);
             Assert.Null(restarted.BooruComposition);
-            Assert.Null(restarted.BooruServices);
+            Assert.DoesNotContain(restarted.ActiveBooruServices, active => active.Search.ProviderId == "danbooru");
             Assert.Equal(1, stub.MetadataRequests);
         }
         finally { await StopAsync(restarted); }

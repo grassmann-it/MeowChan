@@ -141,11 +141,6 @@ public sealed class MediaBooruModeTests : IDisposable
         Assert.Null(tile.Badges.State.TagCount); // no own state read: no count
         Assert.Equal("3 own tags", Texts.Count("media.tile.ownTags", 3, "3"));
         Assert.Equal("1 own tag", Texts.Count("media.tile.ownTags", 1, "1"));
-        // The page touches only the realized tiles when the queue changes, and re-presents only for the queue term.
-        string queue = Read("Desktop/Views/Media/MediaPage.Queue.cs");
-        Assert.Contains("foreach (Control container in _grid.GetRealizedContainers())", queue);
-        Assert.Contains("if (HasField(MediaFilterField.Queue) && _snapshot != null) Present(keepView: true);", queue);
-        Assert.Contains("_session.StateChanged += OnMediaTagQueueChanged;", Read("Desktop/Shell/MainWindow.Media.cs"));
     }
 
     [Fact]
