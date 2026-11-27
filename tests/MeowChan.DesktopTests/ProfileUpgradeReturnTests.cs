@@ -92,7 +92,8 @@ public sealed class ProfileUpgradeReturnTests
         var operation = Guid.NewGuid();
         var document = $$"""
             {"Version":4,"Revision":1,"Tags":[],"Threads":[],"Media":[],"LocalOccurrences":[],"LocalMedia":[],
-             "Aliases":[],"LastReview":{"OperationId":"{{operation:D}}","Revision":1}}
+             "Aliases":[],"LastReview":{"OperationId":"{{operation:D}}","Revision":1}
+            }
             """;
         File.WriteAllText(Path.Combine(source, PrivateTagStore.FileName), document);
         using ProfileLease lease = ProfileUpgrade.Open(source, root.Path);
