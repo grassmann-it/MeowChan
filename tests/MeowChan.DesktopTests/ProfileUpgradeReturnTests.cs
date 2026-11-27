@@ -115,7 +115,7 @@ public sealed class ProfileUpgradeReturnTests
         byte[] original = BooruUiFixtures.Png(5);
         await File.WriteAllBytesAsync(Path.Combine(downloads, originalName), original);
         using Legacy113ProfileWriter historical = new();
-        await historical.WriteAsync(source, downloads);
+        await historical.WriteAsync(source, downloads, originalName);
         await historical.WriteTabsAsync(source, draft: false);
 
         string working;
@@ -133,6 +133,11 @@ public sealed class ProfileUpgradeReturnTests
         using (ProfileLease lease = ProfileLease.Acquire(working))
         {
             var catalog = new BooruCatalogStore(working, lease);
+            var previous = Assert.Single(catalog.Read().Posts);
+            Assert.Equal("fixture-asset", previous.LocalAssetId);
+            Assert.NotNull(previous.LocalPath);
+            Assert.Equal(original, await File.ReadAllBytesAsync(previous.LocalPath));
+            Assert.NotEqual(Path.Combine(downloads, originalName), previous.LocalPath);
             catalog.UpsertPost(new BooruPostClaim("e621", "123", BooruPostClaimPresence.None), DateTimeOffset.UtcNow);
         }
 
@@ -158,11 +163,11 @@ public sealed class ProfileUpgradeReturnTests
         }
         Assert.Equal(original, await File.ReadAllBytesAsync(Path.Combine(downloads, originalName)));
         Assert.Equal(SHA256.HashData(original), SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(downloads, originalName))));
-        historical.CheckAndEdit(restored, downloads, edit: true);
-        historical.CheckAndEdit(restored, downloads, edit: false);
+        historical.CheckAndEdit(restored, downloads, originalName, edit: true);
+        historical.CheckAndEdit(restored, downloads, originalName, edit: false);
         Assert.Equal(original, await File.ReadAllBytesAsync(Path.Combine(downloads, originalName)));
         Assert.True(File.Exists(Path.Combine(working, BooruCatalogStore.FileName)));
-        Assert.False(File.Exists(Path.Combine(restored, BooruCatalogStore.FileName)));
+        Assert.Equal(1, ProfileManifest.Inspect(restored)[BooruCatalogStore.FileName].Version);
     }
 
     private static string CreateSource(string parent)

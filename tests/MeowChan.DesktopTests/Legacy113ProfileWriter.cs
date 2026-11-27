@@ -30,7 +30,7 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         return File.Exists(path) ? LoadFromAssemblyPath(path) : null;
     }
 
-    internal async Task WriteAsync(string profile, string downloads)
+    internal async Task WriteAsync(string profile, string downloads, string originalName)
     {
         using var lease = (IDisposable)Call(_lease, null, "Acquire", profile)!;
         object settings = Call(_config, null, "LoadConfig", profile, lease)!;
@@ -52,6 +52,21 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         Task archive = (Task)Call(archiveType, null, "OpenAsync", profile, lease, CancellationToken.None)!;
         await archive;
         await ((IAsyncDisposable)Get(archive, "Result")!).DisposeAsync();
+
+        Type catalogType = _library.GetType("MeowChan.Archive.BooruCatalogStore", true)!;
+        object catalog = New(catalogType, profile, lease);
+        Type claimType = _library.GetType("MeowChan.Archive.BooruPostClaim", true)!;
+        ConstructorInfo claimConstructor = claimType.GetConstructors().Single(item => item.GetParameters().Length == 14);
+        object claim = claimConstructor.Invoke(claimConstructor.GetParameters().Select((parameter, index) => index switch
+        {
+            0 => "danbooru",
+            1 => "123",
+            2 => Activator.CreateInstance(parameter.ParameterType),
+            _ => parameter.DefaultValue
+        }).ToArray());
+        Call(catalogType, catalog, "UpsertPost", claim, DateTimeOffset.UtcNow, CancellationToken.None);
+        Call(catalogType, catalog, "LinkLocalAsset", "danbooru", "123", "fixture-asset",
+            Path.Combine(downloads, originalName), CancellationToken.None);
     }
 
     internal async Task WriteTabsAsync(string profile, bool draft)
@@ -74,14 +89,14 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         object admission = Get(lease, "Admission")!;
         Call(admission.GetType(), admission, "CompleteStartup");
         Type storeType = _desktop.GetType("MeowChan.Desktop.Booru.BooruSearchTabStore", true)!;
-        object store = Activator.CreateInstance(storeType, lease)!;
+        object store = New(storeType, lease);
         object snapshot = LoadTabs(storeType, store);
         Call(storeType, store, "Save", snapshot, 30);
         Assert.True(await (Task<bool>)Get(store, "PendingSave")!);
         Assert.True(File.Exists(file));
     }
 
-    internal void CheckAndEdit(string profile, string downloads, bool edit)
+    internal void CheckAndEdit(string profile, string downloads, string originalName, bool edit)
     {
         using var lease = (IDisposable)Call(_lease, null, "Acquire", profile)!;
         object settings = Call(_config, null, "LoadConfig", profile, lease)!;
@@ -97,12 +112,19 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
         object admission = Get(lease, "Admission")!;
         Call(admission.GetType(), admission, "CompleteStartup");
         Type tabStore = _desktop.GetType("MeowChan.Desktop.Booru.BooruSearchTabStore", true)!;
-        object snapshot = LoadTabs(tabStore, Activator.CreateInstance(tabStore, lease)!);
+        object snapshot = LoadTabs(tabStore, New(tabStore, lease));
         var tabs = Assert.IsAssignableFrom<Array>(Get(snapshot, "Tabs"));
         Assert.Equal(33, tabs.Length);
         object active = tabs.GetValue((int)Get(snapshot, "ActiveIndex")!)!;
         Assert.Equal(2, Get(active, "Page"));
         Assert.Equal(5, Get(active, "LastResultPage"));
+        Type catalogType = _library.GetType("MeowChan.Archive.BooruCatalogStore", true)!;
+        object catalog = New(catalogType, profile, lease);
+        object post = Assert.IsType(_library.GetType("MeowChan.Archive.BooruPostRecord", true)!,
+            Call(catalogType, catalog, "TryGetPost", "danbooru", "123"));
+        Assert.Equal("fixture-asset", Get(post, "LocalAssetId"));
+        Assert.Equal(Path.Combine(downloads, originalName), Get(post, "LocalPath"));
+        Assert.Null(Call(catalogType, catalog, "TryGetPost", "e621", "123"));
         if (!edit) return;
         Set(settings, "Language", "de");
         Call(_config, settings, "SaveConfig", profile);
@@ -120,6 +142,9 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
     }
 
     private const BindingFlags Members = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+
+    private static object New(Type type, params object[] args) =>
+        Activator.CreateInstance(type, Members, binder: null, args, culture: null)!;
 
     private static object? Call(Type type, object? instance, string name, params object?[] args) =>
         type.GetMethods(Members).Single(method => method.Name == name && method.GetParameters().Length == args.Length)
