@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -172,7 +173,7 @@ public sealed class ArchiveThreadStampTests
             string mediaPath = Path.Combine(profile.Path, "media");
             Directory.CreateDirectory(mediaPath);
             MediaAssetReference[] files = Enumerable.Range(0, Saved).Select(index =>
-                new MediaAssetReference("asset-" + index, "m" + index, "original", index + ".png", Path.Combine(mediaPath, index + ".png"),
+                new MediaAssetReference(index.ToString("x64", CultureInfo.InvariantCulture), "m" + index, "original", index + ".png", Path.Combine(mediaPath, index + ".png"),
                     3, new string('a', 64), "https://fixture.invalid/" + index, index + ".png", true)).ToArray();
             MediaAssetSnapshot manifest = new(mediaPath, MediaManifestStatus.Available, 3, "fixture", files);
             CapturedPost[] posts = Enumerable.Range(0, Saved + 2).Select(index => new CapturedPost((42 + index).ToString(), 42 + index,
@@ -181,7 +182,7 @@ public sealed class ArchiveThreadStampTests
                 Attachments: [new CapturedAttachment(0, "m" + index, Url: "https://fixture.invalid/" + index)])).ToArray();
             await using (MeowChan.Archive.ArchiveCatalog catalog = await MeowChan.Archive.ArchiveCatalog.OpenAsync(profile.Path, lease))
             {
-                await catalog.CaptureAsync(new(Thread, "https://fixture.invalid/g/thread/42", "Pet thread", ThreadSourceState.Archived,
+                await catalog.CapturePreservingRevisionsAsync(new(Thread, "https://fixture.invalid/g/thread/42", "Pet thread", ThreadSourceState.Archived,
                     DateTimeOffset.UnixEpoch, mediaPath, posts));
                 await catalog.CaptureAsync(new(EmptyThread, "https://fixture.invalid/g/thread/99", "Empty", ThreadSourceState.Archived,
                     DateTimeOffset.UnixEpoch, Path.Combine(profile.Path, "empty"), [new CapturedPost("99", 99, PostFieldPresence.All, Html: "Empty")]));
