@@ -1708,8 +1708,13 @@ namespace MeowChan
         {
             string current = Path.GetFullPath(Path.Combine(homePath, ".MeowChan"));
             string legacy = Path.GetFullPath(Path.Combine(homePath, ".oChan"));
-            bool hasCurrent = ProfileDirectoryExists(current);
-            bool hasLegacy = ProfileDirectoryExists(legacy);
+            // A published upgrade remains a default profile even if its legacy folder disappears.
+            bool currentUpgrade = ProfileUpgrade.HasPublishedGeneration(current);
+            bool legacyUpgrade = ProfileUpgrade.HasPublishedGeneration(legacy);
+            if (currentUpgrade != legacyUpgrade) return legacyUpgrade ? legacy : current;
+
+            bool hasCurrent = currentUpgrade || ProfileDirectoryExists(current);
+            bool hasLegacy = legacyUpgrade || ProfileDirectoryExists(legacy);
             if (hasCurrent && hasLegacy)
                 throw new InvalidOperationException(
                     $"Both MeowChan profiles exist ('{current}' and '{legacy}'). Select one explicitly with MEOWCHAN_PROFILE.");

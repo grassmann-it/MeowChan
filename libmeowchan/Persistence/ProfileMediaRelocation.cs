@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using MeowChan.Archive;
+using MeowChan.Tags;
 using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Persistence;
@@ -16,7 +17,7 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     private static readonly StringComparer PathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
     private static readonly string[] Documents =
-        ["settings.json", "saved_urls.json", "booru-catalog.json", "private-tags.json", "local-imports.json"];
+        ["settings.json", "saved_urls.json", "booru-catalog.json", "private-tags.json", "local-imports.json", TagQueueStore.FileName];
     private static readonly string[] Suffixes = ["", ".bak"];
     private static readonly string[] WorkDatabases = ["work-state.sqlite", "work-state.before-prune.sqlite"];
 
@@ -61,7 +62,8 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         return trees.Concat(individual).OrderBy(selection => selection.Root, StringComparer.Ordinal).ToArray();
     }
 
-    internal static void Apply(ProfileSnapshot snapshot, string snapshotDirectory, string staged, string target, ProfileCopyOperation operation)
+    internal static void Apply(ProfileSnapshot snapshot, string snapshotDirectory, string staged, string target, ProfileCopyOperation operation,
+        bool restoring = false)
     {
         Dictionary<string, string> paths = new(PathComparer) { [snapshot.SourceDirectory] = target };
         string container = "upgrade-downloads";
@@ -86,7 +88,8 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
             {
                 operation.Token.ThrowIfCancellationRequested();
                 if (ReadString(row[field]) is not { } path) continue;
-                string mapped = relocation.Map(path);
+                // Earlier snapshots may not have captured directories referenced only by their tagging queue.
+                string mapped = relocation.Map(path, allowUncaptured: restoring && name == TagQueueStore.FileName);
                 if (name == "booru-catalog.json" && ReadString(row["localAssetId"]) is not null)
                 {
                     string? relative = RelativeTo(target, mapped);
@@ -222,6 +225,7 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
             "booru-catalog.json" => ("posts", "localPath"),
             "private-tags.json" => ("LocalOccurrences", "Directory"),
             "local-imports.json" => ("Batches", "Directory"),
+            TagQueueStore.FileName => ("Items", "Directory"),
             _ => (null, null)
         };
         if (collection is not null && document[collection] is JsonArray rows)
@@ -235,13 +239,14 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         return true;
     }
 
-    private string Map(string path)
+    private string Map(string path, bool allowUncaptured = false)
     {
         if (!Path.IsPathFullyQualified(path)) return path;
         string full = ProfileLease.NormalizeDirectory(path);
         for (string? root = full; root is not null; root = Path.GetDirectoryName(root))
             if (paths.TryGetValue(root, out string? mapped))
                 return PathComparer.Equals(root, full) ? mapped : Path.Combine(mapped, Path.GetRelativePath(root, full));
+        if (allowUncaptured) return path;
         throw new InvalidDataException("A profile media path was not captured for relocation.");
     }
 

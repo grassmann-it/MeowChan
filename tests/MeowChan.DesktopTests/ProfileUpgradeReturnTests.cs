@@ -7,6 +7,8 @@ using MeowChan.Archive;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Updates;
+using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.Tags;
 using MeowChan.Tests.Shared;
@@ -16,33 +18,186 @@ namespace MeowChan.DesktopTests;
 public sealed class ProfileUpgradeReturnTests
 {
     [Fact]
-    public void ReplacingAnUnidentifiedLegacyDirectoryDoesNotOpenThePreviousWorkingCopy()
+    public void ReplacingAnUnidentifiedLegacyDirectoryKeepsThePublishedWorkingCopyAvailable()
     {
         using TempDirectory root = new();
         string source = CreateSource(root.Path);
+        string working;
         using (ProfileLease lease = ProfileUpgrade.Open(source, root.Path))
+        {
+            working = lease.ProfileDirectory;
             ProfileUpgrade.Complete(lease, []);
+        }
 
         Directory.Move(source, Path.Combine(root.Path, "detached"));
         Assert.Equal(source, CreateSource(root.Path));
         Assert.Null(ProfileInstanceIdentity.TryRead(source));
-        Assert.Throws<InvalidDataException>(() =>
-        {
-            using ProfileLease unexpected = ProfileUpgrade.Open(source, root.Path);
-        });
+        using ProfileLease reopened = ProfileUpgrade.Open(source, root.Path, out bool changed);
+        Assert.Equal(working, reopened.ProfileDirectory);
+        Assert.True(changed);
     }
 
     [Fact]
-    public void ReplacingLegacyContentsInPlaceRejectsThePreviousWorkingCopy()
+    public void ReplacingLegacyContentsInPlaceKeepsThePublishedWorkingCopyAvailable()
     {
         using TempDirectory root = new();
         string source = CreateSource(root.Path);
+        string working;
         using (ProfileLease lease = ProfileUpgrade.Open(source, root.Path))
+        {
+            working = lease.ProfileDirectory;
             ProfileUpgrade.Complete(lease, []);
+        }
         // Keep the directory identity, filenames and lengths identical to the capture.
-        File.WriteAllText(Path.Combine(source, "unfinished.journal"), "another");
+        string journal = Path.Combine(source, "unfinished.journal");
+        DateTime written = File.GetLastWriteTimeUtc(journal);
+        File.WriteAllText(journal, "another");
+        File.SetLastWriteTimeUtc(journal, written.AddSeconds(2));
         Assert.Null(ProfileInstanceIdentity.TryRead(source));
-        Assert.Throws<InvalidDataException>(() => ProfileUpgrade.Open(source, root.Path));
+        using ProfileLease reopened = ProfileUpgrade.Open(source, root.Path, out bool changed);
+        Assert.Equal(working, reopened.ProfileDirectory);
+        Assert.True(changed);
+    }
+
+    [Theory]
+    [InlineData("deleted")]
+    [InlineData("moved")]
+    [InlineData("device")]
+    [InlineData("id")]
+    public async Task PublishedUpgradeReopensAndRestoresWhenLegacySourceChanges(string change)
+    {
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path, ".oChan");
+        Assert.Null(ProfileInstanceIdentity.TryRead(source));
+        string working;
+        string backup;
+        await using (DesktopSessionHost first = new(source, providers: [], admitProfileUpgrade: true))
+        {
+            await first.StartAsync();
+            Assert.Equal(DesktopSessionState.Ready, first.State);
+            working = first.ProfileDirectory;
+            backup = Assert.IsType<string>(first.PreUpgradeSnapshot);
+        }
+
+        switch (change)
+        {
+            case "deleted": Directory.Delete(source, recursive: true); break;
+            case "moved": Directory.Move(source, Path.Combine(root.Path, "moved")); break;
+            case "device":
+                string index = Path.Combine(backup, ProfileSnapshot.FileName);
+                JsonObject oldSnapshot = JsonNode.Parse(File.ReadAllText(index))!.AsObject();
+                foreach (JsonObject file in oldSnapshot["files"]!.AsArray().OfType<JsonObject>()) file.Remove("lastWriteUtc");
+                string identity = ProfileDirectoryIdentity.Capture(source).DiscardToken;
+                // An older snapshot still records the inode and a different device number.
+                oldSnapshot["sourceIdentity"] = (identity[0] == '0' ? '1' : '0') + identity[1..];
+                File.WriteAllText(index, oldSnapshot.ToJsonString());
+                break;
+            case "id":
+                using (ProfileLease legacy = ProfileLease.Acquire(source))
+                    Assert.NotEqual(ProfileManifest.Read(working)!.ProfileId, ProfileInstanceIdentity.ReadOrCreate(legacy).Id);
+                break;
+        }
+
+        string discovered = Config.ResolveDefaultProfileDirectory(root.Path);
+        Assert.Equal(source, discovered);
+        await using DesktopSessionHost reopened = new(discovered, providers: [], admitProfileUpgrade: true);
+        await reopened.StartAsync();
+        Assert.Equal(DesktopSessionState.Ready, reopened.State);
+        Assert.Equal(working, reopened.ProfileDirectory);
+        Assert.Equal(backup, reopened.PreUpgradeSnapshot);
+        Assert.Equal(change != "device", reopened.LegacyProfileSourceChanged);
+        string restored = Path.Combine(root.Path, "restored");
+        ProfileSnapshot.Read(backup).Restore(backup, restored);
+        Assert.Equal("pending", File.ReadAllText(Path.Combine(restored, "unfinished.journal")));
+        if (change is "deleted" or "moved") Assert.False(Directory.Exists(source));
+    }
+
+    [Fact]
+    public void SwappingTheSourceBeforePublicationStillRefusesTheUpgrade()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path);
+        string detached = Path.Combine(root.Path, "detached");
+
+        Assert.Throws<InvalidDataException>(() => ProfileUpgrade.Open(source, root.Path, beforePublish: () =>
+        {
+            Directory.Move(source, detached);
+            Directory.CreateDirectory(source);
+        }));
+        Assert.False(Directory.Exists(source + ".1.2.0"));
+        Assert.Empty(Directory.EnumerateDirectories(root.Path, "*.pending-*"));
+        Assert.Equal("pending", File.ReadAllText(Path.Combine(detached, "unfinished.journal")));
+    }
+
+    [Fact]
+    public async Task CancellationAfterTheCopyReleasesTheHostAndLeavesThePublishedCopyRetryable()
+    {
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path);
+        using CancellationTokenSource cancellation = new();
+        string? working = null;
+        Assert.Throws<OperationCanceledException>(() => new DesktopSessionHost(source, providers: [], admitProfileUpgrade: true,
+            upgradeCancellation: cancellation.Token, updateSessionFactory: (directory, config) =>
+            {
+                working = directory;
+                cancellation.Cancel();
+                return new UpdateSession(directory, config);
+            }));
+
+        Assert.Equal(ProfileManifest.Preparing, ProfileManifest.Read(Assert.IsType<string>(working))!.State);
+        Directory.Delete(source, recursive: true);
+        await using DesktopSessionHost reopened = new(source, providers: [], admitProfileUpgrade: true);
+        await reopened.StartAsync();
+        Assert.Equal(DesktopSessionState.Ready, reopened.State);
+        Assert.Equal(working, reopened.ProfileDirectory);
+        Assert.True(reopened.LegacyProfileSourceChanged);
+    }
+
+    [Fact]
+    public void TagQueueAndItsBackupPointAtCopiedMediaInEachGeneration()
+    {
+        using TempDirectory root = new();
+        string source = CreateSource(root.Path);
+        string media = Directory.CreateDirectory(Path.Combine(root.Path, "queued-originals")).FullName;
+        const string name = "queued.png";
+        byte[] bytes = BooruUiFixtures.Png(7);
+        File.WriteAllBytes(Path.Combine(media, name), bytes);
+        TagQueueItem item = new(new ResourceId("fixture", "g", "123"), media, "asset",
+            Convert.ToHexStringLower(SHA256.HashData(bytes)), bytes.Length, "media", "original", null, null, null, null,
+            false, null, name, SavedMediaKind.Image, TagQueueState.Open, DateTimeOffset.UnixEpoch);
+        using (ProfileLease legacy = ProfileLease.Acquire(source))
+        {
+            legacy.Admission.CompleteStartup();
+            TagQueueStore queue = new(source, legacy);
+            Assert.Equal(1, queue.Add([item]).Added);
+            queue.SetCursor(1);
+        }
+        string originalQueue = File.ReadAllText(Path.Combine(source, TagQueueStore.FileName));
+        string originalBackup = File.ReadAllText(Path.Combine(source, TagQueueStore.FileName + ".bak"));
+
+        using ProfileLease working = ProfileUpgrade.Open(source, root.Path);
+        AssertRelocated(working);
+        string backup = Assert.IsType<string>(ProfileUpgrade.SnapshotFor(working.ProfileDirectory));
+        Directory.Move(media, Path.Combine(root.Path, "detached-originals"));
+        string restored = Path.Combine(root.Path, "restored");
+        ProfileSnapshot.Read(backup).Restore(backup, restored);
+        using ProfileLease restoredLease = ProfileLease.Acquire(restored);
+        AssertRelocated(restoredLease);
+        Assert.Equal(originalQueue, File.ReadAllText(Path.Combine(source, TagQueueStore.FileName)));
+        Assert.Equal(originalBackup, File.ReadAllText(Path.Combine(source, TagQueueStore.FileName + ".bak")));
+        Assert.Equal(originalQueue, File.ReadAllText(Path.Combine(backup, ProfileSnapshot.DataName, TagQueueStore.FileName)));
+
+        void AssertRelocated(ProfileLease lease)
+        {
+            string directory = lease.ProfileDirectory;
+            var entry = Assert.Single(new TagQueueStore(directory, lease).Read().Items);
+            Assert.Equal(item with { Directory = entry.Directory }, entry);
+            Assert.StartsWith(directory + Path.DirectorySeparatorChar, entry.Directory, StringComparison.Ordinal);
+            Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(entry.Directory, name)));
+            var document = JsonNode.Parse(File.ReadAllText(Path.Combine(directory, TagQueueStore.FileName + ".bak")));
+            Assert.Equal(entry.Directory, (string?)document!["Items"]![0]!["Directory"]);
+        }
     }
 
     [Fact]
@@ -473,12 +628,13 @@ public sealed class ProfileUpgradeReturnTests
         }
     }
 
-    private static string CreateSource(string parent)
+    private static string CreateSource(string parent, string name = "legacy")
     {
-        string source = Path.Combine(parent, "legacy");
+        string source = Path.Combine(parent, name);
         using ProfileLease lease = ProfileLease.Acquire(source);
         Config initial = Config.LoadConfig(source, lease);
         initial.DownloadPath = Path.Combine(source, "downloads");
+        initial.AutomaticUpdateChecks = false;
         initial.SaveConfig(source);
         File.WriteAllText(Path.Combine(source, "unfinished.journal"), "pending");
         return source;

@@ -3,11 +3,57 @@ namespace MeowChan.Desktop.Localization;
 internal static class ProfileUpgradeCatalog
 {
     private readonly record struct Translation(string Title, string Return, string Restore, string Failed);
+    private readonly record struct SourceNotice(string Title, string Message, string ShowBackup, string Continue);
 
     internal static string Title => Texts.Own("profile.upgrade.title") ?? Current.Title;
     internal static string Return => Texts.Own("profile.upgrade.return") ?? Current.Return;
     internal static string Restore => Texts.Own("profile.upgrade.restore") ?? Current.Restore;
     internal static string Failed => Texts.Own("profile.upgrade.restoreFailed") ?? Current.Failed;
+
+    internal static string SourceChangedTitle => ChangedSource.Title;
+    internal static string SourceChangedMessage => ChangedSource.Message;
+    internal static string ShowBackup => ChangedSource.ShowBackup;
+    internal static string Continue => ChangedSource.Continue;
+
+    private static SourceNotice ChangedSource => Texts.Language switch
+    {
+        "de" => new("Bisheriger Profilordner",
+            "Der Profilordner von MeowChan 1.1.3 fehlt, ist nicht zugänglich oder hat sich geändert. Du kannst mit deinem Profil in 1.2.0 weiterarbeiten oder die Sicherung für die Rückkehr zu 1.1.3 ansehen.",
+            "Sicherung anzeigen", "Weiterarbeiten"),
+        "cs" => new("Původní složka profilu",
+            "Složka profilu MeowChan 1.1.3 chybí, není přístupná nebo se změnila. Můžete pokračovat s profilem ve verzi 1.2.0 nebo si prohlédnout zálohu pro návrat k verzi 1.1.3.",
+            "Zobrazit zálohu", "Pokračovat"),
+        "es" => new("Carpeta del perfil anterior",
+            "La carpeta del perfil de MeowChan 1.1.3 no está disponible o ha cambiado. Puedes seguir usando tu perfil en 1.2.0 o ver la copia de seguridad para volver a 1.1.3.",
+            "Ver copia de seguridad", "Continuar"),
+        "fr" => new("Ancien dossier du profil",
+            "Le dossier du profil de MeowChan 1.1.3 est introuvable, inaccessible ou a changé. Vous pouvez continuer avec votre profil dans la version 1.2.0 ou consulter la sauvegarde pour revenir à la version 1.1.3.",
+            "Voir la sauvegarde", "Continuer"),
+        "it" => new("Cartella del profilo precedente",
+            "La cartella del profilo di MeowChan 1.1.3 è assente, inaccessibile o è cambiata. Puoi continuare a usare il tuo profilo in 1.2.0 oppure vedere il backup per tornare alla versione 1.1.3.",
+            "Mostra il backup", "Continua"),
+        "ja" => new("以前のプロファイルフォルダー",
+            "MeowChan 1.1.3 のプロファイルフォルダーが見つからないか、アクセスできないか、内容が変更されています。1.2.0 のプロファイルを引き続き使用するか、1.1.3 に戻すためのバックアップを表示できます。",
+            "バックアップを表示", "続ける"),
+        "ko" => new("이전 프로필 폴더",
+            "MeowChan 1.1.3의 프로필 폴더가 없거나, 접근할 수 없거나, 변경되었습니다. 1.2.0에서 프로필을 계속 사용하거나 1.1.3으로 돌아가기 위한 백업을 볼 수 있습니다.",
+            "백업 보기", "계속"),
+        "pl" => new("Poprzedni folder profilu",
+            "Folder profilu MeowChan 1.1.3 jest niedostępny lub się zmienił. Możesz nadal korzystać z profilu w wersji 1.2.0 albo wyświetlić kopię zapasową potrzebną do powrotu do wersji 1.1.3.",
+            "Pokaż kopię zapasową", "Kontynuuj"),
+        "pt-BR" => new("Pasta do perfil anterior",
+            "A pasta do perfil do MeowChan 1.1.3 está ausente, inacessível ou foi alterada. Você pode continuar com seu perfil na versão 1.2.0 ou ver o backup para voltar à versão 1.1.3.",
+            "Ver backup", "Continuar"),
+        "ru" => new("Прежняя папка профиля",
+            "Папка профиля MeowChan 1.1.3 отсутствует, недоступна или изменилась. Вы можете продолжить работу с профилем в версии 1.2.0 или посмотреть резервную копию для возврата к версии 1.1.3.",
+            "Показать резервную копию", "Продолжить"),
+        "zh-Hans" => new("旧版配置文件夹",
+            "MeowChan 1.1.3 的配置文件夹已丢失、无法访问或发生了变更。你可以继续使用 1.2.0 的配置，也可以查看用于返回 1.1.3 的备份。",
+            "查看备份", "继续"),
+        _ => new("Previous profile folder",
+            "The MeowChan 1.1.3 profile folder is missing, inaccessible, or has changed. You can continue with your 1.2.0 profile or view the backup for returning to 1.1.3.",
+            "View backup", "Continue")
+    };
 
     private static Translation Current => Texts.Language switch
     {
