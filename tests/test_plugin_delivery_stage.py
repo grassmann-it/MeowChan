@@ -3,8 +3,7 @@
 These lightweight specification checks intentionally do not invoke dotnet or
 MSBuild. Their Python model cannot prove the production C# task behaves the same:
 test_plugin_delivery_stage_msbuild.py executes that task against real private
-fixtures in the central heavy lane. The source checks here additionally verify
-that task preflights are wired before the helper MSBuild operations.
+fixtures in the central heavy lane.
 """
 import os
 from pathlib import Path
@@ -150,10 +149,6 @@ class PluginDeliveryStageTests(unittest.TestCase):
 
         build = task[task.index('Target Name="PrepareMeowChanPluginBuildDelivery"'):]
         self.assertLess(build.index('StageKind="build" ValidateOnly="true"'), build.index("<MSBuild "))
-        publish = task[task.index('Target Name="PrepareMeowChanPluginPublishDelivery"'):]
-        self.assertLess(publish.index('StageKind="publish" ValidateOnly="true"'), publish.index("<MSBuild "))
-        self.assertIn("GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/publish/worker/", publish)
-        self.assertIn("GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/publish/compiler/", publish)
 
     def test_invalid_destinations_are_rejected_without_mutating_foreign_sentinels(self):
         with tempfile.TemporaryDirectory(prefix="plugin-stage-boundary-") as temporary:

@@ -157,7 +157,7 @@ class PluginPackagingTests(unittest.TestCase):
     def json(self, relative, value):
         return self.put(relative, json.dumps(value).encode())
 
-    def fixture(self, runtime='linux-x64', self_contained=True):
+    def fixture(self, runtime='linux-x64', development=False):
         header = bytearray(256)
         if runtime.startswith('win-'):
             header[:2] = b'MZ'; struct.pack_into('<I', header, 0x3c, 128)
@@ -168,19 +168,20 @@ class PluginPackagingTests(unittest.TestCase):
         else:
             header[:4] = b'\xcf\xfa\xed\xfe'
             struct.pack_into('<I', header, 4, 0x01000007 if runtime.endswith('x64') else 0x0100000c)
-        for directory, name in (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')):
+        suffix = '.exe' if runtime.startswith('win-') else ''
+        path = self.put('MeowChan' + suffix, header)
+        path.chmod(0o755)
+        self.unix_helpers.add(path)
+        helpers = (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')) if development else ()
+        for directory, name in helpers:
             path = self.put(directory + '/' + name + ('.exe' if runtime.startswith('win-') else ''), header)
             path.chmod(0o755)
             if not runtime.startswith('win-'):
                 self.unix_helpers.add(path)
             self.put(directory + '/' + name + '.dll')
             self.json(directory + '/' + name + '.deps.json', {'libraries': {}})
-            config = {'includedFrameworks': [{'name': 'Microsoft.NETCore.App', 'version': '10.0.11'}]} if self_contained else {'framework': {'name': 'Microsoft.NETCore.App', 'version': '10.0.0'}}
+            config = {'framework': {'name': 'Microsoft.NETCore.App', 'version': '10.0.0'}}
             self.json(directory + '/' + name + '.runtimeconfig.json', {'runtimeOptions': config})
-            natives = ('coreclr.dll', 'hostpolicy.dll', 'hostfxr.dll') if runtime.startswith('win-') else (('libcoreclr.dylib', 'libhostpolicy.dylib', 'libhostfxr.dylib') if runtime.startswith('osx-') else ('libcoreclr.so', 'libhostpolicy.so', 'libhostfxr.so'))
-            if self_contained:
-                for native in natives:
-                    self.put(directory + '/' + native)
         rows = []
         for path, role in (('MeowChan.PluginCompiler.dll', 'compiler'), ('Microsoft.CodeAnalysis.dll', 'compiler'),
                            ('Microsoft.CodeAnalysis.CSharp.dll', 'compiler'), ('MeowChan.PluginSdk.dll', 'sdk'),
@@ -188,7 +189,8 @@ class PluginPackagingTests(unittest.TestCase):
             file = self.put('plugin-compiler/' + path, (path + role).encode())
             rows.append({'Path': path, 'Role': role, 'Sha256': PACKAGE.digest(file)})
         sdk = next(row['Sha256'] for row in rows if row['Role'] == 'sdk')
-        self.put('plugin-worker/MeowChan.PluginSdk.dll', (self.root / 'plugin-compiler/MeowChan.PluginSdk.dll').read_bytes())
+        if development:
+            self.put('plugin-worker/MeowChan.PluginSdk.dll', (self.root / 'plugin-compiler/MeowChan.PluginSdk.dll').read_bytes())
         compiler = PACKAGE.file_set_hash([row for row in rows if row['Role'] == 'compiler'])
         self.json('plugin-compiler/toolchain.json', {'SchemaVersion': 1, 'TargetFramework': 'net10.0', 'Options': PACKAGE.OPTIONS,
                   'Files': rows, 'SdkFingerprint': sdk, 'CompilerFingerprint': compiler,
@@ -215,8 +217,8 @@ class PluginPackagingTests(unittest.TestCase):
                     self.root = outer
 
     def test_framework_dependent_helpers_are_only_allowed_for_developer_outputs(self):
-        self.fixture(self_contained=False)
-        with self.assertRaisesRegex(ValueError, 'external .NET runtime'):
+        self.fixture(development=True)
+        with self.assertRaisesRegex(ValueError, 'must omit plugin-worker'):
             PACKAGE.verify(self.root, 'linux-x64')
         self.assertTrue(PACKAGE.verify(self.root, 'linux-x64', development=True)['passed'])
 
@@ -265,11 +267,14 @@ class PluginPackagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'architecture'):
             PACKAGE.verify(self.root, 'linux-x64')
 
-    def test_missing_self_contained_host_resolver_is_rejected(self):
+    def test_extra_compiler_runtime_and_satellites_are_rejected(self):
         self.fixture()
-        (self.root / 'plugin-worker/libhostfxr.so').unlink()
-        with self.assertRaisesRegex(ValueError, 'Missing'):
-            PACKAGE.verify(self.root, 'linux-x64')
+        for relative in ('plugin-compiler/libhostfxr.so', 'plugin-compiler/de/Microsoft.CodeAnalysis.resources.dll'):
+            with self.subTest(relative=relative):
+                extra = self.put(relative)
+                with self.assertRaisesRegex(ValueError, 'unexpected files or directories'):
+                    PACKAGE.verify(self.root, 'linux-x64')
+                extra.unlink()
 
     def test_changed_plugin_bytes_are_rejected(self):
         self.fixture()
@@ -303,14 +308,14 @@ class PluginPackagingTests(unittest.TestCase):
                 finally:
                     self.root = outer
 
-    def test_missing_manifest_and_worker_sdk_drift_are_rejected(self):
+    def test_missing_manifest_and_multifile_application_sdk_drift_are_rejected(self):
         self.fixture()
         (self.root / 'plugins' / (PACKAGE.PLUGINS[0] + '.plugin.json')).unlink()
         with self.assertRaisesRegex(ValueError, 'manifests differ'):
             PACKAGE.verify(self.root, 'linux-x64')
         self.fixture()
-        self.put('plugin-worker/MeowChan.PluginSdk.dll', b'drifted sdk')
-        with self.assertRaisesRegex(ValueError, 'Worker SDK'):
+        self.put('MeowChan.PluginSdk.dll', b'drifted sdk')
+        with self.assertRaisesRegex(ValueError, 'Application SDK'):
             PACKAGE.verify(self.root, 'linux-x64')
 
     def test_changed_compiler_references_are_rejected(self):
@@ -419,9 +424,9 @@ class PluginPackagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'main process'):
             PACKAGE.verify(self.root, 'linux-x64')
 
-    def test_non_executable_unix_helper_is_rejected(self):
+    def test_non_executable_unix_apphost_is_rejected(self):
         self.fixture()
-        helper = self.root / 'plugin-worker/MeowChan.PluginWorker'
+        helper = self.root / 'MeowChan'
         helper.chmod(0o644)
         self.unix_helpers.discard(helper)
         with self.assertRaisesRegex(ValueError, 'not executable'):

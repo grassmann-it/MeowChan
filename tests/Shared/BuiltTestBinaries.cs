@@ -13,8 +13,8 @@ internal static class BuiltTestBinaries
     internal static string LibraryOf(string projectDirectory, string? projectName = null) =>
         ResolveExecutable(projectDirectory, appHost: false, runtimeConfig: false, projectName);
 
-    internal static string AppHostDirectory(string projectDirectory) =>
-        Path.GetDirectoryName(ResolveExecutable(projectDirectory, appHost: true))!;
+    internal static string AppHostDirectory(string projectDirectory, string? projectName = null) =>
+        Path.GetDirectoryName(ResolveExecutable(projectDirectory, appHost: true, projectName: projectName))!;
 
     private static string ResolveExecutable(string projectDirectory, bool appHost, bool runtimeConfig = true, string? projectName = null)
     {

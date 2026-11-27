@@ -66,6 +66,10 @@ def main():
     manifest = json.loads((bundle / 'plugin-compiler/toolchain.json').read_text())
     toolchain = hash_parts(*(manifest[key] for key in (
         'TargetFramework', 'Options', 'CompilerFingerprint', 'SdkFingerprint', 'ReferenceFingerprint')))
+    compiler = ('plugin-compiler/MeowChan.PluginCompiler',) if (bundle / 'plugin-compiler/MeowChan.PluginCompiler').is_file() else (
+        'MeowChan', '--meowchan-plugin-compiler')
+    worker_command = ('plugin-worker/MeowChan.PluginWorker',) if (bundle / 'plugin-worker/MeowChan.PluginWorker').is_file() else (
+        'MeowChan', '--meowchan-plugin-worker')
     results = []
     for name, expected_id in SOURCE_PLUGIN_IDS.items():
         work = output / name.removesuffix('.cs')
@@ -75,7 +79,7 @@ def main():
         fingerprint = hash_parts(source_hash, toolchain)
         request = dict(Source=base64.b64encode(source).decode(), OriginalPath='/application/plugins/sources/' + name,
                        CompilationFingerprint=fingerprint, ToolchainFingerprint=toolchain, OutputPath='/work/compiled.dll')
-        completed = subprocess.run(isolated(bundle, work, 'plugin-compiler/MeowChan.PluginCompiler',
+        completed = subprocess.run(isolated(bundle, work, *compiler,
                                             '--compile', '/application/plugin-compiler'),
                                    input=json.dumps(request).encode(), capture_output=True, timeout=30)
         (work / 'compiler-stderr.txt').write_bytes(completed.stderr)
@@ -85,7 +89,7 @@ def main():
         compiled = work / 'compiled.dll'
         assert compiled.is_file() and compiled.stat().st_size > 0
         with (work / 'worker-stderr.txt').open('wb') as stderr:
-            worker = subprocess.Popen(isolated(bundle, work, 'plugin-worker/MeowChan.PluginWorker'),
+            worker = subprocess.Popen(isolated(bundle, work, *worker_command),
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, start_new_session=True)
             try:
                 hello = send(worker, envelope('hello', 'hello', {'requiredOperations': ['describe']}))

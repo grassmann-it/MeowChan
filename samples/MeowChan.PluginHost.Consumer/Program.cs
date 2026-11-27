@@ -89,10 +89,17 @@ try
         string compilerDirectory = Path.Combine(application, "plugin-compiler");
         string compiler = Path.Combine(compilerDirectory, "MeowChan.PluginCompiler" + suffix);
         string workerExecutable = Path.Combine(application, "plugin-worker", "MeowChan.PluginWorker" + suffix);
-        Require(File.Exists(compiler) && File.Exists(workerExecutable), "Delivered compiler and worker apphosts are required.");
+        string apphost = Path.Combine(application, "MeowChan" + suffix);
+        bool standaloneCompiler = File.Exists(compiler), standaloneWorker = File.Exists(workerExecutable);
+        if (!standaloneCompiler) compiler = apphost;
+        if (!standaloneWorker) workerExecutable = apphost;
+        Require(File.Exists(compiler) && File.Exists(workerExecutable), "Delivered apphost for the compiler and worker is required.");
         string source = Path.Combine(workspace, "editable synthetic plugin.cs");
         File.Copy(Path.Combine(AppContext.BaseDirectory, "PackageProbePlugin.cs"), source);
-        await using PluginCompilationService compilation = new(new PluginCompilerOptions(compiler, compilerDirectory, Path.Combine(workspace, "plugin cache")));
+        await using PluginCompilationService compilation = new(new PluginCompilerOptions(compiler, compilerDirectory, Path.Combine(workspace, "plugin cache"))
+        {
+            EntryArgument = standaloneCompiler ? null : "--meowchan-plugin-compiler"
+        });
         PluginBuildResult first = await compilation.BuildAsync(source, cancellationToken: token);
         Require(first.Succeeded, "Delivered compiler failed: " + string.Join("; ", first.Diagnostics.Select(item => item.Code + " " + item.Message)));
         PluginBuildResult repeated = await compilation.BuildAsync(source, cancellationToken: token);
@@ -102,7 +109,7 @@ try
         PluginBuildResult broken = await compilation.BuildAsync(brokenSource, cancellationToken: token);
         Require(!broken.Succeeded && broken.Diagnostics.Any(item => item.FilePath == brokenSource && item.Line > 0), "Syntax error did not carry source diagnostics.");
         PluginArtifact artifact = first.Artifact!;
-        PluginWorkerLaunch launch = new(workerExecutable, Array.Empty<string>(), Path.Combine(workspace, "worker spaces"));
+        PluginWorkerLaunch launch = new(workerExecutable, standaloneWorker ? [] : ["--meowchan-plugin-worker"], Path.Combine(workspace, "worker spaces"));
         ProbeServices services = new();
         int? workerPid = null;
         await using (PluginWorkerManager manager = new())
