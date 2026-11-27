@@ -5,7 +5,6 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
@@ -260,8 +259,12 @@ internal static class UpdateGuiChecks
         Button copy = about.GetVisualDescendants().OfType<Button>()
             .Single(control => AutomationProperties.GetAutomationId(control) == "about.copy-version");
         Require(versionText.Text == Texts.T("shell.version", expected), "About did not show the installed version identity.");
-        copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Require(await about.Clipboard!.TryGetTextAsync() == expected, "Copy version did not copy the installed version identity.");
+        bool copied = await ClipboardChecks.CheckIsolatedCopyAsync(about, () =>
+        {
+            copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            return Task.CompletedTask;
+        }, [], [], exactText: expected);
+        Require(copied, "The isolated clipboard was unavailable for Copy version.");
     }
 
     private static void Capture(Window window, string name)
