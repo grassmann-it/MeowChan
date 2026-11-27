@@ -181,7 +181,7 @@ public sealed class BooruMd5LookupTests
     private static BooruPostView WithHash(string id, string hash, BooruRating rating = BooruRating.General)
     {
         BooruPost post = BooruUiFixtures.Post(id, rating: rating, preview: false).Post;
-        BooruMediaVariant original = Assert.Single(post.Media!);
+        MeowChan.PluginSdk.BooruMediaVariant original = Assert.Single(post.Media!);
         return BooruPostView.From(post with { Media = [original with { Extension = ".png", ExpectedMd5 = hash }] });
     }
 
