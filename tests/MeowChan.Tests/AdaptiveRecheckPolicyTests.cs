@@ -37,7 +37,7 @@ public sealed class AdaptiveRecheckPolicyTests
         using TempDirectory directory = new();
         DateTimeOffset modified = DateTimeOffset.FromUnixTimeSeconds(1700000000);
         ConcurrentQueue<DateTimeOffset?> observedValidators = new();
-        using StubImageBoard provider = new(new DelegateHandler((request, _) =>
+        using DelegateHandler handler = new((request, _) =>
         {
             Assert.Equal("/g/thread/123.json", request.RequestUri!.AbsolutePath);
             observedValidators.Enqueue(request.Headers.IfModifiedSince);
@@ -51,7 +51,8 @@ public sealed class AdaptiveRecheckPolicyTests
             };
             response.Content.Headers.LastModified = check == 1 ? modified : modified.AddSeconds(1);
             return Task.FromResult(response);
-        }));
+        });
+        using StubImageBoard provider = new(handler);
         DownloadQueue queue = new(1, 1024 * 1024);
         if (adaptive) queue.AdaptiveRecheck = new(10, 60, 900);
         ClockedThread thread = new(provider.Board);
