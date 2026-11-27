@@ -18,6 +18,164 @@ namespace MeowChan.PluginRuntime.Tests;
 /// </summary>
 public sealed class BooruHostHttpContractTests
 {
+    [Theory]
+    [InlineData("text/html")]
+    [InlineData("application/json")]
+    public async Task ChallengeTerminatesRetryAndTemporarilyFencesNewJobs(string contentType)
+    {
+        using Rig rig = new((attempt, _, _) =>
+        {
+            if (attempt == 1) return Task.FromResult(Response(HttpStatusCode.ServiceUnavailable, "{}"));
+            HttpResponseMessage response = Response(HttpStatusCode.OK, "\uFEFF \n<!DOCTYPE html><html>challenge</html>");
+            response.Content.Headers.ContentType = new(contentType);
+            return Task.FromResult(response);
+        });
+        BooruJob job = rig.Services.OpenJob();
+        BooruJob replacement = rig.Services.OpenJob();
+        try
+        {
+            Task<HostHttpResult> pending = rig.Send(job);
+            await rig.Clock.WaitForTimerAsync(BooruHostHttp.RetryDelay, Bound);
+            rig.Clock.Advance(BooruHostHttp.RetryDelay);
+            AssertChallenge(await pending.WaitAsync(Bound));
+            AssertChallenge(await rig.Send(job).WaitAsync(Bound));
+            AssertChallenge(await rig.Send(replacement).WaitAsync(Bound));
+            Assert.Equal(2, rig.Sends);
+
+            rig.Clock.Advance(BooruHostHttp.MinimumCooldown);
+            AssertChallenge(await rig.Send(replacement).WaitAsync(Bound));
+            Assert.Equal(3, rig.Sends);
+        }
+        finally
+        {
+            rig.Services.CloseJob(job);
+            rig.Services.CloseJob(replacement);
+        }
+
+        static void AssertChallenge(HostHttpResult result)
+        {
+            HostHttpFailure failure = Assert.IsType<HostHttpFailure>(result);
+            Assert.Equal("http-challenge", failure.Failure.Code);
+            Assert.Equal(200, failure.Failure.HttpStatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task CredentialsReachOnlyBoundMetadataAndNeverOriginalMedia()
+    {
+        SourceDescription source = Source() with
+        {
+            HttpHosts = [new("danbooru.test", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia),
+                new("second.test", HttpHostPurpose.Metadata)]
+        };
+        Uri origin = source.BaseUri;
+        ManualClock clock = new();
+        RequestPolicyState policy = new(clock);
+        AuthenticationHeaderValue credential = new("Basic", "Zml4dHVyZTp4");
+        List<(Uri Uri, AuthenticationHeaderValue? Authorization)> seen = [];
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            seen.Add((request.RequestUri!, request.Headers.Authorization));
+            if (request.RequestUri!.AbsolutePath == "/posts/42.json")
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Found)
+                {
+                    Headers = { Location = new Uri("https://second.test/posts/42.json") }
+                });
+            return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
+        }));
+        int reads = 0;
+        using BooruHostHttp host = new(transport, policy, [source], maximumCooldownProvider: null,
+            metadataAccount: (_, _, _) => new(origin, _ => ValueTask.FromResult<AuthenticationHeaderValue?>(Read()), default));
+        BooruHostServices services = new(new Inner(), host);
+        using HttpClient media = PluginOriginalMediaHttp.CreateClient(transport, source, policy);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            BooruSearchRequest typed = new(source.SourceId, "cat", 1, 20);
+            HostHttpRequest metadata = new(source.SourceId, HostHttpMethod.Get, new(origin, "posts.json?tags=cat&page=1&limit=20"));
+            HostHttpRequest secondTarget = metadata with { Url = new("https://second.test/posts.json?tags=cat&page=1&limit=20") };
+            Assert.IsType<HostHttpFailure>(await host.SendBoundAsync(secondTarget, source, typed, job, default));
+            Assert.IsType<HostHttpFailure>(await host.SendBoundAsync(metadata, source, typed with { Query = "dog" }, job, default));
+            Assert.IsType<HostHttpFailure>(await host.SendBoundAsync(metadata with { Url = new(origin, "image.jpg") }, source, typed, job, default));
+            Assert.Equal(0, reads);
+            Assert.Empty(seen);
+
+            Assert.IsType<HostHttpResponse>(await host.SendBoundAsync(metadata, source, typed, job, default));
+            Assert.Equal((metadata.Url, credential), Assert.Single(seen));
+
+            using HttpResponseMessage downloaded = await media.GetAsync(new Uri(origin, "image.jpg")).WaitAsync(Bound);
+            Assert.Equal(HttpStatusCode.OK, downloaded.StatusCode);
+            Assert.Null(seen[^1].Authorization);
+
+            clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            Assert.IsType<HostHttpResponse>(await host.SendAsync(metadata, source, job, default));
+            Assert.Null(seen[^1].Authorization);
+
+            clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            HostHttpRequest post = metadata with { Url = new(origin, "posts/42.json") };
+            HostHttpFailure redirected = Assert.IsType<HostHttpFailure>(await host.SendBoundAsync(post, source,
+                new BooruPostRequest(new(source.SourceId, "42")), job, default));
+            Assert.Equal("http-redirect", redirected.Failure.Code);
+            Assert.Equal((post.Url, credential), seen[^1]);
+            Assert.Equal(4, seen.Count);
+            Assert.Equal(2, reads);
+        }
+        finally { services.CloseJob(job); }
+
+        AuthenticationHeaderValue Read()
+        {
+            ++reads;
+            return credential;
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AccountGenerationChangeRefusesWaitingSendsAndLateResults(bool waitingForSpacing)
+    {
+        ManualClock clock = new();
+        SourceDescription source = Source();
+        using CancellationTokenSource account = new();
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource reply = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int sends = 0;
+        using HttpClient transport = new(new Handler(async (_, _) =>
+        {
+            Interlocked.Increment(ref sends);
+            if (!waitingForSpacing)
+            {
+                entered.TrySetResult();
+                await reply.Task;
+            }
+            return Response(HttpStatusCode.OK, "{}");
+        }));
+        using BooruHostHttp host = new(transport, new RequestPolicyState(clock), [source], maximumCooldownProvider: null,
+            metadataAccount: (_, _, _) => new(source.BaseUri, _ =>
+                ValueTask.FromResult<AuthenticationHeaderValue?>(new("Basic", "Zml4dHVyZTp4")), account.Token));
+        BooruHostServices services = new(new Inner(), host);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            if (waitingForSpacing) Assert.IsType<HostHttpResponse>(await host.SendAsync(Get(), source, job, default));
+            HostHttpRequest request = Get() with { Url = new(source.BaseUri, "posts.json?tags=cat&page=1&limit=20") };
+            Task<HostHttpResult> pending = host.SendBoundAsync(request, source, new BooruSearchRequest(source.SourceId, "cat", 1, 20), job, default);
+            if (waitingForSpacing) await clock.WaitForTimerAsync(BooruHostHttp.MinimumStartSpacing, Bound);
+            else await entered.Task.WaitAsync(Bound);
+
+            await account.CancelAsync();
+            reply.TrySetResult();
+            HostHttpFailure invalidated = Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound));
+            Assert.Equal("source_unavailable", invalidated.Failure.Code);
+            Assert.Equal(1, Volatile.Read(ref sends));
+        }
+        finally
+        {
+            reply.TrySetResult();
+            services.CloseJob(job);
+        }
+    }
+
     private sealed class Rig : IDisposable
     {
         internal readonly ManualClock Clock = new();
