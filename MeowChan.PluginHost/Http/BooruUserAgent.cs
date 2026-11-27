@@ -9,6 +9,9 @@ public static class BooruUserAgent
     private const string ProductPrefix = "MeowChan/";
     private const string ProductSuffix = " (+https://github.com/grassmann-it/MeowChan)";
 
+    internal static string BuildForE621Family(string productVersion) =>
+        ProductPrefix + NormalizeProductVersion(productVersion) + " (+https://github.com/grassmann-it/MeowChan/issues)";
+
     public static string Build(string productVersion, string? danbooruUserId = null)
     {
         string version = NormalizeProductVersion(productVersion);

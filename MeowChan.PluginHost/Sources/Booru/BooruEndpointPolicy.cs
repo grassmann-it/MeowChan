@@ -39,6 +39,10 @@ internal static class BooruEndpointPolicy
 
     internal static bool IsDanbooru(string? sourceId) => string.Equals(sourceId, DanbooruPostReference.ProviderId, StringComparison.Ordinal);
 
+    internal static bool IsE621Family(SourceDescription source) => source.SourceId is "e621" or "e926"
+        || source.HttpHosts.Any(host => host.Purpose.HasFlag(HttpHostPurpose.Metadata)
+            && host.Host.TrimEnd('.').ToUpperInvariant() is "E621.NET" or "E926.NET" or "WWW.E621.NET" or "WWW.E926.NET");
+
     /// <summary>The profile the host enforces for this source, or null when it has none (fail closed).</summary>
     internal static BooruSourceProfile? Resolve(SourceDescription source)
     {
