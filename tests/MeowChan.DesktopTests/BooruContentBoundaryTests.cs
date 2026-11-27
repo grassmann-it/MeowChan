@@ -15,10 +15,10 @@ public sealed class BooruContentBoundaryTests
     {
         BooruUiHarness harness = new();
         BooruWorkspaceContent content = new(Rules(1, BooruPostClaimRating.Sensitive, "blocked_tag"));
-        BooruPostView explicitPost = BooruUiFixtures.Post("41", rating: BooruRating.Explicit);
-        BooruPostView blacklisted = BooruUiFixtures.Post("42", tags: ["blocked_tag"]);
-        BooruPostView unknown = BooruUiFixtures.Post("43", rating: BooruRating.Unknown);
-        BooruPostView control = BooruUiFixtures.Post("44");
+        BooruPostView explicitPost = Post("41", rating: BooruRating.Explicit);
+        BooruPostView blacklisted = Post("42", tags: ["blocked_tag"]);
+        BooruPostView unknown = Post("43", rating: BooruRating.Unknown);
+        BooruPostView control = Post("44");
         harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(page == 1
             ? BooruUiFixtures.Page(query, page, false, explicitPost, blacklisted, unknown)
             : BooruUiFixtures.Page(query, page, true, control)));
@@ -30,8 +30,8 @@ public sealed class BooruContentBoundaryTests
         Assert.True(model.View.HasNextPage);
         Assert.Equal(0, harness.Previews.Requests);
         await model.GoToPageAsync(2);
-        await BooruTestSupport.WaitAsync(() => model.View.Rows[0].Preview == BooruPreviewState.Ready, "the allowed thumbnail");
         Assert.Equal("44", Assert.Single(model.View.Rows).Post.PostId);
+        await BooruTestSupport.WaitAsync(() => model.View.Rows[0].Preview == BooruPreviewState.Ready, "the allowed thumbnail");
         Assert.Equal(1, harness.Previews.Requests);
 
         await model.DownloadAllAsync();
@@ -43,7 +43,7 @@ public sealed class BooruContentBoundaryTests
     public async Task UnconfirmedChoiceAndSinglePostLookupSendNoMedia()
     {
         BooruUiHarness harness = new();
-        BooruPostView post = BooruUiFixtures.Post("41", rating: BooruRating.Explicit, sample: true);
+        BooruPostView post = Post("41", rating: BooruRating.Explicit, sample: true);
         harness.Search.OnPost = (_, _) => Task.FromResult(BooruCallResult<BooruPostView>.Ok(post));
         BooruWorkspaceContent content = new(Rules(0, null));
         using BooruSearchModel model = Create(harness, content);
@@ -70,8 +70,8 @@ public sealed class BooruContentBoundaryTests
         BooruWorkspaceContent content = new(Rules(1, BooruPostClaimRating.Sensitive));
         using BooruSearchModel model = Create(harness, content);
         BooruSearchTabTarget target = new(null, null, null, "cat", Page: 2, IsEnd: false, LastResultPage: 3,
-            Rows: [new(BooruUiFixtures.Post("41", rating: BooruRating.Explicit).Post, [1, 2, 3]),
-                new(BooruUiFixtures.Post("42").Post, [4, 5, 6])]);
+            Rows: [new(Post("41", rating: BooruRating.Explicit).Post, [1, 2, 3]),
+                new(Post("42").Post, [4, 5, 6])]);
 
         BooruSearchView cached = model.ViewFromTarget(target, 10, null);
         Assert.Equal("42", Assert.Single(cached.Rows).Post.PostId);
@@ -93,7 +93,7 @@ public sealed class BooruContentBoundaryTests
     {
         BooruUiHarness harness = new();
         BooruWorkspaceContent content = new(Rules(1, BooruPostClaimRating.Explicit));
-        BooruPostView post = BooruUiFixtures.Post("41", rating: BooruRating.Explicit, sample: true);
+        BooruPostView post = Post("41", rating: BooruRating.Explicit, sample: true);
         harness.Search.OnPost = (_, _) => Task.FromResult(BooruCallResult<BooruPostView>.Ok(post));
         TaskCompletionSource<byte[]?> pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
         harness.Previews.OnPreviewAsync = (_, _) => pending.Task;
@@ -120,7 +120,7 @@ public sealed class BooruContentBoundaryTests
         using BooruPreviewHttp http = new(client, source);
         BooruWorkspaceContent content = new(Rules(1, BooruPostClaimRating.Explicit));
         BooruHostPreviewPort port = new(http, source.SourceId, content: content);
-        BooruPostView post = BooruUiFixtures.Post("41", rating: BooruRating.Explicit, sample: true);
+        BooruPostView post = Post("41", rating: BooruRating.Explicit, sample: true);
 
         Assert.NotNull(await port.LoadPreviewAsync(post, CancellationToken.None));
         Assert.NotNull((await port.LoadSampleAsync(post, 1024 * 1024, 1024 * 1024,
@@ -141,7 +141,7 @@ public sealed class BooruContentBoundaryTests
         BooruWorkspaceContent content = new(Rules(1, BooruPostClaimRating.Sensitive));
         BooruGallerySampleLoader loader = new() { AllowsMedia = content.Allows };
         loader.Reset(offered: true);
-        Assert.Null(loader.Start(previews, BooruUiFixtures.Post("41", rating: BooruRating.Explicit, sample: true),
+        Assert.Null(loader.Start(previews, Post("41", rating: BooruRating.Explicit, sample: true),
             null, TimeSpan.Zero, (bytes, width, pixels) => BooruGalleryPanel.DecodeBitmap(bytes, width, pixels),
             _ => false, () => { }));
         Assert.Empty(previews.SampleRequests);
@@ -155,6 +155,17 @@ public sealed class BooruContentBoundaryTests
                 RequestMessage = request,
                 Content = new ByteArrayContent(BooruUiFixtures.Png(3))
             });
+    }
+
+    private static BooruPostView Post(string id, BooruRating rating = BooruRating.General, string[]? tags = null, bool sample = false)
+    {
+        BooruPost post = BooruUiFixtures.Post(id, rating: rating, tags: tags, sample: sample).Post;
+        // The production SDK accepts only dot-prefixed extensions.
+        return BooruPostView.From(post with
+        {
+            Media = post.Media!.Select(media => media.Extension is { } extension
+                ? media with { Extension = "." + extension.TrimStart('.') } : media).ToArray()
+        });
     }
 
     private static BooruSearchModel Create(BooruUiHarness harness, BooruWorkspaceContent content) =>
