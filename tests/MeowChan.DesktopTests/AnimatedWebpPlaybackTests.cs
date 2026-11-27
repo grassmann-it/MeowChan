@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Controls;
@@ -52,6 +54,103 @@ public sealed class AnimatedWebpPlaybackTests
         GalleryEntry entry = await CopyAsync(temp, fixture, name);
         await using var decoder = await GifFrameDecoder.OpenAnimationAsync(entry, CancellationToken.None);
         Assert.Null(decoder);
+    }
+
+    [Fact]
+    public async Task RejectsOversizedGifEvenWhenItContainsOnlyOneFrame()
+    {
+        using TempDirectory temp = new();
+        byte[] bytes = await File.ReadAllBytesAsync(Fixture("../gif-playback/single-frame.gif"));
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), 6000);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), 4000);
+        GalleryEntry entry = await WriteAsync(temp, "oversized.gif", bytes);
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(
+            () => GifFrameDecoder.OpenAnimationAsync(entry, CancellationToken.None));
+        Assert.Contains("16 million pixel", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StillWebpCanBeClassifiedWhileAnAnimationDecodeOwnsTheCodecSlot()
+    {
+        using TempDirectory temp = new();
+        GalleryEntry animated = await CopyAsync(temp, "animated.webp");
+        GalleryEntry still = await CopyAsync(temp, "still.webp");
+        await using var decoder = await GifFrameDecoder.OpenAnimationAsync(animated, CancellationToken.None);
+        Assert.NotNull(decoder);
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        decoder.BeforeNativeDecode = () =>
+        {
+            entered.SetResult();
+            release.Task.GetAwaiter().GetResult();
+        };
+        Task<GifDecodedFrame> active = decoder.DecodeAsync(0, CancellationToken.None);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(2));
+            await using var stillDecoder = await GifFrameDecoder.OpenAnimationAsync(still, timeout.Token);
+            Assert.Null(stillDecoder);
+        }
+        finally
+        {
+            release.TrySetResult();
+            using GifDecodedFrame completed = await active;
+        }
+    }
+
+    [Fact]
+    public void PresentedWebpFramesFollowEncodedDelaysEvenWhenTheNextDecodeTakesTime() =>
+        BooruComponentDispatcher.Run(async () =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory temp = new();
+            GalleryEntry entry = await CopyAsync(temp, "animated.webp");
+            using JsonDocument manifest = JsonDocument.Parse(await File.ReadAllTextAsync(Fixture("manifest.json")));
+            int[] durations = manifest.RootElement.GetProperty("frames").EnumerateArray()
+                .Select(frame => frame.GetProperty("duration_ms").GetInt32()).ToArray();
+            var decoder = await GifFrameDecoder.OpenAnimationAsync(entry, CancellationToken.None);
+            Assert.NotNull(decoder);
+            Image image = new();
+            Window window = new() { Width = 200, Height = 120, Content = image };
+            await using var player = await GalleryGifPlayback.OpenAsync(
+                new DelayedWebpDecoder(decoder), image, CancellationToken.None);
+            try
+            {
+                window.Show();
+                ContextGestures.Settle(window);
+                player.Adopt();
+                Assert.Equal(1, player.Evidence.FramesPresented);
+                List<long> presented = [Stopwatch.GetTimestamp()];
+                player.SetActive(true);
+                using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
+                while (presented.Count < durations.Length)
+                {
+                    await Task.Delay(1, deadline.Token);
+                    if (player.Evidence.FramesPresented == presented.Count) continue;
+                    Assert.Equal(presented.Count + 1, player.Evidence.FramesPresented);
+                    presented.Add(Stopwatch.GetTimestamp());
+                }
+                for (int index = 0; index < presented.Count - 1; index++)
+                    Assert.InRange(Stopwatch.GetElapsedTime(presented[index], presented[index + 1]).TotalMilliseconds,
+                        durations[index] - 10, durations[index] + 10);
+            }
+            finally { window.Close(); }
+        });
+
+    private sealed class DelayedWebpDecoder(IGifFrameDecoder decoder) : IGifFrameDecoder
+    {
+        public GalleryImageInfo Info => decoder.Info;
+        public int FrameCount => decoder.FrameCount;
+        public int RepetitionCount => decoder.RepetitionCount;
+        public int DurationMs(int index) => decoder.DurationMs(index);
+        public async Task<GifDecodedFrame> DecodeAsync(int index, CancellationToken token)
+        {
+            if (index == 2) await Task.Delay(40, token).ConfigureAwait(false);
+            return await decoder.DecodeAsync(index, token).ConfigureAwait(false);
+        }
+        public ValueTask DisposeAsync() => decoder.DisposeAsync();
     }
 
     [Fact]
@@ -149,10 +248,11 @@ public sealed class AnimatedWebpPlaybackTests
         Assert.Contains("64 MiB", error.Message, StringComparison.Ordinal);
     }
 
-    private static async Task<GalleryEntry> CopyAsync(TempDirectory temp, string fixture, string? name = null)
+    private static async Task<GalleryEntry> CopyAsync(TempDirectory temp, string fixture, string? name = null) =>
+        await WriteAsync(temp, name ?? fixture, await File.ReadAllBytesAsync(Fixture(fixture)));
+
+    private static async Task<GalleryEntry> WriteAsync(TempDirectory temp, string name, byte[] bytes)
     {
-        name ??= fixture;
-        byte[] bytes = await File.ReadAllBytesAsync(Fixture(fixture));
         string path = Path.Combine(temp.Path, name);
         await File.WriteAllBytesAsync(path, bytes);
         MediaAssetReference asset = new(name, name, "original", name, path, bytes.Length, Hash(bytes), "", name, true);
