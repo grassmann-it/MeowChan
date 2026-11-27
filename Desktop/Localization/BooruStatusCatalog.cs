@@ -16,6 +16,8 @@ internal static class BooruStatusCatalog
         ("booru.failure.invalid_limit", "The requested number of results per page is not supported.", "Die angeforderte Anzahl von Ergebnissen pro Seite wird nicht unterstützt."),
         ("booru.failure.capability", "This source does not offer post search.", "Diese Quelle bietet keine Post-Suche."),
         ("booru.failure.booru-source", "This source is not available for post search.", "Diese Quelle ist für die Post-Suche nicht verfügbar."),
+        ("booru.failure.source_unavailable", "The source or account changed or became unavailable. Check the source settings and try again.",
+            "Die Quelle oder das Konto wurde geändert oder ist nicht mehr verfügbar. Prüfe die Einstellungen der Quelle und versuche es erneut."),
         ("booru.failure.booru-job", "The request is no longer active.", "Die Anfrage ist nicht mehr aktiv."),
         ("booru.failure.http-request", "The request was not sent because it does not meet MeowChan's safety rules.", "Die Anfrage wurde nicht gesendet, weil sie die Sicherheitsregeln von MeowChan nicht erfüllt."),
         ("booru.failure.booru-budget", "This search reached its limit for requests or time. Try again later.", "Diese Suche hat ihre Grenze für Anfragen oder Zeit erreicht. Später erneut versuchen."),

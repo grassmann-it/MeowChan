@@ -3441,6 +3441,7 @@
     "booru.failure.invalid_limit": "O número de resultados por página solicitado não é compatível.",
     "booru.failure.capability": "Esta fonte não oferece pesquisa de postagens.",
     "booru.failure.booru-source": "Esta fonte não está disponível para pesquisa de postagens.",
+    "booru.failure.source_unavailable": "A fonte ou a conta mudou ou ficou indisponível. Verifique as configurações da fonte e tente novamente.",
     "booru.failure.booru-job": "A requisição não está mais ativa.",
     "booru.failure.http-request": "A requisição não foi enviada porque não atende às regras de segurança do MeowChan.",
     "booru.failure.booru-budget": "Esta pesquisa atingiu o limite de requisições ou de tempo. Tente de novo mais tarde.",

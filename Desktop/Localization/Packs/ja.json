@@ -3296,6 +3296,7 @@
     "booru.failure.invalid_limit": "指定された1ページあたりの結果件数には対応していません。",
     "booru.failure.capability": "このソースは投稿検索を提供していません。",
     "booru.failure.booru-source": "このソースは投稿検索に利用できません。",
+    "booru.failure.source_unavailable": "ソースまたはアカウントが変更されたか、利用できなくなりました。ソースの設定を確認して、もう一度お試しください。",
     "booru.failure.booru-job": "このリクエストはもうアクティブではありません。",
     "booru.failure.http-request": "MeowChanの安全ルールを満たさないため、リクエストは送信されませんでした。",
     "booru.failure.booru-budget": "この検索はリクエスト数または時間の上限に達しました。しばらくしてからもう一度お試しください。",

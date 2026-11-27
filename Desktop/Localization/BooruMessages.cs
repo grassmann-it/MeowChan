@@ -20,6 +20,7 @@ internal static class BooruMessages
         ["invalid_limit"] = "booru.failure.invalid_limit",
         ["capability"] = "booru.failure.capability",
         ["booru-source"] = "booru.failure.booru-source",
+        [Booru.BooruCodes.SourceUnavailable] = "booru.failure.source_unavailable",
         ["booru-job"] = "booru.failure.booru-job",
         ["http-request"] = "booru.failure.http-request",
         ["booru-budget"] = "booru.failure.booru-budget",

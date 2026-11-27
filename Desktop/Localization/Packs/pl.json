@@ -3463,6 +3463,7 @@
     "booru.failure.invalid_limit": "Żądana liczba wyników na stronie nie jest obsługiwana.",
     "booru.failure.capability": "To źródło nie oferuje wyszukiwania postów.",
     "booru.failure.booru-source": "To źródło nie jest dostępne dla wyszukiwania postów.",
+    "booru.failure.source_unavailable": "Źródło lub konto zmieniło się albo stało się niedostępne. Sprawdź ustawienia źródła i spróbuj ponownie.",
     "booru.failure.booru-job": "Żądanie nie jest już aktywne.",
     "booru.failure.http-request": "Żądanie nie zostało wysłane, ponieważ nie spełnia reguł bezpieczeństwa MeowChan.",
     "booru.failure.booru-budget": "To wyszukiwanie osiągnęło limit żądań lub czasu. Spróbuj ponownie później.",

@@ -3462,6 +3462,7 @@
     "booru.failure.invalid_limit": "Požadovaný počet výsledků na stránku není podporován.",
     "booru.failure.capability": "Tento zdroj nenabízí hledání příspěvků.",
     "booru.failure.booru-source": "Tento zdroj není pro hledání příspěvků k dispozici.",
+    "booru.failure.source_unavailable": "Zdroj nebo účet se změnil nebo již není dostupný. Zkontrolujte nastavení zdroje a zkuste to znovu.",
     "booru.failure.booru-job": "Požadavek už není aktivní.",
     "booru.failure.http-request": "Požadavek nebyl odeslán, protože nesplňuje bezpečnostní pravidla MeowChan.",
     "booru.failure.booru-budget": "Toto hledání dosáhlo limitu požadavků nebo času. Zkuste to později.",

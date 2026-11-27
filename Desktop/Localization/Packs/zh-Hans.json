@@ -3296,6 +3296,7 @@
     "booru.failure.invalid_limit": "不支持请求的每页结果数量。",
     "booru.failure.capability": "此来源不提供帖子搜索。",
     "booru.failure.booru-source": "此来源无法用于帖子搜索。",
+    "booru.failure.source_unavailable": "来源或账户已更改或不可用。请检查来源设置后重试。",
     "booru.failure.booru-job": "该请求已不再活动。",
     "booru.failure.http-request": "该请求未被发送，因为它不符合 MeowChan 的安全规则。",
     "booru.failure.booru-budget": "此搜索已达到请求次数或时间限制。请稍后重试。",

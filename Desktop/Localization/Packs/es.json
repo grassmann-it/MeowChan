@@ -3484,6 +3484,7 @@
     "booru.failure.invalid_limit": "No se admite el número de resultados por página solicitado.",
     "booru.failure.capability": "Esta fuente no ofrece búsqueda de publicaciones.",
     "booru.failure.booru-source": "Esta fuente no está disponible para la búsqueda de publicaciones.",
+    "booru.failure.source_unavailable": "La fuente o la cuenta han cambiado o ya no están disponibles. Revise la configuración de la fuente e inténtelo de nuevo.",
     "booru.failure.booru-job": "La solicitud ya no está activa.",
     "booru.failure.http-request": "La solicitud no se envió porque no cumple las reglas de seguridad de MeowChan.",
     "booru.failure.booru-budget": "Esta búsqueda alcanzó su límite de solicitudes o de tiempo. Inténtelo de nuevo más tarde.",

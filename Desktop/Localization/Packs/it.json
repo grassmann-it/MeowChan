@@ -3441,6 +3441,7 @@
     "booru.failure.invalid_limit": "Il numero di risultati richiesto per pagina non è supportato.",
     "booru.failure.capability": "Questa fonte non offre la ricerca dei post.",
     "booru.failure.booru-source": "Questa fonte non è disponibile per la ricerca dei post.",
+    "booru.failure.source_unavailable": "La fonte o l’account è cambiato o non è più disponibile. Controlla le impostazioni della fonte e riprova.",
     "booru.failure.booru-job": "La richiesta non è più attiva.",
     "booru.failure.http-request": "La richiesta non è stata inviata perché non rispetta le regole di sicurezza di MeowChan.",
     "booru.failure.booru-budget": "Questa ricerca ha raggiunto il suo limite di richieste o di tempo. Riprova più tardi.",

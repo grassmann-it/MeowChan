@@ -3296,6 +3296,7 @@
     "booru.failure.invalid_limit": "요청한 페이지당 결과 수는 지원되지 않습니다.",
     "booru.failure.capability": "이 소스는 게시물 검색을 제공하지 않습니다.",
     "booru.failure.booru-source": "이 소스는 게시물 검색에 사용할 수 없습니다.",
+    "booru.failure.source_unavailable": "소스 또는 계정이 변경되었거나 더 이상 사용할 수 없습니다. 소스 설정을 확인한 후 다시 시도하세요.",
     "booru.failure.booru-job": "요청이 더 이상 활성 상태가 아닙니다.",
     "booru.failure.http-request": "MeowChan의 안전 규칙을 충족하지 않아 요청을 보내지 않았습니다.",
     "booru.failure.booru-budget": "이 검색이 요청 수 또는 시간 한도에 도달했습니다. 나중에 다시 시도하세요.",
