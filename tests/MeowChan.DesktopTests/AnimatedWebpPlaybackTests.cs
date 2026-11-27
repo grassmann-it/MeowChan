@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -8,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -121,60 +121,59 @@ public sealed class AnimatedWebpPlaybackTests
             Assert.NotNull(decoder);
             Image image = new() { Width = 120, Height = 80 };
             Window window = new() { Width = 200, Height = 120, Content = new Grid { Children = { image } } };
+            IoManualClock clock = new(DateTimeOffset.UnixEpoch);
             await using var player = await GalleryGifPlayback.OpenAsync(
-                new DelayedWebpDecoder(decoder), image, CancellationToken.None);
-            TaskCompletionSource visibleViewport = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            image.EffectiveViewportChanged += (_, args) =>
-            {
-                Rect viewport = args.EffectiveViewport;
-                if (image.IsEffectivelyVisible && viewport.Width > 0 && viewport.Height > 0
-                    && image.Bounds.Width > 0 && image.Bounds.Height > 0)
-                    visibleViewport.TrySetResult();
-            };
+                new DelayedWebpDecoder(decoder, clock), image, CancellationToken.None, clock);
+            Assert.Null(image.Source);
+            // Avalonia arranges a sourceless Image at 0 × 0. Open the animation over a visible still.
+            using Bitmap still = new(Fixture("still.webp"));
+            image.Source = still;
+            Rect viewport = default;
+            image.EffectiveViewportChanged += (_, args) => viewport = args.EffectiveViewport;
             try
             {
                 using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(5));
                 window.Show();
                 window.PlatformImpl!.Activated?.Invoke();
                 ContextGestures.Settle(window);
-                await visibleViewport.Task.WaitAsync(deadline.Token);
                 Assert.True(window.IsActive);
                 using (var initialRender = window.CaptureRenderedFrame())
                     Assert.NotNull(initialRender);
-                Assert.Null(image.Source);
+                Assert.Same(window, TopLevel.GetTopLevel(image));
+                Assert.True(image.IsEffectivelyVisible);
+                Rect visible = viewport.Intersect(new Rect(image.Bounds.Size));
+                Assert.True(visible.Width > 0 && visible.Height > 0, $"Viewport {viewport}, image {image.Bounds}");
+                Assert.Same(still, image.Source);
                 Assert.Equal(0, player.Evidence.FramesPresented);
 
                 var bitmap = Assert.IsType<WriteableBitmap>(player.Bitmap);
                 byte[] pixels = new byte[bitmap.PixelSize.Width * bitmap.PixelSize.Height * 4];
-                string? previous = null;
-                List<long> presented = [];
-                void ObservePresentation()
-                {
-                    long timestamp = Stopwatch.GetTimestamp();
-                    string hash = ReadFrameHash(bitmap, pixels);
-                    if (hash == previous) return;
-                    Assert.Equal(hashes[presented.Count % hashes.Length], hash);
-                    Assert.Equal(presented.Count + 1, player.Evidence.FramesPresented);
-                    previous = hash;
-                    presented.Add(timestamp);
-                }
+                List<(long Time, long Count, string Hash)> presented = [];
+                player.FramePresented += () => presented.Add((
+                    clock.GetTimestamp(), player.Evidence.FramesPresented, ReadFrameHash(bitmap, pixels)));
 
                 player.SetActive(true);
                 player.Adopt();
-                Assert.Same(player.Bitmap, image.Source);
-                ObservePresentation();
+                Assert.Same(bitmap, image.Source);
                 Assert.Single(presented);
-                while (presented.Count < presentations)
+                for (int ms = 0; ms < 5000 && !player.Evidence.Ended; ms++)
                 {
-                    await Task.Delay(1, deadline.Token);
-                    ObservePresentation();
+                    deadline.Token.ThrowIfCancellationRequested();
+                    clock.Advance(TimeSpan.FromMilliseconds(1));
+                    Dispatcher.UIThread.RunJobs();
                 }
-                for (int index = 0; index < presented.Count - 1; index++)
+                Assert.Null(player.Evidence.Failure);
+                Assert.True(player.Evidence.Ended);
+                Assert.Equal(presentations, presented.Count);
+                for (int index = 0; index < presented.Count; index++)
                 {
-                    int duration = durations[index % durations.Length];
-                    double actual = Stopwatch.GetElapsedTime(presented[index], presented[index + 1]).TotalMilliseconds;
+                    Assert.Equal(index + 1, presented[index].Count);
+                    Assert.Equal(hashes[index % hashes.Length], presented[index].Hash);
+                    if (index == 0) continue;
+                    int duration = durations[(index - 1) % durations.Length];
+                    double actual = clock.GetElapsedTime(presented[index - 1].Time, presented[index].Time).TotalMilliseconds;
                     Assert.True(Math.Abs(actual - duration) <= 10,
-                        $"Frame {index + 1} → {index + 2}: expected {duration} ± 10 ms, observed {actual:F2} ms.");
+                        $"Frame {index} → {index + 1}: expected {duration} ± 10 ms, observed {actual:F2} ms.");
                 }
 
                 await player.DisposeAsync();
@@ -193,7 +192,7 @@ public sealed class AnimatedWebpPlaybackTests
         return Hash(pixels);
     }
 
-    private sealed class DelayedWebpDecoder(IGifFrameDecoder decoder) : IGifFrameDecoder
+    private sealed class DelayedWebpDecoder(IGifFrameDecoder decoder, TimeProvider clock) : IGifFrameDecoder
     {
         public GalleryImageInfo Info => decoder.Info;
         public int FrameCount => decoder.FrameCount;
@@ -201,8 +200,9 @@ public sealed class AnimatedWebpPlaybackTests
         public int DurationMs(int index) => decoder.DurationMs(index);
         public async Task<GifDecodedFrame> DecodeAsync(int index, CancellationToken token)
         {
-            if (index == 2) await Task.Delay(40, token).ConfigureAwait(false);
-            return await decoder.DecodeAsync(index, token).ConfigureAwait(false);
+            if (index == 2) await Task.Delay(TimeSpan.FromMilliseconds(40), clock, token);
+            // Keep virtual time stationary while the real codec produces the fixture pixels.
+            return BooruComponentDispatcher.Wait(decoder.DecodeAsync(index, token));
         }
         public ValueTask DisposeAsync() => decoder.DisposeAsync();
     }
