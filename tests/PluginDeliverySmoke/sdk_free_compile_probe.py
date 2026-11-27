@@ -29,11 +29,9 @@ SOURCE_PLUGIN_IDS = {
     'PngMetadataFilter.cs': 'meowchan.filter.png-metadata',
     'SevenChan.cs': 'meowchan.source.sevenchan',
     'BbwChan.cs': 'meowchan.source.bbwchan',
-    'AnonImageboards.cs': 'meowchan.source.anonimageboards',
     'CapybaraChan.cs': 'meowchan.source.capybarachan',
     'EightchanMoe.cs': 'meowchan.source.eightchanmoe',
     'Fchan.cs': 'meowchan.source.fchan',
-    'GuroCx.cs': 'meowchan.source.gurocx',
 }
 
 

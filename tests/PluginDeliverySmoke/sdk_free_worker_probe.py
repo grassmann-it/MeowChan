@@ -108,11 +108,10 @@ def main():
                     'MeowChan.Plugin.JschanFamily': 'meowchan.source.jschan',
                     'MeowChan.Plugin.SevenChan': 'meowchan.source.sevenchan',
                     'MeowChan.Plugin.BbwChan': 'meowchan.source.bbwchan',
-                    'MeowChan.Plugin.AnonImageboards': 'meowchan.source.anonimageboards',
                     'MeowChan.Plugin.CapybaraChan': 'meowchan.source.capybarachan',
                     'MeowChan.Plugin.EightchanMoe': 'meowchan.source.eightchanmoe',
                     'MeowChan.Plugin.Fchan': 'meowchan.source.fchan',
-                    'MeowChan.Plugin.GuroCx': 'meowchan.source.gurocx'}
+                    'MeowChan.Plugin.E621': 'meowchan.official.e621'}
     blocked_ids = {'meowchan.source.anonimageboards', 'meowchan.source.gurocx'}
     manifests = sorted((bundle / 'plugins').glob('*.plugin.json'))
     assert {path.stem.removesuffix(".plugin") for path in manifests} == set(expected_ids)

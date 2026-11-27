@@ -1,10 +1,9 @@
 # Public desktop plugin inventory
 
-This is the public desktop package contract for the 1.2 line. It is a build-time
-allowlist, not a scan of the repository or of a user's profile. The package
-contains exactly the 18 bundle identities below, their generated manifests and
-assemblies, and the 15 editable example/filter source files listed afterwards.
-Danbooru is included as an official post-search bundle.
+The MeowChan 1.2.0 build uses an explicit allowlist for the public desktop package.
+The package contains exactly the 19 bundle identities below, their generated
+manifests and assemblies, and the 15 editable example and filter source files.
+The official post-search bundles provide Danbooru, e621 and e926.
 
 ## Bundled plugin identities
 
@@ -16,6 +15,7 @@ Every row produces `plugins/<identity>.plugin.json` and
 | Official | `MeowChan.Plugin.FourChan` |
 | Official | `MeowChan.Plugin.EightKun` |
 | Official | `MeowChan.Plugin.Danbooru` |
+| Official | `MeowChan.Plugin.E621` |
 | Examples / filters | `MeowChan.Plugin.VichanFamily` |
 | Examples / filters | `MeowChan.Plugin.Kohlchan` |
 | Examples / filters | `MeowChan.ImageDimensionsFilter` |
