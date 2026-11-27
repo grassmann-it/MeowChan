@@ -95,14 +95,14 @@ public sealed class GalleryFitModeTests
         Assert.Empty(defaults.For(width));
         Assert.Empty(defaults.For(height));
 
-        ShortcutGesture widthKey = ShortcutGesture.Parse("Primary+Alt+F8");
-        ShortcutGesture heightKey = ShortcutGesture.Parse("Primary+Alt+F9");
+        ShortcutGesture widthKey = ShortcutGesture.Parse("Primary+Shift+F9");
+        ShortcutGesture heightKey = ShortcutGesture.Parse("Primary+Shift+F12");
         ShortcutBindingsSection custom = new ShortcutBindingsSection().Set(width, [widthKey]).Set(height, [heightKey]);
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(custom, platform);
+        Assert.Empty(bindings.Issues);
         KeyGesture widthGesture = widthKey.Resolve(platform);
         KeyGesture heightGesture = heightKey.Resolve(platform);
         Assert.True(bindings.Matches(new KeyEventArgs { Key = widthGesture.Key, KeyModifiers = widthGesture.KeyModifiers }, width));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = heightGesture.Key, KeyModifiers = heightGesture.KeyModifiers }, height));
-        Assert.Empty(bindings.Issues);
     }
 }

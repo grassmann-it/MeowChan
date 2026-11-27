@@ -52,6 +52,9 @@ internal static class GalleryFitChecks
             await viewer.StopAsync();
             await viewer.DisposeAsync();
             viewer = new GalleryViewer { DecodeImageAsync = probe.DecodeAsync };
+            // ResizeAsync measures the picture plus both docked rows, including before the first decode.
+            viewer.ConfigurePlayback(new GalleryPlaybackPreferences().WithControlsOverlay(false));
+            viewer.SetRating(3, error: null);
             window.Content = viewer;
             await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().Any(control => control is Image { Name: "GalleryImage" }));
             viewer.SetPosition("Fit integration", false, false);
@@ -465,7 +468,9 @@ internal static class GalleryFitChecks
                 && Math.Abs(toolsBottom + tools.Margin.Bottom + caption.Margin.Top - captionOrigin.Y) < 1
                 && Math.Abs(captionBottom + caption.Margin.Bottom - height) < 1
                 && Math.Abs(viewport.Bounds.Height + footerHeight - height) < 1;
-        });
+        }, () => $"requested {width} × {height}; viewer {viewer.Bounds}; media {viewport.Bounds} at {viewport.TranslatePoint(default, viewer)}; "
+            + $"tools {tools.Bounds} at {tools.TranslatePoint(default, viewer)}, margin {tools.Margin}, visible {tools.IsEffectivelyVisible}; "
+            + $"info {caption.Bounds} at {caption.TranslatePoint(default, viewer)}, margin {caption.Margin}, visible {caption.IsEffectivelyVisible}");
     }
 
     private static Task SettledAsync() => Task.Delay(350);
