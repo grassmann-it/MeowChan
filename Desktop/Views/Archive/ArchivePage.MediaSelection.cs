@@ -348,12 +348,19 @@ public partial class ArchivePage
         MediaSelectionTagSession target = NewMediaSelectionTagSession(thread, rows, entries, services);
         ClearArchiveStampRun();
         // The run owns the session; ClearArchiveStampRun disposes it.
-        _archiveStampRun = new(thread.Summary.Id, options.NewSession(QuickTagTarget.For(target)), target, count, "");
-        QuickTagSession session = _archiveStampRun.Session;
-        _archiveStampRun = _archiveStampRun with
+        QuickTagSession? created = options.NewSession(QuickTagTarget.For(target));
+        QuickTagSession session;
+        try
         {
-            Names = string.Join(", ", session.Stamp.Resolve(session.Snapshot).Select(tag => tag.Name.Display))
-        };
+            string names = string.Join(", ", created.Stamp.Resolve(created.Snapshot).Select(tag => tag.Name.Display));
+            _archiveStampRun = new(thread.Summary.Id, created, target, count, names);
+            session = created;
+            created = null;
+        }
+        finally
+        {
+            created?.Dispose();
+        }
         if (options.Recent is { } recent) session.Applied += change => recent.Touch(change.Tag);
         await RunArchiveStampAsync(() => session.ApplyStampJoinedAsync(_lifetime.Token));
     }

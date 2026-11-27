@@ -131,7 +131,16 @@ internal sealed partial class PluginSession : IAsyncDisposable
             ? new PluginWorkerLaunch(workerHelper, Array.Empty<string>(), working)
             : new PluginWorkerLaunch(Environment.ProcessPath ?? apphost, [ProcessEntry.WorkerSwitch], working);
         // The optional factory only replaces network transport; this session owns the returned client.
-        _transport = transportFactory?.Invoke() ?? PluginHostHttp.CreateTransport();
+        HttpClient? transport = transportFactory is null ? PluginHostHttp.CreateTransport() : transportFactory();
+        try
+        {
+            _transport = transport;
+            transport = null;
+        }
+        finally
+        {
+            transport?.Dispose();
+        }
         ProfileStore.LifecycleChanged += OnLifecycleChanged;
         ProfileStore.GrantChanged += OnGrantChanged;
     }
