@@ -39,19 +39,18 @@ editable `.cs` file; there is no separate documentation copy to keep in sync.
 | [Endchan.cs](../../plugins/Examples/Endchan/Endchan.cs) · [notes and evidence](../../plugins/Examples/Endchan/README.md) | Independent SDK-only source, LynxChan OP/replies and original-media metadata | Source plugin; see provider notes for evidence and limits |
 | [ImageDimensionsFilter.cs](../../plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs) | Scoped rule schema, domain validation, token-based original-byte reads | Static JPEG/PNG dimensions and aspect ratio; no OCR or general image decoding |
 | [SyntheticPlugin.cs](../../samples/MeowChan.PluginSdk.Consumer/SyntheticPlugin.cs) · [consumer](../../samples/MeowChan.PluginSdk.Consumer/Program.cs) | Small independent SDK consumer, settings and passive information | Synthetic data only; references the SDK package |
-| [Official source plugins](../../plugins/Official/README.md) | Existing 4chan/8kun source identities and Danbooru post search | Official source implementations; registration is not a live-health claim |
+| [Official source plugins](../../plugins/Official/README.md) | 4chan and 8kun board sources and Danbooru, e621 and e926 post search | Official source implementations; registration is not a live-health claim |
 
 ## Packaged inventory
 
-The current packaging allowlists define **18 plugins**: **13 source-plugin
-entries** and **5 image filters**, with **15 editable example/filter source
-files**. The exact split is:
+The package contains **19 plugins**, including **14 source-plugin entries** and
+**5 image filters**, with **15 editable example/filter source files**.
 
 | Delivery group | Plugin bundles | Source-plugin entries | Image filters | Editable `.cs` files |
 | --- | --- | --- | --- | --- |
-| Official | 3 | 3 | 0 | 0 |
+| Official | 4 | 4 | 0 | 0 |
 | Examples / filters | 15 | 10 | 5 | 15 |
-| **Total** | **18** | **13** | **5** | **15** |
+| **Total** | **19** | **14** | **5** | **15** |
 
 Each bundle has one `.plugin.json` manifest under `plugins/` and one assembly
 under `plugins/assemblies/`. The editable files are copied from
@@ -59,8 +58,9 @@ under `plugins/assemblies/`. The editable files are copied from
 package**. Official implementations are available in the repository for
 [authoring and local builds](../../plugins/Official/README.md#authoring-and-local-builds).
 
-The source-plugin count includes 12 board/thread entries and one booru entry
-(Danbooru) for post search. Two entries are engine families that each serve
+The source-plugin count includes 12 board and thread entries and two Booru
+entries for post search. One Booru bundle serves Danbooru, and the other serves
+e621 and e926. Two of the board and thread entries are engine families that serve
 several sites with their own source IDs: the vichan family (Lainchan, Leftypol,
 SushiChan, Uboachan, Wizchan) and the jschan family (ZZZchan). The other example
 sources are Kohlchan, Endchan, 2ch / Двач, 7chan, BBW-Chan, CapybaraChan,

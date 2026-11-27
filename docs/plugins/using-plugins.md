@@ -8,14 +8,14 @@ are required for the corresponding plugin operations. See
 ## First session
 
 1. Open **Plugins** from the app menu or footer (under **More** in compact views).
-   The supplied inventory contains **18 plugins**: **13 source-plugin entries**
+   The package contains **19 plugins**, including **14 source-plugin entries**
    and **5 image filters**, with **15 editable example/filter source files**.
-   This includes three prebuilt official plugins (4chan, 8kun and Danbooru) and
+   This includes four prebuilt official plugins (4chan, 8kun, Danbooru and e621/e926) and
    15 example/filter plugins. Only example/filter `.cs` files are delivered under
    `plugins/sources/`; official source code is available in the repository, not
    in the application package. See the [packaging split](README.md#packaged-inventory)
    and [official authoring steps](../../plugins/Official/README.md#authoring-and-local-builds).
-   **Danbooru** provides booru post search. Filters include
+   **Danbooru**, **e621** and **e926** provide Booru post search. Filters include
    **Image dimensions (example)** and the four [local media filters](local-media-filters.md).
    Selecting an entry shows
    its purpose, current status and available actions. Use the category selector
