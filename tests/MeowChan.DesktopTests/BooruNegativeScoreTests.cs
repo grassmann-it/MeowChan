@@ -43,6 +43,36 @@ public sealed class BooruNegativeScoreTests
     }
 
     [Fact]
+    public async Task CatalogReloadPreservesOmittedScoreAndClearsScoreAfterNegativeObservation()
+    {
+        DanbooruWatcherSearchSnapshot initial = Assert.IsType<DanbooruWatcherSearchSnapshot>(await SearchAsync("""
+            [{"id":2,"score":12},{"id":1,"score":12}]
+            """));
+        DanbooruWatcherSearchSnapshot update = Assert.IsType<DanbooruWatcherSearchSnapshot>(await SearchAsync("""
+            [{"id":2,"score":-5},{"id":1}]
+            """));
+
+        using TempDirectory profile = new();
+        DateTimeOffset observed = DateTimeOffset.UtcNow;
+        using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+        {
+            BooruCatalogStore store = new(profile.Path, lease);
+            foreach (BooruPostClaim post in initial.Posts)
+                store.UpsertPost(post, observed);
+            foreach (BooruPostClaim post in update.Posts)
+                store.UpsertPost(post, observed.AddSeconds(1));
+        }
+
+        using ProfileLease reopenedLease = ProfileLease.Acquire(profile.Path);
+        BooruCatalogSnapshot reopened = new BooruCatalogStore(profile.Path, reopenedLease).Read();
+        Assert.Collection(reopened.Posts.Select(record => record.Post).OrderByDescending(post => post.PostId),
+            negative => Assert.Equal(("2", (int?)null, BooruPostClaimPresence.Score),
+                (negative.PostId, negative.Score, negative.Fields)),
+            omitted => Assert.Equal(("1", (int?)12, BooruPostClaimPresence.Score),
+                (omitted.PostId, omitted.Score, omitted.Fields)));
+    }
+
+    [Fact]
     public async Task DanbooruRejectsTheEntirePageWhenAFavoriteCountIsNegative()
     {
         DanbooruWatcherSearchOutcome outcome = await SearchAsync("""
@@ -62,7 +92,7 @@ public sealed class BooruNegativeScoreTests
             {
                 Assert.Equal("3", negative.PostId);
                 Assert.Null(negative.Score);
-                Assert.Equal(BooruPostClaimPresence.FavoriteCount, negative.Fields);
+                Assert.Equal(BooruPostClaimPresence.Score | BooruPostClaimPresence.FavoriteCount, negative.Fields);
                 Assert.Equal(2, negative.FavoriteCount);
             },
             zero => Assert.Equal(("2", (int?)0, BooruPostClaimPresence.Score), (zero.PostId, zero.Score, zero.Fields)),
