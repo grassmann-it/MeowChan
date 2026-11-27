@@ -181,7 +181,8 @@ public sealed class BooruMd5LookupTests
     private static BooruPostView WithHash(string id, string hash, BooruRating rating = BooruRating.General)
     {
         BooruPost post = BooruUiFixtures.Post(id, rating: rating, preview: false).Post;
-        return BooruPostView.From(post with { Media = post.Media!.Select(media => media with { ExpectedMd5 = hash }).ToArray() });
+        BooruMediaVariant original = Assert.Single(post.Media!);
+        return BooruPostView.From(post with { Media = [original with { Extension = ".png", ExpectedMd5 = hash }] });
     }
 
     private static MediaLibraryEntry Entry(string name) => new(new ResourceId("test", "board", "1"), "thread", 1,
