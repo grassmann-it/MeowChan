@@ -78,7 +78,7 @@ public partial class MainWindow
             IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
                 Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
             if (_isClosing || _gallery != null) return;
-            GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(indexed[0], entry))
+            GalleryEntry? first = entries.FirstOrDefault(entry => MatchesSavedTaggingEntry(indexed[0], entry))
                 ?? entries.FirstOrDefault();
             if (first == null)
             {
@@ -93,6 +93,17 @@ public partial class MainWindow
             if (!_isClosing) ShowNotification(Texts.T("queue.title"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "media.queue.open");
         }
         finally { _tagQueueOpening = false; }
+    }
+
+    private static bool MatchesSavedTaggingEntry(MediaLibraryEntry saved, GalleryEntry resolved)
+    {
+        // A queued Booru original can predate its local tag slot. Its resolver verifies the catalog link and manifest asset.
+        if (saved.LocalSlot == null && saved.BooruIdentity != null && resolved.LocalTagEligible)
+            saved = saved with { LocalSlot = resolved.Asset.RequestedFileName };
+        // Older queue files also omit the attachment binding revision.
+        if (saved.AttachmentRevisionKey == null && resolved.AttachmentResolution?.Binding is { } binding)
+            saved = saved with { AttachmentRevisionKey = binding.Reference.RevisionKey };
+        return MediaMenuIdentity.Matches(saved, resolved);
     }
 
     // ---- the tagging mode (PT3) --------------------------------------------------------------------------------------
