@@ -189,6 +189,7 @@ public partial class SettingsEditor
         NotifyLimitsHelpChanged();
         NotifyWorkViewNoticeHelpChanged();
         NotifyShutdownLimitHelpChanged();
+        NotifyAdaptiveRecheckHelpChanged();
     }
 
     private void SetFieldErrorHelp(Control input, Func<string> message)
@@ -215,6 +216,7 @@ public partial class SettingsEditor
         foreach (var field in WorkViewNoticeNumericFields()) yield return field;
         foreach (var field in ShutdownLimitNumericFields()) yield return field;
         yield return (RecheckTimerInput, RecheckTimer, RecheckLabel, SecondsHelp, 10, 4294967, true);
+        foreach (var field in AdaptiveRecheckNumericFields()) yield return field;
         yield return (BandwidthInput, BandwidthLimiterMB, BandwidthLabel, BandwidthHelp, 0, Config.BandwidthLimiterMaximumMiB, false);
         yield return (ParallelDownloadsInput, MaxParallelDownloads, ParallelLabel, Texts.T("settings.unitCount"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum, true);
         yield return (ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit, ParallelSafetyLabel, Texts.T("settings.unitCount"), 1, Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit, true);
@@ -372,6 +374,7 @@ public partial class SettingsEditor
             SetFieldErrorHelp(field.Input, message);
             _firstInvalidInput ??= field.Input;
         }
+        if (_firstInvalidInput == null) ValidateAdaptiveRecheckOrder();
         return FinishFieldValidation(focusError) && ValidateBooruListDraft(focusError);
     }
 
