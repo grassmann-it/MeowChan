@@ -3304,6 +3304,7 @@
     "booru.failure.metadata-too-large": "プロバイダーの応答が許容上限より大きいです。",
     "booru.failure.http-encoding": "プロバイダーの応答がMeowChanの対応していないエンコーディングを使っています。",
     "booru.failure.http-network": "プロバイダーに到達できないか、その応答を読み取れませんでした。",
+    "booru.failure.http-challenge": "プロバイダーから予期しないウェブページが返されました。しばらくしてからもう一度お試しください。",
     "booru.failure.invalid-request": "このリクエストはこのソースに対して有効ではありません。",
     "booru.failure.postId": "投稿番号が無効です。先頭に0のない正の整数を使ってください。",
     "booru.failure.wrong-post": "プロバイダーが要求したものとは別の投稿で応答しました。",

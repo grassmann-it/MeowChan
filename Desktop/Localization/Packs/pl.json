@@ -3471,6 +3471,7 @@
     "booru.failure.metadata-too-large": "Odpowiedź dostawcy przekracza dozwolony limit.",
     "booru.failure.http-encoding": "Odpowiedź dostawcy używa kodowania, którego MeowChan nie obsługuje.",
     "booru.failure.http-network": "Nie udało się połączyć z dostawcą lub odczytać jego odpowiedzi.",
+    "booru.failure.http-challenge": "Dostawca zwrócił nieoczekiwaną stronę internetową. Spróbuj ponownie później.",
     "booru.failure.invalid-request": "Żądanie jest nieprawidłowe dla tego źródła.",
     "booru.failure.postId": "Numer postu jest nieprawidłowy. Użyj dodatniej liczby całkowitej bez zer wiodących.",
     "booru.failure.wrong-post": "Dostawca odpowiedział innym postem niż żądany.",

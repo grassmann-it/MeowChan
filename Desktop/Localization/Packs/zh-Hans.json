@@ -3304,6 +3304,7 @@
     "booru.failure.metadata-too-large": "提供方的响应超出了允许的大小限制。",
     "booru.failure.http-encoding": "提供方的响应使用了 MeowChan 不支持的编码。",
     "booru.failure.http-network": "无法连接到提供方，或无法读取其响应。",
+    "booru.failure.http-challenge": "提供方返回了意外的网页。请稍后重试。",
     "booru.failure.invalid-request": "该请求对此来源无效。",
     "booru.failure.postId": "帖子编号无效。请使用不带前导零的正整数。",
     "booru.failure.wrong-post": "提供方返回的帖子与请求的不同。",

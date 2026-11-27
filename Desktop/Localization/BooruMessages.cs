@@ -29,6 +29,7 @@ internal static class BooruMessages
         ["metadata-too-large"] = "booru.failure.metadata-too-large",
         ["http-encoding"] = "booru.failure.http-encoding",
         ["http-network"] = "booru.failure.http-network",
+        ["http-challenge"] = "booru.failure.http-challenge",
         ["invalid-request"] = "booru.failure.invalid-request",
         ["post-id"] = "booru.failure.postId",
         ["post_id"] = "booru.failure.postId",

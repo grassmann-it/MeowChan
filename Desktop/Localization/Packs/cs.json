@@ -3470,6 +3470,7 @@
     "booru.failure.metadata-too-large": "Odpověď poskytovatele je větší než povolený limit.",
     "booru.failure.http-encoding": "Odpověď poskytovatele používá kódování, které MeowChan nepodporuje.",
     "booru.failure.http-network": "Poskytovatel není dostupný nebo jeho odpověď nelze přečíst.",
+    "booru.failure.http-challenge": "Poskytovatel vrátil neočekávanou webovou stránku. Zkuste to později.",
     "booru.failure.invalid-request": "Požadavek pro tento zdroj není platný.",
     "booru.failure.postId": "Číslo příspěvku není platné. Použijte kladné celé číslo bez úvodních nul.",
     "booru.failure.wrong-post": "Poskytovatel odpověděl jiným příspěvkem, než byl požadován.",

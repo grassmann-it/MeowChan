@@ -3304,6 +3304,7 @@
     "booru.failure.metadata-too-large": "제공자의 응답이 허용 한도보다 큽니다.",
     "booru.failure.http-encoding": "제공자의 응답이 MeowChan에서 지원하지 않는 인코딩을 사용합니다.",
     "booru.failure.http-network": "제공자에 연결할 수 없거나 응답을 읽을 수 없습니다.",
+    "booru.failure.http-challenge": "제공자가 예상치 못한 웹 페이지를 반환했습니다. 나중에 다시 시도하세요.",
     "booru.failure.invalid-request": "이 소스에 유효하지 않은 요청입니다.",
     "booru.failure.postId": "게시물 번호가 올바르지 않습니다. 앞에 0이 없는 양의 정수를 사용하세요.",
     "booru.failure.wrong-post": "제공자가 요청한 것과 다른 게시물로 응답했습니다.",

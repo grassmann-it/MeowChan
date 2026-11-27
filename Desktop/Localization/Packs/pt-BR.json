@@ -3449,6 +3449,7 @@
     "booru.failure.metadata-too-large": "A resposta do provedor é maior que o limite permitido.",
     "booru.failure.http-encoding": "A resposta do provedor usa uma codificação que o MeowChan não suporta.",
     "booru.failure.http-network": "Não foi possível alcançar o provedor ou ler a resposta dele.",
+    "booru.failure.http-challenge": "O provedor retornou uma página da web inesperada. Tente novamente mais tarde.",
     "booru.failure.invalid-request": "A requisição não é válida para esta fonte.",
     "booru.failure.postId": "O número da postagem não é válido. Use um número inteiro positivo sem zeros à esquerda.",
     "booru.failure.wrong-post": "O provedor respondeu com uma postagem diferente da solicitada.",

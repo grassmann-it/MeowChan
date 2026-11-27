@@ -24,6 +24,8 @@ internal static class BooruStatusCatalog
         ("booru.failure.metadata-too-large", "The provider's answer is larger than the allowed limit.", "Die Antwort des Anbieters ist größer als erlaubt."),
         ("booru.failure.http-encoding", "The provider's answer uses an encoding MeowChan does not support.", "Die Antwort des Anbieters verwendet eine Kodierung, die MeowChan nicht unterstützt."),
         ("booru.failure.http-network", "The provider could not be reached, or its answer could not be read.", "Der Anbieter war nicht erreichbar oder seine Antwort konnte nicht gelesen werden."),
+        ("booru.failure.http-challenge", "The provider returned an unexpected web page. Try again later.",
+            "Der Anbieter hat eine unerwartete Webseite geliefert. Versuche es später erneut."),
         ("booru.failure.invalid-request", "The request is not valid for this source.", "Die Anfrage ist für diese Quelle nicht gültig."),
         ("booru.failure.postId", "The post number is not valid. Use a positive whole number without leading zeros.", "Die Post-Nummer ist ungültig. Eine positive ganze Zahl ohne führende Nullen verwenden."),
         ("booru.failure.wrong-post", "The provider answered with a different post than the one requested.", "Der Anbieter hat mit einem anderen Post als dem angefragten geantwortet."),
