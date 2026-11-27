@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.VisualTree;
 using MeowChan.Booru;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
@@ -51,6 +52,42 @@ public sealed class BooruOccurrenceSourceTests
         IReadOnlyList<MediaLibraryEntry> entries = await ReloadAsync(temp.Path, [legacy, scoped]);
 
         AssertLabels(Assert.Single(Tiles(entries)), "Danbooru · default · Post #42", "example-booru · north · Post #42");
+    }
+
+    [Theory]
+    [InlineData("en", false, "Occurrences: 2 · Booru posts: 2. Tags stay with each occurrence.")]
+    [InlineData("en", true, "Occurrences: 3 · threads: 1 · Booru posts: 2. Tags stay with each occurrence.")]
+    [InlineData("de", false, "Fundstellen: 2 · Booru-Posts: 2. Tags bleiben bei jeder Fundstelle gespeichert.")]
+    [InlineData("de", true, "Fundstellen: 3 · Threads: 1 · Booru-Posts: 2. Tags bleiben bei jeder Fundstelle gespeichert.")]
+    public void SummaryCountsPostsFromBothBooruInstances(string language, bool includeThread, string expected)
+    {
+        using TempDirectory temp = new();
+        MediaLibraryEntry e621 = Original(temp.Path, BooruMediaIdentity.Thread(new BooruPostKey("e621", "e621", PostId)), "first"u8);
+        MediaLibraryEntry e926 = Original(temp.Path, BooruMediaIdentity.Thread(new BooruPostKey("e621", "e926", PostId)), "first"u8);
+        MediaLibraryEntry archived = Original(temp.Path, new ResourceId("4chan", "b", "123"), "first"u8) with { BooruPostId = null };
+        MediaLibraryTile tile = Assert.Single(Tiles(includeThread ? [e621, e926, archived] : [e621, e926]));
+
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            string previousLanguage = Texts.Language;
+            Texts.SetLanguage(language);
+            try
+            {
+                MediaOccurrencesWindow window = new(tile, _ => string.Empty, _ => false, _ => { });
+                try
+                {
+                    window.Show();
+                    window.UpdateLayout();
+                    TextBlock summary = Assert.Single(window.GetVisualDescendants().OfType<TextBlock>(),
+                        text => Peer(text).GetAutomationId() == "MediaOccurrencesSummary");
+                    Assert.True(summary.IsEffectivelyVisible);
+                    Assert.Equal(expected, summary.Text);
+                }
+                finally { window.Close(); }
+            }
+            finally { Texts.SetLanguage(previousLanguage); }
+        });
     }
 
     private static MediaLibraryEntry Original(string directory, ResourceId thread, ReadOnlySpan<byte> bytes) =>
