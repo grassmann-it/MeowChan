@@ -326,7 +326,7 @@ internal sealed class WorkerServer : IDisposable
     }
     /// <summary>The plugin binary does not bind to this worker's SDK; every call after describe reports it.</summary>
     private sealed class PluginSdkMismatchException(string message) : Exception(message);
-    private sealed class ForbiddenReferenceException(string name) : Exception($"The plugin references an unsupported assembly: {name}");
+    private sealed class ForbiddenReferenceException(string name) : Exception(name);
 
     /// <summary>
     /// The host answered a service call (HTTP or image) with an error. Still an InvalidOperationException, as before,

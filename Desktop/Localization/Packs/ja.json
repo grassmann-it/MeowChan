@@ -1771,6 +1771,7 @@
     "plugins.candidate.selected": "選択したファイル",
     "plugins.candidate.otherPending": "次回起動用に別のビルドを保存済み",
     "plugins.candidate.changedHint": "変更されたビルドは次回のアプリ起動用に選択されていません。",
+    "plugins.problem.forbiddenReference": "プラグインは、プラグインから利用できないアセンブリを参照しています（{0}）。",
     "plugins.problemHint": "このプラグインまたは候補には対応が必要です。理由は詳細を参照してください。",
     "plugins.pending.build": "次回起動用にビルドを保存済み",
     "plugins.pending.configuration": "次回起動用に設定を保存済み",

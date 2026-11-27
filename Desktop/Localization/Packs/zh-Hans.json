@@ -1771,6 +1771,7 @@
     "plugins.candidate.selected": "所选文件",
     "plugins.candidate.otherPending": "已为下次启动保存其他版本",
     "plugins.candidate.changedHint": "尚未为下次启动应用选择已更改的版本。",
+    "plugins.problem.forbiddenReference": "此插件引用了一个插件无法使用的程序集（{0}）。",
     "plugins.problemHint": "此插件或候选版本需要注意。原因请见详情。",
     "plugins.pending.build": "已为下次启动保存构建",
     "plugins.pending.configuration": "已为下次启动保存设置",

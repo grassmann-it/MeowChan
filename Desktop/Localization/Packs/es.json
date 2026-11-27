@@ -1961,6 +1961,7 @@
     "plugins.candidate.selected": "Archivo seleccionado",
     "plugins.candidate.otherPending": "Otra compilación guardada para el próximo inicio",
     "plugins.candidate.changedHint": "La compilación modificada no se ha seleccionado para el próximo inicio de la aplicación.",
+    "plugins.problem.forbiddenReference": "El complemento hace referencia a un ensamblado que no está disponible para los complementos ({0}).",
     "plugins.problemHint": "Este complemento o candidato requiere atención. Consulte los detalles para conocer el motivo.",
     "plugins.pending.build": "Compilación guardada para el próximo inicio",
     "plugins.pending.configuration": "Configuración guardada para el próximo inicio",

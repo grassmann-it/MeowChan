@@ -82,7 +82,7 @@ public sealed class WorkerMulticallTests
         PluginWorkerException failure = await Assert.ThrowsAsync<PluginWorkerException>(() =>
             manager.DescribeAsync(Launch(workspace), artifact));
         Assert.Equal("forbidden_reference", failure.Code);
-        Assert.Contains("libmeowchan", failure.Message);
+        Assert.Equal("libmeowchan", failure.Message);
     }
 
     [Fact]
@@ -222,7 +222,8 @@ public sealed class WorkerMulticallTests
                 "https://danbooru.donmai.us/posts.json?tags=cat&page=1&limit=20" => """[{"id":1003,"rating":"g"}]""",
                 _ => throw new InvalidOperationException("Unexpected request: " + request.Url)
             };
-            return Task.FromResult<HostHttpResult>(new HostHttpResponse(200, request.Url, new Dictionary<string, string>(), Encoding.UTF8.GetBytes(json)));
+            return Task.FromResult<HostHttpResult>(new HostHttpResponse(200, request.Url,
+                new Dictionary<string, string> { ["Content-Type"] = "application/json" }, Encoding.UTF8.GetBytes(json)));
         }
 
         public Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count, PluginOperationContext operation, CancellationToken cancellationToken) =>

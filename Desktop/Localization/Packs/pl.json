@@ -1478,6 +1478,7 @@
     "plugins.candidate.selected": "Wybrany plik",
     "plugins.candidate.otherPending": "Inna kompilacja zapisana na następne uruchomienie",
     "plugins.candidate.changedHint": "Zmieniona kompilacja nie została wybrana na następne uruchomienie aplikacji.",
+    "plugins.problem.forbiddenReference": "Wtyczka odwołuje się do zestawu, który jest niedostępny dla wtyczek ({0}).",
     "plugins.problemHint": "Ta wtyczka lub kandydat wymaga uwagi. Przyczynę znajdziesz w szczegółach.",
     "plugins.pending.build": "Kompilacja zapisana na następne uruchomienie",
     "plugins.pending.configuration": "Ustawienia zapisane na następne uruchomienie",
