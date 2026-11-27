@@ -198,6 +198,8 @@ internal static class CommandLabelCatalog
         ("command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen"),
         ("command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen"),
         ("command.thread.tags", "Thread tags…", "Thread-Tags…"),
+        ("command.thread.tag-media", "Tag all media…", "Alle Medien taggen…"),
+        ("command.thread.stamp-media", "Stamp all media", "Stempel auf alle Medien"),
         ("command.favorites.toggle", "Add / remove favorite", "Als Favorit markieren / entfernen"),
         ("command.favorites.filter", "Favorites only", "Nur Favoriten"),
         ("command.favorites.open", "Show favorites", "Favoriten anzeigen"),

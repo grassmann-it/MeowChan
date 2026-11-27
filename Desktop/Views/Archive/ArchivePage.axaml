@@ -340,6 +340,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <StackPanel Spacing="{StaticResource Workspace.Space.4}">
                     <!-- Tom's rule (14.11. evening): the ways back of the reader stand at the far left of its header row, before the title and
@@ -714,6 +715,8 @@
                                         <ComboBox x:Name="ArchiveMediaSort" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.sort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
                                         <ComboBox x:Name="ArchiveVersionScope" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.version-scope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
                                         <ToggleButton x:Name="ArchiveFavoritesFilter" AutomationProperties.AutomationId="ArchiveFavoritesFilter" Classes="toolbar-toggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" IsCheckedChanged="OnArchiveFavoritesFilterChanged" />
+                                        <Button x:Name="ArchiveThreadMediaMenuButton" AutomationProperties.AutomationId="ArchiveThreadMediaMenuButton"
+                                                desktop:ActionToolBar.Group="2" Click="OnThreadMediaMenuClick" />
                                         <!-- F01 (21.11.): filters and sorting on the left; the view tools (Columns, then the Grid/Table pair last) dock to the right edge. -->
                                         <Button x:Name="ArchiveMediaColumnsButton" AutomationProperties.AutomationId="ArchiveMediaColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
                                         <ToggleButton x:Name="ArchiveMediaLayoutTiles" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Grid" Classes="toolbar-toggle segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
@@ -759,15 +762,6 @@
                                     </Grid>
                                     <StackPanel x:Name="ArchiveMediaFooter" AutomationProperties.AutomationId="ArchiveMediaFooter" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}">
                                         <TextBlock x:Name="ArchiveRatingStatus" wv:WorkViewElement.Id="reader.media.rating-error" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
-                                        <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
-                                        <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
-                                            <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                            <Button x:Name="ArchiveMediaSelectionTag" Focusable="False" IsTabStop="False" Click="OnMediaSelectionTagClick" />
-                                            <Button x:Name="ArchiveMediaSelectionQueue" Focusable="False" IsTabStop="False" Click="OnMediaSelectionQueueClick" />
-                                            <Button x:Name="ArchiveMediaSelectionGallery" Focusable="False" IsTabStop="False" Click="OnMediaSelectionGalleryClick" />
-                                            <Button x:Name="ArchiveMediaSelectionExport" Focusable="False" IsTabStop="False" Click="OnMediaSelectionExportClick" />
-                                            <Button x:Name="ArchiveMediaSelectionClear" Focusable="False" IsTabStop="False" Click="OnMediaSelectionClearClick" />
-                                        </WrapPanel>
                                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                             <controls:TrimTipTextBlock x:Name="ArchiveThreadMediaTotal" Classes="muted tnum"
                                                                        VerticalAlignment="Center" IsVisible="False" />
@@ -854,6 +848,29 @@
                         </Border>
                     </Grid>
                 </Border>
+                <StackPanel x:Name="ArchiveMediaSelectionStrip" Grid.Row="2" AutomationProperties.AutomationId="ArchiveMediaSelectionStrip"
+                            Margin="{StaticResource Workspace.Inset.MediaTab}" Spacing="{StaticResource Workspace.Space.8}" IsVisible="False">
+                    <WrapPanel x:Name="ArchiveMediaSelectionActions" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
+                        <WrapPanel x:Name="ArchiveMediaSelectionBar" AutomationProperties.AutomationId="ArchiveMediaSelectionBar"
+                                   ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
+                            <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button x:Name="ArchiveMediaSelectionTag" Focusable="False" IsTabStop="False" Click="OnMediaSelectionTagClick" />
+                            <Button x:Name="ArchiveMediaSelectionQueue" Focusable="False" IsTabStop="False" Click="OnMediaSelectionQueueClick" />
+                            <Button x:Name="ArchiveMediaSelectionGallery" Focusable="False" IsTabStop="False" Click="OnMediaSelectionGalleryClick" />
+                            <Button x:Name="ArchiveMediaSelectionExport" Focusable="False" IsTabStop="False" Click="OnMediaSelectionExportClick" />
+                            <Button x:Name="ArchiveMediaSelectionClear" Focusable="False" IsTabStop="False" Click="OnMediaSelectionClearClick" />
+                        </WrapPanel>
+                        <Button x:Name="ArchiveMediaSelectionTagAll" AutomationProperties.AutomationId="ArchiveMediaSelectionTagAll"
+                                Click="OnMediaSelectionTagAllClick" ToolTip.ShowOnDisabled="True" />
+                        <Button x:Name="ArchiveMediaSelectionStamp" AutomationProperties.AutomationId="ArchiveMediaSelectionStamp"
+                                Click="OnMediaSelectionStampClick" ToolTip.ShowOnDisabled="True" />
+                    </WrapPanel>
+                    <WrapPanel x:Name="ArchiveMediaStampResult" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
+                        <TextBlock x:Name="ArchiveMediaStampStatus" AutomationProperties.AutomationId="ArchiveMediaStampStatus"
+                                   VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <Button x:Name="ArchiveMediaStampUndo" AutomationProperties.AutomationId="ArchiveMediaStampUndo" Click="OnMediaStampUndoClick" />
+                    </WrapPanel>
+                </StackPanel>
             </Grid>
             <!-- ARCH-DENSE-01 (user decision 11.11.2026): loading and status messages reserve
                  no layout height. They float at the bottom left of the reader column (or of the
