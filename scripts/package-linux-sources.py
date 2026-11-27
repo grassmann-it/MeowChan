@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Collect exact Ubuntu sources and pinned static AppImage-runtime sources in CI.
-
-The existing Windows/Mac source base is neither downloaded nor repacked here.
-This collector needs deb-src indices for each installed source package version.
-"""
+"""Collect RID-bound inputs for the release source assembler using exact deb-src versions."""
 from __future__ import annotations
 
 import argparse
@@ -23,7 +19,8 @@ SPEC.loader.exec_module(common)
 RUNTIME_INPUTS = (
     {"file": "type2-runtime-" + common.RUNTIME_COMMIT + ".tar.gz",
      "url": "https://codeload.github.com/AppImage/type2-runtime/tar.gz/" + common.RUNTIME_COMMIT,
-     "commit": common.RUNTIME_COMMIT, "kind": "runtime-application-and-build-recipes"},
+     "commit": common.RUNTIME_COMMIT, "sha256": "f5fec23be76e50e2445ed2d018bac49b367490fc483c62c4637e99ec705d27ba",
+     "kind": "runtime-application-and-build-recipes"},
     {"file": "fuse-3.15.0.tar.xz", "url": "https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.0.tar.xz",
      "sha256": "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0", "kind": "static-LGPL-library"},
     {"file": "squashfuse-0.5.2.tar.gz", "url": "https://github.com/vasi/squashfuse/archive/0.5.2.tar.gz",
@@ -68,8 +65,8 @@ def assignments(values: list[str]) -> dict[str, Path]:
     return result
 
 
-def dsc_files(path: Path, source: str, version: str) -> dict[str, str]:
-    text = path.read_text()
+def descriptor_files(path: Path, source: str, version: str) -> dict[str, tuple[int, str]]:
+    text = path.read_text(encoding="utf-8")
     if not re.search(r"^Source: " + re.escape(source) + r"$", text, re.M) or not re.search(r"^Version: " + re.escape(version) + r"$", text, re.M):
         raise ValueError("Downloaded .dsc does not match the exact installed source version.")
     section = re.search(r"^Checksums-Sha256:\n((?:[ \t].*\n)+)", text, re.M)
@@ -78,14 +75,21 @@ def dsc_files(path: Path, source: str, version: str) -> dict[str, str]:
     files = {}
     for line in section[1].splitlines():
         checksum, size, filename = line.split()
-        if not re.fullmatch(r"[0-9a-f]{64}", checksum) or not size.isdecimal() or Path(filename).name != filename or filename in (".", ".."):
+        if not re.fullmatch(r"[0-9a-f]{64}", checksum) or not size.isdecimal() or Path(filename).name != filename or filename in (".", "..") or filename in files:
             raise ValueError("Unsafe or malformed .dsc source entry.")
-        item = path.parent / filename
-        if not item.is_file() or item.stat().st_size != int(size) or common.digest(item) != checksum:
-            raise ValueError(f"Source input checksum/size mismatch: {filename}")
-        files[filename] = checksum
+        files[filename] = (int(size), checksum)
     if not files:
         raise ValueError("Source descriptor is empty.")
+    return files
+
+
+def dsc_files(path: Path, source: str, version: str) -> dict[str, str]:
+    files = {}
+    for filename, (size, checksum) in descriptor_files(path, source, version).items():
+        item = path.parent / filename
+        if not item.is_file() or item.stat().st_size != size or common.digest(item) != checksum:
+            raise ValueError(f"Source input checksum/size mismatch: {filename}")
+        files[filename] = checksum
     files[path.name] = common.digest(path)
     return files
 
@@ -187,7 +191,7 @@ def collect(manifests: dict[str, Path], output: Path, cache: Path, commit: str) 
             "distro": "Exact source versions, original archives and distro patches verified against their .dsc SHA-256 inventories.",
             "runtime": "Pinned MIT runtime application and build/patch recipes; exact recipe-pinned LGPL libfuse3.15.0 and squashfuse0.5.2 sources included for relinking.",
             "permissive_build_dependencies": "Upstream builds with Alpine3.21 musl/zlib/zstd packages; exact historic apk revisions are not asserted. The pinned recipes retain the upstream build environment/instructions. No bit-identical rebuild claim.",
-            "base": "Independent Linux source companion; does not rely on the Windows/Mac VLC source base.",
+            "base": "Linux sources are collected from the packaged native inventory for assembly with the other release platforms.",
             "managed_binding": "Exact LibVLCSharp3.10.2 core and Avalonia-adapter source archive included independently of the larger Windows/Mac source base.",
         }
         manifest = {"schema": "meowchan.linux-sources.v1", "source_commit": commit, "runtimes": metadata,

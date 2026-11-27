@@ -1521,7 +1521,7 @@ jobs:
         run: python3 scripts/apphost-acceptance-boundary.py artifacts/acceptance-linux-publish/MeowChan --configuration Debug
       - name: Debug acceptance - Build bundled VLC, system VLC and AppImage distributions
         run: python3 scripts/package-linux.py package --publish-dir artifacts/acceptance-linux-publish --runtime ${{ matrix.runtime }} --version ${{ steps.metadata.outputs.version }} --source-commit ${{ github.sha }} --runtime-dir artifacts/linux-runtime/${{ matrix.runtime }}/runtime --runtime-manifest artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json --tools-dir artifacts/appimage-tools/${{ matrix.runtime }} --output-dir artifacts/acceptance-linux-packages
-      - name: Gather exact corresponding Linux and AppImage runtime sources
+      - name: Gather exact Linux and AppImage runtime source inputs
         run: python3 scripts/package-linux-sources.py --manifest ${{ matrix.runtime }}=artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json --source-commit ${{ github.sha }} --output artifacts/linux-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}-video-sources.tar.gz --download-dir artifacts/linux-source-inputs
       - name: Build separate disposable desktops with and without system VLC
         shell: bash
@@ -1533,7 +1533,7 @@ jobs:
         run: python3 scripts/linux-distribution-gates.py --layout-only --package-dir artifacts/linux-packages --manifest artifacts/linux-packages/${{ matrix.runtime }}-package-manifest.json --no-vlc-image meowchan-gates:no-vlc --system-vlc-image meowchan-gates:system-vlc --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/linux-evidence/release-layouts
       - name: Accept all three non-shipping Debug distributions on native CPU without network or host desktop
         run: python3 scripts/linux-distribution-gates.py --package-dir artifacts/acceptance-linux-packages --manifest artifacts/acceptance-linux-packages/${{ matrix.runtime }}-package-manifest.json --no-vlc-image meowchan-gates:no-vlc --system-vlc-image meowchan-gates:system-vlc --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/linux-evidence/distributions
-      - name: Retain accepted Linux archives, AppImage and corresponding sources
+      - name: Retain accepted Linux packages and internal source inputs
         uses: actions/upload-artifact@v7
         with:
           name: linux-distribution-candidate-${{ matrix.runtime }}
@@ -1667,13 +1667,13 @@ jobs:
           curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0/10-MeowChan-0.9.0-video-sources.tar.gz
           test "$(stat -c %s "$base")" = 725131331
           echo "bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa  $base" | sha256sum --check --strict
-      - name: Generate source overlay bound to both final native DMGs
+      - name: Collect macOS source inputs bound to both final native DMGs
         shell: bash
         run: |
           candidate=artifacts/macos-candidate
           version="$(cat "$candidate/version.txt")"
           python3 scripts/package-macos-sources.py \
-            --source-commit "$GITHUB_SHA" --version "$version" \
+            --source-commit "$GITHUB_SHA" --version "$version" --assembly-input \
             --base artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz \
             --binary-zip "osx-arm64=$candidate/evidence/osx-arm64/MeowChan-$version-osx-arm64.zip" \
             --binary-zip "osx-x64=$candidate/evidence/osx-x64/MeowChan-$version-osx-x64.zip" \
@@ -1698,7 +1698,7 @@ jobs:
           base = manifest['source_base']
           base['url'] = 'https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0/10-' + base['file']
           (candidate / 'source-base.json').write_text(json.dumps(base, indent=2) + '\n')
-          (candidate / 'README.txt').write_text('CI candidates only; no public release. Both DMGs and the source overlay bind to source.txt. ZIPs are retained only for inventory verification.\nUse the unchanged public source base identified in source-base.json together with the overlay.\nThe base is not duplicated in this CI artifact. A future release must offer both source assets.\nNative signatures are ad-hoc; no Developer ID, notarization, Gatekeeper or physical audio acceptance claim.\n')
+          (candidate / 'README.txt').write_text('CI candidates only; no public release. Both DMGs and the macOS source inputs bind to source.txt. ZIPs are retained for inventory verification.\nThe release source assembler consumes these inputs and the pinned shared sources.\nNative signatures are ad-hoc; no Developer ID, notarization, Gatekeeper or physical audio acceptance claim.\n')
           lines = []
           for path in sorted(candidate.rglob('*')):
               if path.is_file() and path.name != 'SHA256SUMS':
@@ -1707,7 +1707,7 @@ jobs:
           (candidate / 'SHA256SUMS').write_text(''.join(lines))
           PY
           (cd "$candidate" && sha256sum --check --strict SHA256SUMS)
-      - name: Retain paired native DMG and source-overlay candidates
+      - name: Retain paired native DMGs and internal source inputs
         uses: actions/upload-artifact@v7
         with:
           name: macos-paired-candidate-${{ github.sha }}
@@ -1757,9 +1757,13 @@ jobs:
           curl --fail --location --retry 3 --max-time 300 --output "$base" https://github.com/grassmann-it/MeowChan/releases/download/v0.9.0/10-MeowChan-0.9.0-video-sources.tar.gz
           test "$(stat -c %s "$base")" = 725131331
           echo "bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa  $base" | sha256sum --check --strict
-      - name: Verify actual managed identities, source pairing, legal files and asset inventory
+      - name: Verify package identities and assemble the current video sources
         shell: bash
         run: |
+          if ! command -v 7z >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y 7zip
+          fi
           version="$(python3 -c "import xml.etree.ElementTree as E; print(E.parse('Directory.Build.props').findtext('.//Version'))")"
           channel=prerelease
           if [[ "${{ inputs.mode }}" == stable-candidate ]]; then channel=stable; fi

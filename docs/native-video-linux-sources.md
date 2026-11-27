@@ -26,8 +26,9 @@ do not guarantee that every contained codec/profile is decodable. Actual
 playback, audio devices, graphics drivers and distribution support require their
 own native acceptance results.
 
-The separate `MeowChan-<version>-<runtime>-video-sources.tar.gz` companion
-contains exact Ubuntu source descriptors, original sources and distro patches
+From MeowChan 1.2.0, the
+[`MeowChan-<version>-current-video-sources.7z`](native-video-archive.md)
+contains both Linux source inventories, exact Ubuntu source descriptors, original sources and distro patches
 for the libraries and plugins actually shipped. Source files are verified against
 their `.dsc` SHA-256 records; `manifest.json` binds them to the native inventories
 and application source commit. Copyright records and license texts accompany
@@ -35,11 +36,9 @@ the sources and bundled binaries. Source retrieval requires matching `deb-src`
 indices. The source collector fails when an exact source version is unavailable;
 it does not substitute a newer version.
 
-The existing Windows/Mac video-source base is independent and is not sufficient
-for these distro-patched Linux binaries. The Linux collector neither downloads
-nor repacks that base. It separately includes the much smaller exact
-LibVLCSharp 3.10.2 core/adapter source archive, verified against the existing
-binding-source SHA-256 inventory.
+The collector produces an internal `MeowChan-<version>-<runtime>-video-sources.tar.gz`
+from each native runner. The release assembler includes both inputs and stores the
+identical exact LibVLCSharp 3.10.2 core/adapter source archive once.
 
 The AppImage uses appimagetool 1.9.1 and type2-runtime 20251108, with separate
 x86_64 and aarch64 binary SHA-256 pins in `scripts/package-linux.py`. The source

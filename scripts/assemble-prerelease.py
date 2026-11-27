@@ -36,7 +36,7 @@ layout = helper('prerelease_legal_contract', 'check-desktop-package.py')
 mac_sources = helper('prerelease_mac_sources', 'package-macos-sources.py')
 public_api = helper('prerelease_public_api', 'check-public-api.py')
 require, digest, read_json = retained.require, retained.digest, retained.read_json
-PACKAGE_IDS = ('libmeowchan', 'MeowChan.PluginSdk', 'MeowChan.PluginHost')
+PACKAGE_IDS = retained.PACKAGE_IDS
 PHASES = ['download', 'restore', 'removed', 'shutdown']
 
 
@@ -237,7 +237,7 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.meowchan-current-source-', dir=output.parent) as temporary:
         staged = Path(temporary) / 'candidate'
-        retained.assemble(root, source, source_base, staged, version=version)
+        retained.assemble(root, source, source_base, staged, version=version, repository=repository)
         for name, origin in nuget.items():
             shutil.copyfile(origin, staged / name)
             require(digest(staged / name) == digest(origin), 'NuGet changed while staging')
@@ -247,18 +247,22 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
                 continue
             records.append({'file': path.name, 'bytes': path.stat().st_size, 'sha256': digest(path),
                             'source_commit': None if path.name == retained.BASE_NAME else source})
-        require(len(records) == 16, 'Expected 13 desktop/source and three developer package assets')
+        current = retained.video.current_layout(version)
+        require(len(records) == (13 if current else 16), 'Candidate asset count mismatch')
         inventory = {'schema': f'meowchan.{channel}-candidate.v1', 'channel': channel, 'version': version,
                      'source_commit': source, 'actions_run_id': run_id, 'assets': records,
                      'acceptance_configuration': 'Debug', 'shipping_binary_execution_claim': False,
                       'scope': 'Release packages plus same-source non-shipping Debug acceptance. Current-source CI candidate inventory. No publication or complete R10-12/native user acceptance claim.',
                      'native_signing': 'macOS ad-hoc; no Developer ID, notarization or Gatekeeper acceptance claim',
-                     'source_base': {'file': retained.BASE_NAME, 'bytes': retained.BASE_BYTES, 'sha256': retained.BASE_SHA},
                      'public_api_review': api_review,
                      'legal_sha256': {name: hashlib.sha256(data).hexdigest() for name, data in legal.items()}}
+        if current:
+            name = retained.video.archive_name(version)
+            inventory['current_video_sources'] = next(row for row in records if row['file'] == name)
+        else:
+            inventory['source_base'] = {'file': retained.BASE_NAME, 'bytes': retained.BASE_BYTES, 'sha256': retained.BASE_SHA}
         (staged / 'candidate-inventory.json').write_text(json.dumps(inventory, indent=2, sort_keys=True) + '\n')
-        (staged / 'SHA256SUMS').write_text(''.join(f'{digest(path)}  {path.name}\n' for path in sorted(staged.iterdir())
-                                                  if path.name != 'SHA256SUMS'))
+        retained.write_checksums(staged, {row['file'] for row in records} | {'candidate-inventory.json'})
         staged.rename(output)
 
 

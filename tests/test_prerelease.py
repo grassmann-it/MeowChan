@@ -1,15 +1,19 @@
 """Current-source prerelease/stable assembly; synthetic native evidence is never native proof."""
+import contextlib
 import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import plistlib
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
+import textwrap
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -23,6 +27,14 @@ SPEC = importlib.util.spec_from_file_location('alpha_assembly', ROOT / 'scripts/
 A = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(A)
 VERSION = '1.0.0-alpha.2'
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def data_json(value):
+    return json.dumps(value, sort_keys=True).encode()
 
 
 def write(path, data):
@@ -73,10 +85,14 @@ class PrereleaseFixtures(unittest.TestCase):
     version = VERSION
     channel = 'prerelease'
 
+    defect = None
+    vlc_version = '3.0.24+' + '1' * 40
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.directory = Path(self.tmp.name)
+        self.current = A.retained.video.current_layout(self.version)
         self.root = self.directory / 'candidates'
         self.root.mkdir()
         self.repo = self.directory / 'repo'
@@ -89,6 +105,16 @@ class PrereleaseFixtures(unittest.TestCase):
         for project in A.public_api.PROJECTS:
             for kind in ('Shipped', 'Unshipped'):
                 write(self.repo / project / ('PublicAPI.' + kind + '.txt'), '#nullable enable\n')
+        if self.current:
+            record(self.repo / A.retained.video.WINDOWS_REFERENCE, {
+                'rid': 'win-x64', 'version': self.vlc_version, 'nuget_version': '3.0.24',
+                'files': {'libvlc.dll': sha(b'fixture Windows VLC')}})
+            pinned = A.retained.video.linux_sources.RUNTIME_INPUTS
+            self.appimage_inputs = [{**row, 'sha256': sha(row['file'].encode()), 'bytes': len(row['file'])}
+                                    for row in pinned]
+            runtime_patch = patch.object(A.retained.video.linux_sources, 'RUNTIME_INPUTS', self.appimage_inputs)
+            runtime_patch.start()
+            self.addCleanup(runtime_patch.stop)
         # Apply the real shipping byte policy BEFORE the first git add. Otherwise
         # inherited Windows autocrlf normalizes the mixed-ending legal fixture.
         write(self.repo / '.gitattributes', (ROOT / '.gitattributes').read_bytes())
@@ -99,7 +125,8 @@ class PrereleaseFixtures(unittest.TestCase):
         for name, expected in self.legal.items():
             self.assertEqual(expected, subprocess.check_output(
                 ['git', '-C', str(self.repo), 'show', f'{self.source}:{name}']), name)
-        self.base = write(self.directory / A.retained.BASE_NAME, b'fixture native corresponding-source base')
+        self.base = self.make_current_source_base() if self.current else write(
+            self.directory / A.retained.BASE_NAME, b'fixture native corresponding-source base')
         self.patch = patch.multiple(A.retained, BASE_BYTES=self.base.stat().st_size, BASE_SHA=A.digest(self.base))
         self.patch.start()
         self.addCleanup(self.patch.stop)
@@ -110,6 +137,25 @@ class PrereleaseFixtures(unittest.TestCase):
             self.make_linux(rid)
         self.make_nuget()
         self.split_acceptance()
+
+    def make_current_source_base(self):
+        core = b'VLC source with contrib patches and build recipes'
+        binding = b'LibVLCSharp source'
+        contrib = b'fixture native contrib sources'
+        return tar(self.directory / A.retained.BASE_NAME, {
+            'MeowChan-video-sources/' + name: data for name, data in {
+                'docs/native-video-source-manifest.json': data_json({
+                    'vlc_release': '3.0.24', 'vlc_commit': self.vlc_version.split('+')[1],
+                    'core_source': {'file': 'vlc.tar.xz', 'bytes': len(core), 'sha256': sha(core)},
+                    'managed_binding_source': {'file': 'binding.tar.gz', 'bytes': len(binding),
+                                               'sha256': sha(binding), 'tag': '3.10.2'},
+                    'inputs': [{'name': 'contrib.tar.gz', 'bytes': len(contrib), 'sha256': sha(contrib),
+                                'in_companion_source_asset': True}]}),
+                'docs/native-video-licenses.txt': b'shared VLC licenses',
+                'THIRD-PARTY-NOTICES.md': b'fixture upstream notices',
+                'windows-publish-byte-map.json': data_json([['libvlc.dll', True]]),
+                'vlc.tar.xz': core, 'binding.tar.gz': binding, 'contrib-inputs/contrib.tar.gz': contrib,
+            }.items()})
 
     def git(self, *args):
         return subprocess.check_output(['git', '-C', str(self.repo), *args], text=True)
@@ -127,6 +173,8 @@ class PrereleaseFixtures(unittest.TestCase):
         archive.parent.mkdir(parents=True)
         with zipfile.ZipFile(archive, 'w') as package:
             package.writestr('MeowChan.exe', b'actual fixture apphost')
+            if self.current:
+                package.writestr('libvlc/win-x64/libvlc.dll', b'fixture Windows VLC')
             for name, data in self.legal.items():
                 package.writestr(name, data)
         apphost_hash = hashlib.sha256(b'actual fixture apphost').hexdigest()
@@ -145,29 +193,79 @@ class PrereleaseFixtures(unittest.TestCase):
         write(root / 'version.txt', self.version)
         base = {'file': A.retained.BASE_NAME, 'bytes': A.retained.BASE_BYTES, 'sha256': A.retained.BASE_SHA}
         record(root / 'source-base.json', base)
-        architectures = {}
+        architectures, entries, originals = {}, {}, {}
         for rid in ('osx-arm64', 'osx-x64'):
             dmg = write(root / f'MeowChan-{self.version}-{rid}.dmg', (rid + ' DMG').encode())
             archive = root / 'evidence' / rid / f'MeowChan-{self.version}-{rid}.zip'
             archive.parent.mkdir(parents=True)
+            relative = 'lib/libvlc.dylib'
+            zip_path = f'MeowChan.app/Contents/Resources/application/libvlc/{rid}/{relative}'
+            native = (rid + ' signed VLC').encode()
             with zipfile.ZipFile(archive, 'w') as package:
+                if self.current:
+                    package.writestr(zip_path, native)
                 package.writestr('MeowChan.app/Contents/Info.plist', plistlib.dumps({
                     'CFBundleShortVersionString': self.version.split('-')[0], 'CFBundleVersion': self.version.split('-')[0], 'MeowChanProductVersion': self.version}))
                 for name, data in self.legal.items():
                     package.writestr('MeowChan.app/Contents/Resources/application/' + name, data)
             workflow = self.workflow(rid)
             workflow['archiveBinding'] = {'sha256': A.digest(archive)}
-            record(root / f'{rid}-native-validation.json', {
+            validation = {
                 'source_commit': self.source, 'rid': rid, 'dmg_sha256': A.digest(dmg),
                 'inventory_zip_sha256': A.digest(archive), 'workflow': workflow,
                 'dmg_validation': {'dmgSha256': A.digest(dmg), 'mountedAndCopied': True, 'applicationsShortcut': '/Applications'},
                 'signatures': {'runtime': rid, 'signatures_verified': True, 'dependency_closure': True, 'coreclr_entitlements_verified': True},
-                'startup': {'passed': True}, 'playback': {'passed': True}})
+                'startup': {'passed': True}, 'playback': {'passed': True}}
             architectures[rid] = {'signed_dmg': {'file': dmg.name, 'sha256': A.digest(dmg)}}
-        tar(root / f'MeowChan-{self.version}-macos-video-source-overlay.tar.gz', {'manifest.json': json.dumps({
-            'schema': 'meowchan.macos-source-overlay.v1', 'version': self.version,
-            'application_source_commit': self.source, 'source_base': base, 'architectures': architectures}).encode()})
+            if self.current:
+                validation['dmg_validation']['copiedSignatures'] = {'files': {
+                    zip_path.removeprefix('MeowChan.app/'): sha(native)}}
+                self.add_mac_source_inventory(entries, originals, architectures, rid, archive, dmg,
+                                              validation, relative, zip_path, native)
+            record(root / f'{rid}-native-validation.json', validation)
+        manifest = {'schema': 'meowchan.macos-source-overlay.v1', 'version': self.version,
+                    'application_source_commit': self.source, 'source_base': base, 'architectures': architectures}
+        if self.current:
+            inputs = data_json({
+                'vlc': {'release': '3.0.24', 'exact_commit': self.vlc_version.split('+')[1]},
+                'native_package': {'nuget_version': '3.1.3.2'}, 'architectures': originals,
+                'contrib_comparison': {'rows': [{'base_inputs': [{'name': 'contrib.tar.gz',
+                    'sha256': sha(b'fixture native contrib sources')}]}]}})
+            entries.update({
+                'release-source/docs/native-video-macos-source-manifest.json': inputs,
+                'release-source/docs/native-video-macos-COPYING': b'Mac fixture license',
+                'release-source/MeowChan.csproj': b'<Project><ItemGroup>'
+                    b'<PackageReference Include="LibVLCSharp.Avalonia" Version="3.10.2"/>'
+                    b'<PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.24"/>'
+                    b'<PackageReference Include="VideoLAN.LibVLC.Mac" Version="3.1.3.2"/>'
+                    b'</ItemGroup></Project>',
+                'application-source.tar': b'Mac application source fixture',
+            })
+            for name in ('scripts/native-video/package-nuget-mac.sh', 'scripts/package-macos.py', 'scripts/macos-signing.py'):
+                entries['release-source/' + name] = name.encode()
+            manifest.update(source_input_manifest_sha256=sha(inputs),
+                            application_source_archive_sha256=sha(entries['application-source.tar']))
+        entries['manifest.json'] = data_json(manifest)
+        tar(root / f'MeowChan-{self.version}-macos-video-source-overlay.tar.gz', entries)
         self.mac_checksums()
+
+    def add_mac_source_inventory(self, entries, originals, architectures, rid, archive, dmg,
+                                 validation, relative, zip_path, native):
+        inventory_name = f'binary-inventories/{rid}.json'
+        report_name = f'binary-inventories/{rid}-native-validation.json'
+        report = data_json(validation)
+        original_sha = sha(b'Mac upstream VLC library')
+        originals[rid] = {'original_files': [{'path': relative, 'sha256': original_sha}]}
+        signed_zip = A.retained.video.binary_record(archive, archive.name)
+        signed_dmg = A.retained.video.binary_record(dmg, dmg.name)
+        architectures[rid] = {'signed_dmg': signed_dmg, 'inventory_zip': signed_zip, 'inventory': inventory_name}
+        entries[report_name] = report
+        entries[inventory_name] = data_json({
+            'rid': rid, 'signed_zip': signed_zip, 'signed_dmg': signed_dmg,
+            'native_files': [{'original_path': relative, 'original_sha256': original_sha,
+                              'zip_path': zip_path, 'packaged_sha256': sha(native)}],
+            'native_validation_report': {'path': report_name, 'sha256': sha(report)},
+        })
 
     def mac_checksums(self):
         root = self.root / ('macos-paired-candidate-' + self.source)
@@ -180,19 +278,35 @@ class PrereleaseFixtures(unittest.TestCase):
         write(root / 'linux-evidence/source.txt', self.source)
         artifacts = []
         native = b'fixture exact native runtime inventory'
-        native_hash = hashlib.sha256(native).hexdigest()
+        source_entries = {}
+        if self.current:
+            native, source_entries = self.make_linux_source_inventory(rid)
+        native_hash = sha(native)
         for flavor, suffix in [('system-vlc', '-system-vlc.tar.gz'), ('bundled-vlc', '-bundled-vlc.tar.gz'), ('appimage', '.AppImage')]:
             path = write(packages / f'MeowChan-{self.version}-{rid}{suffix}', (rid + flavor).encode())
             prefix = 'usr/lib/meowchan/' if flavor == 'appimage' else ''
             artifacts.append({'file': path.name, 'flavor': flavor, 'bytes': path.stat().st_size,
                               'sha256': A.digest(path), 'payload_files': {prefix + name: hashlib.sha256(data).hexdigest() for name, data in self.legal.items()}})
-        manifest = record(packages / (rid + '-package-manifest.json'), {
-            'schema': 'meowchan.linux-packages.v1', 'version': self.version, 'source_commit': self.source,
-            'runtime': rid, 'runtime_manifest_sha256': native_hash, 'artifacts': artifacts})
+        package_manifest = {'schema': 'meowchan.linux-packages.v1', 'version': self.version,
+                            'source_commit': self.source, 'runtime': rid,
+                            'runtime_manifest_sha256': native_hash, 'artifacts': artifacts}
+        source_manifest = {'schema': 'meowchan.linux-sources.v1', 'source_commit': self.source,
+                           'runtimes': {rid: {'sha256': native_hash}}}
+        if self.current:
+            native_files = json.loads(native)['files']
+            for row in artifacts:
+                if row['flavor'] != 'system-vlc':
+                    prefix = 'usr/lib/meowchan/' if row['flavor'] == 'appimage' else ''
+                    row['payload_files'].update({prefix + f'libvlc/{rid}/' + name: checksum
+                                                 for name, checksum in native_files.items()})
+            package_manifest['appimage_inputs'] = A.retained.video.linux_sources.common.tool_assets(rid)
+            source_manifest.update(source_entries.pop('source-metadata'))
+            source_manifest['runtimes'][rid]['native_runtime_files'] = native_files
+        manifest = record(packages / (rid + '-package-manifest.json'), package_manifest)
         source_archive = tar(packages / f'MeowChan-{self.version}-{rid}-video-sources.tar.gz', {
-            'manifest.json': json.dumps({'schema': 'meowchan.linux-sources.v1', 'source_commit': self.source,
-                'runtimes': {rid: {'sha256': native_hash}}}).encode(),
-            'inventories/' + rid + '-runtime-manifest.json': native})
+            'manifest.json': data_json(source_manifest),
+            'inventories/' + rid + '-runtime-manifest.json': native,
+            **source_entries})
         record(source_archive.with_name(source_archive.name + '.json'), {
             'schema': 'meowchan.linux-source-artifact.v1', 'source_commit': self.source, 'runtimes': [rid],
             'file': source_archive.name, 'bytes': source_archive.stat().st_size, 'sha256': A.digest(source_archive)})
@@ -210,6 +324,45 @@ class PrereleaseFixtures(unittest.TestCase):
         record(root / 'linux-evidence/distributions/linux-distribution-gates.json', {
             'passed': True, 'completed': True, 'sourceCommit': self.source, 'runtime': rid,
             'manifestSha256': A.digest(manifest), 'scenarios': rows})
+
+    def make_linux_source_inventory(self, rid):
+        owner, distro_version = 'vlc-fixture', '3.0.21-1'
+        arch = 'amd64' if rid == 'linux-x64' else 'arm64'
+        if self.defect == 'wrong architecture' and rid == 'linux-arm64':
+            arch = 'amd64'
+        library, copyright_name = 'lib/libvlc.so.5', owner + '.copyright'
+        native_sha, copyright_content = sha(rid.encode()), b'Ubuntu license fixture'
+        native = data_json({'schema': 'meowchan.linux-runtime.v1', 'runtime': rid,
+                            'files': {library: native_sha},
+                            'mappings': [{'file': library, 'package': owner, 'sha256': native_sha}],
+                            'packages': [{'package': owner, 'source': owner,
+                                          'source_version': distro_version, 'architecture': arch}],
+                            'licenses': {copyright_name: sha(copyright_content)}})
+        distro = {'vlc.orig.tar.xz': b'upstream distro source',
+                  'vlc.debian.tar.xz': b'distro patches and build rules'}
+        descriptor = f'Source: {owner}\nVersion: {distro_version}\nChecksums-Sha256:\n'
+        descriptor += ''.join(f' {sha(data)} {len(data)} {name}\n' for name, data in distro.items())
+        distro['vlc.dsc'] = descriptor.encode()
+        directory = 'distro/vlc-fixture'
+        binding = b'LibVLCSharp source'
+        distro_row = {'source': owner, 'version': distro_version, 'directory': directory,
+                      'inputs': {name: sha(data) for name, data in distro.items()}}
+        if self.defect == 'missing patch' and rid == 'linux-arm64':
+            del distro['vlc.debian.tar.xz']
+        entries = {directory + '/' + name: data for name, data in distro.items()}
+        entries.update({
+            f'licenses/{rid}/{copyright_name}': copyright_content,
+            'managed-binding/binding.tar.gz': binding,
+            'packaging/docs/native-video-appimage-runtime-LICENSE': b'fixture runtime license',
+            'source-metadata': {'distro_sources': [distro_row], 'appimage_runtime': self.appimage_inputs,
+                                'managed_binding': {'file': 'binding.tar.gz', 'bytes': len(binding),
+                                                    'sha256': sha(binding)}},
+        })
+        for item in self.appimage_inputs:
+            entries['appimage-runtime/' + item['file']] = item['file'].encode()
+        for name in A.retained.video.LINUX_RECIPES:
+            entries['packaging/' + name] = name.encode()
+        return native, entries
 
     def split_acceptance(self):
         # Synthetic split artifacts are deliberately byte-distinct. Existing failure
@@ -290,6 +443,52 @@ class PrereleaseFixtures(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, message):
             self.assemble()
         self.assertFalse(self.output.exists())
+
+    def current_fixture(self, defect=None):
+        fixture = PrereleaseFixtures()
+        fixture.channel = self.channel
+        fixture.version = '1.2.0' if self.channel == 'stable' else '1.2.0-rc.1'
+        fixture.defect = defect
+        self.addCleanup(fixture.doCleanups)
+        fixture.setUp()
+        return fixture
+
+    def test_current_archive_covers_every_package_and_is_the_only_source_asset(self):
+        if shutil.which('7z') is None:
+            self.skipTest('7z is required for current video source archive fixtures')
+        fixture = self.current_fixture()
+        fixture.assemble()
+        name = f'MeowChan-{fixture.version}-current-video-sources.7z'
+        archive = fixture.output / name
+        inventory = A.read_json(fixture.output / 'candidate-inventory.json')
+        self.assertEqual(name, inventory['current_video_sources']['file'])
+        self.assertEqual(A.digest(archive), inventory['current_video_sources']['sha256'])
+        self.assertEqual(13, len(inventory['assets']))
+        self.assertEqual([name], [row['file'] for row in inventory['assets'] if 'video-source' in row['file']])
+        unpacked = fixture.directory / 'extracted'
+        unpacked.mkdir()
+        A.retained.video.unpack(archive, unpacked)
+        manifest = A.read_json(unpacked / 'manifest.json')
+        self.assertEqual({'win-x64', 'linux-x64', 'linux-arm64', 'osx-arm64', 'osx-x64'}, manifest['runtimes'].keys())
+        self.assertEqual(9, sum(len(runtime['packages']) for runtime in manifest['runtimes'].values()))
+        source_files = A.retained.video.SourceFiles(unpacked, manifest['files'])
+        for rid in ('linux-arm64', 'linux-x64'):
+            patch_path, = manifest['runtimes'][rid]['components']['vlc-fixture=3.0.21-1']['patches']
+            self.assertEqual(b'distro patches and build rules', source_files.get(patch_path).read_bytes())
+        self.assertEqual(source_files.get('linux-x64/managed-binding/binding.tar.gz'),
+                         source_files.get('linux-arm64/managed-binding/binding.tar.gz'))
+        if fixture.channel == 'stable':
+            staged = fixture.directory / 'publication'
+            A.retained.stage_candidate(fixture.output, fixture.source, fixture.version, '123', staged, fixture.repo)
+            self.assertEqual(archive.read_bytes(), (staged / name).read_bytes())
+            self.assertIn(f'{A.digest(archive)}  {name}', (staged / 'SHA256SUMS').read_text().splitlines())
+            self.assertEqual(11, len(list(staged.iterdir())))
+
+    def test_current_candidate_rejects_missing_patch_and_wrong_architecture(self):
+        for defect, message in (('missing patch', 'vlc.debian.tar.xz'), ('wrong architecture', 'owner/architecture')):
+            with self.subTest(defect=defect):
+                fixture = self.current_fixture(defect)
+                fixture.reject(message)
 
     def test_complete_inventory_preserves_source_base_identity_and_checksums(self):
         self.assemble()
@@ -514,8 +713,10 @@ class CandidateWorkflowFixtures(unittest.TestCase):
     }
 
     def matrix(self, scenario='all', event='workflow_dispatch', mode='validate'):
-        from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
-        rows = DotnetDesktopWorkflowContractTests().matrix(scenario=scenario, event=event, mode=mode)
+        # The shared matrix fixture imports the planner as tests.test_validation_gate.
+        with patch.object(sys, 'path', [str(ROOT), *sys.path]):
+            from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
+            rows = DotnetDesktopWorkflowContractTests().matrix(scenario=scenario, event=event, mode=mode)
         balanced = event != 'workflow_dispatch' or scenario in ('all', 'gui-only')
         for platform in (*self.PORTABLE, *self.NATIVE):
             platform_rows = [row for row in rows if row['os'] == platform]
@@ -902,6 +1103,38 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn('scripts/balance-validation.py verify-cell', final_gate)
         self.assertIn('scripts/aggregate-release-gates.py steps', final_gate)
         self.assertIn('--required "$REQUIRED_STEPS"', final_gate)
+
+    def test_release_upload_uses_staged_names_and_exact_bytes_for_current_sources(self):
+        workflow = (ROOT / '.github/workflows/upload-verified-release.yml').read_text()
+        program = re.search(r"python3 - <<'PY'\n(.*?)^          PY$", workflow, re.M | re.S).group(1)
+        version, source = '1.2.0', 'b' * 40
+        name = 'MeowChan-1.2.0-current-video-sources.7z'
+        expected_names = set(A.retained.video.public_names(version)) | {'SHA256SUMS'}
+        uploads = []
+
+        def receive(argv, check):
+            self.assertTrue(check)
+            asset = argv[4].split('#', 1)[0]
+            uploads.append(Path(asset).name)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for script in ('assemble-video-sources.py', 'package-linux.py', 'package-linux-sources.py'):
+                write(root / 'scripts' / script, (ROOT / 'scripts' / script).read_bytes())
+            for asset in expected_names:
+                write(root / 'staged' / asset, asset)
+            release = {'id': 5, 'tag_name': 'v' + version, 'draft': True, 'prerelease': False,
+                       'target_commitish': source, 'assets': []}
+            env = {'GITHUB_REPOSITORY': 'fixture/example', 'RELEASE_ID': '5', 'SOURCE_COMMIT': source,
+                   'SOURCE_RUN': '123', 'RELEASE_VERSION': version}
+            with contextlib.chdir(root), patch.dict(os.environ, env), patch.object(
+                subprocess, 'check_output', return_value=data_json(release)
+            ), patch.object(subprocess, 'run', side_effect=receive):
+                exec(compile(textwrap.dedent(program), 'release upload fixture', 'exec'), {})
+            self.assertCountEqual(expected_names, uploads)
+            receipt = A.read_json(root / 'release-upload-record.json')
+            asset, = [row for row in receipt['assets'] if row['name'].endswith('.7z')]
+            self.assertEqual({'name': name, 'bytes': len(name), 'digest': 'sha256:' + sha(name.encode())}, asset)
 
     def test_downloads_stay_in_current_run_and_candidate_channel_is_explicit(self):
         job = self.jobs['current-source-inventory']

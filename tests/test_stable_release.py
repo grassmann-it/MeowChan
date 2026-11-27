@@ -190,6 +190,31 @@ class StableReleaseFixtures(unittest.TestCase):
             ASSEMBLY.assemble(self.root, SOURCE, self.base, self.output)
         self.assertFalse(self.output.exists())
 
+    def test_current_stable_staging_rejects_duplicate_source_asset_and_binary_hash_mismatch(self):
+        candidate = self.output.parent / 'stable-candidate'
+        version = '1.2.0'
+        names = ASSEMBLY.video.public_names(version) + [f'{package}.{version}.nupkg' for package in ASSEMBLY.PACKAGE_IDS]
+        records = []
+        for name in names:
+            path = write(candidate / name, name)
+            records.append({'file': name, 'bytes': path.stat().st_size, 'sha256': sha(path), 'source_commit': SOURCE})
+        source = next(row for row in records if row['file'] == 'MeowChan-1.2.0-current-video-sources.7z')
+        inventory = {'schema': 'meowchan.stable-candidate.v1', 'channel': 'stable', 'version': version,
+                     'source_commit': SOURCE, 'actions_run_id': '123', 'assets': records,
+                     'current_video_sources': source}
+        inventory_path = write_json(candidate / 'candidate-inventory.json', inventory)
+        ASSEMBLY.write_checksums(candidate, set(names) | {inventory_path.name})
+        extra = write(candidate / 'duplicate-current-video-sources.7z', (candidate / source['file']).read_bytes())
+        with self.assertRaisesRegex(ValueError, 'extra, or duplicate asset'):
+            ASSEMBLY.stage_candidate(candidate, SOURCE, version, '123', self.output, self.root)
+        self.assertFalse(self.output.exists())
+        extra.unlink()
+        binary = candidate / 'MeowChan-1.2.0-osx-arm64.dmg'
+        binary.write_bytes(b'x' * binary.stat().st_size)
+        with self.assertRaisesRegex(ValueError, 'SHA-256 mismatch: MeowChan-1.2.0-osx-arm64.dmg'):
+            ASSEMBLY.stage_candidate(candidate, SOURCE, version, '123', self.output, self.root)
+        self.assertFalse(self.output.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

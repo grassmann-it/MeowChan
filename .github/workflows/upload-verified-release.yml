@@ -3,28 +3,18 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version (for example 1.1.0); empty uses the product Version from Directory.Build.props at the source commit
+        description: Release version (1.2.0 or later); empty uses the product Version from Directory.Build.props at the source commit
         required: false
         default: ''
       source_run:
-        description: Successful retained Windows and macOS package-media run ID
+        description: Successful same-source stable-candidate run ID
         required: true
       source_commit:
-        description: Exact final Linux and release source commit
-        required: true
-      linux_run:
-        description: Successful Linux-only distribution run ID
-        required: true
-      retained_source_commit:
-        description: Exact accepted Windows and macOS source commit
+        description: Exact commit shared by all release packages
         required: true
       release_id:
         description: Existing draft release ID for the tag v<version>
         required: true
-      source_base_tag:
-        description: Release tag that holds the immutable corresponding-source base archive
-        required: false
-        default: v0.9.0-preview.3
 permissions:
   contents: write
   actions: read
@@ -39,11 +29,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SOURCE_RUN: ${{ inputs.source_run }}
       SOURCE_COMMIT: ${{ inputs.source_commit }}
-      LINUX_RUN: ${{ inputs.linux_run }}
-      RETAINED_SOURCE: ${{ inputs.retained_source_commit }}
       RELEASE_ID: ${{ inputs.release_id }}
       INPUT_VERSION: ${{ inputs.version }}
-      SOURCE_BASE_TAG: ${{ inputs.source_base_tag }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,56 +46,33 @@ jobs:
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Invalid release version: '$version'"; exit 1; }
           echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
           echo "Uploading release v$version"
-      - name: Check the immutable successful source run
+      - name: Check the immutable successful stable candidate run
         run: |
-          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$SOURCE_RUN" =~ ^[1-9][0-9]*$ ]]
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$LINUX_RUN" =~ ^[0-9]+$ ]]
-          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]
-          [[ "$RETAINED_SOURCE" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$SOURCE_BASE_TAG" =~ ^v[0-9A-Za-z._-]+$ ]]
-          # Overall success is not enough: a manually selected run must also
-          # contain the explicit candidate gate (and the Linux distribution
-          # gate for the separate Linux run). Missing job evidence rejects the
-          # upload instead of silently accepting a partial/diagnostic run.
-          gh run view "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion,jobs > retained-run.json
-          gh run view "$LINUX_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion,jobs > linux-run.json
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          gh run view "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion,jobs > candidate-run.json
           python3 scripts/aggregate-release-gates.py run \
-            --json-file retained-run.json \
-            --expected-sha "$RETAINED_SOURCE" \
-            --required-job "Release candidate gate" \
-            --report retained-release-run-gate.json
-          python3 scripts/aggregate-release-gates.py run \
-            --json-file linux-run.json \
+            --json-file candidate-run.json \
             --expected-sha "$SOURCE_COMMIT" \
-            --required-job linux-distribution \
-            --report linux-release-run-gate.json
-      - name: Download accepted candidates and the immutable common source base
+            --required-job "Release candidate gate" \
+            --report release-run-gate.json
+      - name: Download the exact stable candidate assets
+        run: gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name "stable-candidate-$SOURCE_COMMIT" --dir candidate
+      - name: Verify source pairing and stage the exact public asset bytes
         run: |
-          python3 - <<'PY'
-          import concurrent.futures, os, subprocess
-          repo = os.environ['GITHUB_REPOSITORY']
-          commands = []
-          for run, names in [
-              (os.environ['SOURCE_RUN'], ['native-media-candidate-win-x64', 'macos-paired-candidate-' + os.environ['RETAINED_SOURCE']]),
-              (os.environ['LINUX_RUN'], ['linux-distribution-candidate-linux-x64', 'linux-distribution-candidate-linux-arm64']),
-          ]:
-              for name in names:
-                  commands.append(['gh', 'run', 'download', run, '--repo', repo, '--name', name, '--dir', 'candidates/' + name])
-          commands.append(['gh', 'release', 'download', os.environ['SOURCE_BASE_TAG'], '--repo', repo, '--pattern', 'MeowChan-0.9.0-video-sources.tar.gz', '--dir', 'source-base'])
-          # Independent immutable inputs use separate directories; await every transfer
-          # before the assembler verifies the complete set and any release upload starts.
-          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-              futures = [executor.submit(subprocess.run, command, check=True) for command in commands]
-              for future in futures:
-                  future.result()
-          PY
-      - name: Verify source, native package evidence, paired sources and exact asset inventory
-        run: python3 scripts/assemble-stable-release.py --artifacts-root candidates --source-commit "$SOURCE_COMMIT" --windows-source-commit "$RETAINED_SOURCE" --macos-source-commit "$RETAINED_SOURCE" --source-base source-base/MeowChan-0.9.0-video-sources.tar.gz --output staged --version "$RELEASE_VERSION"
+          if ! command -v 7z >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y 7zip
+          fi
+          python3 scripts/assemble-stable-release.py --candidate-dir candidate --candidate-run-id "$SOURCE_RUN" \
+            --source-commit "$SOURCE_COMMIT" --version "$RELEASE_VERSION" --output staged
+          (cd staged && sha256sum --check --strict SHA256SUMS)
       - name: Upload verified assets to the existing draft without publishing
         run: |
           python3 - <<'PY'
-          import concurrent.futures, hashlib, json, os, subprocess
+          import concurrent.futures, hashlib, importlib.util, json, os, subprocess
           from pathlib import Path
           repo = os.environ['GITHUB_REPOSITORY']
           release = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/releases/' + os.environ['RELEASE_ID']]))
@@ -116,15 +80,14 @@ jobs:
           assert release['tag_name'] == 'v' + version
           assert release['draft'] is True and release['prerelease'] is False
           assert release['target_commitish'] == os.environ['SOURCE_COMMIT']
-          order = ['win-x64.zip', 'osx-arm64.dmg', 'osx-x64.dmg', 'linux-x64.AppImage', 'linux-arm64.AppImage', 'linux-x64-bundled-vlc.tar.gz', 'linux-x64-system-vlc.tar.gz', 'linux-arm64-bundled-vlc.tar.gz', 'linux-arm64-system-vlc.tar.gz', 'video-sources.tar.gz', 'macos-video-source-overlay.tar.gz', 'linux-x64-video-sources.tar.gz', 'linux-arm64-video-sources.tar.gz']
-          # The pinned corresponding-source base keeps its own (0.9.0) name.
-          base = 'MeowChan-0.9.0-video-sources.tar.gz'
-          names = [base if name == 'video-sources.tar.gz' else f'MeowChan-{version}-' + name for name in order] + ['SHA256SUMS']
+          spec = importlib.util.spec_from_file_location('video_sources', 'scripts/assemble-video-sources.py')
+          sources = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(sources)
+          names = sources.public_names(version) + ['SHA256SUMS']
           assert set(names) == {p.name for p in Path('staged').iterdir()}
           record = {'schema': 'meowchan.verified-release-upload.v1',
                     'releaseId': release['id'], 'sourceCommit': os.environ['SOURCE_COMMIT'],
-                    'retainedSourceCommit': os.environ['RETAINED_SOURCE'],
-                    'version': version, 'sourceRun': os.environ['SOURCE_RUN'], 'linuxRun': os.environ['LINUX_RUN'],
+                    'version': version, 'sourceRun': os.environ['SOURCE_RUN'],
                     'assets': []}
           existing = {a['name']: a for a in release['assets']}
           assert set(existing).issubset(names)
@@ -137,7 +100,8 @@ jobs:
           LABELS = {'win-x64.zip': 'Windows x64 (.zip)', 'osx-arm64.dmg': 'macOS Apple Silicon (.dmg)', 'osx-x64.dmg': 'macOS Intel (.dmg)',
                     'linux-x64.AppImage': 'Linux x64 (.AppImage)', 'linux-arm64.AppImage': 'Linux ARM64 (.AppImage)',
                     'linux-x64-bundled-vlc.tar.gz': 'Linux x64 \u2014 bundled VLC (.tar.gz)', 'linux-x64-system-vlc.tar.gz': 'Linux x64 \u2014 system VLC (.tar.gz)',
-                    'linux-arm64-bundled-vlc.tar.gz': 'Linux ARM64 \u2014 bundled VLC (.tar.gz)', 'linux-arm64-system-vlc.tar.gz': 'Linux ARM64 \u2014 system VLC (.tar.gz)'}
+                    'linux-arm64-bundled-vlc.tar.gz': 'Linux ARM64 \u2014 bundled VLC (.tar.gz)', 'linux-arm64-system-vlc.tar.gz': 'Linux ARM64 \u2014 system VLC (.tar.gz)',
+                    'current-video-sources.7z': 'Current video sources (.7z)'}
           def upload(row):
               name = row['name']
               old = existing.get(name)
