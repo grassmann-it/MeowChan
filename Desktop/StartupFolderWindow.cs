@@ -158,6 +158,7 @@ internal sealed class StartupFolderWindow : Window
         ShowError(null);
         RefreshButtons();
         try { await action(); }
+        catch (OperationCanceledException) { }
         catch (SettingsRecoveryRequiredException recovery)
         {
             if (IsVisible) _error.Text = recovery.LocalizedMessage();

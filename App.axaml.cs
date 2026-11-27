@@ -103,36 +103,70 @@ public partial class App : Application
                 {
                     ShowFolderStartup(desktop, folderSession);
                 }
+                else if (GetType() == typeof(App) && SmokeMainWindowFactory is null && NeedsProfileCopyWindow(Config.GetConfigDirectory()))
+                {
+                    ShowProfileStartup(desktop, Config.GetConfigDirectory());
+                }
                 else
                 {
                     SetMainWindow(desktop, CreateMainWindow());
                 }
             }
-            catch (SettingsRecoveryRequiredException recovery)
-            {
-                // No settings are in force, so the language is the readable backup's or the operating system's.
-                Log.Error(recovery, "Desktop startup stopped: the settings of the profile need a recovery decision.");
-                Texts.Initialize();
-                Texts.SetLanguage(SettingsRecoveryRequiredException.StartupLanguage(recovery.SavedLanguage, CultureInfo.CurrentUICulture));
-                ShowStartupFailure(desktop, new(recovery.LocalizedMessage()));
-            }
-            catch (BoardAdmissionStartupException recovery)
-            {
-                Log.Error(recovery, "Desktop startup stopped because the board admission rules could not be loaded.");
-                Texts.Initialize();
-                Texts.SetLanguage(recovery.SavedLanguage);
-                ShowStartupFailure(desktop, new(recovery.LocalizedMessage()));
-            }
-            catch (Exception exception)
-            {
-                Log.Error(exception, "Desktop startup failed.");
-                ShowStartupFailure(desktop, new(exception.Message));
-            }
+            catch (Exception exception) { ShowInitializationFailure(desktop, exception); }
             if (desktop.MainWindow is Window window)
                 StartupWindowReady?.Invoke(desktop, window, video);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static bool NeedsProfileCopyWindow(string profile) =>
+        Directory.Exists(profile) && (!File.Exists(Path.Combine(profile, ProfileManifest.FileName))
+            || ProfileUpgrade.SnapshotFor(profile) is not null);
+
+    private static void ShowProfileStartup(IClassicDesktopStyleApplicationLifetime desktop, string profile)
+    {
+        Texts.Initialize();
+        Texts.SetLanguage(Texts.ResolveCulture(CultureInfo.CurrentUICulture));
+        ProfileCopyWindow progress = new(Texts.T("profile.switch.openName", Path.GetFileName(profile)));
+        desktop.MainWindow = progress;
+        progress.Opened += async (_, _) =>
+        {
+            try
+            {
+                DesktopSessionHost host = await progress.RunAsync((report, token) =>
+                    new DesktopSessionHost(profile, admitProfileUpgrade: true, upgradeProgress: report, upgradeCancellation: token));
+                MainWindow main = new(host);
+                SetMainWindow(desktop, main);
+                main.Show();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                ShowInitializationFailure(desktop, error);
+                desktop.MainWindow?.Show();
+            }
+            finally { progress.Close(); }
+        };
+    }
+
+    private static void ShowInitializationFailure(IClassicDesktopStyleApplicationLifetime desktop, Exception error)
+    {
+        Log.Error(error, "Desktop startup failed.");
+        string message = error.Message;
+        if (error is SettingsRecoveryRequiredException settings)
+        {
+            Texts.Initialize();
+            Texts.SetLanguage(SettingsRecoveryRequiredException.StartupLanguage(settings.SavedLanguage, CultureInfo.CurrentUICulture));
+            message = settings.LocalizedMessage();
+        }
+        else if (error is BoardAdmissionStartupException board)
+        {
+            Texts.Initialize();
+            Texts.SetLanguage(board.SavedLanguage);
+            message = board.LocalizedMessage();
+        }
+        ShowStartupFailure(desktop, new(message));
     }
 
     private void ShowFolderStartup(IClassicDesktopStyleApplicationLifetime desktop, StartupFolderSession folderSession)
@@ -147,7 +181,16 @@ public partial class App : Application
             try
             {
                 if (!temporary)
-                    adopted = await Task.Run(() => new DesktopSessionHost(profile, readOnlyStartupSource: folderSession.Source, admitProfileUpgrade: true));
+                {
+                    ProfileCopyWindow progress = new(Texts.T("profile.switch.openName", Path.GetFileName(profile)));
+                    _ = progress.ShowDialog(desktop.MainWindow!);
+                    try
+                    {
+                        adopted = await progress.RunAsync((report, token) => new DesktopSessionHost(profile,
+                            readOnlyStartupSource: folderSession.Source, admitProfileUpgrade: true, upgradeProgress: report, upgradeCancellation: token));
+                    }
+                    finally { progress.Close(); }
+                }
                 MainWindow main = adopted == null ? CreateMainWindow() : new MainWindow(adopted);
                 main.TemporaryFolderSession = temporary;
                 SetMainWindow(desktop, main);
@@ -217,7 +260,18 @@ public partial class App : Application
             var selected = await LocalFolderPicker.PickAsync(main.StorageProvider, Texts.T("profile.new.chooseFolder"));
             if (selected.Path is not { } parent) return;
             string destination = ProfileOpenPolicy.FreeFolder(parent, "MeowChan-1.1.3");
-            await Task.Run(() => snapshot.Restore(directory, destination));
+            ProfileCopyWindow progress = new(title);
+            _ = progress.ShowDialog(main);
+            try
+            {
+                await progress.RunAsync((report, token) =>
+                {
+                    snapshot.Restore(directory, destination, progress: report, token: token);
+                    return true;
+                });
+            }
+            catch (OperationCanceledException) { return; }
+            finally { progress.Close(); }
             await DialogPrompt.ConfirmAsync(main, title, destination, close, close,
                 danger: false, automationId: "ProfileUpgradeRestored");
         }

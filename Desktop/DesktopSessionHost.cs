@@ -82,7 +82,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null,
         Func<string, Config, UpdateSession>? updateSessionFactory = null, Func<System.Net.Http.HttpClient>? pluginTransportFactory = null,
         Func<string, ProfileLease, IWorkStateStore>? workStoreFactory = null, Stats.IoStatsHub? ioStats = null,
-        string? readOnlyStartupSource = null, bool admitProfileUpgrade = false, bool temporaryProfile = false)
+        string? readOnlyStartupSource = null, bool admitProfileUpgrade = false, bool temporaryProfile = false,
+        Action<string, long>? upgradeProgress = null, CancellationToken upgradeCancellation = default)
     {
         _admitProfileUpgrade = admitProfileUpgrade;
         _logger = logger ?? Log.Logger;
@@ -91,7 +92,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         try
         {
             _profileLease = admitProfileUpgrade
-                ? ProfileUpgrade.Open(profileDirectory, Path.Combine(Path.GetDirectoryName(global::MeowChan.Config.GetDefaultDownloadPath())!, "oChan"), temporaryProfile)
+                ? ProfileUpgrade.Open(profileDirectory, Path.Combine(Path.GetDirectoryName(global::MeowChan.Config.GetDefaultDownloadPath())!, "oChan"), temporaryProfile,
+                    progress: upgradeProgress, token: upgradeCancellation)
                 : ProfileLease.Acquire(profileDirectory);
             if (admitProfileUpgrade)
             {
