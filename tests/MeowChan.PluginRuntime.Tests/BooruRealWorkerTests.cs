@@ -99,7 +99,7 @@ public sealed class BooruRealWorkerTests
             HttpResponseMessage response = new(HttpStatusCode.OK)
             {
                 RequestMessage = request,
-                Content = responseKind == "diagnostics" ? new FailingContent(encoded) : new StringContent(body)
+                Content = responseKind == "diagnostics" ? new FailingContent(encoded) : new StringContent(body, Encoding.UTF8, "application/json")
             };
             if (responseKind == "etag") response.Headers.ETag = new("\"" + encoded + "\"");
             if (responseKind == "header") response.Headers.TryAddWithoutValidation("Cache-Control", AccountMarker);
