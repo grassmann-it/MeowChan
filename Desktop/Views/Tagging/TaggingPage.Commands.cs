@@ -241,7 +241,8 @@ public sealed partial class TaggingPage
                 : MediaSourceMenuData.ForProvider(provider.Value, several ? null : MediaSourceMenu.ReadProvider(provider.Value, ReadBooruCatalog));
             MediaSourceMenu.AddTo(menu, source, Current, text => MenuClipboard.CopyAsync(this, text, ShowStatus),
                 readOriginal: provider is null ? () => MediaSourceMenu.ReadOriginalAsync(entry, OpenPanelManifestAsync, _lifetime.Token) : null,
-                blocked: several ? MediaMenuReasons.SeveralSelected : null);
+                blocked: several ? MediaMenuReasons.SeveralSelected : null, lookup: MainWindow.Md5LookupFor(this),
+                readMd5: async () => MediaSourceMenu.Md5(await MediaSourceMenu.ReadAssetAsync(entry, OpenPanelManifestAsync, _lifetime.Token)));
         });
     }
 

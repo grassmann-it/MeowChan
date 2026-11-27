@@ -19,7 +19,8 @@ internal enum BooruInputIssue
     Characters,
     Negative,
     PostId,
-    PostLink
+    PostLink,
+    Md5
 }
 
 /// <summary>Result of reading the search field. Pure; it never requests anything.</summary>
@@ -89,6 +90,7 @@ internal static class BooruInput
             DanbooruTagQueryError.TooManyTerms => BooruInputIssue.TooManyTerms,
             DanbooruTagQueryError.UnsupportedExpression => BooruInputIssue.Unsupported,
             DanbooruTagQueryError.UnsupportedMetaTag => BooruInputIssue.MetaTag,
+            DanbooruTagQueryError.InvalidMd5 => BooruInputIssue.Md5,
             DanbooruTagQueryError.InvalidRating or DanbooruTagQueryError.DuplicateRating => BooruInputIssue.Rating,
             DanbooruTagQueryError.InputTooLong or DanbooruTagQueryError.TermTooLong => BooruInputIssue.TooLong,
             DanbooruTagQueryError.InvalidNegativeTerm => BooruInputIssue.Negative,

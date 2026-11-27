@@ -37,12 +37,12 @@ internal sealed partial class BooruSearchModel
         BooruSearchView view = BlankView(binding);
         return draft is null ? view : view with
         {
-            Mode = draft.Mode, Input = draft.Input, Parsed = ParseInput(draft.Mode, draft.Input, sourceId)
+            Mode = draft.Mode, Input = draft.Input, Parsed = ParseInput(draft.Mode, draft.Input, sourceId, binding.Source)
         };
     }
 
-    private static BooruParsedInput ParseInput(BooruInputMode mode, string input, string sourceId) =>
-        BooruInput.Parse(mode, input, sourceId);
+    private static BooruParsedInput ParseInput(BooruInputMode mode, string input, string sourceId, SourceDescription? source) =>
+        BooruInput.Parse(mode, input, sourceId, source?.BooruProfile);
 
     private static bool MatchesView(BooruPostView post, BooruSearchView view) =>
         post.SourceId == view.ProviderId && post.Identity.InstanceId == view.InstanceId;
@@ -73,7 +73,7 @@ internal sealed partial class BooruSearchModel
         BooruSearchStatus status = !bound ? BooruSearchStatus.Unavailable
             : !rows.IsEmpty ? BooruSearchStatus.Results : target.Empty ? BooruSearchStatus.Empty : BooruSearchStatus.Idle;
         return new BooruSearchView(target.Source, binding?.Search.ProviderName ?? target.Source, mode, input,
-            ParseInput(mode, input, target.Source), status, target.Query, target.PostId, target.Page, target.IsEnd, rows,
+            ParseInput(mode, input, target.Source, source), status, target.Query, target.PostId, target.Page, target.IsEnd, rows,
             null, bound ? null : BooruCodes.SourceUnavailable, null, InstanceId: target.Instance,
             NeedsLoad: status == BooruSearchStatus.Idle
                 && (!string.IsNullOrWhiteSpace(input) || target.Query is not null || target.PostId is not null))

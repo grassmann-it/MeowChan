@@ -418,6 +418,8 @@ namespace MeowChan
         internal const int BooruSearchPostsPerPageMinimum = 1;
         internal const int BooruSearchPostsPerPageMaximum = Desktop.Booru.BooruSearchModel.PageSize;
         public int BooruSavedTabs { get; set; } = BooruSavedTabsDefault;
+        [JsonInclude, JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        internal bool BooruMd5BatchEnabled { get; set; }
         internal const int BooruSavedTabsDefault = 9;
         internal const int BooruSavedTabsMinimum = 2;
         internal const int BooruSavedTabsMaximum = 33;
@@ -2213,6 +2215,7 @@ namespace MeowChan
                 BooruSearchPages = BooruSearchPages,
                 BooruSearchPostsPerPage = BooruSearchPostsPerPage,
                 BooruSavedTabs = BooruSavedTabs,
+                BooruMd5BatchEnabled = BooruMd5BatchEnabled,
                 BooruSavedResultsPerTab = BooruSavedResultsPerTab,
                 BooruGallerySampleMiB = BooruGallerySampleMiB,
                 BooruGalleryCacheMiB = BooruGalleryCacheMiB,
@@ -2527,6 +2530,7 @@ namespace MeowChan
             BooruSearchPages = source.BooruSearchPages;
             BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
             BooruSavedTabs = source.BooruSavedTabs;
+            BooruMd5BatchEnabled = source.BooruMd5BatchEnabled;
             BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
@@ -2791,6 +2795,7 @@ namespace MeowChan
             BooruSearchPages = source.BooruSearchPages;
             BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
             BooruSavedTabs = source.BooruSavedTabs;
+            BooruMd5BatchEnabled = source.BooruMd5BatchEnabled;
             BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
