@@ -250,6 +250,7 @@ public partial class SettingsEditor
         DownloadPath = defaults.DownloadPath;
         ExportFilenameTemplate = defaults.ExportFilenameTemplate;
         RecheckTimer = defaults.RecheckTimer;
+        LoadAdaptiveRecheckDraft(defaults);
         MaxParallelDownloads = defaults.MaxParallelDownloads;
         ParallelDownloadsSafetyLimit = defaults.ParallelDownloadsSafetyLimit;
         BandwidthLimiterMB = ResetDefaults.BandwidthLimiterMiB;

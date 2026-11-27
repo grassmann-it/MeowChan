@@ -119,6 +119,7 @@ internal static class PluginCatalog
         ("plugins.candidate.otherPending", "Other build saved for next start", "Andere Fassung für nächsten Start gespeichert"),
         ("plugins.candidate.changedHint", "The changed build has not been selected for next app start.", "Der geänderte Build ist noch nicht für den nächsten Appstart vorgemerkt."),
         ("plugins.problemHint", "This plugin or candidate needs attention. See the details for the reason.", "Dieses Plugin oder dieser Kandidat benötigt einen Eingriff. Der Grund steht in den Details."),
+        ("plugins.problem.forbiddenReference", "The plugin references an assembly that is unavailable to plugins ({0}).", "Das Plugin verweist auf eine Assembly, die für Plugins nicht verfügbar ist ({0})."),
         ("plugins.pending.build", "Build saved for next start", "Fassung für nächsten Start gespeichert"),
         ("plugins.pending.configuration", "Settings saved for next start", "Einstellungen für nächsten Start gespeichert"),
         ("plugins.pending.unknown", "Next-start status unknown", "Stand für nächsten Start unbekannt"),

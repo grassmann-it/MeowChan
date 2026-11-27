@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -147,6 +148,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
         Assert.Null(consent.Rejection);
         Assert.Null(Plugin(consent).Active);
         var established = await probe.Run("start-B");
+        Assert.Null(established.Rejection);
         Assert.Equal(consent.TargetExecution, Plugin(established).Active!.ExecutionRevision);
         var backups = probe.BackupFiles();
 
@@ -205,6 +207,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
         if (activateB)
         {
             var established = await probe.Run("start-B");
+            Assert.Null(established.Rejection);
             Assert.Equal(consent.TargetExecution, Plugin(established).Active!.ExecutionRevision);
         }
         var backups = probe.BackupFiles();
@@ -394,6 +397,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
         internal async Task<ProbeResult> Run(string phase, params string[] arguments)
         {
             string executable = BuiltTestBinaries.AssemblyOf(Path.Combine("tests", "PluginReauthorizationProbe"));
+            string fixture = BuiltTestBinaries.LibraryOf(Path.Combine("tests", "PluginReauthorizationFixture"));
             int invocation = ++sequence;
             string prefix = Path.Combine(root, $"{invocation:D2}-{phase}");
             ProcessStartInfo start = new(dotnetHost) { WorkingDirectory = root };
@@ -420,6 +424,15 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
             else Assert.False(File.Exists(workerEvidence));
             Assert.Equal(Environment.GetEnvironmentVariable("OCHAN_TEST_SOURCE_SHA"), result.SourceSha);
             Assert.Equal(Hash(await File.ReadAllBytesAsync(executable)), result.ProbeHash);
+            Assert.Equal(Hash(await File.ReadAllBytesAsync(fixture)), result.FixtureHash);
+            Assert.NotEqual(result.ProbeHash, result.FixtureHash);
+            if (phase == "seed")
+            {
+                string deliveredTarget = Path.Combine(root, "delivery", "target", "fixture.dll");
+                Assert.Equal(AssemblyName.GetAssemblyName(fixture).Name, AssemblyName.GetAssemblyName(deliveredTarget).Name);
+                Assert.Equal(Hash(await File.ReadAllBytesAsync(deliveredTarget)), result.TargetAssemblyHash);
+                Assert.NotEqual(result.FixtureHash, result.TargetAssemblyHash);
+            }
             Assert.Equal(Hash(await File.ReadAllBytesAsync(BuiltTestBinaries.WorkerAssembly())), result.WorkerHash);
             Assert.Equal(0, result.HttpRequests);
             output.WriteLine($"{phase}: host PID={result.Pid}, worker PID={result.WorkerPid}, SHA={result.SourceSha}, store={result.StoreHash}");
@@ -428,6 +441,6 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
     }
     private sealed record ProbeResult(int Pid, int Sequence, string Phase, string? SourceSha, PluginProfileSnapshot State, BundledCandidateRepair? Row,
         string? Rejection, int? WorkerPid, string? Text, int ImageReads, int HttpRequests,
-        string StoreHash, string? BackupHash, string ProbeHash, string WorkerHash,
+        string StoreHash, string? BackupHash, string ProbeHash, string FixtureHash, string WorkerHash,
         string TargetExecution, string TargetAssemblyHash, string OldExecution, string? ThirdExecution);
 }

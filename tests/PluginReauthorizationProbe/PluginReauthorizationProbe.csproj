@@ -4,5 +4,8 @@
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="../../MeowChan.PluginHost/MeowChan.PluginHost.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../MeowChan.PluginHost/MeowChan.PluginHost.csproj" />
+    <ProjectReference Include="../PluginReauthorizationFixture/PluginReauthorizationFixture.csproj" />
+  </ItemGroup>
 </Project>

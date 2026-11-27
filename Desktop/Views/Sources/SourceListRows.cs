@@ -36,7 +36,8 @@ internal static class SourceStatFooter
 
 internal static class SourceListRows
 {
-    internal static IReadOnlyList<SourceListRow> Merge(IReadOnlyList<SourceRow> registered, IReadOnlyList<PluginCatalogEntry> entries)
+    internal static IReadOnlyList<SourceListRow> Merge(IReadOnlyList<SourceRow> registered, IReadOnlyList<PluginCatalogEntry> entries,
+        Func<string, string, bool?>? getSiteEnabled = null)
     {
         // A plugin's files share one set of source rows. Prefer the selected build, then active, then a stable key.
         var described = entries.Where(entry => entry.Description != null)
@@ -63,10 +64,14 @@ internal static class SourceListRows
                 .ThenBy(item => item.Entry.Key, StringComparer.Ordinal).First();
             var descriptor = new ProviderDescriptor(source.SourceId, source.Name, source.BaseUri,
                 Capabilities(source.Capabilities), source.HttpHosts.Select(host => host.Host).ToArray(), entry.Description!.PluginVersion, false);
-            var row = new SourceRow(descriptor, Desktop.Localization.Texts.T("sources.inactiveHint"), Array.Empty<SourceWatchRow>())
+            bool active = matches.Length == 1 && source.Capabilities.HasFlag(SourceCapabilities.PostSearch)
+                && entry.PluginId is { } owner && entry.Activation is { Enabled: true, Active: not null }
+                && getSiteEnabled?.Invoke(owner, source.SourceId) == true;
+            var row = new SourceRow(descriptor, Desktop.Localization.Texts.T(active ? "sources.noObservation" : "sources.inactiveHint"),
+                Array.Empty<SourceWatchRow>())
             { Classification = SourceWording.Classify(entry.Description, source) };
             // Keep the source visible even if several plugins self-declare its ID, but never attach arbitrary plugin actions.
-            result.Add(new(row, matches.Length == 1 ? entry : null, false));
+            result.Add(new(row, matches.Length == 1 ? entry : null, active));
         }
         return result.OrderBy(row => row.IsActive ? 0 : 1).ThenBy(row => SourceWording.MaturityRank(row.Classification))
             .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.Id, StringComparer.Ordinal).ToArray();

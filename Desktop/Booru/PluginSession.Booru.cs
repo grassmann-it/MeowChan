@@ -15,6 +15,7 @@ using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
+using MeowChan.Secrets;
 
 namespace MeowChan.Desktop;
 
@@ -29,11 +30,11 @@ internal sealed partial class PluginSession
     private BooruProviderBinding? _booru;
     private BooruAccountBinding? _booruAccounts;
 
-    internal void ConfigureBooruAccounts(ProfileLease lease)
+    internal void ConfigureBooruAccounts(ProfileLease lease, Func<IBooruSecretStore>? secretStoreFactory = null)
     {
         // Account selection and native-store verification are not part of the default desktop path.
         if (AppContext.TryGetSwitch("MeowChan.EnableBooruAccountSending", out bool enabled) && enabled)
-            _booruAccounts = new BooruAccountBinding(lease, NativeBooruSecretStore.Create());
+            _booruAccounts = new BooruAccountBinding(lease, secretStoreFactory?.Invoke() ?? NativeBooruSecretStore.Create());
     }
 
     /// <summary>The Danbooru binding, when an active plugin declares the Danbooru post-search source; otherwise null.</summary>
@@ -70,7 +71,8 @@ internal sealed partial class PluginSession
             // One transport per plugin. The e621 family budget follows the session policy, including separate builds.
             BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources,
                 maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours),
-                sourceRevision: () => EnabledBooruRevision(pluginId));
+                sourceRevision: () => EnabledBooruRevision(pluginId),
+                sourceEnabled: sourceId => IsRegisteredBooruSourceEnabled(pluginId, sourceId));
             string? executionRevision = activation.Active?.ExecutionRevision;
             services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp,
                 _booruAccounts, declared => executionRevision is not null && BooruEndpointPolicy.IsDanbooru(declared.SourceId)
@@ -84,9 +86,11 @@ internal sealed partial class PluginSession
             }
         }
         BooruProviderBinding binding = new(source, services, _transport, _httpPolicy,
-            token => ResolveBooruWorkerAsync(pluginId, token), () => IsBooruPluginEnabled(pluginId), _logger)
+            token => SiteSwitches.IsBooruEnabled(source.SourceId) ? ResolveBooruWorkerAsync(pluginId, token)
+                : Task.FromResult<IPluginWorkerClient?>(null), () => IsBooruPluginEnabled(pluginId), _logger)
         {
             PluginId = pluginId,
+            SourceEnabled = () => SiteSwitches.IsBooruEnabled(source.SourceId),
             SdkMismatchObserved = () => SdkMismatches.Record(pluginId, RunningExecutionRevision(pluginId))
         };
         lock (_state)
@@ -94,6 +98,34 @@ internal sealed partial class PluginSession
             _booruSources[source.SourceId] = binding;
             if (danbooru) _booru = binding;
         }
+    }
+
+    private bool IsRegisteredBooruSourceEnabled(string pluginId, string sourceId)
+    {
+        lock (_state)
+            return _booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding) && binding.PluginId == pluginId
+                && binding.IsSourceEnabled;
+    }
+
+    internal bool? BooruSiteEnabled(string pluginId, string sourceId)
+    {
+        lock (_state)
+            return !_disposed && ChanSiteSwitches.HasBooruSwitch(sourceId)
+                && _booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding)
+                && binding.PluginId == pluginId && binding.SupportsWorkbench ? SiteSwitches.IsBooruEnabled(sourceId) : null;
+    }
+
+    internal bool SetBooruSiteEnabled(string sourceId, bool enabled)
+    {
+        string? pluginId;
+        lock (_state)
+        {
+            if (_disposed || !_booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding)
+                || !binding.SupportsWorkbench || !SiteSwitches.SetBooruEnabled(sourceId, enabled)) return false;
+            pluginId = binding.PluginId;
+        }
+        if (pluginId is not null) NotifyBooruLifecycle(pluginId);
+        return true;
     }
 
     /// <summary>Session-scope sdk-mismatch observations of running plugin builds (presentation only).</summary>

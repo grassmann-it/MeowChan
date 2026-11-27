@@ -11,6 +11,8 @@ namespace MeowChan.PluginCompiler;
 
 internal static class Program
 {
+    private static readonly JsonSerializerOptions ManifestJsonOptions = new() { WriteIndented = true };
+
     private static async Task<int> Main(string[] args)
     {
         if (args is ["--write-toolchain-manifest", string directory])
@@ -23,7 +25,7 @@ internal static class Program
         try
         {
             using MemoryStream input = new();
-            Stream standardInput = Console.OpenStandardInput();
+            using Stream standardInput = Console.OpenStandardInput();
             byte[] buffer = new byte[65536];
             int count;
             while ((count = await standardInput.ReadAsync(buffer)) != 0)
@@ -39,7 +41,8 @@ internal static class Program
         {
             response = new(false, "ReferenceError", [new("MCREF", exception.Message, null, null, null, "error")]);
         }
-        await Console.Out.WriteAsync(JsonSerializer.Serialize(response, CompilerWire.JsonOptions));
+        using Stream standardOutput = Console.OpenStandardOutput();
+        await JsonSerializer.SerializeAsync(standardOutput, response, CompilerWire.JsonOptions);
         return response.Success ? 0 : 1;
     }
 
@@ -97,6 +100,6 @@ internal static class Program
         ToolchainManifest manifest = new(1, "net10.0", CompilerWire.Options,
             CompilerWire.FileSetHash(files.Where(f => f.Role == "compiler")), files.Single(f => f.Role == "sdk").Sha256,
             CompilerWire.FileSetHash(files.Where(f => f.Role != "compiler")), files.ToArray());
-        await File.WriteAllTextAsync(Path.Combine(directory, "toolchain.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+        await File.WriteAllTextAsync(Path.Combine(directory, "toolchain.json"), JsonSerializer.Serialize(manifest, ManifestJsonOptions));
     }
 }

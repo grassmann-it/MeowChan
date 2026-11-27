@@ -117,6 +117,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
             Refresh();
             _viewer.Focus();
         };
+        _sample.AllowsMedia = _search.IsMediaAllowed;
         _search.Changed += OnChanged;
         Texts.Changed += OnLanguageChanged;
         ShortcutService.Changed += OnChanged;
@@ -215,7 +216,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 
     private void Refresh()
     {
-        if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.Identity)) || Row is not { } row)
+        if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.Identity)) || Row is not { } row || !_search.IsMediaAllowed(row.Post))
         { Close(); return; }
         Title = Texts.T("booru.ui.post.title", CurrentPostId);
         _toolbar.Present(row, _index, _ids.Length, _selected.Contains(CurrentPostId));

@@ -351,7 +351,8 @@ public sealed class HelpDocumentationTests
         Assert.Single(Assert.Single(owner.Calls("CreateStamp")).Calls("StampOptions", "TaggingSettings"));
         Assigns(owner, "_quickTagStamp.Capacity", "_config.TagStampSize");
         Assigns(owner.Method("OnQuickTagStampChanged"), "config.TagStamp", "(string[])names.Clone()");
-        var applyStamp = Source("Desktop/QuickTagSession.cs").Method("ApplyStampWithOutcomeAsync");
+        var applyStamp = Assert.Single(Source("Desktop/QuickTagSession.cs").DescendantNodes().OfType<MethodDeclarationSyntax>(),
+            method => method.Identifier.ValueText == "ApplyStampWithOutcomeAsync" && method.ParameterList.Parameters.Count == 2);
         var pendingTags = Assert.Single(applyStamp.DescendantNodes().OfType<ForEachStatementSyntax>());
         Assert.Single(Assert.Single(pendingTags.Calls("RunAsync")).Calls("AddExistingAsync"));
         Assert.Equal(new QuickTagKeyRoute(QuickTagKeyAction.ApplyStamp), GalleryTagPanelCommands.RouteOf(QuickTagCommands.StampApply));

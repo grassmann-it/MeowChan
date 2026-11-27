@@ -18,7 +18,7 @@ internal sealed class BooruWorkbenchModel : IDisposable
         Services = services ?? throw new ArgumentNullException(nameof(services));
         Sources = sources ?? [services];
         Search = new BooruSearchModel(Sources.Select(source => new BooruSearchModel.Binding(
-            source.Search, source.Queue, source.Previews, source.Source)).ToArray(), services.Clock);
+            source.Search, source.Queue, source.Previews, source.Source, source.Content)).ToArray(), services.Clock);
         _watchers = Sources.ToDictionary(source => (source.Search.ProviderId, source.Search.InstanceId),
             source => new BooruWatcherListModel(source.Watchers, source.Clock));
         foreach (BooruWatcherListModel watchers in _watchers.Values) watchers.Changed += OnWatchersChanged;

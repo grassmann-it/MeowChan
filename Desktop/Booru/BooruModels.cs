@@ -103,7 +103,7 @@ internal enum BooruRowLoad
 internal enum BooruLocalState
 {
     Unknown, NotLoaded, Queued, Loaded, DownloadFailed, LinkFailed, Interrupted, Cancelled,
-    NotAdmitted, RefusalPending
+    NotAdmitted, RefusalPending, ContentBlocked
 }
 
 internal enum BooruPreviewState { None, Loading, Ready, Unavailable }
@@ -158,4 +158,7 @@ internal sealed record BooruWatcherView(
     int QueuedCount = 0,
     bool BaselineEstablished = false,
     bool BudgetLimited = false,
-    string? LatestPostId = null);
+    string? LatestPostId = null)
+{
+    internal int HiddenCount { get; init; }
+}

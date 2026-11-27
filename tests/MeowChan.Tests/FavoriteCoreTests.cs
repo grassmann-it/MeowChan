@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using MeowChan.Downloader;
 using MeowChan.Favorites;
+using MeowChan.Interop;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 
@@ -455,6 +456,36 @@ public sealed class FavoriteCoreTests
         string fallback = Path.Combine(directory.Path, "fallback");
         FavoriteExportResult kept = await FavoriteOriginalExporter.ExportAsync([original], fallback, "{bogus}.{ext}");
         Assert.Equal(currentName, Path.GetFileName(Assert.Single(kept.Items).Path!));
+    }
+
+    [Fact]
+    public async Task Md5TemplatePreviewMatchesARealCopyAndMissingMd5KeepsTheCurrentName()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard board = new();
+        const string template = "{md5}.{ext}";
+        byte[] bytes = Encoding.UTF8.GetBytes("sample:photo.jpg");
+        FavoriteExportAsset original = await Commit(directory.Path, board, bytes, "456");
+        original = original with
+        {
+            Key = original.Key with { Thread = new("4chan", "g", "123456789") },
+            OriginalFileName = "photo.jpg"
+        };
+        FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync([original], Path.Combine(directory.Path, "md5"), template);
+        string path = Assert.Single(result.Items).Path!;
+        Assert.Equal(ExportFilenameTemplate.Preview(template).Lines[0].Result, Path.GetFileName(path));
+        Assert.StartsWith(Convert.ToHexStringLower(MD5.HashData(bytes)) + "~", Path.GetFileName(path));
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+
+        MediaAssetSnapshot manifest = original.Manifest;
+        MediaAssetReference asset = manifest.FindById(original.AssetId)! with { Md5 = string.Empty };
+        original = original with
+        {
+            Manifest = new MediaAssetSnapshot(manifest.Directory, manifest.Status, manifest.ManifestVersion, manifest.Generation, [asset])
+        };
+        FavoriteExportResult missingMd5 = await FavoriteOriginalExporter.ExportAsync([original], Path.Combine(directory.Path, "fallback"), template);
+        Assert.Equal("photo-" + original.Key.Sha256.ToLowerInvariant() + ".jpg",
+            Path.GetFileName(Assert.Single(missingMd5.Items).Path!));
     }
 
     private static async Task<FavoriteExportAsset> Commit(string root, StubImageBoard board, byte[] bytes, string mediaId)

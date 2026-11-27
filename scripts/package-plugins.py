@@ -17,17 +17,23 @@ RUNTIMES = ('win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
 PLUGINS = ('MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.VichanFamily',
            'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter', 'MeowChan.Plugin.Endchan',
            'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter', 'MeowChan.Plugin.Dvach', 'MeowChan.Plugin.JschanFamily',
-           'MeowChan.Plugin.SevenChan', 'MeowChan.Plugin.BbwChan', 'MeowChan.Plugin.AnonImageboards',
-           'MeowChan.Plugin.CapybaraChan', 'MeowChan.Plugin.EightchanMoe', 'MeowChan.Plugin.Fchan', 'MeowChan.Plugin.GuroCx')
+           'MeowChan.Plugin.SevenChan', 'MeowChan.Plugin.BbwChan',
+           'MeowChan.Plugin.CapybaraChan', 'MeowChan.Plugin.EightchanMoe', 'MeowChan.Plugin.Fchan')
 SOURCES = ('VichanFamily.cs', 'Kohlchan.cs', 'ImageDimensionsFilter.cs', 'Endchan.cs',
            'FileRulesFilter.cs', 'HashBlocklistFilter.cs', 'AnimationFormatFilter.cs', 'PngMetadataFilter.cs', 'Dvach.cs', 'JschanFamily.cs',
-           'SevenChan.cs', 'BbwChan.cs', 'AnonImageboards.cs', 'CapybaraChan.cs', 'EightchanMoe.cs',
-           'Fchan.cs', 'GuroCx.cs')
+           'SevenChan.cs', 'BbwChan.cs', 'CapybaraChan.cs', 'EightchanMoe.cs',
+           'Fchan.cs')
 OPTIONS = 'net10.0;csharp14;release;deterministic;nullable=enable;unsafe=false;generators=none;v1'
 HASH = re.compile(r'[0-9a-f]{64}\Z')
 FORBIDDEN_PAYLOAD_COMPONENTS = frozenset(('bin', 'obj', '.git', '.vs', 'profile', 'profiles'))
 PLUGIN_MANIFEST_KEYS = frozenset(('SchemaVersion', 'AssemblyRelativePath', 'AssemblySha256',
                                   'SdkFingerprint', 'CompilerFingerprint', 'Resources'))
+COMPILER_BINARIES = frozenset(('MeowChan.PluginCompiler.dll', 'Microsoft.CodeAnalysis.dll',
+                               'Microsoft.CodeAnalysis.CSharp.dll'))
+SDK_ASSEMBLY = 'MeowChan.PluginSdk.dll'
+COMPILER_LICENSES = frozenset('licenses/' + path for path in (
+    'framework/LICENSE.TXT', 'framework/THIRD-PARTY-NOTICES.TXT',
+    'roslyn/LICENSE-Roslyn.txt', 'roslyn/ThirdPartyNotices.rtf', 'roslyn/provenance.json'))
 
 
 def _reject_payload_component(relative, label='package'):
@@ -151,7 +157,7 @@ def native_architecture(path, runtime):
         raise ValueError('Unix helper is not executable: ' + str(path))
 
 
-def verify_toolchain(root):
+def verify_toolchain(root, development):
     compiler = root / 'plugin-compiler'
     manifest = json_file(compiler, 'toolchain.json')
     files = manifest.get('Files')
@@ -174,15 +180,30 @@ def verify_toolchain(root):
     references = [item for item in files if item['Role'] != 'compiler']
     if len(sdk) != 1 or len(compilers) < 3 or not any(item['Role'] == 'framework' for item in files):
         raise ValueError('Compiler toolchain roles are incomplete')
+    if (sdk[0]['Path'] != SDK_ASSEMBLY or {item['Path'] for item in compilers} != COMPILER_BINARIES
+            or any(Path(item['Path']).parent != Path('references') or not item['Path'].endswith('.dll')
+                   for item in references if item['Role'] == 'framework')):
+        raise ValueError('Compiler toolchain paths differ from the required inventory')
     if (manifest.get('CompilerFingerprint') != file_set_hash(compilers)
             or manifest.get('ReferenceFingerprint') != file_set_hash(references)
             or manifest.get('SdkFingerprint') != sdk[0]['Sha256']):
         raise ValueError('Compiler toolchain fingerprints differ')
-    for relative in ('licenses/framework/LICENSE.TXT', 'licenses/framework/THIRD-PARTY-NOTICES.TXT',
-                     'licenses/roslyn/LICENSE-Roslyn.txt', 'licenses/roslyn/ThirdPartyNotices.rtf', 'licenses/roslyn/provenance.json'):
+    for relative in sorted(COMPILER_LICENSES):
         regular(compiler, relative)
-    if digest(regular(root / 'plugin-worker', 'MeowChan.PluginSdk.dll')) != manifest['SdkFingerprint']:
-        raise ValueError('Worker SDK does not match compiler SDK')
+    if development:
+        if digest(regular(root / 'plugin-worker', SDK_ASSEMBLY)) != manifest['SdkFingerprint']:
+            raise ValueError('Worker SDK does not match compiler SDK')
+    else:
+        expected_files = {item['Path'] for item in files} | COMPILER_LICENSES | {'toolchain.json'}
+        expected_dirs = {'references', 'licenses', 'licenses/framework', 'licenses/roslyn'}
+        actual_files = {path.relative_to(compiler).as_posix() for path in compiler.rglob('*') if path.is_file()}
+        actual_dirs = {path.relative_to(compiler).as_posix() for path in compiler.rglob('*') if path.is_dir()}
+        if actual_files != expected_files or actual_dirs != expected_dirs:
+            raise ValueError('Release compiler payload contains missing or unexpected files or directories')
+        # Multifile macOS publishes expose the SDK; single-file SDK bytes are checked at staging.
+        if (root / SDK_ASSEMBLY).exists() or (root / SDK_ASSEMBLY).is_symlink():
+            if digest(regular(root, SDK_ASSEMBLY)) != manifest['SdkFingerprint']:
+                raise ValueError('Application SDK does not match compiler SDK')
     return manifest
 
 
@@ -190,7 +211,11 @@ def verify(root, runtime, development=False):
     if runtime not in RUNTIMES:
         raise ValueError('Unsupported plugin package runtime')
     root = _ordinary_directory(root)
-    for subtree in ('plugin-worker', 'plugin-compiler', 'plugins'):
+    worker = root / 'plugin-worker'
+    if not development and (worker.exists() or worker.is_symlink()):
+        raise ValueError('Release packages must omit plugin-worker and use the main apphost')
+    subtrees = ('plugin-worker', 'plugin-compiler', 'plugins') if development else ('plugin-compiler', 'plugins')
+    for subtree in subtrees:
         directory = root / subtree
         if directory.is_symlink() or not directory.is_dir():
             raise ValueError('Required regular plugin directory missing: ' + subtree)
@@ -201,21 +226,20 @@ def verify(root, runtime, development=False):
                 raise ValueError('Plugin payload contains a link or special file: ' + relative)
             if path.is_file() and path.stat().st_nlink != 1:
                 raise ValueError('Plugin payload contains a hardlink: ' + relative)
-    for directory, name in (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')):
-        helper = root / directory
-        native_architecture(regular(helper, name + ('.exe' if runtime.startswith('win-') else '')), runtime)
-        regular(helper, name + '.dll')
-        regular(helper, name + '.deps.json')
-        config = json_file(helper, name + '.runtimeconfig.json').get('runtimeOptions', {})
-        if not development:
-            if config.get('framework') or config.get('frameworks') or not config.get('includedFrameworks'):
-                raise ValueError('Published helper requires an external .NET runtime: ' + directory)
-            native = ('coreclr.dll', 'hostpolicy.dll', 'hostfxr.dll') if runtime.startswith('win-') else (
-                ('libcoreclr.dylib', 'libhostpolicy.dylib', 'libhostfxr.dylib') if runtime.startswith('osx-')
-                else ('libcoreclr.so', 'libhostpolicy.so', 'libhostfxr.so'))
-            for filename in native:
-                regular(helper, filename)
-    toolchain = verify_toolchain(root)
+    if development:
+        for directory, name in (('plugin-worker', 'MeowChan.PluginWorker'), ('plugin-compiler', 'MeowChan.PluginCompiler')):
+            helper = root / directory
+            native_architecture(regular(helper, name + ('.exe' if runtime.startswith('win-') else '')), runtime)
+            regular(helper, name + '.dll')
+            regular(helper, name + '.deps.json')
+            json_file(helper, name + '.runtimeconfig.json')
+    else:
+        app_root = root
+        if runtime.startswith('osx-') and root.parts[-3:] == ('Contents', 'Resources', 'application'):
+            app_root = root.parent.parent / 'MacOS'
+        native_architecture(regular(app_root, 'MeowChan.exe' if runtime.startswith('win-') else 'MeowChan',
+                                    maximum=512 * 1024 * 1024), runtime)
+    toolchain = verify_toolchain(root, development)
     plugin_root = root / 'plugins'
     expected_manifests = {name + '.plugin.json' for name in PLUGINS}
     expected_assemblies = {'assemblies/' + name + '.dll' for name in PLUGINS}

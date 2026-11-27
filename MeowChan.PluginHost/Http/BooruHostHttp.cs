@@ -47,6 +47,7 @@ public sealed class BooruHostHttp : IDisposable
     private readonly Dictionary<string, BooruSourceProfile> _profiles;
     private readonly Func<TimeSpan>? _maximumCooldownProvider;
     private readonly Func<long?>? _sourceRevision;
+    private readonly Func<string, bool>? _sourceEnabled;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceState> _states = new(StringComparer.Ordinal);
 
     // Keep the original public constructor shape for already compiled PluginHost consumers. The
@@ -59,7 +60,8 @@ public sealed class BooruHostHttp : IDisposable
 
     internal BooruHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
         Func<TimeSpan>? maximumCooldownProvider, string? danbooruUserId = null,
-        string? productVersion = null, bool disposeTransport = false, Func<long?>? sourceRevision = null)
+        string? productVersion = null, bool disposeTransport = false, Func<long?>? sourceRevision = null,
+        Func<string, bool>? sourceEnabled = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         ArgumentNullException.ThrowIfNull(policy);
@@ -68,6 +70,7 @@ public sealed class BooruHostHttp : IDisposable
         _disposeTransport = disposeTransport;
         _maximumCooldownProvider = maximumCooldownProvider;
         _sourceRevision = sourceRevision;
+        _sourceEnabled = sourceEnabled;
         _sources = (sources ?? throw new ArgumentNullException(nameof(sources)))
             .Where(source => source is not null)
             .ToDictionary(source => source.SourceId, StringComparer.Ordinal);
@@ -110,8 +113,9 @@ public sealed class BooruHostHttp : IDisposable
         if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
 
         long? revision = _sourceRevision?.Invoke();
-        if (_sourceRevision is not null && revision is null) return StaleSource();
-        bool IsCurrent() => (_sourceRevision is null || _sourceRevision() == revision) && account?.IsCurrent() != false;
+        if ((_sourceRevision is not null && revision is null) || !IsCurrent()) return StaleSource();
+        bool IsCurrent() => _sourceEnabled?.Invoke(source.SourceId) != false
+            && (_sourceRevision is null || _sourceRevision() == revision) && account?.IsCurrent() != false;
 
         SourceState state = StateFor(source);
         TimeSpan spacing = BooruEndpointPolicy.Spacing(ProfileOf(source.SourceId), MinimumStartSpacing);

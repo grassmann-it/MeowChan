@@ -64,6 +64,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         {
             return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.MalformedPost);
         }
+        if (!_originals.AllowsContent(claim)) return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.ContentBlocked);
         BooruFindingKind kind = origin == BooruLoadOrigin.OneShot ? BooruFindingKind.OneShot : BooruFindingKind.Search;
         BooruOriginalAdmission? admission;
         try
@@ -168,6 +169,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
 
     internal static BooruLoadResult Map(BooruOriginalAdmission admission) => admission.Status switch
     {
+        BooruOriginalAdmissionStatus.ContentBlocked => new(BooruLoadStatus.Failed, BooruCodes.ContentBlocked),
         BooruOriginalAdmissionStatus.Queued => new BooruLoadResult(BooruLoadStatus.Queued),
         BooruOriginalAdmissionStatus.AlreadyQueued => new BooruLoadResult(BooruLoadStatus.AlreadyQueued),
         BooruOriginalAdmissionStatus.AlreadyLinked => new BooruLoadResult(BooruLoadStatus.AlreadyLoaded),
@@ -207,6 +209,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
             BooruOriginalDownloadState.Linked => BooruLocalState.Loaded,
             BooruOriginalDownloadState.LinkFailed => BooruLocalState.LinkFailed,
             BooruOriginalDownloadState.DownloadFailed => BooruLocalState.DownloadFailed,
+            BooruOriginalDownloadState.ContentBlocked => BooruLocalState.ContentBlocked,
             BooruOriginalDownloadState.Interrupted => BooruLocalState.Interrupted,
             BooruOriginalDownloadState.Cancelled => BooruLocalState.Cancelled,
             BooruOriginalDownloadState.NotAdmitted => BooruLocalState.NotAdmitted,
@@ -316,7 +319,7 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
         return new BooruWatcherView(status.WatcherId, status.Query, mapped, status.CreatedAtUtc, status.LastCheckedAtUtc,
             mapped is BooruWatcherStatus.Active ? status.NextCheckAtUtc : null, cooldown, error,
             stored?.HitCount ?? 0, stored?.QueuedCount ?? 0, status.BaselineEstablished, status.BudgetLimited,
-            stored?.LatestPostId);
+            stored?.LatestPostId) { HiddenCount = status.LastCheck?.HiddenCount ?? 0 };
     }
 
     // Called only with availability closed and the old host physically drained. Escaped UI handles stay valid,
@@ -450,7 +453,7 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
     internal static BooruWatcherCommandResult Check(DanbooruWatcherCheckSummary summary) => summary.Kind switch
     {
         DanbooruWatcherCheckKind.Completed or DanbooruWatcherCheckKind.BaselineEstablished or DanbooruWatcherCheckKind.PartialBudgetLimited
-            => BooruWatcherCommandResult.Success(summary.NewPosts, summary.Queued),
+            => BooruWatcherCommandResult.Success(summary.NewPosts - summary.HiddenCount, summary.Queued),
         DanbooruWatcherCheckKind.Deferred => new BooruWatcherCommandResult(DeferredStatus(summary.Code), summary.Code,
             summary.NewPosts, summary.Queued, summary.RetryAtUtc),
         DanbooruWatcherCheckKind.Rejected when summary.Code is BooruCodes.CooldownActive or BooruCodes.ProviderCooldown
@@ -538,11 +541,14 @@ internal sealed class BooruHostPreviewPort : IBooruPreviewPort, IBooruSamplePort
     private readonly string _sourceId;
     private readonly BooruPortAvailabilityGate _availability;
 
+    private readonly BooruWorkspaceContent? _content;
+
     internal BooruHostPreviewPort(BooruPreviewHttp http, string sourceId, BooruPortAvailabilityGate? availability = null,
-        Func<BooruPreviewHttp>? currentHttp = null)
+        Func<BooruPreviewHttp>? currentHttp = null, BooruWorkspaceContent? content = null)
     {
         ArgumentNullException.ThrowIfNull(http);
         _http = currentHttp ?? (() => http);
+        _content = content;
         _sourceId = sourceId;
         _availability = availability ?? new BooruPortAvailabilityGate();
     }
@@ -554,14 +560,17 @@ internal sealed class BooruHostPreviewPort : IBooruPreviewPort, IBooruSamplePort
             return null;
         using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
         if (operation == null) return null;
+        using MediaAuthorization authorization = new(_content, post, operation.Token);
         try
         {
-            if (!operation.TryStart(() => _http().LoadAsync(post.PreviewUrl, operation.Token), out Task<byte[]?> pending))
+            if (!operation.TryStart(() => _content?.Allows(post) == false ? Task.FromResult<byte[]?>(null)
+                : _http().LoadAsync(post.PreviewUrl, authorization.Token), out Task<byte[]?> pending))
                 return null;
             byte[]? bytes = await pending.ConfigureAwait(false);
-            return operation.IsCurrent ? bytes : null;
+            return operation.IsCurrent && _content?.Allows(post) != false ? bytes : null;
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested
+            && (!operation.IsCurrent || authorization.Token.IsCancellationRequested))
         { return null; }
     }
 
@@ -574,15 +583,51 @@ internal sealed class BooruHostPreviewPort : IBooruPreviewPort, IBooruSamplePort
             return default;
         using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
         if (operation == null) return default;
+        using MediaAuthorization authorization = new(_content, post, operation.Token);
         try
         {
-            if (!operation.TryStart(() => _http().LoadSampleAsync(post.SampleUrl, maximumBytes, cacheBytes, responseTimeout,
-                operation.Token), out Task<BooruSampleResult> pending)) return default;
+            if (!operation.TryStart(() => _content?.Allows(post) == false ? Task.FromResult(default(BooruSampleResult))
+                : _http().LoadSampleAsync(post.SampleUrl, maximumBytes, cacheBytes, responseTimeout, authorization.Token), out Task<BooruSampleResult> pending)) return default;
             BooruSampleResult result = await pending.ConfigureAwait(false);
-            return operation.IsCurrent ? result : default;
+            return operation.IsCurrent && _content?.Allows(post) != false ? result : default;
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested
+            && (!operation.IsCurrent || authorization.Token.IsCancellationRequested))
         { return default; }
+    }
+
+    private sealed class MediaAuthorization : IDisposable
+    {
+        private readonly BooruWorkspaceContent? _content;
+        private readonly BooruPostView _post;
+        private readonly CancellationTokenSource? _cancellation;
+
+        internal MediaAuthorization(BooruWorkspaceContent? content, BooruPostView post, CancellationToken token)
+        {
+            _content = content;
+            _post = post;
+            if (content is not null)
+            {
+                _cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+                content.Changed += OnChanged;
+            }
+            Token = _cancellation?.Token ?? token;
+        }
+
+        internal CancellationToken Token { get; }
+
+        private void OnChanged()
+        {
+            if (_content?.Allows(_post) != false) return;
+            try { _cancellation?.Cancel(); }
+            catch (ObjectDisposedException) { }
+        }
+
+        public void Dispose()
+        {
+            if (_content is not null) _content.Changed -= OnChanged;
+            _cancellation?.Dispose();
+        }
     }
 }
 

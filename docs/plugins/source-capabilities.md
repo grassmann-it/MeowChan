@@ -28,7 +28,6 @@ snapshots (see [live results 2026-10-24](live-sources-2026-10-24.md)).
 | Vichan family (Lainchan, Leftypol, SushiChan, Uboachan, Wizchan) | No | Yes: board and thread links of the listed sites | No | Yes, through the download queue; Wizchan: original size mismatch in the 2026-10-24 live check | No | Read-only | [packaged inventory](README.md#packaged-inventory), [live results](live-sources-2026-10-24.md) |
 | Jschan family (ZZZchan) | No | Yes: board and thread links | No | Yes, through the download queue | No | Read-only | [packaged inventory](README.md#packaged-inventory) |
 | Other board example sources (Kohlchan, Endchan, 2ch, 7chan, BBW-Chan, CapybaraChan, 8chan.moe, Fchan) | No | Yes: board and thread links | No | Yes, through the download queue; Kohlchan and Endchan: original size mismatch in the 2026-10-24 live check | No | Read-only | [packaged inventory](README.md#packaged-inventory), [live results](live-sources-2026-10-24.md) |
-| Anon Imageboards, Guro.cx | No | No: blocked placeholders, no routes registered | No | No | No | None | [packaged inventory](README.md#packaged-inventory) |
 | Local media folders | No (use the own-tag filter of the Media page) | No (added with **Add folder…**, not by link) | No | Not applicable: files are read in place and never copied, written or moved | Not applicable | Read-only | [Read-only media folders](../Help.md#read-only-media-folders) |
 
 ## How to read a row

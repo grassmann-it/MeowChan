@@ -89,5 +89,16 @@ internal static class QuickTagCatalog
         ("tags.quick.stamp.added", "“{0}” added to the stamp.", "„{0}“ zum Stempel hinzugefügt."),
         ("tags.quick.stamp.removed", "“{0}” removed from the stamp.", "„{0}“ aus dem Stempel entfernt."),
         ("tags.quick.stamp.full", "The stamp is full (limit: {0}). Remove a tag from it first.", "Der Stempel ist voll (Grenze: {0}). Zuerst einen Tag daraus entfernen."),
+        ("tags.quick.archive.menu", "Thread media", "Thread-Medien"),
+        ("tags.quick.archive.threadNotLoaded", "The selected thread has not loaded yet.", "Der gewählte Thread ist noch nicht geladen."),
+        ("tags.quick.archive.noSaved", "No saved media are shown for this thread.", "Für diesen Thread werden keine gespeicherten Medien angezeigt."),
+        ("tags.quick.archive.emptyStamp", "The stamp is empty. Right-click a tag chip to add it.", "Stempel ist leer – Rechtsklick auf einen Tag-Chip fügt ihn hinzu."),
+        ("tags.quick.archive.filesOfTotal", "{0} of {1} media files", "{0} von {1} Medien"),
+        ("tags.quick.archive.filesAndPositions", "{0} · {1} of {2} attachment positions", "{0} · {1} von {2} Fundstellen"),
+        ("tags.quick.archive.tagAll", "Tag all media… ({0})", "Alle Medien taggen… ({0})"),
+        ("tags.quick.archive.stampTags", "{0} tags", "{0} Tags"),
+        ("tags.quick.archive.stampTags.one", "{0} tag", "{0} Tag"),
+        ("tags.quick.archive.stampAll", "Stamp ({0}) on {1}", "Stempel ({0}) auf {1}"),
+        ("tags.quick.archive.stampResult", "Stamp: {0} on {1}", "Stempel: {0} auf {1}"),
     };
 }

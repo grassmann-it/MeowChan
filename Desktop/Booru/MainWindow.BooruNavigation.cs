@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 
@@ -18,6 +19,23 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private BooruPage? _booruPage;
+    private bool _booruContentDialogOpen;
+
+    private void RequestBooruContentChoice(Action? confirmed = null)
+    {
+        if (_booruContentDialogOpen || _session.BooruContent is not { } content || !IsVisible) return;
+        _booruContentDialogOpen = true;
+        OpenActions.Start(async () =>
+        {
+            try
+            {
+                BooruContentDialog dialog = new(content.Snapshot, _session.SaveBooruContentAsync);
+                if (await dialog.ShowDialog<bool>(this) && !_isClosing && CanOpenBooru)
+                    confirmed?.Invoke();
+            }
+            finally { _booruContentDialogOpen = false; }
+        }, "booru.content.choice");
+    }
     private BooruSearchTabStore? _booruTabStore;
     private readonly BooruUnavailableNavigation _booruUnavailableNavigation = new();
     private bool _booruFallbackRestoreContinuation;
@@ -29,6 +47,11 @@ public partial class MainWindow
     private bool EnsureBooruPage()
     {
         if (!CanOpenBooru) return false;
+        if (_session.BooruContent?.HasChoice == false)
+        {
+            RequestBooruContentChoice(() => NavigateWorkspace(WorkspacePage.Booru));
+            return false;
+        }
         IReadOnlyList<BooruWorkbenchServices> sources = _session.ActiveBooruServices;
         if (sources.Count == 0) return false;
         BooruWorkbenchServices services = sources[0];
@@ -38,6 +61,7 @@ public partial class MainWindow
         // same provider id. Never let callbacks from the previous page reach the new one.
         DisposeBooruPage();
         BooruPage page = new(services, sources);
+        page.View.EditContent = () => RequestBooruContentChoice();
         ConfigureBooruMediaLinks(page);
         ConfigureBooruViewPreferences(page);
         // The sdk-mismatch repair route (MainWindow.BooruRepair): review, confirm, restart.

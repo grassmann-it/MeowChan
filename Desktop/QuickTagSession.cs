@@ -513,7 +513,26 @@ internal sealed class QuickTagSession : IDisposable
     /// (and no write failed). The run is bound to that target: when the session is retargeted meanwhile (the gallery moved on) the
     /// remaining tags are not written to the new medium and the run ends <see cref="QuickTagStampOutcome.Partial"/>.
     /// </summary>
-    internal async Task<QuickTagStampResult> ApplyStampWithOutcomeAsync(CancellationToken token = default)
+    internal Task<QuickTagStampResult> ApplyStampWithOutcomeAsync(CancellationToken token = default) =>
+        ApplyStampWithOutcomeAsync(null, token);
+
+    /// <summary>Applies the stamp as one undo step, including any writes made before a refusal.</summary>
+    public async Task<QuickTagStampResult> ApplyStampJoinedAsync(CancellationToken token = default)
+    {
+        if (!Ready || _joining) return QuickTagStampResult.None;
+        IQuickTagTarget bound = _target;
+        List<TagDialogChange> steps = new();
+        _joining = true;
+        try { return await ApplyStampWithOutcomeAsync(steps, token); }
+        finally
+        {
+            _joining = false;
+            JoinSteps(steps, bound);
+            Updated?.Invoke();
+        }
+    }
+
+    private async Task<QuickTagStampResult> ApplyStampWithOutcomeAsync(List<TagDialogChange>? steps, CancellationToken token)
     {
         if (!Ready) return QuickTagStampResult.None;
         IQuickTagTarget bound = _target;
@@ -533,7 +552,9 @@ internal sealed class QuickTagSession : IDisposable
             int before = _appliedCount;
             await RunAsync(target => target.AddExistingAsync(tag.Id, token));
             if (_status.IsError) { failed = true; break; }
-            if (_appliedCount != before) given.Add(tag.Name.Display);
+            if (_appliedCount == before) continue;
+            given.Add(tag.Name.Display);
+            steps?.Add(_undo[^1]);
         }
         bool complete = !failed && StampCovered(bound);
         if (complete && ReferenceEquals(_target, bound))
@@ -543,6 +564,8 @@ internal sealed class QuickTagSession : IDisposable
                 : new QuickTagStatus(QuickTagStatusKind.StampComplete);
             Updated?.Invoke();
         }
+        else if (steps != null && given.Count > 0 && failed)
+            _status = _status with { Name = string.Join(", ", given) };
         QuickTagStampOutcome outcome = complete ? QuickTagStampOutcome.Complete : given.Count > 0 ? QuickTagStampOutcome.Partial : QuickTagStampOutcome.Refused;
         return new QuickTagStampResult(outcome, given.Count, true, bound);
     }

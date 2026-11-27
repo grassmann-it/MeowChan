@@ -3,6 +3,8 @@ namespace MeowChan.Downloader;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using MeowChan.Boards.Base;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 
@@ -12,6 +14,13 @@ public partial class DownloadQueue
     private readonly ConditionalWeakTable<IThread, UserPriorityState> _userPriorities = new();
     private int _userHighDispatchStreak;
     private int _userHighAdmissionStreak;
+    private AdaptiveRecheckSettings? _adaptiveRecheck;
+
+    internal AdaptiveRecheckSettings? AdaptiveRecheck
+    {
+        get => Volatile.Read(ref _adaptiveRecheck);
+        set => Volatile.Write(ref _adaptiveRecheck, value);
+    }
 
     // Host must resolve the exact frozen watch ID to this IThread + WorkResource.
     // A stale generation cannot alter its successor, even if IThread is reused.

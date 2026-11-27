@@ -80,6 +80,12 @@
       },
       "meowchan.pluginsdk": {
         "type": "Project"
+      },
+      "pluginreauthorizationfixture": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.2.0, )"
+        }
       }
     }
   }

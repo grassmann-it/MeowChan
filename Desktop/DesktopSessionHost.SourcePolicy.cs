@@ -71,20 +71,29 @@ internal sealed partial class DesktopSessionHost
     }
 
     /// <summary>The own switch of a family site, or null for a source without one (or before the session is ready).</summary>
+    internal bool? GetSourceSiteEnabled(string pluginOwnerId, string sourceId) =>
+        Plugins?.BooruSiteEnabled(pluginOwnerId, sourceId) ?? GetChanSiteEnabled(pluginOwnerId, sourceId);
+
     internal bool? GetChanSiteEnabled(string pluginOwnerId, string sourceId) => Plugins?.ChanSiteEnabled(pluginOwnerId, sourceId);
 
     /// <summary>Turns one site of an engine-family chan plugin on or off (the plugin stays the master switch).</summary>
     internal Task<bool> SetChanSiteEnabledAsync(string sourceId, bool enabled)
-        => RunInteractiveAsync(nameof(SetChanSiteEnabledAsync), sourceId, () => SetChanSiteEnabledAdmittedCoreAsync(sourceId, enabled));
+        => RunInteractiveAsync(nameof(SetChanSiteEnabledAsync), sourceId,
+            () => SetSourceSiteEnabledAdmittedCoreAsync(plugins => plugins.SetChanSiteEnabled(sourceId, enabled)));
 
-    private async Task<bool> SetChanSiteEnabledAdmittedCoreAsync(string sourceId, bool enabled)
+    internal Task<bool> SetSourceSiteEnabledAsync(string sourceId, bool enabled)
+        => RunInteractiveAsync(nameof(SetSourceSiteEnabledAsync), sourceId,
+            () => SetSourceSiteEnabledAdmittedCoreAsync(plugins =>
+                plugins.SetBooruSiteEnabled(sourceId, enabled) || plugins.SetChanSiteEnabled(sourceId, enabled)));
+
+    private async Task<bool> SetSourceSiteEnabledAdmittedCoreAsync(Func<PluginSession, bool> setEnabled)
     {
         bool changed;
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
             EnsureReady();
-            changed = Plugins!.SetChanSiteEnabled(sourceId, enabled);
+            changed = setEnabled(Plugins!);
         }
         finally { _commands.Release(); }
         SignalChanged();

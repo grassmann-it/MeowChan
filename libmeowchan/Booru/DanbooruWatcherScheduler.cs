@@ -675,10 +675,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     {
         DateTimeOffset started = _time.GetUtcNow();
         CheckCounters counters = new();
-        CancellationTokenSource check;
         RunningCheck running;
         DanbooruWatcher current;
-        BooruProducerUse? use = null;
+        using BooruProducerUse? use = _lifecycle?.TryEnter();
+        using CancellationTokenSource check = CancellationTokenSource.CreateLinkedTokenSource(stop, use?.Cut ?? CancellationToken.None);
         lock (_sync)
         {
             // Re-checked here because the pick (RunNextAsync, loop) and this registration are separate
@@ -694,17 +694,13 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 return !manual && IsHoldCode(rejection.Code) ? rejection : Record(watcherId, rejection);
             DanbooruWatcherTransition begin = DanbooruWatcher.BeginCheck(watcher, started, manual);
             if (!begin.Accepted) return Record(watcherId, Rejected(begin.RejectionCode ?? "rejected", started, manual));
-            // The single counted ownership of this check in the open generation; entered under the same lock as the
-            // registration, so a cut either precedes it (nothing starts) or drains it.
-            use = _lifecycle?.TryEnter();
-            if (_lifecycle != null && use is null)
+            if (_lifecycle != null && use is not { IsCurrent: true })
             {
                 DanbooruWatcherCheckSummary suspended = Rejected(ProfileSuspendedCode, started, manual);
                 return manual ? Record(watcherId, suspended) : suspended;
             }
             if (!TryPersistLocked(begin.Watcher, out DanbooruWatcher? stored, use?.Admission))
             {
-                use?.Dispose();
                 // An automatic start that cannot be made durable must not be selected again on the
                 // next loop turn.  The watcher remains due, so without this backoff a full catalog or a
                 // transient disk/lease failure spins and serializes the same state over and over without
@@ -714,16 +710,12 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 return Record(watcherId, Rejected("persist_failed", started, manual));
             }
             current = stored!;
-            check = use is null
-                ? CancellationTokenSource.CreateLinkedTokenSource(stop)
-                : CancellationTokenSource.CreateLinkedTokenSource(stop, use.Cut);
             _running = running = new RunningCheck(watcherId, check, use);
             if (!manual) _lastAutomaticStart = started;
         }
-        RaiseChanged();
-
         try
         {
+            RaiseChanged();
             // One search session per check: all pages of this check share one host operation scope.
             using LazySearchSession session = new(_search);
             DanbooruWatcherCheckSummary summary = await RunPagesAsync(watcherId, current, manual, started, counters, running,
@@ -744,12 +736,9 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         {
             lock (_sync)
             {
-                check.Dispose();
                 running.Completion.TrySetResult();
                 if (ReferenceEquals(_running, running)) _running = null;
             }
-            // Last: the generation's drain waits for this, after the terminal write and the scope disposal.
-            use?.Dispose();
         }
     }
 
@@ -958,6 +947,8 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                     }
                     return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "admission_failed", manual);
                 }
+                if (result == DanbooruWatcherAdmissionResult.SourceUnavailable)
+                    return CancelRun(watcherId, current, started, counters, manual, running);
                 counters.Count(result);
             }
 
@@ -1231,14 +1222,13 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private bool TryPersistProviderCooldownLocked(DanbooruWatcher watcher, out bool profileUnavailable)
     {
         profileUnavailable = false;
-        BooruProducerUse? use = _lifecycle?.TryEnter();
+        using BooruProducerUse? use = _lifecycle?.TryEnter();
         if (_lifecycle != null && use is null)
         {
             profileUnavailable = true;
             return false;
         }
-        try { return TryPersistLocked(watcher, out _, use?.Admission); }
-        finally { use?.Dispose(); }
+        return TryPersistLocked(watcher, out _, use?.Admission);
     }
 
     private string? Unavailable() => _stopping ? "scheduler_stopped" : !_loaded ? "scheduler_not_started" : _fault;
@@ -1348,7 +1338,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         string? code, bool manual, DateTimeOffset? retryAt = null) =>
         new(kind, started, _time.GetUtcNow(), counters.Pages, counters.NewPosts, counters.Queued,
             counters.AlreadyQueuedOrLinked, counters.Unavailable, counters.NotAdmitted, counters.KeptCancelled,
-            code, retryAt, manual);
+            code, retryAt, manual) { HiddenCount = counters.HiddenCount };
 
     private static string SafeCode(string? code, string fallback)
     {
@@ -1425,6 +1415,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         internal int Unavailable;
         internal int NotAdmitted;
         internal int KeptCancelled;
+        internal int HiddenCount;
 
         internal void Count(DanbooruWatcherAdmissionResult result)
         {
@@ -1436,6 +1427,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 case DanbooruWatcherAdmissionResult.Unavailable: Unavailable++; break;
                 case DanbooruWatcherAdmissionResult.NotAdmitted: NotAdmitted++; break;
                 case DanbooruWatcherAdmissionResult.KeptCancelled: KeptCancelled++; break;
+                case DanbooruWatcherAdmissionResult.ContentBlocked: HiddenCount++; break;
             }
         }
     }

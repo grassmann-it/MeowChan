@@ -140,6 +140,34 @@ class PluginDeliveryStageMsbuildTests(unittest.TestCase):
     def test_real_publish_accepts_worker_and_compiler_siblings_of_payload(self):
         self.assertPayload(self.fixture(stage="publish"))
 
+    def test_multicall_publish_omits_apphosts_runtime_and_satellites(self):
+        fixture = self.fixture(stage="publish")
+        app_sdk = fixture.project / "inputs" / "app" / "MeowChan.PluginSdk.dll"
+        app_sdk.parent.mkdir(parents=True)
+        sdk_bytes = (fixture.worker / app_sdk.name).read_bytes()
+        expected = {"MeowChan.PluginCompiler.dll", "toolchain.json", app_sdk.name,
+                    "Microsoft.CodeAnalysis.dll", "Microsoft.CodeAnalysis.CSharp.dll",
+                    "references/System.Runtime.dll", "licenses/framework/LICENSE.TXT"}
+        for relative in expected | {"libcoreclr.so", "MeowChan.PluginCompiler.runtimeconfig.json",
+                                    "ja/Microsoft.CodeAnalysis.resources.dll"}:
+            path = fixture.compiler / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not path.exists():
+                path.write_bytes(relative.encode())
+        # Simulate a previous payload being replaced by the new layout.
+        (fixture.destination / "plugin-worker").mkdir()
+        arguments = dict(Multicall="true", AppSdkAssembly=app_sdk, WorkerAssembly="")
+        app_sdk.write_bytes(b"different sdk")
+        self.assertRejected(fixture, "Runtime and compiler SDK bytes differ", **arguments)
+        app_sdk.write_bytes(sdk_bytes)
+        result = fixture.run(**arguments)
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertFalse((fixture.destination / "plugin-worker").exists())
+        compiler = fixture.destination / "plugin-compiler"
+        self.assertEqual(expected, {path.relative_to(compiler).as_posix() for path in compiler.rglob("*") if path.is_file()})
+        self.assertFalse(fixture.sentinel.exists())
+        self.assertEqual(b"foreign-intact", fixture.foreign_sentinel.read_bytes())
+
     def test_real_custom_intermediate_inside_project_remains_supported(self):
         self.assertPayload(self.fixture(intermediate="artifacts/custom-intermediate"))
 

@@ -1368,6 +1368,60 @@
                         </Grid>
                     </Border>
                     <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="AdaptiveRecheckEnabledFieldLabel" Text="{Binding AdaptiveRecheckEnabledLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding AdaptiveRecheckHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="AdaptiveRecheckEnabledInput" AutomationProperties.AutomationId="AdaptiveRecheckEnabledInput"
+                                AutomationProperties.LabeledBy="{Binding ElementName=AdaptiveRecheckEnabledFieldLabel}" AutomationProperties.Name="{Binding AdaptiveRecheckEnabledLabel}"
+                                AutomationProperties.HelpText="{Binding AdaptiveRecheckHint}" IsChecked="{Binding AdaptiveRecheckEnabled, Mode=TwoWay}"
+                                Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" VerticalAlignment="Center">
+                                <TextBlock x:Name="AdaptiveRecheckStartFieldLabel" Text="{Binding AdaptiveRecheckStartLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="AdaptiveRecheckStartSecondsInput" AutomationProperties.AutomationId="AdaptiveRecheckStartSecondsInput"
+                                    AutomationProperties.LabeledBy="{Binding ElementName=AdaptiveRecheckStartFieldLabel}" AutomationProperties.Name="{Binding AdaptiveRecheckStartLabel}"
+                                    AutomationProperties.HelpText="{Binding AdaptiveRecheckStartHelp}" Value="{Binding AdaptiveRecheckStartSeconds, Mode=TwoWay}"
+                                    Minimum="{Binding AdaptiveRecheckLowerBound}" Maximum="{Binding AdaptiveRecheckUpperBound}" Increment="1" />
+                                <TextBlock x:Name="AdaptiveRecheckStartSecondsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" VerticalAlignment="Center">
+                                <TextBlock x:Name="AdaptiveRecheckMinimumFieldLabel" Text="{Binding AdaptiveRecheckMinimumLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="AdaptiveRecheckMinimumSecondsInput" AutomationProperties.AutomationId="AdaptiveRecheckMinimumSecondsInput"
+                                    AutomationProperties.LabeledBy="{Binding ElementName=AdaptiveRecheckMinimumFieldLabel}" AutomationProperties.Name="{Binding AdaptiveRecheckMinimumLabel}"
+                                    AutomationProperties.HelpText="{Binding AdaptiveRecheckMinimumHelp}" Value="{Binding AdaptiveRecheckMinimumSeconds, Mode=TwoWay}"
+                                    Minimum="{Binding AdaptiveRecheckLowerBound}" Maximum="{Binding AdaptiveRecheckUpperBound}" Increment="1" />
+                                <TextBlock x:Name="AdaptiveRecheckMinimumSecondsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" VerticalAlignment="Center">
+                                <TextBlock x:Name="AdaptiveRecheckMaximumFieldLabel" Text="{Binding AdaptiveRecheckMaximumLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="AdaptiveRecheckMaximumSecondsInput" AutomationProperties.AutomationId="AdaptiveRecheckMaximumSecondsInput"
+                                    AutomationProperties.LabeledBy="{Binding ElementName=AdaptiveRecheckMaximumFieldLabel}" AutomationProperties.Name="{Binding AdaptiveRecheckMaximumLabel}"
+                                    AutomationProperties.HelpText="{Binding AdaptiveRecheckMaximumHelp}" Value="{Binding AdaptiveRecheckMaximumSeconds, Mode=TwoWay}"
+                                    Minimum="{Binding AdaptiveRecheckLowerBound}" Maximum="{Binding AdaptiveRecheckUpperBound}" Increment="1" />
+                                <TextBlock x:Name="AdaptiveRecheckMaximumSecondsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <TextBlock x:Name="ParallelSafetyFieldLabel" Text="{Binding ParallelSafetyLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />

@@ -518,7 +518,8 @@ public sealed class QuickTagStampSourceTests : IDisposable
         CommandDefinition command = CommandCatalog.Get(QuickTagCommands.StampApply);
         Assert.Equal("tags.quick.stamp-apply", command.Id);
         Assert.Equal(CommandScope.Gallery | CommandScope.Media | CommandScope.Reader | CommandScope.Archive, command.Scope);
-        Assert.Equal(new[] { "gallery-tag-panel", "quick-tag-popover" }, command.Contexts);
+        // S1 specifies Primary+Shift+Enter in the media list ("archive-media-tiles" on "tags.quick.stamp-apply").
+        Assert.Equal(new[] { "gallery-tag-panel", "quick-tag-popover", "archive-media-tiles" }, command.Contexts);
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
             Assert.Equal(platform == ShortcutPlatform.MacOS ? "⇧⌘↩" : "Ctrl+Shift+Enter",
                 string.Join(" / ", EffectiveShortcutBindings.Defaults(command, platform).Select(gesture => gesture.Display(platform))));

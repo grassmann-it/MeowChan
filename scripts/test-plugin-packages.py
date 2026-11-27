@@ -2,7 +2,7 @@
 """Verify local Core/SDK/Host packages with isolated PackageReference consumers.
 
 Owns the global build lock: do not wrap this entire runner in another flock of
-that same lock. The optional application probe executes delivered helper apphosts;
+that same lock. The optional application probe executes the delivered compiler and worker;
 consumer compilation still uses the developer SDK and is not SDK-free product E2E.
 """
 from __future__ import annotations
@@ -239,7 +239,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--feed", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="New evidence directory; an existing directory is rejected.")
-    parser.add_argument("--application-directory", type=Path, help="Optional delivered app containing plugin-compiler/ and plugin-worker/.")
+    parser.add_argument("--application-directory", type=Path, help="Optional delivered app containing the compiler toolchain.")
     parser.add_argument("--dependency-source", action="append", help="NuGet source for external dependencies; defaults to nuget.org. Repeatable.")
     parser.add_argument("--core-consumer", type=Path, default=ROOT / "samples/LibMeowChan.Consumer/LibMeowChan.Consumer.csproj")
     parser.add_argument("--sdk-consumer", type=Path, default=ROOT / "samples/MeowChan.PluginSdk.Consumer/MeowChan.PluginSdk.Consumer.csproj")

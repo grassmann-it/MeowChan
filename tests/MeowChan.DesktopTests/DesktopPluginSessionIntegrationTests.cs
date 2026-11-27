@@ -36,9 +36,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
     [InlineData("meowchan.source.sushichan", "sushichan", true)]
     [InlineData("meowchan.source.sevenchan", "sevenchan", true)]
     [InlineData("meowchan.source.bbwchan", "bbwchan", true)]
-    [InlineData("meowchan.source.anonimageboards", "anonimageboards", true)]
     [InlineData("meowchan.source.eightchanmoe", "eightchanmoe", true)]
-    [InlineData("meowchan.source.gurocx", "gurocx", true)]
     [InlineData("meowchan.source.fchan", "fchan", true)]
     [InlineData("meowchan.source.capybarachan", "capybarachan", true)]
     [InlineData("meowchan.source.4chan", "4chan", false)]
@@ -101,8 +99,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
     [InlineData("2ch", true)] [InlineData("uboachan", true)]
     [InlineData("zzzchan", true)] [InlineData("sushichan", true)]
     [InlineData("sevenchan", false)] [InlineData("bbwchan", false)]
-    [InlineData("anonimageboards", false)] [InlineData("eightchanmoe", false)]
-    [InlineData("gurocx", false)] [InlineData("fchan", false)] [InlineData("capybarachan", false)]
+    [InlineData("eightchanmoe", false)] [InlineData("fchan", false)] [InlineData("capybarachan", false)]
     [InlineData("leftypol", false)] [InlineData("kohlchan", false)]
     public void ExperimentalMaturityDoesNotImplyAMismatchPermission(string source, bool strict)
     {
@@ -111,6 +108,50 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Equal(!strict, ExperimentalSourceActivationPolicy.RequestsMismatchPermission(owner, source));
         Assert.False(ExperimentalSourceActivationPolicy.IsStrictExperimentalSource("other-owner", source));
         Assert.False(ExperimentalSourceActivationPolicy.RequestsMismatchPermission("other-owner", source));
+    }
+
+    [Fact]
+    public async Task RemovedPlaceholderRegistrationsDoNotWarnOrActivateAtStartup()
+    {
+        using TempDirectory profile = new();
+        using DesktopPluginFixtures fixture = new() { RejectAll = true };
+        Configure(profile.Path);
+        PluginProfileStore store = new(profile.Path);
+        string[] retiredIds = ["meowchan.source.anonimageboards", "meowchan.source.gurocx"];
+        PluginCandidateObservation[] previousInventory = retiredIds.Select(pluginId =>
+        {
+            PluginArtifact artifact = new("compile-" + pluginId, "execution-" + pluginId,
+                Path.Combine(profile.Path, pluginId + ".dll"), new string('a', 64), "sdk", "compiler", []);
+            PluginDescription description = new(pluginId, pluginId, "1.0.0", SdkContract.Version,
+                "Former bundled placeholder.", [], [], new("1", []), [])
+            { DeclarationStatus = PluginDeclarationStatus.Blocked };
+            return new PluginCandidateObservation(pluginId, pluginId, artifact, description);
+        }).ToArray();
+        PluginProfileSnapshot previous = await store.ApplyStartupAsync(previousInventory, 0);
+        Assert.All(previous.Plugins, plugin => Assert.NotNull(plugin.Active));
+
+        await using DesktopSessionHost host = Create(profile.Path, fixture);
+        try
+        {
+            await host.StartAsync().WaitAsync(Deadline);
+            Assert.Equal(DesktopSessionState.Ready, host.State);
+            Assert.Null(host.StartupError);
+            Assert.Empty(host.GetView().Warnings);
+            Assert.NotNull(host.Plugins);
+            Assert.Empty(host.Plugins.Warnings);
+            Assert.Empty(host.Plugins.Runtime.GetSnapshots());
+            Assert.Empty(fixture.Requests);
+
+            PluginProfileSnapshot current = await host.Plugins.ProfileStore.ReadAsync();
+            foreach (string pluginId in retiredIds)
+            {
+                PluginActivationSnapshot retired = Assert.Single(current.Plugins, plugin => plugin.PluginId == pluginId);
+                Assert.Null(retired.Active);
+                Assert.Null(retired.Problem);
+                Assert.NotNull(retired.LastGood);
+            }
+        }
+        finally { await StopAndVerifyAsync(host); }
     }
 
     [Theory]
@@ -130,7 +171,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         for (int restart = 0; restart < 2; restart++)
         {
             using DesktopPluginFixtures fixture = new() { RejectAll = true };
-            DesktopSessionHost host = Create(profile.Path, fixture);
+            await using DesktopSessionHost host = Create(profile.Path, fixture);
             try
             {
                 PluginProfileSnapshot state = await StartAndInspectPayloadAsync(host, fixture);
@@ -156,7 +197,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         using TempDirectory profile = new();
         using DesktopPluginFixtures fixture = new();
         Configure(profile.Path);
-        DesktopSessionHost host = Create(profile.Path, fixture);
+        await using DesktopSessionHost host = Create(profile.Path, fixture);
         Dictionary<string, string> revisions;
         try
         {
@@ -205,7 +246,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         for (int restart = 0; restart < 2; restart++)
         {
             using DesktopPluginFixtures offline = new() { RejectAll = true };
-            DesktopSessionHost restored = Create(profile.Path, offline);
+            await using DesktopSessionHost restored = Create(profile.Path, offline);
             try
             {
                 PluginProfileSnapshot installed = await StartAndInspectPayloadAsync(restored, offline, kohlchanEnabled: true);
@@ -235,7 +276,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         using TempDirectory profile = new();
         using DesktopPluginFixtures fixture = new();
         Configure(profile.Path);
-        DesktopSessionHost host = Create(profile.Path, fixture);
+        await using DesktopSessionHost host = Create(profile.Path, fixture);
         try
         {
             PluginProfileSnapshot installed = await StartAndInspectPayloadAsync(host, fixture);
@@ -265,7 +306,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         using TempDirectory profile = new();
         using DesktopPluginFixtures fixture = new() { HoldMetadata = true };
         Configure(profile.Path);
-        DesktopSessionHost host = Create(profile.Path, fixture);
+        await using DesktopSessionHost host = Create(profile.Path, fixture);
         try
         {
             await StartAndInspectPayloadAsync(host, fixture);
@@ -301,7 +342,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         PluginProfileSnapshot baseline;
         using (DesktopPluginFixtures fixture = new() { RejectAll = true })
         {
-            DesktopSessionHost host = Create(profile.Path, fixture);
+            await using DesktopSessionHost host = Create(profile.Path, fixture);
             try
             {
                 await host.StartAsync().WaitAsync(Deadline);
@@ -319,7 +360,7 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
             {
                 // Independent DesktopSessionHost lifetimes in one test process, not OS-process restarts.
                 using DesktopPluginFixtures offline = new();
-                DesktopSessionHost updated = Create(profile.Path, offline);
+                await using DesktopSessionHost updated = Create(profile.Path, offline);
                 try
                 {
                     await updated.StartAsync().WaitAsync(Deadline);
@@ -486,13 +527,12 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.True(File.Exists(Path.Combine(app, "plugin-worker", "MeowChan.PluginWorker" + suffix)));
         Assert.True(File.Exists(Path.Combine(app, "plugin-compiler", "MeowChan.PluginCompiler" + suffix)));
         string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
-        // All seven named experimental adapters ship. AnonImageboards and GuroCx are documented technical blocks that register no source route.
         // Danbooru ships as the official post-search source (B8 packaging); it is not a chan board adapter.
         // The vichan and jschan family bundles replace the six single-site bundles of 1.0.x.
-        Assert.Equal(20, manifests.Length);
-        foreach (string name in new[] { "Lainchan", "Leftypol", "SushiChan", "Uboachan", "Wizchan", "Zzzchan" })
+        Assert.Equal(18, manifests.Length);
+        foreach (string name in new[] { "Lainchan", "Leftypol", "SushiChan", "Uboachan", "Wizchan", "Zzzchan", "AnonImageboards", "GuroCx" })
             Assert.DoesNotContain(manifests, path => Path.GetFileName(path) == "MeowChan.Plugin." + name + ".plugin.json");
-        foreach (string name in new[] { "SevenChan", "BbwChan", "AnonImageboards", "EightchanMoe", "GuroCx", "Fchan", "CapybaraChan", "Danbooru", "VichanFamily", "JschanFamily" })
+        foreach (string name in new[] { "SevenChan", "BbwChan", "EightchanMoe", "Fchan", "CapybaraChan", "Danbooru", "VichanFamily", "JschanFamily" })
             Assert.Contains(manifests, path => Path.GetFileName(path) == "MeowChan.Plugin." + name + ".plugin.json");
         string cache = Path.Combine(host.ProfileDirectory, "plugin-cache", "artifacts");
         int priorArtifacts = Directory.Exists(cache) ? Directory.GetDirectories(cache).Length : 0;
@@ -513,8 +553,8 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
         Assert.Empty(fixture.Requests);
         Assert.Equal(0, fixture.Unexpected);
         PluginProfileSnapshot profile = await host.Plugins.ProfileStore.ReadAsync();
-        // 19 delivered chan/filter plugins (two of them engine families) plus the official Danbooru post-search plugin.
-        Assert.Equal(20, profile.Plugins.Count);
+        // 17 delivered chan/filter plugins (two of them engine families) plus the official Danbooru post-search plugin.
+        Assert.Equal(18, profile.Plugins.Count);
         foreach (PluginActivationSnapshot plugin in profile.Plugins)
         {
             bool expectedEnabled = ExperimentalSourceActivationPolicy.InitiallyEnabled(plugin.PluginId)

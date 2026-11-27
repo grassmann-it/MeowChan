@@ -163,7 +163,7 @@ internal sealed partial class BooruWorkbenchView
         if (ExecutedSearchText(view) is { } executed) paragraphs.Add(executed);
         if (DraftSearchText(view) is { } draft) paragraphs.Add(draft);
         if (view.Mode == BooruInputMode.Tags) paragraphs.Add(Texts.T("booru.ui.query.hint"));
-        paragraphs.Add(Texts.T("booru.ui.noFilterNote"));
+        if (!view.HasContentRules) paragraphs.Add(Texts.T("booru.ui.noFilterNote"));
         return new HelpContent(Texts.T("booru.ui.title"), paragraphs, []);
     }
 

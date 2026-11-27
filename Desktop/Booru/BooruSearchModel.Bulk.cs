@@ -27,6 +27,7 @@ internal sealed record BooruBulkView(BooruBulkPhase Phase, string? Query = null,
     int AlreadyQueued = 0, int AlreadySaved = 0, int NoOriginal = 0, int Failed = 0, BooruBulkEnd End = BooruBulkEnd.None)
 {
     internal int? TabId { get; init; }
+    internal int HiddenCount { get; init; }
     internal long ResultId { get; init; }
     internal (string Source, string Instance) Scope { get; init; }
     internal BooruPagerLimits PagerLimits { get; init; } = BooruPagerLimits.Default;
@@ -128,6 +129,12 @@ internal sealed partial class BooruSearchModel
                 if (token.IsCancellationRequested) { end = BooruBulkEnd.Canceled; break; }
                 if (!seen.Add(post.Identity)) continue;
                 state = state with { Found = state.Found + 1 };
+                if (!IsMediaAllowed(post))
+                {
+                    state = state with { HiddenCount = state.HiddenCount + 1 };
+                    Publish(state);
+                    continue;
+                }
                 if (post.OriginalAccess != BooruOriginalAccess.Available)
                 {
                     state = state with { NoOriginal = state.NoOriginal + 1 };

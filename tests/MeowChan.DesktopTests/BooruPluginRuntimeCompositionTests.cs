@@ -1,11 +1,20 @@
+using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
+using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Updates;
+using MeowChan.Downloader;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Installation;
+using MeowChan.PluginHost.Secrets;
+using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
+using MeowChan.Secrets;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
@@ -23,6 +32,69 @@ public sealed class BooruPluginRuntimeCompositionTests
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(180);
 
     [Fact]
+    public async Task PluginSessionShutsDownWhenTheOptionalTransportFactoryReturnsNull()
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        Config config = new();
+        DownloadQueue queue = new(config.MaxParallelDownloads, config.BandwidthLimiter);
+        try
+        {
+            PluginSession session = new(profile.Path, lease, config, queue, Serilog.Core.Logger.None,
+                transportFactory: static () => null!);
+            await session.DisposeAsync();
+        }
+        finally { await queue.StopAllAsync(); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AConfirmedDanbooruAccountIsSentOnlyWithTheDesktopOptIn(bool enabled)
+    {
+        const string accountSwitch = "MeowChan.EnableBooruAccountSending";
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        using AccountTransport network = new();
+        StageDanbooru(profile.Path);
+        Config config = new();
+        DownloadQueue queue = new(config.MaxParallelDownloads, config.BandwidthLimiter);
+        try
+        {
+            await using PluginSession session = new(profile.Path, lease, config, queue, Serilog.Core.Logger.None,
+                transportFactory: network.Client);
+            AccountStore store = new();
+            AppContext.TryGetSwitch(accountSwitch, out bool previous);
+            try
+            {
+                AppContext.SetSwitch(accountSwitch, enabled);
+                session.ConfigureBooruAccounts(lease, () => store);
+            }
+            finally { AppContext.SetSwitch(accountSwitch, previous); }
+            await session.StartAsync(CancellationToken.None).WaitAsync(Deadline);
+
+            BooruProviderBinding binding = Assert.IsType<BooruProviderBinding>(session.Booru);
+            string revision = Assert.IsType<string>(session.RunningExecutionRevision(PluginId));
+            BooruAccountScope scope = BooruAccountScope.Create(PluginId, revision, binding.Source.SourceId,
+                BooruPostKey.DefaultInstance, binding.Source.BaseUri);
+            BooruAccountBinding selection = new(lease, store);
+            Assert.Equal(BooruAccountState.Ready,
+                (await selection.ConfirmAsync(scope, "fixture-user", "fixture-key"u8.ToArray())).State);
+
+            var worker = await binding.GetWorkerAsync(CancellationToken.None).WaitAsync(Deadline);
+            Assert.NotNull(worker);
+            BooruSearchService search = new(binding.Services);
+            Assert.IsType<BooruSearchSnapshot>(await search.SearchAsync(worker, binding.Source.SourceId, "cat", 1).WaitAsync(Deadline));
+            var request = Assert.Single(network.Requests);
+            Assert.Equal("danbooru.donmai.us", request.Url.Host);
+            Assert.Equal(enabled ? new AuthenticationHeaderValue("Basic", Convert.ToBase64String("fixture-user:fixture-key"u8)) : null,
+                request.Authorization);
+            Assert.Equal(enabled ? 1 : 0, store.Reads);
+        }
+        finally { await queue.StopAllAsync(); }
+    }
+
+    [Fact]
     public async Task TheRealPluginWorkerServesTheWindowAndADisabledPluginComposesNothingAfterRestart()
     {
         using TempDirectory profile = new();
@@ -30,13 +102,7 @@ public sealed class BooruPluginRuntimeCompositionTests
         DanbooruStubPost post = stub.Add(new(7001, Color: 0xFFE0A030));
         stub.Publish("cat_ears", post.Id);
         Configure(profile.Path); // a fresh profile directory first gets its settings, then the local plugin
-        bool delivered = Directory.Exists(Path.Combine(AppContext.BaseDirectory, "plugins"))
-            && Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "plugins"), DanbooruManifest).Length > 0;
-        if (!delivered)
-        {
-            Directory.CreateDirectory(Path.Combine(profile.Path, "plugins"));
-            File.Copy(DanbooruTestPlugin.SourcePath, Path.Combine(profile.Path, "plugins", "Danbooru.cs"));
-        }
+        StageDanbooru(profile.Path);
 
         DesktopSessionHost host = Create(profile.Path, stub);
         try
@@ -53,6 +119,8 @@ public sealed class BooruPluginRuntimeCompositionTests
             await BooruCompositionHostTests.WaitAsync(() => host.BooruServices != null, "the composition from the real plugin");
             Assert.Empty(stub.Requests);
             BooruWorkbenchServices services = host.BooruServices!;
+            BooruWorkspaceContent content = Assert.IsType<BooruWorkspaceContent>(host.BooruContent);
+            await host.SaveBooruContentAsync(new(BooruPostClaimRating.General, "", []), content.Snapshot.Revision);
 
             BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline);
             Assert.True(result.Status == BooruCallStatus.Ok, result.Status + " " + result.Code);
@@ -163,6 +231,14 @@ public sealed class BooruPluginRuntimeCompositionTests
     private static PluginActivationSnapshot Danbooru(PluginProfileSnapshot state) =>
         Assert.Single(state.Plugins, plugin => plugin.PluginId == PluginId);
 
+    private static void StageDanbooru(string profile)
+    {
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "plugins", DanbooruManifest))) return;
+        string plugins = Path.Combine(profile, "plugins");
+        Directory.CreateDirectory(plugins);
+        File.Copy(DanbooruTestPlugin.SourcePath, Path.Combine(plugins, "Danbooru.cs"));
+    }
+
     private static string ManifestAssemblyHash(string file)
     {
         Assert.True(File.Exists(file), file);
@@ -188,6 +264,40 @@ public sealed class BooruPluginRuntimeCompositionTests
     {
         await host.StopAsync().WaitAsync(Deadline);
         await host.DisposeAsync();
+    }
+
+    private sealed class AccountTransport : HttpMessageHandler
+    {
+        internal System.Collections.Concurrent.ConcurrentQueue<(Uri Url, AuthenticationHeaderValue? Authorization)> Requests { get; } = new();
+        internal HttpClient Client() => new(this, disposeHandler: false);
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Enqueue((request.RequestUri!, request.Headers.Authorization));
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]", null, "application/json") });
+        }
+    }
+
+    private sealed class AccountStore : IBooruSecretStore
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> _secrets = new();
+        internal int Reads;
+
+        public SecretStoreStatus Write(string target, byte[] secret, CancellationToken cancellationToken)
+        {
+            _secrets[target] = secret.ToArray();
+            return SecretStoreStatus.Available;
+        }
+
+        public SecretStoreRead Read(string target, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Reads);
+            return _secrets.TryGetValue(target, out byte[]? secret)
+                ? new(SecretStoreStatus.Available, secret.ToArray()) : new(SecretStoreStatus.Missing);
+        }
+
+        public SecretStoreStatus Delete(string target, CancellationToken cancellationToken) =>
+            _secrets.TryRemove(target, out _) ? SecretStoreStatus.Available : SecretStoreStatus.Missing;
     }
 }
 

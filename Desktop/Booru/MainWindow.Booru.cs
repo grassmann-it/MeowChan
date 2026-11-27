@@ -48,6 +48,11 @@ public partial class MainWindow
 
     private (bool Opened, int? Limit) OpenBooruSearchDraft(string query, BooruWorkbenchServices? source = null)
     {
+        if (CanOpenBooru && _session.BooruContent?.HasChoice == false)
+        {
+            RequestBooruContentChoice(() => OpenBooruSearchDraft(query, source));
+            return (true, null);
+        }
         if (!CanOpenBooru || !NavigateWorkspace(WorkspacePage.Booru) || _booruPage is not { } page)
             return default;
         return OpenBooruSearchDraft(page, query, source);

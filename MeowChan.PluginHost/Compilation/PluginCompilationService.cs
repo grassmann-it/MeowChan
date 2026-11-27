@@ -297,6 +297,7 @@ public sealed partial class PluginCompilationService : IPluginCompilationService
             UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
             CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(request.OutputPath)!
         };
+        if (_options.EntryArgument is { } entryArgument) start.ArgumentList.Add(entryArgument);
         start.ArgumentList.Add("--compile");
         start.ArgumentList.Add(_options.ToolchainDirectory);
         start.Environment["DOTNET_GCHeapHardLimit"] = "10000000"; // 256 MiB of managed heap; process memory remains an OS concern.

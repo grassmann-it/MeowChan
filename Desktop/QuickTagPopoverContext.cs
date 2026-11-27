@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 using MeowChan.Archive;
 using MeowChan.Gallery;
 using MeowChan.Tags;
@@ -11,7 +13,7 @@ namespace MeowChan.Desktop;
 /// archive/reader file. The suggestions themselves come from the gallery panel's adapter (<see cref="GalleryTagPanelSuggestions"/>),
 /// so the panel and the popover rank the same way; <see cref="QuickTagSettings.PopoverOptions"/> builds it with the saved limits.
 /// </summary>
-internal static class QuickTagPopoverContext
+internal static partial class QuickTagPopoverContext
 {
     /// <summary>
     /// The context of a media page tile: its thread (and title), file name and bytes, and the tag subjects of the shown tiles
@@ -44,6 +46,23 @@ internal static class QuickTagPopoverContext
             Neighbours = shown == null ? TagNeighbourhood.None : Neighbourhood(shown, index, item => MediaTagSubjects.Of(item))
         };
     }
+
+    /// <summary>The archive selection uses the opening post even when its first media file belongs to a reply.</summary>
+    internal static TagContext ContextOf(ArchivedThreadView thread, GalleryEntry entry, IReadOnlyList<GalleryEntry> shown)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        CapturedPost? op = ThreadTitleText.OpeningPost(thread.Summary.Id, thread.Posts);
+        string? text = op == null ? null : PostReference().Replace(ArchiveText.PlainText(op.Html), " ");
+        if (text != null)
+            text = string.Join('\n', text.Split('\n').Select(line => line.TrimStart().TrimStart('>')));
+        return ContextOf(entry, shown, thread.Summary.Title) with
+        {
+            TitleTexts = new[] { thread.Summary.Title, op?.Subject, text }
+        };
+    }
+
+    [GeneratedRegex(">>>/[a-zA-Z0-9]+/[0-9]+|>>[0-9]+", RegexOptions.CultureInvariant)]
+    private static partial Regex PostReference();
 
     /// <summary>
     /// The tag subjects of the list around <paramref name="index"/> (at most <paramref name="radius"/> each way), frozen into an

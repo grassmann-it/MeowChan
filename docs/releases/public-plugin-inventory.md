@@ -1,9 +1,9 @@
 # Public desktop plugin inventory
 
-This is the public desktop package contract for the 1.1 line. It is a build-time
+This is the public desktop package contract for the 1.2 line. It is a build-time
 allowlist, not a scan of the repository or of a user's profile. The package
-contains exactly the 20 bundle identities below, their generated manifests and
-assemblies, and the 17 editable example/filter source files listed afterwards.
+contains exactly the 18 bundle identities below, their generated manifests and
+assemblies, and the 15 editable example/filter source files listed afterwards.
 Danbooru is included as an official post-search bundle.
 
 ## Bundled plugin identities
@@ -28,11 +28,9 @@ Every row produces `plugins/<identity>.plugin.json` and
 | Examples / filters | `MeowChan.Plugin.JschanFamily` |
 | Examples / filters | `MeowChan.Plugin.SevenChan` |
 | Examples / filters | `MeowChan.Plugin.BbwChan` |
-| Examples / filters | `MeowChan.Plugin.AnonImageboards` |
 | Examples / filters | `MeowChan.Plugin.CapybaraChan` |
 | Examples / filters | `MeowChan.Plugin.EightchanMoe` |
 | Examples / filters | `MeowChan.Plugin.Fchan` |
-| Examples / filters | `MeowChan.Plugin.GuroCx` |
 
 For each bundle, the verifier requires the manifest schema, assembly path,
 assembly SHA-256, SDK/compiler fingerprints and empty resource list to match.
@@ -46,8 +44,8 @@ These files are copied to `plugins/sources/` for the delivered compiler:
 `VichanFamily.cs`, `Kohlchan.cs`, `ImageDimensionsFilter.cs`, `Endchan.cs`,
 `FileRulesFilter.cs`, `HashBlocklistFilter.cs`, `AnimationFormatFilter.cs`,
 `PngMetadataFilter.cs`, `Dvach.cs`, `JschanFamily.cs`, `SevenChan.cs`,
-`BbwChan.cs`, `AnonImageboards.cs`, `CapybaraChan.cs`, `EightchanMoe.cs`,
-`Fchan.cs`, `GuroCx.cs`.
+`BbwChan.cs`, `CapybaraChan.cs`, `EightchanMoe.cs`,
+`Fchan.cs`.
 
 The vichan family bundle replaces the single-site bundles of Lainchan, Leftypol,
 SushiChan, Uboachan and Wizchan, and the jschan family bundle the ZZZchan bundle

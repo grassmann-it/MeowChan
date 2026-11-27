@@ -153,7 +153,13 @@ public partial class ArchivePage
         else
             Add("thread.show-in-media", () => ShowArchiveSelectionInMedia(ids, lead),
                 () => ShowThreadsInMediaRequested != null, null, count: () => ids.Length);
-        if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id));
+        if (ids.Length == 1)
+        {
+            Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id));
+            builder.Section();
+            AddThreadMediaCommands(builder, lead.Summary.Id, origin, disabledReasons);
+            builder.Section();
+        }
         // Post bookmarks are scoped to individual posts, but the manager is still useful from a
         // thread selection: it is the only place to review bookmarks when no post row is open.
         Add("post-bookmarks.open-manager", () => OpenPostBookmarks?.Invoke(),
@@ -248,5 +254,89 @@ public partial class ArchivePage
     {
         if (_archiveMenuRefreshTimers.Remove(menu, out DispatcherTimer? refresh)) refresh.Stop();
         menu.Closed -= OnArchiveSelectionMenuClosed;
+    }
+
+    private void AddThreadMediaCommands(ContextMenuBuilder builder, ResourceId? id, Control origin,
+        List<Func<string?>>? disabledReasons = null)
+    {
+        string? TagReason() => ThreadMediaBlocked(id);
+        string? StampReason() => TagReason() ?? StampBlocked();
+        string TagLabel() => MediaLabel("thread.tag-media", "tags.quick.archive.tagAll", false);
+        string StampLabel() => MediaLabel("thread.stamp-media", "tags.quick.archive.stampAll", true);
+
+        string MediaLabel(string command, string key, bool stamp)
+        {
+            if (_thread is not { } thread || thread.Summary.Id != id || _selectedThread != id || _shownMedia.Count == 0
+                || _mediaLoading || _mediaProjectionPending) return CommandCatalog.Label(command);
+            string count = FreezeThreadMedia(thread).Count.Text;
+            return stamp ? Texts.T(key, Texts.Count("tags.quick.archive.stampTags", ArchiveStampTagCount()), count) : Texts.T(key, count);
+        }
+
+        void Add(string command, Func<string?> reason, Func<string> label)
+        {
+            bool Ready() => reason() == null;
+            builder.Command(command, () => StartThreadMediaCommand(command, id, origin), Ready(), reason(), label(),
+                availableWhen: Ready, reasonWhen: reason, labelWhen: label,
+                keyContext: disabledReasons == null ? "reader" : "archive");
+            disabledReasons?.Add(() => reason() is { } why ? CommandCatalog.Label(command) + ": " + why : null);
+        }
+        Add("thread.tag-media", TagReason, TagLabel);
+        Add("thread.stamp-media", StampReason, StampLabel);
+    }
+
+    private void OnThreadMediaMenuClick(object? sender, RoutedEventArgs e)
+    {
+        if (_ended || sender is not Button button || PopupToggle.ConsumeActivation(button)) return;
+        Control anchor = ToolbarPopupAnchor(button, ReaderMediaTools, VisibleMediaList);
+        if (anchor is Avalonia.Controls.Primitives.ToggleButton more) more.IsChecked = false;
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("tags.quick.archive.menu"));
+        AddThreadMediaCommands(builder, _selectedThread, anchor);
+        ContextMenu menu = builder.Build()!;
+        menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+        if (anchor is Button opener) PopupToggle.Track(opener, menu);
+        button.ContextMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null;
+            ReturnFocusFromToolbarPopup(anchor, ReaderMediaTools, VisibleMediaList, () => FocusSelectedMedia());
+        };
+        menu.Open(anchor);
+    }
+
+    private void OnThreadMediaCommandKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || sender is not Control list || !ReferenceEquals(list, ArchiveSelectionList)
+            || !MainWindow.IsListCommandSource(e.Source, list) || _archiveSelectionIds.Count != 1) return;
+        RunThreadMediaShortcut(e, ArchiveLead?.Summary.Id, list, "archive");
+    }
+
+    private bool RunThreadMediaShortcut(KeyEventArgs e, ResourceId? id, Control origin, string keyContext)
+    {
+        EffectiveShortcutBindings bindings = ShortcutService.Current;
+        string? command = bindings.Matches(e, "thread.tag-media", keyContext) ? "thread.tag-media"
+            : bindings.Matches(e, "thread.stamp-media", keyContext) ? "thread.stamp-media" : null;
+        if (command == null) return false;
+        e.Handled = true;
+        StartThreadMediaCommand(command, id, origin);
+        return true;
+    }
+
+    private void StartThreadMediaCommand(string command, ResourceId? id, Control origin)
+    {
+        bool stamp = command == "thread.stamp-media";
+        if ((ThreadMediaBlocked(id) ?? (stamp ? StampBlocked() : null)) is { } reason)
+        {
+            Message(reason);
+            return;
+        }
+        ThreadMediaTarget target = FreezeThreadMedia(_thread!);
+        // Wait for the menu to return focus before the popover records its origin.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!ReferenceEquals(_thread, target.Thread) || ThreadMediaBlocked(id) != null) return;
+            OpenActions.Start(() => stamp
+                ? ApplyArchiveStampAsync(target.Thread, target.Rows, target.Entries, target.Count)
+                : TagMediaSelectionAsync(target.Thread, target.Rows, target.Entries, origin, threadCount: target.Count), command);
+        }, DispatcherPriority.Input);
     }
 }

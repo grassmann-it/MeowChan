@@ -21,9 +21,7 @@ internal static class ExperimentalSourceActivationPolicy
         // the repository; that path is a build layout, not a product tier.
         ["meowchan.source.sevenchan"] = "sevenchan",
         ["meowchan.source.bbwchan"] = "bbwchan",
-        ["meowchan.source.anonimageboards"] = "anonimageboards",
         ["meowchan.source.eightchanmoe"] = "eightchanmoe",
-        ["meowchan.source.gurocx"] = "gurocx",
         ["meowchan.source.fchan"] = "fchan",
         ["meowchan.source.capybarachan"] = "capybarachan"
     };
@@ -38,7 +36,7 @@ internal static class ExperimentalSourceActivationPolicy
     };
 
     // Experimental describes delivery maturity, not operator approval or a
-    // third-party/product-origin tier. The seven bundled 1.0.3 adapters are
+    // third-party/product-origin tier. The five bundled 1.0.3 adapters are
     // MeowChan-maintained and opt-in, but they do not inherit this separate
     // strict mismatch policy merely from that label. These four existing
     // sources retain strict comparisons.
