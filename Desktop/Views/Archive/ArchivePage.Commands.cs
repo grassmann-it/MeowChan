@@ -298,7 +298,7 @@ public partial class ArchivePage
         menu.Closed += (_, _) =>
         {
             if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null;
-            ReturnFocusFromToolbarPopup(anchor, ReaderMediaTools, VisibleMediaList, FocusSelectedMedia);
+            ReturnFocusFromToolbarPopup(anchor, ReaderMediaTools, VisibleMediaList, () => FocusSelectedMedia());
         };
         menu.Open(anchor);
     }
