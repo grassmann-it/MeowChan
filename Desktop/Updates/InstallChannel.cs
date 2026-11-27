@@ -31,8 +31,10 @@ internal static class InstallChannel
     internal static bool IsOfficial(string? channel) =>
         channel is WindowsPortableZip or MacOsApp or AppImage or LinuxBundledVlc or LinuxSystemVlc;
 
-    internal static bool IsKnown(string? channel) => IsOfficial(channel) ||
-        channel is WinGet or Homebrew or Aur or Distro or Flatpak or Source or CiFork or CiAcceptance;
+    internal static bool IsManaged(string? channel) => channel is WinGet or Homebrew or Aur or Distro or Flatpak;
+
+    internal static bool IsKnown(string? channel) => IsOfficial(channel) || IsManaged(channel) ||
+        channel is Source or CiFork or CiAcceptance;
 }
 
 internal sealed record InstallFacts(OSPlatform Platform, string BaseDirectory, string? InformationalVersion = null,
@@ -40,7 +42,8 @@ internal sealed record InstallFacts(OSPlatform Platform, string BaseDirectory, s
     string? DistributionChannel = null, bool Acceptance = false, bool TestRun = false,
     ReadOnlyMemory<byte>? DistributionMarker = null, string? LinuxVideoMode = null,
     string? AppImage = null, string? FlatpakId = null, bool FlatpakInfoExists = false,
-    bool UpdatesDisabled = false, bool InstallDirectoryWritable = false, bool AppImageWritable = false);
+    bool UpdatesDisabled = false, bool InstallDirectoryWritable = false, bool AppImageWritable = false,
+    string? AppDir = null, string[]? LinuxMountInfo = null);
 
 internal sealed record InstallIdentity(string Channel, string Origin, string Commit, bool SelfUpdateEligible,
     string Reason, string? BuildRepository, string? BuildRunId)
@@ -74,31 +77,38 @@ internal static class InstallChannelDetector
 
         if (facts.UpdatesDisabled)
             return Result(InstallChannel.None, DisableVariable + " is set.");
+        if (facts.Acceptance || facts.TestRun || stamp == InstallChannel.CiAcceptance)
+            return Result(InstallChannel.CiAcceptance, "Acceptance build or test run.");
 
         string path = DirectoryPath(facts.BaseDirectory, facts.Platform);
         string? managed = ManagedChannel(facts, path);
-        bool acceptance = facts.Acceptance || facts.TestRun;
-        string channel = marker ?? stamp ?? (acceptance ? InstallChannel.CiAcceptance : Infer(facts, path, managed, origin));
-        string source = marker is not null ? "Distribution marker." : stamp is not null ? "Build stamp." :
-            acceptance ? "Acceptance build or test run." : "Runtime detection.";
+        bool runningAppImage = facts.Platform == OSPlatform.Linux && IsAppImage(facts, path);
+        string channel = marker ?? stamp ?? Infer(facts, path, managed, origin, runningAppImage);
+        string source = marker is not null ? "Distribution marker." : stamp is not null ? "Build stamp." : "Runtime detection.";
 
         if (InstallChannel.IsOfficial(channel) && origin != Official)
             return Result(InstallChannel.Source, "Official channel requires official build origin.");
+        if (InstallChannel.IsOfficial(channel) && (managed is not null || InstallChannel.IsManaged(stamp)))
+            return Result(InstallChannel.Notify, "Managed installation requires the package manager.");
         if (channel is InstallChannel.WindowsPortableZip or InstallChannel.AppImage
             or InstallChannel.LinuxBundledVlc or InstallChannel.LinuxSystemVlc)
         {
             bool appImage = channel == InstallChannel.AppImage;
-            bool expectedLayout = channel == InstallChannel.WindowsPortableZip ? facts.Platform == OSPlatform.Windows :
-                facts.Platform == OSPlatform.Linux && (appImage ? IsAppImage(facts, path) : string.IsNullOrWhiteSpace(facts.AppImage));
-            if (!expectedLayout || managed is not null ||
-                IsProtected(appImage ? DirectoryPath(facts.AppImage!, facts.Platform) : path, facts.Platform))
+            bool expectedLayout = channel switch
+            {
+                InstallChannel.WindowsPortableZip => facts.Platform == OSPlatform.Windows,
+                InstallChannel.AppImage => runningAppImage,
+                _ => facts.Platform == OSPlatform.Linux && string.IsNullOrWhiteSpace(facts.AppImage) &&
+                    channel == LinuxTarballChannel(facts.LinuxVideoMode)
+            };
+            if (!expectedLayout || IsProtected(path, facts.Platform) ||
+                (appImage && IsProtected(DirectoryPath(facts.AppImage!, facts.Platform), facts.Platform)))
                 return Result(InstallChannel.Notify, "Installation layout does not allow self-update.");
             if (!(appImage ? facts.AppImageWritable : facts.InstallDirectoryWritable))
                 return Result(InstallChannel.Notify, "Installation target is not writable.");
             return Result(channel, source, eligible: true);
         }
-        if (channel == InstallChannel.MacOsApp &&
-            (facts.Platform != OSPlatform.OSX || !IsMacApp(path) || managed is not null))
+        if (channel == InstallChannel.MacOsApp && (facts.Platform != OSPlatform.OSX || !IsMacApp(path)))
             return Result(InstallChannel.Notify, "Installation layout does not match the macOS app channel.");
 
         return Result(channel, source);
@@ -116,7 +126,7 @@ internal static class InstallChannelDetector
         return commit[..7].ToString();
     }
 
-    private static string Infer(InstallFacts facts, string path, string? managed, string origin)
+    private static string Infer(InstallFacts facts, string path, string? managed, string origin, bool runningAppImage)
     {
         if (managed is not null) return managed;
         if (origin == ForkCi) return InstallChannel.CiFork;
@@ -124,14 +134,16 @@ internal static class InstallChannelDetector
         if (facts.Platform == OSPlatform.Windows) return InstallChannel.WindowsPortableZip;
         if (facts.Platform == OSPlatform.OSX && IsMacApp(path)) return InstallChannel.MacOsApp;
         if (facts.Platform != OSPlatform.Linux) return InstallChannel.Source;
-        if (IsAppImage(facts, path)) return InstallChannel.AppImage;
-        return facts.LinuxVideoMode switch
-        {
-            "bundled" => InstallChannel.LinuxBundledVlc,
-            "system" => InstallChannel.LinuxSystemVlc,
-            _ => InstallChannel.Source
-        };
+        if (runningAppImage) return InstallChannel.AppImage;
+        return LinuxTarballChannel(facts.LinuxVideoMode) ?? InstallChannel.Source;
     }
+
+    private static string? LinuxTarballChannel(string? mode) => mode switch
+    {
+        "bundled" => InstallChannel.LinuxBundledVlc,
+        "system" => InstallChannel.LinuxSystemVlc,
+        _ => null
+    };
 
     private static string DirectoryPath(string path, OSPlatform platform) =>
         (platform == OSPlatform.Windows ? path.Replace('\\', '/') : path).TrimEnd('/') + "/";
@@ -150,9 +162,43 @@ internal static class InstallChannelDetector
 
     private static bool IsMacApp(string path) => path.EndsWith(".app/Contents/MacOS/", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsAppImage(InstallFacts facts, string path) =>
-        facts.AppImage is { Length: > 1 } appImage && appImage[0] == '/' &&
-        path.EndsWith("/usr/lib/meowchan/", StringComparison.Ordinal);
+    private static bool IsAppImage(InstallFacts facts, string path)
+    {
+        if (facts.AppImage is not { Length: > 1 } appImage || appImage[0] != '/' ||
+            facts.AppDir is not { Length: > 1 } appDir || appDir[0] != '/' ||
+            facts.LinuxMountInfo is not { } mountInfo)
+            return false;
+
+        string mountDirectory = DirectoryPath(appDir, OSPlatform.Linux);
+        if (path != mountDirectory + "usr/lib/meowchan/") return false;
+
+        string mountPoint = EscapeMountInfoPath(mountDirectory.TrimEnd('/'));
+        string imagePath = EscapeMountInfoPath(appImage);
+        string imageName = imagePath[(imagePath.LastIndexOf('/') + 1)..];
+        foreach (string line in mountInfo)
+        {
+            string[] fields = line.Split(' ');
+            if (fields.Length < 10 || fields[3] != "/" || fields[4] != mountPoint ||
+                (fields[5] != "ro" && !fields[5].StartsWith("ro,", StringComparison.Ordinal)))
+                continue;
+
+            int separator = Array.IndexOf(fields, "-", 6);
+            if (separator < 0 || separator + 3 >= fields.Length) continue;
+            string filesystem = fields[separator + 1];
+            string mountSource = fields[separator + 2];
+            if ((filesystem == "fuse" || filesystem.StartsWith("fuse.", StringComparison.Ordinal)) && mountSource == imagePath)
+                return true;
+            // libfuse can report the image basename as both the source and the subtype.
+            if (filesystem == "fuse." + imageName && mountSource == imageName) return true;
+        }
+        return false;
+    }
+
+    private static string EscapeMountInfoPath(string path) => path
+        .Replace(@"\", @"\134", StringComparison.Ordinal)
+        .Replace(" ", @"\040", StringComparison.Ordinal)
+        .Replace("\t", @"\011", StringComparison.Ordinal)
+        .Replace("\n", @"\012", StringComparison.Ordinal);
 
     private static bool IsProtected(string path, OSPlatform platform)
     {
@@ -204,6 +250,7 @@ internal static class InstallChannelDetector
 
         string directory = AppContext.BaseDirectory;
         string? appImage = Environment.GetEnvironmentVariable("APPIMAGE");
+        string? appDir = OperatingSystem.IsLinux() ? Environment.GetEnvironmentVariable("APPDIR") : null;
         string? entryAssembly = Assembly.GetEntryAssembly()?.GetName().Name;
         OSPlatform platform = OperatingSystem.IsWindows() ? OSPlatform.Windows :
             OperatingSystem.IsLinux() ? OSPlatform.Linux : OperatingSystem.IsMacOS() ? OSPlatform.OSX : OSPlatform.FreeBSD;
@@ -218,9 +265,16 @@ internal static class InstallChannelDetector
             AppImage: appImage, FlatpakId: Environment.GetEnvironmentVariable("FLATPAK_ID"),
             FlatpakInfoExists: OperatingSystem.IsLinux() && File.Exists("/.flatpak-info"),
             UpdatesDisabled: Environment.GetEnvironmentVariable(DisableVariable) == "1",
-            InstallDirectoryWritable: IsDirectoryWritable(directory), AppImageWritable: IsAppImageWritable(appImage)));
+            InstallDirectoryWritable: IsDirectoryWritable(directory), AppImageWritable: IsAppImageWritable(appImage),
+            AppDir: appDir, LinuxMountInfo: appImage is not null && appDir is not null ? ReadLinuxMountInfo() : null));
         Log.Information("Installation channel {Channel} ({Origin}): {Reason:l}", identity.Channel, identity.Origin, identity.Reason);
         return identity;
+    }
+
+    private static string[]? ReadLinuxMountInfo()
+    {
+        try { return File.ReadAllLines("/proc/self/mountinfo"); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
     }
 
     private static ReadOnlyMemory<byte>? ReadMarker(string directory)

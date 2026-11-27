@@ -7,6 +7,8 @@ namespace MeowChan.DesktopTests;
 public sealed class InstallChannelTests
 {
     private const string Commit = "3e826a624c2f6dfce8e03ca8ff4d62a7f30cb5f3";
+    private const string AppImagePath = "/home/fixture/MeowChan.AppImage";
+    private const string AppImageDirectory = "/tmp/.mount_fixture";
     private static readonly InstallFacts OfficialLinux = new(OSPlatform.Linux, "/home/fixture/meowchan",
         InformationalVersion: "1.2.0+" + Commit, BuildOrigin: "official", BuildRepository: "grassmann-it/MeowChan",
         BuildRunId: "173", InstallDirectoryWritable: true);
@@ -36,9 +38,7 @@ public sealed class InstallChannelTests
             "macos-app" => OfficialLinux with { Platform = OSPlatform.OSX, BaseDirectory = "/Applications/MeowChan.app/Contents/MacOS/" },
             "homebrew" => OfficialLinux with { Platform = OSPlatform.OSX, BaseDirectory = "/opt/homebrew/Cellar/meowchan/1.2.0/bin",
                 BuildOrigin = "local", DistributionChannel = "homebrew" },
-            "appimage" => OfficialLinux with { BaseDirectory = "/tmp/.mount_fixture/usr/lib/meowchan",
-                AppImage = "/home/fixture/MeowChan.AppImage", LinuxVideoMode = "bundled",
-                InstallDirectoryWritable = false, AppImageWritable = true },
+            "appimage" => MountedAppImage(AppImagePath, AppImagePath),
             "linux-tarball-bundled-vlc" => OfficialLinux with { LinuxVideoMode = "bundled" },
             "linux-tarball-system-vlc" => OfficialLinux with { LinuxVideoMode = "system" },
             "aur" => OfficialLinux with { BaseDirectory = "/usr/lib/meowchan",
@@ -119,8 +119,7 @@ public sealed class InstallChannelTests
     [InlineData("/home/fixture/MeowChan.AppImage", true, "appimage")]
     public void AppImageChecksTheOuterFile(string path, bool writable, string channel)
     {
-        InstallIdentity result = InstallChannelDetector.Detect(OfficialLinux with { AppImage = path,
-            BaseDirectory = "/tmp/.mount_fixture/usr/lib/meowchan", AppImageWritable = writable });
+        InstallIdentity result = InstallChannelDetector.Detect(MountedAppImage(path, path) with { AppImageWritable = writable });
         Assert.Equal(channel, result.Channel);
         Assert.Equal(channel == "appimage", result.SelfUpdateEligible);
     }
@@ -172,12 +171,24 @@ public sealed class InstallChannelTests
     [InlineData("/tmp/.mount_unrelated/usr/lib/meowchan")]
     public void InheritedAppImageCannotTurnAnUnrelatedInstallationIntoAnAppImage(string directory)
     {
-        InstallIdentity result = InstallChannelDetector.Detect(OfficialLinux with { BaseDirectory = directory,
-            AppImage = "/home/fixture/MeowChan.AppImage", AppImageWritable = true,
-            DistributionMarker = Marker("appimage"), LinuxVideoMode = "bundled" });
+        InstallIdentity result = InstallChannelDetector.Detect(MountedAppImage(AppImagePath, AppImagePath) with {
+            BaseDirectory = directory, DistributionMarker = Marker("appimage") });
 
         Assert.False(result.SelfUpdateEligible);
         Assert.Equal("notify", result.Channel);
+    }
+
+    [Theory]
+    [InlineData("MeowChan.AppImage", "appimage")]
+    [InlineData("/home/elsewhere/MeowChan.AppImage", "notify")]
+    [InlineData("Other.AppImage", "notify")]
+    [InlineData(null, "notify")]
+    public void AppImageMustMatchTheReadOnlyFuseMountAtTheRunningAppDirectory(string? mountSource, string channel)
+    {
+        InstallIdentity result = InstallChannelDetector.Detect(MountedAppImage(AppImagePath, mountSource));
+
+        Assert.Equal(channel, result.Channel);
+        Assert.Equal(channel == "appimage", result.SelfUpdateEligible);
     }
 
     [Theory]
@@ -232,6 +243,18 @@ public sealed class InstallChannelTests
         Assert.Equal("linux-tarball-bundled-vlc", oversized.Channel);
         Assert.Contains("marker ignored", oversized.Reason);
     }
+
+    private static InstallFacts MountedAppImage(string path, string? mountSource) => OfficialLinux with
+    {
+        BaseDirectory = AppImageDirectory + "/usr/lib/meowchan",
+        AppImage = path,
+        AppDir = AppImageDirectory,
+        LinuxMountInfo = mountSource is null ? null :
+            [$"82 31 0:51 / {AppImageDirectory} ro,nosuid,nodev,relatime - fuse.MeowChan.AppImage {mountSource} ro,user_id=1000"],
+        LinuxVideoMode = "bundled",
+        InstallDirectoryWritable = false,
+        AppImageWritable = true
+    };
 
     private static byte[] Marker(string channel) => Encoding.UTF8.GetBytes($$"""{"SchemaVersion":1,"Channel":"{{channel}}"}""");
 }
