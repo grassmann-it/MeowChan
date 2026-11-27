@@ -324,13 +324,18 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
         {
             lock (_owner._gate)
             {
-                if (!IsCurrent()) return false;
+                if (!IsCurrentUnderLock()) return false;
                 publish();
                 return true;
             }
         }
 
-        private bool IsCurrent()
+        internal bool IsCurrent()
+        {
+            lock (_owner._gate) return IsCurrentUnderLock();
+        }
+
+        private bool IsCurrentUnderLock()
         {
             if (!_owner._active || !_owner.IsLeaseHeld || _owner._changing || _owner._generation != _generation
                 || _call.Lifetime.IsCancellationRequested) return false;
@@ -339,7 +344,7 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
 
         private void EnsureCurrent()
         {
-            if (!IsCurrent()) throw new BooruAccountChangedException();
+            if (!IsCurrentUnderLock()) throw new BooruAccountChangedException();
         }
 
         /// <summary>The delegate starts a single host-owned HTTPS request with redirects, cookies and header logging disabled.</summary>
@@ -383,9 +388,6 @@ internal sealed class BooruAccountBinding(ProfileLease lease, IBooruSecretStore 
                 response = await pending.ConfigureAwait(false);
                 lock (_owner._gate) EnsureCurrent();
                 linked.Token.ThrowIfCancellationRequested();
-                if (response.RequestMessage?.RequestUri is Uri final && (!final.IsAbsoluteUri || final.AbsoluteUri != canonical.Url.AbsoluteUri))
-                    throw new HttpRequestException("Booru metadata redirects are not followed.");
-
                 BooruAccountAttempt attempt = new(response, read, basic);
                 response = null;
                 read = null;

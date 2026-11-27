@@ -120,6 +120,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             {
                 Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger,
                     pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy, _commands);
+                Plugins.ConfigureBooruAccounts(_profileLease);
                 // The read-only plugin probe needs nothing the window or the catalog builds: it overlaps their
                 // construction and is awaited in StartCoreAsync where plugin startup ran before. Activation,
                 // provenance and adapters keep their place there. Shutdown's startup cancellation also ends it.

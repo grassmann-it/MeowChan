@@ -66,3 +66,9 @@ bereinigter oder anonymisierter Supportbericht**.
 Die passive Diagnose fügt keine automatische Telemetrie oder aktiven
 Verbindungsproben hinzu. Anzeigen, Aktualisieren und Kopieren starten keine
 zusätzlichen Netzabfragen; normale Downloads können im Hintergrund weiterlaufen.
+
+MeowChan erfasst für die Diagnose ausgewählte Vorgangs- und Fehlerdetails ohne
+Prozessspeicher. Bei kontogebundenen Booru-HTTP-Anfragen protokolliert der Host
+Dienstfehler mit einer festen Meldung. Vollständige Prozessdumps aus externen
+Werkzeugen oder vom Betriebssystem können Booru-Zugangsdaten einschließlich
+des reversibel kodierten HTTP-Basic-Headers enthalten.

@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
 
@@ -9,6 +11,56 @@ namespace MeowChan.PluginRuntime.Tests;
 
 public sealed class BooruSearchServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RevocationAfterMetadataSendRejectsTheWorkerResult(bool post)
+    {
+        string root = Directory.CreateTempSubdirectory("booru-result-revocation-").FullName;
+        try
+        {
+            using ProfileLease lease = ProfileLease.Acquire(root);
+            SourceDescription source = DanbooruSource();
+            BooruAccountScope scope = BooruAccountScope.Create("fake", "revision", source.SourceId, "default", source.BaseUri);
+            BooruAccountBinding accounts = new(lease, new BooruSecretStoreTests.FakeStore());
+            Assert.Equal(BooruAccountState.Ready,
+                (await accounts.ConfirmAsync(scope, "fixture", "fixture-key"u8.ToArray())).State);
+            using Handler handler = new((request, _) =>
+            {
+                Assert.NotNull(request.Headers.Authorization);
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
+            });
+            using HttpClient transport = new(handler, disposeHandler: false);
+            using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [source]);
+            BooruHostServices services = new(new Inner(), http, accounts, _ => scope);
+            BooruSearchService search = new(services);
+            await using FakeWorker worker = new(
+                search: async (request, operation, token) =>
+                {
+                    await RevokeAfterSendAsync("posts.json?tags=cat&page=1&limit=20", operation, token);
+                    return new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [], true));
+                },
+                post: async (request, operation, token) =>
+                {
+                    await RevokeAfterSendAsync("posts/42.json", operation, token);
+                    return new BooruPostNotFound(request.Post, 404);
+                });
+
+            FailureDetail failure = post
+                ? Assert.IsType<BooruPostFailure>(await search.ReadPostAsync(worker, new(source.SourceId, "42"))).Failure
+                : Assert.IsType<BooruSearchFailure>(await search.SearchAsync(worker, source.SourceId, "cat", 1)).Failure;
+            Assert.Equal("source_unavailable", failure.Code);
+
+            async Task RevokeAfterSendAsync(string path, PluginOperationContext operation, CancellationToken token)
+            {
+                Assert.IsType<HostHttpResponse>(await services.SendHttpAsync(
+                    new(source.SourceId, HostHttpMethod.Get, new Uri(source.BaseUri, path)), operation, token));
+                Assert.Equal(BooruAccountState.Anonymous, (await accounts.RevokeAsync(token)).State);
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     [Fact]
     public async Task InvalidDanbooruQueryIsAConstantRefusalWithoutWorkerOrHttp()
     {

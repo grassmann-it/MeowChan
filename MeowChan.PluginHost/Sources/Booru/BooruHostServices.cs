@@ -1,5 +1,6 @@
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Sources.Booru;
@@ -14,17 +15,39 @@ public sealed class BooruHostServices : IPluginHostServices
     private readonly BooruHostHttp _booruHttp;
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
     private readonly BooruJobRegistry _jobs;
+    private readonly BooruAccountBinding? _accounts;
+    private readonly Func<SourceDescription, BooruAccountScope?>? _accountScope;
 
     public BooruHostServices(IPluginHostServices inner, BooruHostHttp booruHttp)
+        : this(inner, booruHttp, null, null)
+    {
+    }
+
+    internal BooruHostServices(IPluginHostServices inner, BooruHostHttp booruHttp,
+        BooruAccountBinding? accounts, Func<SourceDescription, BooruAccountScope?>? accountScope)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _booruHttp = booruHttp ?? throw new ArgumentNullException(nameof(booruHttp));
         _sources = booruHttp.Sources;
         _jobs = new BooruJobRegistry(GetClock(booruHttp));
+        _accounts = accounts;
+        _accountScope = accountScope;
     }
 
     internal IPluginHostServices Inner => _inner;
     internal IReadOnlyDictionary<string, SourceDescription> Sources => _sources;
+
+    internal PluginOperationContext BindOperation(PluginOperationContext operation, object request,
+        SourceDescription source, CancellationToken lifetime)
+    {
+        PluginOperationContext context = operation.BindBooruCall(request, lifetime);
+        if (_accounts is not null && _accountScope?.Invoke(source) is { } scope)
+        {
+            context.BooruCall!.Account = _accounts.CaptureOperation(scope, source, context)
+                ?? throw new BooruAccountChangedException();
+        }
+        return context;
+    }
 
     public Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count,
         PluginOperationContext operation, CancellationToken cancellationToken)
@@ -54,7 +77,7 @@ public sealed class BooruHostServices : IPluginHostServices
         BooruCallBinding active, CancellationToken cancellationToken)
     {
         using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(active.Lifetime, cancellationToken);
-        return await _booruHttp.SendAsync(request, source, job, lifetime.Token).ConfigureAwait(false);
+        return await _booruHttp.SendAsync(request, source, job, lifetime.Token, active.Account).ConfigureAwait(false);
     }
 
     /// <summary>The enforced post-search profile of a declared source; null when it has none.</summary>
