@@ -60,7 +60,8 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         ProfileSnapshot? snapshot;
         try { snapshot = JsonSerializer.Deserialize<ProfileSnapshot>(file, Json); }
         catch (JsonException error) { throw new InvalidDataException("The profile snapshot index is damaged.", error); }
-        if (snapshot is null || snapshot.Version != SnapshotVersion || !Path.IsPathFullyQualified(snapshot.SourceDirectory)
+        if (snapshot is null || snapshot.Version != SnapshotVersion || string.IsNullOrWhiteSpace(snapshot.SourceDirectory)
+            || !Path.IsPathFullyQualified(snapshot.SourceDirectory)
             || snapshot.Profile is null || snapshot.Profile.ProfileId == Guid.Empty || snapshot.Profile.Generation == Guid.Empty
             || snapshot.Directories is null || snapshot.Files is null
             || snapshot.Files.Any(entry => entry is null || entry.Length < 0
@@ -73,6 +74,14 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
     {
         string target = ProfileLease.NormalizeDirectory(destination);
         ArchiveExportMetadataFile.RejectLinks(target);
+        string? generation = Path.GetDirectoryName(ProfileLease.NormalizeDirectory(snapshotDirectory));
+        if (Overlaps(SourceDirectory, target) || generation is not null && Overlaps(generation, target))
+            throw new IOException("Restore the snapshot outside the original and working profile directories.");
+        RestoreData(snapshotDirectory, target, token);
+    }
+
+    internal void RestoreData(string snapshotDirectory, string target, CancellationToken token)
+    {
         if (Directory.Exists(target) || File.Exists(target))
             throw new IOException("The profile restore requires a fresh directory.");
         string staging = target + ".pending-" + Guid.NewGuid().ToString("N");
@@ -99,6 +108,17 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         {
             if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         }
+    }
+
+    private static bool Overlaps(string first, string second)
+    {
+        static bool Contains(string parent, string child)
+        {
+            string relative = Path.GetRelativePath(parent, child);
+            return !Path.IsPathRooted(relative) && relative != ".."
+                && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        }
+        return Contains(first, second) || Contains(second, first);
     }
 
     internal void VerifyData(string directory, CancellationToken token = default) => Verify(Path.Combine(directory, DataName), token);

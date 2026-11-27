@@ -96,7 +96,7 @@ internal static class ProfileUpgrade
             Guid id = ProfileInstanceIdentity.TryRead(source.ProfileDirectory)?.Id ?? Guid.NewGuid();
             var initial = ProfileManifest.New(id, ProfileManifest.Preparing, new(), []);
             ProfileSnapshot snapshot = ProfileSnapshot.Capture(source, snapshotPath, initial, availableBytes, token);
-            snapshot.Restore(snapshotPath, prepared, token);
+            snapshot.RestoreData(snapshotPath, prepared, token);
             var originalParts = ProfileManifest.Inspect(prepared);
             var roots = ProfileMediaRelocation.Prepare(source.ProfileDirectory, prepared, target, legacyDownloads, token);
             snapshot = snapshot with { Profile = initial with { Parts = originalParts, ExternalMediaRoots = roots } };

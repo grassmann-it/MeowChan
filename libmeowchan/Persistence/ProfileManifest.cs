@@ -29,6 +29,7 @@ internal sealed record ProfileManifest(int Version, Guid ProfileId, Guid Generat
             [ProfileInstanceIdentity.FileName] = (1, 1, 1),
             ["booru-search-tabs.json"] = (1, 2, 1),
             ["booru-catalog.json"] = (1, 2, 1),
+            ["booru-content.json"] = (1, 1, 0),
             ["archive.db"] = (1, ArchiveSql.SchemaVersion, 13),
             ["folder-sources.db"] = (1, 1, 1),
             ["work-state.sqlite"] = (0, 1, 1),
