@@ -15,49 +15,53 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     private static readonly StringComparer PathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-    private static readonly string[] SettingsDocuments = ["settings.json", "settings.json.bak"];
-    private static readonly string[] SessionDocuments = ["saved_urls.json", "saved_urls.json.bak"];
-    private static readonly string[] BooruDocuments = ["booru-catalog.json", "booru-catalog.json.bak"];
+    private static readonly string[] Documents =
+        ["settings.json", "saved_urls.json", "booru-catalog.json", "private-tags.json", "local-imports.json"];
+    private static readonly string[] Suffixes = ["", ".bak"];
     private static readonly string[] WorkDatabases = ["work-state.sqlite", "work-state.before-prune.sqlite"];
-    private static readonly string[] PathDocuments =
-    [
-        .. SessionDocuments, .. BooruDocuments, "private-tags.json", "private-tags.json.bak",
-        "local-imports.json", "local-imports.json.bak"
-    ];
 
-    internal static string[] ManagedRoots(string source, string staged, string legacyDownloads, CancellationToken token)
+    internal static ProfileMediaSelection[] ManagedRoots(string source, string legacyDownloads, CancellationToken token)
     {
         HashSet<string> directories = new(PathComparer) { source };
         HashSet<string> files = new(PathComparer);
-        foreach (string name in SettingsDocuments)
-            if (ReadDocument(Path.Combine(staged, name)) is JsonObject settings && SettingsDownloadRoot(settings, legacyDownloads) is { } root)
+        VisitDocuments(source, (name, document) =>
+        {
+            if (name == "settings.json" && SettingsDownloadRoot(document, legacyDownloads) is { } root)
                 directories.Add(root);
-        foreach (string name in SessionDocuments)
-        {
-            if (ReadDocument(Path.Combine(staged, name)) is JsonObject session
-                && (session["DownloadDirectories"] ?? session["downloadDirectories"]) is JsonObject assignments)
-                foreach (var assignment in assignments) AddPath(directories, ReadString(assignment.Value));
-        }
-        foreach (string name in BooruDocuments)
-        {
-            if (ReadDocument(Path.Combine(staged, name)) is JsonObject catalog && catalog["posts"] is JsonArray posts)
-                foreach (JsonNode? item in posts)
-                    if (item is JsonObject post) AddPath(files, ReadString(post["localPath"]));
-        }
-        foreach (string name in WorkDatabases) ReadWorkPaths(Path.Combine(staged, name), directories, files, token);
-        ReadArchivePaths(Path.Combine(staged, "archive.db"), directories, files, token);
-        foreach (string file in files)
-        {
-            if (!directories.Contains(file) && !HasParentIn(directories, file) && Path.GetDirectoryName(file) is { } parent)
-                directories.Add(parent);
-        }
+            foreach (var (row, field) in PathFields(name, document))
+            {
+                token.ThrowIfCancellationRequested();
+                string? value = ReadString(row[field]);
+                if (name == "booru-catalog.json" && value is not null && ReadString(row["localAssetId"]) is not null)
+                {
+                    if (!Path.IsPathFullyQualified(value) || !File.Exists(value))
+                        throw new InvalidDataException($"The linked original '{value}' is unavailable.");
+                }
+                if (name == "private-tags.json" && value is not null && ReadString(row["RequestedFile"]) is { } filename)
+                {
+                    if (Path.GetFileName(filename) != filename) throw new InvalidDataException("Invalid occurrence filename.");
+                    AddPath(files, Path.Combine(value, filename));
+                }
+                else AddPath(name == "booru-catalog.json" ? files : directories, value);
+            }
+            return false;
+        });
+        foreach (string name in WorkDatabases) ReadWorkPaths(Path.Combine(source, name), directories, files, token);
+        ReadArchivePaths(Path.Combine(source, "archive.db"), directories, files, token);
         if (HasParentIn(directories, source) || directories.Any(root => Path.GetDirectoryName(root) is null))
             throw new InvalidDataException("A managed media root contains the source profile or is a filesystem root.");
-        return directories.Where(root => !PathComparer.Equals(root, source) && !HasParentIn(directories, root))
-            .Order(StringComparer.Ordinal).ToArray();
+
+        var trees = directories.Where(root => !PathComparer.Equals(root, source) && !HasParentIn(directories, root))
+            .Select(root => new ProfileMediaSelection(root));
+        var individual = files.Where(file => !HasParentIn(directories, file))
+            .GroupBy(file => Path.GetDirectoryName(file)!, PathComparer)
+            .Select(group => new ProfileMediaSelection(group.Key, group.Select(file => Path.GetFileName(file))
+                .Append(".meowchan-manifest.json").Append(".ochan-manifest.json")
+                .Distinct(PathComparer).Order(StringComparer.Ordinal).ToArray()));
+        return trees.Concat(individual).OrderBy(selection => selection.Root, StringComparer.Ordinal).ToArray();
     }
 
-    internal static void Apply(ProfileSnapshot snapshot, string snapshotDirectory, string staged, string target, CancellationToken token)
+    internal static void Apply(ProfileSnapshot snapshot, string snapshotDirectory, string staged, string target, ProfileCopyOperation operation)
     {
         Dictionary<string, string> paths = new(PathComparer) { [snapshot.SourceDirectory] = target };
         string container = "upgrade-downloads";
@@ -69,16 +73,30 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         {
             string relative = Path.Combine(container, (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
             paths.Add(media[index].Root, Path.Combine(target, relative));
-            snapshot.CopyMedia(snapshotDirectory, index, Path.Combine(staged, relative), token);
+            snapshot.CopyMedia(snapshotDirectory, index, Path.Combine(staged, relative), operation);
         }
         var relocation = new ProfileMediaRelocation(paths);
-        foreach (string name in SettingsDocuments)
-            relocation.RewriteDocument(Path.Combine(staged, name), snapshot.LegacyDownloads);
-        foreach (string name in PathDocuments)
+        VisitDocuments(staged, (name, document) =>
         {
-            token.ThrowIfCancellationRequested();
-            relocation.RewriteDocument(Path.Combine(staged, name));
-        }
+            operation.Token.ThrowIfCancellationRequested();
+            if (name == "settings.json" && SettingsDownloadRoot(document, snapshot.LegacyDownloads!) is { } root)
+                return SetPath(document, "DownloadPath", relocation.Map(root));
+            bool changed = false;
+            foreach (var (row, field) in PathFields(name, document))
+            {
+                operation.Token.ThrowIfCancellationRequested();
+                if (ReadString(row[field]) is not { } path) continue;
+                string mapped = relocation.Map(path);
+                if (name == "booru-catalog.json" && ReadString(row["localAssetId"]) is not null)
+                {
+                    string? relative = RelativeTo(target, mapped);
+                    if (relative is null || !File.Exists(ProfileSnapshot.Child(staged, relative)))
+                        throw new InvalidDataException($"The linked original '{path}' is missing from the profile snapshot.");
+                }
+                changed |= SetPath(row, field, mapped);
+            }
+            return changed;
+        });
         relocation.RewriteArchive(Path.Combine(staged, "archive.db"));
         foreach (string name in WorkDatabases) relocation.RewriteWork(Path.Combine(staged, name));
     }
@@ -115,12 +133,14 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         if (value is not null && Path.IsPathFullyQualified(value)) paths.Add(ProfileLease.NormalizeDirectory(value));
     }
 
-    private static JsonNode? ReadDocument(string path)
+    private static JsonNode? ReadDocument(string path, bool detectEncoding)
     {
         try
         {
             using FileStream file = RegularProfileFile.OpenRead(path);
-            return JsonNode.Parse(file);
+            if (!detectEncoding) return JsonNode.Parse(file);
+            using StreamReader reader = new(file, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            return JsonNode.Parse(reader.ReadToEnd());
         }
         catch (FileNotFoundException) { return null; }
         catch (JsonException) { return null; }
@@ -158,7 +178,10 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         if (version >= 7)
             ReadDatabasePaths(connection, directories, "SELECT operations_parent,candidate_directory FROM archive_media_import_operations", token);
         if (version >= 8)
-            ReadDatabasePaths(connection, directories, "SELECT operations_parent,full_directory,safe_directory FROM archive_media_merge_operations", token);
+            ReadDatabasePaths(connection, directories, """
+                SELECT operations_parent,full_directory,safe_directory FROM archive_media_merge_operations;
+                SELECT json_extract(value,'$.Directory') FROM archive_media_merge_operations,json_each(roots_json);
+                """, token);
     }
 
     private static void ReadDatabasePaths(SqliteConnection connection, HashSet<string> paths, string sql, CancellationToken token)
@@ -177,58 +200,39 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         } while (reader.NextResult());
     }
 
-    private void RewriteDocument(string path, string? legacyDownloads = null)
+    private static void VisitDocuments(string directory, Func<string, JsonObject, bool> visit)
     {
-        if (ReadDocument(path) is not JsonObject document) return;
-        bool changed = RewriteValues(document);
-        if (legacyDownloads is not null && SettingsDownloadRoot(document, legacyDownloads) is { } root)
-        {
-            string mapped = Map(root);
-            if (mapped != ReadString(document["DownloadPath"]))
+        foreach (string name in Documents)
+            foreach (string suffix in Suffixes)
             {
-                document["DownloadPath"] = mapped;
-                changed = true;
+                string path = Path.Combine(directory, name + suffix);
+                if (ReadDocument(path, name is "settings.json" or "saved_urls.json") is JsonObject document && visit(name, document))
+                    ProfileSnapshot.PublishJson(path, document, Json);
             }
-        }
-        if (changed) ProfileSnapshot.PublishJson(path, document, Json);
     }
 
-    private bool RewriteValues(JsonNode node)
+    private static IEnumerable<(JsonObject Row, string Field)> PathFields(string name, JsonObject document)
     {
-        bool changed = false;
-        if (node is JsonObject map)
+        if (name == "saved_urls.json" && (document["DownloadDirectories"] ?? document["downloadDirectories"]) is JsonObject assignments)
         {
-            foreach (var pair in map.ToArray())
-            {
-                if (TryMap(pair.Value, out string? mapped))
-                {
-                    map[pair.Key] = mapped;
-                    changed = true;
-                }
-                else if (pair.Value is not null) changed |= RewriteValues(pair.Value);
-            }
+            foreach (string key in assignments.Select(pair => pair.Key).ToArray()) yield return (assignments, key);
         }
-        else if (node is JsonArray array)
+        var (collection, field) = name switch
         {
-            for (int index = 0; index < array.Count; index++)
-            {
-                if (TryMap(array[index], out string? mapped))
-                {
-                    array[index] = mapped;
-                    changed = true;
-                }
-                else if (array[index] is { } child) changed |= RewriteValues(child);
-            }
-        }
-        return changed;
+            "booru-catalog.json" => ("posts", "localPath"),
+            "private-tags.json" => ("LocalOccurrences", "Directory"),
+            "local-imports.json" => ("Batches", "Directory"),
+            _ => (null, null)
+        };
+        if (collection is not null && document[collection] is JsonArray rows)
+            foreach (JsonObject row in rows.OfType<JsonObject>()) yield return (row, field!);
     }
 
-    private bool TryMap(JsonNode? node, out string? mapped)
+    private static bool SetPath(JsonObject row, string field, string path)
     {
-        mapped = null;
-        if (node is not JsonValue value || !value.TryGetValue(out string? path) || path is null) return false;
-        mapped = Map(path);
-        return !string.Equals(mapped, path, StringComparison.Ordinal);
+        if (ReadString(row[field]) == path) return false;
+        row[field] = path;
+        return true;
     }
 
     private string Map(string path)
@@ -238,7 +242,7 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         for (string? root = full; root is not null; root = Path.GetDirectoryName(root))
             if (paths.TryGetValue(root, out string? mapped))
                 return PathComparer.Equals(root, full) ? mapped : Path.Combine(mapped, Path.GetRelativePath(root, full));
-        return path;
+        throw new InvalidDataException("A profile media path was not captured for relocation.");
     }
 
     private static string? RelativeTo(string root, string path)
@@ -257,7 +261,7 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         ArchiveSql.ValidateSchema(connection);
         int version = ArchiveSql.GetPragma(connection, "user_version");
         connection.CreateFunction("upgrade_path", (string? value) => value is null ? null : Map(value));
-        connection.CreateFunction<string, string>("upgrade_payload", RewritePayload);
+        connection.CreateFunction<string, string>("upgrade_payload", value => RewritePayload(value, "roots"));
         using SqliteTransaction transaction = connection.BeginTransaction();
         using SqliteCommand command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -300,25 +304,41 @@ internal sealed class ProfileMediaRelocation(Dictionary<string, string> paths)
         if (!File.Exists(path)) return;
         using SqliteConnection connection = ArchiveSql.OpenConnection(path, SqliteOpenMode.ReadWrite);
         connection.CreateFunction("upgrade_path", (string value) => Map(value));
-        connection.CreateFunction<string, string>("upgrade_payload", RewritePayload);
+        connection.CreateFunction<string, string>("upgrade_resource", value => RewritePayload(value, "resource"));
+        connection.CreateFunction<string, string>("upgrade_media", value => RewritePayload(value, "media"));
         using SqliteTransaction transaction = connection.BeginTransaction();
         using SqliteCommand command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            UPDATE work_resources SET payload=upgrade_payload(payload) WHERE payload IS NOT upgrade_payload(payload);
-            UPDATE work_media SET target=upgrade_path(target),payload=upgrade_payload(payload)
-                WHERE target IS NOT upgrade_path(target) OR payload IS NOT upgrade_payload(payload);
+            UPDATE work_resources SET payload=upgrade_resource(payload) WHERE payload IS NOT upgrade_resource(payload);
+            UPDATE work_media SET target=upgrade_path(target),payload=upgrade_media(payload)
+                WHERE target IS NOT upgrade_path(target) OR payload IS NOT upgrade_media(payload);
             """;
         command.ExecuteNonQuery();
         transaction.Commit();
     }
 
-    private string RewritePayload(string value)
+    private string RewritePayload(string value, string kind)
     {
         JsonNode? document;
         try { document = JsonNode.Parse(value); }
         catch (JsonException) { return value; } // The owners retain unreadable entries for recovery.
-        return document is not null && RewriteValues(document) ? document.ToJsonString() : value;
+        bool changed = false;
+        if (kind == "roots" && document is JsonArray roots)
+        {
+            foreach (JsonObject row in roots.OfType<JsonObject>())
+                if (ReadString(row["Directory"]) is { } path) changed |= SetPath(row, "Directory", Map(path));
+        }
+        else if (document is JsonObject payload)
+        {
+            foreach (string key in payload.Select(pair => pair.Key).ToArray())
+            {
+                bool isPath = kind == "resource" ? key.Equals("outputRoot", StringComparison.OrdinalIgnoreCase)
+                    : key.Equals("destinationPath", StringComparison.OrdinalIgnoreCase) || key.Equals("legacyPath", StringComparison.OrdinalIgnoreCase);
+                if (isPath && ReadString(payload[key]) is { } path) changed |= SetPath(payload, key, Map(path));
+            }
+        }
+        return changed ? document!.ToJsonString() : value;
     }
 
     private static string[] FolderRoots(string directory)

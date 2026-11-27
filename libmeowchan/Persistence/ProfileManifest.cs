@@ -113,7 +113,9 @@ internal sealed record ProfileManifest(int Version, Guid ProfileId, Guid Generat
         try
         {
             using FileStream stream = RegularProfileFile.OpenRead(path);
-            using JsonDocument contents = JsonDocument.Parse(stream);
+            using StreamReader reader = new(stream, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            using JsonDocument contents = Path.GetFileName(path) is "settings.json" or "settings.json.bak" or "saved_urls.json" or "saved_urls.json.bak"
+                ? JsonDocument.Parse(reader.ReadToEnd()) : JsonDocument.Parse(stream);
             JsonElement root = contents.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return null;
             int? result = null;
