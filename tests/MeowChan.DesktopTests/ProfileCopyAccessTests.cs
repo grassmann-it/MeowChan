@@ -67,6 +67,8 @@ public sealed class ProfileSnapshotCopyAccessTests
         acl.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
         acl.SetOwner(user);
         acl.AddAccessRule(Rule(user, rights));
+        if (rights == FileSystemRights.Modify)
+            acl.AddAccessRule(Rule(new SecurityIdentifier(WellKnownSidType.WinCreatorOwnerRightsSid, null), FileSystemRights.ReadPermissions));
         return acl;
     }
 
@@ -83,7 +85,7 @@ public sealed class ProfileSnapshotCopyAccessTests
         Assert.Equal(user, acl.GetOwner(typeof(SecurityIdentifier)));
         var rules = acl.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>().ToArray();
         Assert.All(rules, rule => Assert.True(rule.IdentityReference.Equals(user)
-            || rule.IdentityReference.Equals(new SecurityIdentifier(WellKnownSidType.CreatorOwnerRightsSid, null))));
+            || rule.IdentityReference.Equals(new SecurityIdentifier(WellKnownSidType.WinCreatorOwnerRightsSid, null))));
         FileSystemAccessRule rule = Assert.Single(rules, rule => rule.IdentityReference.Equals(user));
         Assert.Equal(user, rule.IdentityReference);
         Assert.Equal(FileSystemRights.Modify | FileSystemRights.Synchronize, rule.FileSystemRights);

@@ -34,6 +34,8 @@ internal sealed class WindowsProfileCopyAccess : IProfileCopyAccess
 {
     internal static WindowsProfileCopyAccess Instance { get; } = new();
 
+    private const FileSystemRights CopyRights = FileSystemRights.Modify | FileSystemRights.Synchronize;
+    private static readonly SecurityIdentifier OwnerRights = new(WellKnownSidType.WinCreatorOwnerRightsSid, null);
     private const InheritanceFlags Inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
 
     public void CreateProtectedDirectory(string path)
@@ -43,7 +45,10 @@ internal sealed class WindowsProfileCopyAccess : IProfileCopyAccess
         DirectorySecurity security = new();
         security.SetOwner(user);
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-        security.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, Inherit,
+        // An OWNER RIGHTS ACE also suppresses the owner's implicit WRITE_DAC privilege.
+        security.AddAccessRule(new FileSystemAccessRule(OwnerRights, FileSystemRights.ReadPermissions, Inherit,
+            PropagationFlags.None, AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(user, CopyRights, Inherit,
             PropagationFlags.None, AccessControlType.Allow));
         new DirectoryInfo(path).Create(security);
     }
@@ -56,11 +61,18 @@ internal sealed class WindowsProfileCopyAccess : IProfileCopyAccess
             AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
         AuthorizationRuleCollection rules = security.GetAccessRules(true, true, typeof(SecurityIdentifier));
         bool ownerOnly = security.AreAccessRulesProtected && user.Equals(security.GetOwner(typeof(SecurityIdentifier)))
-            && rules.Count == 1 && rules[0] is FileSystemAccessRule rule
-            && !rule.IsInherited && rule.IdentityReference.Equals(user) && rule.AccessControlType == AccessControlType.Allow
-            && rule.FileSystemRights == FileSystemRights.FullControl && rule.InheritanceFlags == Inherit
-            && rule.PropagationFlags == PropagationFlags.None;
+            && rules.Count == 2 && HasGrant(rules, user, CopyRights)
+            && HasGrant(rules, OwnerRights, FileSystemRights.ReadPermissions | FileSystemRights.Synchronize);
         return new(EffectiveRights(security, identity.AccessToken), ownerOnly);
+    }
+
+    private static bool HasGrant(AuthorizationRuleCollection rules, SecurityIdentifier sid, FileSystemRights rights)
+    {
+        foreach (FileSystemAccessRule rule in rules)
+            if (!rule.IsInherited && rule.IdentityReference.Equals(sid) && rule.AccessControlType == AccessControlType.Allow
+                && rule.FileSystemRights == rights && rule.InheritanceFlags == Inherit && rule.PropagationFlags == PropagationFlags.None)
+                return true;
+        return false;
     }
 
     private static SecurityIdentifier GetUser(WindowsIdentity identity) => identity.User
