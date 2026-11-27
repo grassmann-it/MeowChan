@@ -117,10 +117,11 @@ public sealed class BooruContentFilterTests
     public void MultipleMatchingLinesAndScopesProduceOneHiddenDecision()
     {
         BooruContentFilter filter = new(3, Settings(BooruPostClaimRating.Explicit, "\ncat\r\ncat -bird",
-            new("danbooru", "default", "cat\nscore:<0")));
-        BooruPostClaim post = Post("danbooru", BooruPostClaimRating.General, "g", -2, ["cat"]);
+            new BooruContentSourceBlacklist("danbooru", "default", "cat\nscore:<0")));
+        BooruPostClaim cat = Post("danbooru", BooruPostClaimRating.General, "g", -2, ["cat"]);
+        BooruPostClaim dog = Post("danbooru", BooruPostClaimRating.General, "g", 5, ["dog"]) with { PostId = "101" };
 
-        BooruContentDecision hidden = Assert.Single(new[] { post }.Select(filter.Evaluate).Where(decision => !decision.IsAllowed));
+        BooruContentDecision hidden = Assert.Single(new[] { cat, dog }.Select(filter.Evaluate), decision => !decision.IsAllowed);
         Assert.Equal(BooruContentReason.Blacklisted, hidden.Reason);
         Assert.Equal(new BooruContentRuleLocation(2, null, null), hidden.Rule);
     }
@@ -171,7 +172,7 @@ public sealed class BooruContentFilterTests
     public void AnUnrecognizedActiveRuleBlocksEvenWithAPageException(string badRule)
     {
         BooruContentFilter filter = new(7, Settings(BooruPostClaimRating.General, "",
-            new("e621", "mirror", "\n" + badRule)));
+            new BooruContentSourceBlacklist("e621", "mirror", "\n" + badRule)));
         BooruPostClaim post = Post("e621", BooruPostClaimRating.General, "s", tags: ["cat"]);
 
         BooruContentDecision blocked = filter.EvaluateForPage(post with { InstanceId = "mirror" }, 7);
@@ -225,8 +226,9 @@ public sealed class BooruContentFilterTests
             Assert.Equal(1L, chosen.Revision);
             Assert.True(chosen.Filter.Evaluate(post).IsAllowed);
 
-            BooruContentProfileSnapshot updated = store.SaveAdmitted(
-                Settings(BooruPostClaimRating.General, "", new("danbooru", "default", "cat")), chosen.Revision, writer);
+            BooruContentSettings revised = Settings(BooruPostClaimRating.General, "",
+                new BooruContentSourceBlacklist("danbooru", "default", "cat"));
+            BooruContentProfileSnapshot updated = store.SaveAdmitted(revised, chosen.Revision, writer);
             Assert.Equal(2L, updated.Revision);
             Assert.Equal(BooruContentReason.Blacklisted, updated.Filter.EvaluateForPage(post, 1).Reason);
             Assert.True(chosen.Filter.Evaluate(post).IsAllowed);
@@ -305,8 +307,9 @@ public sealed class BooruContentFilterTests
         Assert.Equal(1L, stale.CurrentRevision);
         Assert.Throws<OperationCanceledException>(
             () => store.SaveAdmitted(confirmed, 1, writer, new CancellationToken(canceled: true)));
-        BooruContentRuleException invalid = Assert.Throws<BooruContentRuleException>(() => store.SaveAdmitted(
-            Settings(BooruPostClaimRating.General, "", new("e926", "default", "cat\nscore:>=0")), 1, writer));
+        BooruContentSettings malformed = Settings(BooruPostClaimRating.General, "",
+            new BooruContentSourceBlacklist("e926", "default", "cat\nscore:>=0"));
+        BooruContentRuleException invalid = Assert.Throws<BooruContentRuleException>(() => store.SaveAdmitted(malformed, 1, writer));
         Assert.Equal(new BooruContentRuleLocation(2, "e926", "default"), invalid.Rule);
         Assert.Equal(original, File.ReadAllBytes(path));
         Assert.Equal(1L, store.Load().Revision);

@@ -95,12 +95,12 @@ internal sealed class BooruContentProfileStore
     {
         try
         {
-            if (new FileInfo(_path).LinkTarget is not null) return Snapshot(BooruContentProfileState.Unreadable);
-            using FileStream stream = new(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (stream.Length is <= 0 or > MaximumFileBytes) return Snapshot(BooruContentProfileState.Unreadable);
-            byte[] data = new byte[stream.Length];
+            using FileStream stream = RegularProfileFile.OpenRead(_path);
+            long length = stream.Length;
+            if (length is <= 0 or > MaximumFileBytes) return Snapshot(BooruContentProfileState.Unreadable);
+            byte[] data = new byte[(int)length];
             stream.ReadExactly(data);
-            if (stream.ReadByte() != -1 || JsonDuplicateProperties.Any(data))
+            if (stream.ReadByte() != -1 || stream.Length != length || JsonDuplicateProperties.Any(data))
                 return Snapshot(BooruContentProfileState.Unreadable);
 
             using JsonDocument json = JsonDocument.Parse(data);
@@ -119,7 +119,8 @@ internal sealed class BooruContentProfileStore
         {
             return Snapshot(BooruContentProfileState.Missing);
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException
+            or InvalidDataException or ArgumentException or NotSupportedException)
         {
             return Snapshot(BooruContentProfileState.Unreadable);
         }

@@ -20,8 +20,12 @@ internal sealed record BooruContentBlacklist(IReadOnlyList<BooruContentBlacklist
             {
                 TermKind.Tag => tags?.Contains(Text),
                 TermKind.Rating => post.Rating == (BooruPostClaimRating)Value,
-                TermKind.SourceRatingS => post.Rating == (post.SourceId is "e621" or "e926"
-                    ? BooruPostClaimRating.General : BooruPostClaimRating.Sensitive),
+                TermKind.SourceRatingS => post.SourceId switch
+                {
+                    "danbooru" => post.Rating == BooruPostClaimRating.Sensitive,
+                    "e621" or "e926" => post.Rating == BooruPostClaimRating.General,
+                    _ => null
+                },
                 TermKind.ScoreBelow => post.Fields.HasFlag(BooruPostClaimPresence.Score) && post.Score is int score
                     ? score < Value : null,
                 _ => null
