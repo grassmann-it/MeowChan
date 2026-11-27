@@ -828,8 +828,8 @@ public sealed class BooruHostHttp : IDisposable
 /// Host-owned account grant scoped to an exact metadata origin and one profile/account generation.
 /// A null reader explicitly permits anonymous metadata and still fences the inactive account generation.
 /// </summary>
-internal sealed class BooruMetadataAccountLease(Uri origin, CancellationToken lifetime,
-    Func<CancellationToken, ValueTask<AuthenticationHeaderValue?>>? readAuthorization)
+internal sealed class BooruMetadataAccountLease(Uri origin,
+    Func<CancellationToken, ValueTask<AuthenticationHeaderValue?>>? readAuthorization, CancellationToken lifetime)
 {
     internal Uri Origin { get; } = origin;
     internal CancellationToken Lifetime { get; } = lifetime;

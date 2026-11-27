@@ -74,8 +74,8 @@ internal static class BooruEndpointPolicy
     {
         if (IsDanbooru(sourceId))
         {
-            DanbooruTagQuery.TryParse(input, out DanbooruTagQuery? parsed, out DanbooruTagQueryError error);
-            canonical = parsed?.ProviderQuery ?? string.Empty;
+            bool accepted = DanbooruTagQuery.TryParse(input, out DanbooruTagQuery? parsed, out DanbooruTagQueryError error);
+            canonical = accepted ? parsed!.ProviderQuery : string.Empty;
             return error;
         }
         BooruQueryRules? rules = profile?.Query;
