@@ -163,7 +163,7 @@ internal sealed class Legacy113ProfileWriter : AssemblyLoadContext, IDisposable
 
 internal sealed class Legacy113WriterFactAttribute : FactAttribute
 {
-    internal Legacy113WriterFactAttribute()
+    public Legacy113WriterFactAttribute()
     {
         if (!File.Exists(Path.Combine(Legacy113ProfileWriter.DirectoryPath, "MeowChan.dll")))
             Skip = "Provision the 1.1.3 writer fixture with Fixtures/ProfileUpgrade/extract-linux-writer.py.";
