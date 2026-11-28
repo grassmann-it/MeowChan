@@ -331,8 +331,9 @@ public sealed class MediaLibraryIndexCacheTests
         Assert.False(first.NearOrOverLimit);
         long smallBytes = new FileInfo(path).Length;
 
-        // Over the limit: nothing beyond it is written, the saved (smaller) index stays as it was and readable.
-        long limit = smallBytes * 3;
+        // The packing contract only refuses once both formats exceed the disk budget.
+        // The smaller JSON fits this limit, while even the packed larger index exceeds it.
+        long limit = smallBytes;
         MediaLibraryIndexCacheWrite refused = await store.SaveAsync(large, limit);
         Assert.Equal(MediaLibraryIndexCacheWriteStatus.TooLarge, refused.Status);
         Assert.True(refused.NearOrOverLimit);
