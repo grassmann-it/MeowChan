@@ -66,6 +66,7 @@ public sealed class BooruMd5LookupTests
         BooruMd5Lookup lookup = Assert.IsType<BooruMd5Lookup>(MainWindow.Md5LookupFor(main));
 
         Task request = lookup.SearchAsync(source, Query);
+        await BooruTestSupport.WaitAsync(() => main.OwnedWindows.OfType<BooruContentDialog>().Any(dialog => dialog.IsVisible), "the content rules dialog");
         var choice = Assert.Single(main.OwnedWindows.OfType<BooruContentDialog>());
         Assert.True(gallery.IsVisible);
         Click(ById<Button>(choice, "BooruContentCancel"));
@@ -76,6 +77,7 @@ public sealed class BooruMd5LookupTests
         Assert.Null(main.BooruPageForTests);
 
         request = lookup.SearchAsync(source, Query);
+        await BooruTestSupport.WaitAsync(() => main.OwnedWindows.OfType<BooruContentDialog>().Any(dialog => dialog.IsVisible), "the content rules dialog");
         choice = Assert.Single(main.OwnedWindows.OfType<BooruContentDialog>());
         Assert.True(gallery.IsVisible);
         Click(ById<Button>(choice, "BooruContentConfirm"));
@@ -187,6 +189,7 @@ public sealed class BooruMd5LookupTests
 
         BooruMd5Lookup lookup = Assert.IsType<BooruMd5Lookup>(MainWindow.Md5LookupFor(main));
         Task request = lookup.SearchAsync(source, Query);
+        await BooruTestSupport.WaitAsync(() => main.OwnedWindows.OfType<BooruContentDialog>().Any(dialog => dialog.IsVisible), "the content rules dialog");
         var choice = Assert.Single(main.OwnedWindows.OfType<BooruContentDialog>());
         ById<ComboBox>(choice, "BooruContentMaximum").SelectedIndex = 1;
         Click(ById<Button>(choice, "BooruContentConfirm"));
