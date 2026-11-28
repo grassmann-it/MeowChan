@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginSdk;
 
@@ -24,15 +25,16 @@ public sealed record PluginOperationContext(string ResourceId, long Generation,
 
     internal BooruCallBinding? BooruCall => BooruCalls.TryGetValue(this, out BooruCallBinding? call) ? call : null;
 
-    internal PluginOperationContext BindBooruCall(object request, CancellationToken lifetime)
+    internal PluginOperationContext BindBooruCall(object request, CancellationToken lifetime,
+        BooruHostHttp.SourceGeneration? sourceGeneration = null)
     {
         PluginOperationContext scoped = this with { };
-        BooruCalls.Add(scoped, new BooruCallBinding(request, lifetime));
+        BooruCalls.Add(scoped, new BooruCallBinding(request, lifetime, sourceGeneration));
         return scoped;
     }
 }
 
-internal sealed record BooruCallBinding(object Request, CancellationToken Lifetime)
+internal sealed record BooruCallBinding(object Request, CancellationToken Lifetime, BooruHostHttp.SourceGeneration? SourceGeneration)
 {
     internal BooruAccountBinding.Operation? Account { get; set; }
 }

@@ -39,7 +39,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
     private readonly FilterStageCoordinator _filterStages;
     private readonly Dictionary<string, PluginHostHttp> _pluginHttp = new(StringComparer.Ordinal);
     private readonly HttpClient _transport;
-    private readonly RequestPolicyState _httpPolicy = new RequestPolicyState();
+    private readonly RequestPolicyState _httpPolicy;
     private readonly DownloadQueue _queue;
     private readonly ILogger _logger;
     private readonly Config _config;
@@ -82,9 +82,10 @@ internal sealed partial class PluginSession : IAsyncDisposable
     internal PluginSession(string profileDirectory, ProfileLease profileLease, Config config, DownloadQueue queue, ILogger logger,
         Func<HttpClient>? transportFactory = null,
         Func<string, string, SourceMediaIntegrityPolicyService>? sourceMediaIntegrityPolicyFactory = null,
-        SemaphoreSlim? sourcePermissionCommitGate = null)
+        SemaphoreSlim? sourcePermissionCommitGate = null, TimeProvider? httpClock = null)
     {
         _queue = queue; _logger = logger; _config = config ?? throw new ArgumentNullException(nameof(config));
+        _httpPolicy = new RequestPolicyState(httpClock);
         _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
         string applicationDirectory = ProcessEntry.PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
@@ -556,9 +557,11 @@ internal sealed partial class PluginSession : IAsyncDisposable
         {
             if (_disposed) return;
             _disposed = true;
-            foreach (PluginSourceImageBoard source in Sources)
-                if (source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy) policy.Retire();
+            foreach (var generation in _booruSiteGenerations.Values) generation.Ended.SetResult();
         }
+        _booruAccounts?.Retire();
+        foreach (PluginSourceImageBoard source in Sources)
+            if (source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy) policy.Retire();
         ProfileStore.LifecycleChanged -= OnLifecycleChanged;
         ProfileStore.GrantChanged -= OnGrantChanged;
         await _lifetime.CancelAsync().ConfigureAwait(false);

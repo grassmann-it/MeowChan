@@ -15,7 +15,7 @@ namespace MeowChan.PluginHost.Sources.Booru;
 /// be reserved afterwards.
 /// </para>
 /// </summary>
-internal sealed class BooruJob
+internal sealed class BooruJob : IDisposable
 {
     internal const string ResourcePrefix = "booru-job:";
     internal const int MaximumSends = 20;
@@ -75,15 +75,14 @@ internal sealed class BooruJob
         }
     }
 
-    // Published before Close cancels result waits: the first 429 must remain a Deferred.
+    // Published with the provider fence, before Close cancels result waits.
     private HostHttpDeferred? _cooldownStop;
     internal HostHttpDeferred? CooldownStop => Volatile.Read(ref _cooldownStop);
 
-    internal void StopForCooldown(HostHttpDeferred deferred)
-    {
-        Volatile.Write(ref _cooldownStop, deferred);
-        Close();
-    }
+    internal void RecordCooldownStop(HostHttpDeferred deferred) => Volatile.Write(ref _cooldownStop, deferred);
+
+    /// <summary>Same as <see cref="Close"/>; idempotent.</summary>
+    public void Dispose() => Close();
 
     internal void Close()
     {

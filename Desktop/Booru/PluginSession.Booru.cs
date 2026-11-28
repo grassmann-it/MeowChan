@@ -27,6 +27,7 @@ internal sealed partial class PluginSession
 {
     private readonly Dictionary<string, BooruHostServices> _booruServices = new(StringComparer.Ordinal);
     private readonly Dictionary<string, BooruProviderBinding> _booruSources = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (long Revision, TaskCompletionSource Ended)> _booruSiteGenerations = new(StringComparer.Ordinal);
     private BooruProviderBinding? _booru;
     private BooruAccountBinding? _booruAccounts;
 
@@ -69,21 +70,22 @@ internal sealed partial class PluginSession
         if (services is null)
         {
             // One transport per plugin. The e621 family budget follows the session policy, including separate builds.
-            BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources,
+            BooruHostHttp? booruHttp = new(_transport, _httpPolicy, description.Sources,
                 maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours),
-                sourceRevision: () => EnabledBooruRevision(pluginId),
-                sourceEnabled: sourceId => IsRegisteredBooruSourceEnabled(pluginId, sourceId));
-            string? executionRevision = activation.Active?.ExecutionRevision;
-            services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp,
-                _booruAccounts, declared => executionRevision is not null && BooruEndpointPolicy.IsDanbooru(declared.SourceId)
-                    && BooruEndpointPolicy.MetadataOrigin(declared) is { } origin
-                    ? BooruAccountScope.Create(pluginId, executionRevision, declared.SourceId, BooruPostKey.DefaultInstance, origin)
-                    : null);
-            lock (_state)
+                sourceAdmission: new(_state, sourceId => EnabledBooruSourceGeneration(pluginId, sourceId), _lifetime.Token));
+            try
             {
-                _services.Add(booruHttp);
-                _booruServices[pluginId] = services;
+                string? executionRevision = activation.Active?.ExecutionRevision;
+                services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp,
+                    _booruAccounts, declared => CreateBooruAccountScope(pluginId, executionRevision, declared));
+                lock (_state)
+                {
+                    _services.Add(booruHttp);
+                    booruHttp = null;
+                    _booruServices[pluginId] = services;
+                }
             }
+            finally { booruHttp?.Dispose(); }
         }
         BooruProviderBinding binding = new(source, services, _transport, _httpPolicy,
             token => SiteSwitches.IsBooruEnabled(source.SourceId) ? ResolveBooruWorkerAsync(pluginId, token)
@@ -96,15 +98,26 @@ internal sealed partial class PluginSession
         lock (_state)
         {
             _booruSources[source.SourceId] = binding;
+            if (ChanSiteSwitches.HasBooruSwitch(source.SourceId))
+                _booruSiteGenerations.Add(source.SourceId, (0, new(TaskCreationOptions.RunContinuationsAsynchronously)));
             if (danbooru) _booru = binding;
         }
     }
 
-    private bool IsRegisteredBooruSourceEnabled(string pluginId, string sourceId)
+    internal static BooruAccountScope? CreateBooruAccountScope(string pluginId, string? executionRevision, SourceDescription source) =>
+        pluginId == DanbooruPluginId && executionRevision is not null && BooruEndpointPolicy.IsDanbooru(source.SourceId)
+        && BooruEndpointPolicy.MetadataOrigin(source) is { AbsoluteUri: "https://danbooru.donmai.us/" } origin
+            ? BooruAccountScope.Create(pluginId, executionRevision, source.SourceId, BooruPostKey.DefaultInstance, origin)
+            : null;
+
+    // Read under the same lock that persists site switches and admits a transport start.
+    private BooruHostHttp.SourceGeneration? EnabledBooruSourceGeneration(string pluginId, string sourceId)
     {
-        lock (_state)
-            return _booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding) && binding.PluginId == pluginId
-                && binding.IsSourceEnabled;
+        if (EnabledBooruRevision(pluginId) is not long pluginRevision
+            || !_booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding) || binding.PluginId != pluginId
+            || !SiteSwitches.IsBooruEnabled(sourceId)) return null;
+        var site = _booruSiteGenerations.GetValueOrDefault(sourceId);
+        return new(pluginRevision, site.Revision, site.Ended?.Task);
     }
 
     internal bool? BooruSiteEnabled(string pluginId, string sourceId)
@@ -121,7 +134,13 @@ internal sealed partial class PluginSession
         lock (_state)
         {
             if (_disposed || !_booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding)
-                || !binding.SupportsWorkbench || !SiteSwitches.SetBooruEnabled(sourceId, enabled)) return false;
+                || !binding.SupportsWorkbench) return false;
+            bool wasEnabled = SiteSwitches.IsBooruEnabled(sourceId);
+            if (!SiteSwitches.SetBooruEnabled(sourceId, enabled)) return false;
+            if (wasEnabled == enabled) return true;
+            var previous = _booruSiteGenerations[sourceId];
+            _booruSiteGenerations[sourceId] = (checked(previous.Revision + 1), new(TaskCreationOptions.RunContinuationsAsynchronously));
+            previous.Ended.SetResult();
             pluginId = binding.PluginId;
         }
         if (pluginId is not null) NotifyBooruLifecycle(pluginId);
