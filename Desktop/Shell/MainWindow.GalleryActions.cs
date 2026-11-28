@@ -57,8 +57,10 @@ public partial class MainWindow
         _galleryEntries = entries;
         _galleryIndex = index;
         _galleryThreadPositions = viewer.ThreadPositions = null;
+        bool reopenTagPanel = viewer.IsTaggingMode && viewer.IsTagPanelOpen;
         EndGalleryTagging(persist: true);
         viewer.RefreshEntries(entries[index], entries, ++_galleryAssociationsRevision);
+        if (reopenTagPanel) OpenGalleryTagPanel();
         UpdateGalleryScope();
         UpdateGalleryPosition();
         StartGalleryPreload(viewer);

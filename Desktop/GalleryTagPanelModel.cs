@@ -165,7 +165,7 @@ internal sealed class GalleryTagPanelController : IDisposable
     // When each tag step was made, on the order shared with the decision steps (one undo key serves both stacks, newest first).
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TagDialogChange, System.Runtime.CompilerServices.StrongBox<long>> _tagStamps = new();
 
-    private GalleryTagPanelController(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks marks)
+    private GalleryTagPanelController(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks marks, Func<GalleryEntry, bool>? allowsDecisionTarget)
     {
         _owner = owner;
         Entry = entry;
@@ -180,7 +180,7 @@ internal sealed class GalleryTagPanelController : IDisposable
         // Favorite and rating (PT6): only when the owner can read and write them; the panel then shows its row.
         if (owner is IGalleryDecisionOwner decisions)
         {
-            Decisions = new GalleryDecisionSession(decisions, owner.Options.UndoDepth);
+            Decisions = new GalleryDecisionSession(decisions, owner.Options.UndoDepth, allowsDecisionTarget);
             ExtraUndo = new DecisionUndo(this);
         }
     }
@@ -189,11 +189,12 @@ internal sealed class GalleryTagPanelController : IDisposable
     /// Creates the controller for the entry the panel opens on and starts warming the suggestion index for the current snapshot.
     /// <paramref name="marks"/> is the gallery's mark set (kept across panel openings); null starts an empty one.
     /// </summary>
-    internal static GalleryTagPanelController Create(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks? marks = null)
+    internal static GalleryTagPanelController Create(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks? marks = null,
+        Func<GalleryEntry, bool>? allowsDecisionTarget = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(entry);
-        GalleryTagPanelController controller = new(owner, entry, marks ?? new GalleryMarks(owner.Options.MarkedMediaLimit));
+        GalleryTagPanelController controller = new(owner, entry, marks ?? new GalleryMarks(owner.Options.MarkedMediaLimit), allowsDecisionTarget);
         // Off the UI thread, before the first strip is asked for: the surface then finds the index warm or answers from the cold path.
         if (controller.Session.Snapshot is { } snapshot) controller.Suggestions.Warm(snapshot);
         return controller;

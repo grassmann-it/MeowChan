@@ -359,14 +359,17 @@ internal sealed class TaggingUndo : IQuickTagExtraUndo, IDisposable
     private readonly GalleryDecisionSession? _decisions;
     private readonly Func<long> _newestTag;
     private readonly Action<TaggingUndoResult> _returnTo;
+    private readonly CancellationToken _writeToken;
     private Action? _changed;
 
-    internal TaggingUndo(TaggingWalk walk, GalleryDecisionSession? decisions, Func<long> newestTag, Action<TaggingUndoResult> returnTo)
+    internal TaggingUndo(TaggingWalk walk, GalleryDecisionSession? decisions, Func<long> newestTag, Action<TaggingUndoResult> returnTo,
+        CancellationToken writeToken = default)
     {
         _walk = walk ?? throw new ArgumentNullException(nameof(walk));
         _decisions = decisions;
         _newestTag = newestTag ?? throw new ArgumentNullException(nameof(newestTag));
         _returnTo = returnTo ?? throw new ArgumentNullException(nameof(returnTo));
+        _writeToken = writeToken;
         _walk.Changed += OnChanged;
         if (_decisions != null) _decisions.Updated += OnChanged;
     }
@@ -389,6 +392,7 @@ internal sealed class TaggingUndo : IQuickTagExtraUndo, IDisposable
 
     public async Task<string?> UndoAsync()
     {
+        if (_writeToken.IsCancellationRequested) return null;
         // A queue step whose entry left the queue on the tagging page is neither newest nor undoable: drop it before choosing the stack.
         if (!_walk.Busy) _walk.DropGoneSteps();
         if (QueueIsNewest)
@@ -397,12 +401,13 @@ internal sealed class TaggingUndo : IQuickTagExtraUndo, IDisposable
             try { undone = await _walk.UndoAsync(); }
             catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
             { return Texts.T("tagging.status.failed", TagQueueActions.DescribeFailure(error)); }
+            if (_writeToken.IsCancellationRequested) return null;
             if (undone == null) return Texts.T("tagging.status.undoGone");
             _returnTo(undone);
             return TaggingModeText.Undone(undone);
         }
         if (_decisions == null) return null;
-        GalleryDecisionStatus status = await _decisions.UndoAsync();
+        GalleryDecisionStatus status = await _decisions.UndoAsync(_writeToken);
         return status.Kind == GalleryDecisionStatusKind.None ? null : status.Text();
     }
 

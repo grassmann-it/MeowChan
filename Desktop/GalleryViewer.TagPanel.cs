@@ -69,7 +69,7 @@ internal sealed partial class GalleryViewer
             return;
         }
         _marks ??= new GalleryMarks(owner.Options.MarkedMediaLimit);
-        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks);
+        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks, AllowsMedia);
         QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName)
         { NavigationEnabled = true, FillSuggestions = true, ReadSourceTags = owner.ReadSourceTags, WriteToken = controller.WriteToken };
         surface.FilterMediaByTag = MediaTagFilterRequested;

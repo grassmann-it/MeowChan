@@ -119,6 +119,7 @@ internal sealed class GalleryDecisionSession : IDisposable
 {
     private static long _stamp;
     private readonly IGalleryDecisionOwner _owner;
+    private readonly Func<GalleryEntry, bool>? _allowsTarget;
     private readonly List<GalleryDecisionStep> _undo = new();
     private IReadOnlySet<GalleryEntryKey>? _undoEntries;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -126,9 +127,11 @@ internal sealed class GalleryDecisionSession : IDisposable
     private int _running;
     private bool _disposed;
 
-    internal GalleryDecisionSession(IGalleryDecisionOwner owner, int undoDepth = QuickTagOptions.DefaultUndoDepth)
+    internal GalleryDecisionSession(IGalleryDecisionOwner owner, int undoDepth = QuickTagOptions.DefaultUndoDepth,
+        Func<GalleryEntry, bool>? allowsTarget = null)
     {
         _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+        _allowsTarget = allowsTarget;
         UndoDepth = Math.Clamp(undoDepth, QuickTagOptions.MinimumUndoDepth, QuickTagOptions.MaximumUndoDepth);
     }
 
@@ -214,9 +217,11 @@ internal sealed class GalleryDecisionSession : IDisposable
             {
                 List<GalleryDecisionChange> changes = new();
                 int readable = 0, unchanged = 0, failed = 0;
+                bool targetBlocked = false;
                 foreach (GalleryEntry entry in frozen)
                 {
                     if (linked.IsCancellationRequested) break;
+                    if (_allowsTarget?.Invoke(entry) == false) { targetBlocked = true; break; }
                     if (Read(entry) is not { } before) continue;
                     readable++;
                     GalleryDecisionState wanted = desired(before);
@@ -229,6 +234,7 @@ internal sealed class GalleryDecisionSession : IDisposable
                     else failed++;
                 }
                 if (changes.Count > 0) Push(new GalleryDecisionStep(kind, changes, NextStamp()));
+                if (linked.IsCancellationRequested || targetBlocked) return GalleryDecisionStatus.None;
                 Status = readable == 0 ? new GalleryDecisionStatus(GalleryDecisionStatusKind.Unavailable)
                     : failed > 0 ? new GalleryDecisionStatus(GalleryDecisionStatusKind.Failed, Files: frozen.Length, Skipped: failed)
                     : success with { Files = readable };
@@ -258,7 +264,7 @@ internal sealed class GalleryDecisionSession : IDisposable
                 int restored = 0, failed = 0;
                 foreach (GalleryDecisionChange change in step.Changes)
                 {
-                    if (linked.IsCancellationRequested) break;
+                    if (linked.IsCancellationRequested || _allowsTarget?.Invoke(change.Entry) == false) return GalleryDecisionStatus.None;
                     GalleryDecisionState? now = Read(change.Entry);
                     if (now is null) { failed++; continue; }
                     GalleryDecisionState back = step.Kind == GalleryDecisionKind.Rating ? now.Value with { Rating = change.Before.Rating }

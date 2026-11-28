@@ -124,9 +124,17 @@ public partial class MainWindow
             return new GalleryDecisionState(favorite, rating);
         }
 
-        public Task SetFavoriteAsync(GalleryEntry entry, bool selected, CancellationToken token) => window.SetGalleryFavoriteAsync(entry, selected);
+        public Task SetFavoriteAsync(GalleryEntry entry, bool selected, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            return window.SetGalleryFavoriteAsync(entry, selected);
+        }
 
-        public Task SetRatingAsync(GalleryEntry entry, int? value, CancellationToken token) => window.SetGalleryRatingAsync(entry, value);
+        public Task SetRatingAsync(GalleryEntry entry, int? value, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            return window.SetGalleryRatingAsync(entry, value);
+        }
 
         public IQuickTagTarget? OpenTarget(GalleryEntry entry, out string? unavailableReason)
         {
