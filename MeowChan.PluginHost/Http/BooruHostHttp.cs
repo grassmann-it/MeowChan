@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using MeowChan.Http;
+using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
