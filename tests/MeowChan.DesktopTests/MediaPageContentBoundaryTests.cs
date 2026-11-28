@@ -425,7 +425,8 @@ public sealed class MediaPageContentBoundaryTests
         const string name = "fixture.png";
         string path = Path.Combine(directory, name);
         byte[] bytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGMQMgnDihiGlgQALKknAeyzZJgAAAAASUVORK5CYII=");
-        if (id == "102") bytes = [.. bytes, 0]; // A distinct byte key for the two thumbnails.
+        // A previous profile's thumbnail must not bypass this fixture's held decoder.
+        bytes = [.. bytes, .. Guid.NewGuid().ToByteArray()];
         await File.WriteAllBytesAsync(path, bytes);
         var item = new
         {
