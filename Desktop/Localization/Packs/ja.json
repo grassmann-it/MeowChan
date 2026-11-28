@@ -3,6 +3,8 @@
   "code": "ja",
   "nativeName": "日本語 (Untested)",
   "strings": {
+    "booru.suggest.local": "自分のカタログから",
+    "booru.suggest.posts": "ローカル投稿数：{0:N0}",
     "booru.content.title": "コンテンツルール",
     "booru.content.prompt": "このプロファイルで表示とダウンロードを許可するレーティングの上限を選択してください。",
     "booru.content.general": "全年齢のみ (g)",

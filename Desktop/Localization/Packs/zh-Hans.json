@@ -3,6 +3,8 @@
   "code": "zh-Hans",
   "nativeName": "简体中文 (Untested)",
   "strings": {
+    "booru.suggest.local": "来自你的目录",
+    "booru.suggest.posts": "本地帖子数：{0:N0}",
     "booru.content.title": "内容规则",
     "booru.content.prompt": "请选择此配置可以显示和下载的最高内容分级。",
     "booru.content.general": "仅普通 (g)",

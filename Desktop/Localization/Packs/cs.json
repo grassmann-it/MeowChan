@@ -3,6 +3,8 @@
   "code": "cs",
   "nativeName": "Čeština (Untested)",
   "strings": {
+    "booru.suggest.local": "Z tvého katalogu",
+    "booru.suggest.posts": "Místní příspěvky: {0:N0}",
     "booru.content.title": "Pravidla obsahu",
     "booru.content.prompt": "Vyberte nejvyšší hodnocení obsahu, který může tento profil zobrazovat a stahovat.",
     "booru.content.general": "Pouze obecné (g)",

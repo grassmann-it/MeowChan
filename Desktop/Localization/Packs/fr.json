@@ -3,6 +3,8 @@
   "code": "fr",
   "nativeName": "Français (Untested)",
   "strings": {
+    "booru.suggest.local": "De votre catalogue",
+    "booru.suggest.posts": "Publications locales : {0:N0}",
     "booru.content.title": "Règles de contenu",
     "booru.content.prompt": "Choisissez le niveau maximal que ce profil peut afficher et télécharger.",
     "booru.content.general": "Tout public uniquement (g)",

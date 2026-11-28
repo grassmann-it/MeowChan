@@ -422,6 +422,10 @@ namespace MeowChan
         internal const int BooruSearchTabsMinimum = 2;
         internal const int BooruSearchTabsMaximum = 33;
         public bool RestoreBooruSearchTabs { get; set; } = true;
+        public int BooruLocalTagSuggestionCount { get; set; } = BooruLocalTagSuggestionDefault;
+        internal const int BooruLocalTagSuggestionDefault = 12;
+        internal const int BooruLocalTagSuggestionMinimum = 0;
+        internal const int BooruLocalTagSuggestionMaximum = 50;
         public int BooruSearchPages { get; set; } = BooruSearchPagesDefault;
         internal const int BooruSearchPagesDefault = 5;
         internal const int BooruSearchPagesMinimum = 1;
@@ -1217,6 +1221,7 @@ namespace MeowChan
             BoardSuggestionScanThreads = Math.Clamp(BoardSuggestionScanThreads, BoardSuggestionScanThreadsMinimum, BoardSuggestionScanThreadsMaximum);
             BoardArchiveCacheLimit = Math.Clamp(BoardArchiveCacheLimit, BoardArchiveCacheLimitMinimum, BoardArchiveCacheLimitMaximum);
             BooruHiddenTagTooltipLimit = Math.Clamp(BooruHiddenTagTooltipLimit, BooruHiddenTagTooltipLimitMinimum, BooruHiddenTagTooltipLimitMaximum);
+            BooruLocalTagSuggestionCount = Math.Clamp(BooruLocalTagSuggestionCount, BooruLocalTagSuggestionMinimum, BooruLocalTagSuggestionMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
             GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
             // A hand-edited file or a newer version with another range must not make the whole profile invalid (Validate throws): clamp like the seek step.
@@ -1940,6 +1945,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
+            if (BooruLocalTagSuggestionCount is < BooruLocalTagSuggestionMinimum or > BooruLocalTagSuggestionMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruLocalTagSuggestionCount));
             if (BooruSearchPages is < BooruSearchPagesMinimum or > BooruSearchPagesMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchPages));
             if (BooruSearchPostsPerPage is < BooruSearchPostsPerPageMinimum or > BooruSearchPostsPerPageMaximum)
@@ -2244,6 +2251,7 @@ namespace MeowChan
                 BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
                 RestoreBooruSearchTabs = RestoreBooruSearchTabs,
+                BooruLocalTagSuggestionCount = BooruLocalTagSuggestionCount,
                 BooruSearchPages = BooruSearchPages,
                 BooruSearchPostsPerPage = BooruSearchPostsPerPage,
                 BooruSavedTabs = BooruSavedTabs,
@@ -2564,6 +2572,7 @@ namespace MeowChan
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruLocalTagSuggestionCount = source.BooruLocalTagSuggestionCount;
             BooruSearchPages = source.BooruSearchPages;
             BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
             BooruSavedTabs = source.BooruSavedTabs;
@@ -2834,6 +2843,7 @@ namespace MeowChan
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruLocalTagSuggestionCount = source.BooruLocalTagSuggestionCount;
             BooruSearchPages = source.BooruSearchPages;
             BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
             BooruSavedTabs = source.BooruSavedTabs;
