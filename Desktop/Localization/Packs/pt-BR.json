@@ -5679,6 +5679,8 @@
     "settings.booru.newSearchTarget.current": "Aba atual",
     "booru.tabs.new": "Nova aba de pesquisa",
     "booru.tabs.duplicate": "Duplicar aba",
+    "booru.tabs.searchOtherSource": "Pesquisar em outra fonte",
+    "booru.tabs.searchOtherSource.removed": "Os termos de pesquisa específicos da fonte foram removidos ({0}).",
     "booru.tabs.openCurrentHint": "Copia a pesquisa mostrada e seus resultados para uma nova aba. Nada é enviado.",
     "booru.tabs.close": "Fechar aba",
     "booru.tabs.closeFor": "Fechar a aba “{0}”",

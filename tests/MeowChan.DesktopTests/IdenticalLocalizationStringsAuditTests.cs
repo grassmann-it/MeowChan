@@ -11,20 +11,19 @@ public sealed class IdenticalLocalizationStringsAuditTests
     private const string AllowlistResourcePrefix = "MeowChan.DesktopTests.LocalizationAudit.";
     private static readonly JsonDocumentOptions StrictJson = new() { AllowDuplicateProperties = false };
 
-    // X02 (2026-11-27) requires the added UI text in twelve languages, including each bundled pack.
     private static readonly IReadOnlyDictionary<string, (int Entries, int ExactEnglish, string Digest)> Expected =
         new Dictionary<string, (int, int, string)>(StringComparer.Ordinal)
         {
-            ["cs"] = (5798, 110, "cfea3c4852a593bba5295873b4033b536e925a5652d67e6bde4d853bfc10fdb4"),
-            ["es"] = (5739, 101, "fa51e90a5b17e336ae086493d719ad0df0437add59c506d9d2223da8fda05ab8"),
-            ["fr"] = (5739, 138, "11e04513855529b8a049a9eabafee180220d09dc163af168b65eccf0af88c647"),
-            ["it"] = (5745, 148, "6a81ca9d002265a055bf943141f7c281c29e16ce98540698bae35a7fd6624c3b"),
-            ["ja"] = (5626, 76, "654d7c632e2671216bc61cb2a2cbab53347e5cc88874475df888d9e64a785b41"),
-            ["ko"] = (5626, 72, "060cdcd180f483d124344d5f3ae3810525a0c57dc5729c586047e009192fd700"),
-            ["pl"] = (5799, 113, "6e2e4bfde5b24517691cc07f62926966f7240452df06b3da6eafd00a7f6cebe8"),
-            ["pt-BR"] = (5745, 160, "30a2c91dd5c809daf5815a90811b61dd655e747d3c655da140efc83ce0cb26df"),
-            ["ru"] = (5776, 77, "3c6d61a156e45e97184c9a8c63e50c72982dbb00f89336a9142891656af08b5d"),
-            ["zh-Hans"] = (5626, 67, "f57bc31784a7b680307854a2b7e988c969f034d3048e435ae903ab1693474caf"),
+            ["cs"] = (5800, 110, "cfea3c4852a593bba5295873b4033b536e925a5652d67e6bde4d853bfc10fdb4"),
+            ["es"] = (5741, 101, "fa51e90a5b17e336ae086493d719ad0df0437add59c506d9d2223da8fda05ab8"),
+            ["fr"] = (5741, 138, "11e04513855529b8a049a9eabafee180220d09dc163af168b65eccf0af88c647"),
+            ["it"] = (5747, 148, "6a81ca9d002265a055bf943141f7c281c29e16ce98540698bae35a7fd6624c3b"),
+            ["ja"] = (5628, 76, "654d7c632e2671216bc61cb2a2cbab53347e5cc88874475df888d9e64a785b41"),
+            ["ko"] = (5628, 72, "060cdcd180f483d124344d5f3ae3810525a0c57dc5729c586047e009192fd700"),
+            ["pl"] = (5801, 113, "6e2e4bfde5b24517691cc07f62926966f7240452df06b3da6eafd00a7f6cebe8"),
+            ["pt-BR"] = (5747, 160, "30a2c91dd5c809daf5815a90811b61dd655e747d3c655da140efc83ce0cb26df"),
+            ["ru"] = (5778, 77, "3c6d61a156e45e97184c9a8c63e50c72982dbb00f89336a9142891656af08b5d"),
+            ["zh-Hans"] = (5628, 67, "f57bc31784a7b680307854a2b7e988c969f034d3048e435ae903ab1693474caf"),
         };
 
     // The provider number, unit and precision retain the same punctuation in these packs.
@@ -45,8 +44,8 @@ public sealed class IdenticalLocalizationStringsAuditTests
     [Fact]
     public void EnglishSourceCatalogHasTheAuditedUniqueInventory()
     {
-        // Includes the 1.2.0 catalog additions (17 X02 strings) and Tom's approved 95 taglines for 1.1.3.
-        Assert.Equal(5741, BuiltInCatalog.English.Count);
+        // Includes the 1.2.0 catalog additions and Tom's approved 95 taglines for 1.1.3.
+        Assert.Equal(5743, BuiltInCatalog.English.Count);
         Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
     }
 

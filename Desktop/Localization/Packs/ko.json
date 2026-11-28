@@ -5560,6 +5560,8 @@
     "settings.booru.newSearchTarget.current": "현재 탭",
     "booru.tabs.new": "새 검색 탭",
     "booru.tabs.duplicate": "탭 복제",
+    "booru.tabs.searchOtherSource": "다른 소스에서 검색",
+    "booru.tabs.searchOtherSource.removed": "소스에만 해당하는 검색어를 제거했습니다({0}).",
     "booru.tabs.openCurrentHint": "표시된 검색과 그 결과를 새 탭으로 복사합니다. 아무것도 전송되지 않습니다.",
     "booru.tabs.close": "탭 닫기",
     "booru.tabs.closeFor": "‘{0}’ 탭 닫기",

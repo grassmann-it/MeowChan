@@ -5710,6 +5710,8 @@
     "settings.booru.newSearchTarget.current": "Текущая вкладка",
     "booru.tabs.new": "Новая вкладка поиска",
     "booru.tabs.duplicate": "Дублировать вкладку",
+    "booru.tabs.searchOtherSource": "Искать в другом источнике",
+    "booru.tabs.searchOtherSource.removed": "Поисковые выражения, специфичные для источника, удалены ({0}).",
     "booru.tabs.openCurrentHint": "Копирует показанный поиск и его результаты в новую вкладку. Ничего не отправляется.",
     "booru.tabs.close": "Закрыть вкладку",
     "booru.tabs.closeFor": "Закрыть вкладку «{0}»",

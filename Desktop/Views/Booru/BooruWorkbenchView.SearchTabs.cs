@@ -33,6 +33,7 @@ internal sealed partial class BooruWorkbenchView
     internal static readonly string CloseSearchTabName = "BooruCloseSearchTab";
     internal static readonly string TabDraftMarkerName = "BooruTabPendingDraft";
     internal static readonly string TabLimitNoticeName = "BooruTabLimitNotice";
+    internal const string PortabilityNoticeName = "BooruQueryPortabilityNotice";
 
     private sealed record TabHeader(TextBlock Title, Button Close, ContentControl Draft);
     private sealed record TabResults(string? Cursor, HashSet<string> Selected);
@@ -56,6 +57,10 @@ internal sealed partial class BooruWorkbenchView
     private readonly Button _downloadAll = new() { Name = DownloadAllName, Focusable = false, IsTabStop = false, Classes = { "subtle" } };
     private readonly Border _bulkHost = new() { Name = BulkStatusName, Classes = { "workspace-status" }, IsVisible = false };
     private readonly TextBlock _bulkText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _portabilityNotice = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Border _portabilityHost = new() { Classes = { "workspace-status", "workspace-status-warning" }, IsVisible = false };
+    private readonly StackPanel _searchNotices = new() { Spacing = WorkspaceTokens.Space(8), IsVisible = false };
+    private readonly Dictionary<int, (IBooruSearchPort Source, BooruQueryPortability Query)> _portableQueries = new();
     private readonly Button _newTabButton = new() { Name = NewSearchTabName, Focusable = false, IsTabStop = false, Classes = { "booru-add-tab-button" } };
     private readonly TabItem _addTab = new() { Focusable = false, IsTabStop = false, Classes = { "booru-add-tab" } };
     private readonly Dictionary<int, SearchTabControl> _searchItems = new();
@@ -148,7 +153,14 @@ internal sealed partial class BooruWorkbenchView
         return null;
     }
 
-    private Control BuildBulkStatus() => _bulkHost;
+    private StackPanel BuildBulkStatus()
+    {
+        AutomationProperties.SetAutomationId(_portabilityNotice, PortabilityNoticeName);
+        AutomationProperties.SetLiveSetting(_portabilityNotice, AutomationLiveSetting.Polite);
+        _portabilityHost.Child = _portabilityNotice;
+        _searchNotices.Children.AddRange([_portabilityHost, _bulkHost]);
+        return _searchNotices;
+    }
 
     // ---- result line and pager under the results, view switch with labels --------------------------------
 
@@ -264,6 +276,30 @@ internal sealed partial class BooruWorkbenchView
         if (source is not null) SearchTabs.SelectSource(source.ProviderId, source.InstanceId);
         ShowQuery(query);
         return true;
+    }
+
+    private void SearchOtherSource(string query, IBooruSearchPort source)
+    {
+        BooruQueryPortability portable = BooruQueryPortability.ForOtherSource(query);
+        if (!TryShowQueryInNewTab(portable.Query, source)) return;
+        if (portable.RemovedTerms.Length > 0 && SearchTabs.ActiveId is { } id)
+        {
+            _portableQueries[id] = (source, portable);
+            RenderPortabilityNotice(_model.Search.View);
+        }
+        if (portable.Query.Length > 0)
+            OpenActions.Start(() => SubmitSearchAsync(), "booru.search.other-source");
+    }
+
+    private void RenderPortabilityNotice(BooruSearchView view)
+    {
+        _portabilityNotice.Text = SearchTabs.ActiveId is { } id && _portableQueries.TryGetValue(id, out var entry)
+            && view.ProviderId == entry.Source.ProviderId && view.InstanceId == entry.Source.InstanceId
+            && view.Input == entry.Query.Query
+            ? Texts.T("booru.tabs.searchOtherSource.removed", entry.Query.RemovedTerms)
+            : null;
+        _portabilityHost.IsVisible = _portabilityNotice.Text is not null;
+        _searchNotices.IsVisible = _portabilityHost.IsVisible || _bulkHost.IsVisible;
     }
 
     private bool OpenSearchTab(int? copyFrom = null)
@@ -382,6 +418,7 @@ internal sealed partial class BooruWorkbenchView
                 _tabs.Items.Remove(_searchItems[id].Item);
                 _searchItems[id].Dispose();
                 _searchItems.Remove(id);
+                _portableQueries.Remove(id);
             }
             foreach (int id in ids)
             {
@@ -476,6 +513,7 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_searchTabs is not { } tabs) return;
         RenderBottomStatus(view);
+        RenderPortabilityNotice(view);
         RenderViewToggleLabels();
         foreach (var (id, tab) in _searchItems)
         {
@@ -522,6 +560,7 @@ internal sealed partial class BooruWorkbenchView
         // The counts belong to one search: they are shown only beside the results of that same search.
         bool showBulk = belongsToTab && bulk.Phase != BooruBulkPhase.Idle && bulk.ResultId == view.ResultId;
         _bulkHost.IsVisible = showBulk;
+        _searchNotices.IsVisible = _portabilityHost.IsVisible || showBulk;
         if (!showBulk) return;
         if (running)
         {

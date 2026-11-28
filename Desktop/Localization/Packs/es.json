@@ -5673,6 +5673,8 @@
     "settings.booru.newSearchTarget.current": "Pestaña actual",
     "booru.tabs.new": "Nueva pestaña de búsqueda",
     "booru.tabs.duplicate": "Duplicar pestaña",
+    "booru.tabs.searchOtherSource": "Buscar en otra fuente",
+    "booru.tabs.searchOtherSource.removed": "Se quitaron los términos de búsqueda específicos de la fuente ({0}).",
     "booru.tabs.openCurrentHint": "Copia la búsqueda mostrada y sus resultados en una pestaña nueva. No se envía nada.",
     "booru.tabs.close": "Cerrar pestaña",
     "booru.tabs.closeFor": "Cerrar la pestaña «{0}»",

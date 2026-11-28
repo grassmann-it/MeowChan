@@ -69,6 +69,7 @@ internal static class BooruHitKeys
 /// <summary>Keyboard, focus and menu of the result cards, and the double click of the watcher cards.</summary>
 internal sealed partial class BooruWorkbenchView
 {
+    internal const string MenuSearchOtherSource = "booru.menu.search-other-source";
     private readonly MiddleClickTracker _resultMiddleClick = new();
 
     private void InitializeHitList()
@@ -115,7 +116,9 @@ internal sealed partial class BooruWorkbenchView
         AttachCardMenu(card, () =>
         {
             ContextMenuBuilder? menu = ComposeResultMenu(result);
-            if (menu != null) extendMenu?.Invoke(menu);
+            if (menu == null) return null;
+            AddOtherSourceMenu(menu, result);
+            extendMenu?.Invoke(menu);
             return menu;
         }, () =>
         {
@@ -149,6 +152,28 @@ internal sealed partial class BooruWorkbenchView
             }
         };
     }
+
+    private void AddOtherSourceMenu(ContextMenuBuilder menu, ResultActions result)
+    {
+        if (result.Target.Query is not { } query) return;
+        BooruPostView post = result.Target.Post;
+        ContextMenuBuilder destinations = new();
+        foreach (BooruWorkbenchServices services in _model.Sources)
+        {
+            IBooruSearchPort source = services.Search;
+            if (source.ProviderId == post.SourceId && source.InstanceId == post.Identity.InstanceId) continue;
+            destinations.Item(OtherSourceMenuId(source), source.ProviderName, () =>
+            {
+                if (result.IsCurrent()) SearchOtherSource(query, source);
+            }, availableWhen: result.IsCurrent);
+        }
+        ContextMenuModel choices = destinations.ToModel();
+        if (choices.Entries.Any())
+            menu.Section().Submenu(MenuSearchOtherSource, Texts.T("booru.tabs.searchOtherSource"), choices, icon: "search");
+    }
+
+    internal static string OtherSourceMenuId(IBooruSearchPort source) =>
+        $"{MenuSearchOtherSource}:{source.ProviderId}:{source.InstanceId}";
 
     /// <summary>
     /// Dead-affordance review 15.11.: a middle click on a hit card (not on a button, a tag or selectable text; press and release on the same card)

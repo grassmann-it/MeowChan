@@ -5733,6 +5733,8 @@
     "settings.booru.newSearchTarget.current": "Bieżąca karta",
     "booru.tabs.new": "Nowa karta wyszukiwania",
     "booru.tabs.duplicate": "Duplikuj kartę",
+    "booru.tabs.searchOtherSource": "Szukaj w innym źródle",
+    "booru.tabs.searchOtherSource.removed": "Usunięto terminy wyszukiwania właściwe dla źródła ({0}).",
     "booru.tabs.openCurrentHint": "Kopiuje wyświetlone wyszukiwanie i jego wyniki do nowej karty. Nic nie jest wysyłane.",
     "booru.tabs.close": "Zamknij kartę",
     "booru.tabs.closeFor": "Zamknij kartę „{0}”",
