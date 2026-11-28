@@ -242,13 +242,14 @@ class OfflineRetestTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.req(scenario=scenario)
 
-    def test_required_steps_are_build_and_core_tests_only_for_every_lane(self):
+    def test_required_steps_include_the_native_runtime_for_linux(self):
         steps = workflow_steps()
         for lane in ("lane-a", "lane-b", "lane-c", "lane-d"):
             for os_ in ("Linux", "Windows"):
                 required = self.req(lane=lane, os_=os_)
+                native_runtime = ["linux_setup"] if os_ == "Linux" else []
                 self.assertEqual(["offline_retest_guard", "record_source", "restore_release", "build_all",
-                                  "process_probe", "core_tests"], required)
+                                  "process_probe", *native_runtime, "core_tests"], required)
                 for step in required:
                     self.assertIn(step, steps)
                     self.assertTrue(
@@ -261,7 +262,11 @@ class OfflineRetestTests(unittest.TestCase):
         for os_ in ("Linux", "Windows"):
             ran = {step for step, expr in workflow_steps().items()
                    if predicate(expr, "workflow_dispatch", "offline-retest", "all", False, os_, "X64")}
-            self.assertEqual(expected, ran)
+            self.assertEqual(expected | ({"linux_setup"} if os_ == "Linux" else set()), ran)
+
+    def test_linux_native_runtime_is_installed_before_the_offline_shard(self):
+        steps = list(workflow_steps())
+        self.assertLess(steps.index("linux_setup"), steps.index("core_tests"))
 
     def test_mode_cannot_run_any_staging_release_or_packaging_job(self):
         for job, expr in job_conditions().items():

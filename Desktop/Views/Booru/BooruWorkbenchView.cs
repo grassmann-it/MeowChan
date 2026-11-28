@@ -523,7 +523,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             if (read is null && LocalTagSession is { } session) read = session.ReadBooruCatalog;
             if (read is null || ReadLocalTagDraft(_model.Search.View) is not { } draft) return;
             _localTagDraft = draft;
-            if (!_localTagLoading) _ = LoadLocalTagsAsync(read);
+            if (!_localTagLoading) OpenActions.Start(() => LoadLocalTagsAsync(read), "booru.local-tags.suggest");
         }, DispatcherPriority.Input);
     }
 

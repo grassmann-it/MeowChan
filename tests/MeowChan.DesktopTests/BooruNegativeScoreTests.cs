@@ -103,7 +103,8 @@ public sealed class BooruNegativeScoreTests
     private static async Task<DanbooruWatcherSearchOutcome> SearchAsync(string response)
     {
         IBooruSourcePlugin plugin = DanbooruTestPlugin.Plugin;
-        using HttpClient transport = new(new PageResponse(response));
+        using PageResponse handler = new(response);
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), plugin.Describe().Sources);
         BooruHostServices services = new(new NoInnerServices(), http);
         await using InProcessDanbooruWorker worker = new(plugin, services);

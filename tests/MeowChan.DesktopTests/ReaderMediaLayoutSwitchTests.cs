@@ -20,7 +20,7 @@ public sealed class ReaderMediaLayoutSwitchTests
     private static readonly string[] MediaToolNames =
     [
         "ArchiveRatingFilter", "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveFavoritesFilter",
-        "ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"
+        "ArchiveThreadMediaMenuButton", "ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"
     ];
 
     [Fact]

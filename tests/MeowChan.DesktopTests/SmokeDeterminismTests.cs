@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -88,23 +90,30 @@ public sealed class SmokeDeterminismTests
     [Fact]
     public void ArchiveBatchMenuRetainsTheExactSharedOrderWithoutSingleThreadUrlExport()
     {
-        string source = Source("Desktop/Views/Archive/ArchivePage.Commands.cs");
-        // The factory's top-level Add calls are the unconditional batch surface.
-        // A single-thread-only addition belongs in its explicit nested branch.
-        string[] batch = Regex.Matches(source, "(?m)^        Add\\(\"([^\"]+)\"")
-            .Select(match => match.Groups[1].Value).ToArray();
+        var source = CSharpSource.Parse(Source("Desktop/Views/Archive/ArchivePage.Commands.cs"));
+        var menu = source.Method("BuildArchiveSelectionMenu");
+        var body = Assert.IsType<BlockSyntax>(menu.Body);
+        var entries = body.Calls("Add").Where(call => call.Expression is IdentifierNameSyntax).ToArray();
+        string[] batch = entries.Where(call => call.Parent is ExpressionStatementSyntax statement && statement.Parent == body)
+            .Select(CommandId).ToArray();
         Assert.Equal(new[]
         {
             "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "post-bookmarks.open-manager", "export.open-html-dialog",
             "selection.copy-links", "location.open-folder", "location.open-source", "watch.check", "watch.retry-media",
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         }, batch);
-        // Since the ContextMenuBuilder refactor the guarded statement has no braces; either form keeps the single-thread-only rule.
-        Assert.Matches("if \\(ids.Length == 1\\)\\s*(\\{\\s*)?Add\\(\"export.open-urltext-dialog\"", source);
-        // Own thread tags are single-thread only as well: nested, so the batch order above stays exact.
-        Assert.Matches("if \\(ids.Length == 1\\)\\s*Add\\(\"thread.tags\"", source);
-        // Do not remove the feature to make the batch-order regression pass.
-        Assert.Equal(1, Regex.Matches(source, "Add\\(\"export.open-urltext-dialog\"").Count);
+        AssertSingleThread(Assert.Single(entries, call => CommandId(call) == "export.open-urltext-dialog"));
+        AssertSingleThread(Assert.Single(entries, call => CommandId(call) == "thread.tags"));
+        AssertSingleThread(Assert.Single(body.Calls("AddThreadMediaCommands")));
+
+        void AssertSingleThread(InvocationExpressionSyntax call)
+        {
+            var branch = Assert.Single(body.Statements.OfType<IfStatementSyntax>(), statement => statement.Statement.Span.Contains(call.Span));
+            Assert.True(branch.Condition.IsEquivalentTo(SyntaxFactory.ParseExpression("ids.Length == 1")), call.ToString());
+        }
+
+        static string CommandId(InvocationExpressionSyntax call) =>
+            Assert.IsType<LiteralExpressionSyntax>(call.ArgumentList.Arguments[0].Expression).Token.ValueText;
     }
 
     [Fact]
@@ -115,7 +124,8 @@ public sealed class SmokeDeterminismTests
         Assert.Contains("RequireArchiveMenuOrder(cardMenu, single: false);", source);
         Assert.Contains("CheckKeyboardContextAsync(table, table.ContextMenu!, singleArchiveSelection: true)", source);
         Assert.Contains("CheckKeyboardContextAsync(table, table.ContextMenu, singleArchiveSelection: false)", source);
-        Assert.Contains("expected.Insert(5, \"thread.tags\"); expected.Insert(8, \"export.open-urltext-dialog\");", source);
+        Assert.Contains("expected.InsertRange(expected.IndexOf(\"thread.show-in-media\") + 1, [\"thread.tags\", \"thread.tag-media\", \"thread.stamp-media\"]);", source);
+        Assert.Contains("expected.Insert(expected.IndexOf(\"export.open-html-dialog\") + 1, \"export.open-urltext-dialog\");", source);
         Assert.Contains("actual.SequenceEqual(expected)", source);
     }
 

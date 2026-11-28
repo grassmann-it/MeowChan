@@ -50,6 +50,7 @@ public static class SettingsTransfer
         nameof(Config.FirstRunSetupVersion),
         nameof(Config.WorkViewNoticePending),
         nameof(Config.SourceMediaIntegrityPermissions),
+        nameof(Config.BooruMd5BatchEnabled), // permission to send hashes applies to the current profile
         nameof(Config.DownloadsPaused),
         nameof(Config.LastExportDirectory),
         nameof(Config.GalleryFrameDirectory),
@@ -151,6 +152,7 @@ public static class SettingsTransfer
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition,
             GalleryWheelMode = source.GalleryWheelMode,
             GalleryBackground = source.GalleryBackground,
+            GalleryFitMode = source.GalleryFitMode,
             GalleryStatusDwellMs = source.GalleryStatusDwellMs,
             GalleryPostTagChipLimit = source.GalleryPostTagChipLimit,
             StatsHistorySamples = source.StatsHistorySamples,
@@ -249,6 +251,7 @@ public static class SettingsTransfer
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs,
             BooruSearchPages = source.BooruSearchPages,
             BooruSearchPostsPerPage = source.BooruSearchPostsPerPage,
+            BooruLocalTagSuggestionCount = source.BooruLocalTagSuggestionCount,
             BooruSavedTabs = source.BooruSavedTabs,
             BooruSavedResultsPerTab = source.BooruSavedResultsPerTab,
             BooruGallerySampleMiB = source.BooruGallerySampleMiB,

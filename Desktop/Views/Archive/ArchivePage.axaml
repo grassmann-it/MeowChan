@@ -342,7 +342,7 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <StackPanel Spacing="{StaticResource Workspace.Space.4}">
+                <StackPanel x:Name="ReaderHeaderRows" Spacing="{StaticResource Workspace.Space.4}">
                     <!-- Tom's rule (14.11. evening): the ways back of the reader stand at the far left of its header row, before the title and
                          apart from it by a gap and a thin separator (HeaderBar back slot), first in the row's tab order: the state returns,
                          the narrow "Back to thread list" and the large reader's "Back to {origin}". The toolbar below keeps only the
@@ -716,7 +716,7 @@
                                         <ComboBox x:Name="ArchiveVersionScope" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.version-scope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
                                         <ToggleButton x:Name="ArchiveFavoritesFilter" AutomationProperties.AutomationId="ArchiveFavoritesFilter" Classes="toolbar-toggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" IsCheckedChanged="OnArchiveFavoritesFilterChanged" />
                                         <Button x:Name="ArchiveThreadMediaMenuButton" AutomationProperties.AutomationId="ArchiveThreadMediaMenuButton"
-                                                desktop:ActionToolBar.Group="2" Click="OnThreadMediaMenuClick" />
+                                                desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.media.thread-media-menu" Click="OnThreadMediaMenuClick" />
                                         <!-- F01 (21.11.): filters and sorting on the left; the view tools (Columns, then the Grid/Table pair last) dock to the right edge. -->
                                         <Button x:Name="ArchiveMediaColumnsButton" AutomationProperties.AutomationId="ArchiveMediaColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
                                         <ToggleButton x:Name="ArchiveMediaLayoutTiles" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Grid" Classes="toolbar-toggle segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />

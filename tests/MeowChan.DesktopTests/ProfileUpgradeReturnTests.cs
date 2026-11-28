@@ -252,7 +252,8 @@ public sealed class ProfileUpgradeReturnTests
         }
 
         byte[] bytes = BooruUiFixtures.Png(6);
-        using HttpClient client = new(new WatchTransport(bytes));
+        using WatchTransport transport = new(bytes);
+        using HttpClient client = new(transport, disposeHandler: false);
         await using DesktopSessionHost host = new(source, providers: [new FourChanImageBoard(client)], admitProfileUpgrade: true);
         TaskCompletionSource<string> downloaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         void ReadSnapshot()

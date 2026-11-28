@@ -259,8 +259,9 @@ public sealed class ArchiveThreadStampTests
 
     private static void PressStamp(Window window)
     {
-        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.Control | RawInputModifiers.Shift);
-        window.KeyReleaseQwerty(PhysicalKey.Enter, RawInputModifiers.Control | RawInputModifiers.Shift);
+        KeyGesture gesture = Assert.IsType<KeyGesture>(CommandBindings.Gesture(QuickTagCommands.StampApply));
+        window.KeyPress(gesture.Key, (RawInputModifiers)gesture.KeyModifiers, PhysicalKey.Enter, null);
+        window.KeyRelease(gesture.Key, (RawInputModifiers)gesture.KeyModifiers, PhysicalKey.Enter, null);
     }
 
     private static void Layout(Window window)

@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Archive;
 using MeowChan.Booru;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Booru;
@@ -20,6 +21,7 @@ internal sealed class BooruContentDialog : Window
         CanResize = false;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar = false;
         BooruPostClaimRating[] ratings =
             [BooruPostClaimRating.General, BooruPostClaimRating.Sensitive, BooruPostClaimRating.Questionable, BooruPostClaimRating.Explicit];
         ComboBox maximum = new()
@@ -72,7 +74,7 @@ internal sealed class BooruContentDialog : Window
             }
             finally { confirm.IsEnabled = cancel.IsEnabled = true; }
         };
-        Content = new StackPanel
+        var content = new StackPanel
         {
             Margin = new Thickness(24),
             Spacing = 8,
@@ -87,5 +89,6 @@ internal sealed class BooruContentDialog : Window
                     Spacing = 8, Children = { cancel, confirm } }
             }
         };
+        DialogWindow.Frame(this, content, modal: true);
     }
 }

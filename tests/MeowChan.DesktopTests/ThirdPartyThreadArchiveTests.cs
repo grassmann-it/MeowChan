@@ -171,6 +171,7 @@ public sealed class ThirdPartyThreadArchiveTests
         fixture.Layout();
         ArchivePage page = fixture.Window.ArchivePage;
         Assert.True(page.IsEffectivelyVisible);
+        BooruComponentDispatcher.WaitUntil(() => !page.IsBusy, "archive list activation");
         return page;
     }
 

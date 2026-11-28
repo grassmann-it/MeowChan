@@ -210,6 +210,7 @@ public sealed class ReaderWorkViewTests
             ("reader.media.rating-filter", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.media.columns", Presence.Overflow, Presence.Overflow, Presence.Direct),
             ("reader.media.version-scope", Presence.Overflow, Presence.Overflow, Presence.Direct),
+            ("reader.media.thread-media-menu", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.media.edit-rating", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.media.preview", Presence.Overflow, Presence.Direct, Presence.Direct),
         ];

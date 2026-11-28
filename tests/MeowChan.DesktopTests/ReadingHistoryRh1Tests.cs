@@ -7,6 +7,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -346,15 +347,29 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
         Assert.Contains("\"navigation.continue-reading\"", File.ReadAllText(Root("Desktop/Commands/MacMenuModel.cs")));
         Assert.Contains("shell.header.continue-reading", File.ReadAllText(Root("Desktop/WorkViews/WorkViewPolicy.Shell.cs")));
 
-        // No source file picks an icon of its own for these links: the only "book-open" spellings are the catalog's and the constant.
+        // Continue-reading links take their icon from the catalog. Search in thread deliberately uses the same mask.
         string[] spellings = Directory.EnumerateFiles(Root("Desktop"), "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar))
-            .Where(file => File.ReadAllText(file).Contains("book-open", StringComparison.Ordinal))
-            .Select(file => Path.GetFileName(file)).OrderBy(name => name).ToArray();
+            .Select(file => (Name: Path.GetFileName(file), Source: File.ReadAllText(file)))
+            .Where(file => file.Source.Contains(ReadingHistoryMenu.ContinueIcon, StringComparison.Ordinal)
+                && CSharpSource.Parse(file.Source).DescendantNodes().OfType<LiteralExpressionSyntax>()
+                    .Any(icon => icon.Token.ValueText.Contains(ReadingHistoryMenu.ContinueIcon, StringComparison.Ordinal)
+                        && !IsThreadSearchIcon(icon)))
+            .Select(file => file.Name).OrderBy(name => name).ToArray();
         Assert.Equal(new[] { "CommandCatalog.cs", "ReadingHistoryMenu.cs" }, spellings);
         // And none of those files names an icon file for a control that links the command.
         foreach (string file in new[] { "Desktop/Shell/MainWindow.Resume.cs", "Desktop/Shell/ReadingHistoryWindow.cs", "Desktop/Views/Archive/ArchivePage.Resume.cs" })
             Assert.DoesNotMatch(@"NamedIcon\(|IconFromKey\(|IconUri\(", File.ReadAllText(Root(file)));
+
+        static bool IsThreadSearchIcon(LiteralExpressionSyntax icon) =>
+            icon.Token.ValueText == ReadingHistoryMenu.ContinueIcon
+            && icon.Parent is AssignmentExpressionSyntax
+            {
+                Left: IdentifierNameSyntax { Identifier.ValueText: "IconKey" },
+                Parent: InitializerExpressionSyntax { Parent: ObjectCreationExpressionSyntax action }
+            }
+            && action.Type is IdentifierNameSyntax { Identifier.ValueText: "SearchCarryAction" }
+            && action.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax { Token.ValueText: "ArchiveSearchInThread" };
     }
 
     // ---- settings: the menu length is a setting with default, minimum and maximum ----

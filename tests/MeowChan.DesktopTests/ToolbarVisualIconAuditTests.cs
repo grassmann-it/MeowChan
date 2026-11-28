@@ -183,8 +183,19 @@ public sealed class ToolbarVisualIconAuditTests
             Audit(Bar(page, "ArchiveHeaderActions"), "RefreshArchiveButton");
             Audit(Bar(page, "ArchiveResultActions"), "ArchiveLayoutList", "ArchiveLayoutTable");
             Audit(Bar(page, "ReaderToolbar"), "ArchiveOpenGallery", "ReaderFindOpen", "ReaderTagsOpen");
-            Audit(Bar(page, "ReaderMediaTools"), "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable");
+            ActionToolBar mediaTools = Bar<ActionToolBar>(page, "ReaderMediaTools");
+            Audit(mediaTools, "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable");
             Audit(Bar(page, "ReaderMediaActions"), "PreviewArchiveMediaButton");
+
+            page.ArchiveColumnModePreference = WorkView.Barebones.ToSetting();
+            Settle(window);
+            ToggleButton more = Assert.IsType<ToggleButton>(mediaTools.More);
+            Assert.True(more.IsEffectivelyVisible);
+            more.IsChecked = true;
+            Settle(window);
+            Button threadMedia = Bar<Button>(mediaTools.OverflowHost!, "ArchiveThreadMediaMenuButton");
+            Assert.True(threadMedia.IsEffectivelyVisible && HasRenderedIcon(threadMedia));
+            more.IsChecked = false;
         }
         finally { window.Close(); page.EndLifetime(); }
     });
