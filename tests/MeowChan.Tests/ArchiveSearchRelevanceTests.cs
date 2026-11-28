@@ -134,16 +134,16 @@ public sealed class ArchiveSearchRelevanceTests
         using CancellationTokenSource cancellation = new();
         ArchiveSearchRequest request = Request("zz", sort);
         int statements = 0;
-        SQLitePCL.raw.sqlite3_trace(connection.Handle!, (_, _) => statements++, null);
+        SQLitePCL.raw.sqlite3_trace(connection.Handle!, (SQLitePCL.strdelegate_trace)((_, _) => statements++), null);
         AssertEmptyPage(ArchiveSql.SearchPage(connection, transaction, request, 0, 1, CancellationToken.None),
             0, 0, sort == ArchiveThreadSort.Relevance ? [0, 0, 0] : null);
         Assert.Equal(2, statements); // The schema-version pragma and the count.
 
         statements = 0;
-        SQLitePCL.raw.sqlite3_trace(connection.Handle!, (_, _) =>
+        SQLitePCL.raw.sqlite3_trace(connection.Handle!, (SQLitePCL.strdelegate_trace)((_, _) =>
         {
             if (++statements == 2) cancellation.Cancel();
-        }, null);
+        }), null);
         OperationCanceledException error = Assert.Throws<OperationCanceledException>(
             () => ArchiveSql.SearchPage(connection, transaction, request, 0, 1, cancellation.Token));
         Assert.Equal(cancellation.Token, error.CancellationToken);
