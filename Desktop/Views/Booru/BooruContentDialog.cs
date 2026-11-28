@@ -15,7 +15,8 @@ internal sealed class BooruContentDialog : Window
 {
     private bool _busy;
 
-    internal BooruContentDialog(BooruContentProfileSnapshot snapshot, Func<BooruContentSettings, long, Task> save)
+    /// <summary>Edits the shown document. <paramref name="save"/> receives only the changed fields; the store merges them.</summary>
+    internal BooruContentDialog(BooruContentProfileSnapshot snapshot, Func<BooruContentEdit, Task> save)
     {
         Title = Texts.T("booru.content.title");
         DialogWindow.Configure(this, DialogSize.M, modal: true, heightToContent: true);
@@ -71,8 +72,12 @@ internal sealed class BooruContentDialog : Window
             bool saved = false;
             try
             {
-                await save(snapshot.Settings with { MaximumRating = ratings[maximum.SelectedIndex], GlobalBlacklist = blacklist.Text ?? "" },
-                    snapshot.Revision);
+                BooruPostClaimRating rating = ratings[maximum.SelectedIndex];
+                string text = blacklist.Text ?? "";
+                // A first choice always writes the rating; every untouched field keeps the value of the document at save time.
+                await save(new BooruContentEdit(snapshot,
+                    rating == snapshot.Settings.MaximumRating ? null : rating,
+                    string.Equals(text, snapshot.Settings.GlobalBlacklist, StringComparison.Ordinal) ? null : text));
                 saved = true;
             }
             catch (BooruContentRuleException error)

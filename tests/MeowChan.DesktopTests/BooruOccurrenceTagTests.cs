@@ -8,6 +8,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
@@ -70,7 +71,12 @@ public sealed class BooruOccurrenceTagTests
         Assert.Null(north.Text);
         Assert.False(copyNorth.IsEnabled);
 
-        SaveRules(lease, BooruPostClaimRating.Sensitive);
+        // Removing the rule outside MeowChan is a loosening: it waits for a confirmed choice.
+        BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(lease);
+        BooruContentProfileSnapshot loosened = SaveRules(lease, BooruPostClaimRating.Sensitive);
+        Assert.Single(content.ReadEffective(lease).Settings.SourceBlacklists);
+        Assert.False(north.IsEffectivelyVisible);
+        content.Publish(loosened);
         await BooruTestSupport.WaitAsync(() => north.IsEffectivelyVisible, "the allowed tags to return");
         File.Delete(path);
         Assert.True(copyNorth.IsEnabled);
@@ -135,7 +141,7 @@ public sealed class BooruOccurrenceTagTests
         MediaPage page = new(_ => throw new InvalidOperationException("Opening occurrences must not build the archive."), OpenManifest)
         {
             ReadBooruCatalog = session.ReadBooruCatalog,
-            ReadContentProfile = session.ReadLocalMediaContentProfile,
+            ReadContentProfile = session.ReadEffectiveBooruContent,
             TagServices = new(session.GetPublishedPrivateTagSnapshot,
                 (_, _, _, _) => { privateWrites++; throw new InvalidOperationException("Unexpected private tag definition."); },
                 (_, _, _, _, _) => { privateWrites++; throw new InvalidOperationException("Unexpected private tag assignment."); })
@@ -156,11 +162,12 @@ public sealed class BooruOccurrenceTagTests
         Task<MediaAssetSnapshot> OpenManifest(string directory, CancellationToken _) => Task.FromResult(manifests[directory]);
     });
 
-    private static void SaveRules(ProfileLease lease, BooruPostClaimRating rating, IReadOnlyList<BooruContentSourceBlacklist>? sources = null)
+    private static BooruContentProfileSnapshot SaveRules(ProfileLease lease, BooruPostClaimRating rating,
+        IReadOnlyList<BooruContentSourceBlacklist>? sources = null)
     {
         BooruContentProfileStore store = new(lease);
         using ProfileAdmissionToken writer = lease.Admission.EnterOrdinaryWriter();
-        store.SaveAdmitted(new(rating, string.Empty, sources ?? []), store.Load().Revision, writer);
+        return store.SaveAdmitted(new(rating, string.Empty, sources ?? []), store.Load().Revision, writer);
     }
 
     private static MediaAssetReference SaveAsset(string root, string folder, string mediaId, byte[] bytes,

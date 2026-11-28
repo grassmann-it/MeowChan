@@ -64,7 +64,7 @@ public sealed class BooruSourceActivationTests
             Assert.Empty(network.Hosts);
 
             BooruWorkspaceContent content = Assert.IsType<BooruWorkspaceContent>(host.BooruContent);
-            await host.SaveBooruContentAsync(new(BooruPostClaimRating.Sensitive, "", []), content.Snapshot.Revision);
+            await host.SaveBooruContentAsync(new(content.Snapshot, BooruPostClaimRating.Sensitive, ""));
             Button navigation = FindButton(window, "SourcesNavigationButton");
             await BooruTestSupport.WaitAsync(() => navigation.IsEffectivelyVisible && navigation.IsEffectivelyEnabled, "Plugins navigation");
             Click(navigation);

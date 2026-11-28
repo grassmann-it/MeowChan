@@ -9,16 +9,20 @@ internal sealed partial class DesktopSessionHost
 {
     internal BooruWorkspaceContent? BooruContent => BooruServices?.Content;
 
-    internal Task<BooruContentProfileSnapshot> ReadBooruContentAsync(bool acceptPersistedChoice) =>
-        Task.Run(() => ReadBooruContentProfile(acceptPersistedChoice));
+    /// <summary>The profile's content rules, shared by the workbench, saved media, MD5 lookups and galleries.</summary>
+    internal BooruWorkspaceContent ContentRules => BooruContent ?? LocalMediaContent;
 
-    private BooruContentProfileSnapshot ReadBooruContentProfile(bool acceptPersistedChoice = false) =>
-        (BooruContent ?? LocalMediaContent).Read(_profileLease, acceptPersistedChoice);
+    /// <summary>The single access for every consumer that reads the profile document: the effective rules, never the file itself.</summary>
+    internal BooruContentProfileSnapshot ReadEffectiveBooruContent() => ContentRules.ReadEffective(_profileLease);
 
-    internal Task<BooruContentProfileSnapshot> SaveBooruContentAsync(BooruContentSettings settings, long revision) =>
+    /// <summary>The document for the content editor only.</summary>
+    internal Task<BooruContentProfileSnapshot> ReadBooruContentForEditAsync(bool acceptPersistedChoice) =>
+        Task.Run(() => ContentRules.ReadForEdit(_profileLease, acceptPersistedChoice));
+
+    internal Task<BooruContentProfileSnapshot> SaveBooruContentAsync(BooruContentEdit edit) =>
         RunInteractiveWithAdmissionAsync(nameof(SaveBooruContentAsync), "profile", admission =>
         {
             BooruWorkspaceContent content = BooruContent ?? throw new InvalidOperationException("Booru is unavailable.");
-            return Task.FromResult(content.Save(_profileLease, settings, revision, admission));
+            return Task.FromResult(content.Save(_profileLease, edit, admission));
         }, captureAfter: false);
 }

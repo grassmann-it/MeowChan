@@ -30,7 +30,8 @@ public partial class MainWindow
         {
             try
             {
-                BooruContentProfileSnapshot snapshot = await _session.ReadBooruContentAsync(acceptPersistedChoice: confirmed is not null);
+                // The editor shows the document; the effective rules only loosen once the user confirms it.
+                BooruContentProfileSnapshot snapshot = await _session.ReadBooruContentForEditAsync(acceptPersistedChoice: confirmed is not null);
                 if (!IsVisible || !CanOpenBooru || !ReferenceEquals(_session.BooruContent, content)) return;
                 // Resume first navigation as soon as the repaired profile contains a confirmed choice.
                 if (confirmed is not null && content.HasChoice)

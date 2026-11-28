@@ -12,41 +12,76 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop.Booru;
 
-internal sealed class BooruWorkspaceContent(BooruContentProfileSnapshot initial)
+/// <summary>
+/// The profile's effective Booru content rules: the strictest combination of the last confirmed choice and the current
+/// document. An unreadable document or an unknown schema blocks everything. Every consumer decides through
+/// <see cref="Snapshot"/> or <see cref="ReadEffective"/>; only the content editor sees the document itself
+/// (<see cref="ReadForEdit"/>), and only a confirmed choice (<see cref="Publish"/>, <see cref="Save"/>) loosens the rules.
+/// </summary>
+internal sealed class BooruWorkspaceContent
 {
+    /// <summary>Reads the profile document and reports it to the callback under the profile lease.</summary>
+    internal delegate BooruContentProfileSnapshot DocumentReader(ProfileLease lease, Action<BooruContentProfileSnapshot> onRead);
+
     private static readonly ConditionalWeakTable<ProfileLease, Lazy<BooruWorkspaceContent>> Profiles = new();
+    private static readonly DocumentReader StoreReader = static (lease, onRead) => new BooruContentProfileStore(lease).Load(onRead);
 
     internal static BooruWorkspaceContent ForProfile(ProfileLease lease) =>
         Profiles.GetValue(lease, static profile => new(() => new(new BooruContentProfileStore(profile).Load()))).Value;
 
-    private BooruContentProfileSnapshot _snapshot = initial;
-    private BooruContentProfileSnapshot? _lastReady = initial.HasChoice ? initial : null;
+    private readonly DocumentReader _read;
+    private BooruContentProfileSnapshot _snapshot;
+    // The effective rules of the last ready document: the confirmed choice tightened by every document read since.
+    private BooruContentProfileSnapshot? _ready;
 
+    internal BooruWorkspaceContent(BooruContentProfileSnapshot initial, DocumentReader? read = null)
+    {
+        _read = read ?? StoreReader;
+        _snapshot = initial;
+        _ready = initial.HasChoice ? initial : null;
+    }
+
+    /// <summary>The effective rules, without reading the document.</summary>
     internal BooruContentProfileSnapshot Snapshot => Volatile.Read(ref _snapshot);
     internal bool HasChoice => Snapshot.HasChoice;
     internal event Action? Changed;
 
+    /// <summary>Makes a confirmed choice effective, including any loosening it contains.</summary>
     internal void Publish(BooruContentProfileSnapshot snapshot)
     {
         AcceptConfirmed(snapshot);
         Changed?.Invoke();
     }
 
-    internal BooruContentProfileSnapshot Read(ProfileLease lease, bool acceptPersistedChoice = false)
+    /// <summary>The single access for consumers: reads the document and returns the effective rules.</summary>
+    internal BooruContentProfileSnapshot ReadEffective(ProfileLease lease)
     {
-        bool changed = false;
-        BooruContentProfileSnapshot snapshot = new BooruContentProfileStore(lease).Load(
-            rules => changed = ApplyRead(rules, acceptPersistedChoice));
-        if (changed) Changed?.Invoke();
-        return snapshot;
+        Read(lease, acceptPersistedChoice: false);
+        return Snapshot;
     }
 
-    internal BooruContentProfileSnapshot Save(ProfileLease lease, BooruContentSettings settings, long revision, ProfileAdmissionToken admission)
+    /// <summary>
+    /// The document as the editor shows it. Applies it to the effective rules like any read; never use the result to
+    /// decide what is allowed.
+    /// </summary>
+    internal BooruContentProfileSnapshot ReadForEdit(ProfileLease lease, bool acceptPersistedChoice) =>
+        Read(lease, acceptPersistedChoice);
+
+    private BooruContentProfileSnapshot Read(ProfileLease lease, bool acceptPersistedChoice)
+    {
+        bool changed = false;
+        BooruContentProfileSnapshot document = _read(lease, rules => changed = ApplyRead(rules, acceptPersistedChoice));
+        if (changed) Changed?.Invoke();
+        return document;
+    }
+
+    /// <summary>Saves the editor's changes as a field-wise merge onto the current document; the result is the confirmed choice.</summary>
+    internal BooruContentProfileSnapshot Save(ProfileLease lease, BooruContentEdit edit, ProfileAdmissionToken admission)
     {
         bool changed = false;
         try
         {
-            return new BooruContentProfileStore(lease).SaveAdmitted(settings, revision, admission,
+            return new BooruContentProfileStore(lease).SaveEditAdmitted(edit, admission,
                 onRead: rules => changed = ApplyRead(rules, acceptPersistedChoice: false),
                 onSaved: saved => { AcceptConfirmed(saved); changed = true; });
         }
@@ -56,29 +91,47 @@ internal sealed class BooruWorkspaceContent(BooruContentProfileSnapshot initial)
         }
     }
 
-    // Store callbacks update the active filter in file access order under the profile lease.
-    // Notify consumers outside the lease so they can safely read other profile stores.
+    // Store callbacks update the effective rules in file access order under the profile lease.
+    // Consumers are notified outside the lease so they can safely read other profile stores.
     private bool ApplyRead(BooruContentProfileSnapshot observed, bool acceptPersistedChoice)
     {
         BooruContentProfileSnapshot active = Snapshot;
-        if (!observed.HasChoice)
+        BooruContentProfileSnapshot effective;
+        if (observed.State is BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported)
         {
-            if (active.State == observed.State) return false;
-            Volatile.Write(ref _snapshot, observed);
-            return true;
+            // Block everything, but keep the known rules as the bound for a later repair.
+            effective = observed;
+        }
+        else if (!observed.HasChoice)
+        {
+            // A missing document carries no rules, so the confirmed choice stays in force.
+            effective = _ready ?? observed;
+        }
+        else if (_ready is { } ready)
+        {
+            // Tighten through stricter edits; looser edits wait for a confirmed choice.
+            effective = Restrict(ready, observed);
+            _ready = effective;
+        }
+        else
+        {
+            // Without any known rules, a document repaired after a failed read is accepted only when Booru is opened.
+            if (!acceptPersistedChoice && active.State is BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported)
+                return false;
+            // A first persisted choice is what a restart would load; for saved media it only adds a ceiling.
+            effective = observed;
+            _ready = effective;
         }
 
-        // Preserve known restrictions through a failed read and through edits that also loosen some rules.
-        BooruContentProfileSnapshot effective = _lastReady is { } previous ? Restrict(previous, observed) : observed;
-        _lastReady = effective;
-        if ((!active.HasChoice && !acceptPersistedChoice) || ReferenceEquals(active, effective)) return false;
+        if (ReferenceEquals(active, effective) || (!effective.HasChoice && !active.HasChoice && active.State == effective.State))
+            return false;
         Volatile.Write(ref _snapshot, effective);
         return true;
     }
 
     private void AcceptConfirmed(BooruContentProfileSnapshot snapshot)
     {
-        _lastReady = snapshot.HasChoice ? snapshot : null;
+        _ready = snapshot.HasChoice ? snapshot : null;
         Volatile.Write(ref _snapshot, snapshot);
     }
 

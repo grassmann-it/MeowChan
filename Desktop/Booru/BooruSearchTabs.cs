@@ -130,7 +130,7 @@ internal sealed class BooruSearchTabs
         {
             if (index == _slots.Count) return CaptureView(current, 0);
             Slot slot = _slots[index];
-            return slot.IsDeferred ? slot.SavedTarget : CaptureTarget(slot, resultLimit);
+            return AllowedRows(slot.IsDeferred ? slot.SavedTarget : CaptureTarget(slot, resultLimit));
         }));
     }
 
@@ -140,6 +140,22 @@ internal sealed class BooruSearchTabs
         if (slot.SavedTarget is { } unbound)
             return unbound with { Mode = view.Mode, Input = BoundedInput(view), Rows = unbound.Rows?.Take(resultLimit).ToArray() };
         return CaptureView(view, resultLimit);
+    }
+
+    // Background tabs keep the view they had when they were left. Saved rows and preview bytes pass the effective
+    // content rules at capture time, so a tightening also reaches tabs that are not shown.
+    private BooruSearchTabTarget? AllowedRows(BooruSearchTabTarget? target)
+    {
+        if (target?.Rows is not { Length: > 0 } rows) return target;
+        string instance = target.Instance;
+        BooruSearchTabRow[] allowed = rows.Where(row => AllowsSaved(row, instance)).ToArray();
+        return allowed.Length == rows.Length ? target : target with { Rows = allowed };
+    }
+
+    private bool AllowsSaved(BooruSearchTabRow row, string instance)
+    {
+        try { return _search.IsMediaAllowed(BooruPostView.From(row.Post, instance)); }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException) { return false; }
     }
 
     private static string BoundedInput(BooruSearchView view) => view.Input.Length <= BooruSearchTabTarget.MaximumDraftLength

@@ -103,7 +103,7 @@ public partial class MainWindow
             PendingFavorite = PendingMediaFavorite,
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,
-            ReadContentProfile = _session.ReadLocalMediaContentProfile,
+            ReadContentProfile = _session.ReadEffectiveBooruContent,
             CacheLimitBytes = () => (long)_session.Config.MediaIndexCacheLimitMiB * 1024 * 1024,
             CacheCountLimits = () => (_session.Config.MediaIndexMaxEntries, _session.Config.MediaIndexMaxThreads),
             AudioCacheLimits = () => new((long)_session.Config.AudioProbeCacheLimitMiB * 1024 * 1024, _session.Config.AudioProbeCacheEntries),
@@ -209,7 +209,7 @@ public partial class MainWindow
     {
         IReadOnlyList<FavoriteEntry> favorites = _session.GetFavorites();
         if (!favorites.Any(entry => BooruMediaIdentity.IsBooruThread(entry.Key.Thread))
-            || MediaContentBoundary.RatingFilter(_session.ReadLocalMediaContentProfile()) is not { } filter)
+            || MediaContentBoundary.RatingFilter(_session.ReadEffectiveBooruContent()) is not { } filter)
             return favorites;
         MediaContentBoundary boundary = new(filter, _session.ReadBooruCatalog);
         return favorites.Where(entry => boundary.Allows(entry.Key.Thread)).ToArray();

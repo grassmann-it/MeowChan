@@ -51,6 +51,5 @@ namespace MeowChan.Desktop
     {
         internal Booru.BooruWorkspaceContent LocalMediaContent => Booru.BooruWorkspaceContent.ForProfile(_profileLease);
         internal BooruCatalogStore? LocalMediaCatalog => _registry.BooruCatalog;
-        internal BooruContentProfileSnapshot ReadLocalMediaContentProfile() => ReadBooruContentProfile();
     }
 }

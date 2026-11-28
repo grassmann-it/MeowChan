@@ -27,8 +27,8 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private readonly GalleryFavoriteCommandQueue<FavoriteAssetKey> _favoriteChanges = new();
-    private MediaContentBoundary? ReadLocalGalleryBoundary() =>
-        MediaContentBoundary.RatingFilter(_session.ReadLocalMediaContentProfile()) is { } filter
+    internal MediaContentBoundary? ReadLocalGalleryBoundary() =>
+        MediaContentBoundary.RatingFilter(_session.ReadEffectiveBooruContent()) is { } filter
             ? new MediaContentBoundary(filter, _session.ReadBooruCatalog) : null;
 
     private bool AllowsLocalGalleryEntry(GalleryEntry entry) =>
