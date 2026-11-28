@@ -272,6 +272,7 @@ internal sealed record QuickTagAssignment(PrivateTagDefinition Tag, TagToggleSta
 internal sealed class QuickTagSession : IDisposable
 {
     private readonly List<TagDialogChange> _undo = new();
+    private Func<MediaTagSubject, bool>? _canUndoSubject;
     // Where each step was made (the target and the host's name for it), so an undo can say when it reaches another medium.
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TagDialogChange, StepOrigin> _origins = new();
     private IQuickTagTarget _target;
@@ -318,6 +319,14 @@ internal sealed class QuickTagSession : IDisposable
     internal event Action? Updated;
     /// <summary>Every accepted change (not undos): the recently-used memory of the context ranking listens here.</summary>
     internal event Action<TagDialogChange>? Applied;
+
+    internal void RetainUndoSubjects(Func<MediaTagSubject, bool> canUndoSubject)
+    {
+        _canUndoSubject = canUndoSubject;
+        _status = QuickTagStatus.None;
+        if (!_joining) Trim();
+        Updated?.Invoke();
+    }
 
     /// <summary>
     /// Writes to another target from now on (the gallery panel follows the shown medium; marking turns it into a selection).
@@ -661,6 +670,7 @@ internal sealed class QuickTagSession : IDisposable
 
     private void Trim()
     {
+        if (_canUndoSubject is { } canUndoSubject) _undo.RemoveAll(step => !step.Subjects.All(canUndoSubject));
         if (_undo.Count > UndoDepth) _undo.RemoveRange(0, _undo.Count - UndoDepth);
     }
 

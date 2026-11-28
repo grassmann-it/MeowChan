@@ -691,8 +691,8 @@ public sealed class GalleryRatingKeyTests : IDisposable
         // With the panel open the key rates the panel's targets with undo; without it the old path rates the shown medium.
         Assert.Contains("if (_tagPanelOpen && _tagController?.Decisions != null) { RequestDecisionRating(value); return; }", panel);
         Assert.Contains("RatingSetRequested?.Invoke(_entry, value);", panel);
-        // The targets are read when the request is made.
-        Assert.Contains("run(decisions, controller.DecisionTargets())", panel);
+        // The request takes the current targets and the token cancelled when the content filter replaces them.
+        Assert.Contains("run(decisions, controller.DecisionTargets(), controller.WriteToken)", panel);
         // A click on the row keeps the focus in the tag field when it was there.
         Assert.Contains("FieldFocused = () => surface.Input.IsKeyboardFocusWithin", panel);
         Assert.Contains("surface.ExtraUndo = controller.ExtraUndo;", panel);

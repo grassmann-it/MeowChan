@@ -149,18 +149,40 @@ public sealed class BooruMd5LookupTests
         Assert.Equal(blocked.EntryKey, viewer.Filmstrip.EntryAt(0)!.EntryKey);
         Assert.Equal(0, viewer.Filmstrip.CurrentIndex);
         Assert.True(viewer.TagsButton.IsEnabled);
-        Click(viewer.TagsButton);
+        Click(viewer.ModeTagButton);
+        Assert.True(viewer.IsTagMode);
         QuickTagSurface surface = Assert.IsType<QuickTagSurface>(viewer.TagSurface);
+        GalleryTagPanelController controller = Assert.IsType<GalleryTagPanelController>(viewer.TagPanelController);
+        Assert.True(surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.Next)));
+        await BooruTestSupport.WaitAsync(() => controller.Entry.EntryKey == allowed.EntryKey, "the panel to show the allowed image");
+        await surface.Session.AddAsync("before_filter");
+        Assert.Single(surface.Session.UndoSteps);
+        Assert.True(Assert.IsType<GalleryDecisionRow>(viewer.DecisionRow).RequestRating(3));
+        await BooruTestSupport.WaitAsync(() => controller.Decisions?.UndoSteps.Count == 1 && controller.Decisions.CanUndo,
+            "the rating of the allowed image to be saved");
+        Assert.Equal(3, session.GetMediaRating(allowedRating));
+        Assert.True(surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.Previous)));
+        await BooruTestSupport.WaitAsync(() => controller.Entry.EntryKey == blocked.EntryKey, "the panel to return to the image to mark");
         Assert.True(surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.MarkNext)));
         await BooruTestSupport.WaitAsync(() => viewer.TagPanelController?.Entry.EntryKey == allowed.EntryKey, "the tag panel to follow the allowed image");
         Assert.Equal(1, viewer.Filmstrip.CurrentIndex);
         Assert.Equal(1, surface.MarkedCount);
         Assert.True(surface.Session.IsSelection);
-        GalleryTagPanelController controller = Assert.IsType<GalleryTagPanelController>(viewer.TagPanelController);
         Assert.Equal(blocked.EntryKey, Assert.Single(controller.DecisionTargets()).EntryKey);
+        await surface.Session.AddAsync("blocked_before_filter");
+        await surface.Session.RemoveAsync(surface.Session.UndoSteps[^1].Tag);
+        Assert.Equal(3, surface.Session.UndoSteps.Count);
         Assert.True(Assert.IsType<GalleryDecisionRow>(viewer.DecisionRow).RequestRating(2));
-        await BooruTestSupport.WaitAsync(() => controller.Decisions?.CanUndo == true, "the rating of the marked image to be saved");
+        await BooruTestSupport.WaitAsync(() => controller.Decisions?.UndoSteps.Count == 2 && controller.Decisions.CanUndo,
+            "the rating of the marked image to be saved");
         Assert.Equal(2, session.GetMediaRating(blockedRating));
+        main.UpdateLayout();
+        Assert.True(surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.ThreadSection)));
+        GalleryThreadTagSection threadSection = ThreadSection(surface);
+        Assert.True(threadSection.IsVisible);
+        Assert.Equal(allowed.Key.Thread, threadSection.Model?.Thread);
+        threadSection.Input.Text = "thread draft";
+        surface.Input.Text = "media draft";
         int generation = viewer.MediaRequestGeneration;
 
         BooruMd5Lookup lookup = Assert.IsType<BooruMd5Lookup>(MainWindow.Md5LookupFor(main));
@@ -191,21 +213,43 @@ public sealed class BooruMd5LookupTests
         Assert.Empty(Assert.IsType<GalleryMarks>(viewer.Marks).Snapshot());
         QuickTagSurface filteredSurface = Assert.IsType<QuickTagSurface>(viewer.TagSurface);
         GalleryTagPanelController filteredController = Assert.IsType<GalleryTagPanelController>(viewer.TagPanelController);
+        Assert.True(viewer.IsTagMode);
+        Assert.Equal("media draft", filteredSurface.Input.Text);
+        main.UpdateLayout();
+        GalleryThreadTagSection filteredThread = ThreadSection(filteredSurface);
+        Assert.True(filteredThread.IsVisible);
+        Assert.True(filteredThread.IsEffectivelyVisible);
+        Assert.Equal(allowed.Key.Thread, filteredThread.Model?.Thread);
+        Assert.Equal("thread draft", filteredThread.Input.Text);
         Assert.Equal(0, filteredSurface.MarkedCount);
         Assert.False(filteredSurface.Session.IsSelection);
         Assert.Equal(allowed.EntryKey, Assert.Single(filteredController.DecisionTargets()).EntryKey);
+        Assert.Single(filteredSurface.Session.UndoSteps);
+        Assert.Equal(allowed.EntryKey, Assert.Single(Assert.Single(filteredController.Decisions!.UndoSteps).Changes).Entry.EntryKey);
         await filteredSurface.UndoAsync();
+        Assert.Null(session.GetMediaRating(allowedRating));
         Assert.Equal(2, session.GetMediaRating(blockedRating));
+        await filteredSurface.UndoAsync();
+        Assert.Empty(filteredSurface.Session.UndoSteps);
+        PrivateTagStoreSnapshot afterUndo = Assert.IsType<PrivateTagStoreSnapshot>(session.GetPrivateTagSnapshot().Snapshot);
+        Assert.Empty(afterUndo.TagsOf(MediaTagSubjects.Of(allowed)!));
 
         Assert.True(Assert.IsType<GalleryDecisionRow>(viewer.DecisionRow).RequestRating(4));
         await BooruTestSupport.WaitAsync(() => session.GetMediaRating(allowedRating) == 4, "the rating of the allowed image to be saved");
         Assert.Equal(2, session.GetMediaRating(blockedRating));
         await filteredSurface.Session.AddAsync("after_filter");
+        Assert.Single(filteredSurface.Session.UndoSteps);
         PrivateTagStoreSnapshot tags = Assert.IsType<PrivateTagStoreSnapshot>(session.GetPrivateTagSnapshot().Snapshot);
         Assert.Equal("after_filter", Assert.Single(tags.TagsOf(MediaTagSubjects.Of(allowed)!)).Name.Display);
         Assert.Empty(tags.TagsOf(MediaTagSubjects.Of(blocked)!));
+        viewer.CloseTagPanel();
+        Assert.False(viewer.IsTagPanelOpen);
+        Assert.False(viewer.IsTagMode);
 
         static bool IsTabLimitNotice(Window window) => AutomationProperties.GetAutomationId(window) == "BooruMd5TabLimit";
+
+        static GalleryThreadTagSection ThreadSection(QuickTagSurface tags) =>
+            Assert.Single(Assert.IsType<StackPanel>(tags.ExtraContent).Children.OfType<GalleryThreadTagSection>());
 
         async Task<GalleryEntry> SaveEntryAsync(BooruPostKey post, int marker)
         {

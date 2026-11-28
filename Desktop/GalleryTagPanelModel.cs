@@ -160,6 +160,7 @@ internal sealed class GalleryTagPanelController : IDisposable
     private int _selectionRevision = -1;
     private GalleryTagNeighbourSubjects? _neighbours;
     private CancellationTokenSource? _fill;
+    private CancellationTokenSource _writes = new();
     private bool _disposed;
     // When each tag step was made, on the order shared with the decision steps (one undo key serves both stacks, newest first).
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TagDialogChange, System.Runtime.CompilerServices.StrongBox<long>> _tagStamps = new();
@@ -199,6 +200,7 @@ internal sealed class GalleryTagPanelController : IDisposable
     }
 
     internal QuickTagSession Session { get; }
+    internal CancellationToken WriteToken => _writes.Token;
     /// <summary>Favorite and rating of the panel's targets with their own undo stack; null when the owner offers neither.</summary>
     internal GalleryDecisionSession? Decisions { get; }
     /// <summary>The stamp of the newest tag step (the order shared with favorite, rating and queue steps); 0 without one.</summary>
@@ -221,6 +223,29 @@ internal sealed class GalleryTagPanelController : IDisposable
     internal string? UnavailableReason { get; private set; }
     /// <summary>The media marked for one tag change. While it has any, the session writes to them all, whichever medium is shown.</summary>
     internal GalleryMarks Marks { get; }
+
+    internal void RestrictToEntries(IReadOnlyList<GalleryEntry> entries)
+    {
+        // Stop commands bound to the previous selection, including queued decision writes.
+        using CancellationTokenSource previousWrites = _writes;
+        _writes = new CancellationTokenSource();
+        previousWrites.Cancel();
+        _selection = null;
+
+        // Keep complete undo steps in their original order. A grouped change is one undo step.
+        Decisions?.RetainUndoEntries(entries.Select(entry => entry.EntryKey).ToHashSet());
+        HashSet<MediaTagSubject> subjects = new();
+        foreach (GalleryEntry entry in entries)
+        {
+            if (_owner.SubjectOf(entry, out _) is { } subject) subjects.Add(WithoutRegistration(subject));
+        }
+        // A local registration may have been created by the change itself. Match its observation here and
+        // leave the recorded registration on the undo step for the tag store to verify.
+        Session.RetainUndoSubjects(subject => subjects.Contains(WithoutRegistration(subject)));
+
+        static MediaTagSubject WithoutRegistration(MediaTagSubject subject) =>
+            subject is MediaTagSubject.Local { Expected: not null } local ? local with { Expected = null } : subject;
+    }
 
     private IQuickTagTarget Resolve(GalleryEntry entry, out string? reason)
     {
@@ -362,6 +387,8 @@ internal sealed class GalleryTagPanelController : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _writes.Cancel();
+        _writes.Dispose();
         try { _fill?.Cancel(); } catch (ObjectDisposedException) { }
         Suggestions.Dispose();
         Session.Applied -= OnApplied;
@@ -386,7 +413,7 @@ internal sealed class GalleryTagPanelController : IDisposable
         }
         public async Task<string?> UndoAsync()
         {
-            GalleryDecisionStatus status = await owner.Decisions!.UndoAsync();
+            GalleryDecisionStatus status = await owner.Decisions!.UndoAsync(owner.WriteToken);
             return status.Kind == GalleryDecisionStatusKind.None ? null : status.Text();
         }
         public event Action? Changed { add => owner.Decisions!.Updated += value; remove => owner.Decisions!.Updated -= value; }

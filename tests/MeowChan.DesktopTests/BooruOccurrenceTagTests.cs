@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -80,8 +81,10 @@ public sealed class BooruOccurrenceTagTests
         Assert.Equal("unchanged", await clipboard.TryGetTextAsync());
         Assert.True(north.IsEffectivelyVisible);
         Assert.True(copyNorth.Focus());
-        Assert.True(window.FocusManager!.TryMoveFocus(NavigationDirection.Previous));
-        Assert.True(showChan.IsFocused);
+        // Exercise the same keyboard traversal as the modeless window.
+        window.KeyPress(Key.Tab, RawInputModifiers.Shift, PhysicalKey.Tab, null);
+        window.KeyRelease(Key.Tab, RawInputModifiers.Shift, PhysicalKey.Tab, null);
+        Assert.Same(showChan, window.FocusManager?.GetFocusedElement());
 
         SaveRules(lease, BooruPostClaimRating.Sensitive, [new(North.SourceId, North.InstanceId, "north_tag")]);
         await BooruTestSupport.WaitAsync(() => !north.IsEffectivelyVisible, "the instance rule to remove the tags");

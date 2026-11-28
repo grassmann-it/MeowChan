@@ -722,6 +722,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal CancellationToken WriteToken { get; set; }
     internal Func<CancellationToken, Task<bool>>? VerifyBeforeWriteAsync { get; set; }
 
+    internal void ResetWriteContext(CancellationToken token)
+    {
+        WriteToken = token;
+        _deferredAdd = null;
+        _notice = null;
+    }
+
     internal event Action? CloseRequested;
     /// <summary>The marks button was pressed: the host clears its marks and retargets the surface.</summary>
     internal event Action? MarksClearRequested;
@@ -1213,8 +1220,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 if (_session.Snapshot != null) _deferredAdd = (name, thenNext);
                 return false;
             }
-            await Guard(() => _session.AddAsync(name, WriteToken), "tags.quick.add");
-            if (_disposed || _session.Status.IsError) return false;
+            CancellationToken token = WriteToken;
+            await Guard(() => _session.AddAsync(name, token), "tags.quick.add");
+            if (_disposed || token.IsCancellationRequested || _session.Status.IsError) return false;
             if (string.Equals(_input.Text, name, StringComparison.Ordinal)) _input.Text = string.Empty;
         }
         if (thenNext) NavigationRequested?.Invoke(QuickTagNavigation.Next);

@@ -495,14 +495,19 @@ public sealed class GalleryFilmstripTests : IDisposable
         string viewer = Source("Desktop/GalleryViewer.cs");
 
         // Contract: the verified player's generation-fenced LengthChanged callback publishes a duration,
-        // the viewer subscribes once, and the selected filmstrip slot receives both reset and value.
+        // the viewer subscribes once, and a new selection starts without a duration. Filtering around
+        // the same video keeps its known length while the filmstrip is rebuilt at the new index.
         Assert.Contains("internal event Action<TimeSpan?>? DurationChanged;", player);
         Assert.Contains("_length = 0; DurationChanged?.Invoke(null); UpdateTime(0);", player);
         Assert.Contains("DurationChanged?.Invoke(TimeSpan.FromMilliseconds(args.Length));", player);
         Assert.Contains("_video.DurationChanged += OnVideoDurationChanged;", viewer);
-        Assert.Contains("_filmstrip.SetDuration(index, null);", filmstrip);
+        Assert.Contains("IReadOnlyList<GalleryEntry> list, TimeSpan? duration = null)", filmstrip);
+        Assert.Contains("FilmstripShown(entry, associations);", viewer);
+        Assert.Contains("TimeSpan? duration = _filmstrip.DurationAt(_filmstrip.CurrentIndex);", viewer);
+        Assert.Contains("FilmstripShown(current, entries, duration);", viewer);
+        Assert.Contains("_filmstrip.SetDuration(index, duration);", filmstrip);
         Assert.Contains("_filmstrip.SetDuration(_filmstrip.CurrentIndex, duration);", filmstrip);
-        Assert.True(filmstrip.IndexOf("_filmstrip.SetDuration(index, null);", StringComparison.Ordinal)
+        Assert.True(filmstrip.IndexOf("_filmstrip.SetDuration(index, duration);", StringComparison.Ordinal)
             < filmstrip.IndexOf("_filmstrip.SetDuration(_filmstrip.CurrentIndex, duration);", StringComparison.Ordinal));
     }
 

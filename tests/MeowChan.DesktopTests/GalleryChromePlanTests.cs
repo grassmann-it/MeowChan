@@ -420,6 +420,7 @@ public sealed class GalleryChromePlanTests
         // runs through ReleaseTagPanel; that is where a Tag mode without a walk ends, so the switch shows View and Tag opens the panel again.
         string panel = Source("Desktop/GalleryViewer.TagPanel.cs");
         int release = panel.IndexOf("private bool ReleaseTagPanel()", StringComparison.Ordinal);
+        Assert.True(release >= 0, "Closing the tag panel must have a release path.");
         string releaseBody = panel[release..panel.IndexOf("return true;", release, StringComparison.Ordinal)];
         Assert.Contains("EndFreeTagModeWithPanel();", releaseBody);
         Assert.Contains("surface.CloseRequested += CloseTagPanel;", panel);

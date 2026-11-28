@@ -120,6 +120,7 @@ internal sealed class GalleryDecisionSession : IDisposable
     private static long _stamp;
     private readonly IGalleryDecisionOwner _owner;
     private readonly List<GalleryDecisionStep> _undo = new();
+    private IReadOnlySet<GalleryEntryKey>? _undoEntries;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private int _running;
@@ -145,6 +146,16 @@ internal sealed class GalleryDecisionSession : IDisposable
 
     /// <summary>Raised after every change of the stack or the busy state, on the thread that caused it.</summary>
     internal event Action? Updated;
+
+    internal void RetainUndoEntries(IReadOnlySet<GalleryEntryKey> entries)
+    {
+        _undoEntries = entries;
+        _undo.RemoveAll(step => !CanKeepUndoStep(step));
+        Updated?.Invoke();
+    }
+
+    private bool CanKeepUndoStep(GalleryDecisionStep step) =>
+        _undoEntries == null || step.Changes.All(change => _undoEntries.Contains(change.Entry.EntryKey));
 
     /// <summary>The aggregate of the targets the owner can read; Unavailable when it can read none.</summary>
     internal GalleryDecisionView View(IReadOnlyList<GalleryEntry> targets)
@@ -262,6 +273,7 @@ internal sealed class GalleryDecisionSession : IDisposable
                     catch (Exception error) when (error is not OutOfMemoryException) { }
                     if (Read(change.Entry) == back) restored++; else failed++;
                 }
+                if (linked.IsCancellationRequested) return GalleryDecisionStatus.None;
                 if (restored > 0 || failed == 0) _undo.Remove(step);
                 Status = failed > 0
                     ? new GalleryDecisionStatus(GalleryDecisionStatusKind.Failed, Files: step.Changes.Count, Skipped: failed)
@@ -276,6 +288,7 @@ internal sealed class GalleryDecisionSession : IDisposable
 
     private void Push(GalleryDecisionStep step)
     {
+        if (!CanKeepUndoStep(step)) return;
         _undo.Add(step);
         if (_undo.Count > UndoDepth) _undo.RemoveRange(0, _undo.Count - UndoDepth);
     }

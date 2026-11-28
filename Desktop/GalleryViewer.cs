@@ -333,7 +333,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         SetAssociationIndex(entries, revision);
         if (_filmstrip.IsKeyboardFocusWithin) FocusGallerySurface();
         FilmstripShown(current, entries, duration);
-        RefreshTagPanelEntries(entries);
+        RefreshTagPanelEntries(current, entries);
         UpdateContext();
     }
 
