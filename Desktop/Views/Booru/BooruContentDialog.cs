@@ -19,6 +19,12 @@ internal sealed class BooruContentDialog : Window
     {
         Title = Texts.T("booru.content.title");
         DialogWindow.Configure(this, DialogSize.M, modal: true, heightToContent: true);
+        bool readOnly = snapshot.State is BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported;
+        TextBlock header = new()
+        {
+            Text = readOnly ? Texts.T("booru.content.readError", BooruContentProfileStore.FileName) : Texts.T("booru.content.prompt"),
+            TextWrapping = TextWrapping.Wrap
+        };
         BooruPostClaimRating[] ratings =
             [BooruPostClaimRating.General, BooruPostClaimRating.Sensitive, BooruPostClaimRating.Questionable, BooruPostClaimRating.Explicit];
         ComboBox maximum = new()
@@ -28,7 +34,7 @@ internal sealed class BooruContentDialog : Window
             SelectedIndex = Array.IndexOf(ratings, snapshot.Settings.MaximumRating ?? BooruPostClaimRating.Sensitive)
         };
         AutomationProperties.SetAutomationId(maximum, "BooruContentMaximum");
-        AutomationProperties.SetName(maximum, Texts.T("booru.content.prompt"));
+        AutomationProperties.SetLabeledBy(maximum, header);
         TextBox blacklist = new()
         {
             Text = snapshot.Settings.GlobalBlacklist,
@@ -48,27 +54,23 @@ internal sealed class BooruContentDialog : Window
         status.Classes.Add("workspace-error");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
         void SetStatus(string text) { status.Text = text; status.IsVisible = !string.IsNullOrEmpty(text); }
-        long revision = snapshot.Revision;
-        bool readOnly = snapshot.State is not (BooruContentProfileState.Missing or BooruContentProfileState.Ready);
         if (readOnly)
         {
-            // An unreadable or incompatible document can never be saved: no dead "save" action, only the message and a way out.
             maximum.IsEnabled = blacklist.IsEnabled = false;
             confirm.IsVisible = false;
             cancel.Classes.Add("primary");
-            SetStatus(Texts.T("booru.content.saveError"));
         }
         cancel.Click += (_, _) => Close(false);
         confirm.Click += async (_, _) =>
         {
-            if (_busy || maximum.SelectedIndex < 0) return;
+            if (readOnly || _busy || maximum.SelectedIndex < 0) return;
             _busy = true;
             maximum.IsEnabled = blacklist.IsEnabled = confirm.IsEnabled = cancel.IsEnabled = false;
             bool saved = false;
             try
             {
                 await save(snapshot.Settings with { MaximumRating = ratings[maximum.SelectedIndex], GlobalBlacklist = blacklist.Text ?? "" },
-                    revision);
+                    snapshot.Revision);
                 saved = true;
             }
             catch (BooruContentRuleException error)
@@ -77,8 +79,8 @@ internal sealed class BooruContentDialog : Window
             }
             catch (BooruContentRevisionException error)
             {
-                // The document changed on disk: the next explicit confirmation saves the shown values on top of it.
-                revision = error.CurrentRevision;
+                // Keep the visible edits and base the next save on the rules read during the revision check.
+                snapshot = error.Current;
                 SetStatus(Texts.T("booru.content.saveError"));
             }
             catch (Exception error) when (error is not OutOfMemoryException)
@@ -98,11 +100,12 @@ internal sealed class BooruContentDialog : Window
         Opened += (_, _) => { if (readOnly) cancel.Focus(); else maximum.Focus(); };
         StackPanel body = new()
         {
+            IsVisible = !readOnly,
             Spacing = 8,
             Margin = new Thickness(16, 0, 16, 16),
             Children = { maximum, new TextBlock { Text = Texts.T("booru.content.blacklist") }, blacklist }
         };
-        DialogWindow.Frame(this, DialogFrame.Build(new TextBlock { Text = Texts.T("booru.content.prompt"), TextWrapping = TextWrapping.Wrap },
+        DialogWindow.Frame(this, DialogFrame.Build(header,
             body, DialogFooter.Build(confirm, new Control[] { cancel }), DialogFrame.ErrorStrip(status)), modal: true);
     }
 }

@@ -39,6 +39,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal const string ModeName = "BooruMode";
     internal const string InputName = "BooruInput";
     internal const string LocalTagsName = "BooruLocalTagSuggestions";
+    internal const string LocalTagStatusName = "BooruLocalTagSuggestionStatus";
     internal const string LocalTagPrefix = "BooruLocalTagSuggestion:";
     internal const string SubmitName = "BooruSubmit";
     internal const string CancelName = "BooruCancel";
@@ -98,6 +99,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly Func<BooruCatalogSnapshot?>? _readLocalTagCatalog;
     private readonly Popup _localTagPopup = new() { Placement = PlacementMode.BottomEdgeAlignedLeft, ShouldUseOverlayLayer = true };
     private readonly TextBlock _localTagTitle = new() { Classes = { "workspace-meta" } };
+    private readonly TextBlock _localTagStatus = new()
+    {
+        Width = 1, Height = 1, Opacity = 0, IsHitTestVisible = false, Focusable = false,
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top
+    };
     private readonly StackPanel _localTagRows = new();
     private LocalTagDraft? _localTagDraft;
     private bool _localTagRefreshQueued;
@@ -441,7 +447,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         StackPanel tab = new() { Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         tab.Children.Add(BuildSourcePicker());
-        tab.Children.Add(new Panel { Children = { searchToolbar, BuildLocalTagPopup() } });
+        // Keep the live region in the search surface so its automation peer survives popup dismissal.
+        AutomationProperties.SetAutomationId(_localTagStatus, LocalTagStatusName);
+        AutomationProperties.SetLiveSetting(_localTagStatus, AutomationLiveSetting.Polite);
+        tab.Children.Add(new Panel { Children = { searchToolbar, _localTagStatus, BuildLocalTagPopup() } });
         AutomationProperties.SetLiveSetting(_inputIssue, AutomationLiveSetting.Polite);
         tab.Children.Add(_inputIssue);
         tab.Children.Add(_noticeHost);
@@ -596,11 +605,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
                 Control selected = _localTagRows.Children[_localTagSelection];
                 selected.Classes.Add("primary");
                 selected.BringIntoView();
+                _localTagStatus.Text = AutomationProperties.GetName(selected);
             }
-            // Screen readers hear the highlighted suggestion through the popup's name; no selection restores the plain title.
-            string title = Texts.T("booru.suggest.local");
-            AutomationProperties.SetName(_localTagPopup.Child!, _localTagSelection >= 0
-                ? title + ": " + AutomationProperties.GetName(_localTagRows.Children[_localTagSelection]) : title);
+            else _localTagStatus.Text = draft.Text;
             return true;
         }
         // Tab and Enter take a suggestion only after the user actively chose one; otherwise Tab moves on normally.
@@ -628,6 +635,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _localTagSelection = -1;
         _localTagPopup.IsOpen = false;
         _localTagRows.Children.Clear();
+        _localTagStatus.Text = null;
     }
 
     internal const string CatalogStorageName = "BooruCatalogStorage";

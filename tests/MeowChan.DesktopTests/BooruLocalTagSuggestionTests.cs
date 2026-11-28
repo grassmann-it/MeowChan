@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -74,31 +75,51 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TabCompletesOnlyAnActivelyChosenSuggestionAndUpReturnsToTheRawText() => BooruComponentDispatcher.Run(async () =>
+    public void TabMovesFocusWithoutASelectionAndUpReturnsToTheRawText() => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.SetLanguage("en");
         BooruUiHarness harness = new();
         BooruCatalogSnapshot snapshot = Snapshot([Post(Danbooru, 101, Tag("cat"))]);
         using SearchFixture fixture = new(new BooruWorkbenchModel(harness.Services), () => snapshot);
-        fixture.Type("ca");
+        fixture.Type("c");
         await fixture.WaitForTag("cat");
-        string title = AutomationProperties.GetName(fixture.Popup!);
+        Assert.Equal("From your catalog", AutomationProperties.GetName(fixture.Popup!));
+        AutomationPeer live = ControlAutomationPeer.CreatePeerForElement(fixture.LocalTagStatus);
+        Assert.Equal(AutomationLiveSetting.Polite, live.GetLiveSetting());
+        Assert.False(live.IsOffscreen());
 
-        // Nothing chosen yet: Tab must not take the first suggestion.
+        Assert.True(fixture.Input.IsKeyboardFocusWithin);
         fixture.Press(PhysicalKey.Tab);
-        Assert.Equal("ca", fixture.Input.Text);
+        Assert.Equal("c", fixture.Input.Text);
+        Assert.NotNull(fixture.FocusedElement);
+        Assert.False(fixture.Input.IsKeyboardFocusWithin);
+        Assert.Null(fixture.Popup);
 
         fixture.Type("ca");
         await fixture.WaitForTag("cat");
+        List<string?> announcements = [];
+        live.PropertyChanged += (_, change) =>
+        {
+            if (change.Property == AutomationElementIdentifiers.NameProperty)
+                announcements.Add(change.NewValue as string);
+        };
         fixture.Press(PhysicalKey.ArrowDown);
-        Assert.Contains("cat", AutomationProperties.GetName(fixture.Popup!));
-        Assert.NotEqual(title, AutomationProperties.GetName(fixture.Popup!));
+        string? selectedName = AutomationProperties.GetName(fixture.Row("cat")!);
+        Assert.Contains("cat", selectedName);
+        Assert.Equal(selectedName, live.GetName());
+        Assert.Equal(selectedName, Assert.Single(announcements));
+        Assert.True(fixture.Input.IsKeyboardFocusWithin);
         fixture.Press(PhysicalKey.ArrowUp);
-        Assert.Equal(title, AutomationProperties.GetName(fixture.Popup!));
+        Assert.Equal("ca", live.GetName());
+        Assert.Equal(new[] { selectedName, "ca" }, announcements);
+        Assert.True(fixture.Input.IsKeyboardFocusWithin);
         Assert.DoesNotContain("primary", fixture.Row("cat")!.Classes);
         fixture.Press(PhysicalKey.Tab);
         Assert.Equal("ca", fixture.Input.Text);
+        Assert.NotNull(fixture.FocusedElement);
+        Assert.False(fixture.Input.IsKeyboardFocusWithin);
+        Assert.Null(fixture.Popup);
         Assert.Equal(0, harness.ProviderRequests);
     });
 
@@ -115,6 +136,9 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
         Assert.Equal("From your catalog", AutomationProperties.GetName(fixture.Popup!));
         fixture.Press(PhysicalKey.ArrowDown);
         fixture.Press(PhysicalKey.ArrowDown);
+        Assert.Contains("primary", fixture.Row("calf")!.Classes);
+        fixture.Press(PhysicalKey.ArrowUp);
+        Assert.Contains("primary", fixture.Row("cat")!.Classes);
         fixture.Press(PhysicalKey.Tab);
         Assert.Equal("base  -cat", fixture.Input.Text);
         Assert.Null(fixture.Popup);
@@ -260,6 +284,8 @@ public sealed class BooruLocalTagSuggestionTests(ITestOutputHelper output)
         internal BooruWorkbenchView View { get; }
         internal SearchBox Input { get; }
         internal Control? Popup => ById<Border>(BooruWorkbenchView.LocalTagsName);
+        internal TextBlock LocalTagStatus => Assert.IsType<TextBlock>(ById<TextBlock>(BooruWorkbenchView.LocalTagStatusName));
+        internal IInputElement? FocusedElement => _window.FocusManager?.GetFocusedElement();
 
         internal SearchFixture(BooruWorkbenchModel model, Func<BooruCatalogSnapshot?> read)
         {

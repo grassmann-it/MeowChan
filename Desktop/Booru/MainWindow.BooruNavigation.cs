@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
@@ -29,9 +30,26 @@ public partial class MainWindow
         {
             try
             {
-                BooruContentDialog dialog = new(content.Snapshot, _session.SaveBooruContentAsync);
-                if (await dialog.ShowDialog<bool>(this) && !_isClosing && CanOpenBooru)
+                BooruContentProfileSnapshot previous = content.Snapshot;
+                BooruContentProfileSnapshot snapshot = await _session.ReadBooruContentAsync();
+                if (!IsVisible || !CanOpenBooru || !ReferenceEquals(_session.BooruContent, content)) return;
+                if (confirmed is not null)
+                {
+                    // Resume first navigation as soon as the repaired profile contains a confirmed choice.
+                    if (snapshot.HasChoice) content.PublishIfUnchanged(previous, snapshot);
+                    if (content.HasChoice)
+                    {
+                        confirmed();
+                        return;
+                    }
+                }
+                BooruContentDialog dialog = new(snapshot, _session.SaveBooruContentAsync);
+                if (await dialog.ShowDialog<bool>(this) && CanOpenBooru)
                     confirmed?.Invoke();
+            }
+            catch (ObjectDisposedException) when (_isClosing)
+            {
+                // The background read can reach the profile lease after shutdown has released it.
             }
             finally { _booruContentDialogOpen = false; }
         }, "booru.content.choice");

@@ -13,6 +13,7 @@ internal static class BooruPageCatalog
         ("booru.content.explicit", "All known ratings (g/s/q/e)", "Alle bekannten Einstufungen (g/s/q/e)"),
         ("booru.content.blacklist", "Tag blacklist, one rule per line", "Tag-Blacklist, eine Regel pro Zeile"),
         ("booru.content.save", "Save content rules", "Inhaltsregeln speichern"),
+        ("booru.content.readError", "The Booru content rules could not be read. Repair or restore {0} in this profile, then reopen Booru.", "Die Booru-Inhaltsregeln konnten nicht gelesen werden. Repariere {0} in diesem Profil oder stelle die Datei wieder her. Öffne danach Booru erneut."),
         ("booru.content.saveError", "The Booru content rules could not be saved.", "Die Booru-Inhaltsregeln konnten nicht gespeichert werden."),
         ("booru.content.invalidRule", "Check blacklist rule on line {0}.", "Prüfe die Blacklist-Regel in Zeile {0}."),
         ("booru.content.hidden", "{0} hidden", "{0} ausgeblendet"),

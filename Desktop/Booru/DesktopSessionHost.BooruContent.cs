@@ -9,6 +9,9 @@ internal sealed partial class DesktopSessionHost
 {
     internal BooruWorkspaceContent? BooruContent => BooruServices?.Content;
 
+    internal Task<BooruContentProfileSnapshot> ReadBooruContentAsync() =>
+        Task.Run(() => new BooruContentProfileStore(_profileLease).Load());
+
     internal Task<BooruContentProfileSnapshot> SaveBooruContentAsync(BooruContentSettings settings, long revision) =>
         RunInteractiveWithAdmissionAsync(nameof(SaveBooruContentAsync), "profile", admission =>
         {

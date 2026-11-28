@@ -18,13 +18,15 @@ internal sealed record BooruContentProfileSnapshot(
     BooruContentFilter Filter)
 {
     internal long Revision => Filter.Revision;
+    internal bool HasChoice => State == BooruContentProfileState.Ready && Settings.MaximumRating.HasValue;
 }
 
-internal sealed class BooruContentRevisionException(long expectedRevision, long currentRevision)
+internal sealed class BooruContentRevisionException(long expectedRevision, BooruContentProfileSnapshot current)
     : InvalidOperationException("The Booru content rules changed since they were read.")
 {
     internal long ExpectedRevision { get; } = expectedRevision;
-    internal long CurrentRevision { get; } = currentRevision;
+    internal long CurrentRevision => Current.Revision;
+    internal BooruContentProfileSnapshot Current { get; } = current;
 }
 
 internal sealed class BooruContentRuleException(BooruContentRuleLocation rule)
@@ -74,7 +76,7 @@ internal sealed class BooruContentProfileStore
         if (current.State is not (BooruContentProfileState.Missing or BooruContentProfileState.Ready))
             throw new InvalidOperationException("The current Booru content document is read-only.");
         if (current.Revision != expectedRevision)
-            throw new BooruContentRevisionException(expectedRevision, current.Revision);
+            throw new BooruContentRevisionException(expectedRevision, current);
 
         // Copy the collection before validation and compilation so the saved and published rules agree.
         BooruContentSettings confirmed = CopyAndValidate(settings);

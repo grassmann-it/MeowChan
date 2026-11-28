@@ -20,13 +20,19 @@ internal sealed class BooruWorkspaceContent(BooruContentProfileSnapshot initial)
     private BooruContentProfileSnapshot _snapshot = initial;
 
     internal BooruContentProfileSnapshot Snapshot => Volatile.Read(ref _snapshot);
-    internal bool HasChoice => Snapshot.State == BooruContentProfileState.Ready && Snapshot.Settings.MaximumRating.HasValue;
+    internal bool HasChoice => Snapshot.HasChoice;
     internal event Action? Changed;
 
     internal void Publish(BooruContentProfileSnapshot snapshot)
     {
         Volatile.Write(ref _snapshot, snapshot);
         Changed?.Invoke();
+    }
+
+    internal void PublishIfUnchanged(BooruContentProfileSnapshot previous, BooruContentProfileSnapshot snapshot)
+    {
+        if (ReferenceEquals(Interlocked.CompareExchange(ref _snapshot, snapshot, previous), previous))
+            Changed?.Invoke();
     }
 
     internal bool Allows(BooruPostClaim post) => Snapshot.Filter.Evaluate(post).IsAllowed;
