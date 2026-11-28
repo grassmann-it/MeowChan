@@ -30,17 +30,10 @@ public partial class MainWindow
         {
             try
             {
-                // The editor shows the document; the effective rules only loosen once the user confirms it.
-                BooruContentProfileSnapshot snapshot = await _session.ReadBooruContentForEditAsync(acceptPersistedChoice: confirmed is not null);
+                BooruContentProfileSnapshot snapshot = await _session.ReadBooruContentForEditAsync();
                 if (!IsVisible || !CanOpenBooru || !ReferenceEquals(_session.BooruContent, content)) return;
-                // Resume first navigation as soon as the repaired profile contains a confirmed choice.
-                if (confirmed is not null && content.HasChoice)
-                {
-                    confirmed();
-                    return;
-                }
                 BooruContentDialog dialog = new(snapshot, _session.SaveBooruContentAsync);
-                if (await dialog.ShowDialog<bool>(this) && CanOpenBooru)
+                if (await dialog.ShowDialog<bool>(this) && !_isClosing && CanOpenBooru)
                     confirmed?.Invoke();
             }
             catch (ObjectDisposedException) when (_isClosing)

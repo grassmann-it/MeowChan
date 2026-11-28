@@ -36,11 +36,12 @@ public partial class MainWindow
         Func<MediaLibraryEntry, CancellationToken, Task<string?>> readMd5, CancellationToken token)
     {
         if (entries.Count == 0 || FindMd5BatchSource() is not { } source) return Task.CompletedTask;
+        BooruContentFilter? ReadFilter() => _session.ReadBooruMd5ContentProfile() is { State: BooruContentProfileState.Ready } profile
+            ? profile.Filter : null;
         BooruMd5Batch batch = new(entries, readMd5, source.Search,
             () => _session.Config.BooruMd5BatchEnabled && CanOpenBooru && _session.ActiveBooruServices.Contains(source),
-            _session.ReadBooruMd5ContentFilter, source.Clock, _session.Config.BooruSearchPostsPerPage);
-        _session.ReadBooruMd5ContentFilter();
-        BooruMd5BatchWindow dialog = new(batch, _session.ContentRules, _session.Config.BooruMd5BatchEnabled,
+            ReadFilter, source.Clock, _session.Config.BooruSearchPostsPerPage);
+        BooruMd5BatchWindow dialog = new(batch, ReadFilter() is not null, _session.Config.BooruMd5BatchEnabled,
             enabled => _session.SaveViewPreferencesAsync(config => config.BooruMd5BatchEnabled = enabled), token);
         return dialog.ShowDialog(this);
     }

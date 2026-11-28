@@ -10,7 +10,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.Booru;
 
-internal enum BooruContentProfileState { Missing, Ready, Unsupported, Unreadable, PendingChoice }
+internal enum BooruContentProfileState { Missing, Ready, Unsupported, Unreadable }
 
 internal sealed record BooruContentProfileSnapshot(
     BooruContentProfileState State,
@@ -18,7 +18,6 @@ internal sealed record BooruContentProfileSnapshot(
     BooruContentFilter Filter)
 {
     internal long Revision => Filter.Revision;
-    internal bool HasChoice => State == BooruContentProfileState.Ready && Settings.MaximumRating.HasValue;
 }
 
 internal sealed class BooruContentRevisionException(long expectedRevision, BooruContentProfileSnapshot current)
@@ -77,19 +76,17 @@ internal sealed class BooruContentProfileStore
 
     internal BooruContentProfileSnapshot Load() => _lease.RunExclusive(LoadCore);
 
-    internal BooruContentProfileSnapshot Load(Action<BooruContentProfileSnapshot> onRead) =>
-        _lease.RunExclusive(() => LoadObserved(onRead));
-
     /// <summary>Replaces the whole document at <paramref name="expectedRevision"/>. Editors use <see cref="SaveEditAdmitted"/>.</summary>
     internal BooruContentProfileSnapshot SaveAdmitted(BooruContentSettings settings, long expectedRevision,
         ProfileAdmissionToken admission, CancellationToken cancellationToken = default) => _lease.RunStoreWrite(admission, () =>
     {
         cancellationToken.ThrowIfCancellationRequested();
         BooruContentProfileSnapshot current = LoadCore();
-        EnsureWritable(current);
+        if (current.State is not (BooruContentProfileState.Missing or BooruContentProfileState.Ready))
+            throw new InvalidOperationException("The current Booru content document is read-only.");
         if (current.Revision != expectedRevision)
             throw new BooruContentRevisionException(expectedRevision, current);
-        return WriteNext(current, settings, null, cancellationToken);
+        return WriteNext(current, settings, cancellationToken);
     });
 
     /// <summary>
@@ -99,30 +96,23 @@ internal sealed class BooruContentProfileStore
     /// fields when the user confirms the existing values without editing them.
     /// </summary>
     internal BooruContentProfileSnapshot SaveEditAdmitted(BooruContentEdit edit, ProfileAdmissionToken admission,
-        Action<BooruContentProfileSnapshot>? onRead = null, Action<BooruContentProfileSnapshot>? onSaved = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(edit);
         return _lease.RunStoreWrite(admission, () =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            BooruContentProfileSnapshot current = LoadObserved(onRead);
-            EnsureWritable(current);
-            if (HasEditConflict(current, edit))
+            BooruContentProfileSnapshot current = LoadCore();
+            if (current.State is BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported
+                || HasEditConflict(current, edit))
                 throw new BooruContentRevisionException(edit.Revision, current);
             BooruContentSettings merged = current.Settings with
             {
                 MaximumRating = edit.MaximumRating ?? current.Settings.MaximumRating,
                 GlobalBlacklist = edit.GlobalBlacklist ?? current.Settings.GlobalBlacklist
             };
-            return WriteNext(current, merged, onSaved, cancellationToken);
+            return WriteNext(current, merged, cancellationToken);
         });
-    }
-
-    private static void EnsureWritable(BooruContentProfileSnapshot current)
-    {
-        if (current.State is not (BooruContentProfileState.Missing or BooruContentProfileState.Ready))
-            throw new InvalidOperationException("The current Booru content document is read-only.");
     }
 
     private static bool HasEditConflict(BooruContentProfileSnapshot current, BooruContentEdit edit)
@@ -136,7 +126,7 @@ internal sealed class BooruContentProfileStore
     }
 
     private BooruContentProfileSnapshot WriteNext(BooruContentProfileSnapshot current, BooruContentSettings settings,
-        Action<BooruContentProfileSnapshot>? onSaved, CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         // Copy the collection before validation and compilation so the saved and published rules agree.
         BooruContentSettings confirmed = CopyAndValidate(settings);
@@ -150,15 +140,7 @@ internal sealed class BooruContentProfileStore
 
         _lease.EnsureDirectoryIdentity();
         AtomicJsonFile.ReplaceUnderLease(_path, data, _lease.EnsureDirectoryIdentity, cancellationToken);
-        onSaved?.Invoke(next);
         return next;
-    }
-
-    private BooruContentProfileSnapshot LoadObserved(Action<BooruContentProfileSnapshot>? onRead)
-    {
-        BooruContentProfileSnapshot snapshot = LoadCore();
-        onRead?.Invoke(snapshot);
-        return snapshot;
     }
 
     private BooruContentProfileSnapshot LoadCore()

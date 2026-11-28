@@ -168,6 +168,9 @@ public sealed class BooruContentDialogTests
             Assert.Equal(sourceRule, Assert.Single(afterConflict.Settings.SourceBlacklists));
             Assert.Equal(Texts.T(editRating ? "booru.content.sensitive" : "booru.content.general"), maximum.SelectedItem);
             Assert.Equal(editBlacklist ? "dog" : "fox", blacklist.Text);
+            dialog.UpdateLayout();
+            Assert.Contains(dialog.GetVisualDescendants().OfType<TextBlock>(), block => block.IsEffectivelyVisible
+                && block.Text == Texts.T("booru.content.conflict", Texts.T("booru.content.general"), "fox"));
             Click(confirm);
             BooruComponentDispatcher.WaitUntil(() => !dialog.IsVisible, "the retry to close the dialog");
             Assert.Equal([1L, 2L], revisions);
@@ -183,7 +186,7 @@ public sealed class BooruContentDialogTests
     [Theory]
     [InlineData("{", nameof(BooruContentProfileState.Unreadable))]
     [InlineData("""{"schemaVersion":99}""", nameof(BooruContentProfileState.Unsupported))]
-    public void ReopeningBooruAppliesAnExternallyRepairedDocument(string brokenJson, string expectedState) => BooruComponentDispatcher.Run(async () =>
+    public void ReopeningBooruLoadsAnExternallyRepairedDocumentForConfirmation(string brokenJson, string expectedState) => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -218,16 +221,23 @@ public sealed class BooruContentDialogTests
         await File.WriteAllTextAsync(path, repaired);
         Assert.False(content.HasChoice);
         Click(navigation);
-        await BooruTestSupport.WaitAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Booru, "Booru navigation after repair");
-        Assert.Empty(window.OwnedWindows.OfType<BooruContentDialog>());
-        Assert.True(content.HasChoice);
-        Assert.Equal(2L, content.Snapshot.Revision);
-        Assert.Equal("cat", content.Snapshot.Settings.GlobalBlacklist);
+        await BooruTestSupport.WaitAsync(() => window.OwnedWindows.OfType<BooruContentDialog>().Any(item => item.IsVisible),
+            "the reloaded content rules dialog");
+        BooruContentDialog reloaded = Assert.Single(window.OwnedWindows.OfType<BooruContentDialog>());
+        Assert.Equal(Texts.T("booru.content.general"), ById<ComboBox>(reloaded, "BooruContentMaximum").SelectedItem);
+        Assert.Equal("cat", ById<TextBox>(reloaded, "BooruContentBlacklist").Text);
+        Assert.False(content.HasChoice);
         Assert.Equal(repaired, await File.ReadAllTextAsync(path));
+
+        Click(ById<Button>(reloaded, "BooruContentConfirm"));
+        await BooruTestSupport.WaitAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Booru, "Booru navigation after confirmation");
+        Assert.True(content.HasChoice);
+        Assert.Equal(3L, content.Snapshot.Revision);
+        Assert.Equal("cat", content.Snapshot.Settings.GlobalBlacklist);
     });
 
     [Fact]
-    public void EditingAfterExternalRepairUpdatesActiveResultsEvenWhenCanceled() => BooruComponentDispatcher.Run(async () =>
+    public void EditingShowsExternalRulesAndCancelKeepsTheWorkbenchSnapshot() => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -271,27 +281,25 @@ public sealed class BooruContentDialogTests
         Assert.Equal(Texts.T("booru.content.general"), ById<ComboBox>(dialog, "BooruContentMaximum").SelectedItem);
         TextBox blacklist = ById<TextBox>(dialog, "BooruContentBlacklist");
         Assert.Equal("cat", blacklist.Text);
-        Assert.Equal(2L, content.Snapshot.Revision);
-        Assert.Equal(allowedPost.Identity, Assert.Single(search.View.Rows).Post.Identity);
+        Assert.Equal(1L, content.Snapshot.Revision);
+        Assert.Equal(3, search.View.Rows.Length);
 
         blacklist.Text = "dog";
         Click(ById<Button>(dialog, "BooruContentCancel"));
         await BooruTestSupport.WaitAsync(() => !dialog.IsVisible && navigation.IsEffectivelyEnabled, "the closed dialog");
         Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         Assert.Equal(MainWindow.WorkspacePage.Downloads, window.SelectedPage);
-        Click(BooruNavigation(window));
-        Assert.Equal(MainWindow.WorkspacePage.Booru, window.SelectedPage);
-        Assert.Same(page, window.BooruPageForTests);
+        Assert.Same(page, await OpenWorkbenchAsync(window));
         Assert.Empty(window.OwnedWindows.OfType<BooruContentDialog>());
-        Assert.Equal(allowedPost.Identity, Assert.Single(search.View.Rows).Post.Identity);
-        Assert.False(search.IsMediaAllowed(explicitPost));
-        Assert.False(search.IsMediaAllowed(blacklistedPost));
+        Assert.Equal(3, search.View.Rows.Length);
+        Assert.True(search.IsMediaAllowed(explicitPost));
+        Assert.True(search.IsMediaAllowed(blacklistedPost));
         Assert.True(search.IsMediaAllowed(allowedPost));
         Assert.Equal(repaired, await File.ReadAllTextAsync(path));
     });
 
     [Fact]
-    public void CancelingARevisionConflictKeepsTheNewCeilingAndExistingBlacklistOnNavigation() => BooruComponentDispatcher.Run(async () =>
+    public void CancelingARevisionConflictKeepsThePublishedRulesUntilTheNextSuccessfulSave() => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -329,17 +337,18 @@ public sealed class BooruContentDialogTests
         Assert.True(dialog.IsVisible);
         Assert.Equal(Texts.T("booru.content.general"), ById<ComboBox>(dialog, "BooruContentMaximum").SelectedItem);
         Assert.Equal("dog", ById<TextBox>(dialog, "BooruContentBlacklist").Text);
-        Assert.Equal(2L, content.Snapshot.Revision);
-        Assert.Equal(allowedPost.Identity, Assert.Single(search.View.Rows).Post.Identity);
+        Assert.Equal(1L, content.Snapshot.Revision);
+        Assert.Equal(3, search.View.Rows.Length);
 
         await CancelContentAsync(window, dialog);
         Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         Assert.Equal(MainWindow.WorkspacePage.Downloads, window.SelectedPage);
         Assert.Same(page, await OpenWorkbenchAsync(window));
         await BooruTestSupport.SearchAsync(search, "1girl");
-        Assert.Equal(2L, content.Snapshot.Revision);
-        Assert.Equal(BooruPostClaimRating.General, content.Snapshot.Settings.MaximumRating);
-        Assert.Equal(allowedPost.Identity, Assert.Single(search.View.Rows).Post.Identity);
+        Assert.Equal(1L, content.Snapshot.Revision);
+        Assert.Equal(BooruPostClaimRating.Explicit, content.Snapshot.Settings.MaximumRating);
+        Assert.Equal([explicitPost.Identity, newBlacklistPost.Identity, allowedPost.Identity],
+            search.View.Rows.Select(row => row.Post.Identity));
         Assert.Equal(revised, await File.ReadAllTextAsync(path));
 
         BooruContentDialog reopened = await EditContentAsync(window, page);
@@ -358,7 +367,7 @@ public sealed class BooruContentDialogTests
     [InlineData("""{"schemaVersion":99}""", nameof(BooruContentProfileState.Unsupported), false)]
     [InlineData("{", nameof(BooruContentProfileState.Unreadable), true)]
     [InlineData("""{"schemaVersion":99}""", nameof(BooruContentProfileState.Unsupported), true)]
-    public void AFailedReadBlocksRunningBooruThroughCancelAndNavigationReloadsAfterRepair(
+    public void TheEditorCanBeReopenedAfterTheFileIsRepaired(
         string brokenJson, string expectedState, bool breakDuringSave) => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -401,36 +410,37 @@ public sealed class BooruContentDialogTests
             dialog = await EditContentAsync(window, page);
             Assert.False(ById<Button>(dialog, "BooruContentConfirm").IsVisible);
         }
-        Assert.Equal(expectedState, content.Snapshot.State.ToString());
-        Assert.False(content.HasChoice);
-        Assert.Empty(search.View.Rows);
+        dialog.UpdateLayout();
+        Assert.Contains(dialog.GetVisualDescendants().OfType<TextBlock>(), block => block.IsEffectivelyVisible
+            && block.Text == Texts.T("booru.content.readError", BooruContentProfileStore.FileName));
+        BooruContentProfileSnapshot broken = new BooruContentProfileStore(session.ProfileLeaseForTests).Load();
+        Assert.Equal(expectedState, broken.State.ToString());
+        Assert.Equal(1L, content.Snapshot.Revision);
+        Assert.Equal(2, search.View.Rows.Length);
         await CancelContentAsync(window, dialog);
-        Assert.Empty(search.View.Rows);
-        Assert.False(search.IsMediaAllowed(explicitPost));
-        Assert.False(search.IsMediaAllowed(generalPost));
+        Assert.True(search.IsMediaAllowed(explicitPost));
+        Assert.True(search.IsMediaAllowed(generalPost));
         Assert.Equal(brokenJson, await File.ReadAllTextAsync(path));
 
-        Click(window.FindControl<Button>("DownloadsNavigationButton")!);
-        Assert.Equal(MainWindow.WorkspacePage.Downloads, window.SelectedPage);
         const string repaired = """{"schemaVersion":1,"revision":2,"settings":{"maximumRating":"general","globalBlacklist":"","sourceBlacklists":[]}}""";
         await File.WriteAllTextAsync(path, repaired);
-        Assert.False(content.HasChoice);
-        Assert.Same(page, await OpenWorkbenchAsync(window));
-        Assert.Empty(window.OwnedWindows.OfType<BooruContentDialog>());
-        Assert.True(content.HasChoice);
-        Assert.Equal(2L, content.Snapshot.Revision);
+        BooruContentDialog reopened = await EditContentAsync(window, page);
+        Assert.Equal(Texts.T("booru.content.general"), ById<ComboBox>(reopened, "BooruContentMaximum").SelectedItem);
+        Assert.Equal(1L, content.Snapshot.Revision);
+        Click(ById<Button>(reopened, "BooruContentConfirm"));
+        await BooruTestSupport.WaitAsync(() => !reopened.IsVisible, "the save after reopening");
+        Assert.Equal(3L, content.Snapshot.Revision);
         Assert.Equal(BooruPostClaimRating.General, content.Snapshot.Settings.MaximumRating);
         await BooruTestSupport.SearchAsync(search, "1girl");
         Assert.Equal(generalPost.Identity, Assert.Single(search.View.Rows).Post.Identity);
         Assert.False(search.IsMediaAllowed(explicitPost));
-        Assert.Equal(repaired, await File.ReadAllTextAsync(path));
     });
 
     private static BooruPostClaim Claim(string id, BooruPostClaimRating rating, string raw) =>
         new("danbooru", id, BooruPostClaimPresence.Rating, Rating: rating, RawRating: raw);
 
     [Fact]
-    public void PassiveReadsCannotConfirmAFirstChoiceThatAppearedAfterStartup() => BooruComponentDispatcher.Run(async () =>
+    public void FreshReadsSeeTheFileWhileTheWorkbenchStillRequiresAFirstChoice() => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -446,11 +456,12 @@ public sealed class BooruContentDialogTests
 
         const string appeared = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"general","globalBlacklist":"","sourceBlacklists":[]}}""";
         await File.WriteAllTextAsync(Path.Combine(profile.Path, BooruContentProfileStore.FileName), appeared);
-        BooruContentProfileSnapshot pending = session.ReadEffectiveBooruContent();
-        Assert.Equal(BooruContentProfileState.PendingChoice, pending.State);
-        Assert.False(pending.Filter.Evaluate(Claim("1", BooruPostClaimRating.General, "g")).IsAllowed);
-        Assert.False(MediaContentBoundary.RatingFilter(pending)!.Evaluate(Claim("2", BooruPostClaimRating.Explicit, "e")).IsAllowed);
-        Assert.Null(session.ReadBooruMd5ContentFilter());
+        BooruContentProfileSnapshot media = session.ReadLocalMediaContentProfile();
+        Assert.Equal(BooruContentProfileState.Ready, media.State);
+        Assert.False(MediaContentBoundary.RatingFilter(media)!.Evaluate(Claim("2", BooruPostClaimRating.Explicit, "e")).IsAllowed);
+        BooruContentProfileSnapshot md5 = session.ReadBooruMd5ContentProfile();
+        Assert.Equal(BooruContentProfileState.Ready, md5.State);
+        Assert.True(md5.Filter.Evaluate(Claim("1", BooruPostClaimRating.General, "g")).IsAllowed);
         Assert.False(content.HasChoice);
 
         Button navigation = BooruNavigation(window);
@@ -464,7 +475,7 @@ public sealed class BooruContentDialogTests
         Click(ById<Button>(dialog, "BooruContentConfirm"));
         await BooruTestSupport.WaitAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Booru, "the confirmed Booru workspace");
         Assert.True(content.HasChoice);
-        Assert.NotNull(session.ReadBooruMd5ContentFilter());
+        Assert.Equal(2L, content.Snapshot.Revision);
     });
 
     [Theory]
@@ -472,7 +483,7 @@ public sealed class BooruContentDialogTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task SearchAndTabCaptureIndependentlyReadTheCurrentRestriction(bool capture, bool unreadable)
+    public async Task SearchAndTabCaptureKeepUsingTheWorkbenchSnapshot(bool capture, bool unreadable)
     {
         using TempDirectory profile = new();
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
@@ -502,8 +513,9 @@ public sealed class BooruContentDialogTests
             await BooruTestSupport.SearchAsync(search, "dog");
             actual = search.View.Rows.Select(row => row.Post.PostId).ToArray();
         }
-        Assert.Equal(unreadable ? Array.Empty<string>() : ["2"], actual);
-        Assert.Equal(unreadable ? BooruContentProfileState.Unreadable : BooruContentProfileState.Ready, content.Snapshot.State);
+        Assert.Equal(["1", "2"], actual);
+        Assert.Equal(BooruContentProfileState.Ready, content.Snapshot.State);
+        Assert.Equal(BooruPostClaimRating.Explicit, content.Snapshot.Settings.MaximumRating);
     }
 
     [Theory]
@@ -545,7 +557,7 @@ public sealed class BooruContentDialogTests
     });
 
     [Fact]
-    public void ACanceledExternalLooseningReachesNeitherSavedMediaNorMd5Matches() => BooruComponentDispatcher.Run(async () =>
+    public void CancelKeepsTheWorkbenchSnapshotWhileSavedMediaAndMd5ReadTheFile() => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -572,21 +584,19 @@ public sealed class BooruContentDialogTests
         Assert.Equal(Texts.T("booru.content.explicit"), ById<ComboBox>(dialog, "BooruContentMaximum").SelectedItem);
         await CancelContentAsync(window, dialog);
 
-        BooruContentProfileSnapshot effective = session.ReadEffectiveBooruContent();
-        Assert.Equal(BooruPostClaimRating.General, effective.Settings.MaximumRating);
+        BooruContentProfileSnapshot media = session.ReadLocalMediaContentProfile();
+        Assert.Equal(BooruPostClaimRating.Explicit, media.Settings.MaximumRating);
         Assert.Equal(BooruPostClaimRating.General, content.Snapshot.Settings.MaximumRating);
-        Assert.False(MediaContentBoundary.RatingFilter(effective)!.Evaluate(explicitClaim).IsAllowed);
-        Assert.False(window.ReadLocalGalleryBoundary()!.Allows(savedExplicit));
-        Assert.False(session.ReadBooruMd5ContentFilter()!.Evaluate(explicitClaim).IsAllowed);
-        Assert.True(session.ReadBooruMd5ContentFilter()!.Evaluate(Claim("8", BooruPostClaimRating.General, "g")).IsAllowed);
+        Assert.True(MediaContentBoundary.RatingFilter(media)!.Evaluate(explicitClaim).IsAllowed);
+        Assert.True(window.ReadLocalGalleryBoundary()!.Allows(savedExplicit));
+        Assert.True(session.ReadBooruMd5ContentProfile().Filter.Evaluate(explicitClaim).IsAllowed);
         Assert.Equal(loosened, await File.ReadAllTextAsync(path));
 
         BooruContentDialog confirmed = await EditContentAsync(window, page);
         Click(ById<Button>(confirmed, "BooruContentConfirm"));
         await BooruTestSupport.WaitAsync(() => !confirmed.IsVisible, "the confirmed rules to save");
         Assert.Equal(3L, content.Snapshot.Revision);
-        Assert.True(window.ReadLocalGalleryBoundary()!.Allows(savedExplicit));
-        Assert.True(session.ReadBooruMd5ContentFilter()!.Evaluate(explicitClaim).IsAllowed);
+        Assert.Equal(BooruPostClaimRating.Explicit, content.Snapshot.Settings.MaximumRating);
     });
 
     [Fact]
@@ -620,7 +630,9 @@ public sealed class BooruContentDialogTests
         Click(confirm);
         await BooruTestSupport.WaitAsync(() => confirm.IsEnabled, "the failed save to settle");
         Assert.True(dialog.IsVisible);
-        Assert.Equal(BooruContentProfileState.Unreadable, content.Snapshot.State);
+        Assert.Equal(BooruContentProfileState.Ready, content.Snapshot.State);
+        Assert.Equal(1L, content.Snapshot.Revision);
+        Assert.Equal(2, search.View.Rows.Length);
 
         // The repair keeps revision 1, so only a merge against the document read at save time keeps its new rule.
         const string repaired = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"general","globalBlacklist":"","sourceBlacklists":[{"sourceId":"danbooru","instanceId":"default","blacklist":"bird"}]}}""";
@@ -642,75 +654,46 @@ public sealed class BooruContentDialogTests
         Assert.False(search.IsMediaAllowed(birdPost));
     });
 
-    [Fact]
-    public void EveryConsumerDecidesThroughTheSharedEffectiveRules() => BooruComponentDispatcher.Run(async () =>
-    {
-        using IDisposable platform = BooruReviewTestPlatform.Enter();
-        using TempDirectory profile = new();
-        string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
-        const string loose = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"explicit","globalBlacklist":"","sourceBlacklists":[]}}""";
-        await using DesktopSessionHost session = CreateSession(profile.Path, loose);
-        ProfileLease lease = session.ProfileLeaseForTests;
-        // The fake reports an unreadable document while the file on disk stays readable and loose:
-        // a consumer that read the file itself would still find matches.
-        bool unreadable = false;
-        BooruContentSettings none = new(null, string.Empty, []);
-        BooruContentProfileSnapshot broken = new(BooruContentProfileState.Unreadable, none, new BooruContentFilter(0, none, profileAvailable: false));
-        BooruWorkspaceContent content = new(new BooruContentProfileStore(lease).Load(), lease, (profileLease, onRead) =>
+    [Theory]
+    [InlineData("{", nameof(BooruContentProfileState.Unreadable))]
+    [InlineData("""{"schemaVersion":99}""", nameof(BooruContentProfileState.Unsupported))]
+    public void MediaAndGalleryUseTheRepairedFileAfterItWasMissing(string brokenJson, string initialState) =>
+        BooruComponentDispatcher.Run(async () =>
         {
-            if (!unreadable) return new BooruContentProfileStore(profileLease).Load(onRead);
-            onRead(broken);
-            return broken;
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory profile = new();
+            string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
+            await using DesktopSessionHost session = CreateSession(profile.Path, brokenJson);
+            ProfileLease lease = session.ProfileLeaseForTests;
+            BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(lease);
+            Assert.Equal(initialState, content.Snapshot.State.ToString());
+            await using MainWindow window = new(session) { Width = 1440, Height = 800, Classes = { MotionPolicy.OffClass } };
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await window.StartupTimingRestoreTask;
+            BooruPostClaim explicitClaim = Claim("7", BooruPostClaimRating.Explicit, "e");
+            BooruPostClaim generalClaim = Claim("8", BooruPostClaimRating.General, "g");
+            BooruCatalogStore catalog = new(session.ProfileDirectory, lease);
+            catalog.UpsertPost(explicitClaim, DateTimeOffset.UnixEpoch);
+            catalog.UpsertPost(generalClaim, DateTimeOffset.UnixEpoch);
+
+            Click(window.FindControl<Button>("MediaNavigationButton")!);
+            await BooruTestSupport.WaitAsync(() => window.MediaPageForTests?.ReadContentProfile is not null, "the media page");
+            Func<BooruContentProfileSnapshot> mediaRules = window.MediaPageForTests!.ReadContentProfile!;
+            Assert.Equal(initialState, mediaRules().State.ToString());
+            Assert.False(window.ReadLocalGalleryBoundary()!.Allows(BooruMediaIdentity.Thread("8")));
+
+            File.Delete(path);
+            Assert.Equal(BooruContentProfileState.Missing, mediaRules().State);
+            Assert.Null(window.ReadLocalGalleryBoundary());
+
+            const string repaired = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"general","globalBlacklist":"","sourceBlacklists":[]}}""";
+            await File.WriteAllTextAsync(path, repaired);
+            BooruContentProfileSnapshot media = mediaRules();
+            Assert.Equal(BooruContentProfileState.Ready, media.State);
+            Assert.False(MediaContentBoundary.RatingFilter(media)!.Evaluate(explicitClaim).IsAllowed);
+            Assert.False(window.ReadLocalGalleryBoundary()!.Allows(BooruMediaIdentity.Thread("7")));
+            Assert.True(window.ReadLocalGalleryBoundary()!.Allows(BooruMediaIdentity.Thread("8")));
+            Assert.Equal(initialState, content.Snapshot.State.ToString());
         });
-        BooruUiHarness harness = new();
-        BooruPostView explicitPost = BooruUiFixtures.Post("1", BooruOriginalAccess.NotOffered,
-            rating: BooruRating.Explicit, tags: ["dog"], preview: false);
-        BooruPostView generalPost = BooruUiFixtures.Post("2", BooruOriginalAccess.NotOffered, tags: ["dog"], preview: false);
-        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
-            BooruUiFixtures.Page(query, page, true, explicitPost, generalPost)));
-        BooruWorkbenchServices ports = harness.Services;
-        session.BooruServices = new(ports.Search, ports.Queue, ports.Watchers, ports.Previews) { Content = content };
-        await using MainWindow window = new(session) { Width = 1440, Height = 800, Classes = { MotionPolicy.OffClass } };
-        window.Show();
-        window.PlatformImpl!.Activated?.Invoke();
-        await window.StartupTimingRestoreTask;
-        BooruPostClaim generalClaim = Claim("7", BooruPostClaimRating.General, "g");
-        new BooruCatalogStore(session.ProfileDirectory, lease).UpsertPost(generalClaim, DateTimeOffset.UnixEpoch);
-        ResourceId savedGeneral = BooruMediaIdentity.Thread("7");
-
-        Click(window.FindControl<Button>("MediaNavigationButton")!);
-        await BooruTestSupport.WaitAsync(() => window.MediaPageForTests?.ReadContentProfile is not null, "the media page");
-        Func<BooruContentProfileSnapshot> mediaRules = window.MediaPageForTests!.ReadContentProfile!;
-        BooruPage page = await OpenWorkbenchAsync(window);
-        BooruSearchModel search = page.Model.Search;
-        await BooruTestSupport.SearchAsync(search, "1boy");
-        Assert.Equal(2, search.View.Rows.Length);
-        using BooruSearchModel tabModel = new([new(harness.Search, harness.Queue, harness.Previews, Content: content)], harness.Clock);
-        BooruSearchTabs tabs = new(tabModel);
-        await BooruTestSupport.SearchAsync(tabModel, "1boy");
-        // The copy becomes the shown tab; the searched tab keeps its rows in the background.
-        tabs.Add(copyCurrent: true);
-        Assert.Contains(tabs.CaptureTargets().Tabs, target => target?.Rows is { Length: > 0 });
-        Assert.True(window.ReadLocalGalleryBoundary()!.Allows(savedGeneral));
-        Assert.NotNull(session.ReadBooruMd5ContentFilter());
-
-        unreadable = true;
-        // Saved media page.
-        BooruContentProfileSnapshot media = mediaRules();
-        Assert.Equal(BooruContentProfileState.Unreadable, media.State);
-        Assert.False(MediaContentBoundary.RatingFilter(media)!.Evaluate(generalClaim).IsAllowed);
-        // Workbench results and media requests.
-        Assert.False(content.HasChoice);
-        Assert.Empty(search.View.Rows);
-        Assert.False(search.IsMediaAllowed(generalPost));
-        Assert.False(content.Allows(generalPost));
-        // Background tabs that are saved for the next start.
-        Assert.All(tabs.CaptureTargets().Tabs, target => Assert.Empty(target?.Rows ?? []));
-        // Gallery targets.
-        Assert.False(window.ReadLocalGalleryBoundary()!.Allows(savedGeneral));
-        // MD5 matches: no filter means the batch reports Unavailable and finds nothing.
-        Assert.Null(session.ReadBooruMd5ContentFilter());
-        Assert.Equal(BooruContentProfileState.Unreadable, session.ReadEffectiveBooruContent().State);
-        Assert.Equal(loose, await File.ReadAllTextAsync(path));
-    });
 }

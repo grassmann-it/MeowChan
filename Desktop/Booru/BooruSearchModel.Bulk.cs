@@ -69,7 +69,6 @@ internal sealed partial class BooruSearchModel
     {
         using RequestLifetime? lifetime = AcquireModelLifetime();
         if (lifetime is null) return;
-        ReadContentFilter();
         using CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         BooruBulkView state;
         Binding binding;
@@ -117,7 +116,6 @@ internal sealed partial class BooruSearchModel
                 result = BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Failed, "exception");
             }
             if (token.IsCancellationRequested) { end = BooruBulkEnd.Canceled; break; }
-            ReadContentFilter();
             if (result.Status != BooruCallStatus.Ok || result.Value is not { } value || value.Page != page
                 || !string.Equals(value.Query, query, StringComparison.Ordinal) || value.Posts.Length > limits.PostsPerPage
                 || value.Posts.Any(post => post.SourceId != binding.Search.ProviderId || post.Identity.InstanceId != binding.Search.InstanceId))

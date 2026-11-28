@@ -29,8 +29,6 @@ internal sealed class BooruMd5Batch(IReadOnlyList<MediaLibraryEntry> entries,
     internal int Total => entries.Count;
     internal DateTimeOffset? RetryAt { get; private set; }
 
-    internal BooruContentFilter? ReadContentFilter() => contentFilter();
-
     // A failed or deferred request leaves the current file pending. Successful results are kept in memory for this pass.
     internal async Task<BooruCallStatus> RunAsync(Action<IEnumerable<BooruMd5Match>> onProgress, CancellationToken token)
     {
@@ -43,7 +41,7 @@ internal sealed class BooruMd5Batch(IReadOnlyList<MediaLibraryEntry> entries,
             while (Completed < Total)
             {
                 token.ThrowIfCancellationRequested();
-                if (!isEnabled() || ReadContentFilter() is null) return BooruCallStatus.Unavailable;
+                if (!isEnabled() || contentFilter() is null) return BooruCallStatus.Unavailable;
                 MediaLibraryEntry entry = entries[Completed];
                 string? query = BooruMd5Lookup.Query(await readMd5(entry, token));
                 token.ThrowIfCancellationRequested();
@@ -70,7 +68,7 @@ internal sealed class BooruMd5Batch(IReadOnlyList<MediaLibraryEntry> entries,
                         && BooruMd5Lookup.Query(post.Original?.ExpectedMd5) == query).ToImmutableArray();
                     _checked.Add(query, matches);
                 }
-                BooruContentFilter? filter = ReadContentFilter();
+                BooruContentFilter? filter = contentFilter();
                 if (filter is null) return BooruCallStatus.Unavailable;
                 string name = entry.Name ?? entry.MediaId ?? string.Empty;
                 BooruMd5Match[] allowed = matches.Where(post => IsAllowed(post, filter))
@@ -83,9 +81,8 @@ internal sealed class BooruMd5Batch(IReadOnlyList<MediaLibraryEntry> entries,
         finally { _running = false; }
     }
 
-    internal static bool IsAllowed(BooruPostView post, BooruContentFilter? filter)
+    private static bool IsAllowed(BooruPostView post, BooruContentFilter filter)
     {
-        if (filter is null) return false;
         try
         {
             BooruPostClaim claim = BooruClaimMapper.Map(post.Post, post.SourceId, post.Identity.InstanceId);

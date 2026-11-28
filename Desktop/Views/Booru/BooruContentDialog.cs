@@ -28,12 +28,13 @@ internal sealed class BooruContentDialog : Window
         };
         BooruPostClaimRating[] ratings =
             [BooruPostClaimRating.General, BooruPostClaimRating.Sensitive, BooruPostClaimRating.Questionable, BooruPostClaimRating.Explicit];
+        string[] ratingLabels = [Texts.T("booru.content.general"), Texts.T("booru.content.sensitive"),
+            Texts.T("booru.content.questionable"), Texts.T("booru.content.explicit")];
         int MaximumIndex(BooruContentProfileSnapshot rules) =>
             Array.IndexOf(ratings, rules.Settings.MaximumRating ?? BooruPostClaimRating.Sensitive);
         ComboBox maximum = new()
         {
-            ItemsSource = new[] { Texts.T("booru.content.general"), Texts.T("booru.content.sensitive"),
-                Texts.T("booru.content.questionable"), Texts.T("booru.content.explicit") },
+            ItemsSource = ratingLabels,
             SelectedIndex = MaximumIndex(snapshot)
         };
         AutomationProperties.SetAutomationId(maximum, "BooruContentMaximum");
@@ -84,6 +85,10 @@ internal sealed class BooruContentDialog : Window
             {
                 SetStatus(Texts.T("booru.content.invalidRule", error.Rule.Line));
             }
+            catch (BooruContentRevisionException error) when (error.Current.State is BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported)
+            {
+                SetStatus(Texts.T("booru.content.readError", BooruContentProfileStore.FileName));
+            }
             catch (BooruContentRevisionException error)
             {
                 // Keep local edits and refresh the untouched inputs before retrying against the current revision.
@@ -92,7 +97,9 @@ internal sealed class BooruContentDialog : Window
                 if (string.Equals(blacklist.Text ?? "", snapshot.Settings.GlobalBlacklist, StringComparison.Ordinal))
                     blacklist.Text = error.Current.Settings.GlobalBlacklist;
                 snapshot = error.Current;
-                SetStatus(Texts.T("booru.content.saveError"));
+                SetStatus(snapshot.State == BooruContentProfileState.Ready
+                    ? Texts.T("booru.content.conflict", ratingLabels[MaximumIndex(snapshot)], snapshot.Settings.GlobalBlacklist)
+                    : Texts.T("booru.content.saveError"));
             }
             catch (Exception error) when (error is not OutOfMemoryException)
             {
