@@ -869,8 +869,12 @@ public sealed partial class MediaPage : UserControl
 
     private async Task<string?> ReadMediaSearchUrlAsync(MediaLibraryEntry entry)
     {
-        CancellationToken token = _lifetime.Token;
-        if (entry.AssetId != null) return await MediaSourceMenu.ReadOriginalAsync(entry, OpenManifestAsync, token);
+        if (entry.AssetId != null) return await MediaSourceMenu.ReadOriginalAsync(entry, OpenManifestAsync, _lifetime.Token);
+        return MediaSourceMenu.Original(await ReadMediaAttachmentAsync(entry, _lifetime.Token));
+    }
+
+    private async Task<CapturedAttachment?> ReadMediaAttachmentAsync(MediaLibraryEntry entry, CancellationToken token)
+    {
         if (entry is not { PostId: { } postId, Position: { } position, Variant: "original" }) return null;
         try
         {
@@ -878,9 +882,8 @@ public sealed partial class MediaPage : UserControl
             ArchivedThreadView? thread = await reader.ReadThreadAsync(entry.Thread, token);
             if (thread == null || thread.Summary.Revision != entry.ThreadRevision) return null;
             int index = thread.FindPostIndex(postId);
-            CapturedAttachment? attachment = index < 0 ? null : thread.Posts[index].Attachments?.FirstOrDefault(item =>
+            return index < 0 ? null : thread.Posts[index].Attachments?.FirstOrDefault(item =>
                 item.Position == position && item.MediaId == entry.MediaId && item.AttachmentRevisionKey == entry.AttachmentRevisionKey);
-            return MediaSourceMenu.Original(attachment);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
             or ObjectDisposedException or Microsoft.Data.Sqlite.SqliteException) { return null; }
@@ -1326,6 +1329,7 @@ public sealed partial class MediaPage : UserControl
                     MediaMenuReasons.Unavailable, MenuIcon("media.queue.all")),
                 new Separator()
             });
+            AddMd5BatchItems(blankItems, blank, [], RunBlank);
             blankItems.AddRange(LayoutMenuItems());
             if (QueueGroupMenu(blank, _tiles.Select(tile => tile.Entry).ToArray(), RunBlank) is { } blankGroups) blankItems.Add(blankGroups);
             ContextMenu blankMenu = new() { ItemsSource = blankItems };
@@ -1465,6 +1469,7 @@ public sealed partial class MediaPage : UserControl
         IReadOnlyList<MediaLibraryEntry> queueEntries = queueTiles is { Count: > 1 }
             ? queueTiles.Select(tileEntry => tileEntry.Entry).ToArray() : new[] { entry };
         if (QueueGroupMenu(session, queueEntries, Run) is { } groups) context.Add(groups);
+        AddMd5BatchItems(context, session, queueEntries, Run);
         // The media panel's menu of a video starts with the playback group (play / pause, mute, repeat), as the reader's menu of a video does.
         // While the index is being built every action of the menu refuses (the guard above), like the selection bar's: the menu says why, on top.
         List<Control>? leading = ReaderPlaybackMenu.MenuItems(playback, session, Run);
@@ -1478,7 +1483,8 @@ public sealed partial class MediaPage : UserControl
             checkExternal ? () => externalReason : null,
             sourceItems: MediaSourceMenu.Build(source, () => session.IsCurrent, origin, ShowSelectionNote,
                 readOriginal: provider is null && entry.FolderItemId == null ? () => ReadMediaSearchUrlAsync(entry) : null,
-                blocked: several ? MediaMenuReasons.SeveralSelected : null), keyboard: keyboard && panel);
+                blocked: several ? MediaMenuReasons.SeveralSelected : null,
+                readMd5: entry.FolderItemId is null ? () => ReadMediaMenuMd5Async(entry) : null), keyboard: keyboard && panel);
         if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
         if (checkExternal) OpenActions.Start(CheckExternalAsync, "media.menu.open-external");

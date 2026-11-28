@@ -5783,6 +5783,23 @@
     "settings.limits.booruGalleryMaximumWidth": "Galerie Danbooru: šířka dekódovaného obrázku (px)",
     "settings.limits.booruGalleryMaximumWidth.hint": "Širší zmenšené obrázky galerie přizpůsobí této šířce.",
     "settings.limits.booruGalleryTimeoutSeconds": "Galerie Danbooru: časový limit odpovědi (s)",
-    "settings.limits.booruGalleryTimeoutSeconds.hint": "Jak dlouho galerie čeká na zmenšený obrázek ze zdroje."
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "Jak dlouho galerie čeká na zmenšený obrázek ze zdroje.",
+    "booru.ui.issue.Md5": "Za md5: uveďte 32 malých šestnáctkových číslic. Výraz rating: je nepovinný.",
+    "media.menu.md5": "Hledat podle MD5",
+    "media.menu.md5.source": "Hledat na {0} podle MD5",
+    "booru.md5.batch.title": "Hromadné vyhledávání MD5 na Danbooru",
+    "booru.md5.batch.selected": "Porovnat vybraná média s Danbooru…",
+    "booru.md5.batch.all": "Porovnat všechna místní média s Danbooru…",
+    "booru.md5.batch.optIn": "Povolit tomuto profilu hromadně odesílat kontrolní součty MD5 místních médií na Danbooru",
+    "booru.md5.batch.contentRequired": "Před hromadným vyhledáváním zvolte v Booru omezení obsahu.",
+    "booru.md5.batch.start": "Zahájit vyhledávání",
+    "booru.md5.batch.resume": "Pokračovat ve vyhledávání",
+    "booru.md5.batch.stop": "Pozastavit vyhledávání",
+    "booru.md5.batch.progress": "Zkontrolováno {0} z {1} · {2} shod · {3} bez kontrolního součtu",
+    "booru.md5.batch.matches": "Odpovídající příspěvky na Danbooru",
+    "booru.md5.batch.saveFailed": "Oprávnění tohoto profilu se nepodařilo uložit.",
+    "booru.md5.batch.finished": "Vyhledávání dokončeno.",
+    "booru.md5.batch.interrupted": "Vyhledávání bylo přerušeno. Můžete v něm pokračovat.",
+    "booru.md5.batch.paused": "Vyhledávání pozastaveno."
   }
 }

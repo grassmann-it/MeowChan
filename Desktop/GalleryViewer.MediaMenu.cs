@@ -144,6 +144,7 @@ internal sealed partial class GalleryViewer
         MediaSourceMenuData source = BooruMediaIdentity.TryGetPostKey(entry.Key.Thread, out BooruPostKey provider)
             ? MediaSourceMenuData.ForProvider(provider, MediaSourceMenu.ReadProvider(provider, ReadMediaMenuBooruCatalog), original)
             : new(original, shown ? _tagNames : ReadMediaMenuOwnTags?.Invoke(entry));
+        source = source with { Md5 = MediaSourceMenu.Md5(entry.Asset, entry.Attachment) };
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
             text => MenuExplanationRequested?.Invoke(text), playback,
             sourceItems: MediaSourceMenu.Build(source, () => session.IsCurrent, owner, text => MenuExplanationRequested?.Invoke(text)));

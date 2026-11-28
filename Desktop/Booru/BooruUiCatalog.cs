@@ -45,6 +45,7 @@ internal static class BooruUiCatalog
         ("booru.ui.issue.TooManyTerms", "At most two tags and one rating: term are supported.", "Unterstützt werden höchstens zwei Tags und ein rating:-Term."),
         ("booru.ui.issue.Unsupported", "This search uses syntax that is not supported here. Use plain tags and at most one rating: term.", "Diese Suche nutzt eine hier nicht unterstützte Syntax. Einfache Tags und höchstens ein rating:-Term verwenden."),
         ("booru.ui.issue.MetaTag", "Only the rating: term is supported; other meta tags are not.", "Unterstützt wird nur der rating:-Term; andere Meta-Tags nicht."),
+        ("booru.ui.issue.Md5", "Use md5: followed by 32 lowercase hexadecimal digits, with at most one rating: term.", "Nach md5: müssen 32 kleine Hexadezimalziffern stehen. Ein rating:-Term ist optional."),
         ("booru.ui.issue.Rating", "The rating: term is not valid. Use g, s, q or e (or general, sensitive, questionable, explicit), separated by commas, once.", "Der rating:-Term ist ungültig. g, s, q oder e (oder general, sensitive, questionable, explicit), durch Kommas getrennt, nur einmal verwenden."),
         ("booru.ui.issue.TooLong", "The search is too long.", "Die Suche ist zu lang."),
         ("booru.ui.issue.Characters", "The search contains characters that cannot be used.", "Die Suche enthält nicht verwendbare Zeichen."),

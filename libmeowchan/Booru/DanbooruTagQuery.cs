@@ -22,10 +22,11 @@ internal enum DanbooruTagQueryError
     UnsupportedMetaTag,
     InvalidRating,
     DuplicateRating,
-    TooManyTagTerms
+    TooManyTagTerms,
+    InvalidMd5
 }
 
-internal enum DanbooruTagTermKind { Tag, Rating }
+internal enum DanbooruTagTermKind { Tag, Rating, Md5 }
 
 /// <summary>Exact source spelling, including the exclusion operator if supplied.</summary>
 internal sealed record DanbooruTagTerm(string Text, DanbooruTagTermKind Kind, bool IsNegative);
@@ -33,7 +34,7 @@ internal sealed record DanbooruTagTerm(string Text, DanbooruTagTermKind Kind, bo
 /// <summary>
 /// Pure, deliberately restricted public Danbooru query syntax, not a universal booru DSL
 /// and not a grant to make requests. Accepts up to two literal tag occurrences (positive
-/// OR negative) and one optional rating: term. Rating short/long names and comma lists
+/// OR negative), or one MD5 term, and one optional rating: term. Rating short/long names and comma lists
 /// retain their exact spelling and polarity. Unsupported syntax is rejected in full.
 ///
 /// Basis: gp20-danbooru-pilot-handoff-sol-02.md §2.3 and danbooru/REVIEW.md §1;
@@ -54,6 +55,7 @@ internal sealed class DanbooruTagQuery
     // Numbered pages for an anonymous Danbooru search (help:users), also enforced by the plugin SDK.
     internal const int MaximumSearchPages = 1000;
     internal const int MaximumSearchPageSize = 20;
+    private static readonly SearchValues<char> Md5Digits = SearchValues.Create("0123456789abcdef");
 
     private DanbooruTagQuery(DanbooruTagTerm[] terms, string providerQuery, int tagTermCount)
     {
@@ -70,6 +72,8 @@ internal sealed class DanbooruTagQuery
     /// </summary>
     internal string ProviderQuery { get; }
     internal int TagTermCount { get; }
+    internal bool IsMd5Lookup => Terms[0].Kind == DanbooruTagTermKind.Md5
+        || Terms.Count == 2 && Terms[1].Kind == DanbooruTagTermKind.Md5;
 
     /// <summary>
     /// Accepts only explicitly supplied provider-query text, never private tag sets,
@@ -92,6 +96,7 @@ internal sealed class DanbooruTagQuery
         List<DanbooruTagTerm> terms = new(MaximumTerms);
         int tagCount = 0;
         bool hasRating = false;
+        bool hasMd5 = false;
         for (int offset = 0; offset < explicitSourceQuery.Length;)
         {
             if (IsSeparator(explicitSourceQuery[offset])) { offset++; continue; }
@@ -108,8 +113,13 @@ internal sealed class DanbooruTagQuery
                 if (hasRating) return Fail(DanbooruTagQueryError.DuplicateRating, out error);
                 hasRating = true;
             }
-            else if (++tagCount > MaximumTagTerms)
-                return Fail(DanbooruTagQueryError.TooManyTagTerms, out error);
+            else
+            {
+                bool md5 = term.Kind == DanbooruTagTermKind.Md5;
+                if (hasMd5 || md5 && tagCount > 0) return Fail(DanbooruTagQueryError.InvalidMd5, out error);
+                if (++tagCount > MaximumTagTerms) return Fail(DanbooruTagQueryError.TooManyTagTerms, out error);
+                hasMd5 = md5;
+            }
             terms.Add(term);
         }
         if (terms.Count == 0) return Fail(DanbooruTagQueryError.Empty, out error);
@@ -127,6 +137,15 @@ internal sealed class DanbooruTagQuery
         bool negative = text[0] == '-';
         string body = negative ? text[1..] : text;
         if (body.Length == 0 || body[0] == '-') return Fail(DanbooruTagQueryError.InvalidNegativeTerm, out error);
+
+        if (body.StartsWith("md5:", StringComparison.Ordinal))
+        {
+            ReadOnlySpan<char> hash = body.AsSpan(4);
+            if (negative || hash.Length != 32 || hash.ContainsAnyExcept(Md5Digits))
+                return Fail(DanbooruTagQueryError.InvalidMd5, out error);
+            term = new(text, DanbooruTagTermKind.Md5, false);
+            return true;
+        }
 
         // No flattening of boolean, quoted or escaped expressions. Even parentheses
         // inside tag names are outside this deliberately small literal subset.

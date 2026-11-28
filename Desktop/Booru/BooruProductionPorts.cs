@@ -163,7 +163,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
     /// </summary>
     internal static string? Provenance(BooruFindingKind kind, string? query) =>
         kind == BooruFindingKind.Search && !string.IsNullOrEmpty(query) && query.Length <= 1024
-            && DanbooruTagQuery.TryParse(query, out DanbooruTagQuery? parsed, out _) && parsed is not null
+            && DanbooruTagQuery.TryParse(query, out DanbooruTagQuery? parsed, out _) && parsed is { IsMd5Lookup: false }
             && string.Equals(parsed.ProviderQuery, query, StringComparison.Ordinal)
             ? query : null;
 
@@ -333,7 +333,9 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
     }
 
     public Task<BooruWatcherCommandResult> CreateAsync(string canonicalQuery, CancellationToken cancellationToken) =>
-        Mutate(scheduler => scheduler.AddWatcher(canonicalQuery), cancellationToken);
+        BooruMd5Lookup.IsMd5Query(canonicalQuery)
+            ? Task.FromResult(new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected))
+            : Mutate(scheduler => scheduler.AddWatcher(canonicalQuery), cancellationToken);
 
     public async Task<BooruWatcherCommandResult> CheckNowAsync(string watcherId, CancellationToken cancellationToken)
     {

@@ -5724,6 +5724,23 @@
     "settings.limits.booruGalleryMaximumWidth": "Galería de Danbooru: ancho de imagen decodificada (px)",
     "settings.limits.booruGalleryMaximumWidth.hint": "La galería ajusta las imágenes reducidas más anchas a este ancho.",
     "settings.limits.booruGalleryTimeoutSeconds": "Galería de Danbooru: tiempo de espera de respuesta (s)",
-    "settings.limits.booruGalleryTimeoutSeconds.hint": "Tiempo que la galería espera una imagen reducida de la fuente."
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "Tiempo que la galería espera una imagen reducida de la fuente.",
+    "booru.ui.issue.Md5": "Escribe md5: seguido de 32 dígitos hexadecimales en minúsculas. El término rating: es opcional.",
+    "media.menu.md5": "Buscar por MD5",
+    "media.menu.md5.source": "Buscar en {0} por MD5",
+    "booru.md5.batch.title": "Búsqueda por lotes de MD5 en Danbooru",
+    "booru.md5.batch.selected": "Comprobar los medios seleccionados en Danbooru…",
+    "booru.md5.batch.all": "Comprobar todos los medios locales en Danbooru…",
+    "booru.md5.batch.optIn": "Permitir que este perfil envíe a Danbooru por lotes las sumas MD5 de medios locales",
+    "booru.md5.batch.contentRequired": "Elige un límite de contenido en Booru antes de iniciar el lote.",
+    "booru.md5.batch.start": "Iniciar búsqueda",
+    "booru.md5.batch.resume": "Reanudar búsqueda",
+    "booru.md5.batch.stop": "Pausar búsqueda",
+    "booru.md5.batch.progress": "{0} de {1} comprobados · {2} coincidencias · {3} sin suma de comprobación",
+    "booru.md5.batch.matches": "Publicaciones coincidentes de Danbooru",
+    "booru.md5.batch.saveFailed": "No se pudo guardar el permiso de este perfil.",
+    "booru.md5.batch.finished": "Búsqueda completada.",
+    "booru.md5.batch.interrupted": "Búsqueda interrumpida. Puedes reanudar el lote.",
+    "booru.md5.batch.paused": "Búsqueda en pausa."
   }
 }

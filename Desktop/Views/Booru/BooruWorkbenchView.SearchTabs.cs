@@ -213,7 +213,7 @@ internal sealed partial class BooruWorkbenchView
 
     // ---- tabs ------------------------------------------------------------------------------------------
 
-    private async Task SubmitSearchAsync(bool alternate = false)
+    internal async Task SubmitSearchAsync(bool alternate = false)
     {
         if (_closed) return;
         BooruSearchModel search = _model.Search;

@@ -143,7 +143,8 @@ internal sealed partial class BooruSearchModel : IDisposable
         get
         {
             BooruSearchView view = View;
-            return !_disposed && IsBound(view) && view.Mode == BooruInputMode.Tags && view.Parsed.Kind == BooruInputKind.Tags;
+            return !_disposed && IsBound(view) && view.Mode == BooruInputMode.Tags && view.Parsed.Kind == BooruInputKind.Tags
+                && !BooruMd5Lookup.IsMd5Query(view.Parsed.Canonical);
         }
     }
 
@@ -154,7 +155,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         lock (_gate)
         {
             if (_disposed || _view.Mode == mode) return;
-            _view = _view with { Mode = mode, Parsed = ParseInput(mode, _view.Input, _view.ProviderId) };
+            _view = _view with { Mode = mode, Parsed = ParseInput(mode, _view.Input, _view.ProviderId, BindingFor(_view)?.Source) };
         }
         RaiseChanged();
     }
@@ -165,7 +166,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         {
             string value = text ?? string.Empty;
             if (_disposed || _view.Input == value) return;
-            _view = _view with { Input = value, Parsed = ParseInput(_view.Mode, value, _view.ProviderId) };
+            _view = _view with { Input = value, Parsed = ParseInput(_view.Mode, value, _view.ProviderId, BindingFor(_view)?.Source) };
         }
         RaiseChanged();
     }

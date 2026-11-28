@@ -6,6 +6,32 @@ namespace MeowChan.Tests.Booru;
 
 public sealed class DanbooruTagQueryTests
 {
+    private const string Md5 = "md5:0123456789abcdef0123456789abcdef";
+
+    [Theory]
+    [InlineData(Md5)]
+    [InlineData(Md5 + " rating:g")]
+    [InlineData("rating:g " + Md5)]
+    public void Md5CountsAsOneTermAndKeepsItsSpelling(string text)
+    {
+        DanbooruTagQuery query = Parse(text);
+        Assert.Equal(text, query.ProviderQuery);
+        Assert.Equal(1, query.TagTermCount);
+        Assert.Equal(Md5, Assert.Single(query.Terms, term => term.Kind == DanbooruTagTermKind.Md5).Text);
+    }
+
+    [Theory]
+    [InlineData("md5:0123456789abcdef0123456789abcde")]
+    [InlineData(Md5 + "0")]
+    [InlineData("md5:0123456789abcdef0123456789abcdeF")]
+    [InlineData("md5:0123456789abcdef0123456789abcdeg")]
+    [InlineData("md5:")]
+    [InlineData("-" + Md5)]
+    [InlineData(Md5 + " cat")]
+    [InlineData("cat " + Md5)]
+    [InlineData(Md5 + " " + Md5)]
+    public void InvalidMd5TermsRejectTheWholeQuery(string text) => Reject(text, DanbooruTagQueryError.InvalidMd5);
+
     [Fact]
     public void NormalizesOnlyAsciiSeparatorsAndPreservesSpellingPolarityAndOrder()
     {
