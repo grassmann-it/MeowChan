@@ -13,7 +13,7 @@ internal sealed partial class DesktopSessionHost
     internal BooruWorkspaceContent ContentRules => BooruContent ?? LocalMediaContent;
 
     /// <summary>The single access for every consumer that reads the profile document: the effective rules, never the file itself.</summary>
-    internal BooruContentProfileSnapshot ReadEffectiveBooruContent() => ContentRules.ReadEffective(_profileLease);
+    internal BooruContentProfileSnapshot ReadEffectiveBooruContent() => ContentRules.ReadEffective();
 
     /// <summary>The document for the content editor only.</summary>
     internal Task<BooruContentProfileSnapshot> ReadBooruContentForEditAsync(bool acceptPersistedChoice) =>

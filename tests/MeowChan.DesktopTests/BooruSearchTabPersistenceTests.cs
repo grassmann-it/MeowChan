@@ -241,6 +241,75 @@ public sealed class BooruSearchTabPersistenceTests
         });
 
     [Fact]
+    public void TighteningRemovesDeferredRowsAndKeepsEverySavedDraft() => BooruComponentDispatcher.Run(() =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
+        const string loose = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"explicit","globalBlacklist":"","sourceBlacklists":[]}}""";
+        File.WriteAllText(path, loose);
+        BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(lease);
+        BooruSearchTabStore store = new(lease);
+        BooruPost restricted = Post("42").Post with { Rating = BooruRating.Explicit, RawRating = "e" };
+        BooruSearchTabTarget third = new("danbooru", "default", null, "bird", Input: "draft_3",
+            Rows: [new(restricted, [1, 2, 3]), new(Post("43").Post, null)]);
+        store.Write(new(0, [Draft("draft_1"), Draft("draft_2"), third, Draft("draft_4")]));
+        Config config = new() { BooruSearchTabs = 2, BooruSavedTabs = 2 };
+        BooruUiHarness harness = new();
+        using (BooruPage page = new(WithSource(harness, content)))
+        {
+            page.View.SearchTabsLimit = () => config.BooruSearchTabs;
+            page.RestoreSearchTabs(store, config);
+            Assert.Equal(2, page.View.SearchTabs.Ids.Count);
+
+            File.WriteAllText(path, loose.Replace("\"explicit\"", "\"general\"", StringComparison.Ordinal));
+            page.FlushSearchTabs();
+            BooruComponentDispatcher.Wait(store.PendingSave);
+        }
+
+        config.BooruSearchTabs = 4;
+        config.BooruSavedTabs = 4;
+        BooruSearchTabState saved = Assert.IsType<BooruSearchTabState>(store.Read());
+        Assert.Equal("43", Assert.Single(saved.Tabs[2]!.Rows!).Post.Id.PostId);
+        using BooruPage reopened = new(WithSource(harness, content));
+        reopened.View.SearchTabsLimit = () => config.BooruSearchTabs;
+        reopened.RestoreSearchTabs(store, config);
+        BooruSearchTabs tabs = reopened.View.SearchTabs;
+        Assert.Equal(["draft_1", "draft_2", "draft_3", "draft_4"], tabs.Ids.Select(id => tabs.ViewOf(id)!.Input));
+        Assert.Equal(0, harness.ProviderRequests);
+
+        static BooruSearchTabTarget Draft(string input) => new("danbooru", "default", null, null, Input: input);
+    });
+
+    [Fact]
+    public void MalformedDeferredRowsDoNotPreventWorkbenchRestoreOrDiscardTheirDraft() => BooruComponentDispatcher.Run(() =>
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        const string rules = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"general","globalBlacklist":"","sourceBlacklists":[]}}""";
+        File.WriteAllText(Path.Combine(profile.Path, BooruContentProfileStore.FileName), rules);
+        BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(lease);
+        BooruSearchTabStore store = new(lease);
+        BooruPost malformed = Post("42").Post with { Media = [null!] };
+        BooruSearchTabTarget deferred = new("danbooru", "default", null, "cat", Input: "still_a_draft",
+            Rows: [new(malformed, [1, 2, 3]), new(Post("43").Post, null)]);
+        store.Write(new(0, [null, null, deferred]));
+        Config config = new() { BooruSearchTabs = 2, BooruSavedTabs = 3 };
+        BooruUiHarness harness = new();
+        using BooruPage page = new(WithSource(harness, content));
+        page.View.SearchTabsLimit = () => config.BooruSearchTabs;
+        page.RestoreSearchTabs(store, config);
+
+        Assert.Equal(2, page.View.SearchTabs.Ids.Count);
+        BooruSearchTabTarget captured = Assert.IsType<BooruSearchTabTarget>(page.View.SearchTabs.CaptureTargets().Tabs[2]);
+        Assert.Equal("still_a_draft", captured.Input);
+        Assert.Equal("43", Assert.Single(captured.Rows!).Post.Id.PostId);
+        Assert.Equal(0, harness.ProviderRequests);
+    });
+
+    [Fact]
     public void ClosingAllVisibleTabsKeepsUnopenedTabsAndTheNewDraftAcrossRestart() => BooruComponentDispatcher.Run(() =>
     {
         using TempDirectory profile = new();
@@ -1193,8 +1262,9 @@ public sealed class BooruSearchTabPersistenceTests
         Assert.False(File.Exists(path + ".bad"));
     }
 
-    private static BooruWorkbenchServices WithSource(BooruUiHarness harness) =>
-        new(harness.Search, harness.Queue, harness.Watchers, harness.Previews, harness.Clock, harness.Links.Actions) { Source = Source };
+    private static BooruWorkbenchServices WithSource(BooruUiHarness harness, BooruWorkspaceContent? content = null) =>
+        new(harness.Search, harness.Queue, harness.Watchers, harness.Previews, harness.Clock, harness.Links.Actions)
+        { Source = Source, Content = content };
 
     private static BooruPostView Post(string id, int score = 12)
     {

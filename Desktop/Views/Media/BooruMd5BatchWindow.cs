@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Threading;
+using MeowChan.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
@@ -20,8 +22,10 @@ internal sealed class BooruMd5BatchWindow : Window
     private readonly BooruMd5Batch _batch;
     private readonly Func<bool, Task> _saveOptIn;
     private readonly CancellationToken _lifetime;
-    private readonly bool _contentReady;
+    private readonly BooruWorkspaceContent _content;
     private readonly ObservableCollection<BooruMd5Match> _matches = [];
+    private readonly ListBox _results;
+    private readonly TextBox _details;
     private readonly CheckBox _optIn;
     private readonly Button _runButton;
     private readonly Button _stopButton;
@@ -33,12 +37,14 @@ internal sealed class BooruMd5BatchWindow : Window
     private bool _closed;
     private bool _enabled;
 
-    internal BooruMd5BatchWindow(BooruMd5Batch batch, bool contentReady, bool enabled, Func<bool, Task> saveOptIn,
+    private BooruContentFilter? CurrentFilter => _content.Snapshot is { HasChoice: true } snapshot ? snapshot.Filter : null;
+
+    internal BooruMd5BatchWindow(BooruMd5Batch batch, BooruWorkspaceContent content, bool enabled, Func<bool, Task> saveOptIn,
         CancellationToken lifetime)
     {
         _batch = batch;
         _lifetime = lifetime;
-        _contentReady = contentReady;
+        _content = content;
         _saveOptIn = saveOptIn;
         _enabled = enabled;
         Title = Texts.T(Key + "title");
@@ -62,7 +68,17 @@ internal sealed class BooruMd5BatchWindow : Window
         _stopButton.Click += (_, _) => _run?.Cancel();
         Button close = new() { Content = Texts.T("action.close") };
         close.Click += (_, _) => Close();
-        Closed += (_, _) => { _closed = true; _run?.Cancel(); };
+        Opened += (_, _) =>
+        {
+            _content.Changed += OnContentChanged;
+            OnContentChanged();
+        };
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            _content.Changed -= OnContentChanged;
+            _run?.Cancel();
+        };
         Closing += (_, e) => e.Cancel = _saving;
         DialogEscape.Attach(this, tryCancelLocal: () =>
         {
@@ -71,26 +87,24 @@ internal sealed class BooruMd5BatchWindow : Window
             return true;
         }, isBusy: () => _saving);
 
-        ListBox results = new() { ItemsSource = _matches };
-        AutomationProperties.SetName(results, Texts.T(Key + "matches"));
-        AutomationProperties.SetAutomationId(results, Key + "matches");
-        TextBox details = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
-        AutomationProperties.SetName(details, Texts.T("booru.ui.tags.label"));
-        AutomationProperties.SetAutomationId(details, Key + "details");
-        results.SelectionChanged += (_, _) => details.Text = results.SelectedItem is BooruMd5Match match
-            && BooruPostLinks.TryCanonical(match.Post, out string url)
-                ? url + Environment.NewLine + MediaSourceMenu.TagText(match.Post.Tags.Select(tag => tag.Name)) : string.Empty;
+        _results = new() { ItemsSource = _matches };
+        AutomationProperties.SetName(_results, Texts.T(Key + "matches"));
+        AutomationProperties.SetAutomationId(_results, Key + "matches");
+        _details = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
+        AutomationProperties.SetName(_details, Texts.T("booru.ui.tags.label"));
+        AutomationProperties.SetAutomationId(_details, Key + "details");
+        _results.SelectionChanged += (_, _) => ShowSelection();
         Grid body = new() { RowDefinitions = new RowDefinitions("*,Auto,*"), RowSpacing = 8 };
-        body.Children.Add(results);
+        body.Children.Add(_results);
         TextBlock tagsLabel = new() { Text = Texts.T("booru.ui.tags.label"), Classes = { "section-title" } };
         Grid.SetRow(tagsLabel, 1);
         body.Children.Add(tagsLabel);
-        Grid.SetRow(details, 2);
-        body.Children.Add(details);
+        Grid.SetRow(_details, 2);
+        body.Children.Add(_details);
         StackPanel header = new() { Spacing = 8, Children = { _optIn, _progress } };
         DialogWindow.Frame(this, DialogFrame.Build(header, body,
             DialogFooter.Build(_runButton, [close, _stopButton], _status), fillBody: true), modal: true);
-        _status.Text = contentReady ? string.Empty : Texts.T(Key + "contentRequired");
+        _status.Text = _content.HasChoice ? string.Empty : Texts.T(Key + "contentRequired");
         Render();
     }
 
@@ -103,7 +117,7 @@ internal sealed class BooruMd5BatchWindow : Window
         {
             await _saveOptIn(enabled);
             _enabled = enabled;
-            if (_contentReady) _status.Text = string.Empty;
+            if (_content.HasChoice) _status.Text = string.Empty;
         }
         catch (Exception error) when (error is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -145,8 +159,43 @@ internal sealed class BooruMd5BatchWindow : Window
     private void ShowProgress(IEnumerable<BooruMd5Match> matches)
     {
         if (_closed) return;
-        foreach (BooruMd5Match match in matches) _matches.Add(match);
+        BooruContentFilter? filter = CurrentFilter;
+        foreach (BooruMd5Match match in matches)
+            if (BooruMd5Batch.IsAllowed(match.Post, filter)) _matches.Add(match);
         Render();
+    }
+
+    private void OnContentChanged()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(OnContentChanged);
+            return;
+        }
+        if (_closed) return;
+        RemoveBlockedMatches(CurrentFilter);
+        Render();
+    }
+
+    private void ShowSelection()
+    {
+        _details.Text = string.Empty;
+        if (_closed || _results.SelectedItem is not BooruMd5Match match) return;
+        BooruContentFilter? filter = _batch.ReadContentFilter();
+        RemoveBlockedMatches(filter);
+        Render();
+        if (ReferenceEquals(_results.SelectedItem, match) && BooruMd5Batch.IsAllowed(match.Post, filter)
+            && BooruPostLinks.TryCanonical(match.Post, out string url))
+            _details.Text = url + Environment.NewLine + MediaSourceMenu.TagText(match.Post.Tags.Select(tag => tag.Name));
+    }
+
+    private void RemoveBlockedMatches(BooruContentFilter? filter)
+    {
+        if (_results.SelectedItem is BooruMd5Match selected && !BooruMd5Batch.IsAllowed(selected.Post, filter))
+            _results.SelectedIndex = -1;
+        for (int index = _matches.Count - 1; index >= 0; index--)
+            if (!BooruMd5Batch.IsAllowed(_matches[index].Post, filter))
+                _matches.RemoveAt(index);
     }
 
     private void Render()
@@ -154,7 +203,7 @@ internal sealed class BooruMd5BatchWindow : Window
         bool running = _run is not null;
         _optIn.IsEnabled = !running && !_saving;
         _runButton.Content = Texts.T(Key + (_started ? "resume" : "start"));
-        _runButton.IsEnabled = _enabled && _contentReady && !running && !_saving && _batch.Completed < _batch.Total;
+        _runButton.IsEnabled = _enabled && _content.HasChoice && !running && !_saving && _batch.Completed < _batch.Total;
         _stopButton.IsEnabled = running;
         _progress.Text = Texts.T(Key + "progress", _batch.Completed, _batch.Total, _matches.Count, _batch.MissingHash);
     }

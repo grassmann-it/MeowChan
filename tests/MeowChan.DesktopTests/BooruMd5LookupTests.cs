@@ -1,5 +1,6 @@
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using System.Text.Json;
 using MeowChan.Archive;
@@ -9,6 +10,7 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
+using MeowChan.Persistence;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
@@ -178,6 +180,67 @@ public sealed class BooruMd5LookupTests
         Assert.Equal(2, batch.Completed);
         Assert.Equal(new[] { (Query, 1), (SecondQuery, 1), (SecondQuery, 1) }, search.Searches);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OpenBatchHidesBlockedMatchesWhenItReadsRulesOrTheUserSelects(bool selectAfterTightening) =>
+        BooruComponentDispatcher.Run(async () =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory profile = new();
+            using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+            string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
+            const string initial = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"explicit","globalBlacklist":"","sourceBlacklists":[]}}""";
+            await File.WriteAllTextAsync(path, initial);
+            BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(lease);
+            FakeBooruSearchPort search = new();
+            search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+                BooruUiFixtures.Page(query, page, true, WithHash("1", Base64, BooruRating.Explicit), WithHash("2", Base64))));
+            TaskCompletionSource<string?> secondHash = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            BooruMd5Batch batch = new(selectAfterTightening ? [Entry("first")] : [Entry("first"), Entry("second")],
+                (entry, token) => entry.Name == "first" ? Task.FromResult<string?>(Base64) : secondHash.Task.WaitAsync(token),
+                search, () => true, () => content.ReadEffective() is { HasChoice: true } snapshot ? snapshot.Filter : null,
+                new BooruManualClock(), 20);
+            BooruMd5BatchWindow dialog = new(batch, content, true, _ => Task.CompletedTask, CancellationToken.None);
+            dialog.Show();
+            try
+            {
+                ListBox results = Find<ListBox>("matches");
+                TextBox details = Find<TextBox>("details");
+                Button run = Find<Button>("run");
+                run.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await BooruTestSupport.WaitAsync(() => results.Items.Count == 2, "the first two MD5 matches");
+                results.SelectedIndex = 0;
+                Assert.Contains("/posts/1", details.Text, StringComparison.Ordinal);
+
+                if (selectAfterTightening)
+                {
+                    results.SelectedIndex = -1;
+                    await File.WriteAllTextAsync(path, initial.Replace("\"explicit\"", "\"general\"", StringComparison.Ordinal));
+                    results.SelectedIndex = 0;
+                    Assert.Equal("2", Assert.IsType<BooruMd5Match>(Assert.Single(results.Items)).Post.PostId);
+                    Assert.True(string.IsNullOrEmpty(details.Text));
+                    results.SelectedIndex = 0;
+                    Assert.Contains("/posts/2", details.Text, StringComparison.Ordinal);
+                }
+                else
+                {
+                    await File.WriteAllTextAsync(path, "{");
+                    secondHash.SetResult(Base64);
+                    await BooruTestSupport.WaitAsync(() => content.Snapshot.State == BooruContentProfileState.Unreadable,
+                        "the batch to observe the read failure");
+                    Assert.Empty(results.Items);
+                    Assert.True(string.IsNullOrEmpty(details.Text));
+                    Assert.Equal(1, batch.Completed);
+                    Assert.Single(search.Searches);
+                }
+            }
+            finally { dialog.Close(); }
+
+            T Find<T>(string id) where T : Control => Assert.Single(dialog.GetVisualDescendants().OfType<T>(),
+                control => AutomationProperties.GetAutomationId(control) == "booru.md5.batch." + id);
+        });
 
     private static MenuItem FindItem(ItemsControl menu, string id) => Assert.Single(menu.Items.OfType<MenuItem>(),
         item => AutomationProperties.GetAutomationId(item) == id);

@@ -74,7 +74,7 @@ public sealed class BooruOccurrenceTagTests
         // Removing the rule outside MeowChan is a loosening: it waits for a confirmed choice.
         BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(lease);
         BooruContentProfileSnapshot loosened = SaveRules(lease, BooruPostClaimRating.Sensitive);
-        Assert.Single(content.ReadEffective(lease).Settings.SourceBlacklists);
+        Assert.Single(content.ReadEffective().Settings.SourceBlacklists);
         Assert.False(north.IsEffectivelyVisible);
         content.Publish(loosened);
         await BooruTestSupport.WaitAsync(() => north.IsEffectivelyVisible, "the allowed tags to return");

@@ -36,14 +36,14 @@ public sealed class BooruContentDialogTests
     private static Button BooruNavigation(MainWindow window) => Assert.Single(window.GetLogicalDescendants().OfType<Button>(),
         button => ControlAutomationPeer.CreatePeerForElement(button).GetAutomationId() == "BooruNavigationButton");
 
-    private static DesktopSessionHost CreateSession(string profile, string rules)
+    private static DesktopSessionHost CreateSession(string profile, string? rules)
     {
         new Config
         {
             DownloadPath = Path.Combine(profile, "media"), FirstRunSetupVersion = 1, WorkspaceMode = "Advanced",
             ShowBooruTools = true, AutomaticUpdateChecks = false
         }.SaveConfig(profile);
-        File.WriteAllText(Path.Combine(profile, BooruContentProfileStore.FileName), rules);
+        if (rules is not null) File.WriteAllText(Path.Combine(profile, BooruContentProfileStore.FileName), rules);
         return new(profile, [],
             updateSessionFactory: (directory, config) => new UpdateSession(directory, config, disableEnvironment: () => "1"));
     }
@@ -430,6 +430,121 @@ public sealed class BooruContentDialogTests
         new("danbooru", id, BooruPostClaimPresence.Rating, Rating: rating, RawRating: raw);
 
     [Fact]
+    public void PassiveReadsCannotConfirmAFirstChoiceThatAppearedAfterStartup() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        await using DesktopSessionHost session = CreateSession(profile.Path, rules: null);
+        BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(session.ProfileLeaseForTests);
+        BooruWorkbenchServices ports = new BooruUiHarness().Services;
+        session.BooruServices = new(ports.Search, ports.Queue, ports.Watchers, ports.Previews) { Content = content };
+        await using MainWindow window = new(session) { Width = 1440, Height = 800, Classes = { MotionPolicy.OffClass } };
+        window.Show();
+        window.PlatformImpl!.Activated?.Invoke();
+        await window.StartupTimingRestoreTask;
+        Assert.Equal(BooruContentProfileState.Missing, content.Snapshot.State);
+
+        const string appeared = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"general","globalBlacklist":"","sourceBlacklists":[]}}""";
+        await File.WriteAllTextAsync(Path.Combine(profile.Path, BooruContentProfileStore.FileName), appeared);
+        BooruContentProfileSnapshot pending = session.ReadEffectiveBooruContent();
+        Assert.Equal(BooruContentProfileState.PendingChoice, pending.State);
+        Assert.False(pending.Filter.Evaluate(Claim("1", BooruPostClaimRating.General, "g")).IsAllowed);
+        Assert.False(MediaContentBoundary.RatingFilter(pending)!.Evaluate(Claim("2", BooruPostClaimRating.Explicit, "e")).IsAllowed);
+        Assert.Null(session.ReadBooruMd5ContentFilter());
+        Assert.False(content.HasChoice);
+
+        Button navigation = BooruNavigation(window);
+        await BooruTestSupport.WaitAsync(() => navigation.IsEffectivelyEnabled, "the Booru navigation button");
+        Click(navigation);
+        await BooruTestSupport.WaitAsync(() => window.OwnedWindows.OfType<BooruContentDialog>().Any(dialog => dialog.IsVisible),
+            "the first content choice");
+        BooruContentDialog dialog = Assert.Single(window.OwnedWindows.OfType<BooruContentDialog>());
+        Assert.Equal(Texts.T("booru.content.general"), ById<ComboBox>(dialog, "BooruContentMaximum").SelectedItem);
+        Assert.Null(window.BooruPageForTests);
+        Click(ById<Button>(dialog, "BooruContentConfirm"));
+        await BooruTestSupport.WaitAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Booru, "the confirmed Booru workspace");
+        Assert.True(content.HasChoice);
+        Assert.NotNull(session.ReadBooruMd5ContentFilter());
+    });
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task SearchAndTabCaptureIndependentlyReadTheCurrentRestriction(bool capture, bool unreadable)
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
+        const string loose = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"explicit","globalBlacklist":"","sourceBlacklists":[]}}""";
+        await File.WriteAllTextAsync(path, loose);
+        BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(lease);
+        BooruUiHarness harness = new();
+        BooruPostView explicitPost = BooruUiFixtures.Post("1", BooruOriginalAccess.NotOffered,
+            rating: BooruRating.Explicit, preview: false);
+        BooruPostView generalPost = BooruUiFixtures.Post("2", BooruOriginalAccess.NotOffered, preview: false);
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, explicitPost, generalPost)));
+        using BooruSearchModel search = new([new(harness.Search, harness.Queue, harness.Previews, Content: content)], harness.Clock);
+        BooruSearchTabs tabs = new(search);
+        await BooruTestSupport.SearchAsync(search, "cat");
+        Assert.Equal(2, search.View.Rows.Length);
+        tabs.Add(copyCurrent: false);
+        const string tight = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"general","globalBlacklist":"","sourceBlacklists":[]}}""";
+        await File.WriteAllTextAsync(path, unreadable ? "{" : tight);
+
+        string[] actual;
+        if (capture)
+            actual = tabs.CaptureTargets().Tabs[0]!.Rows!.Select(row => row.Post.Id.PostId).ToArray();
+        else
+        {
+            await BooruTestSupport.SearchAsync(search, "dog");
+            actual = search.View.Rows.Select(row => row.Post.PostId).ToArray();
+        }
+        Assert.Equal(unreadable ? Array.Empty<string>() : ["2"], actual);
+        Assert.Equal(unreadable ? BooruContentProfileState.Unreadable : BooruContentProfileState.Ready, content.Snapshot.State);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UnrelatedChangesAtTheSameRevisionMergeOnTheFirstConfirmation(bool editBlacklist) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        using ProfileAdmissionToken writer = lease.Admission.EnterOrdinaryWriter();
+        BooruContentProfileStore store = new(lease);
+        BooruContentProfileSnapshot initial = store.SaveAdmitted(new(BooruPostClaimRating.Explicit, "", []), 0, writer);
+        BooruContentDialog dialog = new(initial, edit =>
+        {
+            store.SaveEditAdmitted(edit, writer);
+            return Task.CompletedTask;
+        });
+        dialog.Show();
+        try
+        {
+            string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
+            string current = File.ReadAllText(path);
+            File.WriteAllText(path, editBlacklist
+                ? current.Replace("\"explicit\"", "\"general\"", StringComparison.Ordinal)
+                : current.Replace("\"globalBlacklist\":\"\"", "\"globalBlacklist\":\"bird\"", StringComparison.Ordinal));
+            if (editBlacklist) ById<TextBox>(dialog, "BooruContentBlacklist").Text = "dog";
+            else ById<ComboBox>(dialog, "BooruContentMaximum").SelectedIndex = 0;
+
+            Click(ById<Button>(dialog, "BooruContentConfirm"));
+            Assert.False(dialog.IsVisible);
+            BooruContentProfileSnapshot saved = store.Load();
+            Assert.Equal(2L, saved.Revision);
+            Assert.Equal(BooruPostClaimRating.General, saved.Settings.MaximumRating);
+            Assert.Equal(editBlacklist ? "dog" : "bird", saved.Settings.GlobalBlacklist);
+        }
+        finally { if (dialog.IsVisible) dialog.Close(false); }
+    });
+
+    [Fact]
     public void ACanceledExternalLooseningReachesNeitherSavedMediaNorMd5Matches() => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -541,7 +656,7 @@ public sealed class BooruContentDialogTests
         bool unreadable = false;
         BooruContentSettings none = new(null, string.Empty, []);
         BooruContentProfileSnapshot broken = new(BooruContentProfileState.Unreadable, none, new BooruContentFilter(0, none, profileAvailable: false));
-        BooruWorkspaceContent content = new(new BooruContentProfileStore(lease).Load(), (profileLease, onRead) =>
+        BooruWorkspaceContent content = new(new BooruContentProfileStore(lease).Load(), lease, (profileLease, onRead) =>
         {
             if (!unreadable) return new BooruContentProfileStore(profileLease).Load(onRead);
             onRead(broken);

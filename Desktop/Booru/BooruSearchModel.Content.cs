@@ -8,6 +8,8 @@ internal sealed partial class BooruSearchModel
 {
     private readonly BooruWorkspaceContent? _content;
 
+    internal BooruContentFilter? ReadContentFilter() => _content?.ReadEffective().Filter;
+
     internal bool IsMediaAllowed(BooruPostView post) => BooruWorkspaceContent.Allows(_content?.Snapshot.Filter, post);
 
     private BooruSearchView FilterView(BooruSearchView view)

@@ -108,7 +108,12 @@ public sealed partial class MediaPage
         try
         {
             BooruContentProfileSnapshot? profile = ReadContentProfile?.Invoke();
-            BooruContentFilter? filter = profile?.State == BooruContentProfileState.Ready ? profile.Filter : MediaContentBoundary.RatingFilter(profile);
+            BooruContentFilter? filter = profile switch
+            {
+                { State: BooruContentProfileState.Ready } => profile.Filter,
+                { State: BooruContentProfileState.PendingChoice } => new(profile.Revision, profile.Settings),
+                _ => MediaContentBoundary.RatingFilter(profile)
+            };
             return available.Where(pair => filter?.Evaluate(pair.Value).IsAllowed ?? true)
                 .ToDictionary(pair => pair.Key, pair => pair.Value.Tags);
         }

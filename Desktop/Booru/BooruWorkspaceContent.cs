@@ -27,18 +27,22 @@ internal sealed class BooruWorkspaceContent
     private static readonly DocumentReader StoreReader = static (lease, onRead) => new BooruContentProfileStore(lease).Load(onRead);
 
     internal static BooruWorkspaceContent ForProfile(ProfileLease lease) =>
-        Profiles.GetValue(lease, static profile => new(() => new(new BooruContentProfileStore(profile).Load()))).Value;
+        Profiles.GetValue(lease, static profile => new(() => new(new BooruContentProfileStore(profile).Load(), profile))).Value;
 
+    private readonly ProfileLease? _lease;
     private readonly DocumentReader _read;
+    private readonly bool _startedWithReadFailure;
     private BooruContentProfileSnapshot _snapshot;
-    // The effective rules of the last ready document: the confirmed choice tightened by every document read since.
-    private BooruContentProfileSnapshot? _ready;
+    // The strictest rules observed so far, including a ceiling for saved media before the first choice.
+    private BooruContentProfileSnapshot? _knownRules;
 
-    internal BooruWorkspaceContent(BooruContentProfileSnapshot initial, DocumentReader? read = null)
+    internal BooruWorkspaceContent(BooruContentProfileSnapshot initial, ProfileLease? lease = null, DocumentReader? read = null)
     {
+        _lease = lease;
         _read = read ?? StoreReader;
+        _startedWithReadFailure = initial.State is BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported;
         _snapshot = initial;
-        _ready = initial.HasChoice ? initial : null;
+        _knownRules = initial.HasChoice ? initial : null;
     }
 
     /// <summary>The effective rules, without reading the document.</summary>
@@ -54,9 +58,9 @@ internal sealed class BooruWorkspaceContent
     }
 
     /// <summary>The single access for consumers: reads the document and returns the effective rules.</summary>
-    internal BooruContentProfileSnapshot ReadEffective(ProfileLease lease)
+    internal BooruContentProfileSnapshot ReadEffective()
     {
-        Read(lease, acceptPersistedChoice: false);
+        if (_lease is { } lease) Read(lease, acceptPersistedChoice: false);
         return Snapshot;
     }
 
@@ -104,26 +108,28 @@ internal sealed class BooruWorkspaceContent
         }
         else if (!observed.HasChoice)
         {
-            // A missing document carries no rules, so the confirmed choice stays in force.
-            effective = _ready ?? observed;
-        }
-        else if (_ready is { } ready)
-        {
-            // Tighten through stricter edits; looser edits wait for a confirmed choice.
-            effective = Restrict(ready, observed);
-            _ready = effective;
+            // Keep previously observed restrictions when the document disappears.
+            effective = _knownRules ?? observed;
         }
         else
         {
-            // Without any known rules, a document repaired after a failed read is accepted only when Booru is opened.
-            if (!acceptPersistedChoice && active.State is BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported)
-                return false;
-            // A first persisted choice is what a restart would load; for saved media it only adds a ceiling.
-            effective = observed;
-            _ready = effective;
+            bool acceptRepair = _startedWithReadFailure && acceptPersistedChoice;
+            if (_knownRules is null && _startedWithReadFailure && !acceptRepair) return false;
+            effective = _knownRules is { } known ? Restrict(known, observed) : observed;
+            if (_knownRules?.HasChoice != true && !acceptRepair && effective.HasChoice)
+            {
+                // A new document can restrict saved media while provider actions still require a first choice.
+                effective = effective with
+                {
+                    State = BooruContentProfileState.PendingChoice,
+                    Filter = new(effective.Revision, effective.Settings with { MaximumRating = null })
+                };
+            }
+            _knownRules = effective;
         }
 
-        if (ReferenceEquals(active, effective) || (!effective.HasChoice && !active.HasChoice && active.State == effective.State))
+        if (ReferenceEquals(active, effective) || active.State == effective.State
+            && effective.State is BooruContentProfileState.Missing or BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported)
             return false;
         Volatile.Write(ref _snapshot, effective);
         return true;
@@ -131,7 +137,7 @@ internal sealed class BooruWorkspaceContent
 
     private void AcceptConfirmed(BooruContentProfileSnapshot snapshot)
     {
-        _ready = snapshot.HasChoice ? snapshot : null;
+        _knownRules = snapshot.HasChoice ? snapshot : null;
         Volatile.Write(ref _snapshot, snapshot);
     }
 
@@ -181,16 +187,17 @@ internal sealed class BooruWorkspaceContent
     internal bool Allows(BooruPostClaim post) => Snapshot.Filter.Evaluate(post).IsAllowed;
     internal bool Allows(BooruPostView post) => Allows(Snapshot.Filter, post);
 
-    internal static bool Allows(BooruContentFilter? filter, BooruPostView post)
+    internal static bool Allows(BooruContentFilter? filter, BooruPostView post) =>
+        filter is null || Allows(filter, post.Post, post.SourceId, post.Identity.InstanceId);
+
+    internal static bool Allows(BooruContentFilter filter, BooruPost metadata, string source, string instance)
     {
-        if (filter is null) return true;
         try
         {
             // Signed scores cannot be represented by the backwards-compatible claim store.
-            BooruPost metadata = post.Post;
             if (metadata.Score is < 0)
                 metadata = metadata with { Score = null, Fields = metadata.Fields & ~BooruFieldPresence.Score };
-            return filter.Evaluate(BooruClaimMapper.Map(metadata, post.SourceId, post.Identity.InstanceId)).IsAllowed;
+            return filter.Evaluate(BooruClaimMapper.Map(metadata, source, instance)).IsAllowed;
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidDataException or FormatException or OverflowException)
         {

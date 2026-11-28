@@ -10,7 +10,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.Booru;
 
-internal enum BooruContentProfileState { Missing, Ready, Unsupported, Unreadable }
+internal enum BooruContentProfileState { Missing, Ready, Unsupported, Unreadable, PendingChoice }
 
 internal sealed record BooruContentProfileSnapshot(
     BooruContentProfileState State,
@@ -95,8 +95,8 @@ internal sealed class BooruContentProfileStore
     /// <summary>
     /// Saves an editor's changes as a field-wise merge onto the document read under the write lease. Fields the edit leaves
     /// unchanged, and all fields the editor does not show (source blacklists, later fields), always come from that document,
-    /// even when its revision equals the edit's base. A conflict is reported when a field the editor showed differs from
-    /// the document now, whatever the revision says: the user must see those values before confirming them.
+    /// even when its revision equals the edit's base. Conflicts are checked on edited fields, or on both displayed
+    /// fields when the user confirms the existing values without editing them.
     /// </summary>
     internal BooruContentProfileSnapshot SaveEditAdmitted(BooruContentEdit edit, ProfileAdmissionToken admission,
         Action<BooruContentProfileSnapshot>? onRead = null, Action<BooruContentProfileSnapshot>? onSaved = null,
@@ -108,7 +108,7 @@ internal sealed class BooruContentProfileStore
             cancellationToken.ThrowIfCancellationRequested();
             BooruContentProfileSnapshot current = LoadObserved(onRead);
             EnsureWritable(current);
-            if (!SameShownFields(current, edit.Base))
+            if (HasEditConflict(current, edit))
                 throw new BooruContentRevisionException(edit.Revision, current);
             BooruContentSettings merged = current.Settings with
             {
@@ -125,9 +125,15 @@ internal sealed class BooruContentProfileStore
             throw new InvalidOperationException("The current Booru content document is read-only.");
     }
 
-    private static bool SameShownFields(BooruContentProfileSnapshot current, BooruContentProfileSnapshot shown) =>
-        current.State == shown.State && current.Settings.MaximumRating == shown.Settings.MaximumRating
-        && string.Equals(current.Settings.GlobalBlacklist, shown.Settings.GlobalBlacklist, StringComparison.Ordinal);
+    private static bool HasEditConflict(BooruContentProfileSnapshot current, BooruContentEdit edit)
+    {
+        BooruContentProfileSnapshot shown = edit.Base;
+        bool confirmingShownValues = edit.MaximumRating is null && edit.GlobalBlacklist is null;
+        return current.State != shown.State
+            || (confirmingShownValues || edit.MaximumRating is not null) && current.Settings.MaximumRating != shown.Settings.MaximumRating
+            || (confirmingShownValues || edit.GlobalBlacklist is not null)
+                && !string.Equals(current.Settings.GlobalBlacklist, shown.Settings.GlobalBlacklist, StringComparison.Ordinal);
+    }
 
     private BooruContentProfileSnapshot WriteNext(BooruContentProfileSnapshot current, BooruContentSettings settings,
         Action<BooruContentProfileSnapshot>? onSaved, CancellationToken cancellationToken)

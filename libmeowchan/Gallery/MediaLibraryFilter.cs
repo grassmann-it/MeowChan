@@ -24,7 +24,7 @@ internal sealed class MediaContentBoundary(BooruContentFilter filter, Func<Booru
     internal static BooruContentFilter? RatingFilter(BooruContentProfileSnapshot? profile)
     {
         if (profile == null || profile.State == BooruContentProfileState.Missing) return null;
-        return profile.State == BooruContentProfileState.Ready
+        return profile.State is BooruContentProfileState.Ready or BooruContentProfileState.PendingChoice
             ? new BooruContentFilter(profile.Revision, new BooruContentSettings(profile.Settings.MaximumRating, string.Empty, []))
             : profile.Filter;
     }

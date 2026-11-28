@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MeowChan.Booru;
 using MeowChan.PluginHost.Http;
 using MeowChan.PluginSdk;
 
@@ -112,7 +113,10 @@ internal sealed class BooruSearchTabs
     }
 
     internal BooruSearchTabState CaptureTargets(int tabLimit = Config.BooruSavedTabsMaximum,
-        int resultLimit = Config.BooruSavedResultsPerTabDefault)
+        int resultLimit = Config.BooruSavedResultsPerTabDefault) =>
+        CaptureTargets(_search.ReadContentFilter(), tabLimit, resultLimit);
+
+    internal BooruSearchTabState CaptureTargets(BooruContentFilter? filter, int tabLimit, int resultLimit)
     {
         BooruSearchView current = _search.View;
         if (_slots.Count == 0) return new(0, [null], CaptureView(current, 0));
@@ -126,12 +130,13 @@ internal sealed class BooruSearchTabs
         }
 
         int[] retained = RetainedIndices(count, activeIndex, tabLimit);
-        return new(Array.IndexOf(retained, activeIndex), Array.ConvertAll(retained, index =>
+        BooruSearchTabState captured = new(Array.IndexOf(retained, activeIndex), Array.ConvertAll(retained, index =>
         {
             if (index == _slots.Count) return CaptureView(current, 0);
             Slot slot = _slots[index];
-            return AllowedRows(slot.IsDeferred ? slot.SavedTarget : CaptureTarget(slot, resultLimit));
+            return slot.IsDeferred ? slot.SavedTarget : CaptureTarget(slot, resultLimit);
         }));
+        return FilterCapturedRows(captured, filter);
     }
 
     private BooruSearchTabTarget? CaptureTarget(Slot slot, int resultLimit)
@@ -144,18 +149,15 @@ internal sealed class BooruSearchTabs
 
     // Background tabs keep the view they had when they were left. Saved rows and preview bytes pass the effective
     // content rules at capture time, so a tightening also reaches tabs that are not shown.
-    private BooruSearchTabTarget? AllowedRows(BooruSearchTabTarget? target)
+    internal static BooruSearchTabState FilterCapturedRows(BooruSearchTabState state, BooruContentFilter? filter) =>
+        filter is null ? state : state with { Tabs = Array.ConvertAll(state.Tabs, target => AllowedRows(target, filter)) };
+
+    private static BooruSearchTabTarget? AllowedRows(BooruSearchTabTarget? target, BooruContentFilter filter)
     {
         if (target?.Rows is not { Length: > 0 } rows) return target;
-        string instance = target.Instance;
-        BooruSearchTabRow[] allowed = rows.Where(row => AllowsSaved(row, instance)).ToArray();
+        BooruSearchTabRow[] allowed = rows
+            .Where(row => BooruWorkspaceContent.Allows(filter, row.Post, target.Source, target.Instance)).ToArray();
         return allowed.Length == rows.Length ? target : target with { Rows = allowed };
-    }
-
-    private bool AllowsSaved(BooruSearchTabRow row, string instance)
-    {
-        try { return _search.IsMediaAllowed(BooruPostView.From(row.Post, instance)); }
-        catch (Exception error) when (error is ArgumentException or InvalidOperationException) { return false; }
     }
 
     private static string BoundedInput(BooruSearchView view) => view.Input.Length <= BooruSearchTabTarget.MaximumDraftLength

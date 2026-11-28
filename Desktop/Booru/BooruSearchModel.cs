@@ -267,6 +267,7 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     private async Task RunSearchAsync(string query, int page, BooruPagerLimits requestedLimits, bool newSearch = false)
     {
+        ReadContentFilter();
         (long id, RequestLifetime? lifetime, Binding? binding, BooruPagerLimits limits) =
             Begin(BooruSearchStatus.Searching, query, null, page, requestedLimits, newSearch);
         using RequestLifetime? request = lifetime;
@@ -284,6 +285,8 @@ internal sealed partial class BooruSearchModel : IDisposable
             result = BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Failed, "exception");
         }
 
+        if (token.IsCancellationRequested) return;
+        ReadContentFilter();
         bool follow = false;
         lock (_gate)
         {
@@ -324,6 +327,7 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     private async Task RunPostAsync(string postId)
     {
+        ReadContentFilter();
         (long id, RequestLifetime? lifetime, Binding? binding, BooruPagerLimits _) = Begin(BooruSearchStatus.Searching, null, postId, 1);
         using RequestLifetime? request = lifetime;
         if (request is null || binding is null) return;
@@ -340,6 +344,8 @@ internal sealed partial class BooruSearchModel : IDisposable
             result = BooruCallResult<BooruPostView>.Of(BooruCallStatus.Failed, "exception");
         }
 
+        if (token.IsCancellationRequested) return;
+        ReadContentFilter();
         bool follow = false;
         lock (_gate)
         {

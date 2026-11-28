@@ -108,6 +108,7 @@ internal sealed partial class BooruSearchModel
     /// </summary>
     internal void Restore(BooruSearchView? snapshot, int? tabId)
     {
+        ReadContentFilter();
         lock (_gate)
         {
             if (_disposed) return;

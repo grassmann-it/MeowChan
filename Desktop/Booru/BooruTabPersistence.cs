@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Booru;
 using MeowChan.Desktop.Controls;
 using Serilog;
 
@@ -32,14 +33,14 @@ internal sealed class BooruTabPersistence : IDisposable
             view.RestoreSearchTabs(snapshot, config.BooruSavedTabs, config.BooruSavedResultsPerTab);
 
         _observed = view.Model.Search.View;
-        _lastSnapshot = _observedSnapshot = Capture(Config.BooruSavedTabsMaximum);
+        _lastSnapshot = _observedSnapshot = Capture(view.Model.Search.ReadContentFilter(), Config.BooruSavedTabsMaximum);
         _debounce = new QueryDebounce(Save, post: callback => view.Dispatcher.Post(callback));
         view.SearchTabs.Changed += Schedule;
         view.Model.Search.Changed += OnSearchChanged;
     }
 
-    private BooruSearchTabState Capture(int tabLimit) =>
-        _view.SearchTabs.CaptureTargets(tabLimit, _config.BooruSavedResultsPerTab);
+    private BooruSearchTabState Capture(BooruContentFilter? filter, int tabLimit) =>
+        _view.SearchTabs.CaptureTargets(filter, tabLimit, _config.BooruSavedResultsPerTab);
 
     private BooruSearchTabState? InspectExisting(bool migrateLegacy)
     {
@@ -65,13 +66,15 @@ internal sealed class BooruTabPersistence : IDisposable
     private void Save()
     {
         if (_loadFailed || !_config.RestoreBooruSearchTabs) return;
-        BooruSearchTabState current = Capture(Config.BooruSavedTabsMaximum);
-        // Switching tabs can update the active index without discarding previously saved drafts.
-        int tabLimit = current.HasSameTabs(_observedSnapshot)
+        BooruContentFilter? filter = _view.Model.Search.ReadContentFilter();
+        BooruSearchTabState current = Capture(filter, Config.BooruSavedTabsMaximum);
+        // Tab switches and content rule changes must keep previously saved drafts.
+        BooruSearchTabState previous = BooruSearchTabs.FilterCapturedRows(_observedSnapshot, filter);
+        int tabLimit = current.HasSameTabs(previous)
             ? Math.Max(_config.BooruSavedTabs, _lastSnapshot.Tabs.Length)
             : _config.BooruSavedTabs;
         _observedSnapshot = current;
-        BooruSearchTabState snapshot = current.Tabs.Length <= tabLimit ? current : Capture(tabLimit);
+        BooruSearchTabState snapshot = current.Tabs.Length <= tabLimit ? current : Capture(filter, tabLimit);
         if (snapshot.HasSameContent(_lastSnapshot) && (!_lastSave.IsCompleted || _lastSave.IsCompletedSuccessfully && _lastSave.Result))
             return;
         // On opt-in, inspect the previous file while keeping the current workbench session.
