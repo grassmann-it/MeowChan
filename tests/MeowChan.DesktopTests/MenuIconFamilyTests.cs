@@ -28,7 +28,7 @@ public sealed class MenuIconFamilyTests
         { "power", "App shutdown and enable or disable switches.",
             ["plugins.enable", "plugins.disable", "app.quit", "rules.toggle-enabled"] },
         { "image", "Open or return to media, media display options and frame capture.",
-            ["tagging.preview-column", "gallery.open", "gallery.open-results", "reader.media.activate", "gallery.fit",
+            ["tagging.preview-column", "gallery.open", "gallery.open-results", "reader.media.activate", "gallery.fit", "gallery.fit-width", "gallery.fit-height",
                 "gallery.context-close", "reader.view.media-only", "reader.view.textless-large", "video.snapshot"] },
         { "file-text", "Text and post documents, including the gallery post panel and the Reader Thread menu.",
             ["plugins.edit", "gallery.context-toggle", "gallery.show-in-thread", "reader.thread-menu",

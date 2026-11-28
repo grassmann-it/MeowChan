@@ -23,7 +23,12 @@ internal static class ProfileCopyAccess
     {
         uint originalRights = access.Inspect(source).EffectiveRights;
         access.CreateProtectedDirectory(copy);
-        ProfileDirectoryAccess copied = access.Inspect(copy);
+        Verify(copy, originalRights, access);
+    }
+
+    internal static void Verify(string path, uint originalRights, IProfileCopyAccess access)
+    {
+        ProfileDirectoryAccess copied = access.Inspect(path);
         if (!copied.ProtectedOwnerOnly || (copied.EffectiveRights & ~originalRights) != 0)
             throw new UnauthorizedAccessException("The profile copy would widen Windows access rights.");
     }
@@ -51,6 +56,25 @@ internal sealed class WindowsProfileCopyAccess : IProfileCopyAccess
         security.AddAccessRule(new FileSystemAccessRule(user, CopyRights, Inherit,
             PropagationFlags.None, AccessControlType.Allow));
         new DirectoryInfo(path).Create(security);
+    }
+
+    internal void CreateProtectedChild(string source, string destination, string stagingParent)
+    {
+        // Creating an explicit ACL beneath a Modify-only directory fails on Windows. Move an
+        // empty, protected directory from beside the upgrade staging tree on the same volume.
+        string staging = Path.Combine(stagingParent, ".profile-copy-" + Guid.NewGuid().ToString("N"));
+        uint originalRights = Inspect(source).EffectiveRights;
+        try
+        {
+            CreateProtectedDirectory(staging);
+            ProfileCopyAccess.Verify(staging, originalRights, this);
+            Directory.Move(staging, destination);
+            ProfileCopyAccess.Verify(destination, originalRights, this);
+        }
+        finally
+        {
+            if (Directory.Exists(staging)) Directory.Delete(staging);
+        }
     }
 
     public ProfileDirectoryAccess Inspect(string path)

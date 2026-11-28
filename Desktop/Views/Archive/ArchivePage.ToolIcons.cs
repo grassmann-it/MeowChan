@@ -25,6 +25,7 @@ public partial class ArchivePage
         ("ArchiveMediaSelectionExport", CommandCatalog.Get("media.export-original").Icon),
         ("ArchiveMediaSelectionClear", "x"),
         ("ArchiveFavoritesFilter", CommandCatalog.Get("favorites.filter").Icon),
+        ("ArchiveThreadMediaMenuButton", CommandCatalog.Get("thread.tag-media").Icon),
         ("ArchiveEditRatingButton", CommandCatalog.Get("media.rating.edit").Icon),
         ("ArchiveManageRatingsButton", CommandCatalog.Get("media.rating.manage").Icon),
         ("PreviewArchiveMediaButton", CommandCatalog.Get("gallery.open").Icon),

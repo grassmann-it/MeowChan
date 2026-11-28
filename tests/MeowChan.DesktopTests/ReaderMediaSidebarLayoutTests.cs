@@ -231,6 +231,9 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.True(page.IsMediaSidebarShown);
             ReaderMediaSidebar sidebar = page.MediaSidebar!;
             Grid host = (Grid)sidebar.Parent!;
+            Border content = page.FindControl<Border>("ArchiveReaderContent")!;
+            StackPanel selection = page.FindControl<StackPanel>("ArchiveMediaSelectionStrip")!;
+            Assert.Equal(Grid.GetColumn(content), Grid.GetColumn(selection));
             ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
             Assert.Equal(right ? "panel-right" : "panel-left", IconButtons.KeyOf(toggle));
             Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
@@ -238,12 +241,13 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.All(new Control[] { sidebar, splitter }, control =>
             {
                 Assert.Equal(0, Grid.GetRow(control));
-                Assert.Equal(largeReader ? 1 : 2, Grid.GetRowSpan(control));
+                Assert.Equal(Math.Max(1, host.RowDefinitions.Count), Grid.GetRowSpan(control));
             });
             foreach (bool withChrome in new[] { false, true })
             {
                 if (withChrome)
                 {
+                    selection.IsVisible = true;
                     sidebar.ShowStrip(3, 0, 3, index => "file" + index, samePost: false);
                     sidebar.VideoRow.Children.Add(new TextBlock { Text = "Transport" });
                 }

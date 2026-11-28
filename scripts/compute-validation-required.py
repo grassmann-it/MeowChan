@@ -49,7 +49,10 @@ def required_steps(event_name: str, mode: str, scenario: str, lane: str, runner_
         # Bounded retest: one non-macOS lane, scenario all, never GUI or packaging.
         if lane not in OFFLINE_RETEST_LANES or runner_os == "macOS" or scenario not in ("", "all"):
             raise ValueError(f"offline-retest rejects lane={lane} os={runner_os} scenario={scenario}")
-        return list(OFFLINE_RETEST_REQUIRED)
+        required = list(OFFLINE_RETEST_REQUIRED)
+        if runner_os == "Linux":
+            required.insert(required.index("core_tests"), "linux_setup")
+        return required
     scenario = effective_scenario(event_name, scenario)
     is_full = (runner_os == "macOS" and lane == "native") or lane == "lane-a"
     if runner_os == "macOS" and lane not in ("native", *(f"native-{i:02}" for i in range(2, 9))):

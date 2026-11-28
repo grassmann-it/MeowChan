@@ -270,8 +270,12 @@ internal static class SelectionChecks
             "selection.copy-links", "location.open-folder", "location.open-source", "location.open-third-party-archive", "watch.check", "watch.retry-media",
             "rules.edit-scope", "watch.remove", "archive.delete-permanently"
         };
-        // One thread only: its own tags follow Show in Media; the URL-text export follows the HTML export.
-        if (single) { expected.Insert(5, "thread.tags"); expected.Insert(8, "export.open-urltext-dialog"); }
+        // One thread only: thread tags and whole-thread media commands follow Show in Media; URL-text export follows HTML export.
+        if (single)
+        {
+            expected.InsertRange(expected.IndexOf("thread.show-in-media") + 1, ["thread.tags", "thread.tag-media", "thread.stamp-media"]);
+            expected.Insert(expected.IndexOf("export.open-html-dialog") + 1, "export.open-urltext-dialog");
+        }
         string[] actual = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string)
             .Select(item => AutomationProperties.GetAutomationId(item) ?? string.Empty).ToArray();
         Require(actual.SequenceEqual(expected),

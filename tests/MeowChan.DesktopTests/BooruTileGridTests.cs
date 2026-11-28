@@ -91,7 +91,8 @@ public sealed class BooruTileGridTests
             Border tile = Assert.Single(view.TilePanel!.Children.OfType<Border>(), child => child.Name == automationId);
             TextBlock label = Assert.Single(tile.GetLogicalDescendants().OfType<TextBlock>(), text => text.Name == "BooruTileLine:" + id);
             Assert.Equal(line, label.Text);
-            Assert.Equal(providerFacts, Assert.IsType<string>(ToolTip.GetTip(tile)));
+            ToolTip tip = Assert.IsType<ToolTip>(ToolTip.GetTip(tile));
+            Assert.Equal(providerFacts, tip.Content);
             Assert.True(tile.Focusable);
             Assert.True(tile.IsTabStop);
             Assert.Equal("Post #" + id + " · " + providerFacts, AutomationProperties.GetName(tile));

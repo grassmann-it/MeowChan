@@ -99,14 +99,15 @@ internal static class ProfileUpgrade
             string snapshotPath = Path.Combine(staging, SnapshotDirectoryName);
             string prepared = Path.Combine(staging, WorkingDirectoryName);
             string target = Path.Combine(generation, WorkingDirectoryName);
+            string stagingParent = Path.GetDirectoryName(staging)!;
             ProfileSnapshot.CreatePrivateDirectory(staging, source.ProfileDirectory);
-            ProfileSnapshot.CreatePrivateDirectory(snapshotPath, source.ProfileDirectory);
+            ProfileSnapshot.CreatePrivateDirectory(snapshotPath, source.ProfileDirectory, stagingParent);
             Guid id = ProfileInstanceIdentity.TryRead(source.ProfileDirectory)?.Id ?? Guid.NewGuid();
             var initial = ProfileManifest.New(id, ProfileManifest.Preparing, new(), []);
             string defaultDownloads = ProfileLease.NormalizeDirectory(legacyDownloads);
             ProfileSnapshot snapshot = ProfileSnapshot.CaptureUpgrade(source, snapshotPath, initial, defaultDownloads,
                 availableBytes, operation);
-            snapshot.RestoreData(snapshotPath, prepared, operation);
+            snapshot.RestoreData(snapshotPath, prepared, operation, privateStagingParent: stagingParent);
             var originalParts = ProfileManifest.Inspect(prepared);
             string[] external = snapshot.ManagedMedia!.SelectMany(media => media.SelectedNames is null
                 ? new[] { media.Root } : media.Files.Select(file => Path.Combine(media.Root, file.Name))).ToArray();

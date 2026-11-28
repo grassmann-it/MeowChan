@@ -34,7 +34,7 @@ public sealed class ReaderSidebarAlignmentTests
             window.Show();
             Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
             Border posts = page.FindControl<Border>("ArchiveReaderContent")!;
-            StackPanel postsHeader = Assert.Single(pane.Children.OfType<StackPanel>());
+            StackPanel postsHeader = Assert.Single(pane.Children.OfType<StackPanel>(), panel => panel.Name == "ReaderHeaderRows");
             var preferences = ReaderMediaPreferences.From(new Config
             {
                 ReaderMediaSidebar = true,

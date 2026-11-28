@@ -181,13 +181,13 @@ public sealed class ActionOverflowLayoutTests
     [Fact]
     public void TheReaderMediaPairRanksAsItsBestMemberAndNeverSplitsAtAnyWidth()
     {
-        // ReaderMediaTools (PrioritizedOverflow; priorities, not bar order, decide): Tiles (40) | Table (45) | Columns (hidden, 60) | Favorites only (20) | Rating (30) | Sort (10).
+        // ReaderMediaTools (PrioritizedOverflow; priorities, not bar order, decide): Tiles (40) | Table (45) | Columns (hidden, 50) | Favorites only (20) | Rating (30) | Sort (10).
         double[] widths = [64, 64, 90, 100, 140, 160];
         int[] groups = [0, 0, 0, 0, 0, 0];
         bool[] segments = [true, true, false, false, false, false];
         OverflowMode[] modes = [OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded];
         bool[] visible = [true, true, false, true, true, true];
-        int[] priorities = [40, 45, 60, 20, 30, 10];
+        int[] priorities = [40, 45, 50, 20, 30, 10];
         // 540 of the 552 the whole bar needs: Sort, Favorites and Rating (424) fit beside More, the pair (128) does not. Before the fix
         // Tiles stayed alone on the bar (488 within 500) and Table went under More.
         (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced(widths, groups, segments, modes, visible, 540, 40, priorities);

@@ -7,6 +7,7 @@ using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Storage;
 using MeowChan.Tags;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -440,8 +441,9 @@ public sealed class CardModeTests : IDisposable
         Assert.Contains("CommandBindings.Matches(e, TaggingCardCommands.Card(i + 1))", cardsSource);
         // One decision log: the card writes through the panel's own decision session and then the walk's own Decide; no second stack.
         Assert.Contains("controller.DecisionTargets()", cardsSource);
-        Assert.Contains("decisions.SetFavoriteAsync(targets, true)", cardsSource);
-        Assert.Contains("decisions.SetRatingAsync(targets, action.Rating)", cardsSource);
+        MethodDeclarationSyntax cardDecision = CSharpSource.Parse(cardsSource).Method("ApplyCardDecisionAsync");
+        AssertDecisionWrite("SetFavoriteAsync", "true");
+        AssertDecisionWrite("SetRatingAsync", "action.Rating");
         Assert.Contains("TaggingDecide(TagQueueState.Done, status.Text());", cardsSource);
         Assert.Contains("await TaggingBackAsync();", cardsSource);
         Assert.Contains("await TaggingStampAsync();", cardsSource);
@@ -450,6 +452,15 @@ public sealed class CardModeTests : IDisposable
         // A second key while a card is applied is ignored, and a refused write leaves the medium open.
         Assert.Contains("_cardBusy", cardsSource);
         Assert.Contains("if (!saved || !ReferenceEquals(_entry, entry))", cardsSource);
+
+        void AssertDecisionWrite(string method, string value)
+        {
+            var call = Assert.Single(cardDecision.Calls(method, "decisions"));
+            Assert.IsType<AwaitExpressionSyntax>(call.Parent);
+            Assert.Collection(call.ArgumentList.Arguments.Take(2),
+                target => Assert.Equal("targets", target.Expression.ToString()),
+                decision => Assert.Equal(value, decision.Expression.ToString()));
+        }
     }
 
     [Fact]

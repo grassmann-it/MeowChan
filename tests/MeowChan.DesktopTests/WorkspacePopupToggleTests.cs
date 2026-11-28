@@ -301,12 +301,25 @@ public sealed class WorkspacePopupToggleTests(ITestOutputHelper output)
             PressAtFocus(window, Key.Enter);
             Assert.False(media.IsOpen);
             Assert.True(viewer.IsOverflowOpen);
+            ToggleButton fit = Find<ToggleButton>(viewer.OverflowMenuContent, "gallery.fit");
+            Assert.True(fit.IsEffectivelyEnabled);
+            Assert.Same(fit, window.FocusManager?.GetFocusedElement());
+            Assert.True(viewer.OverflowMenuContent.IsKeyboardFocusWithin);
+
+            ToggleButton widthFit = Find<ToggleButton>(viewer.OverflowMenuContent, "gallery.fit-width");
+            PressAtFocus(window, Key.Down);
+            Assert.Same(widthFit, window.FocusManager?.GetFocusedElement());
+            PressAtFocus(window, Key.Enter);
+            Assert.True(viewer.IsOverflowOpen);
+            Assert.True(widthFit.IsChecked);
+            Assert.False(fit.IsChecked);
+
+            PressAtFocus(window, Key.Down);
+            Assert.Same(Find<ToggleButton>(viewer.OverflowMenuContent, "gallery.fit-height"), window.FocusManager?.GetFocusedElement());
+            PressAtFocus(window, Key.Down);
             Button zoom = Find<Button>(viewer.OverflowMenuContent, "gallery.zoom-in");
             Assert.True(zoom.IsEffectivelyEnabled);
-            var focused = window.FocusManager?.GetFocusedElement() as Control;
-            Assert.True(ReferenceEquals(zoom, focused),
-                $"Expected gallery.zoom-in at {width} DIP, got {(focused == null ? "<none>" : AutomationProperties.GetAutomationId(focused) ?? focused.Name ?? focused.GetType().Name)}.");
-            Assert.True(viewer.OverflowMenuContent.IsKeyboardFocusWithin);
+            Assert.Same(zoom, window.FocusManager?.GetFocusedElement());
             PressAtFocus(window, Key.Escape);
             Assert.False(viewer.IsOverflowOpen);
             Assert.Same(viewer, window.FocusManager?.GetFocusedElement());

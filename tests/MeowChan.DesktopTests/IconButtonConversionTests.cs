@@ -103,7 +103,7 @@ public sealed class IconButtonConversionTests
             "ArchiveMediaLayoutTable", "ArchiveMediaLayoutTiles",
             "ArchiveMediaSelectionClear", "ArchiveMediaSelectionExport", "ArchiveMediaSelectionGallery", "ArchiveMediaSelectionQueue",
             "ArchiveMediaSelectionTag", "ArchiveResetFilters", "ArchiveRetrySearch", "ArchiveRetrySuggestions", "ArchiveTagManage",
-            "ArchiveUseDeviceZone", "PreviewArchiveMediaButton", "ReaderFindRetry", "ReaderFindSearch", "ReaderTagAdd", "ReaderTagManage" },
+            "ArchiveThreadMediaMenuButton", "ArchiveUseDeviceZone", "PreviewArchiveMediaButton", "ReaderFindRetry", "ReaderFindSearch", "ReaderTagAdd", "ReaderTagManage" },
             ArchivePage.ToolButtonIcons.Select(entry => entry.Name).Order(StringComparer.Ordinal).ToArray());
         Assert.Contains("InitializeToolButtonIcons();", ReadSource("Desktop/Views/Archive/ArchivePage.axaml.cs"));
         Assert.Contains("EnsureIconBeforeText(Control<Button>(name), icon)", ReadSource("Desktop/Views/Archive/ArchivePage.ToolIcons.cs"));

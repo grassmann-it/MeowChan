@@ -224,14 +224,15 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
         RestoreData(snapshotDirectory, target, operation, rebindPaths: Version == UpgradeVersion);
     }
 
-    internal void RestoreData(string snapshotDirectory, string target, ProfileCopyOperation operation, bool rebindPaths = false)
+    internal void RestoreData(string snapshotDirectory, string target, ProfileCopyOperation operation, bool rebindPaths = false,
+        string? privateStagingParent = null)
     {
         if (Directory.Exists(target) || File.Exists(target))
             throw new IOException("The profile restore requires a fresh directory.");
         string staging = target + ".pending-" + Guid.NewGuid().ToString("N");
         try
         {
-            CreatePrivateDirectory(staging, snapshotDirectory);
+            CreatePrivateDirectory(staging, snapshotDirectory, privateStagingParent);
             CopyTree(Path.Combine(snapshotDirectory, DataName), staging, Directories, Files, operation);
             if (rebindPaths) ProfileMediaRelocation.Apply(this, snapshotDirectory, staging, target, operation, restoring: true);
             operation.Token.ThrowIfCancellationRequested();
@@ -375,12 +376,14 @@ internal sealed record ProfileSnapshot(int Version, string SourceDirectory, Date
 
     internal static long FreeSpace(string path) => new DriveInfo(Path.GetFullPath(path)).AvailableFreeSpace;
 
-    internal static void CreatePrivateDirectory(string path, string? source = null)
+    internal static void CreatePrivateDirectory(string path, string source, string? windowsStagingParent = null)
     {
         if (!OperatingSystem.IsWindows())
             Directory.CreateDirectory(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        else if (source is null) WindowsProfileCopyAccess.Instance.CreateProtectedDirectory(path);
-        else ProfileCopyAccess.CreateVerified(source, path, WindowsProfileCopyAccess.Instance);
+        else if (windowsStagingParent is null)
+            ProfileCopyAccess.CreateVerified(source, path, WindowsProfileCopyAccess.Instance);
+        else
+            WindowsProfileCopyAccess.Instance.CreateProtectedChild(source, path, windowsStagingParent);
     }
 
     internal static void PublishJson<T>(string path, T value, JsonSerializerOptions options)

@@ -15,6 +15,7 @@ public sealed class SettingsTransferTests
         nameof(Config.WindowWidth), nameof(Config.WindowHeight), nameof(Config.WindowPositionX), nameof(Config.WindowPositionY),
         nameof(Config.WindowMaximized), nameof(Config.FirstRunSetupPending), nameof(Config.FirstRunSetupVersion),
         nameof(Config.WorkViewNoticePending), nameof(Config.SourceMediaIntegrityPermissions), nameof(Config.DownloadsPaused),
+        nameof(Config.BooruMd5BatchEnabled),
         nameof(Config.LastExportDirectory), nameof(Config.GalleryFrameDirectory), nameof(Config.GalleryContextOpen),
         nameof(Config.ArchiveBridgeHintSeen),
         nameof(Config.StatusPageSegment),
@@ -45,6 +46,7 @@ public sealed class SettingsTransferTests
             FirstRunSetupPending = true,
             FirstRunSetupVersion = 1,
             WorkViewNoticePending = true,
+            BooruMd5BatchEnabled = true,
             SourceMediaIntegrityPermissions = new()
             {
                 [SourceMediaIntegrityPermission.CreateKey("owner", "source")] =
@@ -413,6 +415,7 @@ public sealed class SettingsTransferTests
         source.MediaSortDirection = "Reversed";
         source.StatsHeaderGraph = "SideBySide";
         source.GalleryPlaybackMode = "Slideshow";
+        source.GalleryFitMode = "Width";
         source.GallerySlideshowVideoRule = "RepeatTimes";
         source.DownloadPath = "/tmp/portable/猫";
         source.PluginEditorExecutable = "editor-canary";
@@ -423,6 +426,7 @@ public sealed class SettingsTransferTests
         source.GalleryAutoHideControls = true;
         source.SourceMediaIntegrityPermissions["excluded-consent"] =
             new SourceMediaIntegrityPermission("sensitive-owner", "sensitive-source", true, 42);
+        source.BooruMd5BatchEnabled = true;
         source.LastExportDirectory = "sensitive-last-directory";
         source.GalleryFrameDirectory = "sensitive-frame-directory";
         JsonObject expected = Serialize(source); // All profiles already present, so this read is non-materializing.
@@ -433,8 +437,7 @@ public sealed class SettingsTransferTests
         JsonObject export = SettingsTransfer.Export(input, "1.1.0+build42");
 
         Assert.Equal(expected.Select(pair => pair.Key).Order(), export.Select(pair => pair.Key).Order());
-        foreach ((string key, JsonNode? value) in expected)
-            Assert.True(JsonNode.DeepEquals(value, export[key]), $"Portable setting {key} was not copied verbatim");
+        Assert.Empty(expected.Where(pair => !JsonNode.DeepEquals(pair.Value, export[pair.Key])).Select(pair => pair.Key));
         Assert.DoesNotContain("sensitive-", export.ToJsonString(), StringComparison.Ordinal);
         Assert.False(export[nameof(Config.GalleryOverlayControls)]!.GetValue<bool>());
         Assert.True(export[nameof(Config.GalleryAutoHideControls)]!.GetValue<bool>());

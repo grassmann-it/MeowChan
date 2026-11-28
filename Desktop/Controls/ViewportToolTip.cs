@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives.PopupPositioning;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -11,6 +12,25 @@ namespace MeowChan.Desktop.Controls;
 internal static class ViewportToolTip
 {
     public static readonly CustomPopupPlacementCallback Place = PlaceInViewport;
+
+    internal static void SetText(Control target, string text)
+    {
+        ToolTip.SetTip(target, new ToolTip { Content = text });
+        ToolTip.AddToolTipOpeningHandler(target, ConstrainWidth);
+    }
+
+    private static void ConstrainWidth(object? sender, CancelRoutedEventArgs e)
+    {
+        if (sender is not Control target || ToolTip.GetTip(target) is not ToolTip tip
+            || target.FindAncestorOfType<ScrollContentPresenter>() is not { } viewport)
+            return;
+
+        // The tooltip wraps to the viewport and reserves room for fractional popup rounding.
+        double width = Math.Max(0, viewport.Bounds.Width - 1);
+        if (target.TryFindResource("ToolTipMaxWidth", out object? resource) && resource is double themeWidth)
+            width = Math.Min(width, themeWidth);
+        tip.MaxWidth = width;
+    }
 
     private static void PlaceInViewport(CustomPopupPlacement placement)
     {

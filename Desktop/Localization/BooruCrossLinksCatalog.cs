@@ -25,7 +25,7 @@ internal static class BooruCrossLinksCatalog
         ("booru.md5.batch.start", "Start lookup", "Abgleich starten"),
         ("booru.md5.batch.resume", "Resume lookup", "Abgleich fortsetzen"),
         ("booru.md5.batch.stop", "Pause lookup", "Abgleich pausieren"),
-        ("booru.md5.batch.progress", "Checked {0} of {1} · {2} matches · {3} without a checksum", "{0} von {1} geprüft · {2} Fundstellen · {3} ohne Prüfsumme"),
+        ("booru.md5.batch.progress", "Checked {0} of {1} · Matches: {2} · Without a checksum: {3}", "Geprüft: {0} von {1} · Fundstellen: {2} · Ohne Prüfsumme: {3}"),
         ("booru.md5.batch.matches", "Matching Danbooru posts", "Passende Danbooru-Posts"),
         ("booru.md5.batch.saveFailed", "Could not save this profile’s permission.", "Die Freigabe für dieses Profil konnte nicht gespeichert werden."),
         ("booru.md5.batch.finished", "Lookup complete.", "Abgleich abgeschlossen."),

@@ -339,14 +339,14 @@ public partial class ArchivePage
             if (_largeReader) ReaderHostingStep("sidebar.09");
             sidebar.IsVisible = splitter.IsVisible = false;
             if (_largeReader) ReaderHostingStep("sidebar.10");
+            int rowSpan = Math.Max(1, host.RowDefinitions.Count);
             Grid.SetRow(sidebar, 0);
-            Grid.SetRowSpan(sidebar, archiveView ? 2 : 1);
+            Grid.SetRowSpan(sidebar, rowSpan);
             if (_largeReader) ReaderHostingStep("sidebar.11");
             Grid.SetRow(splitter, 0);
-            Grid.SetRowSpan(splitter, archiveView ? 2 : 1);
+            Grid.SetRowSpan(splitter, rowSpan);
             if (_largeReader) ReaderHostingStep("sidebar.12");
-            // Span the embedded reader's header and content rows, just as the large
-            // reader spans its frame. No negative lift or padding tied to the posts.
+            // Span the whole host independently of the reader header, content and selection strip.
             sidebar.Margin = default;
             if (_largeReader) ReaderHostingStep("sidebar.13");
             if (archiveView) sidebar.BorderThickness = new Thickness(0);
@@ -379,6 +379,7 @@ public partial class ArchivePage
         foreach (ColumnDefinition column in columns) { column.MinWidth = 0; column.MaxWidth = double.PositiveInfinity; }
         pane.ColumnSpacing = 0;
         Grid.SetColumn(ArchiveReaderContent, 0);
+        Grid.SetColumn(ArchiveMediaSelectionStrip, 0);
         if (ReaderHeaderRows is { } header) Grid.SetColumn(header, 0);
     }
 
@@ -418,8 +419,11 @@ public partial class ArchivePage
             Grid.SetColumn(sidebar, sidebarColumn);
             Grid.SetColumn(splitter, 1);
             Grid.SetColumn(posts, postsColumn);
-            // The archive view's header rows stand over the posts card's column, not over the sidebar's.
-            if (!large && ReaderHeaderRows is { } headerRows) Grid.SetColumn(headerRows, postsColumn);
+            if (!large)
+            {
+                if (ReaderHeaderRows is { } headerRows) Grid.SetColumn(headerRows, postsColumn);
+                Grid.SetColumn(ArchiveMediaSelectionStrip, postsColumn);
+            }
             ColumnDefinitions columns = host.ColumnDefinitions;
             ColumnDefinition side = columns[sidebarColumn], postsTrack = columns[postsColumn];
             side.Width = shown ? new GridLength(width) : new GridLength(0);

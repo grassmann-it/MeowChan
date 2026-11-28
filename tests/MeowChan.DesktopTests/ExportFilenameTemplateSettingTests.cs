@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using MeowChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace MeowChan.DesktopTests;
 
@@ -101,7 +102,19 @@ public sealed class ExportFilenameTemplateSettingTests : IDisposable
         Assert.Contains("ValidateExportFilenameTemplateDraft()", Source("Desktop", "Views", "Settings", "SettingsEditor.axaml.cs"));
         Assert.Contains("[\"ExportFilenameTemplate\"]", Source("Desktop", "Views", "Settings", "SettingsSearchAliases.cs"));
         Assert.Contains("_archivePage.ExportFilenameTemplate = () => _config.ExportFilenameTemplate;", Source("Desktop", "Shell", "MainWindow.Navigation.cs"));
-        Assert.Contains("destination.Text, ExportFilenameTemplate?.Invoke(), run.Token)", Source("Desktop", "Views", "Archive", "ArchivePage.Favorites.cs"));
+        var favorites = CSharpSource.Parse(Source("Desktop", "Views", "Archive", "ArchivePage.Favorites.cs"));
+        var arguments = Assert.Single(favorites.Calls("ExportAsync", "FavoriteOriginalExporter")).ArgumentList.Arguments;
+        int destination = ArgumentPosition("destination.Text");
+        int template = ArgumentPosition("ExportFilenameTemplate?.Invoke()");
+        int cancellation = ArgumentPosition("run.Token");
+        Assert.True(destination < template && template < cancellation);
+
+        int ArgumentPosition(string expression)
+        {
+            string[] expected = SyntaxFactory.ParseExpression(expression).DescendantTokens().Select(token => token.Text).ToArray();
+            return Assert.Single(arguments, argument => argument.Expression.DescendantTokens()
+                .Select(token => token.Text).SequenceEqual(expected)).SpanStart;
+        }
     }
 
     [Fact]

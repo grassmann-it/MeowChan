@@ -303,7 +303,7 @@ internal static class ReaderMediaSidebarChecks
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.IsMediaSidebarInArchiveView && page.MediaSidebar!.IsEffectivelyVisible);
             ReaderMediaSidebar sidebar = page.MediaSidebar!;
             Require(page.ReaderMedia.Sidebar && page.ReaderMedia.SidebarAlways, "The archive view's switch did not choose Always.");
-            Require(sidebar.Parent == pane && Grid.GetRow(sidebar) == 0 && Grid.GetRowSpan(sidebar) == 2
+            Require(sidebar.Parent == pane && Grid.GetRow(sidebar) == 0 && Grid.GetRowSpan(sidebar) == pane.RowDefinitions.Count
                 && Grid.GetColumn(sidebar) == (page.ReaderMedia.SidebarRight ? 2 : 0)
                 && Grid.GetColumn(content) == (page.ReaderMedia.SidebarRight ? 0 : 2), "The sidebar does not span the archive reader beside its posts column.");
             foreach (bool right in new[] { false, true })

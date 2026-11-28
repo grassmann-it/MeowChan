@@ -2,6 +2,7 @@ using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using MeowChan.Desktop;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -22,13 +23,14 @@ public sealed class GalleryMediaReturnTests
     [Fact]
     public void AGalleryFromTheMediaPageTakesItsReturnPointBeforeTheViewerCoversThePage()
     {
-        string start = Body(Gallery, "private async Task StartGalleryAsync");
+        string start = Body(Gallery, "StartGalleryAsync");
         int capture = start.IndexOf("_galleryMediaReturn = CaptureGalleryMediaReturn(GalleryReturnTargetFor(origin, readerOrigin, originPage));", StringComparison.Ordinal);
+        int retire = start.IndexOf("await _galleryCleanupTask;", StringComparison.Ordinal);
         Assert.True(capture >= 0, "StartGalleryAsync must capture the Media return point.");
         Assert.True(capture < start.IndexOf("new GalleryViewer", StringComparison.Ordinal), "The point is taken while the page is still in front.");
-        Assert.True(capture > start.IndexOf("await _galleryCleanupTask;", StringComparison.Ordinal), "The point belongs to this open, after the retired viewer.");
+        Assert.True(retire >= 0 && retire < capture, "The point belongs to this open, after the retired viewer.");
 
-        string capturing = Body(Gallery, "private MediaLibraryReturnPoint? CaptureGalleryMediaReturn");
+        string capturing = Body(Gallery, "CaptureGalleryMediaReturn");
         Assert.Contains("target != GalleryReturnTarget.Media", capturing);
         Assert.Contains("_selectedPage != WorkspacePage.Media", capturing);
         Assert.Contains("CaptureGalleryReturnPoint()", capturing);
@@ -38,7 +40,7 @@ public sealed class GalleryMediaReturnTests
     [Fact]
     public void ClosingToMediaRestoresThroughThePageReturnKeyedOnTheReturnTarget()
     {
-        string close = Body(Gallery, "private void CloseGalleryCore");
+        string close = Body(Gallery, "CloseGalleryCore");
         // F7: no identity test against the grid; a tag-queue walk from the page's header has no origin control.
         Assert.DoesNotContain("ReferenceEquals(closedOrigin, _mediaPage?.Grid)", close);
         Assert.Contains("closingTarget == GalleryReturnTarget.Media && _mediaPage != null && _selectedPage == WorkspacePage.Media", close);
@@ -57,9 +59,9 @@ public sealed class GalleryMediaReturnTests
     [Fact]
     public void BothMediaReturnsStartTheRestoreAsAnObservedRun()
     {
-        string start = Body(Gallery, "private void StartMediaPageReturn");
+        string start = Body(Gallery, "StartMediaPageReturn");
         Assert.Contains("MediaReturnTask = OpenActions.StartObserved(() => page.ReturnToAsync(point), operation);", start);
-        string back = Body("Desktop/Shell/MainWindow.MediaReturn.cs", "private void ReturnToMedia");
+        string back = Body("Desktop/Shell/MainWindow.MediaReturn.cs", "ReturnToMedia");
         Assert.Contains("StartMediaPageReturn(media.Point, \"media.return\")", back); // the Media case of the shared return point (Back to Tagging is the other)
         Assert.DoesNotContain("MediaReturnTask = _mediaPage", back);
     }
@@ -95,11 +97,11 @@ public sealed class GalleryMediaReturnTests
     [Fact]
     public void AReturnToAPageWithoutTilesFocusesTheEmptyStatesWayOut()
     {
-        string restore = Body("Desktop/Views/Media/MediaPage.Return.cs", "private async Task<bool> RestoreAsync");
+        string restore = Body("Desktop/Views/Media/MediaPage.Return.cs", "RestoreAsync");
         int empty = restore.IndexOf("if (focus < 0)", StringComparison.Ordinal);
         Assert.True(empty >= 0);
         Assert.True(restore.IndexOf("EmptyReturnFocusTarget()?.Focus();", empty, StringComparison.Ordinal) > empty);
-        string target = Member("Desktop/Views/Media/MediaPage.Return.cs", "internal Control? EmptyReturnFocusTarget()");
+        string target = Body("Desktop/Views/Media/MediaPage.Return.cs", "EmptyReturnFocusTarget");
         Assert.Contains("_emptyActions.Children.Append(_nameFilter).Append(_refresh)", target);
     }
 
@@ -139,27 +141,10 @@ public sealed class GalleryMediaReturnTests
 
     // ---- helpers ----
 
-    private static string Member(string file, string start)
+    private static string Body(string file, string name)
     {
-        string text = Source(file);
-        int index = text.IndexOf(start, StringComparison.Ordinal);
-        Assert.True(index >= 0, start + " is not in " + file);
-        int semicolon = text.IndexOf(';', index), brace = text.IndexOf('{', index);
-        return brace >= 0 && brace < semicolon ? Body(file, start) : text[index..(semicolon + 1)];
-    }
-
-    private static string Body(string file, string start)
-    {
-        string text = Source(file);
-        int index = text.IndexOf(start, StringComparison.Ordinal);
-        Assert.True(index >= 0, start + " is not in " + file);
-        int open = text.IndexOf('{', index), depth = 0;
-        for (int i = open; i < text.Length; i++)
-        {
-            if (text[i] == '{') depth++;
-            else if (text[i] == '}' && --depth == 0) return text[index..(i + 1)];
-        }
-        throw new InvalidOperationException("Unbalanced braces after " + start);
+        MethodDeclarationSyntax method = CSharpSource.Parse(Source(file)).Method(name);
+        return method.Body?.ToString() ?? Assert.IsType<ArrowExpressionClauseSyntax>(method.ExpressionBody).Expression.ToString();
     }
 
     private static string Root([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>

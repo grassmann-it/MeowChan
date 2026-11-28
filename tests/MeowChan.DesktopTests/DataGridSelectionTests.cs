@@ -142,6 +142,8 @@ public sealed class DataGridSelectionTests
                         new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), target, default, 0,
                         PointerPointProperties.None, KeyModifiers.None)));
                 Assert.Same(row, readerOrigin);
+                BooruComponentDispatcher.WaitUntil(() => page.CurrentThread?.Summary.Id == rows[1].Summary.Id,
+                    "the double-tapped archive thread");
             }
             finally { window.Close(); }
 

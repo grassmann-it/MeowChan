@@ -82,8 +82,10 @@ public static partial class WorkViewPolicy
         new("reader.media.rating-filter", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 30),
         new("reader.media.layout-tiles", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 40),
         new("reader.media.layout-table", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 45),
-        new("reader.media.version-scope", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 50),
-        new("reader.media.columns", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Overflow, Direct, "table.choose-columns", OverflowOrder: 60),
+        // Keep the table's column chooser beside the view switch when the new menu adds an overflow slot.
+        new("reader.media.columns", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Overflow, Direct, "table.choose-columns", OverflowOrder: 50),
+        new("reader.media.version-scope", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 60),
+        new("reader.media.thread-media-menu", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 70),
         new("reader.media.edit-rating", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Direct, Direct, "media.rating.edit", OverflowOrder: 10),
         new("reader.media.preview", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
         new("reader.media.manage-ratings", WorkViewPage.Reader, WorkViewKind.Action, Overflow, Overflow, Direct, "media.rating.manage", OverflowOrder: 30),
