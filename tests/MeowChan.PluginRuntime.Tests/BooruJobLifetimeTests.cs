@@ -60,13 +60,14 @@ public sealed class BooruJobLifetimeTests
         ManualClock clock = new();
         TaskCompletionSource<bool> transportCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int sends = 0;
-        using HttpClient transport = new(new Handler(async (_, token) =>
+        using Handler handler = new(async (_, token) =>
         {
             Interlocked.Increment(ref sends);
             try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
             catch (OperationCanceledException) { transportCancelled.TrySetResult(true); throw; }
             return Response(HttpStatusCode.OK, "late");
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -93,13 +94,14 @@ public sealed class BooruJobLifetimeTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((_, _) =>
+        using Handler handler = new((_, _) =>
         {
             if (Interlocked.Increment(ref sends) == 1 && firstFailure == "transport-exception")
                 throw new HttpRequestException("synthetic reset");
             return Task.FromResult(Interlocked.CompareExchange(ref sends, 0, 0) == 1
                 ? Response(HttpStatusCode.ServiceUnavailable, "busy") : Response(HttpStatusCode.OK, "second"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -124,11 +126,12 @@ public sealed class BooruJobLifetimeTests
         ManualClock clock = new();
         BlockingContent content = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((_, _) =>
+        using Handler handler = new((_, _) =>
         {
             Interlocked.Increment(ref sends);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -150,12 +153,13 @@ public sealed class BooruJobLifetimeTests
         ManualClock clock = new();
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int sends = 0;
-        using HttpClient transport = new(new Handler(async (_, token) =>
+        using Handler handler = new(async (_, token) =>
         {
             Interlocked.Increment(ref sends);
             await release.Task.WaitAsync(token);
             return Response(HttpStatusCode.OK, "ok");
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob holder = services.OpenJob();
@@ -186,8 +190,9 @@ public sealed class BooruJobLifetimeTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((_, _) =>
-        { Interlocked.Increment(ref sends); return Task.FromResult(Response(HttpStatusCode.OK, "ok")); }));
+        using Handler handler = new((_, _) =>
+        { Interlocked.Increment(ref sends); return Task.FromResult(Response(HttpStatusCode.OK, "ok")); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -209,13 +214,14 @@ public sealed class BooruJobLifetimeTests
         ManualClock clock = new();
         TaskCompletionSource<bool> transportCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int sends = 0;
-        using HttpClient transport = new(new Handler(async (_, token) =>
+        using Handler handler = new(async (_, token) =>
         {
             Interlocked.Increment(ref sends);
             try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
             catch (OperationCanceledException) { transportCancelled.TrySetResult(true); throw; }
             return Response(HttpStatusCode.OK, "late");
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         using BooruJob job = new(clock);
         clock.Advance(BooruJob.MaximumLifetime - TimeSpan.FromSeconds(5));
@@ -234,12 +240,13 @@ public sealed class BooruJobLifetimeTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler(async (_, token) =>
+        using Handler handler = new(async (_, token) =>
         {
             Interlocked.Increment(ref sends);
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
             return Response(HttpStatusCode.OK, "late");
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         using BooruJob job = new(clock);
         using CancellationTokenSource caller = new();
@@ -257,14 +264,15 @@ public sealed class BooruJobLifetimeTests
     {
         ManualClock clock = new();
         int closedReturned = 0, lateSends = 0, sends = 0;
-        using HttpClient transport = new(new Handler((_, token) =>
+        using Handler handler = new((_, token) =>
         {
             Interlocked.Increment(ref sends);
             // Close cancels before it returns, so a transport entered afterwards only ever
             // sees a cancelled token; conforming handlers (SocketsHttpHandler) then perform no I/O.
             if (Volatile.Read(ref closedReturned) != 0 && !token.IsCancellationRequested) Interlocked.Increment(ref lateSends);
             return Task.FromResult(Response(HttpStatusCode.OK, "ok"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         for (int iteration = 0; iteration < 200; ++iteration)
         {
@@ -301,7 +309,8 @@ public sealed class BooruJobLifetimeTests
                     return new NetworkStream(socket, ownsSocket: true);
                 }
             };
-            using HttpClient transport = new(new PlainTextHandler(sockets));
+            using PlainTextHandler handler = new(sockets);
+            using HttpClient transport = new(handler, disposeHandler: false);
             ManualClock clock = new();
             using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
             using BooruJob job = new(clock);
@@ -322,12 +331,13 @@ public sealed class BooruJobLifetimeTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
+        using Handler handler = new((request, _) =>
         {
             Interlocked.Increment(ref sends);
             clock.Advance(BooruHostHttp.MinimumStartSpacing);
             return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
 
         PluginOperationContext unbound = new("booru/unbound", 1);
@@ -366,11 +376,12 @@ public sealed class BooruJobLifetimeTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((_, _) =>
+        using Handler handler = new((_, _) =>
         {
             ++sends;
             return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
         PluginOperationContext operation = new("booru/bind-origin", 1);
         using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None, clock)!;
@@ -399,12 +410,13 @@ public sealed class BooruJobLifetimeTests
     {
         ManualClock clock = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((_, _) =>
+        using Handler handler = new((_, _) =>
         {
             Interlocked.Increment(ref sends);
             clock.Advance(TimeSpan.FromSeconds(10));
             return Task.FromResult(Response(HttpStatusCode.OK, "{}"));
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
         PluginOperationContext operation = new("booru/deadline", 1);
         using PluginHostHttp.MetadataHistory owner = PluginHostHttp.MetadataHistory.BindOperation(operation, CancellationToken.None, clock)!;
@@ -424,13 +436,14 @@ public sealed class BooruJobLifetimeTests
         ManualClock clock = new();
         TaskCompletionSource<bool> transportCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int sends = 0;
-        using HttpClient transport = new(new Handler(async (_, token) =>
+        using Handler handler = new(async (_, token) =>
         {
             Interlocked.Increment(ref sends);
             try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
             catch (OperationCanceledException) { transportCancelled.TrySetResult(true); throw; }
             return Response(HttpStatusCode.OK, "late");
-        }));
+        });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using PluginHostHttp host = new(transport, new RequestPolicyState(clock), [Source()]);
         PluginOperationContext operation = new("booru/lifetime", 1);
         using CancellationTokenSource lifetime = new();
@@ -582,7 +595,7 @@ public sealed class BooruJobLifetimeTests
         public async ValueTask DisposeAsync()
         {
             _lifetime.Cancel();
-            _listener.Stop();
+            _listener.Dispose();
             try { await _loop; } catch (Exception) { }
             _lifetime.Dispose();
         }
