@@ -145,16 +145,17 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
         return null;
     }
 
-    internal static Task<GifFrameDecoder?> OpenAnimationAsync(GalleryEntry entry, CancellationToken cancellationToken) =>
+    internal static Task<GifFrameDecoder?> OpenAnimationAsync(GalleryEntry entry, CancellationToken cancellationToken,
+        bool allowStillFallback = false) =>
         AnimationFormat(entry) switch
         {
-            SKEncodedImageFormat.Webp => Task.Run(() => OpenWebpAnimationAsync(entry, cancellationToken), cancellationToken),
+            SKEncodedImageFormat.Webp => Task.Run(() => OpenWebpAnimationAsync(entry, cancellationToken, allowStillFallback), cancellationToken),
             SKEncodedImageFormat.Gif => OpenAsync(token => ReadVerifiedAsync(entry, token), MaximumPixels,
-                viewport: null, cancellationToken, SKEncodedImageFormat.Gif),
+                viewport: null, cancellationToken, SKEncodedImageFormat.Gif, allowStillFallback),
             _ => Task.FromResult<GifFrameDecoder?>(null)
         };
 
-    private static async Task<GifFrameDecoder?> OpenWebpAnimationAsync(GalleryEntry entry, CancellationToken token)
+    private static async Task<GifFrameDecoder?> OpenWebpAnimationAsync(GalleryEntry entry, CancellationToken token, bool allowStillFallback)
     {
         ValidateSourceLength(entry.Asset.Length);
         bool gateHeld = false;
@@ -169,7 +170,7 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
                 source.Position = 0;
                 bytes = await CopyVerifiedAsync(source, entry.Asset.Length, token).ConfigureAwait(false);
             }
-            return OpenCore(bytes, MaximumPixels, viewport: null, SKEncodedImageFormat.Webp, token);
+            return OpenCore(bytes, MaximumPixels, viewport: null, SKEncodedImageFormat.Webp, token, allowStillFallback);
         }
         finally { if (gateHeld) GlobalGifGate.Release(); }
     }
@@ -226,20 +227,21 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
     }
 
     private static Task<GifFrameDecoder?> OpenAsync(Func<CancellationToken, Task<byte[]>> read, long maximumPixels,
-        PixelSize? viewport, CancellationToken cancellationToken, SKEncodedImageFormat? expectedAnimation = null) => Task.Run(async () =>
+        PixelSize? viewport, CancellationToken cancellationToken, SKEncodedImageFormat? expectedAnimation = null,
+        bool allowStillFallback = false) => Task.Run(async () =>
     {
         cancellationToken.ThrowIfCancellationRequested();
         await GlobalGifGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             byte[] bytes = await read(cancellationToken).ConfigureAwait(false);
-            return OpenCore(bytes, maximumPixels, viewport, expectedAnimation, cancellationToken);
+            return OpenCore(bytes, maximumPixels, viewport, expectedAnimation, cancellationToken, allowStillFallback);
         }
         finally { GlobalGifGate.Release(); }
     }, CancellationToken.None); // The worker owns cleanup once scheduled.
 
     private static GifFrameDecoder? OpenCore(byte[] bytes, long maximumPixels, PixelSize? viewport,
-        SKEncodedImageFormat? expectedAnimation, CancellationToken cancellationToken)
+        SKEncodedImageFormat? expectedAnimation, CancellationToken cancellationToken, bool allowStillFallback)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ValidateSourceLength(bytes.LongLength);
@@ -266,6 +268,10 @@ internal sealed class GifFrameDecoder : IGifFrameDecoder
                 int count = Math.Max(1, codec.FrameCount); // Skia may report zero for a single-frame image.
                 if (count == 1 && webp) return null;
                 SKImageInfo source = codec.Info;
+                // The gallery can display the first frame of an animation outside the playback budget.
+                if (allowStillFallback && count > 1 && source.Width > 0 && source.Height > 0
+                    && (count > MaximumFrames || (long)source.Width * source.Height > maximumPixels))
+                    return null;
                 ValidateLimits(bytes.LongLength, source.Width, source.Height, count);
                 if ((long)source.Width * source.Height > maximumPixels)
                     throw new InvalidDataException("Animation canvas exceeds the preview pixel limit.");

@@ -106,6 +106,8 @@ internal sealed partial class GalleryViewer
         if (_terminalRetirement) return;
         EndTaggingMode();
         _freeTagMode = false; // a walk takes over a Tag mode without one (the open panel is coupled below)
+        if (_tagController is { } controller && owner.Stamp is { } stamp && !ReferenceEquals(controller.Session.Stamp, stamp))
+            CloseTagPanel();
         _tagging = walk;
         _taggingOwner = owner;
         walk.Changed += OnTaggingChanged;
@@ -124,15 +126,15 @@ internal sealed partial class GalleryViewer
         RevealOverlayControls();
     }
 
-    /// <summary>Ends the mode (the gallery closes or another list is shown): the strip goes, the panel's own undo comes back.</summary>
+    /// <summary>Ends the walk and retires the panel's write context, undo history and stamp.</summary>
     internal void EndTaggingMode()
     {
         if (_tagging is not { } walk) return;
         walk.Changed -= OnTaggingChanged;
         EndCards();
-        UncoupleTaggingPanel(_taggingSurface);
         _tagging = null;
         _taggingOwner = null;
+        CloseTagPanel();
         _taggingStatus.Text = string.Empty;
         RefreshPanelCounter();
         RefreshPlaybackControls(); // the slideshow line may speak again
@@ -145,7 +147,7 @@ internal sealed partial class GalleryViewer
     {
         if (_tagging is not { } walk) return;
         UncoupleTaggingPanel(_taggingSurface);
-        _taggingUndo = new TaggingUndo(walk, controller.Decisions, () => controller.NewestTagStamp, ReturnToUndone);
+        _taggingUndo = new TaggingUndo(walk, controller.Decisions, () => controller.NewestTagStamp, ReturnToUndone, controller.WriteToken);
         surface.ExtraUndo = _taggingUndo;
         surface.StampApplied += OnTaggingStampApplied;
         _taggingSurface = surface;

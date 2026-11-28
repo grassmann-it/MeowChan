@@ -76,6 +76,15 @@ internal sealed class GalleryMarks
         return GalleryMarkOutcome.Unmarked;
     }
 
+    /// <summary>Keeps the marks whose exact entry is still part of a filtered gallery.</summary>
+    internal void RetainEntries(IReadOnlyList<GalleryEntry> entries)
+    {
+        if (Count == 0) return;
+        HashSet<GalleryEntryKey> retained = entries.Select(entry => entry.EntryKey).ToHashSet();
+        foreach (MediaTagSubject subject in Snapshot())
+            if (!_entries.TryGetValue(subject, out GalleryEntry? entry) || !retained.Contains(entry.EntryKey)) Unmark(subject);
+    }
+
     /// <summary>Removes every mark; returns how many there were.</summary>
     internal int Clear()
     {

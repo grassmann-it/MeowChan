@@ -160,11 +160,12 @@ internal sealed class GalleryTagPanelController : IDisposable
     private int _selectionRevision = -1;
     private GalleryTagNeighbourSubjects? _neighbours;
     private CancellationTokenSource? _fill;
+    private CancellationTokenSource _writes = new();
     private bool _disposed;
     // When each tag step was made, on the order shared with the decision steps (one undo key serves both stacks, newest first).
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TagDialogChange, System.Runtime.CompilerServices.StrongBox<long>> _tagStamps = new();
 
-    private GalleryTagPanelController(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks marks)
+    private GalleryTagPanelController(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks marks, Func<GalleryEntry, bool>? allowsDecisionTarget)
     {
         _owner = owner;
         Entry = entry;
@@ -179,7 +180,7 @@ internal sealed class GalleryTagPanelController : IDisposable
         // Favorite and rating (PT6): only when the owner can read and write them; the panel then shows its row.
         if (owner is IGalleryDecisionOwner decisions)
         {
-            Decisions = new GalleryDecisionSession(decisions, owner.Options.UndoDepth);
+            Decisions = new GalleryDecisionSession(decisions, owner.Options.UndoDepth, allowsDecisionTarget);
             ExtraUndo = new DecisionUndo(this);
         }
     }
@@ -188,17 +189,19 @@ internal sealed class GalleryTagPanelController : IDisposable
     /// Creates the controller for the entry the panel opens on and starts warming the suggestion index for the current snapshot.
     /// <paramref name="marks"/> is the gallery's mark set (kept across panel openings); null starts an empty one.
     /// </summary>
-    internal static GalleryTagPanelController Create(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks? marks = null)
+    internal static GalleryTagPanelController Create(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks? marks = null,
+        Func<GalleryEntry, bool>? allowsDecisionTarget = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(entry);
-        GalleryTagPanelController controller = new(owner, entry, marks ?? new GalleryMarks(owner.Options.MarkedMediaLimit));
+        GalleryTagPanelController controller = new(owner, entry, marks ?? new GalleryMarks(owner.Options.MarkedMediaLimit), allowsDecisionTarget);
         // Off the UI thread, before the first strip is asked for: the surface then finds the index warm or answers from the cold path.
         if (controller.Session.Snapshot is { } snapshot) controller.Suggestions.Warm(snapshot);
         return controller;
     }
 
     internal QuickTagSession Session { get; }
+    internal CancellationToken WriteToken => _writes.Token;
     /// <summary>Favorite and rating of the panel's targets with their own undo stack; null when the owner offers neither.</summary>
     internal GalleryDecisionSession? Decisions { get; }
     /// <summary>The stamp of the newest tag step (the order shared with favorite, rating and queue steps); 0 without one.</summary>
@@ -221,6 +224,29 @@ internal sealed class GalleryTagPanelController : IDisposable
     internal string? UnavailableReason { get; private set; }
     /// <summary>The media marked for one tag change. While it has any, the session writes to them all, whichever medium is shown.</summary>
     internal GalleryMarks Marks { get; }
+
+    internal void RestrictToEntries(IReadOnlyList<GalleryEntry> entries)
+    {
+        // Stop commands bound to the previous selection, including queued decision writes.
+        using CancellationTokenSource previousWrites = _writes;
+        _writes = new CancellationTokenSource();
+        previousWrites.Cancel();
+        _selection = null;
+
+        // Keep complete undo steps in their original order. A grouped change is one undo step.
+        Decisions?.RetainUndoEntries(entries.Select(entry => entry.EntryKey).ToHashSet());
+        HashSet<MediaTagSubject> subjects = new();
+        foreach (GalleryEntry entry in entries)
+        {
+            if (_owner.SubjectOf(entry, out _) is { } subject) subjects.Add(WithoutRegistration(subject));
+        }
+        // A local registration may have been created by the change itself. Match its observation here and
+        // leave the recorded registration on the undo step for the tag store to verify.
+        Session.RetainUndoSubjects(subject => subjects.Contains(WithoutRegistration(subject)));
+
+        static MediaTagSubject WithoutRegistration(MediaTagSubject subject) =>
+            subject is MediaTagSubject.Local { Expected: not null } local ? local with { Expected = null } : subject;
+    }
 
     private IQuickTagTarget Resolve(GalleryEntry entry, out string? reason)
     {
@@ -326,10 +352,13 @@ internal sealed class GalleryTagPanelController : IDisposable
     {
         IReadOnlyList<GalleryEntry> entries = _owner.Entries;
         if (_neighbours != null && _neighbours.Count == entries.Count) return _neighbours;
-        _fill?.Cancel();
-        GalleryTagNeighbourSubjects neighbours = _neighbours = new GalleryTagNeighbourSubjects(entries);
-        CancellationTokenSource fill = _fill = new CancellationTokenSource();
-        CancellationToken token = fill.Token;
+        GalleryTagNeighbourSubjects neighbours = new(entries);
+        if (_disposed) return neighbours;
+        using CancellationTokenSource? previousFill = _fill;
+        _fill = new CancellationTokenSource();
+        CancellationToken token = _fill.Token;
+        previousFill?.Cancel();
+        _neighbours = neighbours;
         _ = Task.Run(() => { if (neighbours.Fill(token) && !token.IsCancellationRequested) Suggestions.NotifyReady(); });
         return neighbours;
     }
@@ -362,7 +391,11 @@ internal sealed class GalleryTagPanelController : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        try { _fill?.Cancel(); } catch (ObjectDisposedException) { }
+        _writes.Cancel();
+        _writes.Dispose();
+        _fill?.Cancel();
+        _fill?.Dispose();
+        _fill = null;
         Suggestions.Dispose();
         Session.Applied -= OnApplied;
         Session.Dispose();
@@ -386,7 +419,7 @@ internal sealed class GalleryTagPanelController : IDisposable
         }
         public async Task<string?> UndoAsync()
         {
-            GalleryDecisionStatus status = await owner.Decisions!.UndoAsync();
+            GalleryDecisionStatus status = await owner.Decisions!.UndoAsync(owner.WriteToken);
             return status.Kind == GalleryDecisionStatusKind.None ? null : status.Text();
         }
         public event Action? Changed { add => owner.Decisions!.Updated += value; remove => owner.Decisions!.Updated -= value; }

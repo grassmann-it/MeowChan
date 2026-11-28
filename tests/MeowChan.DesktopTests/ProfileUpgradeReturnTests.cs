@@ -3,10 +3,14 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Updates;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
@@ -15,8 +19,57 @@ using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Localization")]
 public sealed class ProfileUpgradeReturnTests
 {
+    [Theory]
+    [InlineData("restored-profile", "ProfileUpgradeRestored")]
+    [InlineData(null, "ProfileUpgradeRestoreFailed")]
+    public void RestoreResultHasOneLocalizedCloseActionAndAnExplanatoryMessage(string? destination, string id) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Window window = App.CreateProfileRestoreNotice(destination);
+            Assert.Equal(id, AutomationProperties.GetAutomationId(window));
+            window.Show();
+            try
+            {
+                ContextGestures.Settle(window);
+                Border footer = Assert.Single(window.GetVisualDescendants().OfType<Border>(), control => control.Classes.Contains("workspace-dialog-footer"));
+                Button close = Assert.Single(footer.GetVisualDescendants().OfType<Button>());
+                Assert.Equal(Texts.T("profile.switch.close"), close.Content);
+                string? message = SidePanelDesignTests.ById<TextBlock>(window, id + ".message").Text;
+                if (destination == null)
+                {
+                    Assert.Equal(ProfileUpgradeCatalog.Failed, window.Title);
+                    Assert.Equal(Texts.T("profile.status.unexpected"), message);
+                }
+                else
+                {
+                    Assert.Contains(Texts.T("postFilter.recovery.done"), message);
+                    Assert.Contains(destination, message);
+                }
+            }
+            finally { window.Close(); }
+        });
+
+    [Fact]
+    public void StandaloneCopyAppearsOnTheTaskbarAndFocusesItsCancelAction() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ProfileCopyWindow window = new("Profile copy");
+        Assert.True(window.ShowInTaskbar);
+        try
+        {
+            window.Show();
+            Button cancel = SidePanelDesignTests.ById<Button>(window, "ProfileCopyCancel");
+            TextBlock status = SidePanelDesignTests.ById<TextBlock>(window, "ProfileCopyStatus");
+            await BooruTestSupport.WaitAsync(() => cancel.IsFocused, "Cancel to have initial focus");
+            Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(status));
+        }
+        finally { window.Close(); }
+    });
+
     [Fact]
     public void ReplacingAnUnidentifiedLegacyDirectoryKeepsThePublishedWorkingCopyAvailable()
     {
@@ -252,7 +305,8 @@ public sealed class ProfileUpgradeReturnTests
         }
 
         byte[] bytes = BooruUiFixtures.Png(6);
-        using HttpClient client = new(new WatchTransport(bytes));
+        using WatchTransport transport = new(bytes);
+        using HttpClient client = new(transport, disposeHandler: false);
         await using DesktopSessionHost host = new(source, providers: [new FourChanImageBoard(client)], admitProfileUpgrade: true);
         TaskCompletionSource<string> downloaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         void ReadSnapshot()

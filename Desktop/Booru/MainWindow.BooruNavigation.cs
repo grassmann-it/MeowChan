@@ -21,20 +21,21 @@ public partial class MainWindow
     private BooruPage? _booruPage;
     private bool _booruContentDialogOpen;
 
-    private void RequestBooruContentChoice(Action? confirmed = null)
+    private void RequestBooruContentChoice(Action? confirmed = null) => OpenActions.Start(async () =>
     {
-        if (_booruContentDialogOpen || _session.BooruContent is not { } content || !IsVisible) return;
+        if (await RequestBooruContentChoiceAsync(this)) confirmed?.Invoke();
+    }, "booru.content.choice");
+
+    private async Task<bool> RequestBooruContentChoiceAsync(Window owner)
+    {
+        if (_booruContentDialogOpen || _session.BooruContent is not { } content || !owner.IsVisible) return false;
         _booruContentDialogOpen = true;
-        OpenActions.Start(async () =>
+        try
         {
-            try
-            {
-                BooruContentDialog dialog = new(content.Snapshot, _session.SaveBooruContentAsync);
-                if (await dialog.ShowDialog<bool>(this) && !_isClosing && CanOpenBooru)
-                    confirmed?.Invoke();
-            }
-            finally { _booruContentDialogOpen = false; }
-        }, "booru.content.choice");
+            BooruContentDialog dialog = new(content.Snapshot, _session.SaveBooruContentAsync);
+            return await dialog.ShowDialog<bool>(owner) && owner.IsVisible && CanOpenBooru;
+        }
+        finally { _booruContentDialogOpen = false; }
     }
     private BooruSearchTabStore? _booruTabStore;
     private readonly BooruUnavailableNavigation _booruUnavailableNavigation = new();

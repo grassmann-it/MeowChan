@@ -34,6 +34,7 @@ internal sealed class BooruMediaDetailsDialog : Window
     private readonly Func<string, Task> _copyText;
     private readonly Func<string, (bool Opened, int? Limit)>? _useAsSearch;
     private readonly Func<bool>? _isSearchAvailable;
+    private readonly Func<Window, Task<bool>>? _prepareSearch;
     private readonly List<ListBox> _tagLists = new();
     private readonly TextBlock _tagStatus = new() { Name = "BooruSourceTagStatus", TextWrapping = TextWrapping.Wrap, MinHeight = 0 };
     private readonly TextBlock _tagSelection = new() { Name = "BooruSourceTagSelection", TextWrapping = TextWrapping.Wrap };
@@ -48,15 +49,17 @@ internal sealed class BooruMediaDetailsDialog : Window
     /// The live gate still has to admit the originating Booru composition.</param>
     /// <param name="isSearchAvailable">A live presentation/lifetime gate. It is evaluated while the source-tag action is
     /// built and again immediately before the handoff, so a hidden, unavailable or replaced Booru cannot receive a stale query.</param>
+    /// <param name="prepareSearch">Completes any first-use choice before handing over the query.</param>
     internal BooruMediaDetailsDialog(string postId, IReadOnlyList<string> fileLines, BooruMediaDetails? details,
         Func<Uri, Task> open, Func<Uri, Task> copy, Func<string, Task> copyText, Func<string, (bool Opened, int? Limit)>? useAsSearch,
-        Func<bool>? isSearchAvailable = null)
+        Func<bool>? isSearchAvailable = null, Func<Window, Task<bool>>? prepareSearch = null)
     {
         _open = open ?? throw new ArgumentNullException(nameof(open));
         _copy = copy ?? throw new ArgumentNullException(nameof(copy));
         _copyText = copyText ?? throw new ArgumentNullException(nameof(copyText));
         _useAsSearch = useAsSearch;
         _isSearchAvailable = isSearchAvailable;
+        _prepareSearch = prepareSearch;
         Name = DialogName;
         Title = Texts.T("booru.media.detail.title", postId);
         // Modals plan MD2: a read-only modal details dialog on the form step (fitted to the screen). The title stands in
@@ -230,7 +233,7 @@ internal sealed class BooruMediaDetailsDialog : Window
             _useAsSearchButton.Content = Texts.T("booru.media.tags.useAsSearch");
             ToolTip.SetTip(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
             AutomationProperties.SetHelpText(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
-            _useAsSearchButton.Click += (_, _) => UseSelectionAsSearch();
+            _useAsSearchButton.Click += (_, _) => OpenActions.Start(OpenSelectedTagDraftAsync, "booru.source-tags.open-search-draft");
             actions.Children.Add(_useAsSearchButton);
         }
         panel.Children.Add(actions);
@@ -322,7 +325,7 @@ internal sealed class BooruMediaDetailsDialog : Window
     }
 
     // The marked tags become an editable draft in a new Danbooru search tab.
-    private async void UseSelectionAsSearch()
+    private async Task OpenSelectedTagDraftAsync()
     {
         BooruTagSearchPlan plan = BooruSourceTagSearch.Plan(SelectedTagNames());
         switch (plan.Problem)
@@ -342,6 +345,7 @@ internal sealed class BooruMediaDetailsDialog : Window
             RemoveUnavailableSearchAction();
             return;
         }
+        if (_prepareSearch != null && (!await _prepareSearch(this) || !IsVisible)) return;
         (bool opened, int? limit) = TryUseAsSearch(_isSearchAvailable, _useAsSearch, query);
         if (opened) { Close(); return; }
         if (limit is { } count)

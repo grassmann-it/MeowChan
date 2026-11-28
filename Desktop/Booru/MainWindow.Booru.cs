@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.Controls.Notifications;
+using System.Threading.Tasks;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
@@ -69,6 +70,20 @@ public partial class MainWindow
                 page.View.FocusSearchInput();
         });
         return (true, null);
+    }
+
+    private Task<bool> EnsureBooruContentChoiceAsync(Window owner) => _session.BooruContent?.HasChoice == false
+        ? RequestBooruContentChoiceAsync(owner) : Task.FromResult(CanOpenBooru);
+
+    private (bool Opened, int? Limit) OpenMediaBooruSearchDraft(BooruPage page, string query, BooruWorkbenchServices source)
+    {
+        if (!_restoreCompleted || WorkspaceCommandBusy) return default;
+        var result = OpenBooruSearchDraft(page, query, source);
+        if (!result.Opened) return result;
+        if (!NavigateWorkspace(WorkspacePage.Booru)) return default;
+        if (_gallery != null) CloseGallery(restoreOrigin: false);
+        if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
+        return result;
     }
 
     // Uses the shell's ordinary notification path, so the user's "information notifications" setting applies.

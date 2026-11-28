@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -14,6 +16,50 @@ public sealed class BooruOccurrenceSourceTests
 {
     private const string PostId = "42";
     private static readonly DateTimeOffset Captured = new(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void SourceTagSearchWaitsForTheChoiceAndLeavesDetailsOpenAtTheTabLimit() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruMediaDetails details = new(PostId, null, null, true, BooruPostClaimRating.General, null,
+            null, null, null, false, false, null, [new("cat", BooruPostClaimTagCategory.General)],
+            [new(BooruPostClaimMediaRole.Original, BooruMediaVariantState.Stored, "png", null, null, null)], [], Captured, Captured);
+        TaskCompletionSource<bool> choice = new();
+        List<string> queries = [];
+        int copies = 0;
+        BooruMediaDetailsDialog dialog = new(PostId, [], details, _ => Task.CompletedTask, _ => Task.CompletedTask,
+            _ => { copies++; return Task.CompletedTask; },
+            query => { queries.Add(query); return (false, 2); }, () => true,
+            owner => { Assert.IsType<BooruMediaDetailsDialog>(owner); return choice.Task; });
+        try
+        {
+            dialog.Show();
+            ContextGestures.Settle(dialog);
+            ListBox tagList = Assert.Single(dialog.GetVisualDescendants().OfType<ListBox>(),
+                list => list.Name == "BooruSourceTagList:General");
+            tagList.SelectedIndex = 0;
+            Button search = Assert.Single(dialog.GetVisualDescendants().OfType<Button>(), button => button.Name == "BooruUseAsSearch");
+            Assert.True(search.IsEnabled);
+            search.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Empty(queries);
+            Assert.True(dialog.IsVisible);
+            choice.SetResult(false);
+            ContextGestures.Settle(dialog);
+            Assert.Empty(queries);
+            Assert.Equal(0, copies);
+            Assert.True(dialog.IsVisible);
+
+            choice = new();
+            search.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            choice.SetResult(true);
+            await BooruTestSupport.WaitAsync(() => dialog.TagStatus.Text == Texts.T("booru.tabs.limit", 2), "the visible tab limit");
+            Assert.Equal("cat", Assert.Single(queries));
+            Assert.Equal(0, copies);
+            Assert.True(dialog.TagStatus.IsEffectivelyVisible);
+            Assert.True(dialog.IsVisible);
+        }
+        finally { dialog.Close(); }
+    });
 
     [Fact]
     public async Task IdenticalOriginalsFromTwoInstancesKeepDistinctLabelsAfterReload()

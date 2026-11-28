@@ -41,7 +41,7 @@ public partial class MainWindow
         ? task : Task.WhenAll(_galleryCleanupTask, task);
     private CancellationTokenSource? _galleryCancellation;
     private IReadOnlyList<ResourceId> _galleryThreads = Array.Empty<ResourceId>();
-    private readonly List<GalleryEntry> _galleryEntries = new();
+    private List<GalleryEntry> _galleryEntries = new();
     private ThreadGalleryPositions? _galleryThreadPositions;
     private long _galleryAssociationsRevision;
     private int _galleryThreadIndex;
@@ -122,7 +122,8 @@ public partial class MainWindow
             threadPositions: visible.Count != entries.Count ? null
                 : threadPositions ?? (threadMedia == null ? null : ThreadGalleryPositions.Create(threadMedia, visible, capturedOrder: false)),
             checkLocalContent: checkLocalContent);
-        return opened != null && ReferenceEquals(_gallery, opened) ? visible : null;
+        if (opened == null || !ReferenceEquals(_gallery, opened)) return null;
+        return _galleryEntries.Count == visible.Count ? visible : _galleryEntries.ToArray();
     }
 
     private async Task OpenFavoritesGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Action completed)
@@ -511,11 +512,8 @@ public partial class MainWindow
     {
         GalleryViewer? viewer = _gallery;
         if (viewer == null || _galleryCancellation == null || _galleryIndex >= _galleryEntries.Count) return;
-        if (viewer.AllowsMedia != null && !AllowsLocalGalleryEntries(_galleryEntries))
-        {
-            CloseGallery();
-            return;
-        }
+        // Discard moves calculated against the previous list when filtering changes its indices.
+        if (RefreshLocalGalleryContentBoundary()) return;
         UpdateGalleryPosition();
         CancelGalleryPreload(); // the user moved on: whatever was decoding around the previous image stops
         GalleryEntry entry = _galleryEntries[_galleryIndex];

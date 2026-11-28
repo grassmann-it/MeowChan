@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
@@ -258,10 +259,11 @@ internal sealed partial class GalleryViewer
             return;
         }
         IReadOnlyList<GalleryEntry> targets = controller.DecisionTargets(); // read now: paging meanwhile never redirects the write
+        CancellationToken token = controller.WriteToken;
         GalleryDecisionStatus status = action.Kind == TaggingCardKind.Favorite
-            ? await decisions.SetFavoriteAsync(targets, true)
-            : await decisions.SetRatingAsync(targets, action.Rating);
-        if (!ReferenceEquals(walk, _tagging) || _terminalRetirement) return;
+            ? await decisions.SetFavoriteAsync(targets, true, token)
+            : await decisions.SetRatingAsync(targets, action.Rating, token);
+        if (token.IsCancellationRequested || !ReferenceEquals(walk, _tagging) || _terminalRetirement) return;
         RefreshDecisionRow();
         bool saved = status.Kind is GalleryDecisionStatusKind.FavoriteSaved or GalleryDecisionStatusKind.RatingSaved;
         // The medium was changed meanwhile (paged away during the write): the decision stays a favorite or rating, nothing else is decided.

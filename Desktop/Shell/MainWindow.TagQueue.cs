@@ -170,7 +170,6 @@ public partial class MainWindow
             PersistTaggingResume(walk);
             _galleryTagging = null;
             _gallery.EndTaggingMode();
-            _gallery.CloseTagPanel(); // View: the panel goes with the mode, as in a gallery without a walk
             _galleryTaggingParked = walk;
             UpdateGalleryPosition();
             return;
@@ -234,7 +233,7 @@ public partial class MainWindow
         _galleryWalkGroupId = null;
     }
 
-    internal QuickTagStamp ActiveGalleryStamp => _galleryWalkStamp ?? QuickTagStampSet;
+    internal QuickTagStamp ActiveGalleryStamp => _galleryTagging != null && _galleryWalkStamp is { } stamp ? stamp : QuickTagStampSet;
 
     // The queue entry of the medium shown now, or null when it is not part of the walk.
     private TagQueueKey? ShownTaggingKey(TaggingWalk walk)

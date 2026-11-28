@@ -47,12 +47,20 @@ internal sealed partial class GalleryViewer
 
     private void SelectFitMode(GalleryFitMode mode)
     {
-        if (CurrentGeometry == null || (mode != GalleryFitMode.Fit && !CanSelectImageFitMode)) return;
-        bool changed = CanSelectImageFitMode && _fitPreferences.Mode != mode;
+        bool hasGeometry = CurrentGeometry != null;
+        if (mode != GalleryFitMode.Fit && (!hasGeometry || !CanSelectImageFitMode))
+        {
+            RefreshFitModeRows();
+            return;
+        }
+        bool changed = _fitPreferences.Mode != mode;
         if (changed) _fitPreferences = _fitPreferences with { Mode = mode };
         _fitScrollPosition = 0;
-        Fit(retry: true);
-        AnnounceView(zoom: true);
+        if (hasGeometry)
+        {
+            Fit(retry: true);
+            AnnounceView(zoom: true);
+        }
         RefreshFitModeRows();
         if (changed) FitModeChanged?.Invoke(mode);
     }
@@ -132,9 +140,13 @@ internal sealed partial class GalleryViewer
 
     private bool ScrollFitImage(GalleryViewGeometry geometry, double pages)
     {
-        if (_manualZoom || !CanSelectImageFitMode || !double.IsFinite(pages) || geometry.FitScrollLimit(_zoom) <= 0) return false;
+        double limit = geometry.FitScrollLimit(_zoom);
+        if (_manualZoom || !CanSelectImageFitMode || !double.IsFinite(pages) || limit <= 0) return false;
         double length = geometry.ScrollsHorizontally ? geometry.ViewportWidth : geometry.ViewportHeight;
-        Adopt(geometry.WithFitScrollPan(Placement, geometry.FitScrollPan(Placement) - pages * length));
+        double current = geometry.FitScrollPan(Placement);
+        double pan = Math.Clamp(current - pages * length, -limit, limit);
+        if (pan == current) return false;
+        Adopt(geometry.WithFitScrollPan(Placement, pan));
         ApplyPan();
         return true;
     }

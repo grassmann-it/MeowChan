@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -68,8 +69,9 @@ internal sealed partial class GalleryViewer
             return;
         }
         _marks ??= new GalleryMarks(owner.Options.MarkedMediaLimit);
-        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks);
-        QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, FillSuggestions = true, ReadSourceTags = owner.ReadSourceTags };
+        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks, AllowsMedia);
+        QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName)
+        { NavigationEnabled = true, FillSuggestions = true, ReadSourceTags = owner.ReadSourceTags, WriteToken = controller.WriteToken };
         surface.FilterMediaByTag = MediaTagFilterRequested;
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
@@ -168,9 +170,26 @@ internal sealed partial class GalleryViewer
         ApplyChrome(); // the row is gone: the info line shows the rating again (QW5)
         // The post context was not kept current meanwhile.
         _contextDirty = true;
-        EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk is the panel; it ends with it
+        EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk ends when its panel closes
         RefreshPanelCounter();
         return true;
+    }
+
+    private void RefreshTagPanelEntries(GalleryEntry current, IReadOnlyList<GalleryEntry> entries)
+    {
+        _marks?.RetainEntries(entries);
+        if (!_tagPanelOpen || _tagController is not { } controller || _tagSurface is not { } surface) return;
+
+        controller.RestrictToEntries(entries);
+        surface.ResetWriteContext(controller.WriteToken);
+        _decisionRow?.SetError(null);
+        GalleryTagPanelFrame frame = controller.Frame(current);
+        ApplyTagPanelFrame(frame, surface);
+        if (_threadSection is { IsVisible: true } section)
+        {
+            if (frame.UnavailableReason != null) section.Model = null;
+            else if (section.Model?.Thread != current.Key.Thread) section.Model = controller.OpenThreadTags();
+        }
     }
 
     // P: while the tag panel holds the slot the post takes it over (and is remembered as open); otherwise the plain toggle.
@@ -271,11 +290,15 @@ internal sealed partial class GalleryViewer
 
     private void RetargetForMarks(GalleryTagPanelController controller, QuickTagSurface surface)
     {
-        GalleryTagPanelFrame frame = controller.Frame(controller.Entry);
+        ApplyTagPanelFrame(controller.Frame(controller.Entry), surface);
+    }
+
+    private void ApplyTagPanelFrame(GalleryTagPanelFrame frame, QuickTagSurface surface)
+    {
         surface.Retarget(frame.Target, frame.Label);
         // The owner's position may already be on the next medium (a move was requested): the counter names that one.
         RefreshPanelCounter();
-        surface.MarkedCount = controller.Marks.Count;
+        surface.MarkedCount = _marks?.Count ?? 0;
         ShowUnavailableReason(frame.UnavailableReason);
         RefreshDecisionRow();
     }
@@ -302,10 +325,10 @@ internal sealed partial class GalleryViewer
     private void OnDecisionsUpdated() => RefreshDecisionRow();
 
     private void OnDecisionFavoriteRequested(bool selected) =>
-        RunDecision((decisions, targets) => decisions.SetFavoriteAsync(targets, selected));
+        RunDecision((decisions, targets, token) => decisions.SetFavoriteAsync(targets, selected, token));
 
     private void RequestDecisionRating(int? value) =>
-        RunDecision((decisions, targets) => decisions.SetRatingAsync(targets, value));
+        RunDecision((decisions, targets, token) => decisions.SetRatingAsync(targets, value, token));
 
     /// <summary>
     /// A rating key or button: with the tag panel open it rates the panel's targets (the marked media, else the shown one) as one undoable
@@ -321,10 +344,10 @@ internal sealed partial class GalleryViewer
     }
 
     // The targets are read when the request is made: paging or marking afterwards never redirects the write.
-    private void RunDecision(Func<GalleryDecisionSession, IReadOnlyList<GalleryEntry>, Task<GalleryDecisionStatus>> run)
+    private void RunDecision(Func<GalleryDecisionSession, IReadOnlyList<GalleryEntry>, CancellationToken, Task<GalleryDecisionStatus>> run)
     {
         if (_tagController is not { Decisions: { } decisions } controller || _tagSurface is not { } surface) return;
-        _ = RunDecisionAsync(surface, run(decisions, controller.DecisionTargets()));
+        _ = RunDecisionAsync(surface, run(decisions, controller.DecisionTargets(), controller.WriteToken));
     }
 
     private async Task RunDecisionAsync(QuickTagSurface surface, Task<GalleryDecisionStatus> request)

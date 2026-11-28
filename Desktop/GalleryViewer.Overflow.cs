@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
+using Avalonia.Controls.Automation.Peers;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -70,14 +73,33 @@ internal sealed partial class GalleryViewer
     internal bool IsContextOverPicture => _contextOverPicture;
     internal IReadOnlyList<Button> OverflowItems => _overflowButtons;
     internal Control OverflowMenuContent => _overflowPanel;
-    private readonly List<(GalleryFitMode Mode, ToggleButton Button)> _fitModeRows = new();
+    private readonly List<(GalleryFitMode Mode, RadioButton Button)> _fitModeRows = new();
+
+    private sealed class FitModeButton : RadioButton
+    {
+        protected override Type StyleKeyOverride => typeof(ToggleButton);
+        protected override AutomationPeer OnCreateAutomationPeer() => new Peer(this);
+
+        // The viewer owns the selection, including when a choice cannot act on the current media.
+        protected override void Toggle() { }
+
+        private sealed class Peer(FitModeButton owner) : RadioButtonAutomationPeer(owner), ISelectionItemProvider
+        {
+            void ISelectionItemProvider.Select()
+            {
+                EnsureEnabled();
+                // Selecting Fit can reset the image preference even if video already shows the row as selected.
+                owner.OnClick();
+            }
+        }
+    }
 
     private void InitializeFitModeMenu()
     {
         int insertAt = _overflowPanel.Children.IndexOf(_zoomIn);
         foreach (var (mode, commandId) in FitCommands)
         {
-            ToggleButton button = AddOverflowItem(new ToggleButton(), commandId, check: true, keepOpen: true,
+            RadioButton button = AddOverflowItem(new FitModeButton(), commandId, keepOpen: true,
                 label: () => FitModeLabel(mode));
             _overflowPanel.Children.Move(_overflowPanel.Children.IndexOf(button), insertAt++);
             button.Click += (_, _) => SelectFitMode(mode);
@@ -90,7 +112,9 @@ internal sealed partial class GalleryViewer
         foreach (var (mode, button) in _fitModeRows)
         {
             button.IsChecked = mode == EffectiveFitMode;
-            button.IsEnabled = mode == GalleryFitMode.Fit ? _fit.IsEnabled : CanSelectImageFitMode;
+            button.IsEnabled = mode == GalleryFitMode.Fit
+                ? _fit.IsEnabled || _fitPreferences.Mode != GalleryFitMode.Fit
+                : CanSelectImageFitMode;
         }
     }
 
@@ -173,7 +197,9 @@ internal sealed partial class GalleryViewer
     private T AddOverflowItem<T>(T button, string id, bool check = false, bool keepOpen = false, Func<string>? label = null,
         Panel? host = null, string? iconKey = null) where T : Button
     {
-        MenuStateChip icon = MenuLayout.CreateFlyoutChip(button, check ? MenuItemToggleType.CheckBox : MenuItemToggleType.None);
+        MenuItemToggleType toggle = button is RadioButton ? MenuItemToggleType.Radio
+            : check ? MenuItemToggleType.CheckBox : MenuItemToggleType.None;
+        MenuStateChip icon = MenuLayout.CreateFlyoutChip(button, toggle);
         MenuLayout.SetFlyoutIcon(icon, iconKey ?? (CommandCatalog.TryGet(id, out var command) ? command?.Icon : null));
         TextBlock text = new()
         {

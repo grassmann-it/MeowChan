@@ -183,7 +183,7 @@ public partial class App : Application
             {
                 if (!temporary)
                 {
-                    ProfileCopyWindow progress = new(Texts.T("profile.switch.openName", Path.GetFileName(profile)));
+                    ProfileCopyWindow progress = new(Texts.T("profile.switch.openName", Path.GetFileName(profile)), modal: true);
                     _ = progress.ShowDialog(desktop.MainWindow!);
                     try
                     {
@@ -272,7 +272,7 @@ public partial class App : Application
             var selected = await LocalFolderPicker.PickAsync(main.StorageProvider, Texts.T("profile.new.chooseFolder"));
             if (selected.Path is not { } parent) return;
             string destination = ProfileOpenPolicy.FreeFolder(parent, "MeowChan-1.1.3");
-            ProfileCopyWindow progress = new(title);
+            ProfileCopyWindow progress = new(title, modal: true);
             _ = progress.ShowDialog(main);
             try
             {
@@ -284,17 +284,24 @@ public partial class App : Application
             }
             catch (OperationCanceledException) { return; }
             finally { progress.Close(); }
-            await DialogPrompt.ConfirmAsync(main, title, destination, close, close,
-                danger: false, automationId: "ProfileUpgradeRestored");
+            await CreateProfileRestoreNotice(destination).ShowDialog(main);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException
             or Microsoft.Data.Sqlite.SqliteException)
         {
             Log.Warning(error, "The profile snapshot was not restored.");
-            string close = Texts.T("profile.switch.close");
-            await DialogPrompt.ConfirmAsync(main, ProfileUpgradeCatalog.Failed, error.Message, close, close,
-                danger: false, automationId: "ProfileUpgradeRestoreFailed");
+            await CreateProfileRestoreNotice(destination: null).ShowDialog(main);
         }
+    }
+
+    internal static Window CreateProfileRestoreNotice(string? destination)
+    {
+        string close = Texts.T("profile.switch.close");
+        return destination is null
+            ? DialogPrompt.BuildNotice(ProfileUpgradeCatalog.Failed, Texts.T("profile.status.unexpected"), close, "ProfileUpgradeRestoreFailed")
+            : DialogPrompt.BuildNotice(ProfileUpgradeCatalog.Title,
+                Texts.T("postFilter.recovery.done") + "\n\n" + Texts.T("settings.profileFolder") + "\n" + destination,
+                close, "ProfileUpgradeRestored");
     }
 
     internal static StartupErrorWindow CreateVideoStartupError(LinuxVideoPreflightResult video)

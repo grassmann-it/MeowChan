@@ -30,6 +30,30 @@ public sealed class ArchiveThreadStampTests
     private static readonly ResourceId EmptyThread = new("fixture", "g", "99");
 
     [Fact]
+    public void MediaStampScopeSelectionActionsAreTabStopsAndThreadTaggingIsInItsMenu() =>
+        WithArchive((_, window, _, _, _) =>
+        {
+            TabControl tabs = ById<TabControl>(window, "ArchiveContentTabs");
+            tabs.SelectedItem = ById<TabItem>(window, "ArchiveMediaTab");
+            DataGrid media = ById<DataGrid>(window, "ArchiveMediaGrid");
+            foreach (ArchiveAssetRow row in media.ItemsSource!.Cast<ArchiveAssetRow>().Take(2))
+                media.SelectedItems.Add(row);
+            Layout(window);
+            WrapPanel actions = Assert.Single(window.GetVisualDescendants().OfType<WrapPanel>(), panel => panel.Name == "ArchiveMediaSelectionActions");
+            Button[] buttons = actions.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible).ToArray();
+            Assert.Contains(buttons, button => button.Name == "ArchiveMediaSelectionTag");
+            Assert.Contains(buttons, button => button.Name == "ArchiveMediaSelectionStamp");
+            Assert.All(buttons, button => { Assert.True(button.Focusable); Assert.True(button.IsTabStop); });
+            Assert.DoesNotContain(buttons, button => button.Name == "ArchiveMediaSelectionTagAll");
+            Button toolbar = ById<Button>(window, "ArchiveThreadMediaMenuButton");
+            Click(toolbar);
+            ContextMenu menu = Assert.IsType<ContextMenu>(toolbar.ContextMenu);
+            Assert.True(MenuItem(menu, "thread.tag-media").IsEnabled);
+            menu.Close();
+            return Task.CompletedTask;
+        });
+
+    [Fact]
     public void ThreadMenuTargetsSavedFilesFromPostsAndOneUndoPreservesPreexistingTags() =>
         WithArchive(async (page, window, store, stamp, subjects) =>
         {

@@ -242,6 +242,8 @@ internal sealed class GalleryFilmstrip : Border
         if (_live.TryGetValue(index, out FilmstripTile? tile)) BindTile(tile, index);
     }
 
+    internal TimeSpan? DurationAt(int index) => _durations.TryGetValue(index, out TimeSpan length) ? length : null;
+
     /// <summary>Takes the flag choices (Settings, "Filmstrip shows"); the tiles in view draw again only when what is shown changed.</summary>
     internal void ConfigureFlags(FilmstripFlagSettings settings)
     {
@@ -269,7 +271,7 @@ internal sealed class GalleryFilmstrip : Border
     /// <summary>The badge state of the tile at <paramref name="index"/> with the length known so far and the flags shown now (tests and smokes); default for the "more" tile.</summary>
     internal MediaBadgeState BadgeStateAt(int index) =>
         index < 0 || index >= _count || _entries == null ? default
-            : _flags.StateFor(_entries[index], BadgeStateOf(FileName(_entries[index]), _durations.TryGetValue(index, out TimeSpan length) ? length : null));
+            : _flags.StateFor(_entries[index], BadgeStateOf(FileName(_entries[index]), DurationAt(index)));
 
     /// <summary>Marks the shown medium and scrolls it into view (centred, or just into view when the strip itself asked for it).</summary>
     internal void SetCurrent(int index)
@@ -568,7 +570,7 @@ internal sealed class GalleryFilmstrip : Border
     {
         GalleryEntry entry = _entries![index];
         string name = FileName(entry);
-        MediaBadgeState badges = _flags.StateFor(entry, BadgeStateOf(name, _durations.TryGetValue(index, out TimeSpan length) ? length : null));
+        MediaBadgeState badges = _flags.StateFor(entry, BadgeStateOf(name, DurationAt(index)));
         MediaBadgeOptions options = _flags.Options;
         string label = _threadPositions is not { } positions ? TileName(index + 1, _count, name, badges, options)
             : TileName(positions.NumberAt(index), positions.Count, name, badges, options);

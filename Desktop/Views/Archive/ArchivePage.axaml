@@ -854,14 +854,12 @@
                         <WrapPanel x:Name="ArchiveMediaSelectionBar" AutomationProperties.AutomationId="ArchiveMediaSelectionBar"
                                    ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
                             <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
-                            <Button x:Name="ArchiveMediaSelectionTag" Focusable="False" IsTabStop="False" Click="OnMediaSelectionTagClick" />
-                            <Button x:Name="ArchiveMediaSelectionQueue" Focusable="False" IsTabStop="False" Click="OnMediaSelectionQueueClick" />
-                            <Button x:Name="ArchiveMediaSelectionGallery" Focusable="False" IsTabStop="False" Click="OnMediaSelectionGalleryClick" />
-                            <Button x:Name="ArchiveMediaSelectionExport" Focusable="False" IsTabStop="False" Click="OnMediaSelectionExportClick" />
-                            <Button x:Name="ArchiveMediaSelectionClear" Focusable="False" IsTabStop="False" Click="OnMediaSelectionClearClick" />
+                            <Button x:Name="ArchiveMediaSelectionTag" Click="OnMediaSelectionTagClick" />
+                            <Button x:Name="ArchiveMediaSelectionQueue" Click="OnMediaSelectionQueueClick" />
+                            <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
+                            <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
+                            <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />
                         </WrapPanel>
-                        <Button x:Name="ArchiveMediaSelectionTagAll" AutomationProperties.AutomationId="ArchiveMediaSelectionTagAll"
-                                Click="OnMediaSelectionTagAllClick" ToolTip.ShowOnDisabled="True" />
                         <Button x:Name="ArchiveMediaSelectionStamp" AutomationProperties.AutomationId="ArchiveMediaSelectionStamp"
                                 Click="OnMediaSelectionStampClick" ToolTip.ShowOnDisabled="True" />
                     </WrapPanel>

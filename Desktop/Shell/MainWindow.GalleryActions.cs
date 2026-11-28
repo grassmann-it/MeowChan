@@ -40,9 +40,31 @@ public partial class MainWindow
         return boundary == null || entries.All(entry => boundary.Allows(entry.Key.Thread));
     }
 
-    private void RefreshLocalGalleryContentBoundary()
+    private bool RefreshLocalGalleryContentBoundary()
     {
-        if (_gallery?.AllowsMedia != null && !AllowsLocalGalleryEntries(_galleryEntries)) CloseGallery();
+        if (_gallery is not { AllowsMedia: not null } viewer || ReadLocalGalleryBoundary() is not { } boundary) return false;
+        if (_galleryEntries.All(entry => boundary.Allows(entry.Key.Thread))) return false;
+
+        List<GalleryEntry> entries = _galleryEntries.Where(entry => boundary.Allows(entry.Key.Thread)).ToList();
+        int index = entries.FindIndex(entry => entry.EntryKey == viewer.CurrentEntry?.EntryKey);
+        if (index < 0)
+        {
+            CloseGallery();
+            return true;
+        }
+
+        CancelGalleryPreload();
+        _galleryEntries = entries;
+        _galleryIndex = index;
+        _galleryThreadPositions = viewer.ThreadPositions = null;
+        bool reopenTagPanel = viewer.IsTaggingMode && viewer.IsTagPanelOpen;
+        EndGalleryTagging(persist: true);
+        viewer.RefreshEntries(entries[index], entries, ++_galleryAssociationsRevision);
+        if (reopenTagPanel) OpenGalleryTagPanel();
+        UpdateGalleryScope();
+        UpdateGalleryPosition();
+        StartGalleryPreload(viewer);
+        return true;
     }
 
     private void WireGalleryActions()
@@ -360,7 +382,8 @@ public partial class MainWindow
                 await Clipboard.SetTextAsync(text);
             },
             openedServices is null ? null : query => UseAsBooruSearchForDialog(query, openedServices),
-            openedServices is null ? null : () => IsBooruSearchAvailable(openedServices));
+            openedServices is null ? null : () => IsBooruSearchAvailable(openedServices),
+            owner => EnsureBooruContentChoiceAsync(owner));
         BooruDetailsWindow = dialog;
         try { await dialog.ShowDialog(this); }
         finally
@@ -381,10 +404,10 @@ public partial class MainWindow
 
     private (bool Opened, int? Limit) UseAsBooruSearchForDialog(string query, BooruWorkbenchServices openedServices)
     {
-        if (!IsBooruSearchAvailable(openedServices) || !NavigateWorkspace(WorkspacePage.Booru)) return default;
+        if (!IsBooruSearchAvailable(openedServices) || !EnsureBooruPage()) return default;
         if (!IsBooruSearchAvailable(openedServices) || _booruPage is not { } page
             || !page.Model.Sources.Contains(openedServices)) return default;
 
-        return OpenBooruSearchDraft(page, query, openedServices);
+        return OpenMediaBooruSearchDraft(page, query, openedServices);
     }
 }

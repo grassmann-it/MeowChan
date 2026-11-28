@@ -437,6 +437,35 @@ public sealed class GalleryRatingKeyTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => { _ = live.SetRatingAsync([entries[0]], 6); });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisposingGalleryDecisionSessionLetsTheActiveOperationFinish(bool undo)
+    {
+        (FakeDecisions owner, GalleryEntry[] entries) = Three();
+        using GalleryDecisionSession session = new(owner);
+        GalleryEntry[] target = [entries[0]];
+        if (undo) await session.SetRatingAsync(target, 2);
+
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        owner.Pause = () => release.Task;
+        Task<GalleryDecisionStatus> active = undo ? session.UndoAsync() : session.SetRatingAsync(target, 2);
+        Task<GalleryDecisionStatus> queued = session.SetFavoriteAsync(target, true);
+        try
+        {
+            session.Dispose();
+            Assert.Equal(GalleryDecisionStatus.None, await queued.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.True(session.Busy);
+            Assert.Equal(GalleryDecisionStatus.None, await session.SetRatingAsync(target, 3));
+            Assert.Equal(GalleryDecisionStatus.None, await session.UndoAsync());
+        }
+        finally { release.SetResult(); }
+
+        Assert.Equal(GalleryDecisionStatus.None, await active);
+        Assert.False(session.Busy);
+        Assert.False(owner.States["a"].Favorite);
+    }
+
     // ---- the marks keep their entries ------------------------------------------------------------------------
 
     private static MediaTagSubject Subject(string thread, char sha)
@@ -691,8 +720,8 @@ public sealed class GalleryRatingKeyTests : IDisposable
         // With the panel open the key rates the panel's targets with undo; without it the old path rates the shown medium.
         Assert.Contains("if (_tagPanelOpen && _tagController?.Decisions != null) { RequestDecisionRating(value); return; }", panel);
         Assert.Contains("RatingSetRequested?.Invoke(_entry, value);", panel);
-        // The targets are read when the request is made.
-        Assert.Contains("run(decisions, controller.DecisionTargets())", panel);
+        // The request takes the current targets and the token cancelled when the content filter replaces them.
+        Assert.Contains("run(decisions, controller.DecisionTargets(), controller.WriteToken)", panel);
         // A click on the row keeps the focus in the tag field when it was there.
         Assert.Contains("FieldFocused = () => surface.Input.IsKeyboardFocusWithin", panel);
         Assert.Contains("surface.ExtraUndo = controller.ExtraUndo;", panel);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -10,6 +11,7 @@ using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Persistence;
 using MeowChan.Storage;
 
 namespace MeowChan;
@@ -21,6 +23,7 @@ public sealed partial class MediaPage
     private MediaOccurrencesWindow? _occurrences;
 
     internal Window? OccurrencesWindow => _occurrences;
+    internal string? OccurrenceProfileDirectory { get; set; }
 
     /// <summary>Opens (or replaces) the list of every occurrence of the tile's bytes.</summary>
     internal void ShowOccurrences(MediaLibraryTile tile)
@@ -44,7 +47,7 @@ public sealed partial class MediaPage
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { return null; }
     }
 
-    private Func<CancellationToken, Task<Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>>>>? SourceTagsReader(MediaLibraryTile tile)
+    private Func<bool, CancellationToken, Task<Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>>?>>? SourceTagsReader(MediaLibraryTile tile)
     {
         if (MediaLibraryGrouping.ByteKey(tile.Entry) is not { } bytes) return null;
         MediaLibraryEntry[] matching = tile.Occurrences.Where(entry => MediaLibraryGrouping.ByteKey(entry) == bytes).ToArray();
@@ -54,20 +57,37 @@ public sealed partial class MediaPage
 
         MediaManifestCache manifests = CreateManifestCache();
         VerifiedFileMemo verified = new();
-        return token => Task.Run(async () =>
+        string? profile = OccurrenceProfileDirectory;
+        (RegularProfileFileIdentity? Rules, RegularProfileFileIdentity? Catalog) lastIdentity = default;
+        long? lastRead = null;
+        return async (force, token) =>
         {
-            Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>> tags = new();
-            BooruCatalogSnapshot? catalog = SafeReadBooruCatalog();
-            if (catalog == null) return tags;
-
-            manifests.Invalidate();
-            foreach (MediaLibraryEntry entry in chan)
-            {
-                if (await VerifyChanOccurrenceAsync(entry, manifests, verified, token).ConfigureAwait(false))
-                    return await ReadBooruOccurrenceTagsAsync(booru, catalog, manifests, verified, token).ConfigureAwait(false);
-            }
+            var identity = profile == null ? default : await Task.Run(() =>
+                (RegularProfileFile.TryGetIdentity(Path.Combine(profile, BooruContentProfileStore.FileName)),
+                 RegularProfileFile.TryGetIdentity(Path.Combine(profile, BooruCatalogStore.FileName))), token);
+            // Profile changes are detected by identity. The slower recheck also catches media
+            // replaced externally and volumes that do not support file identities.
+            if (!force && profile != null && identity == lastIdentity && lastRead is { } checkedAt
+                && Stopwatch.GetElapsedTime(checkedAt) < TimeSpan.FromSeconds(15)) return null;
+            Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>> tags = await Task.Run(ReadAsync, token);
+            token.ThrowIfCancellationRequested();
+            lastIdentity = identity;
+            lastRead = Stopwatch.GetTimestamp();
             return tags;
-        }, token);
+
+            async Task<Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>>> ReadAsync()
+            {
+                BooruCatalogSnapshot? catalog = SafeReadBooruCatalog();
+                if (catalog == null) return new();
+                manifests.Invalidate();
+                foreach (MediaLibraryEntry entry in chan)
+                {
+                    if (await VerifyChanOccurrenceAsync(entry, manifests, verified, token).ConfigureAwait(false))
+                        return await ReadBooruOccurrenceTagsAsync(booru, catalog, manifests, verified, token).ConfigureAwait(false);
+                }
+                return new();
+            }
+        };
     }
 
     private static async Task<bool> VerifyChanOccurrenceAsync(MediaLibraryEntry entry, MediaManifestCache manifests, VerifiedFileMemo verified,
