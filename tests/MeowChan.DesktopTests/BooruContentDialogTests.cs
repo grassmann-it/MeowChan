@@ -8,10 +8,13 @@ using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Updates;
 using MeowChan.Persistence;
+using MeowChan.PluginSdk;
+using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
@@ -24,10 +27,25 @@ public sealed class BooruContentDialogTests
         return new BooruContentProfileSnapshot(state, settings, new BooruContentFilter(1, settings));
     }
 
-    private static T ById<T>(Window window, string id) where T : Control => window.GetVisualDescendants().OfType<T>()
+    private static T ById<T>(Control root, string id) where T : Control => root.GetVisualDescendants().OfType<T>()
         .First(control => AutomationProperties.GetAutomationId(control) == id);
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    private static Button BooruNavigation(MainWindow window) => Assert.Single(window.GetLogicalDescendants().OfType<Button>(),
+        button => ControlAutomationPeer.CreatePeerForElement(button).GetAutomationId() == "BooruNavigationButton");
+
+    private static DesktopSessionHost CreateSession(string profile, string rules)
+    {
+        new Config
+        {
+            DownloadPath = Path.Combine(profile, "media"), FirstRunSetupVersion = 1, WorkspaceMode = "Advanced",
+            ShowBooruTools = true, AutomaticUpdateChecks = false
+        }.SaveConfig(profile);
+        File.WriteAllText(Path.Combine(profile, BooruContentProfileStore.FileName), rules);
+        return new(profile, [],
+            updateSessionFactory: (directory, config) => new UpdateSession(directory, config, disableEnvironment: () => "1"));
+    }
 
     [Fact]
     public void DialogUsesTheSharedDialogLanguageAndHasNoImplicitDefaultAction() => BooruComponentDispatcher.Run(() =>
@@ -41,7 +59,13 @@ public sealed class BooruContentDialogTests
             Assert.False(confirm.IsDefault);
             Assert.Contains("primary", confirm.Classes);
             Assert.False(dialog.ShowInTaskbar);
-            TextBlock status = dialog.GetVisualDescendants().OfType<TextBlock>().First(block => block.Classes.Contains("workspace-error"));
+            Border errorHost = Assert.Single(dialog.GetVisualDescendants().OfType<Border>(),
+                border => border.Name == DialogFrame.ErrorStripName);
+            Assert.False(errorHost.IsVisible);
+            Border strip = Assert.IsType<Border>(errorHost.Child);
+            ScrollViewer scroll = Assert.IsType<ScrollViewer>(strip.Child);
+            TextBlock status = Assert.IsType<TextBlock>(scroll.Content);
+            Assert.Contains("workspace-error", status.Classes);
             Assert.False(status.IsVisible);
             ComboBox maximum = ById<ComboBox>(dialog, "BooruContentMaximum");
             Assert.True(maximum.IsEnabled);
@@ -77,8 +101,11 @@ public sealed class BooruContentDialogTests
         finally { if (dialog.IsVisible) { dialog.Close(false); } }
     });
 
-    [Fact]
-    public void RetryingARevisionConflictPreservesNewSourceBlacklists() => BooruComponentDispatcher.Run(() =>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void RetryingARevisionConflictPreservesLocalEditsAndNewRules(bool editRating, bool editBlacklist) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -86,7 +113,7 @@ public sealed class BooruContentDialogTests
         lease.Admission.CompleteStartup();
         using ProfileAdmissionToken writer = lease.Admission.EnterOrdinaryWriter();
         BooruContentProfileStore store = new(lease);
-        BooruContentProfileSnapshot initial = store.SaveAdmitted(new(BooruPostClaimRating.General, "cat", []), 0, writer);
+        BooruContentProfileSnapshot initial = store.SaveAdmitted(new(BooruPostClaimRating.Explicit, "cat", []), 0, writer);
         List<long> revisions = [];
         BooruContentDialog dialog = new(initial, (settings, revision) =>
         {
@@ -98,10 +125,13 @@ public sealed class BooruContentDialogTests
         try
         {
             BooruContentSourceBlacklist sourceRule = new("e621", "default", "bird");
-            BooruContentProfileSnapshot changed = store.SaveAdmitted(initial.Settings with { SourceBlacklists = [sourceRule] }, 1, writer);
+            BooruContentProfileSnapshot changed = store.SaveAdmitted(
+                new(BooruPostClaimRating.General, "fox", [sourceRule]), 1, writer);
             Assert.Equal(2L, changed.Revision);
-            ById<ComboBox>(dialog, "BooruContentMaximum").SelectedIndex = 1;
-            ById<TextBox>(dialog, "BooruContentBlacklist").Text = "dog";
+            ComboBox maximum = ById<ComboBox>(dialog, "BooruContentMaximum");
+            TextBox blacklist = ById<TextBox>(dialog, "BooruContentBlacklist");
+            if (editRating) maximum.SelectedIndex = 1;
+            if (editBlacklist) blacklist.Text = "dog";
             Button confirm = ById<Button>(dialog, "BooruContentConfirm");
             Click(confirm);
             BooruComponentDispatcher.WaitUntil(() => confirm.IsEnabled, "the failed save to settle");
@@ -109,13 +139,15 @@ public sealed class BooruContentDialogTests
             BooruContentProfileSnapshot afterConflict = store.Load();
             Assert.Equal(changed.Revision, afterConflict.Revision);
             Assert.Equal(sourceRule, Assert.Single(afterConflict.Settings.SourceBlacklists));
+            Assert.Equal(Texts.T(editRating ? "booru.content.sensitive" : "booru.content.general"), maximum.SelectedItem);
+            Assert.Equal(editBlacklist ? "dog" : "fox", blacklist.Text);
             Click(confirm);
             BooruComponentDispatcher.WaitUntil(() => !dialog.IsVisible, "the retry to close the dialog");
             Assert.Equal([1L, 2L], revisions);
             BooruContentProfileSnapshot saved = store.Load();
             Assert.Equal(3L, saved.Revision);
-            Assert.Equal(BooruPostClaimRating.Sensitive, saved.Settings.MaximumRating);
-            Assert.Equal("dog", saved.Settings.GlobalBlacklist);
+            Assert.Equal(editRating ? BooruPostClaimRating.Sensitive : BooruPostClaimRating.General, saved.Settings.MaximumRating);
+            Assert.Equal(editBlacklist ? "dog" : "fox", saved.Settings.GlobalBlacklist);
             Assert.Equal(sourceRule, Assert.Single(saved.Settings.SourceBlacklists));
         }
         finally { if (dialog.IsVisible) dialog.Close(false); }
@@ -129,14 +161,7 @@ public sealed class BooruContentDialogTests
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
         string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
-        await File.WriteAllTextAsync(path, brokenJson);
-        new Config
-        {
-            DownloadPath = Path.Combine(profile.Path, "media"), FirstRunSetupVersion = 1, WorkspaceMode = "Advanced",
-            ShowBooruTools = true, AutomaticUpdateChecks = false
-        }.SaveConfig(profile.Path);
-        await using DesktopSessionHost session = new(profile.Path, [],
-            updateSessionFactory: (directory, config) => new UpdateSession(directory, config, disableEnvironment: () => "1"));
+        await using DesktopSessionHost session = CreateSession(profile.Path, brokenJson);
         BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(session.ProfileLeaseForTests);
         Assert.Equal(expectedState, content.Snapshot.State.ToString());
         BooruWorkbenchServices ports = new BooruUiHarness().Services;
@@ -146,8 +171,7 @@ public sealed class BooruContentDialogTests
         window.PlatformImpl!.Activated?.Invoke();
         await window.StartupTimingRestoreTask;
 
-        Button navigation = Assert.Single(window.GetLogicalDescendants().OfType<Button>(),
-            button => ControlAutomationPeer.CreatePeerForElement(button).GetAutomationId() == "BooruNavigationButton");
+        Button navigation = BooruNavigation(window);
         await BooruTestSupport.WaitAsync(() => navigation.IsEffectivelyEnabled, "the Booru navigation button");
         Click(navigation);
         await BooruTestSupport.WaitAsync(() => window.OwnedWindows.OfType<BooruContentDialog>().Any(dialog => dialog.IsVisible),
@@ -172,6 +196,70 @@ public sealed class BooruContentDialogTests
         Assert.True(content.HasChoice);
         Assert.Equal(2L, content.Snapshot.Revision);
         Assert.Equal("cat", content.Snapshot.Settings.GlobalBlacklist);
+        Assert.Equal(repaired, await File.ReadAllTextAsync(path));
+    });
+
+    [Fact]
+    public void EditingAfterExternalRepairUpdatesActiveResultsEvenWhenCanceled() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
+        const string initial = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"explicit","globalBlacklist":"","sourceBlacklists":[]}}""";
+        await using DesktopSessionHost session = CreateSession(profile.Path, initial);
+        BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(session.ProfileLeaseForTests);
+        BooruUiHarness harness = new();
+        BooruPostView explicitPost = BooruUiFixtures.Post("1", BooruOriginalAccess.NotOffered,
+            rating: BooruRating.Explicit, tags: ["dog"], preview: false);
+        BooruPostView blacklistedPost = BooruUiFixtures.Post("2", BooruOriginalAccess.NotOffered, tags: ["cat"], preview: false);
+        BooruPostView allowedPost = BooruUiFixtures.Post("3", BooruOriginalAccess.NotOffered, tags: ["dog"], preview: false);
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, explicitPost, blacklistedPost, allowedPost)));
+        BooruWorkbenchServices ports = harness.Services;
+        session.BooruServices = new(ports.Search, ports.Queue, ports.Watchers, ports.Previews) { Content = content };
+        await using MainWindow window = new(session) { Width = 1440, Height = 800, Classes = { MotionPolicy.OffClass } };
+        window.Show();
+        window.PlatformImpl!.Activated?.Invoke();
+        await window.StartupTimingRestoreTask;
+
+        Button navigation = BooruNavigation(window);
+        await BooruTestSupport.WaitAsync(() => navigation.IsEffectivelyEnabled, "the Booru navigation button");
+        Click(navigation);
+        BooruPage page = Assert.IsType<BooruPage>(window.BooruPageForTests);
+        BooruSearchModel search = page.Model.Search;
+        await BooruTestSupport.SearchAsync(search, "1boy");
+        Assert.Equal(3, search.View.Rows.Length);
+
+        const string repaired = """{"schemaVersion":1,"revision":2,"settings":{"maximumRating":"general","globalBlacklist":"cat","sourceBlacklists":[]}}""";
+        await File.WriteAllTextAsync(path, repaired);
+        window.UpdateLayout();
+        Button edit = ById<Button>(page.View.Header, "BooruContentSettings");
+        Assert.Same(window, TopLevel.GetTopLevel(edit));
+        Assert.True(edit.IsEffectivelyVisible);
+        Assert.True(edit.IsEffectivelyEnabled);
+        Click(edit);
+        await BooruTestSupport.WaitAsync(() => window.OwnedWindows.OfType<BooruContentDialog>().Any(dialog => dialog.IsVisible),
+            "the content rules dialog");
+        BooruContentDialog dialog = Assert.Single(window.OwnedWindows.OfType<BooruContentDialog>());
+        Assert.Equal(Texts.T("booru.content.general"), ById<ComboBox>(dialog, "BooruContentMaximum").SelectedItem);
+        TextBox blacklist = ById<TextBox>(dialog, "BooruContentBlacklist");
+        Assert.Equal("cat", blacklist.Text);
+        Assert.Equal(2L, content.Snapshot.Revision);
+        Assert.Equal(allowedPost.Identity, Assert.Single(search.View.Rows).Post.Identity);
+
+        blacklist.Text = "dog";
+        Click(ById<Button>(dialog, "BooruContentCancel"));
+        await BooruTestSupport.WaitAsync(() => !dialog.IsVisible && navigation.IsEffectivelyEnabled, "the closed dialog");
+        Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+        Assert.Equal(MainWindow.WorkspacePage.Downloads, window.SelectedPage);
+        Click(BooruNavigation(window));
+        Assert.Equal(MainWindow.WorkspacePage.Booru, window.SelectedPage);
+        Assert.Same(page, window.BooruPageForTests);
+        Assert.Empty(window.OwnedWindows.OfType<BooruContentDialog>());
+        Assert.Equal(allowedPost.Identity, Assert.Single(search.View.Rows).Post.Identity);
+        Assert.False(search.IsMediaAllowed(explicitPost));
+        Assert.False(search.IsMediaAllowed(blacklistedPost));
+        Assert.True(search.IsMediaAllowed(allowedPost));
         Assert.Equal(repaired, await File.ReadAllTextAsync(path));
     });
 }

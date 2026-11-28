@@ -27,11 +27,13 @@ internal sealed class BooruContentDialog : Window
         };
         BooruPostClaimRating[] ratings =
             [BooruPostClaimRating.General, BooruPostClaimRating.Sensitive, BooruPostClaimRating.Questionable, BooruPostClaimRating.Explicit];
+        int MaximumIndex(BooruContentProfileSnapshot rules) =>
+            Array.IndexOf(ratings, rules.Settings.MaximumRating ?? BooruPostClaimRating.Sensitive);
         ComboBox maximum = new()
         {
             ItemsSource = new[] { Texts.T("booru.content.general"), Texts.T("booru.content.sensitive"),
                 Texts.T("booru.content.questionable"), Texts.T("booru.content.explicit") },
-            SelectedIndex = Array.IndexOf(ratings, snapshot.Settings.MaximumRating ?? BooruPostClaimRating.Sensitive)
+            SelectedIndex = MaximumIndex(snapshot)
         };
         AutomationProperties.SetAutomationId(maximum, "BooruContentMaximum");
         AutomationProperties.SetLabeledBy(maximum, header);
@@ -79,7 +81,11 @@ internal sealed class BooruContentDialog : Window
             }
             catch (BooruContentRevisionException error)
             {
-                // Keep the visible edits and base the next save on the rules read during the revision check.
+                // Keep local edits and refresh the untouched inputs before retrying against the current revision.
+                if (maximum.SelectedIndex == MaximumIndex(snapshot))
+                    maximum.SelectedIndex = MaximumIndex(error.Current);
+                if (string.Equals(blacklist.Text ?? "", snapshot.Settings.GlobalBlacklist, StringComparison.Ordinal))
+                    blacklist.Text = error.Current.Settings.GlobalBlacklist;
                 snapshot = error.Current;
                 SetStatus(Texts.T("booru.content.saveError"));
             }

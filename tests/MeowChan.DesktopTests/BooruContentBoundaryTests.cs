@@ -115,7 +115,8 @@ public sealed class BooruContentBoundaryTests
     [Fact]
     public async Task ProductionPortsRefuseMediaAlreadyInTheirCachesAfterATightening()
     {
-        using HttpClient client = new(new PreviewTransport());
+        using PreviewTransport transport = new();
+        using HttpClient client = new(transport, disposeHandler: false);
         SourceDescription source = DanbooruTestPlugin.Plugin.Describe().Sources.Single();
         using BooruPreviewHttp http = new(client, source);
         BooruWorkspaceContent content = new(Rules(1, BooruPostClaimRating.Explicit));

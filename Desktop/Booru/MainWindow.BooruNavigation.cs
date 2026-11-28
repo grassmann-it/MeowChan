@@ -33,15 +33,16 @@ public partial class MainWindow
                 BooruContentProfileSnapshot previous = content.Snapshot;
                 BooruContentProfileSnapshot snapshot = await _session.ReadBooruContentAsync();
                 if (!IsVisible || !CanOpenBooru || !ReferenceEquals(_session.BooruContent, content)) return;
-                if (confirmed is not null)
+                if (snapshot.HasChoice)
                 {
-                    // Resume first navigation as soon as the repaired profile contains a confirmed choice.
-                    if (snapshot.HasChoice) content.PublishIfUnchanged(previous, snapshot);
-                    if (content.HasChoice)
-                    {
-                        confirmed();
-                        return;
-                    }
+                    content.PublishIfUnchanged(previous, snapshot);
+                    snapshot = content.Snapshot;
+                }
+                // Resume first navigation as soon as the repaired profile contains a confirmed choice.
+                if (confirmed is not null && content.HasChoice)
+                {
+                    confirmed();
+                    return;
                 }
                 BooruContentDialog dialog = new(snapshot, _session.SaveBooruContentAsync);
                 if (await dialog.ShowDialog<bool>(this) && CanOpenBooru)
