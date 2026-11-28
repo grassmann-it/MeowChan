@@ -7,6 +7,7 @@ using MeowChan.Http;
 using MeowChan.Persistence;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
+using MeowChan.PluginHost.Secrets;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
 
@@ -61,9 +62,67 @@ public sealed class BooruFamilyBudgetTests
             first.Close();
             sibling.Close();
         }
+    }
 
-        static HostHttpRequest Get(SourceDescription source) => new(source.SourceId, HostHttpMethod.Get,
-            new Uri(source.BaseUri, "posts.json?tags=wolf&page=1&limit=12"));
+    [Theory]
+    [InlineData(429, "application/json")]
+    [InlineData(200, "text/html")]
+    [InlineData(200, "application/octet-stream")]
+    public async Task LateE621ResponseCannotSetFamilyFenceAfterSiteGenerationChanges(int status, string mediaType)
+    {
+        ManualClock clock = new();
+        RequestPolicyState policy = new(clock);
+        SourceDescription e621 = Source("e621", "e621.net");
+        SourceDescription e926 = Source("e926", "e926.net");
+        TaskCompletionSource ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        BooruHostHttp.SourceGeneration generation = new(0, 0, ended.Task);
+        int checksUntilSwitch = 0;
+        using Transport handler = new(request =>
+        {
+            if (request.RequestUri!.Host == "e926.net") return new(HttpStatusCode.OK);
+            checksUntilSwitch = mediaType == "application/octet-stream" ? 2 : 1;
+            return new((HttpStatusCode)status)
+            {
+                Headers = { RetryAfter = new(TimeSpan.FromSeconds(86400)) },
+                Content = new StringContent("<html>challenge</html>", null, mediaType)
+            };
+        });
+        using HttpClient transport = new(handler);
+        using BooruHostHttp first = new(transport, policy, [e621], maximumCooldownProvider: null,
+            sourceAdmission: new(new object(), _ =>
+            {
+                BooruHostHttp.SourceGeneration observed = generation;
+                // The last check before status handling sees the old generation as current.
+                if (checksUntilSwitch > 0 && --checksUntilSwitch == 0)
+                {
+                    generation = new(0, 2, null);
+                    ended.SetResult();
+                }
+                return observed;
+            }));
+        using BooruHostHttp sibling = new(transport, policy, [e926]);
+        BooruJob firstJob = new(clock);
+        BooruJob siblingJob = new(clock);
+        try
+        {
+            Assert.Equal("source_unavailable", Assert.IsType<HostHttpFailure>(
+                await first.SendAsync(Get(e621), e621, firstJob, default).WaitAsync(Bound)).Failure.Code);
+            Assert.True(ended.Task.IsCompletedSuccessfully);
+            Assert.Equal(1, firstJob.Sends);
+            Assert.True(firstJob.IsOpen);
+            Assert.Null(firstJob.CooldownStop);
+            Assert.False(sibling.TryGetCooldown("e926", out _));
+
+            clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            Assert.Equal(200, Assert.IsType<HostHttpResponse>(
+                await sibling.SendAsync(Get(e926), e926, siblingJob, default).WaitAsync(Bound)).StatusCode);
+            Assert.Equal(1, siblingJob.Sends);
+        }
+        finally
+        {
+            firstJob.Close();
+            siblingJob.Close();
+        }
     }
 
     [Fact]
@@ -76,6 +135,7 @@ public sealed class BooruFamilyBudgetTests
         var field = typeof(BooruHostHttp).GetField("_familyState", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var family = Assert.IsType<BooruHostHttp.SourceState>(field.GetValue(first));
         Assert.Same(family, field.GetValue(sibling));
+        SemaphoreSlim originalGate = family.SendGate;
 
         first.Dispose();
         Assert.True(sibling.ResetCooldown("e926"));
@@ -83,10 +143,120 @@ public sealed class BooruFamilyBudgetTests
         Assert.NotNull(reset);
         sibling.Dispose();
         Assert.True(reset.Commit());
-        Assert.Throws<ObjectDisposedException>(() => family.SendGate.Wait(0));
+        Assert.Throws<ObjectDisposedException>(() => originalGate.Wait(0));
 
         using BooruHostHttp reopened = new(transport, policy, [Source("e926", "e926.net")]);
+        Assert.NotSame(originalGate, family.SendGate);
         Assert.True(reopened.ResetCooldown("e926"));
+    }
+
+    [Theory]
+    [InlineData("cooldown")]
+    [InlineData("challenge")]
+    [InlineData("pacing")]
+    public async Task ReplacementHostKeepsTheFamilyBudgetOnTheSamePolicy(string fence)
+    {
+        ManualClock clock = new();
+        RequestPolicyState policy = new(clock);
+        SourceDescription e621 = Source("e621", "e621.net", spacing: 3000);
+        SourceDescription e926 = Source("e926", "e926.net");
+        using Transport handler = new(request => request.RequestUri!.Host != "e621.net" ? new(HttpStatusCode.OK) : fence switch
+        {
+            "cooldown" => new(HttpStatusCode.TooManyRequests) { Headers = { RetryAfter = new(TimeSpan.FromSeconds(90)) } },
+            "challenge" => new(HttpStatusCode.OK) { Content = new StringContent("<html>", null, "text/html") },
+            _ => new(HttpStatusCode.OK)
+        });
+        using HttpClient transport = new(handler);
+        BooruJob firstJob = new(clock);
+        BooruJob reopenedJob = new(clock);
+        try
+        {
+            DateTimeOffset started = clock.GetUtcNow();
+            using (BooruHostHttp first = new(transport, policy, [e621]))
+            {
+                await first.SendAsync(Get(e621), e621, firstJob, default).WaitAsync(Bound);
+                Assert.Equal(1, firstJob.Sends);
+            }
+
+            using BooruHostHttp reopened = new(transport, policy, [e926]);
+            if (fence == "pacing") Assert.False(reopened.TryGetCooldown("e926", out _));
+            else
+            {
+                Assert.True(reopened.TryGetCooldown("e926", out DateTimeOffset until));
+                Assert.Equal(started.AddSeconds(fence == "cooldown" ? 90 : 60), until);
+                HostHttpResult blocked = await reopened.SendAsync(Get(e926), e926, reopenedJob, default).WaitAsync(Bound);
+                if (fence == "cooldown") Assert.Equal(until, Assert.IsType<HostHttpDeferred>(blocked).RetryAt);
+                else Assert.Equal("http-challenge", Assert.IsType<HostHttpFailure>(blocked).Failure.Code);
+                Assert.Equal(0, reopenedJob.Sends);
+                Assert.True(reopened.ResetCooldown("e926"));
+            }
+
+            Task<HostHttpResult> pending = reopened.SendAsync(Get(e926), e926, reopenedJob, default);
+            await clock.WaitForTimerAsync(TimeSpan.FromSeconds(3), Bound);
+            Assert.Equal(0, reopenedJob.Sends);
+            clock.Advance(TimeSpan.FromSeconds(3));
+            Assert.Equal(200, Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound)).StatusCode);
+            Assert.Equal(1, reopenedJob.Sends);
+        }
+        finally
+        {
+            firstJob.Close();
+            reopenedJob.Close();
+        }
+    }
+
+    [Fact]
+    public async Task AccountInvalidatedAtAdmissionDoesNotConsumeSendBudgetOrPacing()
+    {
+        DirectoryInfo profile = Directory.CreateTempSubdirectory("meowchan-account-admission-");
+        try
+        {
+            using ProfileLease lease = ProfileLease.Acquire(profile.FullName);
+            ManualClock clock = new();
+            SourceDescription source = Source("danbooru", "danbooru.donmai.us");
+            BooruAccountBinding accounts = new(lease, new BooruSecretStoreTests.FakeStore());
+            BooruAccountScope scope = BooruAccountScope.Create("danbooru-plugin", "first", source.SourceId, "default", source.BaseUri);
+            int sends = 0;
+            using Transport handler = new(_ => { sends++; return new(HttpStatusCode.OK); });
+            using HttpClient transport = new(handler);
+            bool invalidateOnAdmission = false;
+            bool firstAdmission = true;
+            using BooruHostHttp host = new(transport, new RequestPolicyState(clock), [source],
+                maximumCooldownProvider: () =>
+                {
+                    if (firstAdmission) invalidateOnAdmission = true;
+                    return BooruHostHttp.DefaultMaximumCooldown;
+                },
+                sourceAdmission: new(new object(), _ =>
+                {
+                    if (invalidateOnAdmission)
+                    {
+                        invalidateOnAdmission = false;
+                        firstAdmission = false;
+                        accounts.InvalidateOperations();
+                    }
+                    return new BooruHostHttp.SourceGeneration(0, 0, null);
+                }));
+            BooruHostServices services = new(new UnusedServices(), host, accounts, _ => scope);
+            BooruJob job = services.OpenJob();
+            try
+            {
+                BooruSearchRequest search = new(source.SourceId, "wolf", 1, 12);
+                PluginOperationContext stale = services.BindOperation(job.Operation, search, source, default);
+                Assert.Equal("source_unavailable", Assert.IsType<HostHttpFailure>(
+                    await services.SendHttpAsync(Get(source), stale, default).WaitAsync(Bound)).Failure.Code);
+                Assert.Equal(0, job.Sends);
+                Assert.Equal(0, sends);
+
+                PluginOperationContext current = services.BindOperation(job.Operation, search, source, default);
+                Assert.Equal(200, Assert.IsType<HostHttpResponse>(
+                    await services.SendHttpAsync(Get(source), current, default).WaitAsync(Bound)).StatusCode);
+                Assert.Equal(1, job.Sends);
+                Assert.Equal(1, sends);
+            }
+            finally { services.CloseJob(job); }
+        }
+        finally { profile.Delete(recursive: true); }
     }
 
     [Fact]
@@ -253,6 +423,9 @@ public sealed class BooruFamilyBudgetTests
             return applied.Watcher;
         }
     }
+
+    private static HostHttpRequest Get(SourceDescription source) => new(source.SourceId, HostHttpMethod.Get,
+        new Uri(source.BaseUri, "posts.json?tags=wolf&page=1&limit=12"));
 
     private static SourceDescription Source(string id, string hostname, int spacing = 1000, int tags = 3) =>
         new(id, id, new($"https://{hostname}/"), SourceCapabilities.PostSearch, [],

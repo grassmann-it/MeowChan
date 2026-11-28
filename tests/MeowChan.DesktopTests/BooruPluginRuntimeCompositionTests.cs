@@ -49,6 +49,47 @@ public sealed class BooruPluginRuntimeCompositionTests
         finally { await queue.StopAllAsync(); }
     }
 
+    [Fact]
+    public async Task PluginSessionShutdownCancelsAnonymousDanbooruRetryWithoutAdvancingTime()
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        using AccountTransport network = new(retryFirst: true);
+        FakeTimeProvider clock = new();
+        StageDanbooru(profile.Path);
+        Config config = new();
+        DownloadQueue queue = new(config.MaxParallelDownloads, config.BandwidthLimiter);
+        try
+        {
+            await using PluginSession session = new(profile.Path, lease, config, queue, Serilog.Core.Logger.None,
+                transportFactory: network.Client, httpClock: clock);
+            await session.StartAsync(CancellationToken.None).WaitAsync(Deadline);
+            BooruProviderBinding binding = Assert.IsType<BooruProviderBinding>(session.Booru);
+            BooruJob job = binding.Services.OpenJob();
+            try
+            {
+                DateTimeOffset started = clock.GetUtcNow();
+                BooruSearchRequest search = new(binding.Source.SourceId, "cat", 1, 10);
+                PluginOperationContext context = binding.Services.BindOperation(job.Operation, search, binding.Source, CancellationToken.None);
+                Assert.Null(context.BooruCall!.Account);
+                Task<HostHttpResult> pending = binding.Services.SendHttpAsync(new(search.SourceId, HostHttpMethod.Get,
+                    new(binding.Source.BaseUri, "posts.json?tags=cat&page=1&limit=10")), context, CancellationToken.None);
+                Assert.Equal("danbooru.donmai.us", Assert.Single(network.Requests).Url.Host);
+                Assert.False(pending.IsCompleted);
+
+                TimeSpan bound = TimeSpan.FromSeconds(10);
+                await session.DisposeAsync().AsTask().WaitAsync(bound);
+                Assert.Equal("source_unavailable", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(bound)).Failure.Code);
+                Assert.Equal(started, clock.GetUtcNow());
+                Assert.True(job.IsOpen);
+                Assert.Equal(1, job.Sends);
+                Assert.Single(network.Requests);
+            }
+            finally { binding.Services.CloseJob(job); }
+        }
+        finally { await queue.StopAllAsync(); }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -321,9 +362,10 @@ public sealed class BooruPluginRuntimeCompositionTests
         await host.DisposeAsync();
     }
 
-    private sealed class AccountTransport : HttpMessageHandler
+    private sealed class AccountTransport(bool retryFirst = false) : HttpMessageHandler
     {
         private TaskCompletionSource? _holdNextResponse;
+        private int _retry = retryFirst ? 1 : 0;
         internal System.Collections.Concurrent.ConcurrentQueue<(Uri Url, AuthenticationHeaderValue? Authorization)> Requests { get; } = new();
         internal HttpClient Client() => new(this, disposeHandler: false);
         internal Task HoldNextResponse() => (_holdNextResponse = new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
@@ -331,6 +373,9 @@ public sealed class BooruPluginRuntimeCompositionTests
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Enqueue((request.RequestUri!, request.Headers.Authorization));
+            if (Interlocked.Exchange(ref _retry, 0) == 1)
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                    { Headers = { RetryAfter = new(TimeSpan.FromSeconds(30)) } };
             if (Interlocked.Exchange(ref _holdNextResponse, null) is { } held)
             {
                 held.SetResult();

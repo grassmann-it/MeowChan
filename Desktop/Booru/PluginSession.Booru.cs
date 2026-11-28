@@ -72,7 +72,7 @@ internal sealed partial class PluginSession
             // One transport per plugin. The e621 family budget follows the session policy, including separate builds.
             BooruHostHttp? booruHttp = new(_transport, _httpPolicy, description.Sources,
                 maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours),
-                sourceAdmission: new(_state, sourceId => EnabledBooruSourceGeneration(pluginId, sourceId)));
+                sourceAdmission: new(_state, sourceId => EnabledBooruSourceGeneration(pluginId, sourceId), _lifetime.Token));
             try
             {
                 string? executionRevision = activation.Active?.ExecutionRevision;
@@ -134,7 +134,10 @@ internal sealed partial class PluginSession
         lock (_state)
         {
             if (_disposed || !_booruSources.TryGetValue(sourceId, out BooruProviderBinding? binding)
-                || !binding.SupportsWorkbench || !SiteSwitches.SetBooruEnabled(sourceId, enabled)) return false;
+                || !binding.SupportsWorkbench) return false;
+            bool wasEnabled = SiteSwitches.IsBooruEnabled(sourceId);
+            if (!SiteSwitches.SetBooruEnabled(sourceId, enabled)) return false;
+            if (wasEnabled == enabled) return true;
             var previous = _booruSiteGenerations[sourceId];
             _booruSiteGenerations[sourceId] = (checked(previous.Revision + 1), new(TaskCreationOptions.RunContinuationsAsynchronously));
             previous.Ended.SetResult();

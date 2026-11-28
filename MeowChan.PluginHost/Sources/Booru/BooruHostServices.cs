@@ -40,7 +40,7 @@ public sealed class BooruHostServices : IPluginHostServices
     internal PluginOperationContext BindOperation(PluginOperationContext operation, object request,
         SourceDescription source, CancellationToken lifetime)
     {
-        PluginOperationContext context = operation.BindBooruCall(request, lifetime);
+        PluginOperationContext context = operation.BindBooruCall(request, lifetime, _booruHttp.CaptureSourceGeneration(source.SourceId));
         if (_accounts is not null && _accountScope?.Invoke(source) is { } scope)
         {
             context.BooruCall!.Account = _accounts.CaptureOperation(scope, source, context)
@@ -77,7 +77,7 @@ public sealed class BooruHostServices : IPluginHostServices
         BooruCallBinding active, CancellationToken cancellationToken)
     {
         using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(active.Lifetime, cancellationToken);
-        return await _booruHttp.SendAsync(request, source, job, lifetime.Token, active.Account).ConfigureAwait(false);
+        return await _booruHttp.SendAsync(request, source, job, lifetime.Token, active).ConfigureAwait(false);
     }
 
     /// <summary>The enforced post-search profile of a declared source; null when it has none.</summary>

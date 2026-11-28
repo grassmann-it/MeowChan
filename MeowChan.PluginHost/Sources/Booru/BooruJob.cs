@@ -75,15 +75,11 @@ internal sealed class BooruJob
         }
     }
 
-    // Published before Close cancels result waits: the first 429 must remain a Deferred.
+    // Published with the provider fence, before Close cancels result waits.
     private HostHttpDeferred? _cooldownStop;
     internal HostHttpDeferred? CooldownStop => Volatile.Read(ref _cooldownStop);
 
-    internal void StopForCooldown(HostHttpDeferred deferred)
-    {
-        Volatile.Write(ref _cooldownStop, deferred);
-        Close();
-    }
+    internal void RecordCooldownStop(HostHttpDeferred deferred) => Volatile.Write(ref _cooldownStop, deferred);
 
     internal void Close()
     {

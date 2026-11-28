@@ -31,13 +31,7 @@ public sealed class BooruSourceActivationTests
         using ProfileLease lease = ProfileLease.Acquire(profile.Path);
         using CountingTransport network = new(retryFirstE621: true);
         FakeTimeProvider clock = new();
-        if (!File.Exists(Path.Combine(AppContext.BaseDirectory, "plugins", "MeowChan.Plugin.E621.plugin.json")))
-        {
-            string plugins = Path.Combine(profile.Path, "plugins");
-            Directory.CreateDirectory(plugins);
-            await File.WriteAllTextAsync(Path.Combine(plugins, "TestBooru.cs"), FixturePlugin.Replace("SOURCE_DECLARATIONS",
-                "DescribeSource(\"e621\", \"e621.net\"), DescribeSource(\"e926\", \"e926.net\")", StringComparison.Ordinal));
-        }
+        await StageE621FamilyAsync(profile.Path);
 
         Config config = new();
         DownloadQueue queue = new(config.MaxParallelDownloads, config.BandwidthLimiter);
@@ -87,6 +81,58 @@ public sealed class BooruSourceActivationTests
             return binding.Services.SendHttpAsync(new(search.SourceId, HostHttpMethod.Get,
                 new(binding.Source.BaseUri, "posts.json?tags=cat&page=1&limit=10")), context, CancellationToken.None);
         }
+    }
+
+    [Fact]
+    public async Task BoundE621OperationKeepsItsGenerationBeforeTheFirstHttpCallback()
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        using CountingTransport network = new(retryFirstE621: true);
+        FakeTimeProvider clock = new();
+        await StageE621FamilyAsync(profile.Path);
+        Config config = new();
+        DownloadQueue queue = new(config.MaxParallelDownloads, config.BandwidthLimiter);
+        try
+        {
+            await using PluginSession session = new(profile.Path, lease, config, queue, Serilog.Core.Logger.None,
+                transportFactory: network.Client, httpClock: clock);
+            await session.StartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(180));
+            Assert.True(session.SetBooruSiteEnabled("e621", true));
+            BooruProviderBinding e621 = session.BooruSources["e621"];
+            BooruHostServices services = session.BooruSources["e926"].Services;
+            BooruJob job = services.OpenJob();
+            try
+            {
+                BooruSearchRequest search = new("e621", "cat", 1, 10);
+                HostHttpRequest request = new("e621", HostHttpMethod.Get,
+                    new(e621.Source.BaseUri, "posts.json?tags=cat&page=1&limit=10"));
+                PluginOperationContext stale = services.BindOperation(job.Operation, search, e621.Source, CancellationToken.None);
+                Assert.True(session.SetBooruSiteEnabled("e621", false));
+                PluginOperationContext boundWhileOff = services.BindOperation(job.Operation, search, e621.Source, CancellationToken.None);
+                Assert.True(session.SetBooruSiteEnabled("e621", true));
+
+                TimeSpan bound = TimeSpan.FromSeconds(10);
+                Assert.Equal("source_unavailable", Assert.IsType<HostHttpFailure>(
+                    await services.SendHttpAsync(request, stale, CancellationToken.None).WaitAsync(bound)).Failure.Code);
+                Assert.Equal("source_unavailable", Assert.IsType<HostHttpFailure>(
+                    await services.SendHttpAsync(request, boundWhileOff, CancellationToken.None).WaitAsync(bound)).Failure.Code);
+                Assert.Empty(network.Hosts);
+                Assert.Equal(0, job.Sends);
+
+                PluginOperationContext current = services.BindOperation(job.Operation, search, e621.Source, CancellationToken.None);
+                Task<HostHttpResult> pending = services.SendHttpAsync(request, current, CancellationToken.None);
+                Assert.Equal("e621.net", Assert.Single(network.Hosts));
+                Assert.False(pending.IsCompleted);
+                Assert.True(session.SetBooruSiteEnabled("e621", true));
+                clock.Advance(TimeSpan.FromSeconds(30));
+                Assert.Equal(200, Assert.IsType<HostHttpResponse>(await pending.WaitAsync(bound)).StatusCode);
+                Assert.Equal(new[] { "e621.net", "e621.net" }, network.Hosts);
+                Assert.Equal(2, job.Sends);
+            }
+            finally { services.CloseJob(job); }
+        }
+        finally { await queue.StopAllAsync(); }
     }
 
     [Fact]
@@ -191,6 +237,15 @@ public sealed class BooruSourceActivationTests
         await page.Model.Search.SubmitAsync();
         Assert.Equal(new[] { "e621.net", "gelbooru.com", "gelbooru.com" }, network.Hosts);
     });
+
+    private static async Task StageE621FamilyAsync(string profile)
+    {
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "plugins", "MeowChan.Plugin.E621.plugin.json"))) return;
+        string plugins = Path.Combine(profile, "plugins");
+        Directory.CreateDirectory(plugins);
+        await File.WriteAllTextAsync(Path.Combine(plugins, "TestBooru.cs"), FixturePlugin.Replace("SOURCE_DECLARATIONS",
+            "DescribeSource(\"e621\", \"e621.net\"), DescribeSource(\"e926\", \"e926.net\")", StringComparison.Ordinal));
+    }
 
     private static Task WaitForSourceAsync(DesktopSessionHost host, string sourceId) =>
         BooruTestSupport.WaitAsync(() => host.ActiveBooruServices.Any(services => services.Search.ProviderId == sourceId), sourceId);

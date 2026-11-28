@@ -38,7 +38,6 @@ public sealed class BooruHostHttp : IDisposable
     // separately activated plugin builds must share the family budget within it.
     private static readonly ConditionalWeakTable<RequestPolicyState, SourceState> E621Family = new();
     private readonly HttpClient _transport;
-    private readonly RequestPolicyState _policy;
     private readonly bool _disposeTransport;
     private readonly TimeProvider _clock;
     private readonly string _userAgent;
@@ -67,7 +66,6 @@ public sealed class BooruHostHttp : IDisposable
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         ArgumentNullException.ThrowIfNull(policy);
-        _policy = policy;
         _clock = policy.TimeProvider;
         _disposeTransport = disposeTransport;
         _maximumCooldownProvider = maximumCooldownProvider;
@@ -87,15 +85,16 @@ public sealed class BooruHostHttp : IDisposable
         {
             lock (E621Family)
             {
-                _familyState = E621Family.GetValue(_policy, static _ => new SourceState());
-                _familyState.Owners++;
+                _familyState = E621Family.GetValue(policy, static _ => new SourceState());
+                _familyState.AddOwner();
             }
         }
     }
 
-    // The owner updates the generation under Gate. Holding it during reservation makes
-    // a site switch atomic with respect to both the job budget and shared source pacing.
-    internal sealed record SourceAdmission(object Gate, Func<string, SourceGeneration?> Current);
+    // The owner updates the generation under Gate. Reservations and provider fences
+    // hold it while publishing changes so a site switch orders against both.
+    internal sealed record SourceAdmission(object Gate, Func<string, SourceGeneration?> Current,
+        CancellationToken Shutdown = default);
     internal readonly record struct SourceGeneration(long PluginRevision, long SiteRevision, Task? SiteGenerationEnded);
 
     internal IReadOnlyDictionary<string, SourceDescription> Sources => _sources;
@@ -105,9 +104,15 @@ public sealed class BooruHostHttp : IDisposable
         sourceId is not null && _profiles.TryGetValue(sourceId, out BooruSourceProfile? profile) ? profile : null;
     internal TimeProvider TimeProvider => _clock;
 
-    // Only the account captured for a typed host operation can authorize this send.
+    internal SourceGeneration? CaptureSourceGeneration(string sourceId)
+    {
+        if (_sourceAdmission is not { } admission) return null;
+        lock (admission.Gate) return admission.Current(sourceId);
+    }
+
+    // Only a typed host operation can authorize account use for this send.
     internal async Task<HostHttpResult> SendAsync(HostHttpRequest request, SourceDescription source,
-        BooruJob job, CancellationToken cancellationToken, BooruAccountBinding.Operation? account = null)
+        BooruJob job, CancellationToken cancellationToken, BooruCallBinding? call = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (source is null || !_sources.TryGetValue(source.SourceId, out SourceDescription? declared)
@@ -126,40 +131,40 @@ public sealed class BooruHostHttp : IDisposable
             return Failure("http-request", "The booru transport contains host-owned credentials.");
         if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
 
-        SourceGeneration? generation = null;
-        if (_sourceAdmission is { } admission)
-        {
-            lock (admission.Gate) generation = admission.Current(source.SourceId);
-            if (generation is null) return StaleSource();
-        }
-        if (account?.IsCurrent() == false) return StaleSource();
+        SourceGeneration? generation = call is null ? CaptureSourceGeneration(source.SourceId) : call.SourceGeneration;
+        BooruAccountBinding.Operation? account = call?.Account;
+        CancellationToken shutdown = _sourceAdmission?.Shutdown ?? default;
+        if (!IsCurrent()) return StaleSource();
 
         using StateUse? use = TryUseState(source);
         if (use is null) return StaleSource();
         SourceState state = use.State;
         TimeSpan spacing = BooruEndpointPolicy.Spacing(ProfileOf(source.SourceId), MinimumStartSpacing);
-        using CancellationTokenSource abort = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
+        using CancellationTokenSource abort = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token, shutdown);
         CancellationToken token = abort.Token;
         Task? accountWatch = account is null ? null : CancelWhenGenerationEndsAsync(account.GenerationEnded, abort);
         Task? sourceWatch = generation?.SiteGenerationEnded is { } siteEnded ? CancelWhenGenerationEndsAsync(siteEnded, abort) : null;
 
-        bool IsCurrent()
-        {
-            if (_sourceAdmission is { } admission)
-            {
-                lock (admission.Gate)
-                    if (admission.Current(source.SourceId) != generation) return false;
-            }
-            return account?.IsCurrent() != false;
-        }
+        bool IsSourceCurrent() => !shutdown.IsCancellationRequested && (_sourceAdmission is null
+            || generation is not null && CaptureSourceGeneration(source.SourceId) == generation);
+
+        bool IsCurrent() => IsSourceCurrent() && account?.IsCurrent() != false;
 
         HostHttpFailure? ReserveSend(int? status)
         {
-            if (account?.IsCurrent() == false) return StaleSource();
             lock (_sourceAdmission?.Gate ?? state.Gate)
             {
-                if (_sourceAdmission is { } admission && admission.Current(source.SourceId) != generation) return StaleSource();
+                if (!IsSourceCurrent()) return StaleSource();
                 cancellationToken.ThrowIfCancellationRequested();
+                if (account is null) return Reserve();
+
+                HostHttpFailure? failure = null;
+                // Keep the account generation current for both budget mutations.
+                return account.TryPublish(() => failure = Reserve()) ? failure : StaleSource();
+            }
+
+            HostHttpFailure? Reserve()
+            {
                 if (!job.TryReserveSend())
                     return JobEnded(job, status) ?? Failure("booru-budget", "The booru job send budget is exhausted.", status);
                 state.RecordStart(_clock.GetUtcNow(), spacing);
@@ -401,13 +406,17 @@ public sealed class BooruHostHttp : IDisposable
                 if (status == 429)
                 {
                     DateTimeOffset cooldown = CooldownUntil(ReadRetryAfter(response), _clock.GetUtcNow(), GetMaximumCooldown());
+                    HostHttpDeferred deferred = new(cooldown, "booru-cooldown", status);
                     lock (state.Gate)
+                    lock (_sourceAdmission?.Gate ?? state.Gate)
                     {
+                        if (!isCurrent()) return StaleSource();
                         state.CooldownVersion++;
                         if (cooldown > state.CooldownUntil) state.CooldownUntil = cooldown;
+                        job.RecordCooldownStop(deferred);
                     }
-                    HostHttpDeferred deferred = new(cooldown, "booru-cooldown", status);
-                    job.StopForCooldown(deferred);
+                    // Closing cancels the job and can run callbacks synchronously.
+                    job.Close();
                     return deferred;
                 }
                 if (status is 502 or 503 && !retried)
@@ -423,11 +432,11 @@ public sealed class BooruHostHttp : IDisposable
                 }
 
                 if (status == 200 && IsHtml(response.Content.Headers.ContentType?.MediaType))
-                    return StopForChallenge(state);
+                    return StopForChallenge(state, isCurrent);
                 byte[] body = await ReadBodyAsync(response.Content, window, abort).ConfigureAwait(false);
                 window.Token.ThrowIfCancellationRequested();
                 if (!isCurrent()) return StaleSource();
-                if (status == 200 && LooksLikeHtml(body)) return StopForChallenge(state);
+                if (status == 200 && LooksLikeHtml(body)) return StopForChallenge(state, isCurrent);
                 return ProjectResponse(request.Url, attempt, body);
             }
             catch (BooruAccountChangedException)
@@ -514,12 +523,15 @@ public sealed class BooruHostHttp : IDisposable
         return reserveSend(status);
     }
 
-    private HostHttpFailure StopForChallenge(SourceState state)
+    private HostHttpFailure StopForChallenge(SourceState state, Func<bool> isCurrent)
     {
+        DateTimeOffset until = AddSaturating(_clock.GetUtcNow(), MinimumCooldown);
         lock (state.Gate)
+        lock (_sourceAdmission?.Gate ?? state.Gate)
         {
+            if (!isCurrent()) return StaleSource();
             state.CooldownVersion++;
-            state.ChallengeUntil = AddSaturating(_clock.GetUtcNow(), MinimumCooldown);
+            state.ChallengeUntil = until;
         }
         return Challenge();
     }
@@ -680,11 +692,7 @@ public sealed class BooruHostHttp : IDisposable
         _states.Clear();
         if (_familyState is null) return;
         lock (E621Family)
-        {
-            if (--_familyState.Owners != 0) return;
-            E621Family.Remove(_policy);
-            _familyState.Dispose();
-        }
+            _familyState.ReleaseOwner();
     }
 
     private bool HasForbiddenTransportDefaults() =>
@@ -886,14 +894,15 @@ public sealed class BooruHostHttp : IDisposable
 
     internal sealed class SourceState : IDisposable
     {
-        internal readonly SemaphoreSlim SendGate = new(1, 1);
+        private SemaphoreSlim? _sendGate = new(1, 1);
+        private int _owners; // Shared family hosts, guarded by E621Family.
+        internal SemaphoreSlim SendGate => _sendGate ?? throw new ObjectDisposedException(nameof(SourceState));
         internal readonly object Gate = new();
         private DateTimeOffset _lastStart;
         private TimeSpan _lastSpacing;
         internal DateTimeOffset ChallengeUntil;
         internal DateTimeOffset CooldownUntil;
         internal long CooldownVersion;
-        internal int Owners; // Shared family hosts, guarded by E621Family.
         internal bool Resetting;
         internal TaskCompletionSource? ResetCompleted;
 
@@ -908,7 +917,23 @@ public sealed class BooruHostHttp : IDisposable
             _lastSpacing = spacing;
         }
 
-        public void Dispose() => SendGate.Dispose();
+        internal void AddOwner()
+        {
+            _sendGate ??= new(1, 1);
+            _owners++;
+        }
+
+        internal void ReleaseOwner()
+        {
+            // The policy still owns the pacing and provider fences after the last host leaves.
+            if (--_owners == 0) Dispose();
+        }
+
+        public void Dispose()
+        {
+            _sendGate?.Dispose();
+            _sendGate = null;
+        }
     }
 
     private sealed class AttemptWindow : IDisposable
