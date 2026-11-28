@@ -68,11 +68,19 @@ internal sealed class BooruContentProfileStore
 
     internal BooruContentProfileSnapshot Load() => _lease.RunExclusive(LoadCore);
 
+    internal BooruContentProfileSnapshot Load(Action<BooruContentProfileSnapshot> onRead) =>
+        _lease.RunExclusive(() => LoadObserved(onRead));
+
     internal BooruContentProfileSnapshot SaveAdmitted(BooruContentSettings settings, long expectedRevision,
-        ProfileAdmissionToken admission, CancellationToken cancellationToken = default) => _lease.RunStoreWrite(admission, () =>
+        ProfileAdmissionToken admission, CancellationToken cancellationToken = default) =>
+        SaveAdmitted(settings, expectedRevision, admission, null, null, cancellationToken);
+
+    internal BooruContentProfileSnapshot SaveAdmitted(BooruContentSettings settings, long expectedRevision,
+        ProfileAdmissionToken admission, Action<BooruContentProfileSnapshot>? onRead, Action<BooruContentProfileSnapshot>? onSaved,
+        CancellationToken cancellationToken = default) => _lease.RunStoreWrite(admission, () =>
     {
         cancellationToken.ThrowIfCancellationRequested();
-        BooruContentProfileSnapshot current = LoadCore();
+        BooruContentProfileSnapshot current = LoadObserved(onRead);
         if (current.State is not (BooruContentProfileState.Missing or BooruContentProfileState.Ready))
             throw new InvalidOperationException("The current Booru content document is read-only.");
         if (current.Revision != expectedRevision)
@@ -90,8 +98,16 @@ internal sealed class BooruContentProfileStore
 
         _lease.EnsureDirectoryIdentity();
         AtomicJsonFile.ReplaceUnderLease(_path, data, _lease.EnsureDirectoryIdentity, cancellationToken);
+        onSaved?.Invoke(next);
         return next;
     });
+
+    private BooruContentProfileSnapshot LoadObserved(Action<BooruContentProfileSnapshot>? onRead)
+    {
+        BooruContentProfileSnapshot snapshot = LoadCore();
+        onRead?.Invoke(snapshot);
+        return snapshot;
+    }
 
     private BooruContentProfileSnapshot LoadCore()
     {

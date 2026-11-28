@@ -9,15 +9,16 @@ internal sealed partial class DesktopSessionHost
 {
     internal BooruWorkspaceContent? BooruContent => BooruServices?.Content;
 
-    internal Task<BooruContentProfileSnapshot> ReadBooruContentAsync() =>
-        Task.Run(() => new BooruContentProfileStore(_profileLease).Load());
+    internal Task<BooruContentProfileSnapshot> ReadBooruContentAsync(bool acceptPersistedChoice) =>
+        Task.Run(() => ReadBooruContentProfile(acceptPersistedChoice));
+
+    private BooruContentProfileSnapshot ReadBooruContentProfile(bool acceptPersistedChoice = false) =>
+        (BooruContent ?? LocalMediaContent).Read(_profileLease, acceptPersistedChoice);
 
     internal Task<BooruContentProfileSnapshot> SaveBooruContentAsync(BooruContentSettings settings, long revision) =>
         RunInteractiveWithAdmissionAsync(nameof(SaveBooruContentAsync), "profile", admission =>
         {
             BooruWorkspaceContent content = BooruContent ?? throw new InvalidOperationException("Booru is unavailable.");
-            BooruContentProfileSnapshot snapshot = new BooruContentProfileStore(_profileLease).SaveAdmitted(settings, revision, admission);
-            content.Publish(snapshot);
-            return Task.FromResult(snapshot);
+            return Task.FromResult(content.Save(_profileLease, settings, revision, admission));
         }, captureAfter: false);
 }
