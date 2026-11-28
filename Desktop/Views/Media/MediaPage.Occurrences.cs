@@ -1,12 +1,16 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using System.IO;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Storage;
 
 namespace MeowChan;
 
@@ -24,10 +28,11 @@ public sealed partial class MediaPage
         ArgumentNullException.ThrowIfNull(tile);
         if (_lifetime.IsCancellationRequested) return;
         _occurrences?.Close();
-        // One catalog read per window; each provider occurrence lists the findings that brought it here.
+        // Findings describe the tile at opening time. Source tags are subject to the current local rules.
         BooruCatalogSnapshot? catalog = tile.Occurrences.Any(entry => entry.BooruPostId != null) ? SafeReadBooruCatalog() : null;
         MediaOccurrencesWindow window = new(tile, OccurrenceTags, entry => entry.PostId != null && ShowInThread != null,
-            entry => OpenActions.Start(() => ShowOccurrenceInThreadAsync(entry), "media.occurrences.thread"), entry => ProviderFindings(catalog, entry), FolderVersionNoticeOf);
+            entry => OpenActions.Start(() => ShowOccurrenceInThreadAsync(entry), "media.occurrences.thread"), entry => ProviderFindings(catalog, entry),
+            FolderVersionNoticeOf, SourceTagsReader(tile));
         _occurrences = window;
         window.Closed += (_, _) => { if (ReferenceEquals(_occurrences, window)) _occurrences = null; };
         if (_owner != null) window.Show(_owner); else window.Show();
@@ -38,6 +43,80 @@ public sealed partial class MediaPage
         try { return ReadBooruCatalog?.Invoke(); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { return null; }
     }
+
+    private Func<CancellationToken, Task<Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>>>>? SourceTagsReader(MediaLibraryTile tile)
+    {
+        if (MediaLibraryGrouping.ByteKey(tile.Entry) is not { } bytes) return null;
+        MediaLibraryEntry[] matching = tile.Occurrences.Where(entry => MediaLibraryGrouping.ByteKey(entry) == bytes).ToArray();
+        MediaLibraryEntry[] chan = matching.Where(entry => !entry.IsCatalogMedium && entry.Kind == SavedMediaKind.Image).ToArray();
+        MediaLibraryEntry[] booru = matching.Where(entry => entry.BooruIdentity != null).ToArray();
+        if (chan.Length == 0 || booru.Length == 0) return null;
+
+        MediaManifestCache manifests = CreateManifestCache();
+        VerifiedFileMemo verified = new();
+        return token => Task.Run(async () =>
+        {
+            Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>> tags = new();
+            BooruCatalogSnapshot? catalog = SafeReadBooruCatalog();
+            if (catalog == null) return tags;
+
+            manifests.Invalidate();
+            foreach (MediaLibraryEntry entry in chan)
+            {
+                if (await VerifyChanOccurrenceAsync(entry, manifests, verified, token).ConfigureAwait(false))
+                    return await ReadBooruOccurrenceTagsAsync(booru, catalog, manifests, verified, token).ConfigureAwait(false);
+            }
+            return tags;
+        }, token);
+    }
+
+    private static async Task<bool> VerifyChanOccurrenceAsync(MediaLibraryEntry entry, MediaManifestCache manifests, VerifiedFileMemo verified,
+        CancellationToken token)
+    {
+        if (entry.Directory == null || entry.AssetId == null) return false;
+        try
+        {
+            MediaAssetSnapshot manifest = await manifests.OpenAsync(entry.Directory, token).ConfigureAwait(false);
+            if (manifest.Status != MediaManifestStatus.Available || MediaTileThumbnails.Matching(manifest, entry) is not { } asset) return false;
+            await using Stream file = await manifest.OpenSessionVerifiedReadAsync(asset.AssetId, verified, token).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception error) when (OccurrenceReadFailed(error)) { return false; }
+    }
+
+    private async Task<Dictionary<MediaLibraryEntry, IReadOnlyList<BooruPostClaimTag>>> ReadBooruOccurrenceTagsAsync(
+        IEnumerable<MediaLibraryEntry> entries, BooruCatalogSnapshot catalog, MediaManifestCache manifests, VerifiedFileMemo verified,
+        CancellationToken token)
+    {
+        Dictionary<MediaLibraryEntry, BooruPostClaim> available = new();
+        foreach (MediaLibraryEntry entry in entries)
+        {
+            BooruPostClaim? post = catalog.TryGetPost(entry.BooruIdentity.GetValueOrDefault())?.Post;
+            if (post is not { IsDeleted: false, IsBanned: false, Tags.Count: > 0 } || !post.Fields.HasFlag(BooruPostClaimPresence.Tags)) continue;
+            try
+            {
+                GalleryEntry? saved = await BooruMediaGallery.ResolveAsync(entry, catalog, manifests.OpenAsync, token).ConfigureAwait(false);
+                if (saved == null) continue;
+                await using Stream file = await saved.Manifest.OpenSessionVerifiedReadAsync(saved.Asset.AssetId, verified, token).ConfigureAwait(false);
+                available[entry] = post;
+            }
+            catch (Exception error) when (OccurrenceReadFailed(error)) { }
+        }
+
+        if (available.Count == 0) return new();
+        // Read the rules after file validation, so a change while local IO is pending also applies to copy.
+        try
+        {
+            BooruContentProfileSnapshot? profile = ReadContentProfile?.Invoke();
+            BooruContentFilter? filter = profile?.State == BooruContentProfileState.Ready ? profile.Filter : MediaContentBoundary.RatingFilter(profile);
+            return available.Where(pair => filter?.Evaluate(pair.Value).IsAllowed ?? true)
+                .ToDictionary(pair => pair.Key, pair => pair.Value.Tags);
+        }
+        catch (Exception error) when (OccurrenceReadFailed(error)) { return new(); }
+    }
+
+    private static bool OccurrenceReadFailed(Exception error) =>
+        error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException;
 
     // "Findings: Found by a search; Found by a watcher ×2". Several claims on one saved file are listed, never merged away.
     private static string? ProviderFindings(BooruCatalogSnapshot? catalog, MediaLibraryEntry entry)
