@@ -481,7 +481,6 @@ public sealed class BooruMd5LookupTests
     [Theory]
     [InlineData("md5:0123456789abcdef0123456789abcde")]
     [InlineData(Query + "0")]
-    [InlineData("md5:0123456789abcdef0123456789abcdeF")]
     [InlineData("md5:0123456789abcdef0123456789abcdeg")]
     [InlineData(Query + " cat")]
     public void BadMd5InputIsRejectedAtTheHostQueryBoundary(string query)
@@ -489,6 +488,14 @@ public sealed class BooruMd5LookupTests
         Assert.Equal(BooruInputKind.Invalid, BooruInput.Parse(BooruInputMode.Tags, query).Kind);
         Assert.Equal(Query + " rating:g", BooruInput.Parse(BooruInputMode.Tags, Query + " rating:g").Canonical);
         Assert.Equal("cat -dog rating:g", BooruInput.Parse(BooruInputMode.Tags, "cat -dog rating:g").Canonical);
+    }
+
+    [Fact]
+    public void UppercaseMd5InputIsAcceptedAndCanonicalizedToLowercase()
+    {
+        BooruParsedInput parsed = BooruInput.Parse(BooruInputMode.Tags, "md5:0123456789ABCDEF0123456789abcdeF");
+        Assert.NotEqual(BooruInputKind.Invalid, parsed.Kind);
+        Assert.Equal(Query, parsed.Canonical);
     }
 
     [Fact]
@@ -564,6 +571,71 @@ public sealed class BooruMd5LookupTests
         Assert.Equal(2, batch.Completed);
         Assert.Equal(new[] { (Query, 1), (SecondQuery, 1), (SecondQuery, 1) }, search.Searches);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeletingTheRulesDisablesANewBatchOrBlocksTheInFlightResult(bool removeWhileRunning) =>
+        BooruComponentDispatcher.Run(async () =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory profile = new();
+            new Config
+            {
+                DownloadPath = Path.Combine(profile.Path, "media"), FirstRunSetupVersion = 1, WorkspaceMode = "Advanced",
+                ShowBooruTools = true, AutomaticUpdateChecks = false, BooruMd5BatchEnabled = true
+            }.SaveConfig(profile.Path);
+            string path = Path.Combine(profile.Path, BooruContentProfileStore.FileName);
+            const string initial = """{"schemaVersion":1,"revision":1,"settings":{"maximumRating":"explicit","globalBlacklist":"","sourceBlacklists":[]}}""";
+            await File.WriteAllTextAsync(path, initial);
+            await using DesktopSessionHost session = new(profile.Path, []);
+            BooruWorkspaceContent content = BooruWorkspaceContent.ForProfile(session.ProfileLeaseForTests);
+            BooruUiHarness harness = new();
+            BooruWorkbenchServices ports = harness.Services;
+            session.BooruServices = new(ports.Search, ports.Queue, ports.Watchers, ports.Previews) { Content = content };
+            TaskCompletionSource<BooruCallResult<BooruResultPage>> providerResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            harness.Search.OnSearch = (_, _, token) => providerResult.Task.WaitAsync(token);
+            await using MainWindow window = new(session) { Width = 1440, Height = 800 };
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await window.StartupTimingRestoreTask;
+            Assert.True(content.HasChoice);
+
+            if (!removeWhileRunning) File.Delete(path);
+            Task batch = window.OpenMd5BatchAsync([Entry("first")], (_, _) => Task.FromResult<string?>(Base64), CancellationToken.None);
+            BooruMd5BatchWindow dialog = Assert.Single(window.OwnedWindows.OfType<BooruMd5BatchWindow>());
+            try
+            {
+                ListBox results = Find<ListBox>("matches");
+                Button run = Find<Button>("run");
+                Assert.Equal(removeWhileRunning, run.IsEnabled);
+                run.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                if (removeWhileRunning)
+                {
+                    await BooruTestSupport.WaitAsync(() => harness.Search.Searches.Count == 1, "the MD5 provider request");
+                    File.Delete(path);
+                    providerResult.SetResult(BooruCallResult<BooruResultPage>.Ok(
+                        BooruUiFixtures.Page(Query, 1, true, WithHash("1", Base64, BooruRating.Explicit))));
+                    await BooruTestSupport.WaitAsync(() => !Find<Button>("stop").IsEnabled, "the batch to stop after rechecking the rules");
+                    Assert.Single(harness.Search.Searches);
+                }
+                else
+                {
+                    Assert.Empty(harness.Search.Searches);
+                }
+                Assert.Empty(results.Items);
+                Assert.Equal(BooruContentProfileState.Missing, session.ReadBooruMd5ContentProfile().State);
+                Assert.True(content.HasChoice);
+            }
+            finally
+            {
+                dialog.Close();
+                await batch;
+            }
+
+            T Find<T>(string id) where T : Control => Assert.Single(dialog.GetVisualDescendants().OfType<T>(),
+                control => AutomationProperties.GetAutomationId(control) == "booru.md5.batch." + id);
+        });
 
     private static MenuItem FindItem(ItemsControl menu, string id) => Assert.Single(menu.Items.OfType<MenuItem>(),
         item => AutomationProperties.GetAutomationId(item) == id);

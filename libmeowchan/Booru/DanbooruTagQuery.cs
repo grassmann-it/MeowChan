@@ -55,7 +55,7 @@ internal sealed class DanbooruTagQuery
     // Numbered pages for an anonymous Danbooru search (help:users), also enforced by the plugin SDK.
     internal const int MaximumSearchPages = 1000;
     internal const int MaximumSearchPageSize = 20;
-    private static readonly SearchValues<char> Md5Digits = SearchValues.Create("0123456789abcdef");
+    private static readonly SearchValues<char> Md5Digits = SearchValues.Create("0123456789abcdefABCDEF");
 
     private DanbooruTagQuery(DanbooruTagTerm[] terms, string providerQuery, int tagTermCount)
     {
@@ -143,7 +143,8 @@ internal sealed class DanbooruTagQuery
             ReadOnlySpan<char> hash = body.AsSpan(4);
             if (negative || hash.Length != 32 || hash.ContainsAnyExcept(Md5Digits))
                 return Fail(DanbooruTagQueryError.InvalidMd5, out error);
-            term = new(text, DanbooruTagTermKind.Md5, false);
+            // Hex digits are case-insensitive for a user; the provider query carries the canonical lowercase spelling.
+            term = new("md5:" + hash.ToString().ToLowerInvariant(), DanbooruTagTermKind.Md5, false);
             return true;
         }
 

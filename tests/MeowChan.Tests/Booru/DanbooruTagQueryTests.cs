@@ -21,9 +21,19 @@ public sealed class DanbooruTagQueryTests
     }
 
     [Theory]
+    [InlineData("md5:0123456789ABCDEF0123456789ABCDEF")]
+    [InlineData("md5:0123456789abcdef0123456789abcdeF")]
+    public void UppercaseMd5IsAcceptedAndNormalizedToLowercase(string text)
+    {
+        DanbooruTagQuery query = Parse(text);
+        Assert.True(query.IsMd5Lookup);
+        Assert.Equal(text.ToLowerInvariant(), query.ProviderQuery);
+        Assert.Equal(text.ToLowerInvariant(), Assert.Single(query.Terms).Text);
+    }
+
+    [Theory]
     [InlineData("md5:0123456789abcdef0123456789abcde")]
     [InlineData(Md5 + "0")]
-    [InlineData("md5:0123456789abcdef0123456789abcdeF")]
     [InlineData("md5:0123456789abcdef0123456789abcdeg")]
     [InlineData("md5:")]
     [InlineData("-" + Md5)]

@@ -178,6 +178,7 @@ internal sealed class BooruSearchTabs
                 SavedTarget = state.Tabs[index]
             };
             if (!slot.IsDeferred) Materialize(slot);
+            else if (slot.SavedTarget is { } target) slot.SavedTarget = _search.RemoveInvalidCachedRows(target, source);
             _slots.Add(slot);
         }
         Activate(_slots[state.ActiveIndex]);

@@ -16,6 +16,9 @@ public sealed class BooruQueryPortabilityTests
     [InlineData("a -b -rating:e order:score", "a -b", "-rating:e order:score")]
     [InlineData("cat_ears -dog", "cat_ears -dog", "")]
     [InlineData("rating:s", "", "rating:s")]
+    [InlineData(":3 :d re:zero_kara_hajimeru_isekai_seikatsu", ":3 :d re:zero_kara_hajimeru_isekai_seikatsu", "")]
+    [InlineData("cat :3 rating:s id:>5 -user:bob md5:0123456789abcdef0123456789abcdef pool:1 fav:me source:x status:any type:png limit:5 page:2 score:>3",
+        "cat :3", "rating:s id:>5 -user:bob md5:0123456789abcdef0123456789abcdef pool:1 fav:me source:x status:any type:png limit:5 page:2 score:>3")]
     public void CopiesTagTermsAndReportsRemovedMetatags(string executed, string query, string removed)
     {
         BooruQueryPortability portable = BooruQueryPortability.ForOtherSource(executed);

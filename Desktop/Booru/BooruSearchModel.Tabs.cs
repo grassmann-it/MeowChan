@@ -87,6 +87,15 @@ internal sealed partial class BooruSearchModel
         { PagerLimits = limits, LastResultPage = target.KnownLastResultPage(limits.Pages), HiddenCount = hidden, HasContentRules = _content is not null };
     }
 
+    internal BooruSearchTabTarget RemoveInvalidCachedRows(BooruSearchTabTarget target, SourceDescription? source)
+    {
+        if (target.Rows is not { Length: > 0 } rows) return target;
+        source = BindingFor(target.Source, target.Instance)?.Source ?? (source?.SourceId == target.Source ? source : null);
+        // Tabs outside the restore limit skip ViewFromTarget. Keep the draft while removing damaged cached rows.
+        BooruSearchTabRow[] valid = rows.Where(row => IsValidCachedPost(row.Post, target, source)).ToArray();
+        return valid.Length == rows.Length ? target : target with { Rows = valid };
+    }
+
     private static bool IsValidCachedPost(BooruPost post, BooruSearchTabTarget target, SourceDescription? source)
     {
         if (post.Id.SourceId != target.Source) return false;

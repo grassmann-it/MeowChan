@@ -181,7 +181,7 @@ public sealed class BooruSourceActivationTests
             Assert.Empty(network.Hosts);
 
             BooruWorkspaceContent content = Assert.IsType<BooruWorkspaceContent>(host.BooruContent);
-            await host.SaveBooruContentAsync(new(BooruPostClaimRating.Sensitive, "", []), content.Snapshot.Revision);
+            await host.SaveBooruContentAsync(new(content.Snapshot, BooruPostClaimRating.Sensitive, ""));
             Button navigation = FindButton(window, "SourcesNavigationButton");
             await BooruTestSupport.WaitAsync(() => navigation.IsEffectivelyVisible && navigation.IsEffectivelyEnabled, "Plugins navigation");
             Click(navigation);
@@ -288,6 +288,8 @@ public sealed class BooruSourceActivationTests
         Button button = FindButton(page, "SourcePluginEnabled");
         Assert.True(button.IsEffectivelyVisible && button.IsEffectivelyEnabled);
         Assert.Equal(Texts.T(enable ? "sources.site.enable" : "sources.site.disable"), AutomationName(button));
+        // The family plugin is on, the site is not: the master button's "already enabled" reason must not leak onto the site switch.
+        Assert.NotEqual(Texts.T("plugins.reason.alreadyEnabled"), Avalonia.Automation.AutomationProperties.GetHelpText(button));
         Click(button);
         await BooruTestSupport.WaitAsync(() => button.IsEffectivelyEnabled &&
             AutomationName(button) == Texts.T(enable ? "sources.site.disable" : "sources.site.enable"), "the saved site switch");

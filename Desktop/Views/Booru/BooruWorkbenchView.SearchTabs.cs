@@ -179,8 +179,7 @@ internal sealed partial class BooruWorkbenchView
         _tabs.PropertyChanged += (_, e) =>
         {
             if (e.Property != BoundsProperty || _closed) return;
-            bool wide = _tabs.Bounds.Width >= ViewToggleLabelsMinimumWidth;
-            if (wide != _wideViewToggle) { _wideViewToggle = wide; RenderViewToggleLabels(); }
+            if ((_tabs.Bounds.Width >= ViewToggleLabelsMinimumWidth) != _wideViewToggle) RenderViewToggleLabels(_tabs.Bounds.Width);
         };
         _bottomBar.Children.AddRange([_bottomStatusHost, _pagerRow, _pageLimit]);
         _bottomBar.Margin = new Thickness(0, WorkspaceTokens.Space(8), 0, 0);
@@ -209,12 +208,18 @@ internal sealed partial class BooruWorkbenchView
     }
 
     /// <summary>The List/Grid switch shows the words next to its icons while there is room; narrow, it is the icons alone (the words stay tooltip and name).</summary>
-    private void RenderViewToggleLabels()
+    internal void RenderViewToggleLabels(double width)
     {
+        _wideViewToggle = width >= ViewToggleLabelsMinimumWidth;
         string key = Texts.Language + "|" + _wideViewToggle;
         foreach ((ToggleButton button, string icon, string textKey) in new[] { (_viewToggle.First, "list", "tagging.page.view.list"), (_viewToggle.Second, "grid", "tagging.page.view.grid"), (_viewToggle.Third, "image", "booru.gallery.name") })
         {
-            if (!_wideViewToggle) { if (_viewToggleKey is not null && _viewToggleKey.EndsWith("True", StringComparison.Ordinal)) button.Content = CommandBindings.NamedIcon(icon); continue; }
+            if (!_wideViewToggle)
+            {
+                // Narrow: the icon alone. The switch leaves Content empty until it is attached, so never rely on an earlier wide pass.
+                if (_viewToggleKey != key || button.Content is not Control) button.Content = CommandBindings.NamedIcon(icon);
+                continue;
+            }
             StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
             content.Children.Add(CommandBindings.NamedIcon(icon));
             content.Children.Add(new TextBlock { Text = Texts.T(textKey), VerticalAlignment = VerticalAlignment.Center });
@@ -514,7 +519,7 @@ internal sealed partial class BooruWorkbenchView
         if (_searchTabs is not { } tabs) return;
         RenderBottomStatus(view);
         RenderPortabilityNotice(view);
-        RenderViewToggleLabels();
+        RenderViewToggleLabels(_tabs.Bounds.Width);
         foreach (var (id, tab) in _searchItems)
         {
             BooruSearchView? snapshot = tabs.ViewOf(id);

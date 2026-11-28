@@ -216,7 +216,7 @@ public sealed class BooruPluginRuntimeCompositionTests
             Assert.Empty(stub.Requests);
             BooruWorkbenchServices services = host.BooruServices!;
             BooruWorkspaceContent content = Assert.IsType<BooruWorkspaceContent>(host.BooruContent);
-            await host.SaveBooruContentAsync(new(BooruPostClaimRating.General, "", []), content.Snapshot.Revision);
+            await host.SaveBooruContentAsync(new(content.Snapshot, BooruPostClaimRating.General, ""));
 
             BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline);
             Assert.True(result.Status == BooruCallStatus.Ok, result.Status + " " + result.Code);

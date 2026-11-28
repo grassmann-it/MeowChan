@@ -20,11 +20,21 @@ internal sealed record BooruContentProfileSnapshot(
     internal long Revision => Filter.Revision;
 }
 
-internal sealed class BooruContentRevisionException(long expectedRevision, long currentRevision)
+internal sealed class BooruContentRevisionException(long expectedRevision, BooruContentProfileSnapshot current)
     : InvalidOperationException("The Booru content rules changed since they were read.")
 {
     internal long ExpectedRevision { get; } = expectedRevision;
-    internal long CurrentRevision { get; } = currentRevision;
+    internal long CurrentRevision => Current.Revision;
+    internal BooruContentProfileSnapshot Current { get; } = current;
+}
+
+/// <summary>
+/// The fields an editor changed against the document it showed (<paramref name="Base"/>). A null field is unchanged and is
+/// taken from the document read at save time, like every field the editor does not show.
+/// </summary>
+internal sealed record BooruContentEdit(BooruContentProfileSnapshot Base, BooruPostClaimRating? MaximumRating, string? GlobalBlacklist)
+{
+    internal long Revision => Base.Revision;
 }
 
 internal sealed class BooruContentRuleException(BooruContentRuleLocation rule)
@@ -66,6 +76,7 @@ internal sealed class BooruContentProfileStore
 
     internal BooruContentProfileSnapshot Load() => _lease.RunExclusive(LoadCore);
 
+    /// <summary>Replaces the whole document at <paramref name="expectedRevision"/>. Editors use <see cref="SaveEditAdmitted"/>.</summary>
     internal BooruContentProfileSnapshot SaveAdmitted(BooruContentSettings settings, long expectedRevision,
         ProfileAdmissionToken admission, CancellationToken cancellationToken = default) => _lease.RunStoreWrite(admission, () =>
     {
@@ -74,8 +85,49 @@ internal sealed class BooruContentProfileStore
         if (current.State is not (BooruContentProfileState.Missing or BooruContentProfileState.Ready))
             throw new InvalidOperationException("The current Booru content document is read-only.");
         if (current.Revision != expectedRevision)
-            throw new BooruContentRevisionException(expectedRevision, current.Revision);
+            throw new BooruContentRevisionException(expectedRevision, current);
+        return WriteNext(current, settings, cancellationToken);
+    });
 
+    /// <summary>
+    /// Saves an editor's changes as a field-wise merge onto the document read under the write lease. Fields the edit leaves
+    /// unchanged, and all fields the editor does not show (source blacklists, later fields), always come from that document,
+    /// even when its revision equals the edit's base. Conflicts are checked on edited fields, or on both displayed
+    /// fields when the user confirms the existing values without editing them.
+    /// </summary>
+    internal BooruContentProfileSnapshot SaveEditAdmitted(BooruContentEdit edit, ProfileAdmissionToken admission,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(edit);
+        return _lease.RunStoreWrite(admission, () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            BooruContentProfileSnapshot current = LoadCore();
+            if (current.State is BooruContentProfileState.Unreadable or BooruContentProfileState.Unsupported
+                || HasEditConflict(current, edit))
+                throw new BooruContentRevisionException(edit.Revision, current);
+            BooruContentSettings merged = current.Settings with
+            {
+                MaximumRating = edit.MaximumRating ?? current.Settings.MaximumRating,
+                GlobalBlacklist = edit.GlobalBlacklist ?? current.Settings.GlobalBlacklist
+            };
+            return WriteNext(current, merged, cancellationToken);
+        });
+    }
+
+    private static bool HasEditConflict(BooruContentProfileSnapshot current, BooruContentEdit edit)
+    {
+        BooruContentProfileSnapshot shown = edit.Base;
+        bool confirmingShownValues = edit.MaximumRating is null && edit.GlobalBlacklist is null;
+        return current.State != shown.State
+            || (confirmingShownValues || edit.MaximumRating is not null) && current.Settings.MaximumRating != shown.Settings.MaximumRating
+            || (confirmingShownValues || edit.GlobalBlacklist is not null)
+                && !string.Equals(current.Settings.GlobalBlacklist, shown.Settings.GlobalBlacklist, StringComparison.Ordinal);
+    }
+
+    private BooruContentProfileSnapshot WriteNext(BooruContentProfileSnapshot current, BooruContentSettings settings,
+        CancellationToken cancellationToken)
+    {
         // Copy the collection before validation and compilation so the saved and published rules agree.
         BooruContentSettings confirmed = CopyAndValidate(settings);
         BooruContentProfileSnapshot next = Snapshot(BooruContentProfileState.Ready, checked(current.Revision + 1), confirmed);
@@ -89,7 +141,7 @@ internal sealed class BooruContentProfileStore
         _lease.EnsureDirectoryIdentity();
         AtomicJsonFile.ReplaceUnderLease(_path, data, _lease.EnsureDirectoryIdentity, cancellationToken);
         return next;
-    });
+    }
 
     private BooruContentProfileSnapshot LoadCore()
     {
