@@ -7,6 +7,7 @@ using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests;
 
@@ -153,6 +154,118 @@ public sealed class MediaLibraryIndexTests
 
     private static string Key(MediaLibraryEntry entry) => entry.Thread + "|" + entry.PostId + "|" + entry.Position + "|" + entry.AssetId;
 
+    internal static async Task SeedMetadataThreadsAsync(string profile, int count)
+    {
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        await catalog.WriteAsync((connection, transaction) =>
+        {
+            using SqliteCommand insert = ArchiveSql.Command(connection, transaction, """
+                WITH RECURSIVE numbers(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM numbers WHERE n<$count)
+                INSERT INTO archive_threads(source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,revision)
+                SELECT 'metadata','b',printf('%05d',n),'https://offline.invalid/'||n,'Metadata thread',$media,0,1,
+                    '2026-11-01T00:00:00.0000000+00:00',0 FROM numbers
+                """);
+            insert.Parameters.AddWithValue("$count", count);
+            insert.Parameters.AddWithValue("$media", Path.Combine(profile, "media"));
+            return insert.ExecuteNonQuery();
+        });
+    }
+
+    [Fact]
+    public async Task BatchedFoldersPreservePageOrderAndReuseOnlyUnchangedManifestIdentities()
+    {
+        using TempDirectory temp = new();
+        await SeedMetadataThreadsAsync(temp.Path, ArchiveReader.MediaIndexPageSize - 1);
+        ResourceId otherBoard = A with { Board = "z" };
+        string first = Path.Combine(temp.Path, "a-media");
+        string last = Path.Combine(temp.Path, "z-media");
+        string other = Path.Combine(temp.Path, "other-media");
+        await WriteManifestAsync(last, A, new File_("z.jpg", "mz", Other));
+        await WriteManifestAsync(first, A, new File_("a.jpg", "ma", Shared));
+        await WriteManifestAsync(other, otherBoard, new File_("other.jpg", "mo", Shared));
+        await CaptureAsync(temp.Path, A, "Thread A", last);
+        await CaptureAsync(temp.Path, A, "Thread A", first);
+        await CaptureAsync(temp.Path, otherBoard, "Other board", other);
+
+        List<string> opened = new();
+        MediaManifestCache manifests = new((directory, token) =>
+        {
+            opened.Add(directory);
+            return MediaAssetReader.OpenAsync(directory, token);
+        }, identity: true);
+        List<MediaLibraryProgress> progress = new();
+        Task<MediaLibrarySnapshot> Build(MediaLibrarySnapshot? previous = null) => MediaLibraryIndexBuilder.BuildAsync(
+            token => ArchiveReader.OpenAsync(temp.Path, token), manifests, previous, new SyncProgress(progress));
+
+        MediaLibrarySnapshot initial = await Build();
+        int total = ArchiveReader.MediaIndexPageSize + 1;
+        Assert.True(initial.Complete);
+        Assert.Equal(total, initial.Threads.Count);
+        Assert.All(initial.Threads.Take(total - 2), thread => Assert.Empty(thread.Manifests));
+        Assert.Equal(new[] { A, otherBoard }, initial.Threads.TakeLast(2).Select(thread => thread.Thread));
+        Assert.Equal(new[] { first, last, other }, opened);
+        Assert.Equal(new[] { first, last }, initial.Threads[^2].Manifests.Select(manifest => manifest.Directory));
+        Assert.All(initial.Threads.SelectMany(thread => thread.Manifests), manifest =>
+        {
+            Assert.NotNull(manifest.Generation);
+            Assert.NotNull(manifest.Identity);
+        });
+
+        opened.Clear();
+        MediaLibrarySnapshot warm = await Build(initial);
+        Assert.Empty(opened);
+        Assert.Equal(new MediaLibraryProgress(total, total, total), progress.Last());
+        Assert.True(MediaLibrarySnapshot.SameContent(initial, warm));
+
+        await WriteManifestAsync(last, A, new File_("changed.jpg", "changed", Shared));
+        MediaLibrarySnapshot changed = await Build(warm);
+        Assert.Equal(new[] { first, last }, opened);
+        Assert.Equal(new MediaLibraryProgress(total, total, total - 1), progress.Last());
+        Assert.True(MediaLibrarySnapshot.SameContent(await Build(), changed));
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task CaptureOrDeletionBetweenManifestAndPostReadsDoesNotPublishMixedEntries(bool delete, bool recapture)
+    {
+        using TempDirectory temp = new();
+        string oldDirectory = Path.Combine(temp.Path, "old");
+        string newDirectory = Path.Combine(temp.Path, "new");
+        await WriteManifestAsync(oldDirectory, A, new File_("old.jpg", "old", Shared));
+        await WriteManifestAsync(newDirectory, A, new File_("new.jpg", "new", Other));
+        await CaptureAsync(temp.Path, A, "Old thread", oldDirectory);
+
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease);
+        MediaLibrarySnapshot raced = await MediaLibraryIndexBuilder.BuildAsync(token => ArchiveReader.OpenAsync(temp.Path, token),
+            async (directory, token) =>
+            {
+                MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory, token);
+                if (delete) await catalog.DeleteThreadsAsync([A], token);
+                if (recapture)
+                    await catalog.CaptureAsync(new CapturedThreadSnapshot(A, Url(A.Thread!), "Updated thread",
+                        ThreadSourceState.Archived, DateTimeOffset.UnixEpoch, newDirectory, []), token);
+                return manifest;
+            });
+
+        Assert.Empty(raced.Entries);
+        if (recapture)
+        {
+            Assert.False(raced.Complete);
+            Assert.False(Assert.Single(raced.Threads).Complete);
+        }
+        else Assert.Empty(raced.Threads);
+
+        MediaLibrarySnapshot rebuilt = await BuildAsync(temp.Path, raced);
+        MediaLibrarySnapshot cold = await BuildAsync(temp.Path);
+        Assert.True(rebuilt.Complete);
+        Assert.True(MediaLibrarySnapshot.SameContent(cold, rebuilt));
+        if (recapture) Assert.Contains(rebuilt.Entries, entry => entry.Directory == newDirectory && entry.Name == "new.jpg");
+    }
+
     [Fact]
     public async Task MissingAndDamagedManifestsNeverInventSavedFiles()
     {
@@ -188,6 +301,9 @@ public sealed class MediaLibraryIndexTests
             (directory, t) => { if (++opened == 1) later.Cancel(); return MediaAssetReader.OpenAsync(directory, t); },
             cancellationToken: later.Token));
         Assert.Equal(1, opened);
+        MediaLibrarySnapshot rebuilt = await BuildAsync(temp.Path);
+        Assert.True(rebuilt.Complete);
+        Assert.Empty(rebuilt.Warnings);
     }
 
     [Fact]

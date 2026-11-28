@@ -142,8 +142,6 @@ internal sealed class MediaLibrarySnapshot
 /// </summary>
 internal static class MediaLibraryIndexBuilder
 {
-    internal const int ThreadPageSize = 200;
-
     /// <summary>
     /// Builds with a plain manifest opener: every manifest is read and hashed, as the builder always did; no file
     /// identity is recorded or used.
@@ -190,24 +188,25 @@ internal static class MediaLibraryIndexBuilder
         try { reader = await openReader(cancellationToken).ConfigureAwait(false); }
         catch (FileNotFoundException error) when (readBooruCatalog != null || readImportCatalog != null || readFolderSources != null) { noArchive = error; }
         await using ArchiveReader? readerGuard = reader;
-        List<ArchiveThreadSummary> threads = new();
-        for (int offset = 0; reader != null; offset += ThreadPageSize)
+        List<(ArchiveThreadSummary Summary, IReadOnlyList<string>? Directories)> threads = new();
+        for (int offset = 0; reader != null; offset += ArchiveReader.MediaIndexPageSize)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ArchiveThreadPage page = await reader.ListThreadsAsync(offset, ThreadPageSize, cancellationToken).ConfigureAwait(false);
-            threads.AddRange(page.Items);
-            if (page.Items.Count < ThreadPageSize || threads.Count >= page.TotalCount) break;
+            var (page, directories) = await reader.ReadMediaIndexPageAsync(offset, cancellationToken).ConfigureAwait(false);
+            for (int index = 0; index < page.Items.Count; index++)
+                threads.Add((page.Items[index], directories?[index]));
+            if (page.Items.Count < ArchiveReader.MediaIndexPageSize || threads.Count >= page.TotalCount) break;
         }
 
         int done = 0, reused = 0;
         progress?.Report(new(0, threads.Count, 0));
-        foreach (ArchiveThreadSummary summary in threads)
+        foreach (var (summary, pageDirectories) in threads)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                string[] directories = (await reader!.GetMediaDirectoriesAsync(summary.Id, cancellationToken).ConfigureAwait(false))
-                    .Distinct(StringComparer.Ordinal).ToArray();
+                IReadOnlyList<string> directories = pageDirectories ?? (await reader!.GetMediaDirectoriesAsync(summary.Id, cancellationToken)
+                    .ConfigureAwait(false)).Distinct(StringComparer.Ordinal).ToArray();
                 priorStates.TryGetValue(summary.Id, out MediaLibraryThreadState? prior);
                 if (prior != null && prior.Revision == summary.Revision && Unchanged(prior, directories, manifests, cancellationToken))
                 {
@@ -251,10 +250,21 @@ internal static class MediaLibraryIndexBuilder
                 else
                 {
                     ArchivedThreadView? view = await reader!.ReadThreadAsync(summary.Id, cancellationToken).ConfigureAwait(false);
-                    if (view == null) { done++; continue; } // Removed between listing and reading.
-                    entries.AddRange(EntriesOf(view, threadManifests));
+                    if (view == null)
+                    {
+                        // Deleted since the page read.
+                        done++;
+                        progress?.Report(new(done, threads.Count, reused));
+                        continue;
+                    }
+                    if (view.Summary != summary || !view.MediaDirectories.SequenceEqual(directories, StringComparer.Ordinal))
+                    {
+                        // A concurrent capture or replacement invalidated the page. Retry this thread on the next build.
+                        state = state with { Complete = false };
+                    }
+                    else entries.AddRange(EntriesOf(view, threadManifests));
                 }
-                if (!threadComplete) complete = false;
+                if (!state.Complete) complete = false;
                 states.Add(state);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
