@@ -163,6 +163,12 @@
           "MeowChan.PluginSdk": "[1.1.2, )"
         }
       },
+      "meowchan.plugin.e621": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.2.0, )"
+        }
+      },
       "meowchan.plugin.eightkun": {
         "type": "Project",
         "dependencies": {
