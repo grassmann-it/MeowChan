@@ -86,7 +86,10 @@ internal sealed partial class GalleryViewer
     }
     private async Task<bool> LoadGifCoreAsync(GalleryEntry entry, int request, int decodeGeneration, CancellationToken token)
     {
-        GalleryGifPlayback? player = await GalleryGifPlayback.OpenAsync(entry, _image, token, OpenGifDecoderForTests);
+        GalleryGifPlayback? player = await GalleryGifPlayback.OpenAsync(entry, _image, token,
+            OpenGifDecoderForTests ?? (async (media, cancellation) =>
+                await GifFrameDecoder.OpenAnimationAsync(media, cancellation, allowStillFallback: true)));
+        // The image decoder marks a multi-frame fallback as StillFrame for the quality label.
         if (player == null) return false;
         try
         {

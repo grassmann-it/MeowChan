@@ -360,7 +360,8 @@ public partial class MainWindow
                 await Clipboard.SetTextAsync(text);
             },
             openedServices is null ? null : query => UseAsBooruSearchForDialog(query, openedServices),
-            openedServices is null ? null : () => IsBooruSearchAvailable(openedServices));
+            openedServices is null ? null : () => IsBooruSearchAvailable(openedServices),
+            owner => EnsureBooruContentChoiceAsync(owner));
         BooruDetailsWindow = dialog;
         try { await dialog.ShowDialog(this); }
         finally
@@ -381,10 +382,10 @@ public partial class MainWindow
 
     private (bool Opened, int? Limit) UseAsBooruSearchForDialog(string query, BooruWorkbenchServices openedServices)
     {
-        if (!IsBooruSearchAvailable(openedServices) || !NavigateWorkspace(WorkspacePage.Booru)) return default;
+        if (!IsBooruSearchAvailable(openedServices) || !EnsureBooruPage()) return default;
         if (!IsBooruSearchAvailable(openedServices) || _booruPage is not { } page
             || !page.Model.Sources.Contains(openedServices)) return default;
 
-        return OpenBooruSearchDraft(page, query, openedServices);
+        return OpenMediaBooruSearchDraft(page, query, openedServices);
     }
 }

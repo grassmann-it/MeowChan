@@ -223,7 +223,6 @@ public partial class ArchivePage
     private void LocalizeMediaSelection()
     {
         ArchiveThreadMediaMenuButton.Content = Texts.T("tags.quick.archive.menu");
-        ArchiveMediaSelectionTagAll.Content = CommandCatalog.Label("thread.tag-media");
         ArchiveMediaSelectionStamp.Content = CommandCatalog.Label(QuickTagCommands.StampApply);
         ArchiveMediaStampUndo.Content = Texts.T("tags.quick.undo");
         ArchiveMediaSelectionTag.Content = Texts.T("media.selection.tag");
@@ -251,10 +250,7 @@ public partial class ArchivePage
         ArchiveMediaSelectionStrip.IsVisible = showActions || ArchiveMediaStampResult.IsVisible;
         UpdateArchiveStampResult();
         if (showActions)
-        {
-            SetArchiveStampAction(ArchiveMediaSelectionTagAll, "thread.tag-media", ThreadMediaBlocked(_selectedThread));
             SetArchiveStampAction(ArchiveMediaSelectionStamp, QuickTagCommands.StampApply, SelectionStampBlocked());
-        }
         if (!show) return;
         ArchiveMediaSelectionStatus.Text = ArchiveMediaSelection.Status(count);
         bool ready = _available && !_busy && !_ended && !IsReaderDialogOpen && !_mediaSelectionBusy && _thread != null;
@@ -310,9 +306,6 @@ public partial class ArchivePage
     private GalleryEntry[] MediaSelectionEntries(ArchivedThreadView thread) =>
         GallerySelection.Build(thread, _assets.Select(row => row.Manifest).DistinctBy(manifest => manifest.Directory),
             true, includeOtherMedia: true).Entries.ToArray();
-
-    private void OnMediaSelectionTagAllClick(object? sender, RoutedEventArgs e) =>
-        StartThreadMediaCommand("thread.tag-media", _selectedThread, ArchiveMediaSelectionTagAll);
 
     private void OnMediaSelectionStampClick(object? sender, RoutedEventArgs e) => StartSelectionStamp();
 

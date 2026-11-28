@@ -1,15 +1,20 @@
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using System.Security.Cryptography;
 using System.Text.Json;
 using MeowChan.Archive;
 using MeowChan.Booru;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
+using MeowChan.Desktop.Updates;
 using MeowChan.Gallery;
 using MeowChan.PluginSdk;
+using MeowChan.Storage;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
@@ -21,6 +26,138 @@ public sealed class BooruMd5LookupTests
     private const string Query = "md5:0123456789abcdef0123456789abcdef";
     private const string SecondHash = "EAAAAAAAAAAAAAAAAAAAAA==";
     private const string SecondQuery = "md5:10000000000000000000000000000000";
+
+    [Fact]
+    public void FirstChoiceAndTabLimitKeepTheGalleryUntilTheMd5SearchCanOpen() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory profile = new();
+        new Config
+        {
+            DownloadPath = Path.Combine(profile.Path, "media"), FirstRunSetupVersion = 1, Language = "en",
+            ShowBooruTools = true, BooruSearchTabs = 2, RestoreBooruSearchTabs = false
+        }.SaveConfig(profile.Path);
+        await using DesktopSessionHost session = new(profile.Path, [],
+            updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+        FakeBooruSearchPort search = new();
+        BooruWorkbenchServices source = new(search, new FakeBooruQueuePort(), new FakeBooruWatcherPort(new BooruManualClock()),
+            new FakeBooruPreviewPort()) { Content = session.LocalMediaContent };
+        session.BooruServices = source;
+        await using MainWindow main = new(session) { Width = 1200, Height = 800 };
+        main.Show();
+        main.PlatformImpl!.Activated?.Invoke();
+        await main.StartupTimingRestoreTask;
+        Assert.False(source.Content.HasChoice);
+
+        const string name = "gallery.png";
+        string file = Path.Combine(profile.Path, name);
+        byte[] png = BooruUiFixtures.Png(42);
+        await File.WriteAllBytesAsync(file, png);
+        MediaAssetReference asset = new(name, name, "original", name, file, png.Length,
+            Convert.ToHexStringLower(SHA256.HashData(png)), "", name, true);
+        MediaAssetSnapshot manifest = new(profile.Path, MediaManifestStatus.Available, 1, "fixture", [asset]);
+        GalleryEntry entry = new(new(new("fixture", "g", "1"), profile.Path, name), manifest, asset, null, null, false, false);
+        ContentControl gallery = main.FindControl<ContentControl>("GalleryHost")!;
+        Assert.NotNull(await main.OpenMediaGalleryAsync([entry], entry.EntryKey));
+        var origin = main.SelectedPage;
+        BooruMd5Lookup lookup = Assert.IsType<BooruMd5Lookup>(MainWindow.Md5LookupFor(main));
+
+        Task request = lookup.SearchAsync(source, Query);
+        var choice = Assert.Single(main.OwnedWindows.OfType<BooruContentDialog>());
+        Assert.True(gallery.IsVisible);
+        Click(ById<Button>(choice, "BooruContentCancel"));
+        await request;
+        Assert.True(gallery.IsVisible);
+        Assert.Equal(origin, main.SelectedPage);
+        Assert.Empty(search.Searches);
+        Assert.Null(main.BooruPageForTests);
+
+        request = lookup.SearchAsync(source, Query);
+        choice = Assert.Single(main.OwnedWindows.OfType<BooruContentDialog>());
+        Assert.True(gallery.IsVisible);
+        Click(ById<Button>(choice, "BooruContentConfirm"));
+        await request;
+        Assert.True(source.Content.HasChoice);
+        Assert.False(gallery.IsVisible);
+        Assert.Equal(MainWindow.WorkspacePage.Booru, main.SelectedPage);
+        Assert.Equal((Query, 1), Assert.Single(search.Searches));
+
+        BooruPage page = Assert.IsType<BooruPage>(main.BooruPageForTests);
+        Assert.True(page.View.TryShowQueryInNewTab("cat"));
+        Assert.NotNull(await main.OpenMediaGalleryAsync([entry], entry.EntryKey));
+        request = lookup.SearchAsync(source, SecondQuery);
+        Window notice = Assert.Single(main.OwnedWindows, window => AutomationProperties.GetAutomationId(window) == "BooruMd5TabLimit");
+        Assert.True(notice.IsVisible);
+        Assert.Equal(Texts.T("booru.tabs.limit", 2), ById<TextBlock>(notice, "BooruMd5TabLimit.message").Text);
+        Assert.True(gallery.IsVisible);
+        Click(ById<Button>(notice, "BooruMd5TabLimit.accept"));
+        await request;
+        Assert.True(gallery.IsVisible);
+        Assert.Single(search.Searches);
+    });
+
+    [Fact]
+    public void BatchRetryRestoresTheContentStatusAndRelocalizesTheOpenWindow() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        int attempts = 0;
+        BooruMd5Batch batch = new([Entry("first")], (_, _) => Task.FromResult<string?>(Base64),
+            new FakeBooruSearchPort(), () => false, () => null, new BooruManualClock(), 20);
+        BooruMd5BatchWindow window = new(batch, contentReady: false, enabled: false,
+            _ => attempts++ == 0 ? Task.FromException(new IOException("offline")) : Task.CompletedTask, CancellationToken.None);
+        string previous = Texts.Language;
+        try
+        {
+            Texts.SetLanguage("en");
+            window.Show();
+            CheckBox optIn = ById<CheckBox>(window, "booru.md5.batch.optIn");
+            TextBlock status = ById<TextBlock>(window, "booru.md5.batch.status");
+            await BooruTestSupport.WaitAsync(() => optIn.IsFocused, "the opt-in checkbox to have initial focus");
+            Assert.Equal(Texts.T("booru.md5.batch.contentRequired"), status.Text);
+            optIn.IsChecked = true;
+            Click(optIn);
+            Assert.False(optIn.IsChecked);
+            Assert.Equal(Texts.T("booru.md5.batch.saveFailed"), status.Text);
+            optIn.IsChecked = true;
+            Click(optIn);
+            Assert.True(optIn.IsChecked);
+            Assert.Equal(Texts.T("booru.md5.batch.contentRequired"), status.Text);
+            Assert.False(ById<Button>(window, "booru.md5.batch.run").IsEnabled);
+            Texts.SetLanguage("de");
+            Assert.Equal(Texts.T("booru.md5.batch.contentRequired"), status.Text);
+            Assert.Equal(Texts.T("booru.md5.batch.title"), window.Title);
+        }
+        finally
+        {
+            window.Close();
+            Texts.SetLanguage(previous);
+        }
+    });
+
+    [Fact]
+    public void BatchSelectsTheFirstMatchAndShowsItsTags() => BooruComponentDispatcher.Run(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        FakeBooruSearchPort search = new();
+        search.OnSearch = (query, _, _) => Task.FromResult(
+            BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, 1, true, WithHash("3", Base64))));
+        BooruContentFilter filter = new(1, new(BooruPostClaimRating.General, "", []));
+        BooruMd5Batch batch = new([Entry("first")], (_, _) => Task.FromResult<string?>(Base64),
+            search, () => true, () => filter, new BooruManualClock(), 20);
+        BooruMd5BatchWindow window = new(batch, contentReady: true, enabled: true, _ => Task.CompletedTask, CancellationToken.None);
+        try
+        {
+            window.Show();
+            Button start = ById<Button>(window, "booru.md5.batch.run");
+            await BooruTestSupport.WaitAsync(() => start.IsFocused, "Start lookup to have initial focus");
+            Click(start);
+            ListBox results = ById<ListBox>(window, "booru.md5.batch.matches");
+            await BooruTestSupport.WaitAsync(() => results.Items.Count == 1, "the first MD5 match");
+            Assert.Equal(0, results.SelectedIndex);
+            Assert.Contains("/posts/3", ById<TextBox>(window, "booru.md5.batch.details").Text);
+        }
+        finally { window.Close(); }
+    });
 
     [Fact]
     public void AttachmentMenuOnlySubmitsAnActiveSupportedSourceAndUsesTheExistingTabLimit()
@@ -174,6 +311,10 @@ public sealed class BooruMd5LookupTests
 
     private static MenuItem FindItem(ItemsControl menu, string id) => Assert.Single(menu.Items.OfType<MenuItem>(),
         item => AutomationProperties.GetAutomationId(item) == id);
+
+    private static T ById<T>(Control root, string id) where T : Control => SidePanelDesignTests.ById<T>(root, id);
+
+    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     private static BooruWorkbenchServices Services(IBooruSearchPort search) =>
         new(search, new FakeBooruQueuePort(), new FakeBooruWatcherPort(new BooruManualClock()), new FakeBooruPreviewPort());

@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
 
@@ -289,6 +290,36 @@ public sealed class AnimatedWebpPlaybackTests
             () => GifFrameDecoder.OpenAnimationAsync(entry, CancellationToken.None));
         Assert.Contains(limit, error.Message, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("oversized-canvas.webp")]
+    [InlineData("too-many-frames.webp")]
+    public void ViewerShowsTheStillFrameAndItsHintWhenAnimationExceedsTheBudget(string fixture) =>
+        BooruComponentDispatcher.Run(async () =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory temp = new();
+            GalleryEntry animated = await CopyAsync(temp, fixture);
+            GalleryEntry still = await CopyAsync(temp, "still.webp");
+            await using GalleryViewer viewer = new();
+            Window window = new() { Width = 640, Height = 480, Content = viewer };
+            try
+            {
+                window.Show();
+                ContextGestures.Settle(window);
+                TextBlock quality = SidePanelDesignTests.ById<TextBlock>(viewer, "GalleryQuality");
+                Image image = SidePanelDesignTests.ById<Image>(viewer, "GalleryImage");
+                await viewer.ShowAsync(animated, CancellationToken.None);
+                Assert.Null(viewer.GifPlayback);
+                Assert.NotNull(image.Source);
+                Assert.Contains(Texts.T("gallery.viewer12"), quality.Text);
+
+                await viewer.ShowAsync(still, CancellationToken.None);
+                Assert.NotNull(image.Source);
+                Assert.DoesNotContain(Texts.T("gallery.viewer12"), quality.Text);
+            }
+            finally { window.Close(); }
+        });
 
     [Fact]
     public async Task RejectsWebpAboveTheSourceLimitBeforeReadingTheAsset()

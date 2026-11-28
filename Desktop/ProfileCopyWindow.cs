@@ -19,20 +19,24 @@ internal sealed class ProfileCopyWindow : Window
     private readonly Button _cancel = new() { Content = Texts.T("profile.new.cancel") };
     private CancellationTokenSource? _running;
 
-    internal ProfileCopyWindow(string title)
+    internal ProfileCopyWindow(string title, bool modal = false)
     {
         Title = title;
-        DialogWindow.Configure(this, DialogSize.S, modal: false, heightToContent: true);
+        DialogWindow.Configure(this, DialogSize.S, modal, heightToContent: true);
+        ShowInTaskbar = !modal;
+        if (!modal) WindowStartupLocation = WindowStartupLocation.CenterScreen;
         AutomationProperties.SetAutomationId(_cancel, "ProfileCopyCancel");
         AutomationProperties.SetAutomationId(_status, "ProfileCopyStatus");
+        AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         _status.Text = Texts.T("profile.state.checking");
         StackPanel body = new()
         {
             Margin = new Thickness(16), Spacing = 8,
             Children = { _status, new ProgressBar { IsIndeterminate = true } }
         };
-        DialogWindow.Frame(this, DialogFrame.Build(null, body, DialogFooter.Build(_cancel)), modal: false);
+        DialogWindow.Frame(this, DialogFrame.Build(null, body, DialogFooter.Build(_cancel)), modal);
         DialogEscape.Attach(this);
+        Opened += (_, _) => _cancel.Focus();
         _cancel.Click += (_, _) => Close();
         Closing += (_, args) =>
         {

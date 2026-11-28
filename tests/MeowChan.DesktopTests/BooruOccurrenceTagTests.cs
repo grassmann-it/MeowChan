@@ -26,7 +26,7 @@ public sealed class BooruOccurrenceTagTests
     private static readonly DateTimeOffset Captured = DateTimeOffset.UnixEpoch;
 
     [Fact]
-    public void OfflineSourceTagsAndCopyKeepThePostInstanceAndCategory() => WithOccurrences(async (window, _, _) =>
+    public void OfflineSourceTagsAndCopyKeepThePostInstanceAndCategory() => WithOccurrences(async (window, session, _) =>
     {
         (TextBlock north, Button copyNorth) = SourceRow(window, North);
         (TextBlock south, Button copySouth) = SourceRow(window, South);
@@ -35,6 +35,7 @@ public sealed class BooruOccurrenceTagTests
         Assert.Contains("Danbooru · north · Post #42", Peer(north).GetName());
         Assert.Contains("Artist · northern_artist", Peer(north).GetName());
         Assert.Contains("General · north_tag", Peer(north).GetName());
+        Assert.Contains("General · north_tag", Peer(OccurrenceRow(window, North)).GetName());
         Assert.DoesNotContain("south_tag", north.Text);
         Assert.Contains("Danbooru · south · Post #42", Peer(south).GetName());
         Assert.Contains("Character · south_tag", Peer(south).GetName());
@@ -43,25 +44,37 @@ public sealed class BooruOccurrenceTagTests
         Assert.Null(missing.Text);
         Assert.False(copyMissing.IsEnabled);
 
-        await CopyAsync(window, copyNorth, "northern_artist north_tag");
-        await CopyAsync(window, copySouth, "south_tag");
+        int reads = session.BooruCatalogReads;
+        await Task.Delay(TimeSpan.FromMilliseconds(1300));
+        Assert.Equal(reads, session.BooruCatalogReads);
+        await CopyAsync(window, copyNorth, "northern_artist north_tag", count: 2);
+        await CopyAsync(window, copySouth, "south_tag", count: 1);
+        Assert.Equal(reads + 2, session.BooruCatalogReads);
     });
 
     [Fact]
-    public void ChangedRulesAndMissingBytesRevokeTagsWhileTheWindowStaysOpen() => WithOccurrences(async (window, lease, path) =>
+    public void ChangedRulesAndMissingBytesRevokeTagsWhileTheWindowStaysOpen() => WithOccurrences(async (window, session, path) =>
     {
+        ProfileLease lease = session.ProfileLeaseForTests;
         (TextBlock north, Button copyNorth) = SourceRow(window, North);
         (TextBlock south, Button copySouth) = SourceRow(window, South);
+        StackPanel southRow = OccurrenceRow(window, South);
+        Button show = Assert.Single(southRow.GetVisualDescendants().OfType<Button>(), button => button.Name == "MediaOccurrenceShow");
         await BooruTestSupport.WaitAsync(() => north.IsEffectivelyVisible && south.IsEffectivelyVisible, "the initially admitted tags");
 
         var clipboard = window.Clipboard!;
         await clipboard.SetTextAsync("unchanged");
+        show.IsEnabled = true;
+        Assert.True(copySouth.Focus());
         SaveRules(lease, BooruPostClaimRating.Sensitive);
         Assert.True(copySouth.IsEnabled);
         copySouth.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await BooruTestSupport.WaitAsync(() => !copySouth.IsEnabled, "the new rating ceiling to revoke copy");
         Assert.Null(south.Text);
         Assert.False(south.IsEffectivelyVisible);
+        Assert.True(show.IsFocused);
+        Assert.DoesNotContain("south_tag", Peer(southRow).GetName()!);
+        Assert.Equal(Texts.T("booru.media.tags.copyFailed"), CopyStatus(window).Text);
         Assert.Equal("unchanged", await clipboard.TryGetTextAsync());
         Assert.True(north.IsEffectivelyVisible);
 
@@ -82,7 +95,7 @@ public sealed class BooruOccurrenceTagTests
         Assert.True(window.IsVisible);
     });
 
-    private static void WithOccurrences(Func<Window, ProfileLease, string, Task> check) => BooruComponentDispatcher.Run(async () =>
+    private static void WithOccurrences(Func<Window, DesktopSessionHost, string, Task> check) => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory temp = new();
@@ -136,6 +149,7 @@ public sealed class BooruOccurrenceTagTests
         {
             ReadBooruCatalog = session.ReadBooruCatalog,
             ReadContentProfile = session.ReadLocalMediaContentProfile,
+            OccurrenceProfileDirectory = session.ProfileDirectory,
             TagServices = new(session.GetPublishedPrivateTagSnapshot,
                 (_, _, _, _) => { privateWrites++; throw new InvalidOperationException("Unexpected private tag definition."); },
                 (_, _, _, _, _) => { privateWrites++; throw new InvalidOperationException("Unexpected private tag assignment."); })
@@ -145,7 +159,7 @@ public sealed class BooruOccurrenceTagTests
             page.ShowOccurrences(tile);
             Window window = Assert.IsType<MediaOccurrencesWindow>(page.OccurrencesWindow);
             window.UpdateLayout();
-            await check(window, session.ProfileLeaseForTests, northAsset.Path);
+            await check(window, session, northAsset.Path);
             Assert.Empty(transport.Requests);
             Assert.Equal(0, privateWrites);
             Assert.Equal(privateBefore, await File.ReadAllBytesAsync(privateTagFile));
@@ -180,19 +194,25 @@ public sealed class BooruOccurrenceTagTests
 
     private static (TextBlock, Button) SourceRow(Window window, BooruPostKey key)
     {
-        StackPanel row = Assert.Single(window.GetVisualDescendants().OfType<StackPanel>(), row => Peer(row).GetAutomationId() == "MediaOccurrence"
-            && Peer(row).GetName()?.StartsWith($"Danbooru · {key.InstanceId} · Post #{key.PostId}" + Environment.NewLine, StringComparison.Ordinal) == true);
+        StackPanel row = OccurrenceRow(window, key);
         TextBlock tags = Assert.Single(row.GetVisualDescendants().OfType<TextBlock>(), control => AutomationProperties.GetAutomationId(control) == "MediaOccurrenceSourceTags");
         Button copy = Assert.Single(row.GetVisualDescendants().OfType<Button>(), control => AutomationProperties.GetAutomationId(control) == "MediaOccurrenceCopySourceTags");
         return (tags, copy);
     }
 
-    private static async Task CopyAsync(Window window, Button button, string expected)
+    private static StackPanel OccurrenceRow(Window window, BooruPostKey key) =>
+        Assert.Single(window.GetVisualDescendants().OfType<StackPanel>(), row => Peer(row).GetAutomationId() == "MediaOccurrence"
+            && Peer(row).GetName()?.StartsWith($"Danbooru · {key.InstanceId} · Post #{key.PostId}" + Environment.NewLine, StringComparison.Ordinal) == true);
+
+    private static TextBlock CopyStatus(Window window) => SidePanelDesignTests.ById<TextBlock>(window, "MediaOccurrenceCopyStatus");
+
+    private static async Task CopyAsync(Window window, Button button, string expected, int count)
     {
         Assert.True(button.IsEnabled);
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         var clipboard = window.Clipboard!;
         await BooruCompositionHostTests.WaitAsync(async () => await clipboard.TryGetTextAsync() == expected, "the source tag clipboard text");
+        await BooruTestSupport.WaitAsync(() => CopyStatus(window).Text == Texts.Count("booru.media.tags.copied", count), "copy feedback");
     }
 
     private static AutomationPeer Peer(Control control) => ControlAutomationPeer.CreatePeerForElement(control);

@@ -45,4 +45,22 @@ internal static class DialogPrompt
         ArgumentNullException.ThrowIfNull(owner);
         return await Build(title, message, acceptLabel, cancelLabel, danger, automationId).Window.ShowDialog<bool>(owner);
     }
+
+    internal static Window BuildNotice(string title, string message, string closeLabel, string? automationId = null)
+    {
+        Window window = DialogWindow.Create(title, DialogSize.S, modal: true, heightToContent: true);
+        Button close = new() { Content = closeLabel };
+        TextBlock text = new() { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 16) };
+        if (automationId != null)
+        {
+            AutomationProperties.SetAutomationId(window, automationId);
+            AutomationProperties.SetAutomationId(text, automationId + ".message");
+            AutomationProperties.SetAutomationId(close, automationId + ".accept");
+        }
+        DialogWindow.Frame(window, DialogFrame.Build(header: null, text, DialogFooter.Build(close)), modal: true);
+        close.Click += (_, _) => window.Close();
+        window.Opened += (_, _) => close.Focus();
+        DialogEscape.Attach(window);
+        return window;
+    }
 }

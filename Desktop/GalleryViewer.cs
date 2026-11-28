@@ -1307,6 +1307,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ResetViewForMedium(entry);
         ReleaseTransientOverlays();
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
+        RefreshFitModeRows();
         UpdatePictureBackground();
         RefreshPanelCounter();
         _exportOriginal.IsEnabled = true;

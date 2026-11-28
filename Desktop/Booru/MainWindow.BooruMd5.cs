@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using MeowChan.Booru;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -19,12 +21,14 @@ public partial class MainWindow
     private async Task SubmitMd5SearchAsync(BooruWorkbenchServices source, string query)
     {
         if (!CanOpenBooru || !_session.ActiveBooruServices.Contains(source)) return;
-        if (_gallery != null) CloseGallery(restoreOrigin: false);
-        if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
-        // The first content choice may defer the draft. Submit only a tab opened by this call.
-        if (OpenBooruSearchDraft(query, source).Opened && _selectedPage == WorkspacePage.Booru
-            && _booruPage is { } page && page.Model.Search.View.Input == query)
-            await page.View.SubmitSearchAsync();
+        if (!await EnsureBooruContentChoiceAsync(this) || !_session.ActiveBooruServices.Contains(source)
+            || !EnsureBooruPage() || _booruPage is not { } page) return;
+
+        (bool opened, int? limit) = OpenMediaBooruSearchDraft(page, query, source);
+        if (opened) await page.View.SubmitSearchAsync();
+        else if (limit is { } count)
+            await DialogPrompt.BuildNotice(Texts.T("booru.ui.title"), Texts.T("booru.tabs.limit", count),
+                Texts.T("action.close"), "BooruMd5TabLimit").ShowDialog(this);
     }
 
     internal bool CanOfferMd5Batch => FindMd5BatchSource() is not null;

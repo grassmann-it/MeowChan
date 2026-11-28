@@ -60,6 +60,65 @@ public sealed class GalleryFitModeTests
         Assert.Equal(start, viewer.CaptureState().PanY);
     });
 
+    [Fact]
+    public void HorizontalFitArrowsBrowseWhenPanHasReachedAnEdge() => WithTallImage((viewer, _) =>
+    {
+        Window window = Assert.IsType<Window>(TopLevel.GetTopLevel(viewer));
+        window.Height = 640;
+        window.UpdateLayout();
+        viewer.RotateView();
+        viewer.ConfigureFit(new GalleryFitPreferences { Mode = GalleryFitMode.Height });
+        viewer.SetPosition("2 / 3", previous: true, next: true);
+        List<int> moves = [];
+        viewer.MoveRequested += moves.Add;
+
+        double start = viewer.CaptureState().PanX;
+        Assert.True(start > 0);
+        Assert.True(Press(viewer, Key.Left));
+        Assert.Equal(-1, Assert.Single(moves));
+        Assert.True(Press(viewer, Key.Right));
+        Assert.True(viewer.CaptureState().PanX < start);
+        Assert.Single(moves);
+        for (int attempt = 0; attempt < 50 && moves.Count < 2; attempt++)
+            Assert.True(Press(viewer, Key.Right));
+        Assert.Equal(new[] { -1, 1 }, moves);
+        Assert.Equal(-start, viewer.CaptureState().PanX, 8);
+    });
+
+    [Fact]
+    public void VideoFitResetsTheImagePreferenceAndTheMenuKeepsOneRadioSelection() => WithTallImage((viewer, _, picture) =>
+    {
+        RadioButton fit = FitRow("gallery.fit");
+        RadioButton width = FitRow("gallery.fit-width");
+        Assert.True(width.IsChecked);
+        Assert.False(fit.IsChecked);
+        Assert.Equal(MenuItemToggleType.Radio, Assert.IsType<GalleryViewer.OverflowItem>(fit.Tag).Icon.ToggleType);
+        List<GalleryFitMode> changes = [];
+        viewer.FitModeChanged += changes.Add;
+
+        using TempDirectory directory = new();
+        const string name = "missing.webm";
+        MediaAssetReference asset = new(name, name, "original", name, Path.Combine(directory.Path, name), 0,
+            new string('0', 64), "", name, true);
+        MediaAssetSnapshot snapshot = new(directory.Path, MediaManifestStatus.Available, 1, "fixture", [asset]);
+        GalleryEntry video = new(new(new("fixture", "gallery", "2"), directory.Path, name), snapshot, asset, null, null, false, false);
+        BooruComponentDispatcher.Wait(viewer.ShowAsync(video, CancellationToken.None));
+        Assert.True(fit.IsChecked);
+        Assert.False(width.IsChecked);
+        typeof(Button).GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(fit, null);
+        Assert.True(fit.IsChecked);
+        Assert.False(width.IsChecked);
+        Assert.Equal(GalleryFitMode.Fit, Assert.Single(changes));
+        BooruComponentDispatcher.Wait(viewer.ShowAsync(picture, CancellationToken.None));
+        Assert.True(fit.IsChecked);
+        Assert.False(width.IsChecked);
+        return;
+
+        RadioButton FitRow(string id) => Assert.IsAssignableFrom<RadioButton>(
+            Assert.Single(viewer.OverflowItems, button => AutomationProperties.GetAutomationId(button) == id));
+    });
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -159,7 +218,10 @@ public sealed class GalleryFitModeTests
         Assert.True(bindings.Matches(new KeyEventArgs { Key = heightGesture.Key, KeyModifiers = heightGesture.KeyModifiers }, height));
     }
 
-    private static void WithTallImage(Action<GalleryViewer, Grid> test) => BooruComponentDispatcher.Run(() =>
+    private static void WithTallImage(Action<GalleryViewer, Grid> test) =>
+        WithTallImage((viewer, viewport, _) => test(viewer, viewport));
+
+    private static void WithTallImage(Action<GalleryViewer, Grid, GalleryEntry> test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory directory = new();
@@ -191,7 +253,7 @@ public sealed class GalleryFitModeTests
                 control => AutomationProperties.GetAutomationId(control) == "GalleryViewport");
             Assert.True(viewer.CaptureState().PanY > 0);
             Assert.InRange(viewer.ViewZoom, 0.01, 0.8);
-            test(viewer, viewport);
+            test(viewer, viewport, entry);
         }
         finally
         {
