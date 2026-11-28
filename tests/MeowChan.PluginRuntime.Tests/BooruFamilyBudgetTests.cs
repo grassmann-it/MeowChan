@@ -33,8 +33,8 @@ public sealed class BooruFamilyBudgetTests
         using HttpClient transport = new(handler);
         using BooruHostHttp firstHost = new(transport, policy, [e621]);
         using BooruHostHttp siblingHost = new(transport, policy, [e926]);
-        BooruJob first = new(clock);
-        BooruJob sibling = new(clock);
+        using BooruJob first = new(clock);
+        using BooruJob sibling = new(clock);
         try
         {
             Assert.Equal("http-challenge", Assert.IsType<HostHttpFailure>(
@@ -101,8 +101,8 @@ public sealed class BooruFamilyBudgetTests
                 return observed;
             }));
         using BooruHostHttp sibling = new(transport, policy, [e926]);
-        BooruJob firstJob = new(clock);
-        BooruJob siblingJob = new(clock);
+        using BooruJob firstJob = new(clock);
+        using BooruJob siblingJob = new(clock);
         try
         {
             Assert.Equal("source_unavailable", Assert.IsType<HostHttpFailure>(
@@ -167,8 +167,8 @@ public sealed class BooruFamilyBudgetTests
             _ => new(HttpStatusCode.OK)
         });
         using HttpClient transport = new(handler);
-        BooruJob firstJob = new(clock);
-        BooruJob reopenedJob = new(clock);
+        using BooruJob firstJob = new(clock);
+        using BooruJob reopenedJob = new(clock);
         try
         {
             DateTimeOffset started = clock.GetUtcNow();

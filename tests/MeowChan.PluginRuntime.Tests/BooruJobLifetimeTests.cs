@@ -23,7 +23,7 @@ public sealed class BooruJobLifetimeTests
     public void CloseCancelsTheJobTokenAndRefusesFurtherReservations()
     {
         ManualClock clock = new();
-        BooruJob job = new(clock);
+        using BooruJob job = new(clock);
         Assert.False(job.Token.IsCancellationRequested);
         Assert.True(job.TryReserveSend());
         job.Close();
@@ -39,13 +39,13 @@ public sealed class BooruJobLifetimeTests
     {
         ManualClock clock = new();
         using CancellationTokenSource operation = new();
-        BooruJob linked = new(clock, operation.Token);
+        using BooruJob linked = new(clock, operation.Token);
         operation.Cancel();
         Assert.True(linked.Token.IsCancellationRequested);
         Assert.False(linked.TryReserveSend());
         linked.Close();
 
-        BooruJob expiring = new(clock);
+        using BooruJob expiring = new(clock);
         clock.Advance(BooruJob.MaximumLifetime - TimeSpan.FromTicks(1));
         Assert.False(expiring.Token.IsCancellationRequested);
         clock.Advance(TimeSpan.FromTicks(1));
@@ -217,7 +217,7 @@ public sealed class BooruJobLifetimeTests
             return Response(HttpStatusCode.OK, "late");
         }));
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
-        BooruJob job = new(clock);
+        using BooruJob job = new(clock);
         clock.Advance(BooruJob.MaximumLifetime - TimeSpan.FromSeconds(5));
 
         Task<HostHttpResult> pending = http.SendAsync(Get(), Source(), job, default);
@@ -241,7 +241,7 @@ public sealed class BooruJobLifetimeTests
             return Response(HttpStatusCode.OK, "late");
         }));
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
-        BooruJob job = new(clock);
+        using BooruJob job = new(clock);
         using CancellationTokenSource caller = new();
         Task<HostHttpResult> pending = http.SendAsync(Get(), Source(), job, caller.Token);
         await EventuallyAsync(() => Volatile.Read(ref sends) == 1);
@@ -269,7 +269,7 @@ public sealed class BooruJobLifetimeTests
         for (int iteration = 0; iteration < 200; ++iteration)
         {
             Volatile.Write(ref closedReturned, 0);
-            BooruJob job = new(clock);
+            using BooruJob job = new(clock);
             using ManualResetEventSlim go = new(false);
             Task<HostHttpResult> send = Task.Run(async () => { go.Wait(); return await http.SendAsync(Get(), Source(), job, default); });
             Task close = Task.Run(() => { go.Wait(); job.Close(); Volatile.Write(ref closedReturned, 1); });
@@ -304,7 +304,7 @@ public sealed class BooruJobLifetimeTests
             using HttpClient transport = new(new PlainTextHandler(sockets));
             ManualClock clock = new();
             using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
-            BooruJob job = new(clock);
+            using BooruJob job = new(clock);
 
             Task<HostHttpResult> pending = http.SendAsync(Get(), Source(), job, default);
             Assert.True(await server.Stalled.Task.WaitAsync(Bound));
