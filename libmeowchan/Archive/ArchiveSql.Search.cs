@@ -126,7 +126,6 @@ internal static partial class ArchiveSql
     {
         ArchiveSearchCompiler compiled = PrepareSearch(connection, transaction, request, cancellationToken);
         string where = compiled.Where;
-        string order = compiled.Order;
         int count;
         IReadOnlyList<int>? tierCounts = null;
         if (compiled.Tiered)
@@ -149,7 +148,14 @@ internal static partial class ArchiveSql
             count = checked(Convert.ToInt32(total.ExecuteScalar(), CultureInfo.InvariantCulture));
         }
         cancellationToken.ThrowIfCancellationRequested();
-        using SqliteCommand page = Command(connection, transaction, $"{compiled.With}SELECT {SummaryColumns}{compiled.TierColumn} FROM archive_threads t {where} ORDER BY {order} LIMIT $limit OFFSET $offset");
+        if (offset >= count)
+            return new ArchiveThreadPage(Array.Empty<ArchiveThreadSummary>(), count, offset)
+            {
+                MatchTiers = compiled.Tiered ? Array.Empty<ArchiveSearchMatchTier>() : null,
+                MatchTierCounts = tierCounts
+            };
+
+        using SqliteCommand page = Command(connection, transaction, $"{compiled.With}SELECT {SummaryColumns}{compiled.TierColumn} FROM archive_threads t {where} ORDER BY {compiled.Order} LIMIT $limit OFFSET $offset");
         compiled.Bind(page);
         page.Parameters.AddWithValue("$limit", limit);
         page.Parameters.AddWithValue("$offset", offset);

@@ -132,6 +132,107 @@ public sealed class ArchiveSearchScaleEvidenceTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    [Trait("Category", "ArchiveScaleEvidence")]
+    public async Task TwoMillionPostsPreserveSearchPagesAndRecordWarmMedians()
+    {
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_ARCHIVE_SEARCH_2M") != "1") return;
+
+        const int ThreadCount = 10_000;
+        const int PostsPerThread = 200;
+        const int PageSize = 50;
+        const int WarmRuns = 5;
+        using TempDirectory directory = new();
+        const string MediaDirectory = "/synthetic";
+        string databasePath = Path.Combine(directory.Path, "archive.db");
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(directory.Path, lease);
+        }
+        using (SqliteConnection connection = Open(databasePath))
+        {
+            using SqliteCommand insert = connection.CreateCommand();
+            insert.CommandText = """
+                WITH RECURSIVE threads(i) AS (VALUES(0) UNION ALL SELECT i+1 FROM threads WHERE i<$lastThread)
+                INSERT INTO archive_threads(source,board,thread,url,title,media_directory,source_state,capture_enabled,first_seen_at,revision,search_text)
+                SELECT 'scale',printf('b%d',i%4),printf('%05d',i),'https://offline.invalid/'||i,'Thread '||i,$media,1,1,
+                  '2026-01-01T00:00:00.0000000+00:00',1,
+                  'scale'||char(10)||printf('b%d',i%4)||char(10)||printf('%05d',i)||char(10)||'Thread '||i FROM threads;
+                """;
+            insert.Parameters.AddWithValue("$lastThread", ThreadCount - 1);
+            insert.Parameters.AddWithValue("$media", MediaDirectory);
+            Assert.Equal(ThreadCount, insert.ExecuteNonQuery());
+
+            insert.CommandText = """
+                WITH RECURSIVE posts(i) AS (VALUES(0) UNION ALL SELECT i+1 FROM posts WHERE i<$lastPost),
+                fixture AS (
+                    SELECT t.source,t.board,t.thread,posts.i,
+                        CASE WHEN posts.i=$lastPost AND CAST(t.thread AS INT)%100=0 THEN 'needle'
+                             WHEN posts.i%8=0 THEN 'common' ELSE 'sample' END AS body
+                    FROM archive_threads t CROSS JOIN posts WHERE t.rowid BETWEEN $first AND $last
+                )
+                INSERT INTO archive_posts(source,board,thread,post,ordinal,fields,html,search_text,is_deleted)
+                SELECT source,board,thread,CAST(i+1 AS TEXT),i,0,body,CAST(i+1 AS TEXT)||char(10)||char(10)||char(10)||body,0
+                FROM fixture;
+                """;
+            insert.Parameters.Clear();
+            insert.Parameters.AddWithValue("$lastPost", PostsPerThread - 1);
+            SqliteParameter firstRow = insert.Parameters.AddWithValue("$first", 1);
+            SqliteParameter lastRow = insert.Parameters.AddWithValue("$last", PostsPerThread);
+            for (int first = 1; first <= ThreadCount; first += PostsPerThread)
+            {
+                firstRow.Value = first;
+                lastRow.Value = first + PostsPerThread - 1;
+                Assert.Equal(PostsPerThread * PostsPerThread, insert.ExecuteNonQuery());
+            }
+            using SqliteCommand inventory = connection.CreateCommand();
+            inventory.CommandText = "SELECT (SELECT count(*) FROM archive_posts), sqlite_version()";
+            Assert.Equal(13, ArchiveSql.GetPragma(connection, "user_version"));
+            using SqliteDataReader row = inventory.ExecuteReader();
+            Assert.True(row.Read());
+            Assert.Equal(ThreadCount * PostsPerThread, row.GetInt32(0));
+            Log(new { kind = "archive-search-2m-fixture", threads = ThreadCount, posts = row.GetInt32(0), boards = 4,
+                databaseBytes = new FileInfo(databasePath).Length, sqlite = row.GetString(1),
+                runtime = RuntimeInformation.FrameworkDescription, processors = Environment.ProcessorCount });
+        }
+
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(directory.Path);
+        int[] orderedThreads = Enumerable.Range(0, ThreadCount).OrderBy(thread => thread % 4).ThenBy(thread => thread).ToArray();
+        await Run("needle", 0, orderedThreads.Where(thread => thread % 100 == 0).ToArray());
+        await Run("common", 0, orderedThreads);
+        await Run("common", ThreadCount - PageSize, orderedThreads);
+        await Run("zz", 0, []);
+
+        async Task Run(string term, int offset, int[] matches)
+        {
+            ArchiveSearchRequest request = ArchiveSearchRequest.Create(new ArchiveSearchSpec(term, sort: ArchiveThreadSort.LatestCapture));
+            ResourceId[] expected = matches.Skip(offset).Take(PageSize).Select(thread => new ResourceId("scale",
+                "b" + (thread % 4).ToString(CultureInfo.InvariantCulture), thread.ToString("D5", CultureInfo.InvariantCulture))).ToArray();
+            double[] milliseconds = new double[WarmRuns + 1];
+            long[] allocatedBytes = new long[WarmRuns + 1];
+            for (int run = 0; run <= WarmRuns; run++)
+            {
+                long allocated = GC.GetTotalAllocatedBytes(precise: true);
+                long started = Stopwatch.GetTimestamp();
+                ArchiveThreadPage page = await reader.SearchThreadsBySpecAsync(request, offset, PageSize);
+                milliseconds[run] = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                allocatedBytes[run] = GC.GetTotalAllocatedBytes(precise: true) - allocated;
+                Assert.Equal(matches.Length, page.TotalCount);
+                Assert.Equal(offset, page.Offset);
+                Assert.Equal(expected, page.Items.Select(item => item.Id));
+                Assert.All(page.Items, item => Assert.Equal(PostsPerThread, item.PostCount));
+                Assert.Null(page.MatchTiers);
+                Assert.Null(page.MatchTierCounts);
+            }
+
+            // The first request for each scenario is reported separately. The seed and other scenarios may warm the OS cache.
+            Log(new { kind = "archive-search-2m-measurement", term, offset, totalMatches = matches.Length,
+                identitiesSha256 = IdentityHash(expected), firstMilliseconds = milliseconds[0], firstAllocatedBytes = allocatedBytes[0],
+                warmMilliseconds = milliseconds[1..], warmMedianMilliseconds = milliseconds[1..].Order().ElementAt(WarmRuns / 2),
+                warmAllocatedBytes = allocatedBytes[1..], warmMedianAllocatedBytes = allocatedBytes[1..].Order().ElementAt(WarmRuns / 2) });
+        }
+    }
+
     private async Task<T> Measure<T>(string scenario, string operation, Func<Task<T>> action, Func<T, int> materialized, Func<T, int> total)
     {
         long allocated = GC.GetTotalAllocatedBytes(precise: true);
