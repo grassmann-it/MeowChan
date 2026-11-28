@@ -9,15 +9,86 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Updates;
+using MeowChan.Downloader;
+using MeowChan.Persistence;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
+using Microsoft.Extensions.Time.Testing;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Localization")]
 public sealed class BooruSourceActivationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task E621SiteSwitchCancelsPendingRetryAndReleasesTheFamilyGate(bool reenable)
+    {
+        TimeSpan bound = TimeSpan.FromSeconds(10);
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        using CountingTransport network = new(retryFirstE621: true);
+        FakeTimeProvider clock = new();
+        if (!File.Exists(Path.Combine(AppContext.BaseDirectory, "plugins", "MeowChan.Plugin.E621.plugin.json")))
+        {
+            string plugins = Path.Combine(profile.Path, "plugins");
+            Directory.CreateDirectory(plugins);
+            await File.WriteAllTextAsync(Path.Combine(plugins, "TestBooru.cs"), FixturePlugin.Replace("SOURCE_DECLARATIONS",
+                "DescribeSource(\"e621\", \"e621.net\"), DescribeSource(\"e926\", \"e926.net\")", StringComparison.Ordinal));
+        }
+
+        Config config = new();
+        DownloadQueue queue = new(config.MaxParallelDownloads, config.BandwidthLimiter);
+        try
+        {
+            await using PluginSession session = new(profile.Path, lease, config, queue, Serilog.Core.Logger.None,
+                transportFactory: network.Client, httpClock: clock);
+            await session.StartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(180));
+            Assert.True(session.SetBooruSiteEnabled("e621", true));
+            BooruProviderBinding e621 = session.BooruSources["e621"];
+            BooruProviderBinding e926 = session.BooruSources["e926"];
+            BooruJob firstJob = e621.Services.OpenJob();
+            BooruJob siblingJob = e926.Services.OpenJob();
+            try
+            {
+                DateTimeOffset started = clock.GetUtcNow();
+                Task<HostHttpResult> first = Send(e621, firstJob);
+                Assert.Equal("e621.net", Assert.Single(network.Hosts));
+                Assert.False(first.IsCompleted);
+                Task<HostHttpResult> sibling = Send(e926, siblingJob);
+                Assert.False(sibling.IsCompleted);
+                clock.Advance(TimeSpan.FromSeconds(1)); // Normal family pacing, with 29s left on the retry timer.
+
+                Assert.True(session.SetBooruSiteEnabled("e621", false));
+                if (reenable) Assert.True(session.SetBooruSiteEnabled("e621", true));
+
+                Assert.Equal("source_unavailable", Assert.IsType<HostHttpFailure>(await first.WaitAsync(bound)).Failure.Code);
+                Assert.Equal(200, Assert.IsType<HostHttpResponse>(await sibling.WaitAsync(bound)).StatusCode);
+                Assert.Equal(started.AddSeconds(1), clock.GetUtcNow());
+                clock.Advance(TimeSpan.FromSeconds(30));
+                Assert.Equal(new[] { "e621.net", "e926.net" }, network.Hosts);
+                Assert.Equal(1, firstJob.Sends);
+                Assert.Equal(1, siblingJob.Sends);
+            }
+            finally
+            {
+                e621.Services.CloseJob(firstJob);
+                e926.Services.CloseJob(siblingJob);
+            }
+        }
+        finally { await queue.StopAllAsync(); }
+
+        static Task<HostHttpResult> Send(BooruProviderBinding binding, BooruJob job)
+        {
+            BooruSearchRequest search = new(binding.Source.SourceId, "cat", 1, 10);
+            PluginOperationContext context = binding.Services.BindOperation(job.Operation, search, binding.Source, CancellationToken.None);
+            return binding.Services.SendHttpAsync(new(search.SourceId, HostHttpMethod.Get,
+                new(binding.Source.BaseUri, "posts.json?tags=cat&page=1&limit=10")), context, CancellationToken.None);
+        }
+    }
+
     [Fact]
     public void SiteSwitchesControlTransportAndPersistAcrossTabRestore() => BooruComponentDispatcher.Run(async () =>
     {
@@ -177,11 +248,12 @@ public sealed class BooruSourceActivationTests
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-    private sealed class CountingTransport : HttpMessageHandler
+    private sealed class CountingTransport(bool retryFirstE621 = false) : HttpMessageHandler
     {
         private readonly TaskCompletionSource _gelbooruEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _gelbooruReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _holdGelbooru;
+        private int _retryE621 = retryFirstE621 ? 1 : 0;
 
         internal ConcurrentQueue<string> Hosts { get; } = new();
         internal HttpClient Client() => new(this, disposeHandler: false);
@@ -198,6 +270,9 @@ public sealed class BooruSourceActivationTests
         {
             string host = request.RequestUri!.Host;
             Hosts.Enqueue(host);
+            if (host == "e621.net" && Interlocked.Exchange(ref _retryE621, 0) == 1)
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                    { Headers = { RetryAfter = new(TimeSpan.FromSeconds(30)) } };
             if (host == "gelbooru.com" && Interlocked.Exchange(ref _holdGelbooru, 0) == 1)
             {
                 _gelbooruEntered.TrySetResult();

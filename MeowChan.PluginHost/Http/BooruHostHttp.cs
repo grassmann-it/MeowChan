@@ -46,9 +46,12 @@ public sealed class BooruHostHttp : IDisposable
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
     private readonly Dictionary<string, BooruSourceProfile> _profiles;
     private readonly Func<TimeSpan>? _maximumCooldownProvider;
-    private readonly Func<long?>? _sourceRevision;
-    private readonly Func<string, bool>? _sourceEnabled;
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceState> _states = new(StringComparer.Ordinal);
+    private readonly SourceAdmission? _sourceAdmission;
+    private readonly object _stateGate = new();
+    private readonly Dictionary<string, SourceState> _states = new(StringComparer.Ordinal);
+    private readonly SourceState? _familyState;
+    private int _stateUsers;
+    private bool _disposed;
 
     // Keep the original public constructor shape for already compiled PluginHost consumers. The
     // configurable cap is an internal host wiring detail, not a new SDK surface.
@@ -60,8 +63,7 @@ public sealed class BooruHostHttp : IDisposable
 
     internal BooruHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
         Func<TimeSpan>? maximumCooldownProvider, string? danbooruUserId = null,
-        string? productVersion = null, bool disposeTransport = false, Func<long?>? sourceRevision = null,
-        Func<string, bool>? sourceEnabled = null)
+        string? productVersion = null, bool disposeTransport = false, SourceAdmission? sourceAdmission = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         ArgumentNullException.ThrowIfNull(policy);
@@ -69,8 +71,7 @@ public sealed class BooruHostHttp : IDisposable
         _clock = policy.TimeProvider;
         _disposeTransport = disposeTransport;
         _maximumCooldownProvider = maximumCooldownProvider;
-        _sourceRevision = sourceRevision;
-        _sourceEnabled = sourceEnabled;
+        _sourceAdmission = sourceAdmission;
         _sources = (sources ?? throw new ArgumentNullException(nameof(sources)))
             .Where(source => source is not null)
             .ToDictionary(source => source.SourceId, StringComparer.Ordinal);
@@ -82,7 +83,20 @@ public sealed class BooruHostHttp : IDisposable
         string version = productVersion ?? BooruUserAgent.ProductVersion();
         _userAgent = BooruUserAgent.Build(version, danbooruUserId);
         _familyUserAgent = BooruUserAgent.BuildForE621Family(version);
+        if (_sources.Values.Any(BooruEndpointPolicy.IsE621Family))
+        {
+            lock (E621Family)
+            {
+                _familyState = E621Family.GetValue(_policy, static _ => new SourceState());
+                _familyState.Owners++;
+            }
+        }
     }
+
+    // The owner updates the generation under Gate. Holding it during reservation makes
+    // a site switch atomic with respect to both the job budget and shared source pacing.
+    internal sealed record SourceAdmission(object Gate, Func<string, SourceGeneration?> Current);
+    internal readonly record struct SourceGeneration(long PluginRevision, long SiteRevision, Task? SiteGenerationEnded);
 
     internal IReadOnlyDictionary<string, SourceDescription> Sources => _sources;
 
@@ -112,17 +126,47 @@ public sealed class BooruHostHttp : IDisposable
             return Failure("http-request", "The booru transport contains host-owned credentials.");
         if (job.IsExpired) return Failure("booru-budget", "The booru job budget is exhausted.");
 
-        long? revision = _sourceRevision?.Invoke();
-        if ((_sourceRevision is not null && revision is null) || !IsCurrent()) return StaleSource();
-        bool IsCurrent() => _sourceEnabled?.Invoke(source.SourceId) != false
-            && (_sourceRevision is null || _sourceRevision() == revision) && account?.IsCurrent() != false;
+        SourceGeneration? generation = null;
+        if (_sourceAdmission is { } admission)
+        {
+            lock (admission.Gate) generation = admission.Current(source.SourceId);
+            if (generation is null) return StaleSource();
+        }
+        if (account?.IsCurrent() == false) return StaleSource();
 
-        SourceState state = StateFor(source);
+        using StateUse? use = TryUseState(source);
+        if (use is null) return StaleSource();
+        SourceState state = use.State;
         TimeSpan spacing = BooruEndpointPolicy.Spacing(ProfileOf(source.SourceId), MinimumStartSpacing);
-        // The caller, job and account generation can each abort admission, pacing and transport.
         using CancellationTokenSource abort = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
         CancellationToken token = abort.Token;
-        Task? accountWatch = account is null ? null : CancelWhenAccountChangesAsync(account.GenerationEnded, abort);
+        Task? accountWatch = account is null ? null : CancelWhenGenerationEndsAsync(account.GenerationEnded, abort);
+        Task? sourceWatch = generation?.SiteGenerationEnded is { } siteEnded ? CancelWhenGenerationEndsAsync(siteEnded, abort) : null;
+
+        bool IsCurrent()
+        {
+            if (_sourceAdmission is { } admission)
+            {
+                lock (admission.Gate)
+                    if (admission.Current(source.SourceId) != generation) return false;
+            }
+            return account?.IsCurrent() != false;
+        }
+
+        HostHttpFailure? ReserveSend(int? status)
+        {
+            if (account?.IsCurrent() == false) return StaleSource();
+            lock (_sourceAdmission?.Gate ?? state.Gate)
+            {
+                if (_sourceAdmission is { } admission && admission.Current(source.SourceId) != generation) return StaleSource();
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!job.TryReserveSend())
+                    return JobEnded(job, status) ?? Failure("booru-budget", "The booru job send budget is exhausted.", status);
+                state.RecordStart(_clock.GetUtcNow(), spacing);
+                return null;
+            }
+        }
+
         bool entered = false;
         try
         {
@@ -147,16 +191,15 @@ public sealed class BooruHostHttp : IDisposable
                 if (JobEnded(job) is HostHttpFailure ended) return ended;
                 DateTimeOffset now = _clock.GetUtcNow();
                 DateTimeOffset cooldownUntil;
-                // CooldownUntil is a 16-byte struct written under Gate: never read it torn.
+                DateTimeOffset challengeUntil;
                 lock (state.Gate)
                 {
-                    DateTimeOffset cap = AddSaturating(now, GetMaximumCooldown());
-                    if (state.CooldownUntil > cap) state.CooldownUntil = cap;
-                    cooldownUntil = state.CooldownUntil;
+                    cooldownUntil = ClampCooldown(state, now);
+                    challengeUntil = state.ChallengeUntil;
                 }
                 if (cooldownUntil > now)
                     return new HostHttpDeferred(cooldownUntil, "booru-cooldown", (int)HttpStatusCode.TooManyRequests);
-                if (state.ChallengeUntil > now) return Challenge();
+                if (challengeUntil > now) return Challenge();
                 if (now >= job.Deadline) return Failure("booru-budget", "The booru job budget is exhausted.");
 
                 DateTimeOffset due = state.NextStartFor(spacing);
@@ -167,12 +210,10 @@ public sealed class BooruHostHttp : IDisposable
                     continue;
                 }
 
-                if (!job.TryReserveSend())
-                    return JobEnded(job) ?? Failure("booru-budget", "The booru job send budget is exhausted.");
-                state.RecordStart(_clock.GetUtcNow(), spacing);
+                if (ReserveSend(null) is { } stop) return stop;
                 string userAgent = BooruEndpointPolicy.IsE621Family(source) ? _familyUserAgent : _userAgent;
                 HostHttpResult result = await SendWithRetryAsync(request, job, state, spacing, userAgent,
-                    account, IsCurrent, cancellationToken, token).ConfigureAwait(false);
+                    account, IsCurrent, ReserveSend, cancellationToken, token).ConfigureAwait(false);
                 return IsCurrent() ? result : StaleSource();
             }
         }
@@ -187,15 +228,16 @@ public sealed class BooruHostHttp : IDisposable
         finally
         {
             if (entered) state.SendGate.Release();
-            if (accountWatch is not null)
+            if (accountWatch is not null || sourceWatch is not null)
             {
                 await abort.CancelAsync().ConfigureAwait(false);
-                await accountWatch.ConfigureAwait(false);
+                if (accountWatch is not null) await accountWatch.ConfigureAwait(false);
+                if (sourceWatch is not null) await sourceWatch.ConfigureAwait(false);
             }
         }
     }
 
-    private static async Task CancelWhenAccountChangesAsync(Task generationEnded, CancellationTokenSource abort)
+    private static async Task CancelWhenGenerationEndsAsync(Task generationEnded, CancellationTokenSource abort)
     {
         try { await generationEnded.WaitAsync(abort.Token).ConfigureAwait(false); }
         catch (OperationCanceledException) when (abort.IsCancellationRequested) { return; }
@@ -213,23 +255,32 @@ public sealed class BooruHostHttp : IDisposable
 
     internal bool TryGetCooldown(string sourceId, out DateTimeOffset retryAt)
     {
-        if (_sources.TryGetValue(sourceId, out SourceDescription? source))
+        using StateUse? use = _sources.TryGetValue(sourceId, out SourceDescription? source) ? TryUseState(source) : null;
+        if (use is not null)
         {
-            SourceState state = StateFor(source);
+            SourceState state = use.State;
             DateTimeOffset now = _clock.GetUtcNow();
             lock (state.Gate)
             {
-                DateTimeOffset cap = AddSaturating(now, GetMaximumCooldown());
-                if (state.CooldownUntil > cap) state.CooldownUntil = cap;
-                if (state.CooldownUntil > now)
+                DateTimeOffset cooldown = ClampCooldown(state, now);
+                DateTimeOffset fence = cooldown > state.ChallengeUntil ? cooldown : state.ChallengeUntil;
+                if (fence > now)
                 {
-                    retryAt = state.CooldownUntil;
+                    retryAt = fence;
                     return true;
                 }
             }
         }
         retryAt = default;
         return false;
+    }
+
+    // Callers hold SourceState.Gate while reading or updating the provider fences.
+    private DateTimeOffset ClampCooldown(SourceState state, DateTimeOffset now)
+    {
+        DateTimeOffset cap = AddSaturating(now, GetMaximumCooldown());
+        if (state.CooldownUntil > cap) state.CooldownUntil = cap;
+        return state.CooldownUntil;
     }
 
     /// <summary>
@@ -240,45 +291,54 @@ public sealed class BooruHostHttp : IDisposable
     internal CooldownReset? BeginCooldownReset(string sourceId)
     {
         if (!_sources.TryGetValue(sourceId, out SourceDescription? source)) return null;
-        SourceState state = StateFor(source);
-
-        while (true)
+        StateUse? use = TryUseState(source);
+        try
         {
-            Task? completion;
+            if (use is null) return null;
+            CooldownReset reset = EnterCooldownReset(use);
+            use = null; // The reset now owns the state until it releases the barrier.
+            return reset;
+        }
+        finally { use?.Dispose(); }
+    }
+
+    private static CooldownReset EnterCooldownReset(StateUse use)
+    {
+        SourceState state = use.State;
+
+        bool resetting = false;
+        bool entered = false;
+        try
+        {
             long resetVersion;
-            lock (state.Gate)
+            while (true)
             {
-                if (!state.Resetting)
+                Task completion;
+                lock (state.Gate)
                 {
-                    state.Resetting = true;
-                    state.ResetCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                    // Capture the version at barrier admission. A late 429 from an already running
-                    // request increments this version while we wait and must survive the reset.
-                    resetVersion = state.CooldownVersion;
-                    completion = null;
-                }
-                else
-                {
+                    if (!state.Resetting)
+                    {
+                        state.Resetting = true;
+                        resetting = true;
+                        state.ResetCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                        // A new provider fence from an admitted request must survive this reset.
+                        resetVersion = state.CooldownVersion;
+                        break;
+                    }
                     completion = state.ResetCompleted!.Task;
-                    resetVersion = 0;
                 }
-            }
-            if (completion is not null)
-            {
                 completion.GetAwaiter().GetResult();
-                continue;
             }
 
-            bool entered = false;
-            try
-            {
-                // Resetting is already visible under Gate, so a waiter that happens to acquire the
-                // semaphore before this call does so only to observe the barrier and wait.
-                state.SendGate.Wait();
-                entered = true;
-                return new CooldownReset(state, resetVersion);
-            }
-            catch
+            // Resetting is already visible under Gate, so a waiter that acquires the
+            // semaphore before this call observes the barrier and waits.
+            state.SendGate.Wait();
+            entered = true;
+            return new CooldownReset(use, resetVersion);
+        }
+        catch
+        {
+            if (resetting)
             {
                 lock (state.Gate)
                 {
@@ -286,8 +346,8 @@ public sealed class BooruHostHttp : IDisposable
                     state.ResetCompleted!.TrySetResult();
                 }
                 if (entered) state.SendGate.Release();
-                throw;
             }
+            throw;
         }
     }
 
@@ -309,7 +369,7 @@ public sealed class BooruHostHttp : IDisposable
 
     private async Task<HostHttpResult> SendWithRetryAsync(HostHttpRequest request,
         BooruJob job, SourceState state, TimeSpan spacing, string userAgent, BooruAccountBinding.Operation? account,
-        Func<bool> isCurrent, CancellationToken cancellationToken, CancellationToken abort)
+        Func<bool> isCurrent, Func<int?, HostHttpFailure?> reserveSend, CancellationToken cancellationToken, CancellationToken abort)
     {
         bool retried = false;
         while (true)
@@ -357,7 +417,7 @@ public sealed class BooruHostHttp : IDisposable
                     attempt.Dispose();
                     attempt = null;
                     response = null;
-                    if (await DelayRetryAsync(job, state, spacing, abort, retryAfter, status).ConfigureAwait(false) is { } stop)
+                    if (await DelayRetryAsync(job, state, spacing, reserveSend, abort, retryAfter, status).ConfigureAwait(false) is { } stop)
                         return stop;
                     continue;
                 }
@@ -414,7 +474,7 @@ public sealed class BooruHostHttp : IDisposable
             catch (HttpRequestException) when (!retried && !IsTerminalStatus(response))
             {
                 retried = true;
-                if (await DelayRetryAsync(job, state, spacing, abort).ConfigureAwait(false) is { } stop)
+                if (await DelayRetryAsync(job, state, spacing, reserveSend, abort).ConfigureAwait(false) is { } stop)
                     return stop;
                 continue;
             }
@@ -425,7 +485,7 @@ public sealed class BooruHostHttp : IDisposable
             catch (IOException) when (!retried && !IsTerminalStatus(response))
             {
                 retried = true;
-                if (await DelayRetryAsync(job, state, spacing, abort).ConfigureAwait(false) is { } stop)
+                if (await DelayRetryAsync(job, state, spacing, reserveSend, abort).ConfigureAwait(false) is { } stop)
                     return stop;
                 continue;
             }
@@ -442,7 +502,7 @@ public sealed class BooruHostHttp : IDisposable
 
     /// <summary>Waits for the single transport retry; returns the stop failure when the job cannot send again.</summary>
     private async Task<HostHttpFailure?> DelayRetryAsync(BooruJob job, SourceState state, TimeSpan spacing,
-        CancellationToken abort, RetryAfterValue? retryAfter = null, int? status = null)
+        Func<int?, HostHttpFailure?> reserveSend, CancellationToken abort, RetryAfterValue? retryAfter = null, int? status = null)
     {
         DateTimeOffset retryAt = RetryAt(retryAfter, _clock.GetUtcNow(), GetMaximumCooldown());
         DateTimeOffset nextStart = state.NextStartFor(spacing);
@@ -451,16 +511,16 @@ public sealed class BooruHostHttp : IDisposable
             return Failure("booru-budget", "The booru job budget is exhausted.", status);
         // A cancellation here propagates to SendAsync, which maps a job end to its failure.
         await DelayUntilAsync(retryAt, abort).ConfigureAwait(false);
-        if (JobEnded(job, status) is HostHttpFailure ended) return ended;
-        if (!job.TryReserveSend())
-            return JobEnded(job, status) ?? Failure("booru-budget", "The booru job send budget is exhausted.", status);
-        state.RecordStart(_clock.GetUtcNow(), spacing);
-        return null;
+        return reserveSend(status);
     }
 
     private HostHttpFailure StopForChallenge(SourceState state)
     {
-        state.ChallengeUntil = AddSaturating(_clock.GetUtcNow(), MinimumCooldown);
+        lock (state.Gate)
+        {
+            state.CooldownVersion++;
+            state.ChallengeUntil = AddSaturating(_clock.GetUtcNow(), MinimumCooldown);
+        }
         return Challenge();
     }
 
@@ -595,9 +655,37 @@ public sealed class BooruHostHttp : IDisposable
         }
     }
 
-    private SourceState StateFor(SourceDescription source) => BooruEndpointPolicy.IsE621Family(source)
-        ? E621Family.GetValue(_policy, static _ => new SourceState())
-        : _states.GetOrAdd(source.SourceId, static _ => new SourceState());
+    private StateUse? TryUseState(SourceDescription source)
+    {
+        lock (_stateGate)
+        {
+            if (_disposed) return null;
+            SourceState? state = BooruEndpointPolicy.IsE621Family(source) ? _familyState : _states.GetValueOrDefault(source.SourceId);
+            if (state is null) _states.Add(source.SourceId, state = new SourceState());
+            _stateUsers++;
+            return new StateUse(this, state);
+        }
+    }
+
+    private void ReleaseState()
+    {
+        lock (_stateGate)
+            if (--_stateUsers == 0 && _disposed) DisposeStates();
+    }
+
+    // Called under _stateGate once the host is closed and all sends and resets released their gates.
+    private void DisposeStates()
+    {
+        foreach (SourceState state in _states.Values) state.Dispose();
+        _states.Clear();
+        if (_familyState is null) return;
+        lock (E621Family)
+        {
+            if (--_familyState.Owners != 0) return;
+            E621Family.Remove(_policy);
+            _familyState.Dispose();
+        }
+    }
 
     private bool HasForbiddenTransportDefaults() =>
         _transport.DefaultRequestHeaders.Authorization is not null
@@ -737,19 +825,31 @@ public sealed class BooruHostHttp : IDisposable
 
     public void Dispose()
     {
-        foreach (SourceState state in _states.Values) state.Dispose();
+        lock (_stateGate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            if (_stateUsers == 0) DisposeStates();
+        }
         if (_disposeTransport) _transport.Dispose();
+    }
+
+    internal sealed class StateUse(BooruHostHttp owner, SourceState state) : IDisposable
+    {
+        internal SourceState State { get; } = state;
+
+        public void Dispose() => owner.ReleaseState();
     }
 
     internal sealed class CooldownReset : IDisposable
     {
-        private readonly SourceState _state;
+        private readonly StateUse _use;
         private readonly long _resetVersion;
         private int _completed;
 
-        internal CooldownReset(SourceState state, long resetVersion)
+        internal CooldownReset(StateUse use, long resetVersion)
         {
-            _state = state;
+            _use = use;
             _resetVersion = resetVersion;
         }
 
@@ -762,18 +862,22 @@ public sealed class BooruHostHttp : IDisposable
         private bool Complete(bool clear)
         {
             if (Interlocked.Exchange(ref _completed, 1) != 0) return false;
-            bool cleared = false;
-            lock (_state.Gate)
+            SourceState state = _use.State;
+            bool cleared;
+            lock (state.Gate)
             {
-                // A late 429 from a request admitted before the barrier changed the version. It is
-                // never removed, whether this transaction commits or aborts. Report that the commit
-                // did not clear the fence, so the caller cannot expose a false reset success.
-                cleared = _state.CooldownVersion == _resetVersion;
-                if (clear && cleared) _state.CooldownUntil = default;
-                _state.Resetting = false;
-                _state.ResetCompleted!.TrySetResult();
+                // Requests admitted before the barrier can create a new fence while reset waits.
+                cleared = state.CooldownVersion == _resetVersion;
+                if (clear && cleared)
+                {
+                    state.CooldownUntil = default;
+                    state.ChallengeUntil = default;
+                }
+                state.Resetting = false;
+                state.ResetCompleted!.TrySetResult();
             }
-            _state.SendGate.Release();
+            state.SendGate.Release();
+            _use.Dispose();
             return !clear || cleared;
         }
     }
@@ -789,6 +893,7 @@ public sealed class BooruHostHttp : IDisposable
         internal DateTimeOffset ChallengeUntil;
         internal DateTimeOffset CooldownUntil;
         internal long CooldownVersion;
+        internal int Owners; // Shared family hosts, guarded by E621Family.
         internal bool Resetting;
         internal TaskCompletionSource? ResetCompleted;
 

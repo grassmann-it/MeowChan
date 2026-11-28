@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Reflection;
 using MeowChan.Archive;
 using MeowChan.Booru;
 using MeowChan.Http;
@@ -14,6 +15,79 @@ namespace MeowChan.PluginRuntime.Tests;
 public sealed class BooruFamilyBudgetTests
 {
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(10);
+
+    [Fact]
+    public async Task E621ChallengeIsVisibleAndResettableFromItsSibling()
+    {
+        ManualClock clock = new();
+        RequestPolicyState policy = new(clock);
+        SourceDescription e621 = Source("e621", "e621.net");
+        SourceDescription e926 = Source("e926", "e926.net");
+        bool challenge = true;
+        using Transport handler = new(_ => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(challenge ? "<html>challenge</html>" : "{}", null,
+                challenge ? "text/html" : "application/json")
+        });
+        using HttpClient transport = new(handler);
+        using BooruHostHttp firstHost = new(transport, policy, [e621]);
+        using BooruHostHttp siblingHost = new(transport, policy, [e926]);
+        BooruJob first = new(clock);
+        BooruJob sibling = new(clock);
+        try
+        {
+            Assert.Equal("http-challenge", Assert.IsType<HostHttpFailure>(
+                await firstHost.SendAsync(Get(e621), e621, first, default).WaitAsync(Bound)).Failure.Code);
+            DateTimeOffset expected = clock.GetUtcNow() + BooruHostHttp.MinimumCooldown;
+            Assert.True(firstHost.TryGetCooldown("e621", out DateTimeOffset firstUntil));
+            Assert.True(siblingHost.TryGetCooldown("e926", out DateTimeOffset siblingUntil));
+            Assert.Equal(expected, firstUntil);
+            Assert.Equal(expected, siblingUntil);
+            Assert.Equal("http-challenge", Assert.IsType<HostHttpFailure>(
+                await siblingHost.SendAsync(Get(e926), e926, sibling, default).WaitAsync(Bound)).Failure.Code);
+            Assert.Equal(0, sibling.Sends);
+
+            Assert.True(siblingHost.ResetCooldown("e926"));
+            Assert.False(firstHost.TryGetCooldown("e621", out _));
+            Assert.False(siblingHost.TryGetCooldown("e926", out _));
+            challenge = false;
+            clock.Advance(BooruHostHttp.MinimumStartSpacing);
+            Assert.Equal(200, Assert.IsType<HostHttpResponse>(
+                await siblingHost.SendAsync(Get(e926), e926, sibling, default).WaitAsync(Bound)).StatusCode);
+            Assert.Equal(1, sibling.Sends);
+        }
+        finally
+        {
+            first.Close();
+            sibling.Close();
+        }
+
+        static HostHttpRequest Get(SourceDescription source) => new(source.SourceId, HostHttpMethod.Get,
+            new Uri(source.BaseUri, "posts.json?tags=wolf&page=1&limit=12"));
+    }
+
+    [Fact]
+    public void E621FamilyGateIsDisposedAfterItsLastOwnerAndResetFinish()
+    {
+        RequestPolicyState policy = new();
+        using HttpClient transport = new();
+        using BooruHostHttp first = new(transport, policy, [Source("e621", "e621.net")]);
+        using BooruHostHttp sibling = new(transport, policy, [Source("e926", "e926.net")]);
+        var field = typeof(BooruHostHttp).GetField("_familyState", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var family = Assert.IsType<BooruHostHttp.SourceState>(field.GetValue(first));
+        Assert.Same(family, field.GetValue(sibling));
+
+        first.Dispose();
+        Assert.True(sibling.ResetCooldown("e926"));
+        using var reset = sibling.BeginCooldownReset("e926");
+        Assert.NotNull(reset);
+        sibling.Dispose();
+        Assert.True(reset.Commit());
+        Assert.Throws<ObjectDisposedException>(() => family.SendGate.Wait(0));
+
+        using BooruHostHttp reopened = new(transport, policy, [Source("e926", "e926.net")]);
+        Assert.True(reopened.ResetCooldown("e926"));
+    }
 
     [Fact]
     public async Task SeparateHostsTabsWatcherAndRetryShareSpacingAndRetryAfter()
