@@ -12,10 +12,12 @@ using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.Updates;
+using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.PluginSdk;
 using MeowChan.Storage;
+using MeowChan.Tags;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
@@ -98,7 +100,7 @@ public sealed class BooruMd5LookupTests
     });
 
     [Fact]
-    public void ConfirmingTheFirstChoiceAtTheTabLimitKeepsTheAllowedGalleryImage() => BooruComponentDispatcher.Run(async () =>
+    public void ConfirmingTheFirstChoiceAtTheTabLimitKeepsTheAllowedGalleryImageAndDropsBlockedTagTargets() => BooruComponentDispatcher.Run(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory profile = new();
@@ -110,6 +112,10 @@ public sealed class BooruMd5LookupTests
         FakeBooruSearchPort search = new();
         BooruPostKey general = new(search.ProviderId, search.InstanceId, "101");
         BooruPostKey explicitPost = new(search.ProviderId, search.InstanceId, "102");
+        GalleryEntry allowed = await SaveEntryAsync(general, 41);
+        GalleryEntry blocked = await SaveEntryAsync(explicitPost, 42);
+        FavoriteAssetKey allowedRating = FavoriteAssetKey.From(allowed.Key.Thread, allowed.Asset);
+        FavoriteAssetKey blockedRating = FavoriteAssetKey.From(blocked.Key.Thread, blocked.Asset);
         using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
         {
             lease.Admission.CompleteStartup();
@@ -118,13 +124,12 @@ public sealed class BooruMd5LookupTests
                 Rating: BooruPostClaimRating.General, RawRating: "g", InstanceId: general.InstanceId), DateTimeOffset.UnixEpoch);
             catalog.UpsertPost(new(explicitPost.SourceId, explicitPost.PostId, BooruPostClaimPresence.Rating,
                 Rating: BooruPostClaimRating.Explicit, RawRating: "e", InstanceId: explicitPost.InstanceId), DateTimeOffset.UnixEpoch);
+            catalog.LinkLocalAsset(general.SourceId, general.PostId, allowed.Asset.AssetId, allowed.Asset.Path);
+            catalog.LinkLocalAsset(explicitPost.SourceId, explicitPost.PostId, blocked.Asset.AssetId, blocked.Asset.Path);
             new BooruSearchTabStore(lease).Write(new(0,
                 [new(search.ProviderId, search.InstanceId, null, "cat", Empty: true),
                  new(search.ProviderId, search.InstanceId, null, "dog", Empty: true)]));
         }
-        GalleryEntry allowed = await SaveEntryAsync(general, 41);
-        GalleryEntry blocked = await SaveEntryAsync(explicitPost, 42);
-
         await using DesktopSessionHost session = new(profile.Path, [],
             updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
         BooruWorkbenchServices source = new(search, new FakeBooruQueuePort(), new FakeBooruWatcherPort(new BooruManualClock()),
@@ -137,12 +142,25 @@ public sealed class BooruMd5LookupTests
         Click(ById<Button>(main, "MediaNavigationButton"));
         Assert.Equal(MainWindow.WorkspacePage.Media, main.SelectedPage);
         Assert.False(source.Content.HasChoice);
-        Assert.NotNull(await main.OpenMediaGalleryAsync([blocked, allowed], allowed.EntryKey));
+        Assert.NotNull(await main.OpenMediaGalleryAsync([blocked, allowed], blocked.EntryKey));
         ContentControl gallery = ById<ContentControl>(main, "GalleryHost");
         GalleryViewer viewer = Assert.IsType<GalleryViewer>(gallery.Content);
         Assert.Equal(2, viewer.Filmstrip.Count);
         Assert.Equal(blocked.EntryKey, viewer.Filmstrip.EntryAt(0)!.EntryKey);
+        Assert.Equal(0, viewer.Filmstrip.CurrentIndex);
+        Assert.True(viewer.TagsButton.IsEnabled);
+        Click(viewer.TagsButton);
+        QuickTagSurface surface = Assert.IsType<QuickTagSurface>(viewer.TagSurface);
+        Assert.True(surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.MarkNext)));
+        await BooruTestSupport.WaitAsync(() => viewer.TagPanelController?.Entry.EntryKey == allowed.EntryKey, "the tag panel to follow the allowed image");
         Assert.Equal(1, viewer.Filmstrip.CurrentIndex);
+        Assert.Equal(1, surface.MarkedCount);
+        Assert.True(surface.Session.IsSelection);
+        GalleryTagPanelController controller = Assert.IsType<GalleryTagPanelController>(viewer.TagPanelController);
+        Assert.Equal(blocked.EntryKey, Assert.Single(controller.DecisionTargets()).EntryKey);
+        Assert.True(Assert.IsType<GalleryDecisionRow>(viewer.DecisionRow).RequestRating(2));
+        await BooruTestSupport.WaitAsync(() => controller.Decisions?.CanUndo == true, "the rating of the marked image to be saved");
+        Assert.Equal(2, session.GetMediaRating(blockedRating));
         int generation = viewer.MediaRequestGeneration;
 
         BooruMd5Lookup lookup = Assert.IsType<BooruMd5Lookup>(MainWindow.Md5LookupFor(main));
@@ -170,18 +188,49 @@ public sealed class BooruMd5LookupTests
         Assert.Equal(2, Assert.IsType<BooruPage>(main.BooruPageForTests).View.SearchTabs.Ids.Count);
         Assert.Empty(search.Searches);
 
+        Assert.Empty(Assert.IsType<GalleryMarks>(viewer.Marks).Snapshot());
+        QuickTagSurface filteredSurface = Assert.IsType<QuickTagSurface>(viewer.TagSurface);
+        GalleryTagPanelController filteredController = Assert.IsType<GalleryTagPanelController>(viewer.TagPanelController);
+        Assert.Equal(0, filteredSurface.MarkedCount);
+        Assert.False(filteredSurface.Session.IsSelection);
+        Assert.Equal(allowed.EntryKey, Assert.Single(filteredController.DecisionTargets()).EntryKey);
+        await filteredSurface.UndoAsync();
+        Assert.Equal(2, session.GetMediaRating(blockedRating));
+
+        Assert.True(Assert.IsType<GalleryDecisionRow>(viewer.DecisionRow).RequestRating(4));
+        await BooruTestSupport.WaitAsync(() => session.GetMediaRating(allowedRating) == 4, "the rating of the allowed image to be saved");
+        Assert.Equal(2, session.GetMediaRating(blockedRating));
+        await filteredSurface.Session.AddAsync("after_filter");
+        PrivateTagStoreSnapshot tags = Assert.IsType<PrivateTagStoreSnapshot>(session.GetPrivateTagSnapshot().Snapshot);
+        Assert.Equal("after_filter", Assert.Single(tags.TagsOf(MediaTagSubjects.Of(allowed)!)).Name.Display);
+        Assert.Empty(tags.TagsOf(MediaTagSubjects.Of(blocked)!));
+
         static bool IsTabLimitNotice(Window window) => AutomationProperties.GetAutomationId(window) == "BooruMd5TabLimit";
 
         async Task<GalleryEntry> SaveEntryAsync(BooruPostKey post, int marker)
         {
             string name = post.PostId + ".png";
-            string file = Path.Combine(profile.Path, name);
+            string directory = Path.Combine(profile.Path, "media", post.PostId);
+            Directory.CreateDirectory(directory);
             byte[] png = BooruUiFixtures.Png(marker);
-            await File.WriteAllBytesAsync(file, png);
-            MediaAssetReference asset = new(name, name, "original", name, file, png.Length,
-                Convert.ToHexStringLower(SHA256.HashData(png)), "", name, true);
-            MediaAssetSnapshot manifest = new(profile.Path, MediaManifestStatus.Available, 1, "fixture", [asset]);
-            return new(new(BooruMediaIdentity.Thread(post), profile.Path, asset.AssetId), manifest, asset, null, null, false, false);
+            await File.WriteAllBytesAsync(Path.Combine(directory, name), png);
+            await File.WriteAllTextAsync(Path.Combine(directory, ".meowchan-manifest.json"), JsonSerializer.Serialize(new
+            {
+                Version = 1,
+                Entries = new Dictionary<string, object>
+                {
+                    [name] = new
+                    {
+                        MediaIdentifier = BooruMediaKey.Original(post).StorageId, Variant = "original", FileName = name,
+                        SourceUrl = "https://offline.invalid/" + name, OriginalFileName = name, Length = png.Length,
+                        Sha256 = Convert.ToHexStringLower(SHA256.HashData(png)), Md5 = Convert.ToBase64String(MD5.HashData(png))
+                    }
+                }
+            }));
+            MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory);
+            MediaAssetReference asset = Assert.Single(manifest.GetPage());
+            return new GalleryEntry(new(BooruMediaIdentity.Thread(post), directory, asset.AssetId), manifest, asset, null, null, false, false)
+            { LocalTagEligible = true };
         }
     });
 

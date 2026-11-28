@@ -240,7 +240,7 @@ internal static class GalleryCaptionChecks
         }
     }
 
-    internal static async Task CheckLiveThemeAsync(MainWindow window, GalleryViewer viewer)
+    internal static async Task CheckLiveThemeAsync(MainWindow window, GalleryViewer viewer, int? expectedAssociations = null)
     {
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         bool originalContext = viewer.CaptureState().ContextOpen;
@@ -302,7 +302,10 @@ internal static class GalleryCaptionChecks
                 if (current.Key != held.Key || current.PostId != held.PostId || current.AttachmentPosition != held.AttachmentPosition
                     || current.ManualZoom != held.ManualZoom || !current.ContextOpen)
                     throw new InvalidOperationException("Live theme change lost the gallery asset, zoom mode or context.");
-                if (viewer.GetGalleryVisualDescendants().OfType<ComboBox>().Any(control => control.Name == "GalleryPostAssociation"))
+                ComboBox? selector = viewer.GetGalleryVisualDescendants().OfType<ComboBox>().SingleOrDefault(control => control.Name == "GalleryPostAssociation");
+                if (expectedAssociations is int count && selector?.ItemCount != count)
+                    throw new InvalidOperationException($"The gallery post selector must contain {count} associations.");
+                if (selector != null)
                     await CheckContextSelectorAsync(window, viewer, variant);
                 Console.WriteLine("SMOKE gallery live theme: " + JsonSerializer.Serialize(new
                 { theme = variant.ToString(), colors = colors.ToDictionary(pair => pair.Key, pair => pair.Value.ToString()), asset = current.Key?.ToString() }));

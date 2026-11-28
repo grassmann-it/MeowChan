@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
+using Avalonia.Controls.Automation.Peers;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -71,14 +74,24 @@ internal sealed partial class GalleryViewer
     internal IReadOnlyList<Button> OverflowItems => _overflowButtons;
     internal Control OverflowMenuContent => _overflowPanel;
     private readonly List<(GalleryFitMode Mode, RadioButton Button)> _fitModeRows = new();
-    private bool _refreshingFitModeRows;
 
     private sealed class FitModeButton : RadioButton
     {
         protected override Type StyleKeyOverride => typeof(ToggleButton);
+        protected override AutomationPeer OnCreateAutomationPeer() => new Peer(this);
 
         // The viewer owns the selection, including when a choice cannot act on the current media.
         protected override void Toggle() { }
+
+        private sealed class Peer(FitModeButton owner) : RadioButtonAutomationPeer(owner), ISelectionItemProvider
+        {
+            void ISelectionItemProvider.Select()
+            {
+                EnsureEnabled();
+                // Selecting Fit can reset the image preference even if video already shows the row as selected.
+                owner.OnClick();
+            }
+        }
     }
 
     private void InitializeFitModeMenu()
@@ -90,28 +103,19 @@ internal sealed partial class GalleryViewer
                 label: () => FitModeLabel(mode));
             _overflowPanel.Children.Move(_overflowPanel.Children.IndexOf(button), insertAt++);
             button.Click += (_, _) => SelectFitMode(mode);
-            button.IsCheckedChanged += (_, _) =>
-            {
-                if (!_refreshingFitModeRows && button.IsChecked == true) SelectFitMode(mode);
-            };
             _fitModeRows.Add((mode, button));
         }
     }
 
     private void RefreshFitModeRows()
     {
-        _refreshingFitModeRows = true;
-        try
+        foreach (var (mode, button) in _fitModeRows)
         {
-            foreach (var (mode, button) in _fitModeRows)
-            {
-                button.IsChecked = mode == EffectiveFitMode;
-                button.IsEnabled = mode == GalleryFitMode.Fit
-                    ? _fit.IsEnabled || _fitPreferences.Mode != GalleryFitMode.Fit
-                    : CanSelectImageFitMode;
-            }
+            button.IsChecked = mode == EffectiveFitMode;
+            button.IsEnabled = mode == GalleryFitMode.Fit
+                ? _fit.IsEnabled || _fitPreferences.Mode != GalleryFitMode.Fit
+                : CanSelectImageFitMode;
         }
-        finally { _refreshingFitModeRows = false; }
     }
 
     /// <summary>Opens or closes the "⋯" menu without a pointer or key (smokes and tests).</summary>

@@ -132,7 +132,7 @@ internal sealed partial class GalleryViewer
 
     // Called when the slot closes or the viewer stops: gives the slot back to the post panel and ends every background step.
     // True when a tag panel was released, so closing it does not rewrite the post panel's "open" preference.
-    private bool ReleaseTagPanel()
+    private bool ReleaseTagPanel(bool keepFreeTagMode = false)
     {
         if (!_tagPanelOpen) return false;
         _tagPanelOpen = false;
@@ -168,9 +168,26 @@ internal sealed partial class GalleryViewer
         ApplyChrome(); // the row is gone: the info line shows the rating again (QW5)
         // The post context was not kept current meanwhile.
         _contextDirty = true;
-        EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk is the panel; it ends with it
+        if (!keepFreeTagMode) EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk ends when its panel closes
         RefreshPanelCounter();
         return true;
+    }
+
+    private void RefreshTagPanelEntries(IReadOnlyList<GalleryEntry> entries)
+    {
+        _marks?.RetainEntries(entries);
+        if (!_tagPanelOpen || _tagOwner is not { } owner || _tagSurface is not { } surface) return;
+
+        // Undo steps also freeze their targets. Retire the old sessions when the content boundary changes.
+        bool hadFocus = surface.IsKeyboardFocusWithin;
+        string? draft = surface.Input.Text;
+        ReleaseTagPanel(keepFreeTagMode: true);
+        ShowTagPanel(owner);
+        if (_tagSurface is { } refreshed)
+        {
+            refreshed.FocusOnAttach = hadFocus;
+            refreshed.Input.Text = draft;
+        }
     }
 
     // P: while the tag panel holds the slot the post takes it over (and is remembered as open); otherwise the plain toggle.

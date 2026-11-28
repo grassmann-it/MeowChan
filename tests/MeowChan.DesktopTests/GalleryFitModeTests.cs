@@ -87,8 +87,10 @@ public sealed class GalleryFitModeTests
         Assert.Equal(-start, viewer.CaptureState().PanX, 8);
     });
 
-    [Fact]
-    public void VideoFitResetsTheImagePreferenceAndTheMenuKeepsOneRadioSelection() => WithTallImage((viewer, _, picture) =>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void VideoFitResetsTheImagePreferenceAndTheMenuKeepsOneRadioSelection(bool viaAutomation) => WithTallImage((viewer, _, picture) =>
     {
         RadioButton fit = FitRow("gallery.fit");
         RadioButton width = FitRow("gallery.fit-width");
@@ -121,7 +123,10 @@ public sealed class GalleryFitModeTests
         Assert.True(fit.IsEnabled);
         Assert.False(width.IsChecked);
         Assert.False(height.IsChecked);
-        typeof(Button).GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        var fitSelection = Assert.IsAssignableFrom<ISelectionItemProvider>(ControlAutomationPeer.CreatePeerForElement(fit));
+        Assert.True(fitSelection.IsSelected);
+        if (viaAutomation) fitSelection.Select();
+        else typeof(Button).GetMethod("OnClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
             .Invoke(fit, null);
         Assert.True(fit.IsChecked);
         Assert.False(width.IsChecked);
